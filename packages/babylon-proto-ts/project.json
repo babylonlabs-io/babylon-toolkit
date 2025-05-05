@@ -1,20 +1,25 @@
 {
-  "name": "proto-ts",
+  "name": "babylon-proto-ts",
   "projectType": "library",
   "root": "packages/babylon-proto-ts",
   "sourceRoot": "packages/babylon-proto-ts/src",
   "targets": {
     "build": {
-      "executor": "@nx/js:tsc",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "executor": "nx:run-commands",
       "options": {
-        "outputPath": "dist/packages/babylon-proto-ts",
-        "main": "packages/babylon-proto-ts/src/index.ts",
-        "tsConfig": "packages/babylon-proto-ts/tsconfig.lib.json"
+        "command": "npm run build",
+        "cwd": "packages/babylon-proto-ts",
+        "parallel": false
       }
     }
   },
-  "tags": []
+  "release": {
+    "version": {
+      "conventionalCommits": true,
+      "tagFormat": "${projectName}@${version}",
+      "generatorOptions": {
+        "fallbackCurrentVersionResolver": "disk"
+      }
+    }
+  }
 }
