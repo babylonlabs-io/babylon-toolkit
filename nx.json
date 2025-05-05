@@ -31,6 +31,7 @@
   "release": {
     "version": {
       "conventionalCommits": true
-    }
+    },
+    "releaseTagPattern": "(?<projectName>.+)@(?<version>.+)"
   }
 }
