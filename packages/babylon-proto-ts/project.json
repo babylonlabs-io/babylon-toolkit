@@ -1,0 +1,20 @@
+{
+  "name": "proto-ts",
+  "projectType": "library",
+  "root": "packages/babylon-proto-ts",
+  "sourceRoot": "packages/babylon-proto-ts/src",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/packages/babylon-proto-ts",
+        "main": "packages/babylon-proto-ts/src/index.ts",
+        "tsConfig": "packages/babylon-proto-ts/tsconfig.lib.json"
+      }
+    }
+  },
+  "tags": []
+}
