@@ -20,6 +20,9 @@
       "generatorOptions": {
         "fallbackCurrentVersionResolver": "disk"
       }
+    },
+    "changelog": {
+      "releaseTagPattern": "babylon-proto-ts@(?<version>.*)"
     }
   }
 }
