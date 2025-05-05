@@ -1,12 +1,40 @@
-name: ci
+name: Build and Release in Mono Repo
 
 on:
-  pull_request:
+  push:
     branches:
-      - "**"
+      - main
 
 jobs:
-  lint_test:
-    uses: babylonlabs-io/.github/.github/workflows/reusable_node_lint_test.yml@v0.9.0
-    with:
-      run-build: true
+  build_and_release:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.3.0'
+
+      - name: Install dependencies
+        run: npm install
+
+      # TODO: Uncomment when import next lib which have tests and lint
+      # - name: Lint affected
+      #   run: npx nx affected --target=lint --base=origin/main
+
+      # - name: Test affected
+      #   run: npx nx affected --target=test --base=origin/main
+
+      - name: Build affected
+        run: npx nx affected --target=build --base=origin/main
+
+      - name: Release changed packages
+        run: npx nx release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
