@@ -5,11 +5,13 @@ const BABYLON_REPO_URL = "https://github.com/babylonlabs-io/babylon.git"
 const BABYLON_REPO_DIR = "babylon"
 const PROTO_DIR = "proto"
 
+const BABYLON_REPO_TAG = "v1.0.0";
+
 const generateProto = async () => {
   try {
     // Clone the Babylon repository
     console.log("Cloning the Babylon repository...")
-    shell.exec(`git clone --depth 1 ${BABYLON_REPO_URL} ${BABYLON_REPO_DIR}`)
+    shell.exec(`git clone --depth 1 --branch ${BABYLON_REPO_TAG} ${BABYLON_REPO_URL} ${BABYLON_REPO_DIR}`)
 
     // Copy the proto files
     console.log("Copying proto files...")
