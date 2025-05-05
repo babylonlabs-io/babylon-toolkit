@@ -1,0 +1,30 @@
+name: Verify PR
+
+on:
+  pull_request:
+    branches: [main] # or your default branch
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.3.0'
+
+      - name: Install dependencies
+        run: npm install
+
+      # TODO: Uncomment when import next lib which have tests and lint
+      # - name: Run Lint on Affected Projects
+      #   run: npx nx affected --target=lint --parallel=3
+
+      # - name: Run Tests on Affected Projects
+      #   run: npx nx affected --target=test --parallel=3

@@ -1,27 +1,25 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "strict": false, // Disable strict type checking globally
-    "skipLibCheck": true, // Skip type checking for library files
-    "noImplicitAny": false, // Allow implicit 'any' types
-    "outDir": "./dist", // Output directory for compiled files
-    "rootDir": "./src", // Root directory for source files
-    "declaration": true, // Generate .d.ts type declaration files
-    "declarationMap": true, // Generate .d.ts.map files for debugging
-    "esModuleInterop": true, // Enable compatibility with CommonJS modules
-    "module": "commonjs", // CommonJS module system
-    "target": "es2017", // Set target to ES2017 to support Object.entries
+    "outDir": "../../dist/out-tsc",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2017",
     "lib": [
       "es2017",
       "dom"
-    ] // Include ES2017 libraries for compatibility
+    ]
   },
   "include": [
-    "src/**/*.ts",
-    "dist/**/*"
+    "src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/generated" // Exclude generated files to avoid type-checking them
+    "dist"
   ]
 }

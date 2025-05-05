@@ -1,0 +1,5 @@
+
+# Only run commitlint if a commit message file was passed in
+if [ -n "$1" ] && [ -f "$1" ]; then
+  npx --no-install commitlint --edit "$1"
+fi
