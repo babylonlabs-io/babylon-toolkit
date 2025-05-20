@@ -1,0 +1,9 @@
+{
+  "targets": {
+    "build": {
+      "dependsOn": ["build-proto"],
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    }
+  }
+}

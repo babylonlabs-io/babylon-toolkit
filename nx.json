@@ -1,16 +1,14 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "namedInputs": {
-    "default": [
-      "{projectRoot}/**/*",
-      "sharedGlobals"
-    ],
-    "production": [
-      "default"
-    ],
-    "sharedGlobals": [
-      "{workspaceRoot}/.github/workflows/ci.yml"
-    ]
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    },
+    "typecheck": {
+      "cache": true
+    }
   },
   "plugins": [
     {
@@ -21,18 +19,20 @@
         },
         "build": {
           "targetName": "build",
-          "configName": "tsconfig.lib.json",
-          "buildDepsName": "build-deps",
-          "watchDepsName": "watch-deps"
+          "configName": "tsconfig.lib.json"
         }
       }
     }
   ],
   "release": {
+    "projects": ["packages/*"],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
     "changelog": {
       "projectChangelogs": true
     }
+  },
+  "sync": {
+    "applyChanges": true
   }
 }
