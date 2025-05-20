@@ -4,7 +4,8 @@
   "license": "MIT",
   "scripts": {
     "build": "nx run-many --target=build --all",
-    "nx:sync": "nx sync"
+    "nx:sync": "nx sync",
+    "prepare": "husky"
   },
   "private": true,
   "devDependencies": {

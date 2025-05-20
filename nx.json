@@ -30,6 +30,9 @@
     "releaseTagPattern": "{projectName}/{version}",
     "changelog": {
       "projectChangelogs": true
+    },
+    "version": {
+      "conventionalCommits": true
     }
   },
   "sync": {
