@@ -19,23 +19,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.3.0'
+          node-version: '22.12.0'
 
       - name: Install dependencies
         run: npm install
 
-      # TODO: Uncomment when import next lib which have tests and lint
-      # - name: Lint affected
-      #   run: npx nx affected --target=lint --base=origin/main
+      - name: Lint all
+        run: npx nx run-many --target=lint --all
 
-      # - name: Test affected
-      #   run: npx nx affected --target=test --base=origin/main
+      - name: Test all
+        run: npx nx run-many --target=test --all
 
-      - name: Build affected
-        run: npx nx affected --target=build --base=origin/main
+      - name: Build all
+        run: npx nx run-many --target=build --all
 
       - name: Release changed packages
-        run: npx nx release patch --first-release --yes
+        run: npx nx release publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

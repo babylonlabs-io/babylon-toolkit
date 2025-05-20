@@ -22,9 +22,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # TODO: Uncomment when import next lib which have tests and lint
-      # - name: Run Lint on Affected Projects
-      #   run: npx nx affected --target=lint --parallel=3
+      - name: Lint affected
+        run: npx nx affected --target=lint --base=origin/main
 
-      # - name: Run Tests on Affected Projects
-      #   run: npx nx affected --target=test --parallel=3
+      - name: Test affected
+        run: npx nx affected --target=test --base=origin/main
+
+      - name: Build affected
+        run: npx nx affected --target=build --base=origin/main
