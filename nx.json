@@ -1,13 +1,8 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
-    "default": [
-      "{projectRoot}/**/*",
-      "sharedGlobals"
-    ],
-    "production": [
-      "default"
-    ],
+    "default": ["{projectRoot}/**/*", "sharedGlobals"],
+    "production": ["default"],
     "sharedGlobals": []
   },
   "targetDefaults": {
@@ -40,11 +35,12 @@
     }
   ],
   "release": {
-    "projects": ["packages/*"],
+    "projects": ["packages/*", "!@babylonlabs-io/babylon-proto-ts"],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
     "changelog": {
-      "projectChangelogs": true
+      "createRelease": "github",
+      "file": false
     },
     "version": {
       "conventionalCommits": true,
