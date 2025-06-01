@@ -6,7 +6,7 @@
     "build": "nx run-many --target=build --all",
     "nx:sync": "nx sync",
     "prepare": "husky",
-    "ci:release": "./scripts/release.ts"
+    "ci:release": "tsx ./scripts/release"
   },
   "private": true,
   "devDependencies": {

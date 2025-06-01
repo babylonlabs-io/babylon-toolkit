@@ -1,5 +1,3 @@
-#!/usr/bin/env npx tsx
-
 import { spawn } from 'node:child_process';
 import { releaseChangelog, releasePublish, releaseVersion } from 'nx/release';
 
