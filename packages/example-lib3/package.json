@@ -1,5 +1,5 @@
 {
-  "name": "example-lib3",
+  "name": "@babylonlabs-io/example-lib3",
   "version": "0.1.0",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
