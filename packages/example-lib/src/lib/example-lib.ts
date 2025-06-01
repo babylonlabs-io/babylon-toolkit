@@ -1,3 +1,3 @@
 export function exampleLib(): string {
-  return 'example-lib';
+  return 'example-lib-new';
 }

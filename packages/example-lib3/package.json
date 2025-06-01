@@ -13,6 +13,7 @@
     }
   },
   "dependencies": {
+    "@babylonlabs-io/example-lib2": "*",
     "tslib": "^2.3.0"
   },
   "publishConfig": {
