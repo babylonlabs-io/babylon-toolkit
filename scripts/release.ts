@@ -8,6 +8,15 @@ const release = async () => {
     verbose: true,
   });
 
+  const projectHasNewVersion = Object.entries(projectsVersionData).filter(
+    ([_, project]) => project.newVersion !== null
+  );
+
+  if (projectHasNewVersion.length === 0) {
+    console.log('No project release needed');
+    process.exit(0);
+  }
+
   await releaseChangelog({
     versionData: projectsVersionData,
     version: workspaceVersion,
@@ -32,7 +41,7 @@ const release = async () => {
     // When a publish target fails, we want to fail the CI
     process.exit(1);
   }
-}
+};
 
 const gitPush = async () => {
   const commandArgs = [
@@ -43,7 +52,9 @@ const gitPush = async () => {
     '--atomic',
   ];
 
-  console.log("Pushing the current branch to the remote with the following command:")
+  console.log(
+    'Pushing the current branch to the remote with the following command:'
+  );
   console.log(`git ${commandArgs.join(' ')}`);
 
   try {
@@ -51,7 +62,7 @@ const gitPush = async () => {
   } catch (err) {
     throw new Error(`Unexpected git push error: ${err}`);
   }
-}
+};
 
 const execCommand = async (
   cmd: string,
@@ -90,7 +101,6 @@ const execCommand = async (
       }
     });
   });
-}
+};
 
 release();
-
