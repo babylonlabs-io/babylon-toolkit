@@ -1,6 +1,19 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "namedInputs": {
+    "default": [
+      "{projectRoot}/**/*",
+      "sharedGlobals"
+    ],
+    "production": [
+      "default"
+    ],
+    "sharedGlobals": []
+  },
   "targetDefaults": {
+    "serve": {
+      "dependsOn": ["build"]
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["{projectRoot}/dist"],
@@ -19,7 +32,9 @@
         },
         "build": {
           "targetName": "build",
-          "configName": "tsconfig.lib.json"
+          "configName": "tsconfig.lib.json",
+          "buildDepsName": "build-deps",
+          "watchDepsName": "watch-deps"
         }
       }
     }
@@ -32,10 +47,9 @@
       "projectChangelogs": true
     },
     "version": {
-      "conventionalCommits": true
+      "conventionalCommits": true,
+      "preserveLocalDependencyProtocols": false,
+      "fallbackCurrentVersionResolver": "disk"
     }
-  },
-  "sync": {
-    "applyChanges": true
   }
 }

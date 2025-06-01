@@ -1,12 +1,11 @@
 {
   "name": "@babylonlabs-io/babylon-proto-ts",
   "version": "1.1.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "private": "true",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "build-proto": "node scripts/build-proto.js",
-    "prepublishOnly": "npm run build",
-    "prepare": "husky"
+    "build-proto": "node scripts/build-proto.js"
   },
   "files": [
     "dist",
@@ -26,8 +25,5 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.2.0"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

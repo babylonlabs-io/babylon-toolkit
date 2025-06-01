@@ -1,19 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": ".",
     "outDir": "dist",
-    "rootDir": "./src",
-    "declaration": true,
-    "declarationMap": true,
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "target": "es2017",
-    "lib": [
-      "es2017",
-      "dom"
-    ]
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "target": "es2017"
   },
   "include": [
     "src/**/*.ts"

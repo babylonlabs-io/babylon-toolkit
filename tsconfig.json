@@ -5,6 +5,15 @@
   "references": [
     {
       "path": "./packages/babylon-proto-ts"
+    },
+    {
+      "path": "./packages/example-lib"
+    },
+    {
+      "path": "./packages/example-lib2"
+    },
+    {
+      "path": "./packages/example-lib3"
     }
   ]
 }
