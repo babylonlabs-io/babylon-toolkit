@@ -5,7 +5,8 @@
   "scripts": {
     "build": "nx run-many --target=build --all",
     "nx:sync": "nx sync",
-    "prepare": "husky"
+    "prepare": "husky",
+    "ci:release": "./scripts/release"
   },
   "private": true,
   "devDependencies": {
