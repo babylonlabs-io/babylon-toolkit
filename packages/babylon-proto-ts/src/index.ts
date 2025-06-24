@@ -8,3 +8,5 @@ export * as incentivetx from './generated/babylon/incentive/tx';
 export * as incentivequery from './generated/babylon/incentive/query';
 export * as btclightclient from './generated/babylon/btclightclient/v1/btclightclient';
 export * as btclightclientquery from './generated/babylon/btclightclient/v1/query';
+export * as cosmosstakingtx from './generated/cosmos/staking/v1beta1/tx';
+export * as cosmosstaking from './generated/cosmos/staking/v1beta1/staking';

@@ -58,8 +58,7 @@
   ],
   "release": {
     "projects": [
-      "packages/*",
-      "!@babylonlabs-io/babylon-proto-ts"
+      "packages/*"
     ],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
