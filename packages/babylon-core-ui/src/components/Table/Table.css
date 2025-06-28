@@ -1,0 +1,154 @@
+/* Table wrapper styles - controls scrolling behavior */
+.bbn-table-wrapper {
+  @apply relative overflow-auto;
+
+  /* Hide scrollbar for Firefox */
+  scrollbar-width: none;
+  /* Hide scrollbar for IE and Edge */
+  -ms-overflow-style: none;
+
+  /* Hide WebKit scrollbar */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Main table styles */
+.bbn-table {
+  @apply border-separate border-spacing-0;
+
+  /* Header row styles */
+  &-header {
+    @apply bg-surface text-accent-secondary sticky top-0 z-30 transition-shadow;
+
+    tr {
+      @apply relative;
+    }
+
+    th {
+      @apply whitespace-nowrap px-6 py-3 transition-all;
+    }
+
+    /* TODO: fix shadow color */
+    &.scrolled-top {
+      @apply shadow-[0_2px_4px_rgba(0,0,0,0.05)];
+    }
+  }
+
+  /* Table body styles */
+  &-body {
+    /* Row styles */
+    tr {
+      @apply transition-colors;
+
+      td {
+        @apply border-b border-t;
+
+        &:first-child {
+          @apply border-l;
+        }
+
+        &:last-child {
+          @apply border-r;
+        }
+      }
+
+      &.selected td {
+        @apply !border-secondary-main;
+      }
+    }
+
+    /* Odd row styles */
+    tr:nth-child(odd) {
+      @apply bg-surface;
+
+      td {
+        @apply border-surface;
+      }
+
+      &:hover {
+        td {
+          @apply border-neutral-200;
+        }
+
+        @apply bg-neutral-200;
+      }
+    }
+
+    /* Even row styles */
+    tr:nth-child(even) {
+      @apply bg-neutral-100;
+
+      td {
+        @apply border-neutral-100;
+      }
+
+      &:hover {
+        td {
+          @apply border-neutral-200;
+        }
+
+        @apply bg-neutral-200;
+      }
+    }
+
+    /* Standard cell styles */
+    td {
+      @apply text-accent-primary px-6 py-4 transition-colors;
+
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
+
+  /* Sortable column styles */
+  &-sortable {
+    @apply cursor-pointer select-none;
+
+    &:hover {
+      @apply text-accent-primary bg-neutral-200;
+    }
+  }
+
+  /* Sort icons container */
+  &-sort-icons {
+    @apply ml-1 inline-flex flex-col;
+
+    svg {
+      @apply h-4 w-4;
+    }
+
+    /* Individual sort icon styles */
+    .bbn-sort-icon {
+      @apply text-accent-primary transition-colors;
+
+      &.bbn-sort-icon-up {
+        @apply -mb-1;
+      }
+
+      &.bbn-sort-icon-down {
+        @apply -mt-1;
+      }
+
+      &.bbn-sort-icon-active {
+        @apply !text-accent-secondary;
+      }
+
+      &.bbn-sort-icon-inactive {
+        @apply !text-accent-primary/10;
+      }
+    }
+  }
+
+  /* Cell alignment styles */
+  &-cell {
+    &-right {
+      @apply text-right;
+    }
+
+    &-left {
+      @apply text-left;
+    }
+  }
+}

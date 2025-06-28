@@ -1,0 +1,39 @@
+.bbn-switcher {
+  @apply relative block transition-all duration-200;
+
+  &:not(&-disabled) {
+    @apply text-secondary-strokeDark hover:brightness-90;
+  }
+
+  &-disabled {
+    @apply text-secondary-strokeDark/50;
+  }
+}
+
+.bbn-switcher-input {
+  @apply absolute inset-0 z-[1] opacity-0;
+
+  &:not(:disabled) {
+    @apply cursor-pointer;
+  }
+
+  &:disabled {
+    @apply cursor-default;
+  }
+}
+
+.bbn-switcher-label {
+  @apply text-accent-primary inline-flex items-center gap-4;
+}
+
+.bbn-switcher-left {
+  &.bbn-switcher-label {
+    @apply flex-row;
+  }
+}
+
+.bbn-switcher-right {
+  &.bbn-switcher-label {
+    @apply flex-row-reverse;
+  }
+}

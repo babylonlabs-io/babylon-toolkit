@@ -1,0 +1,39 @@
+.bbn-btn {
+  @apply rounded tracking-0.4 transition-all duration-200;
+
+  &-fluid {
+    @apply w-full;
+  }
+
+  &-contained {
+    &.bbn-btn-primary {
+      @apply text-accent-contrast bg-primary-light hover:brightness-110 disabled:bg-primary-light/30;
+    }
+
+    &.bbn-btn-secondary {
+      @apply text-accent-contrast bg-secondary-main hover:brightness-110 disabled:opacity-30;
+    }
+  }
+
+  &-outlined {
+    &.bbn-btn-primary {
+      @apply border-secondary-strokeDark text-accent-primary hover:bg-secondary-strokeDark/5 disabled:border-secondary-strokeDark/30 disabled:text-accent-primary/30 border hover:brightness-125 disabled:bg-transparent;
+    }
+
+    &.bbn-btn-secondary {
+      @apply border border-secondary-main text-secondary-main hover:bg-secondary-main/5 hover:brightness-110 disabled:border-secondary-main/30 disabled:bg-transparent disabled:text-secondary-main/30;
+    }
+  }
+
+  &-large {
+    @apply h-10 px-6 text-base tracking-0.5;
+  }
+
+  &-medium {
+    @apply h-9 px-4 text-sm tracking-0.5;
+  }
+
+  &-small {
+    @apply h-8 px-2.5 text-xs tracking-0.5;
+  }
+}

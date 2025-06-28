@@ -1,0 +1,35 @@
+@keyframes bbn-loader-stroke-animation {
+  0% {
+    stroke-dasharray: 1px, 200px;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 100px, 200px;
+    stroke-dashoffset: -15px;
+  }
+  to {
+    stroke-dasharray: 100px, 200px;
+    stroke-dashoffset: -125px;
+  }
+}
+
+@keyframes bbn-loader-rotate-animation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.bbn-loader {
+  display: inline-block;
+  animation: 1.4s linear 0s infinite normal none running bbn-loader-rotate-animation;
+
+  & circle {
+    animation: bbn-loader-stroke-animation 1.4s ease-in-out infinite;
+    stroke: currentColor;
+    stroke-dasharray: 80px, 200px;
+    stroke-dashoffset: 0;
+  }
+}

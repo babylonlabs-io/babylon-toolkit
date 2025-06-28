@@ -1,0 +1,43 @@
+.bbn-select {
+  @apply border-secondary-strokeDark/50 bg-surface text-accent-secondary relative flex w-full cursor-pointer items-center justify-between rounded border px-4 py-2 text-sm outline-none transition-all;
+
+  &:focus-visible {
+    @apply border-secondary-strokeDark;
+  }
+
+  &-icon {
+    @apply text-secondary-strokeDark ml-2 transition-transform;
+
+    &-open {
+      @apply rotate-180;
+    }
+  }
+
+  &-menu {
+    @apply border-secondary-strokeDark/50 bg-surface z-50 max-h-60 overflow-auto rounded border py-1 shadow-lg;
+  }
+
+  &-option {
+    @apply text-accent-secondary hover:bg-accent-secondary/5 cursor-pointer px-4 py-3 text-sm transition-colors;
+
+    &-selected {
+      @apply bg-accent-secondary/5;
+    }
+  }
+
+  &-disabled {
+    @apply pointer-events-none cursor-not-allowed opacity-50;
+  }
+
+  &-error {
+    @apply border-error-main;
+  }
+
+  &-warning {
+    @apply border-warning-main;
+  }
+
+  &-success {
+    @apply border-success-main;
+  }
+}

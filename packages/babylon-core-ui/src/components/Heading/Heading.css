@@ -1,0 +1,20 @@
+.bbn {
+  &-h1 {
+    @apply text-8xl leading-[7rem];
+  }
+  &-h2 {
+    @apply text-6xl leading-[4.5rem];
+  }
+  &-h3 {
+    @apply text-5xl leading-[3.5rem];
+  }
+  &-h4 {
+    @apply text-[2.125rem] leading-[2.625rem] tracking-0.25;
+  }
+  &-h5 {
+    @apply text-2xl;
+  }
+  &-h6 {
+    @apply text-xl leading-8 tracking-0.15;
+  }
+}

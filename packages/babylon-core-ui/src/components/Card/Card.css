@@ -1,0 +1,3 @@
+.bbn-card {
+  @apply bg-surface border-secondary-strokeLight rounded border p-6;
+}

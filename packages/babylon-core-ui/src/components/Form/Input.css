@@ -1,0 +1,35 @@
+.bbn-input {
+  @apply border-secondary-strokeDark/50 text-accent-secondary bg-surface flex items-center rounded border px-4 py-2 transition-colors;
+
+  &:focus-within {
+    @apply border-secondary-strokeDark;
+  }
+
+  &.bbn-input-error {
+    @apply border-error-main;
+  }
+
+  &.bbn-input-warning {
+    @apply border-warning-main;
+  }
+
+  &.bbn-input-success {
+    @apply border-success-main;
+  }
+
+  &.bbn-input-disabled {
+    @apply pointer-events-none opacity-50;
+  }
+
+  &-field {
+    @apply placeholder-accent-disabled/50 w-full bg-transparent text-sm outline-none;
+  }
+
+  &-suffix {
+    @apply text-accent-secondary/50 ml-2 flex items-center;
+  }
+
+  &-prefix {
+    @apply text-accent-secondary/50 mr-2 flex items-center;
+  }
+}

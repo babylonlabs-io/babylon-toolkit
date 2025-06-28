@@ -1,0 +1,55 @@
+.bbn-badge {
+  @apply relative inline-flex;
+
+  &-indicator {
+    @apply absolute z-10 flex items-center justify-center;
+    @apply min-w-5 h-5 px-1 rounded-full;
+    @apply text-xs font-medium leading-none text-white;
+    
+    /* Position variants */
+    &.bbn-badge-top-right {
+      @apply top-0 right-0 translate-x-1/4 -translate-y-1/4;
+    }
+
+    &.bbn-badge-top-left {
+      @apply top-0 left-0 -translate-x-1/4 -translate-y-1/4;
+    }
+
+    &.bbn-badge-bottom-right {
+      @apply bottom-0 right-0 translate-x-1/4 translate-y-1/4;
+    }
+
+    &.bbn-badge-bottom-left {
+      @apply bottom-0 left-0 -translate-x-1/4 translate-y-1/4;
+    }
+
+    /* Color variants */
+    &.bbn-badge-primary {
+      @apply bg-primary-main;
+    }
+
+    &.bbn-badge-secondary {
+      @apply bg-secondary-main;
+    }
+
+    &.bbn-badge-error {
+      @apply bg-error-main;
+    }
+
+    &.bbn-badge-warning {
+      @apply bg-warning-main;
+    }
+
+    &.bbn-badge-info {
+      @apply bg-info-main;
+    }
+
+    &.bbn-badge-success {
+      @apply bg-success-main;
+    }
+  }
+
+  &-content {
+    @apply flex items-center justify-center;
+  }
+} 
