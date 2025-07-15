@@ -15,6 +15,138 @@
 npm i @babylonlabs-io/babylon-proto-ts
 ```
 
+## 🚀 Quick Start
+
+This library provides TypeScript bindings for the Babylon Bitcoin Staking Protocol, offering both low-level protobuf exports and high-level client abstractions.
+
+### Basic Usage
+
+Use the SDK to access the client, messages, and utilities:
+
+```typescript
+import { createBabylonSDK } from "@babylonlabs-io/babylon-proto-ts";
+
+const sdk = createBabylonSDK({ rpcUrl: "https://babylon-rpc.example.com" });
+
+// Connect the client
+await sdk.connect();
+
+// Query rewards for an address
+const rewards = await sdk.client.getRewards("bbn1...");
+
+// Query balance
+const balance = await sdk.client.getBalance("bbn1...", "ubbn");
+
+// Get Bitcoin tip height
+const btcTipHeight = await sdk.client.getBTCTipHeight();
+```
+
+### Wallet Integration
+
+For applications that need to create and sign transactions, use the provided registry and amino types:
+
+```typescript
+import { createBabylonSDK } from "@babylonlabs-io/babylon-proto-ts";
+import { SigningStargateClient } from "@cosmjs/stargate";
+
+const sdk = createBabylonSDK({ rpcUrl: "https://babylon-rpc.example.com" });
+
+// Create signing client with Babylon support
+const client = await SigningStargateClient.connectWithSigner(
+  rpc,
+  offlineSigner as OfflineSigner,
+  {
+    registry: sdk.utils.createRegistry(),
+    aminoTypes: sdk.utils.createAminoTypes(),
+  },
+);
+
+// Create messages using the SDK
+const withdrawMsg = sdk.messages.createWithdrawRewardMsg("bbn1...");
+
+// Sign and broadcast
+const result = await client.signAndBroadcast("bbn1...", [withdrawMsg], "auto");
+```
+
+### Direct Protobuf Access
+
+For advanced use cases, you can import protobuf types directly:
+
+```typescript
+import { btcstaking, incentivequery } from "@babylonlabs-io/babylon-proto-ts"
+
+// Use protobuf types directly
+const stakingParams = btcstaking.Params.fromPartial({...})
+const rewardQuery = incentivequery.QueryRewardGaugesRequest.fromPartial({...})
+```
+
+## 📚 API Reference
+
+### SDK Functions
+
+#### `createBabylonSDK(config: BabylonConfig): BabylonSDK`
+
+Creates a comprehensive SDK instance with client, messages, and utilities.
+
+- **Parameters:**
+  - `config.rpcUrl`: RPC endpoint URL for the Babylon network
+- **Returns:** SDK object with `client`, `messages`, `utils`, and `connect()` method
+
+### SDK Methods
+
+#### `sdk.connect(): Promise<void>`
+
+Initializes the client connection to the Babylon network.
+
+### Client Methods (via sdk.client)
+
+#### `sdk.client.getRewards(address: string): Promise<number>`
+
+Retrieves the total rewards for a given address.
+
+- **Parameters:**
+  - `address`: The Babylon address to query
+- **Returns:** Total rewards amount (number)
+
+#### `sdk.client.getBalance(address: string, denom?: string): Promise<number>`
+
+Gets the balance of a specific token for an address.
+
+- **Parameters:**
+  - `address`: The Babylon address to query
+  - `denom`: Token denomination (defaults to "ubbn")
+- **Returns:** Balance amount (number)
+
+#### `sdk.client.getBTCTipHeight(): Promise<number>`
+
+Retrieves the current Bitcoin blockchain tip height.
+
+- **Returns:** Bitcoin tip height (number)
+
+### SDK Messages
+
+#### `sdk.messages.createWithdrawRewardMsg(address: string)`
+
+Creates a message for withdrawing rewards from Bitcoin staking.
+
+- **Parameters:**
+  - `address`: The Babylon address to withdraw rewards for
+- **Returns:** Message object with proper typeUrl and value, ready for signing and broadcasting
+
+### SDK Utilities
+
+#### `sdk.utils.createRegistry(): Registry`
+
+Creates a CosmJS registry with all Babylon message types registered.
+
+#### `sdk.utils.createAminoTypes(): AminoTypes`
+
+Creates amino types for Babylon messages, required for hardware wallet compatibility.
+
+### Protobuf Exports
+
+The library exports all generated protobuf types directly, allowing for advanced use cases
+
 ## 📝 Commit Format & Automated Releases
 
 This project uses [**Conventional Commits**](https://www.conventionalcommits.org/en/v1.0.0/)
