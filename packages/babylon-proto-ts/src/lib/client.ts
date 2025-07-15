@@ -1,20 +1,31 @@
 import {
   BankExtension,
   Coin,
+  DistributionExtension,
   QueryClient,
+  StakingExtension,
   createProtobufRpcClient,
   setupBankExtension,
+  setupDistributionExtension,
+  setupStakingExtension,
 } from "@cosmjs/stargate";
 import { Tendermint34Client } from "@cosmjs/tendermint-rpc";
+import { DelegationDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/distribution";
+import {
+  DelegationResponse,
+  Validator,
+} from "cosmjs-types/cosmos/staking/v1beta1/staking";
 
 import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../constants";
 import * as btclightclientquery from "../generated/babylon/btclightclient/v1/query";
 import * as incentivequery from "../generated/babylon/incentive/query";
 
 interface Clients {
-  incentive: incentivequery.QueryClientImpl;
-  btcLight: btclightclientquery.QueryClientImpl;
-  bank: BankExtension["bank"];
+  incentive: incentivequery.QueryClientImpl | null;
+  btcLight: btclightclientquery.QueryClientImpl | null;
+  bank: BankExtension["bank"] | null;
+  staking: StakingExtension["staking"] | null;
+  distribution: DistributionExtension["distribution"] | null;
 }
 
 type ClientNames = keyof Clients;
@@ -26,13 +37,17 @@ export class BabylonClient {
     incentive: null,
     btcLight: null,
     bank: null,
+    staking: null,
+    distribution: null,
   };
 
   constructor(rpcUrl: string) {
     this.rpcUrl = rpcUrl;
   }
 
-  private getClient<K extends ClientNames>(clientName: K): Clients[K] {
+  private getClient<K extends ClientNames>(
+    clientName: K,
+  ): NonNullable<Clients[K]> {
     if (!this.clients[clientName]) {
       throw Error("Babylon Client not initialized");
     }
@@ -45,20 +60,25 @@ export class BabylonClient {
     const queryClient = QueryClient.withExtensions(
       tmClient,
       setupBankExtension,
+      setupStakingExtension,
+      setupDistributionExtension,
     );
     const rpc = createProtobufRpcClient(queryClient);
 
     this.clients.incentive = new incentivequery.QueryClientImpl(rpc);
     this.clients.btcLight = new btclightclientquery.QueryClientImpl(rpc);
     this.clients.bank = setupBankExtension(queryClient).bank;
+    this.clients.staking = setupStakingExtension(queryClient).staking;
+    this.clients.distribution =
+      setupDistributionExtension(queryClient).distribution;
   }
 
   /**
-   * Gets the rewards of an address in the Babylon chain.
+   * [BTC Staking] Gets the rewards of the user's account.
    * @param {string} address - The address to get the rewards of.
    * @returns {Promise<number>} - The rewards of the address.
    */
-  async getRewards(address: string): Promise<number> {
+  async getRewardsForBTCStaking(address: string): Promise<number> {
     try {
       const req = incentivequery.QueryRewardGaugesRequest.fromPartial({
         address,
@@ -133,6 +153,60 @@ export class BabylonClient {
       return Number(header?.height ?? 0);
     } catch (error) {
       throw new Error(`Failed to fetch BTC tip height`, {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * [BABY Staking] Gets all delegations of the user's account.
+   * @param {string} address - The address to get the delegations of.
+   * @returns {Promise<DelegationResponse[]>} - The delegations of the address.
+   */
+  async getDelegations(address: string): Promise<DelegationResponse[]> {
+    try {
+      const response =
+        await this.getClient("staking").delegatorDelegations(address);
+      return response.delegationResponses || [];
+    } catch (error) {
+      throw new Error(`Failed to fetch delegations for ${address}`, {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * [BABY Staking] Gets all delegation rewards of the user's account.
+   * @param {string} address - The address to get the delegation rewards of.
+   * @returns {Promise<DelegationDelegatorReward[]>} - The delegation rewards of the address.
+   */
+  async getRewardsForBABYStaking(
+    address: string,
+  ): Promise<DelegationDelegatorReward[]> {
+    try {
+      const response =
+        await this.getClient("distribution").delegationTotalRewards(address);
+      return response.rewards || [];
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("no delegation")) {
+        return [];
+      }
+      throw new Error(`Failed to fetch delegation rewards for ${address}`, {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * [BABY Staking] Gets all the validators.
+   * @returns {Promise<Validator[]>} - All validators.
+   */
+  async getValidators(): Promise<Validator[]> {
+    try {
+      const response = await this.getClient("staking").validators("");
+      return response.validators || [];
+    } catch (error) {
+      throw new Error(`Failed to fetch validators`, {
         cause: error,
       });
     }

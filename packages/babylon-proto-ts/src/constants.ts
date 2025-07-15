@@ -3,4 +3,8 @@ export const BTC_STAKER = "btc_staker";
 export const REGISTRY_TYPE_URLS = {
   MsgCreateBTCDelegation: "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
   MsgWithdrawReward: "/babylon.incentive.MsgWithdrawReward",
+  MsgWrappedDelegate: "/babylon.epoching.v1.MsgWrappedDelegate",
+  MsgWrappedUndelegate: "/babylon.epoching.v1.MsgWrappedUndelegate",
+  MsgWithdrawDelegatorReward:
+    "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
 };

@@ -1,7 +1,9 @@
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
+import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
 import { REGISTRY_TYPE_URLS } from "../../constants";
 import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
+import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
 import * as incentivetx from "../../generated/babylon/incentive/tx";
 import { MessageFns } from "../../generated/google/protobuf/any";
 
@@ -18,10 +20,24 @@ const protosToRegister: ProtoToRegister<any>[] = [
     typeUrl: REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
   },
-  // Incentives
+  // Incentives - Claiming BABY rewards from BTC Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawReward,
     messageType: incentivetx.MsgWithdrawReward,
+  },
+  // Epoching - Staking / Unstaking BABY
+  {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedDelegate,
+    messageType: epochingtx.MsgWrappedDelegate,
+  },
+  {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedUndelegate,
+    messageType: epochingtx.MsgWrappedUndelegate,
+  },
+  // Cosmos Distribution - Claiming rewards from BABY Staking
+  {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+    messageType: MsgWithdrawDelegatorReward as any,
   },
 ];
 

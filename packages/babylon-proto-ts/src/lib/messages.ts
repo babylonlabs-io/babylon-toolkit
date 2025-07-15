@@ -1,16 +1,103 @@
+import { Coin } from "cosmjs-types/cosmos/base/v1beta1/coin";
+import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
+
 import { BTC_STAKER, REGISTRY_TYPE_URLS } from "../constants";
+import * as epochingtx from "../generated/babylon/epoching/v1/tx";
 import * as incentivetx from "../generated/babylon/incentive/tx";
 
-export default {
-  createWithdrawRewardMsg(address: string) {
-    const withdrawRewardMsg = incentivetx.MsgWithdrawReward.fromPartial({
-      type: BTC_STAKER,
-      address,
-    });
+/**
+ * Creates a withdraw reward message for claiming rewards for BTC staking.
+ * @param address - The address to withdraw rewards from
+ * @returns The withdraw reward message
+ */
+export const createWithdrawRewardMsg = (address: string) => {
+  const withdrawRewardMsg = incentivetx.MsgWithdrawReward.fromPartial({
+    type: BTC_STAKER,
+    address,
+  });
 
-    return {
-      typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawReward,
-      value: withdrawRewardMsg,
-    };
-  },
+  return {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawReward,
+    value: withdrawRewardMsg,
+  };
+};
+
+/**
+ * Creates a staking message for BABY staking.
+ * @param delegatorAddress - The delegator address
+ * @param validatorAddress - The validator address
+ * @param amount - The amount to stake
+ * @returns The staking message
+ */
+export const createStakeMsg = (
+  delegatorAddress: string,
+  validatorAddress: string,
+  amount: Coin,
+) => {
+  const wrappedDelegateMsg = epochingtx.MsgWrappedDelegate.fromPartial({
+    msg: {
+      delegatorAddress,
+      validatorAddress,
+      amount,
+    },
+  });
+
+  return {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedDelegate,
+    value: wrappedDelegateMsg,
+  };
+};
+
+/**
+ * Creates an unstaking message for BABY staking.
+ * @param delegatorAddress - The delegator address
+ * @param validatorAddress - The validator address
+ * @param amount - The amount to unstake
+ * @returns The unstaking message
+ */
+export const createUnstakeMsg = (
+  delegatorAddress: string,
+  validatorAddress: string,
+  amount: Coin,
+) => {
+  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({
+    msg: {
+      delegatorAddress,
+      validatorAddress,
+      amount,
+    },
+  });
+
+  return {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedUndelegate,
+    value: wrappedUndelegateMsg,
+  };
+};
+
+/**
+ * Creates a claim rewards message for BABY staking.
+ * @param delegatorAddress - The delegator address
+ * @param validatorAddress - The validator address
+ * @returns The withdraw delegator reward message
+ */
+export const createClaimRewardsMsg = (
+  delegatorAddress: string,
+  validatorAddress: string,
+) => {
+  const withdrawRewardMsg = MsgWithdrawDelegatorReward.fromPartial({
+    delegatorAddress,
+    validatorAddress,
+  });
+
+  return {
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+    value: withdrawRewardMsg,
+  };
+};
+
+export default {
+  createWithdrawRewardMsg,
+  createStakeMsg,
+  createUnstakeMsg,
+  createClaimRewardsMsg,
 };
