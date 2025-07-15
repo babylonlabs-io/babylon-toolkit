@@ -1,9 +1,9 @@
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 
-import * as incentivetx from "../../generated/babylon/incentive/tx";
-import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
-import { MessageFns } from "../../generated/google/protobuf/any";
 import { REGISTRY_TYPE_URLS } from "../../constants";
+import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
+import * as incentivetx from "../../generated/babylon/incentive/tx";
+import { MessageFns } from "../../generated/google/protobuf/any";
 
 // Define the structure of each proto to register
 type ProtoToRegister<T> = {

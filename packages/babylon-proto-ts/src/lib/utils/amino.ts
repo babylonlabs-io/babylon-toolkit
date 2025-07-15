@@ -1,8 +1,8 @@
 import { AminoTypes } from "@cosmjs/stargate";
 
+import { REGISTRY_TYPE_URLS } from "../../constants";
 import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
 import * as incentivetx from "../../generated/babylon/incentive/tx";
-import { REGISTRY_TYPE_URLS } from "../../constants";
 
 const msgCreateBTCDelegationConverter = {
   [REGISTRY_TYPE_URLS.MsgCreateBTCDelegation]: {
@@ -20,23 +20,23 @@ const msgCreateBTCDelegationConverter = {
           btc_sig: Buffer.from(pop.btcSig).toString("base64"),
         },
         fp_btc_pk_list: msg.fpBtcPkList.map((pk) =>
-          Buffer.from(pk).toString("base64")
+          Buffer.from(pk).toString("base64"),
         ),
         staking_time: msg.stakingTime,
         staking_value: msg.stakingValue.toString(),
         staking_tx: Buffer.from(msg.stakingTx).toString("base64"),
         slashing_tx: Buffer.from(msg.slashingTx).toString("base64"),
         delegator_slashing_sig: Buffer.from(msg.delegatorSlashingSig).toString(
-          "base64"
+          "base64",
         ),
         unbonding_time: msg.unbondingTime,
         unbonding_tx: Buffer.from(msg.unbondingTx).toString("base64"),
         unbonding_value: msg.unbondingValue.toString(),
         unbonding_slashing_tx: Buffer.from(msg.unbondingSlashingTx).toString(
-          "base64"
+          "base64",
         ),
         delegator_unbonding_slashing_sig: Buffer.from(
-          msg.delegatorUnbondingSlashingSig
+          msg.delegatorUnbondingSlashingSig,
         ).toString("base64"),
         ...(msg.stakingTxInclusionProof?.key
           ? {
@@ -44,11 +44,11 @@ const msgCreateBTCDelegationConverter = {
                 key: {
                   index: msg.stakingTxInclusionProof.key.index,
                   hash: Buffer.from(
-                    msg.stakingTxInclusionProof.key.hash
+                    msg.stakingTxInclusionProof.key.hash,
                   ).toString("base64"),
                 },
                 proof: Buffer.from(msg.stakingTxInclusionProof.proof).toString(
-                  "base64"
+                  "base64",
                 ),
               },
             }
@@ -65,7 +65,7 @@ const msgCreateBTCDelegationConverter = {
           btcSig: Buffer.from(json.pop.btc_sig, "base64"),
         },
         fpBtcPkList: json.fp_btc_pk_list.map((pk: string) =>
-          Buffer.from(pk, "base64")
+          Buffer.from(pk, "base64"),
         ),
         stakingTime: json.staking_time,
         stakingValue: parseInt(json.staking_value, 10),
@@ -76,19 +76,19 @@ const msgCreateBTCDelegationConverter = {
                 index: json.staking_tx_inclusion_proof.key.index,
                 hash: Buffer.from(
                   json.staking_tx_inclusion_proof.key.hash,
-                  "base64"
+                  "base64",
                 ),
               },
               proof: Buffer.from(
                 json.staking_tx_inclusion_proof.proof,
-                "base64"
+                "base64",
               ),
             }
           : undefined,
         slashingTx: Buffer.from(json.slashing_tx, "base64"),
         delegatorSlashingSig: Buffer.from(
           json.delegator_slashing_sig,
-          "base64"
+          "base64",
         ),
         unbondingTime: json.unbonding_time,
         unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
@@ -96,7 +96,7 @@ const msgCreateBTCDelegationConverter = {
         unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
         delegatorUnbondingSlashingSig: Buffer.from(
           json.delegator_unbonding_slashing_sig,
-          "base64"
+          "base64",
         ),
       } as any;
     },

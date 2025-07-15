@@ -1,6 +1,5 @@
+import { BTC_STAKER, REGISTRY_TYPE_URLS } from "../constants";
 import * as incentivetx from "../generated/babylon/incentive/tx";
-import { BTC_STAKER } from "../constants";
-import { REGISTRY_TYPE_URLS } from "../constants";
 
 export default {
   createWithdrawRewardMsg(address: string) {

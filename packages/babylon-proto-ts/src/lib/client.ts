@@ -7,9 +7,9 @@ import {
 } from "@cosmjs/stargate";
 import { Tendermint34Client } from "@cosmjs/tendermint-rpc";
 
+import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../constants";
 import * as btclightclientquery from "../generated/babylon/btclightclient/v1/query";
 import * as incentivequery from "../generated/babylon/incentive/query";
-import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../constants";
 
 interface Clients {
   incentive: incentivequery.QueryClientImpl;
@@ -44,7 +44,7 @@ export class BabylonClient {
     const tmClient = await Tendermint34Client.connect(this.rpcUrl);
     const queryClient = QueryClient.withExtensions(
       tmClient,
-      setupBankExtension
+      setupBankExtension,
     );
     const rpc = createProtobufRpcClient(queryClient);
 
@@ -80,13 +80,13 @@ export class BabylonClient {
           REWARD_GAUGE_KEY_BTC_DELEGATION
         ]?.withdrawnCoins.reduce(
           (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0
+          0,
         ) || 0;
 
       return (
         coins.reduce(
           (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0
+          0,
         ) - withdrawnCoins
       );
     } catch (error) {
