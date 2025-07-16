@@ -79,8 +79,8 @@ const stakeMsg = sdk.messages.createStakeBABYMsg(
   { denom: "ubbn", amount: "1000000" }, // 1 BBN
 );
 
-// BABY Staking: Claim BABY staking rewards message
-const claimMsg = sdk.messages.createClaimRewardForBABYStakingMsg(
+// BABY Staking: Withdraw BABY staking rewards message
+const withdrawMsg = sdk.messages.createWithdrawRewardForBABYStakingMsg(
   "bbn1...",
   "bbnvalidator...",
 );
@@ -193,9 +193,9 @@ Creates a message for unstaking BABY tokens.
   - `amount`: The amount to unstake (Coin object with amount and denom)
 - **Returns:** Message object with proper typeUrl and value, ready for signing and broadcasting
 
-#### `sdk.messages.createClaimRewardForBABYStakingMsg(delegatorAddress: string, validatorAddress: string)`
+#### `sdk.messages.createWithdrawRewardForBABYStakingMsg(delegatorAddress: string, validatorAddress: string)`
 
-Creates a message for claiming BABY staking rewards.
+Creates a message for withdrawing BABY staking rewards.
 
 - **Parameters:**
   - `delegatorAddress`: The delegator's Babylon address

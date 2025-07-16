@@ -20,7 +20,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
     typeUrl: REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
   },
-  // Incentives - Claiming BABY rewards from BTC Staking
+  // Incentives - Withdrawing BABY rewards from BTC Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
     messageType: incentivetx.MsgWithdrawReward,
@@ -34,7 +34,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
     typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
     messageType: epochingtx.MsgWrappedUndelegate,
   },
-  // Cosmos Distribution - Claiming rewards from BABY Staking
+  // Cosmos Distribution - Withdrawing rewards from BABY Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
     messageType: MsgWithdrawDelegatorReward as any,

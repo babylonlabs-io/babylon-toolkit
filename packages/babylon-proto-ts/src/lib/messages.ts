@@ -6,7 +6,7 @@ import * as epochingtx from "../generated/babylon/epoching/v1/tx";
 import * as incentivetx from "../generated/babylon/incentive/tx";
 
 /**
- * Creates a withdraw reward message for claiming rewards for BTC staking.
+ * Creates a withdraw reward message for withdrawing rewards for BTC staking.
  * @param address - The address to withdraw rewards from
  * @returns The withdraw reward message
  */
@@ -75,12 +75,12 @@ export const createUnstakeBABYMsg = (
 };
 
 /**
- * Creates a claim rewards message for BABY staking.
+ * Creates a withdraw rewards message for BABY staking.
  * @param delegatorAddress - The delegator address
  * @param validatorAddress - The validator address
  * @returns The withdraw delegator reward message
  */
-export const createClaimRewardForBABYStakingMsg = (
+export const createWithdrawRewardForBABYStakingMsg = (
   delegatorAddress: string,
   validatorAddress: string,
 ) => {
@@ -99,5 +99,5 @@ export default {
   createWithdrawRewardForBTCStakingMsg,
   createStakeBABYMsg,
   createUnstakeBABYMsg,
-  createClaimRewardForBABYStakingMsg,
+  createWithdrawRewardForBABYStakingMsg,
 };

@@ -106,7 +106,7 @@ const msgCreateBTCDelegationConverter = {
   },
 };
 
-// Incentives - Claiming BABY rewards from BTC Staking
+// Incentives - Withdrawing BABY rewards from BTC Staking
 const msgWithdrawRewardForBTCStakingConverter = {
   [REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking]: {
     aminoType: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
@@ -175,7 +175,7 @@ const msgUnstakeBABYConverter = {
   },
 };
 
-// Cosmos Distribution - Claiming BABY rewards from BABY Staking
+// Cosmos Distribution - Withdrawing BABY rewards from BABY Staking
 const msgWithdrawRewardForBABYStakingConverter = {
   [REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking]: {
     aminoType: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
