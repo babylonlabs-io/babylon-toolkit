@@ -73,7 +73,7 @@ const btcWithdrawMsg =
   sdk.messages.createWithdrawRewardForBTCStakingMsg("bbn1...");
 
 // BABY Staking: Stake BABY tokens message
-const stakeMsg = sdk.messages.createStakeMsg(
+const stakeMsg = sdk.messages.createStakeBABYMsg(
   "bbn1...", // delegator address
   "bbnvalidator...", // validator address
   { denom: "ubbn", amount: "1000000" }, // 1 BBN
@@ -173,7 +173,7 @@ Creates a message for withdrawing rewards from Bitcoin staking.
   - `address`: The Babylon address to withdraw rewards for
 - **Returns:** Message object with proper typeUrl and value, ready for signing and broadcasting
 
-#### `sdk.messages.createStakeMsg(delegatorAddress: string, validatorAddress: string, amount: Coin)`
+#### `sdk.messages.createStakeBABYMsg(delegatorAddress: string, validatorAddress: string, amount: Coin)`
 
 Creates a message for staking BABY tokens.
 

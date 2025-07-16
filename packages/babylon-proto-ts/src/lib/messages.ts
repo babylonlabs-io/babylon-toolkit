@@ -29,7 +29,7 @@ export const createWithdrawRewardForBTCStakingMsg = (address: string) => {
  * @param amount - The amount to stake
  * @returns The staking message
  */
-export const createStakeMsg = (
+export const createStakeBABYMsg = (
   delegatorAddress: string,
   validatorAddress: string,
   amount: Coin,
@@ -97,7 +97,7 @@ export const createClaimRewardForBABYStakingMsg = (
 
 export default {
   createWithdrawRewardForBTCStakingMsg,
-  createStakeMsg,
+  createStakeBABYMsg,
   createUnstakeMsg,
   createClaimRewardForBABYStakingMsg,
 };
