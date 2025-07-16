@@ -183,7 +183,7 @@ Creates a message for staking BABY tokens.
   - `amount`: The amount to stake (Coin object with amount and denom)
 - **Returns:** Message object with proper typeUrl and value, ready for signing and broadcasting
 
-#### `sdk.messages.createUnstakeMsg(delegatorAddress: string, validatorAddress: string, amount: Coin)`
+#### `sdk.messages.createUnstakeBABYMsg(delegatorAddress: string, validatorAddress: string, amount: Coin)`
 
 Creates a message for unstaking BABY tokens.
 
