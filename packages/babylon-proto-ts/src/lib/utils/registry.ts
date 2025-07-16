@@ -27,7 +27,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
   },
   // Epoching - Staking / Unstaking BABY
   {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedDelegate,
+    typeUrl: REGISTRY_TYPE_URLS.MsgStakeBABY,
     messageType: epochingtx.MsgWrappedDelegate,
   },
   {

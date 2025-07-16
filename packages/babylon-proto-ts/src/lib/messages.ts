@@ -43,7 +43,7 @@ export const createStakeBABYMsg = (
   });
 
   return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedDelegate,
+    typeUrl: REGISTRY_TYPE_URLS.MsgStakeBABY,
     value: wrappedDelegateMsg,
   };
 };
