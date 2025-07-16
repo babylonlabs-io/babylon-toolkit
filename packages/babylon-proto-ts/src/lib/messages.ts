@@ -80,7 +80,7 @@ export const createUnstakeMsg = (
  * @param validatorAddress - The validator address
  * @returns The withdraw delegator reward message
  */
-export const createClaimRewardsMsg = (
+export const createClaimRewardForBABYStakingMsg = (
   delegatorAddress: string,
   validatorAddress: string,
 ) => {
@@ -99,5 +99,5 @@ export default {
   createWithdrawRewardForBTCStakingMsg,
   createStakeMsg,
   createUnstakeMsg,
-  createClaimRewardsMsg,
+  createClaimRewardForBABYStakingMsg,
 };

@@ -80,7 +80,7 @@ const stakeMsg = sdk.messages.createStakeMsg(
 );
 
 // BABY Staking: Claim BABY staking rewards message
-const claimMsg = sdk.messages.createClaimRewardsMsg(
+const claimMsg = sdk.messages.createClaimRewardForBABYStakingMsg(
   "bbn1...",
   "bbnvalidator...",
 );
@@ -193,7 +193,7 @@ Creates a message for unstaking BABY tokens.
   - `amount`: The amount to unstake (Coin object with amount and denom)
 - **Returns:** Message object with proper typeUrl and value, ready for signing and broadcasting
 
-#### `sdk.messages.createClaimRewardsMsg(delegatorAddress: string, validatorAddress: string)`
+#### `sdk.messages.createClaimRewardForBABYStakingMsg(delegatorAddress: string, validatorAddress: string)`
 
 Creates a message for claiming BABY staking rewards.
 
