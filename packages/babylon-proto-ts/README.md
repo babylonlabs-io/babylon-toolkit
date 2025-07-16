@@ -35,7 +35,7 @@ await sdk.connect();
 const btcRewards = await sdk.client.getRewardsForBTCStaking("bbn1...");
 
 // Query BABY staking delegations and rewards
-const delegations = await sdk.client.getDelegations("bbn1...");
+const delegations = await sdk.client.getBabyStakingDelegations("bbn1...");
 const babyRewards = await sdk.client.getRewardsForBABYStaking("bbn1...");
 
 // Get all validators
@@ -140,7 +140,7 @@ Retrieves the current Bitcoin blockchain tip height.
 
 - **Returns:** Bitcoin tip height (number)
 
-#### `sdk.client.getDelegations(address: string): Promise<DelegationResponse[]>`
+#### `sdk.client.getBabyStakingDelegations(address: string): Promise<DelegationResponse[]>`
 
 Gets all BABY token delegations for a given address.
 

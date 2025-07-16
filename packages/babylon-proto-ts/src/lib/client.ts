@@ -163,7 +163,9 @@ export class BabylonClient {
    * @param {string} address - The address to get the delegations of.
    * @returns {Promise<DelegationResponse[]>} - The delegations of the address.
    */
-  async getDelegations(address: string): Promise<DelegationResponse[]> {
+  async getBabyStakingDelegations(
+    address: string,
+  ): Promise<DelegationResponse[]> {
     try {
       const response =
         await this.getClient("staking").delegatorDelegations(address);
