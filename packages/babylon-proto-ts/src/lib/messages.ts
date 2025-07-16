@@ -69,7 +69,7 @@ export const createUnstakeBABYMsg = (
   });
 
   return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedUndelegate,
+    typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
     value: wrappedUndelegateMsg,
   };
 };

@@ -151,9 +151,9 @@ const msgStakeBABYConverter = {
 };
 
 // Epoching - Unstaking BABY
-const msgWrappedUndelegateConverter = {
-  [REGISTRY_TYPE_URLS.MsgWrappedUndelegate]: {
-    aminoType: REGISTRY_TYPE_URLS.MsgWrappedUndelegate,
+const msgUnstakeBABYConverter = {
+  [REGISTRY_TYPE_URLS.MsgUnstakeBABY]: {
+    aminoType: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
     toAmino: (msg: epochingtx.MsgWrappedUndelegate) => {
       return {
         msg: {
@@ -198,7 +198,7 @@ export const aminoConverters = {
   ...msgCreateBTCDelegationConverter,
   ...msgWithdrawRewardForBTCStakingConverter,
   ...msgStakeBABYConverter,
-  ...msgWrappedUndelegateConverter,
+  ...msgUnstakeBABYConverter,
   ...msgWithdrawDelegatorRewardConverter,
 };
 

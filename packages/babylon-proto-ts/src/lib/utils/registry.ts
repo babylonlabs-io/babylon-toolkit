@@ -31,7 +31,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
     messageType: epochingtx.MsgWrappedDelegate,
   },
   {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWrappedUndelegate,
+    typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
     messageType: epochingtx.MsgWrappedUndelegate,
   },
   // Cosmos Distribution - Claiming rewards from BABY Staking

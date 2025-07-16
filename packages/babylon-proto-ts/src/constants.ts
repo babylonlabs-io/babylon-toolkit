@@ -4,7 +4,7 @@ export const REGISTRY_TYPE_URLS = {
   MsgCreateBTCDelegation: "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
   MsgWithdrawRewardForBTCStaking: "/babylon.incentive.MsgWithdrawReward",
   MsgStakeBABY: "/babylon.epoching.v1.MsgWrappedDelegate",
-  MsgWrappedUndelegate: "/babylon.epoching.v1.MsgWrappedUndelegate",
+  MsgUnstakeBABY: "/babylon.epoching.v1.MsgWrappedUndelegate",
   MsgWithdrawDelegatorReward:
     "/cosmos.distribution.v1beta1.MsgWithdrawDelegatorReward",
 };
