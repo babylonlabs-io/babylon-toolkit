@@ -69,7 +69,8 @@ const client = await SigningStargateClient.connectWithSigner(
 );
 
 // BTC Staking: Withdraw BTC staking rewards message
-const btcWithdrawMsg = sdk.messages.createWithdrawRewardMsg("bbn1...");
+const btcWithdrawMsg =
+  sdk.messages.createWithdrawRewardForBTCStakingMsg("bbn1...");
 
 // BABY Staking: Stake BABY tokens message
 const stakeMsg = sdk.messages.createStakeMsg(
@@ -164,7 +165,7 @@ Gets all validators in the network.
 
 ### SDK Messages
 
-#### `sdk.messages.createWithdrawRewardMsg(address: string)`
+#### `sdk.messages.createWithdrawRewardForBTCStakingMsg(address: string)`
 
 Creates a message for withdrawing rewards from Bitcoin staking.
 

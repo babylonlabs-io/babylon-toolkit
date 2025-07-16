@@ -10,7 +10,7 @@ import * as incentivetx from "../generated/babylon/incentive/tx";
  * @param address - The address to withdraw rewards from
  * @returns The withdraw reward message
  */
-export const createWithdrawRewardMsg = (address: string) => {
+export const createWithdrawRewardForBTCStakingMsg = (address: string) => {
   const withdrawRewardMsg = incentivetx.MsgWithdrawReward.fromPartial({
     type: BTC_STAKER,
     address,
@@ -96,7 +96,7 @@ export const createClaimRewardsMsg = (
 };
 
 export default {
-  createWithdrawRewardMsg,
+  createWithdrawRewardForBTCStakingMsg,
   createStakeMsg,
   createUnstakeMsg,
   createClaimRewardsMsg,
