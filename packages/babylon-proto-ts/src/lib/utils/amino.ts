@@ -176,9 +176,9 @@ const msgUnstakeBABYConverter = {
 };
 
 // Cosmos Distribution - Claiming BABY rewards from BABY Staking
-const msgWithdrawDelegatorRewardConverter = {
-  [REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward]: {
-    aminoType: REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+const msgWithdrawRewardForBABYStakingConverter = {
+  [REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking]: {
+    aminoType: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
     toAmino: (msg: MsgWithdrawDelegatorReward) => {
       return {
         delegator_address: msg.delegatorAddress,
@@ -199,7 +199,7 @@ export const aminoConverters = {
   ...msgWithdrawRewardForBTCStakingConverter,
   ...msgStakeBABYConverter,
   ...msgUnstakeBABYConverter,
-  ...msgWithdrawDelegatorRewardConverter,
+  ...msgWithdrawRewardForBABYStakingConverter,
 };
 
 export const createAminoTypes = (): AminoTypes => {

@@ -90,7 +90,7 @@ export const createClaimRewardForBABYStakingMsg = (
   });
 
   return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
     value: withdrawRewardMsg,
   };
 };

@@ -36,7 +36,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
   },
   // Cosmos Distribution - Claiming rewards from BABY Staking
   {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
     messageType: MsgWithdrawDelegatorReward as any,
   },
 ];
