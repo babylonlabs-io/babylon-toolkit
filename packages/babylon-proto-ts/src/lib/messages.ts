@@ -17,7 +17,7 @@ export const createWithdrawRewardForBTCStakingMsg = (address: string) => {
   });
 
   return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawReward,
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
     value: withdrawRewardMsg,
   };
 };

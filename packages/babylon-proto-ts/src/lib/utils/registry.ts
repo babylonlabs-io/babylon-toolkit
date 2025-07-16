@@ -22,7 +22,7 @@ const protosToRegister: ProtoToRegister<any>[] = [
   },
   // Incentives - Claiming BABY rewards from BTC Staking
   {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawReward,
+    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
     messageType: incentivetx.MsgWithdrawReward,
   },
   // Epoching - Staking / Unstaking BABY

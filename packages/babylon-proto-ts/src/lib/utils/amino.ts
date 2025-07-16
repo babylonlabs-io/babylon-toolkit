@@ -107,9 +107,9 @@ const msgCreateBTCDelegationConverter = {
 };
 
 // Incentives - Claiming BABY rewards from BTC Staking
-const msgWithdrawRewardConverter = {
-  [REGISTRY_TYPE_URLS.MsgWithdrawReward]: {
-    aminoType: REGISTRY_TYPE_URLS.MsgWithdrawReward,
+const msgWithdrawRewardForBTCStakingConverter = {
+  [REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking]: {
+    aminoType: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
     toAmino: (msg: incentivetx.MsgWithdrawReward) => {
       return {
         type: msg.type,
@@ -196,7 +196,7 @@ const msgWithdrawDelegatorRewardConverter = {
 
 export const aminoConverters = {
   ...msgCreateBTCDelegationConverter,
-  ...msgWithdrawRewardConverter,
+  ...msgWithdrawRewardForBTCStakingConverter,
   ...msgWrappedDelegateConverter,
   ...msgWrappedUndelegateConverter,
   ...msgWithdrawDelegatorRewardConverter,
