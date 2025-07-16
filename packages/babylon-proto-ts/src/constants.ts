@@ -4,3 +4,4 @@ export const REGISTRY_TYPE_URLS = {
   MsgCreateBTCDelegation: "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
   MsgWithdrawReward: "/babylon.incentive.MsgWithdrawReward",
 };
+export const foo = 'bar';

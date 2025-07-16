@@ -57,21 +57,23 @@
     }
   ],
   "release": {
-    "projects": [
-      "packages/*"
-    ],
+    "projects": ["packages/*"],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
     "changelog": {
       "projectChangelogs": {
         "createRelease": "github",
-        "file": false
+        "file": false,
+        "entryWhenNoChanges": false
       }
     },
     "version": {
       "conventionalCommits": true,
       "preserveLocalDependencyProtocols": false,
-      "fallbackCurrentVersionResolver": "disk"
+      "fallbackCurrentVersionResolver": "disk",
+      "versionActionsOptions": {
+        "skipLockFileUpdate": true
+      }
     }
   }
 }

@@ -4,7 +4,8 @@ import { releaseChangelog, releasePublish, releaseVersion } from 'nx/release';
 const release = async () => {
   const { workspaceVersion, projectsVersionData } = await releaseVersion({
     gitCommit: false,
-    gitTag: true,
+    gitTag: false,
+    gitPush: false,
     verbose: true,
   });
 
@@ -21,7 +22,8 @@ const release = async () => {
     versionData: projectsVersionData,
     version: workspaceVersion,
     gitCommit: false,
-    gitTag: false,
+    gitTag: true,
+    gitPush: false,
     verbose: true,
   });
 

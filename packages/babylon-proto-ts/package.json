@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/babylon-proto-ts",
-  "version": "1.0.2",
+  "version": "1.2.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
