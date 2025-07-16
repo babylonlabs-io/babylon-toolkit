@@ -180,4 +180,4 @@ refactor!: remove deprecated method and cleanup types
 
 Just commit your changes using the proper format and merge to `main`.
 The CI pipeline will handle versioning and releasing automatically — no manual
-tagging or version bumps needed.
+tagging or version bumps needed. 
