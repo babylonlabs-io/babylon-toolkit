@@ -106,6 +106,79 @@ const msgCreateBTCDelegationConverter = {
   },
 };
 
+// BTC Staking - Expand existing BTC delegation
+const msgBtcStakeExpandConverter = {
+  [REGISTRY_TYPE_URLS.MsgBtcStakeExpand]: {
+    aminoType: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
+    toAmino: (msg: btcstakingtx.MsgBtcStakeExpand) => {
+      const pop = msg.pop;
+      if (!pop) {
+        throw new Error("Proof of possession is undefined");
+      }
+      return {
+        staker_addr: msg.stakerAddr,
+        btc_pk: Buffer.from(msg.btcPk).toString("base64"),
+        pop: {
+          btc_sig_type: pop.btcSigType,
+          btc_sig: Buffer.from(pop.btcSig).toString("base64"),
+        },
+        fp_btc_pk_list: msg.fpBtcPkList.map((pk) =>
+          Buffer.from(pk).toString("base64"),
+        ),
+        staking_time: msg.stakingTime,
+        staking_value: msg.stakingValue.toString(),
+        staking_tx: Buffer.from(msg.stakingTx).toString("base64"),
+        slashing_tx: Buffer.from(msg.slashingTx).toString("base64"),
+        delegator_slashing_sig: Buffer.from(msg.delegatorSlashingSig).toString(
+          "base64",
+        ),
+        unbonding_time: msg.unbondingTime,
+        unbonding_tx: Buffer.from(msg.unbondingTx).toString("base64"),
+        unbonding_value: msg.unbondingValue.toString(),
+        unbonding_slashing_tx: Buffer.from(msg.unbondingSlashingTx).toString(
+          "base64",
+        ),
+        delegator_unbonding_slashing_sig: Buffer.from(
+          msg.delegatorUnbondingSlashingSig,
+        ).toString("base64"),
+        previous_staking_tx_hash: msg.previousStakingTxHash,
+        funding_tx: Buffer.from(msg.fundingTx).toString("base64"),
+      };
+    },
+    fromAmino: (json: any): btcstakingtx.MsgBtcStakeExpand => {
+      return {
+        stakerAddr: json.staker_addr,
+        btcPk: Buffer.from(json.btc_pk, "base64"),
+        pop: {
+          btcSigType: json.pop.btc_sig_type,
+          btcSig: Buffer.from(json.pop.btc_sig, "base64"),
+        },
+        fpBtcPkList: json.fp_btc_pk_list.map((pk: string) =>
+          Buffer.from(pk, "base64"),
+        ),
+        stakingTime: json.staking_time,
+        stakingValue: parseInt(json.staking_value, 10),
+        stakingTx: Buffer.from(json.staking_tx, "base64"),
+        slashingTx: Buffer.from(json.slashing_tx, "base64"),
+        delegatorSlashingSig: Buffer.from(
+          json.delegator_slashing_sig,
+          "base64",
+        ),
+        unbondingTime: json.unbonding_time,
+        unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
+        unbondingValue: parseInt(json.unbonding_value, 10),
+        unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
+        delegatorUnbondingSlashingSig: Buffer.from(
+          json.delegator_unbonding_slashing_sig,
+          "base64",
+        ),
+        previousStakingTxHash: json.previous_staking_tx_hash,
+        fundingTx: Buffer.from(json.funding_tx, "base64"),
+      } as any;
+    },
+  },
+};
+
 // Incentives - Withdrawing BABY rewards from BTC Staking
 const msgWithdrawRewardForBTCStakingConverter = {
   [REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking]: {
@@ -196,6 +269,7 @@ const msgWithdrawRewardForBABYStakingConverter = {
 
 export const aminoConverters = {
   ...msgCreateBTCDelegationConverter,
+  ...msgBtcStakeExpandConverter,
   ...msgWithdrawRewardForBTCStakingConverter,
   ...msgStakeBABYConverter,
   ...msgUnstakeBABYConverter,
