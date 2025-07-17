@@ -83,6 +83,11 @@ export interface Params {
    * (inclusive)
    */
   btcActivationHeight: number;
+  /**
+   * max_finality_providers is the maximum number of finality providers that can
+   * be used in staking script
+   */
+  maxFinalityProviders: number;
 }
 
 /** HeightVersionPair pairs a btc height with a version of the parameters */
@@ -133,6 +138,7 @@ function createBaseParams(): Params {
     delegationCreationBaseGasFee: 0,
     allowListExpirationHeight: 0,
     btcActivationHeight: 0,
+    maxFinalityProviders: 0,
   };
 }
 
@@ -182,6 +188,9 @@ export const Params: MessageFns<Params> = {
     }
     if (message.btcActivationHeight !== 0) {
       writer.uint32(120).uint32(message.btcActivationHeight);
+    }
+    if (message.maxFinalityProviders !== 0) {
+      writer.uint32(128).uint32(message.maxFinalityProviders);
     }
     return writer;
   },
@@ -313,6 +322,14 @@ export const Params: MessageFns<Params> = {
           message.btcActivationHeight = reader.uint32();
           continue;
         }
+        case 16: {
+          if (tag !== 128) {
+            break;
+          }
+
+          message.maxFinalityProviders = reader.uint32();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -345,6 +362,7 @@ export const Params: MessageFns<Params> = {
         ? globalThis.Number(object.allowListExpirationHeight)
         : 0,
       btcActivationHeight: isSet(object.btcActivationHeight) ? globalThis.Number(object.btcActivationHeight) : 0,
+      maxFinalityProviders: isSet(object.maxFinalityProviders) ? globalThis.Number(object.maxFinalityProviders) : 0,
     };
   },
 
@@ -395,6 +413,9 @@ export const Params: MessageFns<Params> = {
     if (message.btcActivationHeight !== 0) {
       obj.btcActivationHeight = Math.round(message.btcActivationHeight);
     }
+    if (message.maxFinalityProviders !== 0) {
+      obj.maxFinalityProviders = Math.round(message.maxFinalityProviders);
+    }
     return obj;
   },
 
@@ -418,6 +439,7 @@ export const Params: MessageFns<Params> = {
     message.delegationCreationBaseGasFee = object.delegationCreationBaseGasFee ?? 0;
     message.allowListExpirationHeight = object.allowListExpirationHeight ?? 0;
     message.btcActivationHeight = object.btcActivationHeight ?? 0;
+    message.maxFinalityProviders = object.maxFinalityProviders ?? 0;
     return message;
   },
 };

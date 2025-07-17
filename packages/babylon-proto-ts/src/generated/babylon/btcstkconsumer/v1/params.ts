@@ -2,30 +2,30 @@
 // versions:
 //   protoc-gen-ts_proto  v2.6.1
 //   protoc               unknown
-// source: babylon/zoneconcierge/v1/params.proto
+// source: babylon/btcstkconsumer/v1/params.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 
-export const protobufPackage = "babylon.zoneconcierge.v1";
+export const protobufPackage = "babylon.btcstkconsumer.v1";
 
 /** Params defines the parameters for the module. */
 export interface Params {
   /**
-   * ibc_packet_timeout_seconds is the time period after which an unrelayed
-   * IBC packet becomes timeout, measured in seconds
+   * permissioned_integration is a flag to enable permissioned integration, i.e.,
+   * requiring governance proposal to approve new integrations.
    */
-  ibcPacketTimeoutSeconds: number;
+  permissionedIntegration: boolean;
 }
 
 function createBaseParams(): Params {
-  return { ibcPacketTimeoutSeconds: 0 };
+  return { permissionedIntegration: false };
 }
 
 export const Params: MessageFns<Params> = {
   encode(message: Params, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.ibcPacketTimeoutSeconds !== 0) {
-      writer.uint32(8).uint32(message.ibcPacketTimeoutSeconds);
+    if (message.permissionedIntegration !== false) {
+      writer.uint32(8).bool(message.permissionedIntegration);
     }
     return writer;
   },
@@ -42,7 +42,7 @@ export const Params: MessageFns<Params> = {
             break;
           }
 
-          message.ibcPacketTimeoutSeconds = reader.uint32();
+          message.permissionedIntegration = reader.bool();
           continue;
         }
       }
@@ -56,16 +56,16 @@ export const Params: MessageFns<Params> = {
 
   fromJSON(object: any): Params {
     return {
-      ibcPacketTimeoutSeconds: isSet(object.ibcPacketTimeoutSeconds)
-        ? globalThis.Number(object.ibcPacketTimeoutSeconds)
-        : 0,
+      permissionedIntegration: isSet(object.permissionedIntegration)
+        ? globalThis.Boolean(object.permissionedIntegration)
+        : false,
     };
   },
 
   toJSON(message: Params): unknown {
     const obj: any = {};
-    if (message.ibcPacketTimeoutSeconds !== 0) {
-      obj.ibcPacketTimeoutSeconds = Math.round(message.ibcPacketTimeoutSeconds);
+    if (message.permissionedIntegration !== false) {
+      obj.permissionedIntegration = message.permissionedIntegration;
     }
     return obj;
   },
@@ -75,7 +75,7 @@ export const Params: MessageFns<Params> = {
   },
   fromPartial<I extends Exact<DeepPartial<Params>, I>>(object: I): Params {
     const message = createBaseParams();
-    message.ibcPacketTimeoutSeconds = object.ibcPacketTimeoutSeconds ?? 0;
+    message.permissionedIntegration = object.permissionedIntegration ?? false;
     return message;
   },
 };

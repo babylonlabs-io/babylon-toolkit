@@ -43,12 +43,18 @@ export interface QueryParamsByVersionResponse {
   params: Params | undefined;
 }
 
-/** QueryParamsByBTCHeightRequest is request type for the Query/ParamsByBTCHeight RPC method. */
+/**
+ * QueryParamsByBTCHeightRequest is request type for the Query/ParamsByBTCHeight
+ * RPC method.
+ */
 export interface QueryParamsByBTCHeightRequest {
   btcHeight: number;
 }
 
-/** QueryParamsByBTCHeightResponse is response type for the Query/QueryParamsByBTCHeightResponse RPC method. */
+/**
+ * QueryParamsByBTCHeightResponse is response type for the
+ * Query/QueryParamsByBTCHeightResponse RPC method.
+ */
 export interface QueryParamsByBTCHeightResponse {
   /** params holds all the parameters of this module. */
   params:
@@ -64,7 +70,14 @@ export interface QueryParamsByBTCHeightResponse {
  */
 export interface QueryFinalityProvidersRequest {
   /** pagination defines an optional pagination for the request. */
-  pagination: PageRequest | undefined;
+  pagination:
+    | PageRequest
+    | undefined;
+  /**
+   * bsn_id allows to specify for which BSN to return finality providers for.
+   * Defaults to the Babylon Genesis BSN ID
+   */
+  bsnId: string;
 }
 
 /**
@@ -80,7 +93,10 @@ export interface QueryFinalityProvidersResponse {
 
 /** QueryFinalityProviderRequest requests information about a finality provider */
 export interface QueryFinalityProviderRequest {
-  /** fp_btc_pk_hex is the hex str of Bitcoin secp256k1 PK of the finality provider */
+  /**
+   * fp_btc_pk_hex is the hex str of Bitcoin secp256k1 PK of the finality
+   * provider
+   */
   fpBtcPkHex: string;
 }
 
@@ -106,7 +122,10 @@ export interface QueryBTCDelegationsRequest {
  * Query/BTCDelegations RPC method.
  */
 export interface QueryBTCDelegationsResponse {
-  /** btc_delegations contains all the queried BTC delegations under the given status */
+  /**
+   * btc_delegations contains all the queried BTC delegations under the given
+   * status
+   */
   btcDelegations: BTCDelegationResponse[];
   /** pagination defines the pagination in the response. */
   pagination: PageResponse | undefined;
@@ -118,9 +137,9 @@ export interface QueryBTCDelegationsResponse {
  */
 export interface QueryFinalityProviderDelegationsRequest {
   /**
-   * fp_btc_pk_hex is the hex str of Bitcoin secp256k1 PK of the finality providerthat
-   * this BTC delegation delegates to
-   * the PK follows encoding in BIP-340 spec
+   * fp_btc_pk_hex is the hex str of Bitcoin secp256k1 PK of the finality
+   * providerthat this BTC delegation delegates to the PK follows encoding in
+   * BIP-340 spec
    */
   fpBtcPkHex: string;
   /** pagination defines an optional pagination for the request. */
@@ -148,15 +167,18 @@ export interface QueryBTCDelegationRequest {
 }
 
 /**
- * QueryBTCDelegationResponse is response type matching QueryBTCDelegationRequest
- * and containing BTC delegation information
+ * QueryBTCDelegationResponse is response type matching
+ * QueryBTCDelegationRequest and containing BTC delegation information
  */
 export interface QueryBTCDelegationResponse {
   /** BTCDelegation represents the client needed information of an BTCDelegation. */
   btcDelegation: BTCDelegationResponse | undefined;
 }
 
-/** BTCDelegationResponse is the client needed information from a BTCDelegation with the current status based on parameters. */
+/**
+ * BTCDelegationResponse is the client needed information from a BTCDelegation
+ * with the current status based on parameters.
+ */
 export interface BTCDelegationResponse {
   /** staker_addr is the address to receive rewards from BTC delegation. */
   stakerAddr: string;
@@ -170,7 +192,10 @@ export interface BTCDelegationResponse {
    * this BTC delegation delegates to
    */
   fpBtcPkList: Uint8Array[];
-  /** staking_time is the number of blocks for which the delegation is locked on BTC chain */
+  /**
+   * staking_time is the number of blocks for which the delegation is locked on
+   * BTC chain
+   */
   stakingTime: number;
   /**
    * start_height is the start BTC height of the BTC delegation
@@ -210,8 +235,8 @@ export interface BTCDelegationResponse {
   /** descriptive status of current delegation. */
   statusDesc: string;
   /**
-   * unbonding_time used in unbonding output timelock path and in slashing transactions
-   * change outputs
+   * unbonding_time used in unbonding output timelock path and in slashing
+   * transactions change outputs
    */
   unbondingTime: number;
   /** undelegation_response is the undelegation info of this delegation. */
@@ -220,6 +245,36 @@ export interface BTCDelegationResponse {
     | undefined;
   /** params version used to validate delegation */
   paramsVersion: number;
+  /** stk_exp contains the stake expansion information, if nil it is NOT a stake expansion. */
+  stkExp: StakeExpansionResponse | undefined;
+}
+
+/**
+ * StakeExpansionResponse stores information necessary to construct the expanded BTC staking
+ * transaction created from a previous BTC staking.
+ */
+export interface StakeExpansionResponse {
+  /**
+   * previous_staking_tx_hash is the hex hash of the staking tx that was used as
+   * input to the stake expansion.
+   */
+  previousStakingTxHashHex: string;
+  /**
+   * other_funding_tx_out is the other funding output (TxOut) which was used
+   * as input to construct the BTC delegation. The stake expansion has a set of
+   * 2 inputs, the first input is the previous staking transaction and the
+   * second input (this one) is to pay for fees and optionally to add more
+   * stake to the BTC delegation.
+   */
+  otherFundingTxOutHex: string;
+  /**
+   * previous_stk_covenant_sigs is a list of signatures on the stake expansion
+   * transaction (i.e., the transaction spending the previous staking transaction
+   * {previous_staking_tx_hash}) by each covenant member.
+   * It must be provided to allow the previous staking tx to be spent as
+   * an transaction input of another BTC staking transaction.
+   */
+  previousStkCovenantSigs: SignatureInfo[];
 }
 
 /**
@@ -229,7 +284,8 @@ export interface BTCDelegationResponse {
 export interface DelegatorUnbondingInfoResponse {
   /**
    * spend_stake_tx_hex is the transaction which spent the staking output. It is
-   * filled only if the spend_stake_tx_hex is different than the unbonding_tx_hex
+   * filled only if the spend_stake_tx_hex is different than the
+   * unbonding_tx_hex
    */
   spendStakeTxHex: string;
 }
@@ -238,8 +294,8 @@ export interface DelegatorUnbondingInfoResponse {
 export interface BTCUndelegationResponse {
   /**
    * unbonding_tx is the transaction which will transfer the funds from staking
-   * output to unbonding output. Unbonding output will usually have lower timelock
-   * than staking output. The unbonding tx as string hex.
+   * output to unbonding output. Unbonding output will usually have lower
+   * timelock than staking output. The unbonding tx as string hex.
    */
   unbondingTxHex: string;
   /**
@@ -269,12 +325,18 @@ export interface BTCUndelegationResponse {
   delegatorUnbondingInfoResponse: DelegatorUnbondingInfoResponse | undefined;
 }
 
-/** BTCDelegatorDelegationsResponse is a collection of BTC delegations responses from the same delegator. */
+/**
+ * BTCDelegatorDelegationsResponse is a collection of BTC delegations responses
+ * from the same delegator.
+ */
 export interface BTCDelegatorDelegationsResponse {
   dels: BTCDelegationResponse[];
 }
 
-/** FinalityProviderResponse defines a finality provider with voting power information. */
+/**
+ * FinalityProviderResponse defines a finality provider with voting power
+ * information.
+ */
 export interface FinalityProviderResponse {
   /** description defines the description terms for the finality provider. */
   description:
@@ -317,8 +379,15 @@ export interface FinalityProviderResponse {
    * finality provider has voted
    */
   highestVotedHeight: number;
-  /** commission_info contains information details of the finality provider commission. */
-  commissionInfo: CommissionInfo | undefined;
+  /**
+   * commission_info contains information details of the finality provider
+   * commission.
+   */
+  commissionInfo:
+    | CommissionInfo
+    | undefined;
+  /** bsn_id is the ID of the BSN the finality provider is securing */
+  bsnId: string;
 }
 
 /** QueryLargestBtcReOrgRequest query request of the largest BTC reorg request */
@@ -719,13 +788,16 @@ export const QueryParamsByBTCHeightResponse: MessageFns<QueryParamsByBTCHeightRe
 };
 
 function createBaseQueryFinalityProvidersRequest(): QueryFinalityProvidersRequest {
-  return { pagination: undefined };
+  return { pagination: undefined, bsnId: "" };
 }
 
 export const QueryFinalityProvidersRequest: MessageFns<QueryFinalityProvidersRequest> = {
   encode(message: QueryFinalityProvidersRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.pagination !== undefined) {
       PageRequest.encode(message.pagination, writer.uint32(10).fork()).join();
+    }
+    if (message.bsnId !== "") {
+      writer.uint32(18).string(message.bsnId);
     }
     return writer;
   },
@@ -745,6 +817,14 @@ export const QueryFinalityProvidersRequest: MessageFns<QueryFinalityProvidersReq
           message.pagination = PageRequest.decode(reader, reader.uint32());
           continue;
         }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.bsnId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -755,13 +835,19 @@ export const QueryFinalityProvidersRequest: MessageFns<QueryFinalityProvidersReq
   },
 
   fromJSON(object: any): QueryFinalityProvidersRequest {
-    return { pagination: isSet(object.pagination) ? PageRequest.fromJSON(object.pagination) : undefined };
+    return {
+      pagination: isSet(object.pagination) ? PageRequest.fromJSON(object.pagination) : undefined,
+      bsnId: isSet(object.bsnId) ? globalThis.String(object.bsnId) : "",
+    };
   },
 
   toJSON(message: QueryFinalityProvidersRequest): unknown {
     const obj: any = {};
     if (message.pagination !== undefined) {
       obj.pagination = PageRequest.toJSON(message.pagination);
+    }
+    if (message.bsnId !== "") {
+      obj.bsnId = message.bsnId;
     }
     return obj;
   },
@@ -776,6 +862,7 @@ export const QueryFinalityProvidersRequest: MessageFns<QueryFinalityProvidersReq
     message.pagination = (object.pagination !== undefined && object.pagination !== null)
       ? PageRequest.fromPartial(object.pagination)
       : undefined;
+    message.bsnId = object.bsnId ?? "";
     return message;
   },
 };
@@ -1452,6 +1539,7 @@ function createBaseBTCDelegationResponse(): BTCDelegationResponse {
     unbondingTime: 0,
     undelegationResponse: undefined,
     paramsVersion: 0,
+    stkExp: undefined,
   };
 }
 
@@ -1507,6 +1595,9 @@ export const BTCDelegationResponse: MessageFns<BTCDelegationResponse> = {
     }
     if (message.paramsVersion !== 0) {
       writer.uint32(136).uint32(message.paramsVersion);
+    }
+    if (message.stkExp !== undefined) {
+      StakeExpansionResponse.encode(message.stkExp, writer.uint32(146).fork()).join();
     }
     return writer;
   },
@@ -1654,6 +1745,14 @@ export const BTCDelegationResponse: MessageFns<BTCDelegationResponse> = {
           message.paramsVersion = reader.uint32();
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.stkExp = StakeExpansionResponse.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1688,6 +1787,7 @@ export const BTCDelegationResponse: MessageFns<BTCDelegationResponse> = {
         ? BTCUndelegationResponse.fromJSON(object.undelegationResponse)
         : undefined,
       paramsVersion: isSet(object.paramsVersion) ? globalThis.Number(object.paramsVersion) : 0,
+      stkExp: isSet(object.stkExp) ? StakeExpansionResponse.fromJSON(object.stkExp) : undefined,
     };
   },
 
@@ -1744,6 +1844,9 @@ export const BTCDelegationResponse: MessageFns<BTCDelegationResponse> = {
     if (message.paramsVersion !== 0) {
       obj.paramsVersion = Math.round(message.paramsVersion);
     }
+    if (message.stkExp !== undefined) {
+      obj.stkExp = StakeExpansionResponse.toJSON(message.stkExp);
+    }
     return obj;
   },
 
@@ -1771,6 +1874,105 @@ export const BTCDelegationResponse: MessageFns<BTCDelegationResponse> = {
       ? BTCUndelegationResponse.fromPartial(object.undelegationResponse)
       : undefined;
     message.paramsVersion = object.paramsVersion ?? 0;
+    message.stkExp = (object.stkExp !== undefined && object.stkExp !== null)
+      ? StakeExpansionResponse.fromPartial(object.stkExp)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseStakeExpansionResponse(): StakeExpansionResponse {
+  return { previousStakingTxHashHex: "", otherFundingTxOutHex: "", previousStkCovenantSigs: [] };
+}
+
+export const StakeExpansionResponse: MessageFns<StakeExpansionResponse> = {
+  encode(message: StakeExpansionResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.previousStakingTxHashHex !== "") {
+      writer.uint32(10).string(message.previousStakingTxHashHex);
+    }
+    if (message.otherFundingTxOutHex !== "") {
+      writer.uint32(18).string(message.otherFundingTxOutHex);
+    }
+    for (const v of message.previousStkCovenantSigs) {
+      SignatureInfo.encode(v!, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): StakeExpansionResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStakeExpansionResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.previousStakingTxHashHex = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.otherFundingTxOutHex = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.previousStkCovenantSigs.push(SignatureInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StakeExpansionResponse {
+    return {
+      previousStakingTxHashHex: isSet(object.previousStakingTxHashHex)
+        ? globalThis.String(object.previousStakingTxHashHex)
+        : "",
+      otherFundingTxOutHex: isSet(object.otherFundingTxOutHex) ? globalThis.String(object.otherFundingTxOutHex) : "",
+      previousStkCovenantSigs: globalThis.Array.isArray(object?.previousStkCovenantSigs)
+        ? object.previousStkCovenantSigs.map((e: any) => SignatureInfo.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: StakeExpansionResponse): unknown {
+    const obj: any = {};
+    if (message.previousStakingTxHashHex !== "") {
+      obj.previousStakingTxHashHex = message.previousStakingTxHashHex;
+    }
+    if (message.otherFundingTxOutHex !== "") {
+      obj.otherFundingTxOutHex = message.otherFundingTxOutHex;
+    }
+    if (message.previousStkCovenantSigs?.length) {
+      obj.previousStkCovenantSigs = message.previousStkCovenantSigs.map((e) => SignatureInfo.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<StakeExpansionResponse>, I>>(base?: I): StakeExpansionResponse {
+    return StakeExpansionResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<StakeExpansionResponse>, I>>(object: I): StakeExpansionResponse {
+    const message = createBaseStakeExpansionResponse();
+    message.previousStakingTxHashHex = object.previousStakingTxHashHex ?? "";
+    message.otherFundingTxOutHex = object.otherFundingTxOutHex ?? "";
+    message.previousStkCovenantSigs = object.previousStkCovenantSigs?.map((e) => SignatureInfo.fromPartial(e)) || [];
     return message;
   },
 };
@@ -2073,6 +2275,7 @@ function createBaseFinalityProviderResponse(): FinalityProviderResponse {
     jailed: false,
     highestVotedHeight: 0,
     commissionInfo: undefined,
+    bsnId: "",
   };
 }
 
@@ -2110,6 +2313,9 @@ export const FinalityProviderResponse: MessageFns<FinalityProviderResponse> = {
     }
     if (message.commissionInfo !== undefined) {
       CommissionInfo.encode(message.commissionInfo, writer.uint32(90).fork()).join();
+    }
+    if (message.bsnId !== "") {
+      writer.uint32(98).string(message.bsnId);
     }
     return writer;
   },
@@ -2209,6 +2415,14 @@ export const FinalityProviderResponse: MessageFns<FinalityProviderResponse> = {
           message.commissionInfo = CommissionInfo.decode(reader, reader.uint32());
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.bsnId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2231,6 +2445,7 @@ export const FinalityProviderResponse: MessageFns<FinalityProviderResponse> = {
       jailed: isSet(object.jailed) ? globalThis.Boolean(object.jailed) : false,
       highestVotedHeight: isSet(object.highestVotedHeight) ? globalThis.Number(object.highestVotedHeight) : 0,
       commissionInfo: isSet(object.commissionInfo) ? CommissionInfo.fromJSON(object.commissionInfo) : undefined,
+      bsnId: isSet(object.bsnId) ? globalThis.String(object.bsnId) : "",
     };
   },
 
@@ -2269,6 +2484,9 @@ export const FinalityProviderResponse: MessageFns<FinalityProviderResponse> = {
     if (message.commissionInfo !== undefined) {
       obj.commissionInfo = CommissionInfo.toJSON(message.commissionInfo);
     }
+    if (message.bsnId !== "") {
+      obj.bsnId = message.bsnId;
+    }
     return obj;
   },
 
@@ -2294,6 +2512,7 @@ export const FinalityProviderResponse: MessageFns<FinalityProviderResponse> = {
     message.commissionInfo = (object.commissionInfo !== undefined && object.commissionInfo !== null)
       ? CommissionInfo.fromPartial(object.commissionInfo)
       : undefined;
+    message.bsnId = object.bsnId ?? "";
     return message;
   },
 };
@@ -2586,7 +2805,10 @@ export interface Query {
    * of past params.
    */
   ParamsByVersion(request: QueryParamsByVersionRequest): Promise<QueryParamsByVersionResponse>;
-  /** ParamsByBTCHeight queries the parameters of the module for a specific BTC height */
+  /**
+   * ParamsByBTCHeight queries the parameters of the module for a specific BTC
+   * height
+   */
   ParamsByBTCHeight(request: QueryParamsByBTCHeightRequest): Promise<QueryParamsByBTCHeightResponse>;
   /** FinalityProviders queries all finality providers */
   FinalityProviders(request: QueryFinalityProvidersRequest): Promise<QueryFinalityProvidersResponse>;
@@ -2594,7 +2816,10 @@ export interface Query {
   FinalityProvider(request: QueryFinalityProviderRequest): Promise<QueryFinalityProviderResponse>;
   /** BTCDelegations queries all BTC delegations under a given status */
   BTCDelegations(request: QueryBTCDelegationsRequest): Promise<QueryBTCDelegationsResponse>;
-  /** FinalityProviderDelegations queries all BTC delegations of the given finality provider */
+  /**
+   * FinalityProviderDelegations queries all BTC delegations of the given
+   * finality provider
+   */
   FinalityProviderDelegations(
     request: QueryFinalityProviderDelegationsRequest,
   ): Promise<QueryFinalityProviderDelegationsResponse>;

@@ -5,7 +5,7 @@ const BABYLON_REPO_URL = "https://github.com/babylonlabs-io/babylon.git";
 const BABYLON_REPO_DIR = "babylon";
 const PROTO_DIR = "proto";
 
-const BABYLON_REPO_TAG = "v1.0.0";
+const BABYLON_REPO_TAG = "v3.0.0-snapshot.250717";
 
 const generateProto = async () => {
   try {

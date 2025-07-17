@@ -6,23 +6,63 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { EpochData, SubmissionData, SubmissionKey } from "./btccheckpoint";
 import { Params } from "./params";
 
 export const protobufPackage = "babylon.btccheckpoint.v1";
 
 /** GenesisState defines the btccheckpoint module's genesis state. */
 export interface GenesisState {
-  params: Params | undefined;
+  /** params the current params of the state. */
+  params:
+    | Params
+    | undefined;
+  /** the last finalized epoch number */
+  lastFinalizedEpochNumber: number;
+  /** Epochs data for each stored epoch */
+  epochs: EpochEntry[];
+  /** Submission data for each stored submission key */
+  submissions: SubmissionEntry[];
+}
+
+/** EpochEntry represents data for a specific epoch number. */
+export interface EpochEntry {
+  /** Epoch number */
+  epochNumber: number;
+  /** The epoch data */
+  data: EpochData | undefined;
+}
+
+/**
+ * SubmissionEntry represents data for a submission for
+ * a specific submission key.
+ */
+export interface SubmissionEntry {
+  /** Epoch number */
+  submissionKey:
+    | SubmissionKey
+    | undefined;
+  /** The submission data corresponding to the submission key */
+  data: SubmissionData | undefined;
 }
 
 function createBaseGenesisState(): GenesisState {
-  return { params: undefined };
+  return { params: undefined, lastFinalizedEpochNumber: 0, epochs: [], submissions: [] };
 }
 
 export const GenesisState: MessageFns<GenesisState> = {
   encode(message: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.params !== undefined) {
       Params.encode(message.params, writer.uint32(10).fork()).join();
+    }
+    if (message.lastFinalizedEpochNumber !== 0) {
+      writer.uint32(16).uint64(message.lastFinalizedEpochNumber);
+    }
+    for (const v of message.epochs) {
+      EpochEntry.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.submissions) {
+      SubmissionEntry.encode(v!, writer.uint32(34).fork()).join();
     }
     return writer;
   },
@@ -42,6 +82,30 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.params = Params.decode(reader, reader.uint32());
           continue;
         }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.lastFinalizedEpochNumber = longToNumber(reader.uint64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.epochs.push(EpochEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.submissions.push(SubmissionEntry.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -52,13 +116,31 @@ export const GenesisState: MessageFns<GenesisState> = {
   },
 
   fromJSON(object: any): GenesisState {
-    return { params: isSet(object.params) ? Params.fromJSON(object.params) : undefined };
+    return {
+      params: isSet(object.params) ? Params.fromJSON(object.params) : undefined,
+      lastFinalizedEpochNumber: isSet(object.lastFinalizedEpochNumber)
+        ? globalThis.Number(object.lastFinalizedEpochNumber)
+        : 0,
+      epochs: globalThis.Array.isArray(object?.epochs) ? object.epochs.map((e: any) => EpochEntry.fromJSON(e)) : [],
+      submissions: globalThis.Array.isArray(object?.submissions)
+        ? object.submissions.map((e: any) => SubmissionEntry.fromJSON(e))
+        : [],
+    };
   },
 
   toJSON(message: GenesisState): unknown {
     const obj: any = {};
     if (message.params !== undefined) {
       obj.params = Params.toJSON(message.params);
+    }
+    if (message.lastFinalizedEpochNumber !== 0) {
+      obj.lastFinalizedEpochNumber = Math.round(message.lastFinalizedEpochNumber);
+    }
+    if (message.epochs?.length) {
+      obj.epochs = message.epochs.map((e) => EpochEntry.toJSON(e));
+    }
+    if (message.submissions?.length) {
+      obj.submissions = message.submissions.map((e) => SubmissionEntry.toJSON(e));
     }
     return obj;
   },
@@ -70,6 +152,165 @@ export const GenesisState: MessageFns<GenesisState> = {
     const message = createBaseGenesisState();
     message.params = (object.params !== undefined && object.params !== null)
       ? Params.fromPartial(object.params)
+      : undefined;
+    message.lastFinalizedEpochNumber = object.lastFinalizedEpochNumber ?? 0;
+    message.epochs = object.epochs?.map((e) => EpochEntry.fromPartial(e)) || [];
+    message.submissions = object.submissions?.map((e) => SubmissionEntry.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseEpochEntry(): EpochEntry {
+  return { epochNumber: 0, data: undefined };
+}
+
+export const EpochEntry: MessageFns<EpochEntry> = {
+  encode(message: EpochEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.epochNumber !== 0) {
+      writer.uint32(8).uint64(message.epochNumber);
+    }
+    if (message.data !== undefined) {
+      EpochData.encode(message.data, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EpochEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEpochEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.epochNumber = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.data = EpochData.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EpochEntry {
+    return {
+      epochNumber: isSet(object.epochNumber) ? globalThis.Number(object.epochNumber) : 0,
+      data: isSet(object.data) ? EpochData.fromJSON(object.data) : undefined,
+    };
+  },
+
+  toJSON(message: EpochEntry): unknown {
+    const obj: any = {};
+    if (message.epochNumber !== 0) {
+      obj.epochNumber = Math.round(message.epochNumber);
+    }
+    if (message.data !== undefined) {
+      obj.data = EpochData.toJSON(message.data);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EpochEntry>, I>>(base?: I): EpochEntry {
+    return EpochEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EpochEntry>, I>>(object: I): EpochEntry {
+    const message = createBaseEpochEntry();
+    message.epochNumber = object.epochNumber ?? 0;
+    message.data = (object.data !== undefined && object.data !== null) ? EpochData.fromPartial(object.data) : undefined;
+    return message;
+  },
+};
+
+function createBaseSubmissionEntry(): SubmissionEntry {
+  return { submissionKey: undefined, data: undefined };
+}
+
+export const SubmissionEntry: MessageFns<SubmissionEntry> = {
+  encode(message: SubmissionEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.submissionKey !== undefined) {
+      SubmissionKey.encode(message.submissionKey, writer.uint32(10).fork()).join();
+    }
+    if (message.data !== undefined) {
+      SubmissionData.encode(message.data, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SubmissionEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSubmissionEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.submissionKey = SubmissionKey.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.data = SubmissionData.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SubmissionEntry {
+    return {
+      submissionKey: isSet(object.submissionKey) ? SubmissionKey.fromJSON(object.submissionKey) : undefined,
+      data: isSet(object.data) ? SubmissionData.fromJSON(object.data) : undefined,
+    };
+  },
+
+  toJSON(message: SubmissionEntry): unknown {
+    const obj: any = {};
+    if (message.submissionKey !== undefined) {
+      obj.submissionKey = SubmissionKey.toJSON(message.submissionKey);
+    }
+    if (message.data !== undefined) {
+      obj.data = SubmissionData.toJSON(message.data);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SubmissionEntry>, I>>(base?: I): SubmissionEntry {
+    return SubmissionEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SubmissionEntry>, I>>(object: I): SubmissionEntry {
+    const message = createBaseSubmissionEntry();
+    message.submissionKey = (object.submissionKey !== undefined && object.submissionKey !== null)
+      ? SubmissionKey.fromPartial(object.submissionKey)
+      : undefined;
+    message.data = (object.data !== undefined && object.data !== null)
+      ? SubmissionData.fromPartial(object.data)
       : undefined;
     return message;
   },
@@ -86,6 +327,17 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

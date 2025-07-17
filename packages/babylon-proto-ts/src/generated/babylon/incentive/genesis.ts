@@ -6,6 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { EventsPowerUpdateAtHeight } from "./events";
 import { Gauge, RewardGauge } from "./incentive";
 import { Params } from "./params";
 import {
@@ -86,6 +87,16 @@ export interface GenesisState {
    * finality providers to which it delegated some BTC
    */
   btcDelegatorsToFps: BTCDelegatorToFpEntry[];
+  /**
+   * EventRewardTracker stores the events that will be processed at the babylon block height
+   * prior to the BTC reward distribution.
+   */
+  eventRewardTracker: EventsPowerUpdateAtHeightEntry[];
+  /**
+   * LastProcessedHeightEventRewardTracker is the latest block height in which
+   * the reward tracker was processed.
+   */
+  lastProcessedHeightEventRewardTracker: number;
 }
 
 /**
@@ -169,6 +180,17 @@ export interface BTCDelegatorToFpEntry {
   finalityProviderAddress: string;
 }
 
+/**
+ * EventsPowerUpdateAtHeightEntry holds an entry of an event
+ * to be processed at the BTC reward distribution of some babylon block height
+ */
+export interface EventsPowerUpdateAtHeightEntry {
+  /** Height the babylon block height which these events refer to. */
+  height: number;
+  /** Events holds the events to be processed. */
+  events: EventsPowerUpdateAtHeight | undefined;
+}
+
 function createBaseGenesisState(): GenesisState {
   return {
     params: undefined,
@@ -180,6 +202,8 @@ function createBaseGenesisState(): GenesisState {
     finalityProvidersHistoricalRewards: [],
     btcDelegationRewardsTrackers: [],
     btcDelegatorsToFps: [],
+    eventRewardTracker: [],
+    lastProcessedHeightEventRewardTracker: 0,
   };
 }
 
@@ -211,6 +235,12 @@ export const GenesisState: MessageFns<GenesisState> = {
     }
     for (const v of message.btcDelegatorsToFps) {
       BTCDelegatorToFpEntry.encode(v!, writer.uint32(74).fork()).join();
+    }
+    for (const v of message.eventRewardTracker) {
+      EventsPowerUpdateAtHeightEntry.encode(v!, writer.uint32(82).fork()).join();
+    }
+    if (message.lastProcessedHeightEventRewardTracker !== 0) {
+      writer.uint32(88).uint64(message.lastProcessedHeightEventRewardTracker);
     }
     return writer;
   },
@@ -298,6 +328,22 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.btcDelegatorsToFps.push(BTCDelegatorToFpEntry.decode(reader, reader.uint32()));
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.eventRewardTracker.push(EventsPowerUpdateAtHeightEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.lastProcessedHeightEventRewardTracker = longToNumber(reader.uint64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -334,6 +380,12 @@ export const GenesisState: MessageFns<GenesisState> = {
       btcDelegatorsToFps: globalThis.Array.isArray(object?.btcDelegatorsToFps)
         ? object.btcDelegatorsToFps.map((e: any) => BTCDelegatorToFpEntry.fromJSON(e))
         : [],
+      eventRewardTracker: globalThis.Array.isArray(object?.eventRewardTracker)
+        ? object.eventRewardTracker.map((e: any) => EventsPowerUpdateAtHeightEntry.fromJSON(e))
+        : [],
+      lastProcessedHeightEventRewardTracker: isSet(object.lastProcessedHeightEventRewardTracker)
+        ? globalThis.Number(object.lastProcessedHeightEventRewardTracker)
+        : 0,
     };
   },
 
@@ -372,6 +424,12 @@ export const GenesisState: MessageFns<GenesisState> = {
     if (message.btcDelegatorsToFps?.length) {
       obj.btcDelegatorsToFps = message.btcDelegatorsToFps.map((e) => BTCDelegatorToFpEntry.toJSON(e));
     }
+    if (message.eventRewardTracker?.length) {
+      obj.eventRewardTracker = message.eventRewardTracker.map((e) => EventsPowerUpdateAtHeightEntry.toJSON(e));
+    }
+    if (message.lastProcessedHeightEventRewardTracker !== 0) {
+      obj.lastProcessedHeightEventRewardTracker = Math.round(message.lastProcessedHeightEventRewardTracker);
+    }
     return obj;
   },
 
@@ -395,6 +453,9 @@ export const GenesisState: MessageFns<GenesisState> = {
     message.btcDelegationRewardsTrackers =
       object.btcDelegationRewardsTrackers?.map((e) => BTCDelegationRewardsTrackerEntry.fromPartial(e)) || [];
     message.btcDelegatorsToFps = object.btcDelegatorsToFps?.map((e) => BTCDelegatorToFpEntry.fromPartial(e)) || [];
+    message.eventRewardTracker = object.eventRewardTracker?.map((e) => EventsPowerUpdateAtHeightEntry.fromPartial(e)) ||
+      [];
+    message.lastProcessedHeightEventRewardTracker = object.lastProcessedHeightEventRewardTracker ?? 0;
     return message;
   },
 };
@@ -999,6 +1060,86 @@ export const BTCDelegatorToFpEntry: MessageFns<BTCDelegatorToFpEntry> = {
     const message = createBaseBTCDelegatorToFpEntry();
     message.delegatorAddress = object.delegatorAddress ?? "";
     message.finalityProviderAddress = object.finalityProviderAddress ?? "";
+    return message;
+  },
+};
+
+function createBaseEventsPowerUpdateAtHeightEntry(): EventsPowerUpdateAtHeightEntry {
+  return { height: 0, events: undefined };
+}
+
+export const EventsPowerUpdateAtHeightEntry: MessageFns<EventsPowerUpdateAtHeightEntry> = {
+  encode(message: EventsPowerUpdateAtHeightEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.height !== 0) {
+      writer.uint32(8).uint64(message.height);
+    }
+    if (message.events !== undefined) {
+      EventsPowerUpdateAtHeight.encode(message.events, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventsPowerUpdateAtHeightEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventsPowerUpdateAtHeightEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.height = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.events = EventsPowerUpdateAtHeight.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventsPowerUpdateAtHeightEntry {
+    return {
+      height: isSet(object.height) ? globalThis.Number(object.height) : 0,
+      events: isSet(object.events) ? EventsPowerUpdateAtHeight.fromJSON(object.events) : undefined,
+    };
+  },
+
+  toJSON(message: EventsPowerUpdateAtHeightEntry): unknown {
+    const obj: any = {};
+    if (message.height !== 0) {
+      obj.height = Math.round(message.height);
+    }
+    if (message.events !== undefined) {
+      obj.events = EventsPowerUpdateAtHeight.toJSON(message.events);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventsPowerUpdateAtHeightEntry>, I>>(base?: I): EventsPowerUpdateAtHeightEntry {
+    return EventsPowerUpdateAtHeightEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventsPowerUpdateAtHeightEntry>, I>>(
+    object: I,
+  ): EventsPowerUpdateAtHeightEntry {
+    const message = createBaseEventsPowerUpdateAtHeightEntry();
+    message.height = object.height ?? 0;
+    message.events = (object.events !== undefined && object.events !== null)
+      ? EventsPowerUpdateAtHeight.fromPartial(object.events)
+      : undefined;
     return message;
   },
 };

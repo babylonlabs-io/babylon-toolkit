@@ -6,10 +6,12 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Coin } from "../../../cosmos/base/v1beta1/coin";
 import {
   BTCDelegationStatus,
   bTCDelegationStatusFromJSON,
   bTCDelegationStatusToJSON,
+  FinalityProvider,
   SelectiveSlashingEvidence,
 } from "./btcstaking";
 
@@ -71,6 +73,11 @@ export function finalityProviderStatusToJSON(object: FinalityProviderStatus): st
   }
 }
 
+/** EventNewFinalityProvider is the event emitted when new finality provider is created */
+export interface EventNewFinalityProvider {
+  fp: FinalityProvider | undefined;
+}
+
 /** EventFinalityProviderCreated is the event emitted when a finality provider is created */
 export interface EventFinalityProviderCreated {
   /** btc_pk_hex is the hex string of Bitcoin secp256k1 PK of this finality provider */
@@ -89,6 +96,8 @@ export interface EventFinalityProviderCreated {
   securityContact: string;
   /** details define other optional details. */
   details: string;
+  /** bsn_id is the id of the BSN */
+  bsnId: string;
 }
 
 /** EventFinalityProviderEdited is the event emitted when a finality provider is edited */
@@ -154,7 +163,11 @@ export interface EventPowerDistUpdate {
     | EventPowerDistUpdate_EventUnjailedFinalityProvider
     | undefined;
   /** btc_del_state_update means a BTC delegation's state is updated */
-  btcDelStateUpdate?: EventBTCDelegationStateUpdate | undefined;
+  btcDelStateUpdate?:
+    | EventBTCDelegationStateUpdate
+    | undefined;
+  /** slashed_btc_delegation represents the affected BTC delegation when a consumer FP is slashed */
+  slashedBtcDelegation?: EventPowerDistUpdate_EventSlashedBTCDelegation | undefined;
 }
 
 /**
@@ -164,6 +177,20 @@ export interface EventPowerDistUpdate {
  */
 export interface EventPowerDistUpdate_EventSlashedFinalityProvider {
   pk: Uint8Array;
+}
+
+/**
+ * EventSlashedBTCDelegation is emitted for each BTC delegation that multi-stakes
+ * to a slashed consumer finality provider.
+ * It indicates that the voting power of affected Babylon finality providers
+ * will be discounted for this delegation.
+ */
+export interface EventPowerDistUpdate_EventSlashedBTCDelegation {
+  /**
+   * staking_tx_hash is the hash of the staking tx.
+   * It uniquely identifies a BTC delegation
+   */
+  stakingTxHash: string;
 }
 
 /**
@@ -242,6 +269,11 @@ export interface EventBTCDelegationCreated {
   newState: string;
   /** staker Babylon address */
   stakerAddr: string;
+  /**
+   * previous_staking_tx_hash_hex is the hex encoded of the hash of the staking tx
+   * that was used as input to the stake expansion, if empty it is NOT a stake expansion.
+   */
+  previousStakingTxHashHex: string;
 }
 
 /**
@@ -352,6 +384,104 @@ export interface EventUnexpectedUnbondingTx {
   spendStakeTxBlockIndex: number;
 }
 
+/**
+ * EventStakeExpansionActivated is the event emitted when a stake expansion
+ * delegation becomes active through the BTCUndelegate method.
+ */
+export interface EventStakeExpansionActivated {
+  /** previous_staking_tx_hash uniquely identifies the original BTC delegation */
+  previousStakingTxHash: string;
+  /** stake_expansion_tx_hash is the hash of the stake expansion transaction */
+  stakeExpansionTxHash: string;
+  /**
+   * stake_expansion_tx_header_hash is the hash of the header of the block that
+   * includes the stake expansion tx
+   */
+  stakeExpansionTxHeaderHash: string;
+  /** stake_expansion_tx_block_index is the stake expansion tx index in the block */
+  stakeExpansionTxBlockIndex: number;
+}
+
+/** EventAddBsnRewards event that rewards were added for BSN finality providers */
+export interface EventAddBsnRewards {
+  /** Sender is the babylon address which paid for the rewards */
+  sender: string;
+  /** BsnConsumerId is the ID of the BSN consumer */
+  bsnConsumerId: string;
+  /** TotalRewards is the total amount of rewards that were distributed */
+  totalRewards: Coin[];
+  /** BabylonCommission is the amount of commission collected by Babylon */
+  babylonCommission: Coin[];
+  /** FpRatios contains the finality providers and their respective reward ratios */
+  fpRatios: EventFpRewardInfo[];
+}
+
+/** EventFpRewardInfo contains finality provider reward information for events */
+export interface EventFpRewardInfo {
+  /** BtcPK is the Bitcoin secp256k1 PK of the finality provider */
+  fpBtcPkHex: string;
+  /** TotalRewards is the total amount allocated to this finality provider */
+  totalRewards: Coin[];
+}
+
+function createBaseEventNewFinalityProvider(): EventNewFinalityProvider {
+  return { fp: undefined };
+}
+
+export const EventNewFinalityProvider: MessageFns<EventNewFinalityProvider> = {
+  encode(message: EventNewFinalityProvider, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.fp !== undefined) {
+      FinalityProvider.encode(message.fp, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventNewFinalityProvider {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventNewFinalityProvider();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.fp = FinalityProvider.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventNewFinalityProvider {
+    return { fp: isSet(object.fp) ? FinalityProvider.fromJSON(object.fp) : undefined };
+  },
+
+  toJSON(message: EventNewFinalityProvider): unknown {
+    const obj: any = {};
+    if (message.fp !== undefined) {
+      obj.fp = FinalityProvider.toJSON(message.fp);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventNewFinalityProvider>, I>>(base?: I): EventNewFinalityProvider {
+    return EventNewFinalityProvider.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventNewFinalityProvider>, I>>(object: I): EventNewFinalityProvider {
+    const message = createBaseEventNewFinalityProvider();
+    message.fp = (object.fp !== undefined && object.fp !== null) ? FinalityProvider.fromPartial(object.fp) : undefined;
+    return message;
+  },
+};
+
 function createBaseEventFinalityProviderCreated(): EventFinalityProviderCreated {
   return {
     btcPkHex: "",
@@ -362,6 +492,7 @@ function createBaseEventFinalityProviderCreated(): EventFinalityProviderCreated 
     website: "",
     securityContact: "",
     details: "",
+    bsnId: "",
   };
 }
 
@@ -390,6 +521,9 @@ export const EventFinalityProviderCreated: MessageFns<EventFinalityProviderCreat
     }
     if (message.details !== "") {
       writer.uint32(66).string(message.details);
+    }
+    if (message.bsnId !== "") {
+      writer.uint32(74).string(message.bsnId);
     }
     return writer;
   },
@@ -465,6 +599,14 @@ export const EventFinalityProviderCreated: MessageFns<EventFinalityProviderCreat
           message.details = reader.string();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.bsnId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -484,6 +626,7 @@ export const EventFinalityProviderCreated: MessageFns<EventFinalityProviderCreat
       website: isSet(object.website) ? globalThis.String(object.website) : "",
       securityContact: isSet(object.securityContact) ? globalThis.String(object.securityContact) : "",
       details: isSet(object.details) ? globalThis.String(object.details) : "",
+      bsnId: isSet(object.bsnId) ? globalThis.String(object.bsnId) : "",
     };
   },
 
@@ -513,6 +656,9 @@ export const EventFinalityProviderCreated: MessageFns<EventFinalityProviderCreat
     if (message.details !== "") {
       obj.details = message.details;
     }
+    if (message.bsnId !== "") {
+      obj.bsnId = message.bsnId;
+    }
     return obj;
   },
 
@@ -529,6 +675,7 @@ export const EventFinalityProviderCreated: MessageFns<EventFinalityProviderCreat
     message.website = object.website ?? "";
     message.securityContact = object.securityContact ?? "";
     message.details = object.details ?? "";
+    message.bsnId = object.bsnId ?? "";
     return message;
   },
 };
@@ -828,7 +975,13 @@ export const EventSelectiveSlashing: MessageFns<EventSelectiveSlashing> = {
 };
 
 function createBaseEventPowerDistUpdate(): EventPowerDistUpdate {
-  return { slashedFp: undefined, jailedFp: undefined, unjailedFp: undefined, btcDelStateUpdate: undefined };
+  return {
+    slashedFp: undefined,
+    jailedFp: undefined,
+    unjailedFp: undefined,
+    btcDelStateUpdate: undefined,
+    slashedBtcDelegation: undefined,
+  };
 }
 
 export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
@@ -844,6 +997,10 @@ export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
     }
     if (message.btcDelStateUpdate !== undefined) {
       EventBTCDelegationStateUpdate.encode(message.btcDelStateUpdate, writer.uint32(34).fork()).join();
+    }
+    if (message.slashedBtcDelegation !== undefined) {
+      EventPowerDistUpdate_EventSlashedBTCDelegation.encode(message.slashedBtcDelegation, writer.uint32(42).fork())
+        .join();
     }
     return writer;
   },
@@ -887,6 +1044,14 @@ export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
           message.btcDelStateUpdate = EventBTCDelegationStateUpdate.decode(reader, reader.uint32());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.slashedBtcDelegation = EventPowerDistUpdate_EventSlashedBTCDelegation.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -910,6 +1075,9 @@ export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
       btcDelStateUpdate: isSet(object.btcDelStateUpdate)
         ? EventBTCDelegationStateUpdate.fromJSON(object.btcDelStateUpdate)
         : undefined,
+      slashedBtcDelegation: isSet(object.slashedBtcDelegation)
+        ? EventPowerDistUpdate_EventSlashedBTCDelegation.fromJSON(object.slashedBtcDelegation)
+        : undefined,
     };
   },
 
@@ -926,6 +1094,9 @@ export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
     }
     if (message.btcDelStateUpdate !== undefined) {
       obj.btcDelStateUpdate = EventBTCDelegationStateUpdate.toJSON(message.btcDelStateUpdate);
+    }
+    if (message.slashedBtcDelegation !== undefined) {
+      obj.slashedBtcDelegation = EventPowerDistUpdate_EventSlashedBTCDelegation.toJSON(message.slashedBtcDelegation);
     }
     return obj;
   },
@@ -946,6 +1117,9 @@ export const EventPowerDistUpdate: MessageFns<EventPowerDistUpdate> = {
       : undefined;
     message.btcDelStateUpdate = (object.btcDelStateUpdate !== undefined && object.btcDelStateUpdate !== null)
       ? EventBTCDelegationStateUpdate.fromPartial(object.btcDelStateUpdate)
+      : undefined;
+    message.slashedBtcDelegation = (object.slashedBtcDelegation !== undefined && object.slashedBtcDelegation !== null)
+      ? EventPowerDistUpdate_EventSlashedBTCDelegation.fromPartial(object.slashedBtcDelegation)
       : undefined;
     return message;
   },
@@ -1014,6 +1188,73 @@ export const EventPowerDistUpdate_EventSlashedFinalityProvider: MessageFns<
   ): EventPowerDistUpdate_EventSlashedFinalityProvider {
     const message = createBaseEventPowerDistUpdate_EventSlashedFinalityProvider();
     message.pk = object.pk ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseEventPowerDistUpdate_EventSlashedBTCDelegation(): EventPowerDistUpdate_EventSlashedBTCDelegation {
+  return { stakingTxHash: "" };
+}
+
+export const EventPowerDistUpdate_EventSlashedBTCDelegation: MessageFns<
+  EventPowerDistUpdate_EventSlashedBTCDelegation
+> = {
+  encode(
+    message: EventPowerDistUpdate_EventSlashedBTCDelegation,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
+    if (message.stakingTxHash !== "") {
+      writer.uint32(10).string(message.stakingTxHash);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventPowerDistUpdate_EventSlashedBTCDelegation {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventPowerDistUpdate_EventSlashedBTCDelegation();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stakingTxHash = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventPowerDistUpdate_EventSlashedBTCDelegation {
+    return { stakingTxHash: isSet(object.stakingTxHash) ? globalThis.String(object.stakingTxHash) : "" };
+  },
+
+  toJSON(message: EventPowerDistUpdate_EventSlashedBTCDelegation): unknown {
+    const obj: any = {};
+    if (message.stakingTxHash !== "") {
+      obj.stakingTxHash = message.stakingTxHash;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventPowerDistUpdate_EventSlashedBTCDelegation>, I>>(
+    base?: I,
+  ): EventPowerDistUpdate_EventSlashedBTCDelegation {
+    return EventPowerDistUpdate_EventSlashedBTCDelegation.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventPowerDistUpdate_EventSlashedBTCDelegation>, I>>(
+    object: I,
+  ): EventPowerDistUpdate_EventSlashedBTCDelegation {
+    const message = createBaseEventPowerDistUpdate_EventSlashedBTCDelegation();
+    message.stakingTxHash = object.stakingTxHash ?? "";
     return message;
   },
 };
@@ -1244,6 +1485,7 @@ function createBaseEventBTCDelegationCreated(): EventBTCDelegationCreated {
     unbondingTx: "",
     newState: "",
     stakerAddr: "",
+    previousStakingTxHashHex: "",
   };
 }
 
@@ -1278,6 +1520,9 @@ export const EventBTCDelegationCreated: MessageFns<EventBTCDelegationCreated> = 
     }
     if (message.stakerAddr !== "") {
       writer.uint32(82).string(message.stakerAddr);
+    }
+    if (message.previousStakingTxHashHex !== "") {
+      writer.uint32(90).string(message.previousStakingTxHashHex);
     }
     return writer;
   },
@@ -1369,6 +1614,14 @@ export const EventBTCDelegationCreated: MessageFns<EventBTCDelegationCreated> = 
           message.stakerAddr = reader.string();
           continue;
         }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.previousStakingTxHashHex = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1392,6 +1645,9 @@ export const EventBTCDelegationCreated: MessageFns<EventBTCDelegationCreated> = 
       unbondingTx: isSet(object.unbondingTx) ? globalThis.String(object.unbondingTx) : "",
       newState: isSet(object.newState) ? globalThis.String(object.newState) : "",
       stakerAddr: isSet(object.stakerAddr) ? globalThis.String(object.stakerAddr) : "",
+      previousStakingTxHashHex: isSet(object.previousStakingTxHashHex)
+        ? globalThis.String(object.previousStakingTxHashHex)
+        : "",
     };
   },
 
@@ -1427,6 +1683,9 @@ export const EventBTCDelegationCreated: MessageFns<EventBTCDelegationCreated> = 
     if (message.stakerAddr !== "") {
       obj.stakerAddr = message.stakerAddr;
     }
+    if (message.previousStakingTxHashHex !== "") {
+      obj.previousStakingTxHashHex = message.previousStakingTxHashHex;
+    }
     return obj;
   },
 
@@ -1445,6 +1704,7 @@ export const EventBTCDelegationCreated: MessageFns<EventBTCDelegationCreated> = 
     message.unbondingTx = object.unbondingTx ?? "";
     message.newState = object.newState ?? "";
     message.stakerAddr = object.stakerAddr ?? "";
+    message.previousStakingTxHashHex = object.previousStakingTxHashHex ?? "";
     return message;
   },
 };
@@ -2011,6 +2271,331 @@ export const EventUnexpectedUnbondingTx: MessageFns<EventUnexpectedUnbondingTx> 
     message.spendStakeTxHash = object.spendStakeTxHash ?? "";
     message.spendStakeTxHeaderHash = object.spendStakeTxHeaderHash ?? "";
     message.spendStakeTxBlockIndex = object.spendStakeTxBlockIndex ?? 0;
+    return message;
+  },
+};
+
+function createBaseEventStakeExpansionActivated(): EventStakeExpansionActivated {
+  return {
+    previousStakingTxHash: "",
+    stakeExpansionTxHash: "",
+    stakeExpansionTxHeaderHash: "",
+    stakeExpansionTxBlockIndex: 0,
+  };
+}
+
+export const EventStakeExpansionActivated: MessageFns<EventStakeExpansionActivated> = {
+  encode(message: EventStakeExpansionActivated, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.previousStakingTxHash !== "") {
+      writer.uint32(10).string(message.previousStakingTxHash);
+    }
+    if (message.stakeExpansionTxHash !== "") {
+      writer.uint32(18).string(message.stakeExpansionTxHash);
+    }
+    if (message.stakeExpansionTxHeaderHash !== "") {
+      writer.uint32(26).string(message.stakeExpansionTxHeaderHash);
+    }
+    if (message.stakeExpansionTxBlockIndex !== 0) {
+      writer.uint32(32).uint32(message.stakeExpansionTxBlockIndex);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventStakeExpansionActivated {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventStakeExpansionActivated();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.previousStakingTxHash = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.stakeExpansionTxHash = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.stakeExpansionTxHeaderHash = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.stakeExpansionTxBlockIndex = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventStakeExpansionActivated {
+    return {
+      previousStakingTxHash: isSet(object.previousStakingTxHash) ? globalThis.String(object.previousStakingTxHash) : "",
+      stakeExpansionTxHash: isSet(object.stakeExpansionTxHash) ? globalThis.String(object.stakeExpansionTxHash) : "",
+      stakeExpansionTxHeaderHash: isSet(object.stakeExpansionTxHeaderHash)
+        ? globalThis.String(object.stakeExpansionTxHeaderHash)
+        : "",
+      stakeExpansionTxBlockIndex: isSet(object.stakeExpansionTxBlockIndex)
+        ? globalThis.Number(object.stakeExpansionTxBlockIndex)
+        : 0,
+    };
+  },
+
+  toJSON(message: EventStakeExpansionActivated): unknown {
+    const obj: any = {};
+    if (message.previousStakingTxHash !== "") {
+      obj.previousStakingTxHash = message.previousStakingTxHash;
+    }
+    if (message.stakeExpansionTxHash !== "") {
+      obj.stakeExpansionTxHash = message.stakeExpansionTxHash;
+    }
+    if (message.stakeExpansionTxHeaderHash !== "") {
+      obj.stakeExpansionTxHeaderHash = message.stakeExpansionTxHeaderHash;
+    }
+    if (message.stakeExpansionTxBlockIndex !== 0) {
+      obj.stakeExpansionTxBlockIndex = Math.round(message.stakeExpansionTxBlockIndex);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventStakeExpansionActivated>, I>>(base?: I): EventStakeExpansionActivated {
+    return EventStakeExpansionActivated.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventStakeExpansionActivated>, I>>(object: I): EventStakeExpansionActivated {
+    const message = createBaseEventStakeExpansionActivated();
+    message.previousStakingTxHash = object.previousStakingTxHash ?? "";
+    message.stakeExpansionTxHash = object.stakeExpansionTxHash ?? "";
+    message.stakeExpansionTxHeaderHash = object.stakeExpansionTxHeaderHash ?? "";
+    message.stakeExpansionTxBlockIndex = object.stakeExpansionTxBlockIndex ?? 0;
+    return message;
+  },
+};
+
+function createBaseEventAddBsnRewards(): EventAddBsnRewards {
+  return { sender: "", bsnConsumerId: "", totalRewards: [], babylonCommission: [], fpRatios: [] };
+}
+
+export const EventAddBsnRewards: MessageFns<EventAddBsnRewards> = {
+  encode(message: EventAddBsnRewards, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sender !== "") {
+      writer.uint32(10).string(message.sender);
+    }
+    if (message.bsnConsumerId !== "") {
+      writer.uint32(18).string(message.bsnConsumerId);
+    }
+    for (const v of message.totalRewards) {
+      Coin.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.babylonCommission) {
+      Coin.encode(v!, writer.uint32(34).fork()).join();
+    }
+    for (const v of message.fpRatios) {
+      EventFpRewardInfo.encode(v!, writer.uint32(42).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventAddBsnRewards {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventAddBsnRewards();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sender = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.bsnConsumerId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.totalRewards.push(Coin.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.babylonCommission.push(Coin.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.fpRatios.push(EventFpRewardInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventAddBsnRewards {
+    return {
+      sender: isSet(object.sender) ? globalThis.String(object.sender) : "",
+      bsnConsumerId: isSet(object.bsnConsumerId) ? globalThis.String(object.bsnConsumerId) : "",
+      totalRewards: globalThis.Array.isArray(object?.totalRewards)
+        ? object.totalRewards.map((e: any) => Coin.fromJSON(e))
+        : [],
+      babylonCommission: globalThis.Array.isArray(object?.babylonCommission)
+        ? object.babylonCommission.map((e: any) => Coin.fromJSON(e))
+        : [],
+      fpRatios: globalThis.Array.isArray(object?.fpRatios)
+        ? object.fpRatios.map((e: any) => EventFpRewardInfo.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: EventAddBsnRewards): unknown {
+    const obj: any = {};
+    if (message.sender !== "") {
+      obj.sender = message.sender;
+    }
+    if (message.bsnConsumerId !== "") {
+      obj.bsnConsumerId = message.bsnConsumerId;
+    }
+    if (message.totalRewards?.length) {
+      obj.totalRewards = message.totalRewards.map((e) => Coin.toJSON(e));
+    }
+    if (message.babylonCommission?.length) {
+      obj.babylonCommission = message.babylonCommission.map((e) => Coin.toJSON(e));
+    }
+    if (message.fpRatios?.length) {
+      obj.fpRatios = message.fpRatios.map((e) => EventFpRewardInfo.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventAddBsnRewards>, I>>(base?: I): EventAddBsnRewards {
+    return EventAddBsnRewards.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventAddBsnRewards>, I>>(object: I): EventAddBsnRewards {
+    const message = createBaseEventAddBsnRewards();
+    message.sender = object.sender ?? "";
+    message.bsnConsumerId = object.bsnConsumerId ?? "";
+    message.totalRewards = object.totalRewards?.map((e) => Coin.fromPartial(e)) || [];
+    message.babylonCommission = object.babylonCommission?.map((e) => Coin.fromPartial(e)) || [];
+    message.fpRatios = object.fpRatios?.map((e) => EventFpRewardInfo.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseEventFpRewardInfo(): EventFpRewardInfo {
+  return { fpBtcPkHex: "", totalRewards: [] };
+}
+
+export const EventFpRewardInfo: MessageFns<EventFpRewardInfo> = {
+  encode(message: EventFpRewardInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.fpBtcPkHex !== "") {
+      writer.uint32(10).string(message.fpBtcPkHex);
+    }
+    for (const v of message.totalRewards) {
+      Coin.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EventFpRewardInfo {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEventFpRewardInfo();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.fpBtcPkHex = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.totalRewards.push(Coin.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EventFpRewardInfo {
+    return {
+      fpBtcPkHex: isSet(object.fpBtcPkHex) ? globalThis.String(object.fpBtcPkHex) : "",
+      totalRewards: globalThis.Array.isArray(object?.totalRewards)
+        ? object.totalRewards.map((e: any) => Coin.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: EventFpRewardInfo): unknown {
+    const obj: any = {};
+    if (message.fpBtcPkHex !== "") {
+      obj.fpBtcPkHex = message.fpBtcPkHex;
+    }
+    if (message.totalRewards?.length) {
+      obj.totalRewards = message.totalRewards.map((e) => Coin.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EventFpRewardInfo>, I>>(base?: I): EventFpRewardInfo {
+    return EventFpRewardInfo.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EventFpRewardInfo>, I>>(object: I): EventFpRewardInfo {
+    const message = createBaseEventFpRewardInfo();
+    message.fpBtcPkHex = object.fpBtcPkHex ?? "";
+    message.totalRewards = object.totalRewards?.map((e) => Coin.fromPartial(e)) || [];
     return message;
   },
 };

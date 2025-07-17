@@ -6,7 +6,14 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import { Evidence, FinalityProviderSigningInfo, IndexedBlock, PubRandCommit, VotingPowerDistCache } from "./finality";
+import {
+  Evidence,
+  FinalityProviderSigningInfo,
+  IndexedBlock,
+  PubRandCommit,
+  PubRandCommitIndexValue,
+  VotingPowerDistCache,
+} from "./finality";
 import { Params } from "./params";
 
 export const protobufPackage = "babylon.finality.v1";
@@ -23,29 +30,51 @@ export interface GenesisState {
   evidences: Evidence[];
   /** votes_sigs contains all the votes of finality providers ever registered. */
   voteSigs: VoteSig[];
-  /** public_randomness contains all the public randomness ever committed from the finality providers. */
+  /**
+   * public_randomness contains all the public randomness ever committed from
+   * the finality providers.
+   */
   publicRandomness: PublicRandomness[];
-  /** pub_rand_commit contains all the public randomness commitment ever committed from the finality providers. */
+  /**
+   * pub_rand_commit contains all the public randomness commitment ever
+   * committed from the finality providers.
+   */
   pubRandCommit: PubRandCommitWithPK[];
   /**
-   * signing_infos represents a map between finality provider public key and their
-   * signing infos.
+   * signing_infos represents a map between finality provider public key and
+   * their signing infos.
    */
   signingInfos: SigningInfo[];
   /**
-   * missed_blocks represents a map between finality provider public key and their
-   * missed blocks.
+   * missed_blocks represents a map between finality provider public key and
+   * their missed blocks.
    */
   missedBlocks: FinalityProviderMissedBlocks[];
-  /** voting_powers the voting power of every finality provider at every block height. */
+  /**
+   * voting_powers the voting power of every finality provider at every block
+   * height.
+   */
   votingPowers: VotingPowerFP[];
-  /** vp_dst_cache is the table of all providers voting power with the total at one specific block. */
+  /**
+   * vp_dst_cache is the table of all providers voting power with the total at
+   * one specific block.
+   */
   vpDstCache: VotingPowerDistCacheBlkHeight[];
+  /** next block height to finalize */
+  nextHeightToFinalize: number;
+  /** next block height to reward */
+  nextHeightToReward: number;
+  /**
+   * pub_rand_commit_indexes are the indexes of the start heights of the
+   * committed pub_randomness of the finality providers
+   */
+  pubRandCommitIndexes: PubRandCommitIdx[];
 }
 
 /**
  * VoteSig the vote of an finality provider
- * with the block of the vote, the finality provider btc public key and the vote signature.
+ * with the block of the vote, the finality provider btc public key and the vote
+ * signature.
  */
 export interface VoteSig {
   /** block_height is the height of the voted block. */
@@ -59,9 +88,15 @@ export interface VoteSig {
   finalitySig: Uint8Array;
 }
 
-/** PublicRandomness the block height and public randomness that the finality provider has submitted. */
+/**
+ * PublicRandomness the block height and public randomness that the finality
+ * provider has submitted.
+ */
 export interface PublicRandomness {
-  /** block_height is the height of block which the finality provider submitted public randomness. */
+  /**
+   * block_height is the height of block which the finality provider submitted
+   * public randomness.
+   */
   blockHeight: number;
   /** fp_btc_pk is the BTC PK of the finality provider that casts this vote. */
   fpBtcPk: Uint8Array;
@@ -69,15 +104,41 @@ export interface PublicRandomness {
   pubRand: Uint8Array;
 }
 
-/** PubRandCommitWithPK is the public randomness commitment with the finality provider's BTC public key */
+/**
+ * PubRandCommitWithPK is the public randomness commitment with the finality
+ * provider's BTC public key
+ */
 export interface PubRandCommitWithPK {
-  /** fp_btc_pk is the BTC PK of the finality provider that commits the public randomness */
+  /**
+   * fp_btc_pk is the BTC PK of the finality provider that commits the public
+   * randomness
+   */
   fpBtcPk: Uint8Array;
   /** pub_rand_commit is the public randomness commitment */
   pubRandCommit: PubRandCommit | undefined;
 }
 
-/** SigningInfo stores finality provider signing info of corresponding BTC public key. */
+/**
+ * PubRandCommitIdx is the index with a list of sorted start heights for public
+ * randomness commitments for the specified finality provider
+ */
+export interface PubRandCommitIdx {
+  /**
+   * fp_btc_pk is the BTC PK of the finality provider that commits the public
+   * randomness
+   */
+  fpBtcPk: Uint8Array;
+  /**
+   * index is the list of sorted start heights for public
+   * randomness commitments
+   */
+  index: PubRandCommitIndexValue | undefined;
+}
+
+/**
+ * SigningInfo stores finality provider signing info of corresponding BTC public
+ * key.
+ */
 export interface SigningInfo {
   /** fp_btc_pk is the BTC PK of the finality provider */
   fpBtcPk: Uint8Array;
@@ -113,13 +174,22 @@ export interface VotingPowerFP {
   blockHeight: number;
   /** fp_btc_pk the finality provider btc public key. */
   fpBtcPk: Uint8Array;
-  /** voting_power is the power of the finality provider at this specific block height. */
+  /**
+   * voting_power is the power of the finality provider at this specific block
+   * height.
+   */
   votingPower: number;
 }
 
-/** VotingPowerDistCacheBlkHeight the total voting power of the finality providers at one specific block height */
+/**
+ * VotingPowerDistCacheBlkHeight the total voting power of the finality
+ * providers at one specific block height
+ */
 export interface VotingPowerDistCacheBlkHeight {
-  /** block_height is the height of the block the voting power distribution cached was stored. */
+  /**
+   * block_height is the height of the block the voting power distribution
+   * cached was stored.
+   */
   blockHeight: number;
   /** vp_distribution the finality providers distribution cache at that height. */
   vpDistribution: VotingPowerDistCache | undefined;
@@ -137,6 +207,9 @@ function createBaseGenesisState(): GenesisState {
     missedBlocks: [],
     votingPowers: [],
     vpDstCache: [],
+    nextHeightToFinalize: 0,
+    nextHeightToReward: 0,
+    pubRandCommitIndexes: [],
   };
 }
 
@@ -171,6 +244,15 @@ export const GenesisState: MessageFns<GenesisState> = {
     }
     for (const v of message.vpDstCache) {
       VotingPowerDistCacheBlkHeight.encode(v!, writer.uint32(82).fork()).join();
+    }
+    if (message.nextHeightToFinalize !== 0) {
+      writer.uint32(88).uint64(message.nextHeightToFinalize);
+    }
+    if (message.nextHeightToReward !== 0) {
+      writer.uint32(96).uint64(message.nextHeightToReward);
+    }
+    for (const v of message.pubRandCommitIndexes) {
+      PubRandCommitIdx.encode(v!, writer.uint32(106).fork()).join();
     }
     return writer;
   },
@@ -262,6 +344,30 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.vpDstCache.push(VotingPowerDistCacheBlkHeight.decode(reader, reader.uint32()));
           continue;
         }
+        case 11: {
+          if (tag !== 88) {
+            break;
+          }
+
+          message.nextHeightToFinalize = longToNumber(reader.uint64());
+          continue;
+        }
+        case 12: {
+          if (tag !== 96) {
+            break;
+          }
+
+          message.nextHeightToReward = longToNumber(reader.uint64());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.pubRandCommitIndexes.push(PubRandCommitIdx.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -299,6 +405,11 @@ export const GenesisState: MessageFns<GenesisState> = {
       vpDstCache: globalThis.Array.isArray(object?.vpDstCache)
         ? object.vpDstCache.map((e: any) => VotingPowerDistCacheBlkHeight.fromJSON(e))
         : [],
+      nextHeightToFinalize: isSet(object.nextHeightToFinalize) ? globalThis.Number(object.nextHeightToFinalize) : 0,
+      nextHeightToReward: isSet(object.nextHeightToReward) ? globalThis.Number(object.nextHeightToReward) : 0,
+      pubRandCommitIndexes: globalThis.Array.isArray(object?.pubRandCommitIndexes)
+        ? object.pubRandCommitIndexes.map((e: any) => PubRandCommitIdx.fromJSON(e))
+        : [],
     };
   },
 
@@ -334,6 +445,15 @@ export const GenesisState: MessageFns<GenesisState> = {
     if (message.vpDstCache?.length) {
       obj.vpDstCache = message.vpDstCache.map((e) => VotingPowerDistCacheBlkHeight.toJSON(e));
     }
+    if (message.nextHeightToFinalize !== 0) {
+      obj.nextHeightToFinalize = Math.round(message.nextHeightToFinalize);
+    }
+    if (message.nextHeightToReward !== 0) {
+      obj.nextHeightToReward = Math.round(message.nextHeightToReward);
+    }
+    if (message.pubRandCommitIndexes?.length) {
+      obj.pubRandCommitIndexes = message.pubRandCommitIndexes.map((e) => PubRandCommitIdx.toJSON(e));
+    }
     return obj;
   },
 
@@ -354,6 +474,9 @@ export const GenesisState: MessageFns<GenesisState> = {
     message.missedBlocks = object.missedBlocks?.map((e) => FinalityProviderMissedBlocks.fromPartial(e)) || [];
     message.votingPowers = object.votingPowers?.map((e) => VotingPowerFP.fromPartial(e)) || [];
     message.vpDstCache = object.vpDstCache?.map((e) => VotingPowerDistCacheBlkHeight.fromPartial(e)) || [];
+    message.nextHeightToFinalize = object.nextHeightToFinalize ?? 0;
+    message.nextHeightToReward = object.nextHeightToReward ?? 0;
+    message.pubRandCommitIndexes = object.pubRandCommitIndexes?.map((e) => PubRandCommitIdx.fromPartial(e)) || [];
     return message;
   },
 };
@@ -615,6 +738,84 @@ export const PubRandCommitWithPK: MessageFns<PubRandCommitWithPK> = {
     message.fpBtcPk = object.fpBtcPk ?? new Uint8Array(0);
     message.pubRandCommit = (object.pubRandCommit !== undefined && object.pubRandCommit !== null)
       ? PubRandCommit.fromPartial(object.pubRandCommit)
+      : undefined;
+    return message;
+  },
+};
+
+function createBasePubRandCommitIdx(): PubRandCommitIdx {
+  return { fpBtcPk: new Uint8Array(0), index: undefined };
+}
+
+export const PubRandCommitIdx: MessageFns<PubRandCommitIdx> = {
+  encode(message: PubRandCommitIdx, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.fpBtcPk.length !== 0) {
+      writer.uint32(10).bytes(message.fpBtcPk);
+    }
+    if (message.index !== undefined) {
+      PubRandCommitIndexValue.encode(message.index, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PubRandCommitIdx {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePubRandCommitIdx();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.fpBtcPk = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.index = PubRandCommitIndexValue.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PubRandCommitIdx {
+    return {
+      fpBtcPk: isSet(object.fpBtcPk) ? bytesFromBase64(object.fpBtcPk) : new Uint8Array(0),
+      index: isSet(object.index) ? PubRandCommitIndexValue.fromJSON(object.index) : undefined,
+    };
+  },
+
+  toJSON(message: PubRandCommitIdx): unknown {
+    const obj: any = {};
+    if (message.fpBtcPk.length !== 0) {
+      obj.fpBtcPk = base64FromBytes(message.fpBtcPk);
+    }
+    if (message.index !== undefined) {
+      obj.index = PubRandCommitIndexValue.toJSON(message.index);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PubRandCommitIdx>, I>>(base?: I): PubRandCommitIdx {
+    return PubRandCommitIdx.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PubRandCommitIdx>, I>>(object: I): PubRandCommitIdx {
+    const message = createBasePubRandCommitIdx();
+    message.fpBtcPk = object.fpBtcPk ?? new Uint8Array(0);
+    message.index = (object.index !== undefined && object.index !== null)
+      ? PubRandCommitIndexValue.fromPartial(object.index)
       : undefined;
     return message;
   },

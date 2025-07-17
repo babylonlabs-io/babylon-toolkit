@@ -7,7 +7,8 @@
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
 import { PubKey } from "../../../cosmos/crypto/ed25519/keys";
-import { BlsKey } from "./bls_key";
+import { BlsKey, ValidatorWithBlsKeySet } from "./bls_key";
+import { RawCheckpointWithMeta } from "./checkpoint";
 
 export const protobufPackage = "babylon.checkpointing.v1";
 
@@ -15,6 +16,12 @@ export const protobufPackage = "babylon.checkpointing.v1";
 export interface GenesisState {
   /** genesis_keys defines the public keys for the genesis validators */
   genesisKeys: GenesisKey[];
+  /** validator sets per epoch */
+  validatorSets: ValidatorSetEntry[];
+  /** checkpoints are all the raw checkpoints with meta */
+  checkpoints: RawCheckpointWithMeta[];
+  /** last finalized epoch */
+  lastFinalizedEpoch: number;
 }
 
 /** GenesisKey defines public key information about the genesis validators */
@@ -29,14 +36,34 @@ export interface GenesisKey {
   valPubkey: PubKey | undefined;
 }
 
+/**
+ * ValidatorSetEntry defines the validator set
+ * for a specific epoch
+ */
+export interface ValidatorSetEntry {
+  /** epoch number */
+  epochNumber: number;
+  /** validator set corresponding to the epoch number */
+  validatorSet: ValidatorWithBlsKeySet | undefined;
+}
+
 function createBaseGenesisState(): GenesisState {
-  return { genesisKeys: [] };
+  return { genesisKeys: [], validatorSets: [], checkpoints: [], lastFinalizedEpoch: 0 };
 }
 
 export const GenesisState: MessageFns<GenesisState> = {
   encode(message: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     for (const v of message.genesisKeys) {
       GenesisKey.encode(v!, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.validatorSets) {
+      ValidatorSetEntry.encode(v!, writer.uint32(18).fork()).join();
+    }
+    for (const v of message.checkpoints) {
+      RawCheckpointWithMeta.encode(v!, writer.uint32(26).fork()).join();
+    }
+    if (message.lastFinalizedEpoch !== 0) {
+      writer.uint32(32).uint64(message.lastFinalizedEpoch);
     }
     return writer;
   },
@@ -56,6 +83,30 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.genesisKeys.push(GenesisKey.decode(reader, reader.uint32()));
           continue;
         }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.validatorSets.push(ValidatorSetEntry.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.checkpoints.push(RawCheckpointWithMeta.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.lastFinalizedEpoch = longToNumber(reader.uint64());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -70,6 +121,13 @@ export const GenesisState: MessageFns<GenesisState> = {
       genesisKeys: globalThis.Array.isArray(object?.genesisKeys)
         ? object.genesisKeys.map((e: any) => GenesisKey.fromJSON(e))
         : [],
+      validatorSets: globalThis.Array.isArray(object?.validatorSets)
+        ? object.validatorSets.map((e: any) => ValidatorSetEntry.fromJSON(e))
+        : [],
+      checkpoints: globalThis.Array.isArray(object?.checkpoints)
+        ? object.checkpoints.map((e: any) => RawCheckpointWithMeta.fromJSON(e))
+        : [],
+      lastFinalizedEpoch: isSet(object.lastFinalizedEpoch) ? globalThis.Number(object.lastFinalizedEpoch) : 0,
     };
   },
 
@@ -77,6 +135,15 @@ export const GenesisState: MessageFns<GenesisState> = {
     const obj: any = {};
     if (message.genesisKeys?.length) {
       obj.genesisKeys = message.genesisKeys.map((e) => GenesisKey.toJSON(e));
+    }
+    if (message.validatorSets?.length) {
+      obj.validatorSets = message.validatorSets.map((e) => ValidatorSetEntry.toJSON(e));
+    }
+    if (message.checkpoints?.length) {
+      obj.checkpoints = message.checkpoints.map((e) => RawCheckpointWithMeta.toJSON(e));
+    }
+    if (message.lastFinalizedEpoch !== 0) {
+      obj.lastFinalizedEpoch = Math.round(message.lastFinalizedEpoch);
     }
     return obj;
   },
@@ -87,6 +154,9 @@ export const GenesisState: MessageFns<GenesisState> = {
   fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(object: I): GenesisState {
     const message = createBaseGenesisState();
     message.genesisKeys = object.genesisKeys?.map((e) => GenesisKey.fromPartial(e)) || [];
+    message.validatorSets = object.validatorSets?.map((e) => ValidatorSetEntry.fromPartial(e)) || [];
+    message.checkpoints = object.checkpoints?.map((e) => RawCheckpointWithMeta.fromPartial(e)) || [];
+    message.lastFinalizedEpoch = object.lastFinalizedEpoch ?? 0;
     return message;
   },
 };
@@ -187,6 +257,84 @@ export const GenesisKey: MessageFns<GenesisKey> = {
   },
 };
 
+function createBaseValidatorSetEntry(): ValidatorSetEntry {
+  return { epochNumber: 0, validatorSet: undefined };
+}
+
+export const ValidatorSetEntry: MessageFns<ValidatorSetEntry> = {
+  encode(message: ValidatorSetEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.epochNumber !== 0) {
+      writer.uint32(8).uint64(message.epochNumber);
+    }
+    if (message.validatorSet !== undefined) {
+      ValidatorWithBlsKeySet.encode(message.validatorSet, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ValidatorSetEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseValidatorSetEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.epochNumber = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.validatorSet = ValidatorWithBlsKeySet.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ValidatorSetEntry {
+    return {
+      epochNumber: isSet(object.epochNumber) ? globalThis.Number(object.epochNumber) : 0,
+      validatorSet: isSet(object.validatorSet) ? ValidatorWithBlsKeySet.fromJSON(object.validatorSet) : undefined,
+    };
+  },
+
+  toJSON(message: ValidatorSetEntry): unknown {
+    const obj: any = {};
+    if (message.epochNumber !== 0) {
+      obj.epochNumber = Math.round(message.epochNumber);
+    }
+    if (message.validatorSet !== undefined) {
+      obj.validatorSet = ValidatorWithBlsKeySet.toJSON(message.validatorSet);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ValidatorSetEntry>, I>>(base?: I): ValidatorSetEntry {
+    return ValidatorSetEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ValidatorSetEntry>, I>>(object: I): ValidatorSetEntry {
+    const message = createBaseValidatorSetEntry();
+    message.epochNumber = object.epochNumber ?? 0;
+    message.validatorSet = (object.validatorSet !== undefined && object.validatorSet !== null)
+      ? ValidatorWithBlsKeySet.fromPartial(object.validatorSet)
+      : undefined;
+    return message;
+  },
+};
+
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
 export type DeepPartial<T> = T extends Builtin ? T
@@ -198,6 +346,17 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

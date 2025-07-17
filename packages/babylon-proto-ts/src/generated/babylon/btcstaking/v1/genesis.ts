@@ -6,8 +6,9 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import { BTCDelegation, BTCDelegatorDelegationIndex, FinalityProvider } from "./btcstaking";
+import { BTCDelegation, BTCDelegatorDelegationIndex, FinalityProvider, LargestBtcReOrg } from "./btcstaking";
 import { EventPowerDistUpdate } from "./events";
+import { BTCStakingIBCPacket } from "./packet";
 import { Params } from "./params";
 
 export const protobufPackage = "babylon.btcstaking.v1";
@@ -22,10 +23,21 @@ export interface GenesisState {
   btcDelegations: BTCDelegation[];
   /** block_height_chains the block height of babylon and bitcoin. */
   blockHeightChains: BlockHeightBbnToBtc[];
-  /** btc_delegators contains all the btc delegators with the associated finality provider. */
+  /**
+   * btc_delegators contains all the btc delegators with the associated finality
+   * provider.
+   */
   btcDelegators: BTCDelegator[];
   /** all the events and its indexes. */
   events: EventIndex[];
+  /** collection of the allowed staking transaction hashes (hex encoded) */
+  allowedStakingTxHashes: string[];
+  /** largest BTC block reorg */
+  largestBtcReorg:
+    | LargestBtcReOrg
+    | undefined;
+  /** all consumer chain events */
+  consumerEvents: ConsumerEvent[];
 }
 
 /** BlockHeightBbnToBtc stores the btc <-> bbn block. */
@@ -58,6 +70,18 @@ export interface EventIndex {
   event: EventPowerDistUpdate | undefined;
 }
 
+/** ConsumerEvent contains the events belonging to a specific consumer chain. */
+export interface ConsumerEvent {
+  /** consumer_id is the identifier of the consumer chain */
+  consumerId: string;
+  /**
+   * events holds all the events (NewFinalityProvider, ActiveBTCDelegation,
+   * SlashedBTCDelegation, UnbondedBTCDelegation)
+   * for the consumer chain
+   */
+  events: BTCStakingIBCPacket | undefined;
+}
+
 function createBaseGenesisState(): GenesisState {
   return {
     params: [],
@@ -66,6 +90,9 @@ function createBaseGenesisState(): GenesisState {
     blockHeightChains: [],
     btcDelegators: [],
     events: [],
+    allowedStakingTxHashes: [],
+    largestBtcReorg: undefined,
+    consumerEvents: [],
   };
 }
 
@@ -88,6 +115,15 @@ export const GenesisState: MessageFns<GenesisState> = {
     }
     for (const v of message.events) {
       EventIndex.encode(v!, writer.uint32(58).fork()).join();
+    }
+    for (const v of message.allowedStakingTxHashes) {
+      writer.uint32(66).string(v!);
+    }
+    if (message.largestBtcReorg !== undefined) {
+      LargestBtcReOrg.encode(message.largestBtcReorg, writer.uint32(74).fork()).join();
+    }
+    for (const v of message.consumerEvents) {
+      ConsumerEvent.encode(v!, writer.uint32(82).fork()).join();
     }
     return writer;
   },
@@ -147,6 +183,30 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.events.push(EventIndex.decode(reader, reader.uint32()));
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.allowedStakingTxHashes.push(reader.string());
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.largestBtcReorg = LargestBtcReOrg.decode(reader, reader.uint32());
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.consumerEvents.push(ConsumerEvent.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -174,6 +234,13 @@ export const GenesisState: MessageFns<GenesisState> = {
       events: globalThis.Array.isArray(object?.events)
         ? object.events.map((e: any) => EventIndex.fromJSON(e))
         : [],
+      allowedStakingTxHashes: globalThis.Array.isArray(object?.allowedStakingTxHashes)
+        ? object.allowedStakingTxHashes.map((e: any) => globalThis.String(e))
+        : [],
+      largestBtcReorg: isSet(object.largestBtcReorg) ? LargestBtcReOrg.fromJSON(object.largestBtcReorg) : undefined,
+      consumerEvents: globalThis.Array.isArray(object?.consumerEvents)
+        ? object.consumerEvents.map((e: any) => ConsumerEvent.fromJSON(e))
+        : [],
     };
   },
 
@@ -197,6 +264,15 @@ export const GenesisState: MessageFns<GenesisState> = {
     if (message.events?.length) {
       obj.events = message.events.map((e) => EventIndex.toJSON(e));
     }
+    if (message.allowedStakingTxHashes?.length) {
+      obj.allowedStakingTxHashes = message.allowedStakingTxHashes;
+    }
+    if (message.largestBtcReorg !== undefined) {
+      obj.largestBtcReorg = LargestBtcReOrg.toJSON(message.largestBtcReorg);
+    }
+    if (message.consumerEvents?.length) {
+      obj.consumerEvents = message.consumerEvents.map((e) => ConsumerEvent.toJSON(e));
+    }
     return obj;
   },
 
@@ -211,6 +287,11 @@ export const GenesisState: MessageFns<GenesisState> = {
     message.blockHeightChains = object.blockHeightChains?.map((e) => BlockHeightBbnToBtc.fromPartial(e)) || [];
     message.btcDelegators = object.btcDelegators?.map((e) => BTCDelegator.fromPartial(e)) || [];
     message.events = object.events?.map((e) => EventIndex.fromPartial(e)) || [];
+    message.allowedStakingTxHashes = object.allowedStakingTxHashes?.map((e) => e) || [];
+    message.largestBtcReorg = (object.largestBtcReorg !== undefined && object.largestBtcReorg !== null)
+      ? LargestBtcReOrg.fromPartial(object.largestBtcReorg)
+      : undefined;
+    message.consumerEvents = object.consumerEvents?.map((e) => ConsumerEvent.fromPartial(e)) || [];
     return message;
   },
 };
@@ -474,6 +555,84 @@ export const EventIndex: MessageFns<EventIndex> = {
     message.blockHeightBtc = object.blockHeightBtc ?? 0;
     message.event = (object.event !== undefined && object.event !== null)
       ? EventPowerDistUpdate.fromPartial(object.event)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseConsumerEvent(): ConsumerEvent {
+  return { consumerId: "", events: undefined };
+}
+
+export const ConsumerEvent: MessageFns<ConsumerEvent> = {
+  encode(message: ConsumerEvent, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.consumerId !== "") {
+      writer.uint32(10).string(message.consumerId);
+    }
+    if (message.events !== undefined) {
+      BTCStakingIBCPacket.encode(message.events, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ConsumerEvent {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConsumerEvent();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.consumerId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.events = BTCStakingIBCPacket.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ConsumerEvent {
+    return {
+      consumerId: isSet(object.consumerId) ? globalThis.String(object.consumerId) : "",
+      events: isSet(object.events) ? BTCStakingIBCPacket.fromJSON(object.events) : undefined,
+    };
+  },
+
+  toJSON(message: ConsumerEvent): unknown {
+    const obj: any = {};
+    if (message.consumerId !== "") {
+      obj.consumerId = message.consumerId;
+    }
+    if (message.events !== undefined) {
+      obj.events = BTCStakingIBCPacket.toJSON(message.events);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ConsumerEvent>, I>>(base?: I): ConsumerEvent {
+    return ConsumerEvent.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ConsumerEvent>, I>>(object: I): ConsumerEvent {
+    const message = createBaseConsumerEvent();
+    message.consumerId = object.consumerId ?? "";
+    message.events = (object.events !== undefined && object.events !== null)
+      ? BTCStakingIBCPacket.fromPartial(object.events)
       : undefined;
     return message;
   },

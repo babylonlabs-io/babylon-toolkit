@@ -140,6 +140,8 @@ export interface FinalityProvider {
    * finality provider has voted
    */
   highestVotedHeight: number;
+  /** bsn_id is the ID of the BSN the finality provider is securing */
+  bsnId: string;
   /** commission_info contains information details of the finality provider commission. */
   commissionInfo: CommissionInfo | undefined;
 }
@@ -208,8 +210,7 @@ export interface BTCDelegation {
   /**
    * fp_btc_pk_list is the list of BIP-340 PKs of the finality providers that
    * this BTC delegation delegates to
-   * If there is more than 1 PKs, then this means the delegation is restaked
-   * to multiple finality providers
+   * If there are more than 1 PKs, then this means the delegation is multi-staked
    */
   fpBtcPkList: Uint8Array[];
   /**
@@ -273,6 +274,39 @@ export interface BTCDelegation {
    * the delegation creation
    */
   btcTipHeight: number;
+  /**
+   * stk_exp is contains the relevant information about the previous staking that
+   * originated this stake. If nil it is NOT a stake expansion.
+   */
+  stkExp: StakeExpansion | undefined;
+}
+
+/**
+ * StakeExpansion stores information necessary to construct the expanded BTC staking
+ * transaction created from a previous BTC staking.
+ */
+export interface StakeExpansion {
+  /**
+   * previous_staking_tx_hash is the hash of the staking tx that was used as
+   * input to the stake expansion.
+   */
+  previousStakingTxHash: Uint8Array;
+  /**
+   * other_funding_tx_out is the other funding output (TxOut) which was used
+   * as input to construct the BTC delegation. The stake expansion has a set of
+   * 2 inputs, the first input is the previous staking transaction and the
+   * second input (this one) is to pay for fees and optionally to add more
+   * stake to the BTC delegation.
+   */
+  otherFundingTxOut: Uint8Array;
+  /**
+   * previous_stk_covenant_sigs is a list of signatures on the stake expansion
+   * transaction (i.e., the transaction spending the previous staking transaction
+   * {previous_staking_tx_hash}) by each covenant member.
+   * It must be provided to allow the previous staking tx to be spent as
+   * an transaction input of another BTC staking transaction.
+   */
+  previousStkCovenantSigs: SignatureInfo[];
 }
 
 /**
@@ -364,8 +398,9 @@ export interface CovenantAdaptorSignatures {
    */
   covPk: Uint8Array;
   /**
-   * adaptor_sigs is a list of adaptor signatures, each encrypted by a restaked
-   * BTC finality provider's public key
+   * adaptor_sigs is a list of adaptor signatures, each encrypted
+   * by the finality provider public keys involved in the multi-staking
+   * procedure
    */
   adaptorSigs: Uint8Array[];
 }
@@ -438,6 +473,7 @@ function createBaseFinalityProvider(): FinalityProvider {
     slashedBtcHeight: 0,
     jailed: false,
     highestVotedHeight: 0,
+    bsnId: "",
     commissionInfo: undefined,
   };
 }
@@ -470,6 +506,9 @@ export const FinalityProvider: MessageFns<FinalityProvider> = {
     }
     if (message.highestVotedHeight !== 0) {
       writer.uint32(72).uint32(message.highestVotedHeight);
+    }
+    if (message.bsnId !== "") {
+      writer.uint32(82).string(message.bsnId);
     }
     if (message.commissionInfo !== undefined) {
       CommissionInfo.encode(message.commissionInfo, writer.uint32(90).fork()).join();
@@ -556,6 +595,14 @@ export const FinalityProvider: MessageFns<FinalityProvider> = {
           message.highestVotedHeight = reader.uint32();
           continue;
         }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.bsnId = reader.string();
+          continue;
+        }
         case 11: {
           if (tag !== 90) {
             break;
@@ -584,6 +631,7 @@ export const FinalityProvider: MessageFns<FinalityProvider> = {
       slashedBtcHeight: isSet(object.slashedBtcHeight) ? globalThis.Number(object.slashedBtcHeight) : 0,
       jailed: isSet(object.jailed) ? globalThis.Boolean(object.jailed) : false,
       highestVotedHeight: isSet(object.highestVotedHeight) ? globalThis.Number(object.highestVotedHeight) : 0,
+      bsnId: isSet(object.bsnId) ? globalThis.String(object.bsnId) : "",
       commissionInfo: isSet(object.commissionInfo) ? CommissionInfo.fromJSON(object.commissionInfo) : undefined,
     };
   },
@@ -617,6 +665,9 @@ export const FinalityProvider: MessageFns<FinalityProvider> = {
     if (message.highestVotedHeight !== 0) {
       obj.highestVotedHeight = Math.round(message.highestVotedHeight);
     }
+    if (message.bsnId !== "") {
+      obj.bsnId = message.bsnId;
+    }
     if (message.commissionInfo !== undefined) {
       obj.commissionInfo = CommissionInfo.toJSON(message.commissionInfo);
     }
@@ -641,6 +692,7 @@ export const FinalityProvider: MessageFns<FinalityProvider> = {
     message.slashedBtcHeight = object.slashedBtcHeight ?? 0;
     message.jailed = object.jailed ?? false;
     message.highestVotedHeight = object.highestVotedHeight ?? 0;
+    message.bsnId = object.bsnId ?? "";
     message.commissionInfo = (object.commissionInfo !== undefined && object.commissionInfo !== null)
       ? CommissionInfo.fromPartial(object.commissionInfo)
       : undefined;
@@ -923,6 +975,7 @@ function createBaseBTCDelegation(): BTCDelegation {
     btcUndelegation: undefined,
     paramsVersion: 0,
     btcTipHeight: 0,
+    stkExp: undefined,
   };
 }
 
@@ -978,6 +1031,9 @@ export const BTCDelegation: MessageFns<BTCDelegation> = {
     }
     if (message.btcTipHeight !== 0) {
       writer.uint32(136).uint32(message.btcTipHeight);
+    }
+    if (message.stkExp !== undefined) {
+      StakeExpansion.encode(message.stkExp, writer.uint32(146).fork()).join();
     }
     return writer;
   },
@@ -1125,6 +1181,14 @@ export const BTCDelegation: MessageFns<BTCDelegation> = {
           message.btcTipHeight = reader.uint32();
           continue;
         }
+        case 18: {
+          if (tag !== 146) {
+            break;
+          }
+
+          message.stkExp = StakeExpansion.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1157,6 +1221,7 @@ export const BTCDelegation: MessageFns<BTCDelegation> = {
       btcUndelegation: isSet(object.btcUndelegation) ? BTCUndelegation.fromJSON(object.btcUndelegation) : undefined,
       paramsVersion: isSet(object.paramsVersion) ? globalThis.Number(object.paramsVersion) : 0,
       btcTipHeight: isSet(object.btcTipHeight) ? globalThis.Number(object.btcTipHeight) : 0,
+      stkExp: isSet(object.stkExp) ? StakeExpansion.fromJSON(object.stkExp) : undefined,
     };
   },
 
@@ -1213,6 +1278,9 @@ export const BTCDelegation: MessageFns<BTCDelegation> = {
     if (message.btcTipHeight !== 0) {
       obj.btcTipHeight = Math.round(message.btcTipHeight);
     }
+    if (message.stkExp !== undefined) {
+      obj.stkExp = StakeExpansion.toJSON(message.stkExp);
+    }
     return obj;
   },
 
@@ -1242,6 +1310,111 @@ export const BTCDelegation: MessageFns<BTCDelegation> = {
       : undefined;
     message.paramsVersion = object.paramsVersion ?? 0;
     message.btcTipHeight = object.btcTipHeight ?? 0;
+    message.stkExp = (object.stkExp !== undefined && object.stkExp !== null)
+      ? StakeExpansion.fromPartial(object.stkExp)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseStakeExpansion(): StakeExpansion {
+  return {
+    previousStakingTxHash: new Uint8Array(0),
+    otherFundingTxOut: new Uint8Array(0),
+    previousStkCovenantSigs: [],
+  };
+}
+
+export const StakeExpansion: MessageFns<StakeExpansion> = {
+  encode(message: StakeExpansion, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.previousStakingTxHash.length !== 0) {
+      writer.uint32(10).bytes(message.previousStakingTxHash);
+    }
+    if (message.otherFundingTxOut.length !== 0) {
+      writer.uint32(18).bytes(message.otherFundingTxOut);
+    }
+    for (const v of message.previousStkCovenantSigs) {
+      SignatureInfo.encode(v!, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): StakeExpansion {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseStakeExpansion();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.previousStakingTxHash = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.otherFundingTxOut = reader.bytes();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.previousStkCovenantSigs.push(SignatureInfo.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): StakeExpansion {
+    return {
+      previousStakingTxHash: isSet(object.previousStakingTxHash)
+        ? bytesFromBase64(object.previousStakingTxHash)
+        : new Uint8Array(0),
+      otherFundingTxOut: isSet(object.otherFundingTxOut)
+        ? bytesFromBase64(object.otherFundingTxOut)
+        : new Uint8Array(0),
+      previousStkCovenantSigs: globalThis.Array.isArray(object?.previousStkCovenantSigs)
+        ? object.previousStkCovenantSigs.map((e: any) => SignatureInfo.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: StakeExpansion): unknown {
+    const obj: any = {};
+    if (message.previousStakingTxHash.length !== 0) {
+      obj.previousStakingTxHash = base64FromBytes(message.previousStakingTxHash);
+    }
+    if (message.otherFundingTxOut.length !== 0) {
+      obj.otherFundingTxOut = base64FromBytes(message.otherFundingTxOut);
+    }
+    if (message.previousStkCovenantSigs?.length) {
+      obj.previousStkCovenantSigs = message.previousStkCovenantSigs.map((e) => SignatureInfo.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<StakeExpansion>, I>>(base?: I): StakeExpansion {
+    return StakeExpansion.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<StakeExpansion>, I>>(object: I): StakeExpansion {
+    const message = createBaseStakeExpansion();
+    message.previousStakingTxHash = object.previousStakingTxHash ?? new Uint8Array(0);
+    message.otherFundingTxOut = object.otherFundingTxOut ?? new Uint8Array(0);
+    message.previousStkCovenantSigs = object.previousStkCovenantSigs?.map((e) => SignatureInfo.fromPartial(e)) || [];
     return message;
   },
 };

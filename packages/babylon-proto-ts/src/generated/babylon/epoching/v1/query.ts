@@ -213,6 +213,8 @@ export interface QueuedMessageResponse {
    * epoching module as string.
    */
   msg: string;
+  /** msg_type is a string that identifies the type of the underlying message. */
+  msgType: string;
 }
 
 /**
@@ -1628,7 +1630,7 @@ export const EpochResponse: MessageFns<EpochResponse> = {
 };
 
 function createBaseQueuedMessageResponse(): QueuedMessageResponse {
-  return { txId: "", msgId: "", blockHeight: 0, blockTime: undefined, msg: "" };
+  return { txId: "", msgId: "", blockHeight: 0, blockTime: undefined, msg: "", msgType: "" };
 }
 
 export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
@@ -1647,6 +1649,9 @@ export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
     }
     if (message.msg !== "") {
       writer.uint32(42).string(message.msg);
+    }
+    if (message.msgType !== "") {
+      writer.uint32(50).string(message.msgType);
     }
     return writer;
   },
@@ -1698,6 +1703,14 @@ export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
           message.msg = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.msgType = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1714,6 +1727,7 @@ export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
       blockHeight: isSet(object.blockHeight) ? globalThis.Number(object.blockHeight) : 0,
       blockTime: isSet(object.blockTime) ? fromJsonTimestamp(object.blockTime) : undefined,
       msg: isSet(object.msg) ? globalThis.String(object.msg) : "",
+      msgType: isSet(object.msgType) ? globalThis.String(object.msgType) : "",
     };
   },
 
@@ -1734,6 +1748,9 @@ export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
     if (message.msg !== "") {
       obj.msg = message.msg;
     }
+    if (message.msgType !== "") {
+      obj.msgType = message.msgType;
+    }
     return obj;
   },
 
@@ -1747,6 +1764,7 @@ export const QueuedMessageResponse: MessageFns<QueuedMessageResponse> = {
     message.blockHeight = object.blockHeight ?? 0;
     message.blockTime = object.blockTime ?? undefined;
     message.msg = object.msg ?? "";
+    message.msgType = object.msgType ?? "";
     return message;
   },
 };

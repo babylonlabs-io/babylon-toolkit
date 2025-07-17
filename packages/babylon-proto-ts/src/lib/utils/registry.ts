@@ -15,10 +15,15 @@ type ProtoToRegister<T> = {
 
 // List of protos to register in the registry
 const protosToRegister: ProtoToRegister<any>[] = [
-  // BTC Staking
+  // BTC Staking - Creating a BTC delegation
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
+  },
+  // BTC Staking - Expanding a BTC delegation
+  {
+    typeUrl: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
+    messageType: btcstakingtx.MsgBtcStakeExpand,
   },
   // Incentives - Withdrawing BABY rewards from BTC Staking
   {

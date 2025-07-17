@@ -99,6 +99,42 @@ export interface MsgUnjailFinalityProvider {
 export interface MsgUnjailFinalityProviderResponse {
 }
 
+/** MsgEquivocationEvidence is the message for handling evidence of equivocation */
+export interface MsgEquivocationEvidence {
+  signer: string;
+  /** fp_btc_pk_hex is the BTC PK of the finality provider that casts this vote */
+  fpBtcPkHex: string;
+  /** block_height is the height of the conflicting blocks */
+  blockHeight: number;
+  /** pub_rand_hex is the public randomness the finality provider has committed to */
+  pubRandHex: string;
+  /** canonical_app_hash_hex is the AppHash of the canonical block */
+  canonicalAppHashHex: string;
+  /** fork_app_hash_hex is the AppHash of the fork block */
+  forkAppHashHex: string;
+  /**
+   * canonical_finality_sig_hex is the finality signature to the canonical block
+   * where finality signature is an EOTS signature, i.e.,
+   * the `s` in a Schnorr signature `(r, s)`
+   * `r` is the public randomness that is already committed by the finality provider
+   */
+  canonicalFinalitySigHex: string;
+  /**
+   * fork_finality_sig_hex is the finality signature to the fork block
+   * where finality signature is an EOTS signature
+   */
+  forkFinalitySigHex: string;
+  /**
+   * signing_context is the context in which the finality signatures were used.
+   * It must be hex encoded 32 bytes, of the sha256 hash of the context string
+   */
+  signingContext: string;
+}
+
+/** MsgEquivocationEvidenceResponse is the response for MsgEquivocationEvidence */
+export interface MsgEquivocationEvidenceResponse {
+}
+
 /** MsgResumeFinalityProposal is a governance proposal to resume finality from halting */
 export interface MsgResumeFinalityProposal {
   /**
@@ -762,6 +798,249 @@ export const MsgUnjailFinalityProviderResponse: MessageFns<MsgUnjailFinalityProv
   },
 };
 
+function createBaseMsgEquivocationEvidence(): MsgEquivocationEvidence {
+  return {
+    signer: "",
+    fpBtcPkHex: "",
+    blockHeight: 0,
+    pubRandHex: "",
+    canonicalAppHashHex: "",
+    forkAppHashHex: "",
+    canonicalFinalitySigHex: "",
+    forkFinalitySigHex: "",
+    signingContext: "",
+  };
+}
+
+export const MsgEquivocationEvidence: MessageFns<MsgEquivocationEvidence> = {
+  encode(message: MsgEquivocationEvidence, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.signer !== "") {
+      writer.uint32(10).string(message.signer);
+    }
+    if (message.fpBtcPkHex !== "") {
+      writer.uint32(18).string(message.fpBtcPkHex);
+    }
+    if (message.blockHeight !== 0) {
+      writer.uint32(24).uint64(message.blockHeight);
+    }
+    if (message.pubRandHex !== "") {
+      writer.uint32(34).string(message.pubRandHex);
+    }
+    if (message.canonicalAppHashHex !== "") {
+      writer.uint32(42).string(message.canonicalAppHashHex);
+    }
+    if (message.forkAppHashHex !== "") {
+      writer.uint32(50).string(message.forkAppHashHex);
+    }
+    if (message.canonicalFinalitySigHex !== "") {
+      writer.uint32(58).string(message.canonicalFinalitySigHex);
+    }
+    if (message.forkFinalitySigHex !== "") {
+      writer.uint32(66).string(message.forkFinalitySigHex);
+    }
+    if (message.signingContext !== "") {
+      writer.uint32(74).string(message.signingContext);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgEquivocationEvidence {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgEquivocationEvidence();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.signer = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.fpBtcPkHex = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.blockHeight = longToNumber(reader.uint64());
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.pubRandHex = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.canonicalAppHashHex = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.forkAppHashHex = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.canonicalFinalitySigHex = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.forkFinalitySigHex = reader.string();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.signingContext = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgEquivocationEvidence {
+    return {
+      signer: isSet(object.signer) ? globalThis.String(object.signer) : "",
+      fpBtcPkHex: isSet(object.fpBtcPkHex) ? globalThis.String(object.fpBtcPkHex) : "",
+      blockHeight: isSet(object.blockHeight) ? globalThis.Number(object.blockHeight) : 0,
+      pubRandHex: isSet(object.pubRandHex) ? globalThis.String(object.pubRandHex) : "",
+      canonicalAppHashHex: isSet(object.canonicalAppHashHex) ? globalThis.String(object.canonicalAppHashHex) : "",
+      forkAppHashHex: isSet(object.forkAppHashHex) ? globalThis.String(object.forkAppHashHex) : "",
+      canonicalFinalitySigHex: isSet(object.canonicalFinalitySigHex)
+        ? globalThis.String(object.canonicalFinalitySigHex)
+        : "",
+      forkFinalitySigHex: isSet(object.forkFinalitySigHex) ? globalThis.String(object.forkFinalitySigHex) : "",
+      signingContext: isSet(object.signingContext) ? globalThis.String(object.signingContext) : "",
+    };
+  },
+
+  toJSON(message: MsgEquivocationEvidence): unknown {
+    const obj: any = {};
+    if (message.signer !== "") {
+      obj.signer = message.signer;
+    }
+    if (message.fpBtcPkHex !== "") {
+      obj.fpBtcPkHex = message.fpBtcPkHex;
+    }
+    if (message.blockHeight !== 0) {
+      obj.blockHeight = Math.round(message.blockHeight);
+    }
+    if (message.pubRandHex !== "") {
+      obj.pubRandHex = message.pubRandHex;
+    }
+    if (message.canonicalAppHashHex !== "") {
+      obj.canonicalAppHashHex = message.canonicalAppHashHex;
+    }
+    if (message.forkAppHashHex !== "") {
+      obj.forkAppHashHex = message.forkAppHashHex;
+    }
+    if (message.canonicalFinalitySigHex !== "") {
+      obj.canonicalFinalitySigHex = message.canonicalFinalitySigHex;
+    }
+    if (message.forkFinalitySigHex !== "") {
+      obj.forkFinalitySigHex = message.forkFinalitySigHex;
+    }
+    if (message.signingContext !== "") {
+      obj.signingContext = message.signingContext;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgEquivocationEvidence>, I>>(base?: I): MsgEquivocationEvidence {
+    return MsgEquivocationEvidence.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgEquivocationEvidence>, I>>(object: I): MsgEquivocationEvidence {
+    const message = createBaseMsgEquivocationEvidence();
+    message.signer = object.signer ?? "";
+    message.fpBtcPkHex = object.fpBtcPkHex ?? "";
+    message.blockHeight = object.blockHeight ?? 0;
+    message.pubRandHex = object.pubRandHex ?? "";
+    message.canonicalAppHashHex = object.canonicalAppHashHex ?? "";
+    message.forkAppHashHex = object.forkAppHashHex ?? "";
+    message.canonicalFinalitySigHex = object.canonicalFinalitySigHex ?? "";
+    message.forkFinalitySigHex = object.forkFinalitySigHex ?? "";
+    message.signingContext = object.signingContext ?? "";
+    return message;
+  },
+};
+
+function createBaseMsgEquivocationEvidenceResponse(): MsgEquivocationEvidenceResponse {
+  return {};
+}
+
+export const MsgEquivocationEvidenceResponse: MessageFns<MsgEquivocationEvidenceResponse> = {
+  encode(_: MsgEquivocationEvidenceResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgEquivocationEvidenceResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgEquivocationEvidenceResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgEquivocationEvidenceResponse {
+    return {};
+  },
+
+  toJSON(_: MsgEquivocationEvidenceResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgEquivocationEvidenceResponse>, I>>(base?: I): MsgEquivocationEvidenceResponse {
+    return MsgEquivocationEvidenceResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgEquivocationEvidenceResponse>, I>>(_: I): MsgEquivocationEvidenceResponse {
+    const message = createBaseMsgEquivocationEvidenceResponse();
+    return message;
+  },
+};
+
 function createBaseMsgResumeFinalityProposal(): MsgResumeFinalityProposal {
   return { authority: "", fpPksHex: [], haltingHeight: 0 };
 }
@@ -907,10 +1186,7 @@ export interface Msg {
   CommitPubRandList(request: MsgCommitPubRandList): Promise<MsgCommitPubRandListResponse>;
   /** AddFinalitySig adds a finality signature to a given block */
   AddFinalitySig(request: MsgAddFinalitySig): Promise<MsgAddFinalitySigResponse>;
-  /**
-   * TODO: msg for evidence of equivocation. this is not specified yet
-   * UpdateParams updates the finality module parameters.
-   */
+  /** UpdateParams updates the finality module parameters. */
   UpdateParams(request: MsgUpdateParams): Promise<MsgUpdateParamsResponse>;
   /**
    * UnjailFinalityProvider defines a method for unjailing a jailed
@@ -919,6 +1195,11 @@ export interface Msg {
   UnjailFinalityProvider(request: MsgUnjailFinalityProvider): Promise<MsgUnjailFinalityProviderResponse>;
   /** ResumeFinalityProposal handles the proposal of resuming finality. */
   ResumeFinalityProposal(request: MsgResumeFinalityProposal): Promise<MsgResumeFinalityProposalResponse>;
+  /**
+   * EquivocationEvidence handles the evidence of equivocation message sent from
+   * the finality gadget cw contract
+   */
+  EquivocationEvidence(request: MsgEquivocationEvidence): Promise<MsgEquivocationEvidenceResponse>;
 }
 
 export const MsgServiceName = "babylon.finality.v1.Msg";
@@ -933,6 +1214,7 @@ export class MsgClientImpl implements Msg {
     this.UpdateParams = this.UpdateParams.bind(this);
     this.UnjailFinalityProvider = this.UnjailFinalityProvider.bind(this);
     this.ResumeFinalityProposal = this.ResumeFinalityProposal.bind(this);
+    this.EquivocationEvidence = this.EquivocationEvidence.bind(this);
   }
   CommitPubRandList(request: MsgCommitPubRandList): Promise<MsgCommitPubRandListResponse> {
     const data = MsgCommitPubRandList.encode(request).finish();
@@ -962,6 +1244,12 @@ export class MsgClientImpl implements Msg {
     const data = MsgResumeFinalityProposal.encode(request).finish();
     const promise = this.rpc.request(this.service, "ResumeFinalityProposal", data);
     return promise.then((data) => MsgResumeFinalityProposalResponse.decode(new BinaryReader(data)));
+  }
+
+  EquivocationEvidence(request: MsgEquivocationEvidence): Promise<MsgEquivocationEvidenceResponse> {
+    const data = MsgEquivocationEvidence.encode(request).finish();
+    const promise = this.rpc.request(this.service, "EquivocationEvidence", data);
+    return promise.then((data) => MsgEquivocationEvidenceResponse.decode(new BinaryReader(data)));
   }
 }
 

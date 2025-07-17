@@ -2,6 +2,7 @@ import { Coin } from "cosmjs-types/cosmos/base/v1beta1/coin";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
 import { BTC_STAKER, REGISTRY_TYPE_URLS } from "../constants";
+import * as btcstakingtx from "../generated/babylon/btcstaking/v1/tx";
 import * as epochingtx from "../generated/babylon/epoching/v1/tx";
 import * as incentivetx from "../generated/babylon/incentive/tx";
 
@@ -95,8 +96,25 @@ export const createWithdrawRewardForBABYStakingMsg = (
   };
 };
 
+/**
+ * Creates a BTC stake expansion message
+ * @param params - The parameters for the stake expansion
+ * @returns The BTC stake expansion message
+ */
+export const createBTCStakeExpandMsg = (
+  params: Partial<btcstakingtx.MsgBtcStakeExpand>,
+) => {
+  const stakeExpandMsg = btcstakingtx.MsgBtcStakeExpand.fromPartial(params);
+
+  return {
+    typeUrl: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
+    value: stakeExpandMsg,
+  };
+};
+
 export default {
   createWithdrawRewardForBTCStakingMsg,
+  createBTCStakeExpandMsg,
   createStakeBABYMsg,
   createUnstakeBABYMsg,
   createWithdrawRewardForBABYStakingMsg,

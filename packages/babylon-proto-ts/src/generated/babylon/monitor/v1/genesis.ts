@@ -11,14 +11,52 @@ export const protobufPackage = "babylon.monitor.v1";
 
 /** GenesisState defines the monitor module's genesis state. */
 export interface GenesisState {
+  /**
+   * epoch_end_records contain the epoch number and its
+   * corresponding end height of the BTC light client
+   */
+  epochEndRecords: EpochEndLightClient[];
+  /**
+   * checkpoints_reported contain the checkpoint hash and its
+   * corresponding reported height of the BTC light client
+   */
+  checkpointsReported: CheckpointReportedLightClient[];
+}
+
+/**
+ * EpochEndLightClient contains the epoch number and its
+ * corresponding end height of the BTC light client
+ */
+export interface EpochEndLightClient {
+  /** epoch number */
+  epoch: number;
+  /** height of btc light client when epoch ended */
+  btcLightClientHeight: number;
+}
+
+/**
+ * CheckpointReportedLightClient contains the checkpoint hash and its
+ * corresponding end height of the BTC light client
+ */
+export interface CheckpointReportedLightClient {
+  /** ckpt_hash is hex encoded byte string of the hash of the checkpoint */
+  ckptHash: string;
+  /** height of btc light client when checkpoint reported */
+  btcLightClientHeight: number;
 }
 
 function createBaseGenesisState(): GenesisState {
-  return {};
+  return { epochEndRecords: [], checkpointsReported: [] };
 }
 
 export const GenesisState: MessageFns<GenesisState> = {
-  encode(_: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(message: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.epochEndRecords) {
+      EpochEndLightClient.encode(v!, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.checkpointsReported) {
+      CheckpointReportedLightClient.encode(v!, writer.uint32(18).fork()).join();
+    }
     return writer;
   },
 
@@ -29,6 +67,22 @@ export const GenesisState: MessageFns<GenesisState> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.epochEndRecords.push(EpochEndLightClient.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.checkpointsReported.push(CheckpointReportedLightClient.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -38,20 +92,190 @@ export const GenesisState: MessageFns<GenesisState> = {
     return message;
   },
 
-  fromJSON(_: any): GenesisState {
-    return {};
+  fromJSON(object: any): GenesisState {
+    return {
+      epochEndRecords: globalThis.Array.isArray(object?.epochEndRecords)
+        ? object.epochEndRecords.map((e: any) => EpochEndLightClient.fromJSON(e))
+        : [],
+      checkpointsReported: globalThis.Array.isArray(object?.checkpointsReported)
+        ? object.checkpointsReported.map((e: any) => CheckpointReportedLightClient.fromJSON(e))
+        : [],
+    };
   },
 
-  toJSON(_: GenesisState): unknown {
+  toJSON(message: GenesisState): unknown {
     const obj: any = {};
+    if (message.epochEndRecords?.length) {
+      obj.epochEndRecords = message.epochEndRecords.map((e) => EpochEndLightClient.toJSON(e));
+    }
+    if (message.checkpointsReported?.length) {
+      obj.checkpointsReported = message.checkpointsReported.map((e) => CheckpointReportedLightClient.toJSON(e));
+    }
     return obj;
   },
 
   create<I extends Exact<DeepPartial<GenesisState>, I>>(base?: I): GenesisState {
     return GenesisState.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(_: I): GenesisState {
+  fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(object: I): GenesisState {
     const message = createBaseGenesisState();
+    message.epochEndRecords = object.epochEndRecords?.map((e) => EpochEndLightClient.fromPartial(e)) || [];
+    message.checkpointsReported =
+      object.checkpointsReported?.map((e) => CheckpointReportedLightClient.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseEpochEndLightClient(): EpochEndLightClient {
+  return { epoch: 0, btcLightClientHeight: 0 };
+}
+
+export const EpochEndLightClient: MessageFns<EpochEndLightClient> = {
+  encode(message: EpochEndLightClient, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.epoch !== 0) {
+      writer.uint32(8).uint64(message.epoch);
+    }
+    if (message.btcLightClientHeight !== 0) {
+      writer.uint32(16).uint64(message.btcLightClientHeight);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EpochEndLightClient {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEpochEndLightClient();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.epoch = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.btcLightClientHeight = longToNumber(reader.uint64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EpochEndLightClient {
+    return {
+      epoch: isSet(object.epoch) ? globalThis.Number(object.epoch) : 0,
+      btcLightClientHeight: isSet(object.btcLightClientHeight) ? globalThis.Number(object.btcLightClientHeight) : 0,
+    };
+  },
+
+  toJSON(message: EpochEndLightClient): unknown {
+    const obj: any = {};
+    if (message.epoch !== 0) {
+      obj.epoch = Math.round(message.epoch);
+    }
+    if (message.btcLightClientHeight !== 0) {
+      obj.btcLightClientHeight = Math.round(message.btcLightClientHeight);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EpochEndLightClient>, I>>(base?: I): EpochEndLightClient {
+    return EpochEndLightClient.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EpochEndLightClient>, I>>(object: I): EpochEndLightClient {
+    const message = createBaseEpochEndLightClient();
+    message.epoch = object.epoch ?? 0;
+    message.btcLightClientHeight = object.btcLightClientHeight ?? 0;
+    return message;
+  },
+};
+
+function createBaseCheckpointReportedLightClient(): CheckpointReportedLightClient {
+  return { ckptHash: "", btcLightClientHeight: 0 };
+}
+
+export const CheckpointReportedLightClient: MessageFns<CheckpointReportedLightClient> = {
+  encode(message: CheckpointReportedLightClient, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ckptHash !== "") {
+      writer.uint32(10).string(message.ckptHash);
+    }
+    if (message.btcLightClientHeight !== 0) {
+      writer.uint32(16).uint64(message.btcLightClientHeight);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): CheckpointReportedLightClient {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCheckpointReportedLightClient();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ckptHash = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.btcLightClientHeight = longToNumber(reader.uint64());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): CheckpointReportedLightClient {
+    return {
+      ckptHash: isSet(object.ckptHash) ? globalThis.String(object.ckptHash) : "",
+      btcLightClientHeight: isSet(object.btcLightClientHeight) ? globalThis.Number(object.btcLightClientHeight) : 0,
+    };
+  },
+
+  toJSON(message: CheckpointReportedLightClient): unknown {
+    const obj: any = {};
+    if (message.ckptHash !== "") {
+      obj.ckptHash = message.ckptHash;
+    }
+    if (message.btcLightClientHeight !== 0) {
+      obj.btcLightClientHeight = Math.round(message.btcLightClientHeight);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<CheckpointReportedLightClient>, I>>(base?: I): CheckpointReportedLightClient {
+    return CheckpointReportedLightClient.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<CheckpointReportedLightClient>, I>>(
+    object: I,
+  ): CheckpointReportedLightClient {
+    const message = createBaseCheckpointReportedLightClient();
+    message.ckptHash = object.ckptHash ?? "";
+    message.btcLightClientHeight = object.btcLightClientHeight ?? 0;
     return message;
   },
 };
@@ -67,6 +291,21 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
+
+function isSet(value: any): boolean {
+  return value !== null && value !== undefined;
+}
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;

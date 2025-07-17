@@ -6,23 +6,96 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { DelegationLifecycle, Epoch, QueuedMessage, Validator, ValidatorLifecycle } from "./epoching";
 import { Params } from "./params";
 
 export const protobufPackage = "babylon.epoching.v1";
 
 /** GenesisState defines the epoching module's genesis state. */
 export interface GenesisState {
-  params: Params | undefined;
+  /** params are the current params of the state. */
+  params:
+    | Params
+    | undefined;
+  /** epochs contains all the epochs info */
+  epochs: Epoch[];
+  /** queues contains all the epochs' queue */
+  queues: EpochQueue[];
+  /**
+   * validator_sets is a slice containing all the
+   * stored epochs' validator sets
+   */
+  validatorSets: EpochValidatorSet[];
+  /**
+   * slashed_validator_sets is a slice containing all the
+   * stored epochs' slashed validator sets
+   */
+  slashedValidatorSets: EpochValidatorSet[];
+  /** validators_lifecycle contains the lifecyle of all validators */
+  validatorsLifecycle: ValidatorLifecycle[];
+  /** delegations_lifecycle contains the lifecyle of all delegations */
+  delegationsLifecycle: DelegationLifecycle[];
+}
+
+/**
+ * EpochQueue defines a genesis state entry for
+ * the epochs' message queue
+ */
+export interface EpochQueue {
+  /** epoch_number is the epoch's identifier */
+  epochNumber: number;
+  /** msgs is a slice containing all the epochs' queued messages */
+  msgs: QueuedMessage[];
+}
+
+/**
+ * EpochValidatorSet contains the epoch number and the validators corresponding
+ * to that epoch number
+ */
+export interface EpochValidatorSet {
+  /** epoch_number is the epoch's identifier */
+  epochNumber: number;
+  /**
+   * validators is a slice containing the validators of the
+   * epoch's validator set
+   */
+  validators: Validator[];
 }
 
 function createBaseGenesisState(): GenesisState {
-  return { params: undefined };
+  return {
+    params: undefined,
+    epochs: [],
+    queues: [],
+    validatorSets: [],
+    slashedValidatorSets: [],
+    validatorsLifecycle: [],
+    delegationsLifecycle: [],
+  };
 }
 
 export const GenesisState: MessageFns<GenesisState> = {
   encode(message: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.params !== undefined) {
       Params.encode(message.params, writer.uint32(10).fork()).join();
+    }
+    for (const v of message.epochs) {
+      Epoch.encode(v!, writer.uint32(18).fork()).join();
+    }
+    for (const v of message.queues) {
+      EpochQueue.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.validatorSets) {
+      EpochValidatorSet.encode(v!, writer.uint32(34).fork()).join();
+    }
+    for (const v of message.slashedValidatorSets) {
+      EpochValidatorSet.encode(v!, writer.uint32(42).fork()).join();
+    }
+    for (const v of message.validatorsLifecycle) {
+      ValidatorLifecycle.encode(v!, writer.uint32(50).fork()).join();
+    }
+    for (const v of message.delegationsLifecycle) {
+      DelegationLifecycle.encode(v!, writer.uint32(58).fork()).join();
     }
     return writer;
   },
@@ -42,6 +115,54 @@ export const GenesisState: MessageFns<GenesisState> = {
           message.params = Params.decode(reader, reader.uint32());
           continue;
         }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.epochs.push(Epoch.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.queues.push(EpochQueue.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.validatorSets.push(EpochValidatorSet.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.slashedValidatorSets.push(EpochValidatorSet.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.validatorsLifecycle.push(ValidatorLifecycle.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.delegationsLifecycle.push(DelegationLifecycle.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -52,13 +173,47 @@ export const GenesisState: MessageFns<GenesisState> = {
   },
 
   fromJSON(object: any): GenesisState {
-    return { params: isSet(object.params) ? Params.fromJSON(object.params) : undefined };
+    return {
+      params: isSet(object.params) ? Params.fromJSON(object.params) : undefined,
+      epochs: globalThis.Array.isArray(object?.epochs) ? object.epochs.map((e: any) => Epoch.fromJSON(e)) : [],
+      queues: globalThis.Array.isArray(object?.queues) ? object.queues.map((e: any) => EpochQueue.fromJSON(e)) : [],
+      validatorSets: globalThis.Array.isArray(object?.validatorSets)
+        ? object.validatorSets.map((e: any) => EpochValidatorSet.fromJSON(e))
+        : [],
+      slashedValidatorSets: globalThis.Array.isArray(object?.slashedValidatorSets)
+        ? object.slashedValidatorSets.map((e: any) => EpochValidatorSet.fromJSON(e))
+        : [],
+      validatorsLifecycle: globalThis.Array.isArray(object?.validatorsLifecycle)
+        ? object.validatorsLifecycle.map((e: any) => ValidatorLifecycle.fromJSON(e))
+        : [],
+      delegationsLifecycle: globalThis.Array.isArray(object?.delegationsLifecycle)
+        ? object.delegationsLifecycle.map((e: any) => DelegationLifecycle.fromJSON(e))
+        : [],
+    };
   },
 
   toJSON(message: GenesisState): unknown {
     const obj: any = {};
     if (message.params !== undefined) {
       obj.params = Params.toJSON(message.params);
+    }
+    if (message.epochs?.length) {
+      obj.epochs = message.epochs.map((e) => Epoch.toJSON(e));
+    }
+    if (message.queues?.length) {
+      obj.queues = message.queues.map((e) => EpochQueue.toJSON(e));
+    }
+    if (message.validatorSets?.length) {
+      obj.validatorSets = message.validatorSets.map((e) => EpochValidatorSet.toJSON(e));
+    }
+    if (message.slashedValidatorSets?.length) {
+      obj.slashedValidatorSets = message.slashedValidatorSets.map((e) => EpochValidatorSet.toJSON(e));
+    }
+    if (message.validatorsLifecycle?.length) {
+      obj.validatorsLifecycle = message.validatorsLifecycle.map((e) => ValidatorLifecycle.toJSON(e));
+    }
+    if (message.delegationsLifecycle?.length) {
+      obj.delegationsLifecycle = message.delegationsLifecycle.map((e) => DelegationLifecycle.toJSON(e));
     }
     return obj;
   },
@@ -71,6 +226,166 @@ export const GenesisState: MessageFns<GenesisState> = {
     message.params = (object.params !== undefined && object.params !== null)
       ? Params.fromPartial(object.params)
       : undefined;
+    message.epochs = object.epochs?.map((e) => Epoch.fromPartial(e)) || [];
+    message.queues = object.queues?.map((e) => EpochQueue.fromPartial(e)) || [];
+    message.validatorSets = object.validatorSets?.map((e) => EpochValidatorSet.fromPartial(e)) || [];
+    message.slashedValidatorSets = object.slashedValidatorSets?.map((e) => EpochValidatorSet.fromPartial(e)) || [];
+    message.validatorsLifecycle = object.validatorsLifecycle?.map((e) => ValidatorLifecycle.fromPartial(e)) || [];
+    message.delegationsLifecycle = object.delegationsLifecycle?.map((e) => DelegationLifecycle.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseEpochQueue(): EpochQueue {
+  return { epochNumber: 0, msgs: [] };
+}
+
+export const EpochQueue: MessageFns<EpochQueue> = {
+  encode(message: EpochQueue, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.epochNumber !== 0) {
+      writer.uint32(8).uint64(message.epochNumber);
+    }
+    for (const v of message.msgs) {
+      QueuedMessage.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EpochQueue {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEpochQueue();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.epochNumber = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.msgs.push(QueuedMessage.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EpochQueue {
+    return {
+      epochNumber: isSet(object.epochNumber) ? globalThis.Number(object.epochNumber) : 0,
+      msgs: globalThis.Array.isArray(object?.msgs) ? object.msgs.map((e: any) => QueuedMessage.fromJSON(e)) : [],
+    };
+  },
+
+  toJSON(message: EpochQueue): unknown {
+    const obj: any = {};
+    if (message.epochNumber !== 0) {
+      obj.epochNumber = Math.round(message.epochNumber);
+    }
+    if (message.msgs?.length) {
+      obj.msgs = message.msgs.map((e) => QueuedMessage.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EpochQueue>, I>>(base?: I): EpochQueue {
+    return EpochQueue.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EpochQueue>, I>>(object: I): EpochQueue {
+    const message = createBaseEpochQueue();
+    message.epochNumber = object.epochNumber ?? 0;
+    message.msgs = object.msgs?.map((e) => QueuedMessage.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseEpochValidatorSet(): EpochValidatorSet {
+  return { epochNumber: 0, validators: [] };
+}
+
+export const EpochValidatorSet: MessageFns<EpochValidatorSet> = {
+  encode(message: EpochValidatorSet, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.epochNumber !== 0) {
+      writer.uint32(8).uint64(message.epochNumber);
+    }
+    for (const v of message.validators) {
+      Validator.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): EpochValidatorSet {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseEpochValidatorSet();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.epochNumber = longToNumber(reader.uint64());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.validators.push(Validator.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): EpochValidatorSet {
+    return {
+      epochNumber: isSet(object.epochNumber) ? globalThis.Number(object.epochNumber) : 0,
+      validators: globalThis.Array.isArray(object?.validators)
+        ? object.validators.map((e: any) => Validator.fromJSON(e))
+        : [],
+    };
+  },
+
+  toJSON(message: EpochValidatorSet): unknown {
+    const obj: any = {};
+    if (message.epochNumber !== 0) {
+      obj.epochNumber = Math.round(message.epochNumber);
+    }
+    if (message.validators?.length) {
+      obj.validators = message.validators.map((e) => Validator.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<EpochValidatorSet>, I>>(base?: I): EpochValidatorSet {
+    return EpochValidatorSet.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<EpochValidatorSet>, I>>(object: I): EpochValidatorSet {
+    const message = createBaseEpochValidatorSet();
+    message.epochNumber = object.epochNumber ?? 0;
+    message.validators = object.validators?.map((e) => Validator.fromPartial(e)) || [];
     return message;
   },
 };
@@ -86,6 +401,17 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
 
 function isSet(value: any): boolean {
   return value !== null && value !== undefined;

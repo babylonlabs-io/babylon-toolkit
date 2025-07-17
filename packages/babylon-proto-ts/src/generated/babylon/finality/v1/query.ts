@@ -347,6 +347,11 @@ export interface EvidenceResponse {
    * where finality signature is an EOTS signature
    */
   forkFinalitySig: Uint8Array;
+  /**
+   * signing_context is the context in which the finality signatures were used.
+   * It must be hex encoded 32 bytes, of the sha256 hash of the context string
+   */
+  signingContext: string;
 }
 
 /**
@@ -2362,6 +2367,7 @@ function createBaseEvidenceResponse(): EvidenceResponse {
     forkAppHash: new Uint8Array(0),
     canonicalFinalitySig: new Uint8Array(0),
     forkFinalitySig: new Uint8Array(0),
+    signingContext: "",
   };
 }
 
@@ -2387,6 +2393,9 @@ export const EvidenceResponse: MessageFns<EvidenceResponse> = {
     }
     if (message.forkFinalitySig.length !== 0) {
       writer.uint32(58).bytes(message.forkFinalitySig);
+    }
+    if (message.signingContext !== "") {
+      writer.uint32(66).string(message.signingContext);
     }
     return writer;
   },
@@ -2454,6 +2463,14 @@ export const EvidenceResponse: MessageFns<EvidenceResponse> = {
           message.forkFinalitySig = reader.bytes();
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.signingContext = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2474,6 +2491,7 @@ export const EvidenceResponse: MessageFns<EvidenceResponse> = {
         ? bytesFromBase64(object.canonicalFinalitySig)
         : new Uint8Array(0),
       forkFinalitySig: isSet(object.forkFinalitySig) ? bytesFromBase64(object.forkFinalitySig) : new Uint8Array(0),
+      signingContext: isSet(object.signingContext) ? globalThis.String(object.signingContext) : "",
     };
   },
 
@@ -2500,6 +2518,9 @@ export const EvidenceResponse: MessageFns<EvidenceResponse> = {
     if (message.forkFinalitySig.length !== 0) {
       obj.forkFinalitySig = base64FromBytes(message.forkFinalitySig);
     }
+    if (message.signingContext !== "") {
+      obj.signingContext = message.signingContext;
+    }
     return obj;
   },
 
@@ -2515,6 +2536,7 @@ export const EvidenceResponse: MessageFns<EvidenceResponse> = {
     message.forkAppHash = object.forkAppHash ?? new Uint8Array(0);
     message.canonicalFinalitySig = object.canonicalFinalitySig ?? new Uint8Array(0);
     message.forkFinalitySig = object.forkFinalitySig ?? new Uint8Array(0);
+    message.signingContext = object.signingContext ?? "";
     return message;
   },
 };

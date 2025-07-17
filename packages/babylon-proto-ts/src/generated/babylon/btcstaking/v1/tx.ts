@@ -6,6 +6,7 @@
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
+import { Coin } from "../../../cosmos/base/v1beta1/coin";
 import { Description } from "../../../cosmos/staking/v1beta1/staking";
 import { InclusionProof } from "./btcstaking";
 import { Params } from "./params";
@@ -33,6 +34,11 @@ export interface MsgCreateFinalityProvider {
   pop:
     | ProofOfPossessionBTC
     | undefined;
+  /**
+   * bsn_id is the ID of the BSN
+   * If it's empty, it's assumed to be Babylon's chain id
+   */
+  bsnId: string;
   /** commission is the finality provider commission information */
   commission: CommissionRates | undefined;
 }
@@ -169,6 +175,89 @@ export interface MsgCreateBTCDelegation {
 export interface MsgCreateBTCDelegationResponse {
 }
 
+/** MsgBtcStakeExpand is the message for creating a BTC delegation */
+export interface MsgBtcStakeExpand {
+  /** staker_addr is the address to receive rewards from BTC delegation. */
+  stakerAddr: string;
+  /** pop is the proof of possession of btc_pk by the staker_addr. */
+  pop:
+    | ProofOfPossessionBTC
+    | undefined;
+  /** btc_pk is the Bitcoin secp256k1 PK of the BTC delegator */
+  btcPk: Uint8Array;
+  /**
+   * fp_btc_pk_list is the list of Bitcoin secp256k1 PKs of the finality
+   * providers, if there is more than one finality provider pk it means that
+   * delegation is re-staked
+   */
+  fpBtcPkList: Uint8Array[];
+  /** staking_time is the time lock used in staking transaction */
+  stakingTime: number;
+  /** staking_value  is the amount of satoshis locked in staking output */
+  stakingValue: number;
+  /**
+   * staking_tx is a bitcoin staking transaction i.e transaction that locks
+   * funds
+   */
+  stakingTx: Uint8Array;
+  /**
+   * slashing_tx is the slashing tx
+   * Note that the tx itself does not contain signatures, which are off-chain.
+   */
+  slashingTx: Uint8Array;
+  /**
+   * delegator_slashing_sig is the signature on the slashing tx by the delegator
+   * (i.e., SK corresponding to btc_pk). It will be a part of the witness for
+   * the staking tx output. The staking tx output further needs signatures from
+   * covenant and finality provider in order to be spendable.
+   */
+  delegatorSlashingSig: Uint8Array;
+  /**
+   * unbonding_time is the time lock used when funds are being unbonded. It is
+   * be used in:
+   * - unbonding transaction, time lock spending path
+   * - staking slashing transaction, change output
+   * - unbonding slashing transaction, change output
+   * It must be smaller than math.MaxUInt16 and larger that
+   * max(MinUnbondingTime, CheckpointFinalizationTimeout)
+   */
+  unbondingTime: number;
+  /**
+   * fields related to unbonding transaction
+   * unbonding_tx is a bitcoin unbonding transaction i.e transaction that spends
+   * staking output and sends it to the unbonding output
+   */
+  unbondingTx: Uint8Array;
+  /**
+   * unbonding_value is amount of satoshis locked in unbonding output.
+   * NOTE: staking_value and unbonding_value could be different because of the
+   * difference between the fee for staking tx and that for unbonding
+   */
+  unbondingValue: number;
+  /**
+   * unbonding_slashing_tx is the slashing tx which slash unbonding contract
+   * Note that the tx itself does not contain signatures, which are off-chain.
+   */
+  unbondingSlashingTx: Uint8Array;
+  /**
+   * delegator_unbonding_slashing_sig is the signature on the slashing tx by the
+   * delegator (i.e., SK corresponding to btc_pk).
+   */
+  delegatorUnbondingSlashingSig: Uint8Array;
+  /** previous_staking_tx_hash is the hash of the staking tx that will be used as input. */
+  previousStakingTxHash: string;
+  /**
+   * funding_tx is a bitcoin transaction that was used to fund the BTC stake expansion
+   * to at least pay the fees for it. It can also be used to increase the total amount
+   * of satoshi staked. This will be parsed into a *wire.MsgTx
+   */
+  fundingTx: Uint8Array;
+}
+
+/** MsgBtcStakeExpandResponse is the response for MsgBtcStakeExpand */
+export interface MsgBtcStakeExpandResponse {
+}
+
 /**
  * MsgAddBTCDelegationInclusionProof is the message for adding proof of
  * inclusion of BTC delegation on BTC chain
@@ -225,6 +314,12 @@ export interface MsgAddCovenantSigs {
    * of the corresponding delegation
    */
   slashingUnbondingTxSigs: Uint8Array[];
+  /**
+   * stake_expansion_tx_sig is the signature of the covenant to spend the
+   * previous staking transaction to create a new BTC delegation
+   * submitted to babylon. The signature follows encoding in BIP-340 spec
+   */
+  stakeExpansionTxSig: Uint8Array;
 }
 
 /** MsgAddCovenantSigsResponse is the response for MsgAddCovenantSigs */
@@ -314,8 +409,55 @@ export interface MsgUpdateParams {
 export interface MsgUpdateParamsResponse {
 }
 
+/** MsgAddBsnRewards adds rewards for finality providers of a specific BSN consumer */
+export interface MsgAddBsnRewards {
+  /** Sender is the babylon address which will pay for the rewards */
+  sender: string;
+  /**
+   * BsnConsumerId is the ID of the BSN consumer
+   * - for Cosmos SDK chains, the consumer ID will be the IBC client ID
+   * - for rollup chains, the consumer ID will be the chain ID of the rollup
+   *   chain
+   */
+  bsnConsumerId: string;
+  /**
+   * TotalRewards is the total amount of rewards to be distributed among finality providers.
+   * This amount will be distributed according to the ratios specified in fp_ratios.
+   */
+  totalRewards: Coin[];
+  /**
+   * FpRatios is a list of finality providers and their respective reward distribution ratios.
+   * The ratios should sum to 1.0 to distribute the entire total_rewards amount.
+   */
+  fpRatios: FpRatio[];
+}
+
+/** FpRatio defines the finality provider identifier and their reward distribution ratio */
+export interface FpRatio {
+  /** BtcPK is the Bitcoin secp256k1 PK of the finality provider */
+  btcPk: Uint8Array;
+  /**
+   * Ratio is the proportion of total_rewards that this finality provider and their BTC stakers
+   * should receive. Must be a decimal between 0 and 1. The sum of all ratios in fp_ratios
+   * should equal 1.0. From the calculated reward amount, the babylon genesis commission and
+   * finality provider commission will be deducted before allocating to BTC stakers.
+   */
+  ratio: string;
+}
+
+/** MsgAddBsnRewardsResponse defines the Msg/AddBsnRewards response type. */
+export interface MsgAddBsnRewardsResponse {
+}
+
 function createBaseMsgCreateFinalityProvider(): MsgCreateFinalityProvider {
-  return { addr: "", description: undefined, btcPk: new Uint8Array(0), pop: undefined, commission: undefined };
+  return {
+    addr: "",
+    description: undefined,
+    btcPk: new Uint8Array(0),
+    pop: undefined,
+    bsnId: "",
+    commission: undefined,
+  };
 }
 
 export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = {
@@ -331,6 +473,9 @@ export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = 
     }
     if (message.pop !== undefined) {
       ProofOfPossessionBTC.encode(message.pop, writer.uint32(42).fork()).join();
+    }
+    if (message.bsnId !== "") {
+      writer.uint32(50).string(message.bsnId);
     }
     if (message.commission !== undefined) {
       CommissionRates.encode(message.commission, writer.uint32(58).fork()).join();
@@ -377,6 +522,14 @@ export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = 
           message.pop = ProofOfPossessionBTC.decode(reader, reader.uint32());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.bsnId = reader.string();
+          continue;
+        }
         case 7: {
           if (tag !== 58) {
             break;
@@ -400,6 +553,7 @@ export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = 
       description: isSet(object.description) ? Description.fromJSON(object.description) : undefined,
       btcPk: isSet(object.btcPk) ? bytesFromBase64(object.btcPk) : new Uint8Array(0),
       pop: isSet(object.pop) ? ProofOfPossessionBTC.fromJSON(object.pop) : undefined,
+      bsnId: isSet(object.bsnId) ? globalThis.String(object.bsnId) : "",
       commission: isSet(object.commission) ? CommissionRates.fromJSON(object.commission) : undefined,
     };
   },
@@ -417,6 +571,9 @@ export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = 
     }
     if (message.pop !== undefined) {
       obj.pop = ProofOfPossessionBTC.toJSON(message.pop);
+    }
+    if (message.bsnId !== "") {
+      obj.bsnId = message.bsnId;
     }
     if (message.commission !== undefined) {
       obj.commission = CommissionRates.toJSON(message.commission);
@@ -437,6 +594,7 @@ export const MsgCreateFinalityProvider: MessageFns<MsgCreateFinalityProvider> = 
     message.pop = (object.pop !== undefined && object.pop !== null)
       ? ProofOfPossessionBTC.fromPartial(object.pop)
       : undefined;
+    message.bsnId = object.bsnId ?? "";
     message.commission = (object.commission !== undefined && object.commission !== null)
       ? CommissionRates.fromPartial(object.commission)
       : undefined;
@@ -1094,6 +1252,376 @@ export const MsgCreateBTCDelegationResponse: MessageFns<MsgCreateBTCDelegationRe
   },
 };
 
+function createBaseMsgBtcStakeExpand(): MsgBtcStakeExpand {
+  return {
+    stakerAddr: "",
+    pop: undefined,
+    btcPk: new Uint8Array(0),
+    fpBtcPkList: [],
+    stakingTime: 0,
+    stakingValue: 0,
+    stakingTx: new Uint8Array(0),
+    slashingTx: new Uint8Array(0),
+    delegatorSlashingSig: new Uint8Array(0),
+    unbondingTime: 0,
+    unbondingTx: new Uint8Array(0),
+    unbondingValue: 0,
+    unbondingSlashingTx: new Uint8Array(0),
+    delegatorUnbondingSlashingSig: new Uint8Array(0),
+    previousStakingTxHash: "",
+    fundingTx: new Uint8Array(0),
+  };
+}
+
+export const MsgBtcStakeExpand: MessageFns<MsgBtcStakeExpand> = {
+  encode(message: MsgBtcStakeExpand, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stakerAddr !== "") {
+      writer.uint32(10).string(message.stakerAddr);
+    }
+    if (message.pop !== undefined) {
+      ProofOfPossessionBTC.encode(message.pop, writer.uint32(18).fork()).join();
+    }
+    if (message.btcPk.length !== 0) {
+      writer.uint32(26).bytes(message.btcPk);
+    }
+    for (const v of message.fpBtcPkList) {
+      writer.uint32(34).bytes(v!);
+    }
+    if (message.stakingTime !== 0) {
+      writer.uint32(40).uint32(message.stakingTime);
+    }
+    if (message.stakingValue !== 0) {
+      writer.uint32(48).int64(message.stakingValue);
+    }
+    if (message.stakingTx.length !== 0) {
+      writer.uint32(58).bytes(message.stakingTx);
+    }
+    if (message.slashingTx.length !== 0) {
+      writer.uint32(66).bytes(message.slashingTx);
+    }
+    if (message.delegatorSlashingSig.length !== 0) {
+      writer.uint32(74).bytes(message.delegatorSlashingSig);
+    }
+    if (message.unbondingTime !== 0) {
+      writer.uint32(80).uint32(message.unbondingTime);
+    }
+    if (message.unbondingTx.length !== 0) {
+      writer.uint32(90).bytes(message.unbondingTx);
+    }
+    if (message.unbondingValue !== 0) {
+      writer.uint32(96).int64(message.unbondingValue);
+    }
+    if (message.unbondingSlashingTx.length !== 0) {
+      writer.uint32(106).bytes(message.unbondingSlashingTx);
+    }
+    if (message.delegatorUnbondingSlashingSig.length !== 0) {
+      writer.uint32(114).bytes(message.delegatorUnbondingSlashingSig);
+    }
+    if (message.previousStakingTxHash !== "") {
+      writer.uint32(122).string(message.previousStakingTxHash);
+    }
+    if (message.fundingTx.length !== 0) {
+      writer.uint32(130).bytes(message.fundingTx);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgBtcStakeExpand {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgBtcStakeExpand();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stakerAddr = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.pop = ProofOfPossessionBTC.decode(reader, reader.uint32());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.btcPk = reader.bytes();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.fpBtcPkList.push(reader.bytes());
+          continue;
+        }
+        case 5: {
+          if (tag !== 40) {
+            break;
+          }
+
+          message.stakingTime = reader.uint32();
+          continue;
+        }
+        case 6: {
+          if (tag !== 48) {
+            break;
+          }
+
+          message.stakingValue = longToNumber(reader.int64());
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.stakingTx = reader.bytes();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.slashingTx = reader.bytes();
+          continue;
+        }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.delegatorSlashingSig = reader.bytes();
+          continue;
+        }
+        case 10: {
+          if (tag !== 80) {
+            break;
+          }
+
+          message.unbondingTime = reader.uint32();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.unbondingTx = reader.bytes();
+          continue;
+        }
+        case 12: {
+          if (tag !== 96) {
+            break;
+          }
+
+          message.unbondingValue = longToNumber(reader.int64());
+          continue;
+        }
+        case 13: {
+          if (tag !== 106) {
+            break;
+          }
+
+          message.unbondingSlashingTx = reader.bytes();
+          continue;
+        }
+        case 14: {
+          if (tag !== 114) {
+            break;
+          }
+
+          message.delegatorUnbondingSlashingSig = reader.bytes();
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.previousStakingTxHash = reader.string();
+          continue;
+        }
+        case 16: {
+          if (tag !== 130) {
+            break;
+          }
+
+          message.fundingTx = reader.bytes();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgBtcStakeExpand {
+    return {
+      stakerAddr: isSet(object.stakerAddr) ? globalThis.String(object.stakerAddr) : "",
+      pop: isSet(object.pop) ? ProofOfPossessionBTC.fromJSON(object.pop) : undefined,
+      btcPk: isSet(object.btcPk) ? bytesFromBase64(object.btcPk) : new Uint8Array(0),
+      fpBtcPkList: globalThis.Array.isArray(object?.fpBtcPkList)
+        ? object.fpBtcPkList.map((e: any) => bytesFromBase64(e))
+        : [],
+      stakingTime: isSet(object.stakingTime) ? globalThis.Number(object.stakingTime) : 0,
+      stakingValue: isSet(object.stakingValue) ? globalThis.Number(object.stakingValue) : 0,
+      stakingTx: isSet(object.stakingTx) ? bytesFromBase64(object.stakingTx) : new Uint8Array(0),
+      slashingTx: isSet(object.slashingTx) ? bytesFromBase64(object.slashingTx) : new Uint8Array(0),
+      delegatorSlashingSig: isSet(object.delegatorSlashingSig)
+        ? bytesFromBase64(object.delegatorSlashingSig)
+        : new Uint8Array(0),
+      unbondingTime: isSet(object.unbondingTime) ? globalThis.Number(object.unbondingTime) : 0,
+      unbondingTx: isSet(object.unbondingTx) ? bytesFromBase64(object.unbondingTx) : new Uint8Array(0),
+      unbondingValue: isSet(object.unbondingValue) ? globalThis.Number(object.unbondingValue) : 0,
+      unbondingSlashingTx: isSet(object.unbondingSlashingTx)
+        ? bytesFromBase64(object.unbondingSlashingTx)
+        : new Uint8Array(0),
+      delegatorUnbondingSlashingSig: isSet(object.delegatorUnbondingSlashingSig)
+        ? bytesFromBase64(object.delegatorUnbondingSlashingSig)
+        : new Uint8Array(0),
+      previousStakingTxHash: isSet(object.previousStakingTxHash) ? globalThis.String(object.previousStakingTxHash) : "",
+      fundingTx: isSet(object.fundingTx) ? bytesFromBase64(object.fundingTx) : new Uint8Array(0),
+    };
+  },
+
+  toJSON(message: MsgBtcStakeExpand): unknown {
+    const obj: any = {};
+    if (message.stakerAddr !== "") {
+      obj.stakerAddr = message.stakerAddr;
+    }
+    if (message.pop !== undefined) {
+      obj.pop = ProofOfPossessionBTC.toJSON(message.pop);
+    }
+    if (message.btcPk.length !== 0) {
+      obj.btcPk = base64FromBytes(message.btcPk);
+    }
+    if (message.fpBtcPkList?.length) {
+      obj.fpBtcPkList = message.fpBtcPkList.map((e) => base64FromBytes(e));
+    }
+    if (message.stakingTime !== 0) {
+      obj.stakingTime = Math.round(message.stakingTime);
+    }
+    if (message.stakingValue !== 0) {
+      obj.stakingValue = Math.round(message.stakingValue);
+    }
+    if (message.stakingTx.length !== 0) {
+      obj.stakingTx = base64FromBytes(message.stakingTx);
+    }
+    if (message.slashingTx.length !== 0) {
+      obj.slashingTx = base64FromBytes(message.slashingTx);
+    }
+    if (message.delegatorSlashingSig.length !== 0) {
+      obj.delegatorSlashingSig = base64FromBytes(message.delegatorSlashingSig);
+    }
+    if (message.unbondingTime !== 0) {
+      obj.unbondingTime = Math.round(message.unbondingTime);
+    }
+    if (message.unbondingTx.length !== 0) {
+      obj.unbondingTx = base64FromBytes(message.unbondingTx);
+    }
+    if (message.unbondingValue !== 0) {
+      obj.unbondingValue = Math.round(message.unbondingValue);
+    }
+    if (message.unbondingSlashingTx.length !== 0) {
+      obj.unbondingSlashingTx = base64FromBytes(message.unbondingSlashingTx);
+    }
+    if (message.delegatorUnbondingSlashingSig.length !== 0) {
+      obj.delegatorUnbondingSlashingSig = base64FromBytes(message.delegatorUnbondingSlashingSig);
+    }
+    if (message.previousStakingTxHash !== "") {
+      obj.previousStakingTxHash = message.previousStakingTxHash;
+    }
+    if (message.fundingTx.length !== 0) {
+      obj.fundingTx = base64FromBytes(message.fundingTx);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgBtcStakeExpand>, I>>(base?: I): MsgBtcStakeExpand {
+    return MsgBtcStakeExpand.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgBtcStakeExpand>, I>>(object: I): MsgBtcStakeExpand {
+    const message = createBaseMsgBtcStakeExpand();
+    message.stakerAddr = object.stakerAddr ?? "";
+    message.pop = (object.pop !== undefined && object.pop !== null)
+      ? ProofOfPossessionBTC.fromPartial(object.pop)
+      : undefined;
+    message.btcPk = object.btcPk ?? new Uint8Array(0);
+    message.fpBtcPkList = object.fpBtcPkList?.map((e) => e) || [];
+    message.stakingTime = object.stakingTime ?? 0;
+    message.stakingValue = object.stakingValue ?? 0;
+    message.stakingTx = object.stakingTx ?? new Uint8Array(0);
+    message.slashingTx = object.slashingTx ?? new Uint8Array(0);
+    message.delegatorSlashingSig = object.delegatorSlashingSig ?? new Uint8Array(0);
+    message.unbondingTime = object.unbondingTime ?? 0;
+    message.unbondingTx = object.unbondingTx ?? new Uint8Array(0);
+    message.unbondingValue = object.unbondingValue ?? 0;
+    message.unbondingSlashingTx = object.unbondingSlashingTx ?? new Uint8Array(0);
+    message.delegatorUnbondingSlashingSig = object.delegatorUnbondingSlashingSig ?? new Uint8Array(0);
+    message.previousStakingTxHash = object.previousStakingTxHash ?? "";
+    message.fundingTx = object.fundingTx ?? new Uint8Array(0);
+    return message;
+  },
+};
+
+function createBaseMsgBtcStakeExpandResponse(): MsgBtcStakeExpandResponse {
+  return {};
+}
+
+export const MsgBtcStakeExpandResponse: MessageFns<MsgBtcStakeExpandResponse> = {
+  encode(_: MsgBtcStakeExpandResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgBtcStakeExpandResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgBtcStakeExpandResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgBtcStakeExpandResponse {
+    return {};
+  },
+
+  toJSON(_: MsgBtcStakeExpandResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgBtcStakeExpandResponse>, I>>(base?: I): MsgBtcStakeExpandResponse {
+    return MsgBtcStakeExpandResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgBtcStakeExpandResponse>, I>>(_: I): MsgBtcStakeExpandResponse {
+    const message = createBaseMsgBtcStakeExpandResponse();
+    return message;
+  },
+};
+
 function createBaseMsgAddBTCDelegationInclusionProof(): MsgAddBTCDelegationInclusionProof {
   return { signer: "", stakingTxHash: "", stakingTxInclusionProof: undefined };
 }
@@ -1250,6 +1778,7 @@ function createBaseMsgAddCovenantSigs(): MsgAddCovenantSigs {
     slashingTxSigs: [],
     unbondingTxSig: new Uint8Array(0),
     slashingUnbondingTxSigs: [],
+    stakeExpansionTxSig: new Uint8Array(0),
   };
 }
 
@@ -1272,6 +1801,9 @@ export const MsgAddCovenantSigs: MessageFns<MsgAddCovenantSigs> = {
     }
     for (const v of message.slashingUnbondingTxSigs) {
       writer.uint32(50).bytes(v!);
+    }
+    if (message.stakeExpansionTxSig.length !== 0) {
+      writer.uint32(58).bytes(message.stakeExpansionTxSig);
     }
     return writer;
   },
@@ -1331,6 +1863,14 @@ export const MsgAddCovenantSigs: MessageFns<MsgAddCovenantSigs> = {
           message.slashingUnbondingTxSigs.push(reader.bytes());
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.stakeExpansionTxSig = reader.bytes();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1352,6 +1892,9 @@ export const MsgAddCovenantSigs: MessageFns<MsgAddCovenantSigs> = {
       slashingUnbondingTxSigs: globalThis.Array.isArray(object?.slashingUnbondingTxSigs)
         ? object.slashingUnbondingTxSigs.map((e: any) => bytesFromBase64(e))
         : [],
+      stakeExpansionTxSig: isSet(object.stakeExpansionTxSig)
+        ? bytesFromBase64(object.stakeExpansionTxSig)
+        : new Uint8Array(0),
     };
   },
 
@@ -1375,6 +1918,9 @@ export const MsgAddCovenantSigs: MessageFns<MsgAddCovenantSigs> = {
     if (message.slashingUnbondingTxSigs?.length) {
       obj.slashingUnbondingTxSigs = message.slashingUnbondingTxSigs.map((e) => base64FromBytes(e));
     }
+    if (message.stakeExpansionTxSig.length !== 0) {
+      obj.stakeExpansionTxSig = base64FromBytes(message.stakeExpansionTxSig);
+    }
     return obj;
   },
 
@@ -1389,6 +1935,7 @@ export const MsgAddCovenantSigs: MessageFns<MsgAddCovenantSigs> = {
     message.slashingTxSigs = object.slashingTxSigs?.map((e) => e) || [];
     message.unbondingTxSig = object.unbondingTxSig ?? new Uint8Array(0);
     message.slashingUnbondingTxSigs = object.slashingUnbondingTxSigs?.map((e) => e) || [];
+    message.stakeExpansionTxSig = object.stakeExpansionTxSig ?? new Uint8Array(0);
     return message;
   },
 };
@@ -1876,6 +2423,235 @@ export const MsgUpdateParamsResponse: MessageFns<MsgUpdateParamsResponse> = {
   },
 };
 
+function createBaseMsgAddBsnRewards(): MsgAddBsnRewards {
+  return { sender: "", bsnConsumerId: "", totalRewards: [], fpRatios: [] };
+}
+
+export const MsgAddBsnRewards: MessageFns<MsgAddBsnRewards> = {
+  encode(message: MsgAddBsnRewards, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sender !== "") {
+      writer.uint32(10).string(message.sender);
+    }
+    if (message.bsnConsumerId !== "") {
+      writer.uint32(18).string(message.bsnConsumerId);
+    }
+    for (const v of message.totalRewards) {
+      Coin.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.fpRatios) {
+      FpRatio.encode(v!, writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgAddBsnRewards {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgAddBsnRewards();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sender = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.bsnConsumerId = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.totalRewards.push(Coin.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.fpRatios.push(FpRatio.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): MsgAddBsnRewards {
+    return {
+      sender: isSet(object.sender) ? globalThis.String(object.sender) : "",
+      bsnConsumerId: isSet(object.bsnConsumerId) ? globalThis.String(object.bsnConsumerId) : "",
+      totalRewards: globalThis.Array.isArray(object?.totalRewards)
+        ? object.totalRewards.map((e: any) => Coin.fromJSON(e))
+        : [],
+      fpRatios: globalThis.Array.isArray(object?.fpRatios) ? object.fpRatios.map((e: any) => FpRatio.fromJSON(e)) : [],
+    };
+  },
+
+  toJSON(message: MsgAddBsnRewards): unknown {
+    const obj: any = {};
+    if (message.sender !== "") {
+      obj.sender = message.sender;
+    }
+    if (message.bsnConsumerId !== "") {
+      obj.bsnConsumerId = message.bsnConsumerId;
+    }
+    if (message.totalRewards?.length) {
+      obj.totalRewards = message.totalRewards.map((e) => Coin.toJSON(e));
+    }
+    if (message.fpRatios?.length) {
+      obj.fpRatios = message.fpRatios.map((e) => FpRatio.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgAddBsnRewards>, I>>(base?: I): MsgAddBsnRewards {
+    return MsgAddBsnRewards.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgAddBsnRewards>, I>>(object: I): MsgAddBsnRewards {
+    const message = createBaseMsgAddBsnRewards();
+    message.sender = object.sender ?? "";
+    message.bsnConsumerId = object.bsnConsumerId ?? "";
+    message.totalRewards = object.totalRewards?.map((e) => Coin.fromPartial(e)) || [];
+    message.fpRatios = object.fpRatios?.map((e) => FpRatio.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseFpRatio(): FpRatio {
+  return { btcPk: new Uint8Array(0), ratio: "" };
+}
+
+export const FpRatio: MessageFns<FpRatio> = {
+  encode(message: FpRatio, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.btcPk.length !== 0) {
+      writer.uint32(10).bytes(message.btcPk);
+    }
+    if (message.ratio !== "") {
+      writer.uint32(18).string(message.ratio);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FpRatio {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFpRatio();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.btcPk = reader.bytes();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.ratio = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): FpRatio {
+    return {
+      btcPk: isSet(object.btcPk) ? bytesFromBase64(object.btcPk) : new Uint8Array(0),
+      ratio: isSet(object.ratio) ? globalThis.String(object.ratio) : "",
+    };
+  },
+
+  toJSON(message: FpRatio): unknown {
+    const obj: any = {};
+    if (message.btcPk.length !== 0) {
+      obj.btcPk = base64FromBytes(message.btcPk);
+    }
+    if (message.ratio !== "") {
+      obj.ratio = message.ratio;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<FpRatio>, I>>(base?: I): FpRatio {
+    return FpRatio.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FpRatio>, I>>(object: I): FpRatio {
+    const message = createBaseFpRatio();
+    message.btcPk = object.btcPk ?? new Uint8Array(0);
+    message.ratio = object.ratio ?? "";
+    return message;
+  },
+};
+
+function createBaseMsgAddBsnRewardsResponse(): MsgAddBsnRewardsResponse {
+  return {};
+}
+
+export const MsgAddBsnRewardsResponse: MessageFns<MsgAddBsnRewardsResponse> = {
+  encode(_: MsgAddBsnRewardsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): MsgAddBsnRewardsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseMsgAddBsnRewardsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): MsgAddBsnRewardsResponse {
+    return {};
+  },
+
+  toJSON(_: MsgAddBsnRewardsResponse): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<MsgAddBsnRewardsResponse>, I>>(base?: I): MsgAddBsnRewardsResponse {
+    return MsgAddBsnRewardsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<MsgAddBsnRewardsResponse>, I>>(_: I): MsgAddBsnRewardsResponse {
+    const message = createBaseMsgAddBsnRewardsResponse();
+    return message;
+  },
+};
+
 /**
  * Msg defines the Msg service.
  * TODO: handle unbonding tx with full witness
@@ -1905,6 +2681,13 @@ export interface Msg {
   SelectiveSlashingEvidence(request: MsgSelectiveSlashingEvidence): Promise<MsgSelectiveSlashingEvidenceResponse>;
   /** UpdateParams updates the btcstaking module parameters. */
   UpdateParams(request: MsgUpdateParams): Promise<MsgUpdateParamsResponse>;
+  /** BtcStakeExpand expands an previous active BTC delegation into a new one */
+  BtcStakeExpand(request: MsgBtcStakeExpand): Promise<MsgBtcStakeExpandResponse>;
+  /**
+   * AddBsnRewards defines a method to add additional rewards for finality providers
+   * and their BTC delegators with specified distribution ratios
+   */
+  AddBsnRewards(request: MsgAddBsnRewards): Promise<MsgAddBsnRewardsResponse>;
 }
 
 export const MsgServiceName = "babylon.btcstaking.v1.Msg";
@@ -1922,6 +2705,8 @@ export class MsgClientImpl implements Msg {
     this.BTCUndelegate = this.BTCUndelegate.bind(this);
     this.SelectiveSlashingEvidence = this.SelectiveSlashingEvidence.bind(this);
     this.UpdateParams = this.UpdateParams.bind(this);
+    this.BtcStakeExpand = this.BtcStakeExpand.bind(this);
+    this.AddBsnRewards = this.AddBsnRewards.bind(this);
   }
   CreateFinalityProvider(request: MsgCreateFinalityProvider): Promise<MsgCreateFinalityProviderResponse> {
     const data = MsgCreateFinalityProvider.encode(request).finish();
@@ -1971,6 +2756,18 @@ export class MsgClientImpl implements Msg {
     const data = MsgUpdateParams.encode(request).finish();
     const promise = this.rpc.request(this.service, "UpdateParams", data);
     return promise.then((data) => MsgUpdateParamsResponse.decode(new BinaryReader(data)));
+  }
+
+  BtcStakeExpand(request: MsgBtcStakeExpand): Promise<MsgBtcStakeExpandResponse> {
+    const data = MsgBtcStakeExpand.encode(request).finish();
+    const promise = this.rpc.request(this.service, "BtcStakeExpand", data);
+    return promise.then((data) => MsgBtcStakeExpandResponse.decode(new BinaryReader(data)));
+  }
+
+  AddBsnRewards(request: MsgAddBsnRewards): Promise<MsgAddBsnRewardsResponse> {
+    const data = MsgAddBsnRewards.encode(request).finish();
+    const promise = this.rpc.request(this.service, "AddBsnRewards", data);
+    return promise.then((data) => MsgAddBsnRewardsResponse.decode(new BinaryReader(data)));
   }
 }
 

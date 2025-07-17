@@ -2,35 +2,36 @@
 // versions:
 //   protoc-gen-ts_proto  v2.6.1
 //   protoc               unknown
-// source: babylon/mint/v1/genesis.proto
+// source: babylon/btcstkconsumer/v1/genesis.proto
 
 /* eslint-disable */
 import { BinaryReader, BinaryWriter } from "@bufbuild/protobuf/wire";
-import { GenesisTime, Minter } from "./mint";
+import { ConsumerRegister } from "./btcstkconsumer";
+import { Params } from "./params";
 
-export const protobufPackage = "babylon.mint.v1";
+export const protobufPackage = "babylon.btcstkconsumer.v1";
 
-/** GenesisState defines the mint module's genesis state. */
+/** GenesisState defines the btcstkconsumer module's genesis state. */
 export interface GenesisState {
-  /** minter represents the mint state. */
-  minter:
-    | Minter
+  /** params defines all the parameters of the module. */
+  params:
+    | Params
     | undefined;
-  /** GenesisTime is the timestamp of the genesis block. */
-  genesisTime: GenesisTime | undefined;
+  /** consumers contails all the registered consumers */
+  consumers: ConsumerRegister[];
 }
 
 function createBaseGenesisState(): GenesisState {
-  return { minter: undefined, genesisTime: undefined };
+  return { params: undefined, consumers: [] };
 }
 
 export const GenesisState: MessageFns<GenesisState> = {
   encode(message: GenesisState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.minter !== undefined) {
-      Minter.encode(message.minter, writer.uint32(10).fork()).join();
+    if (message.params !== undefined) {
+      Params.encode(message.params, writer.uint32(10).fork()).join();
     }
-    if (message.genesisTime !== undefined) {
-      GenesisTime.encode(message.genesisTime, writer.uint32(26).fork()).join();
+    for (const v of message.consumers) {
+      ConsumerRegister.encode(v!, writer.uint32(18).fork()).join();
     }
     return writer;
   },
@@ -47,15 +48,15 @@ export const GenesisState: MessageFns<GenesisState> = {
             break;
           }
 
-          message.minter = Minter.decode(reader, reader.uint32());
+          message.params = Params.decode(reader, reader.uint32());
           continue;
         }
-        case 3: {
-          if (tag !== 26) {
+        case 2: {
+          if (tag !== 18) {
             break;
           }
 
-          message.genesisTime = GenesisTime.decode(reader, reader.uint32());
+          message.consumers.push(ConsumerRegister.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -69,18 +70,20 @@ export const GenesisState: MessageFns<GenesisState> = {
 
   fromJSON(object: any): GenesisState {
     return {
-      minter: isSet(object.minter) ? Minter.fromJSON(object.minter) : undefined,
-      genesisTime: isSet(object.genesisTime) ? GenesisTime.fromJSON(object.genesisTime) : undefined,
+      params: isSet(object.params) ? Params.fromJSON(object.params) : undefined,
+      consumers: globalThis.Array.isArray(object?.consumers)
+        ? object.consumers.map((e: any) => ConsumerRegister.fromJSON(e))
+        : [],
     };
   },
 
   toJSON(message: GenesisState): unknown {
     const obj: any = {};
-    if (message.minter !== undefined) {
-      obj.minter = Minter.toJSON(message.minter);
+    if (message.params !== undefined) {
+      obj.params = Params.toJSON(message.params);
     }
-    if (message.genesisTime !== undefined) {
-      obj.genesisTime = GenesisTime.toJSON(message.genesisTime);
+    if (message.consumers?.length) {
+      obj.consumers = message.consumers.map((e) => ConsumerRegister.toJSON(e));
     }
     return obj;
   },
@@ -90,12 +93,10 @@ export const GenesisState: MessageFns<GenesisState> = {
   },
   fromPartial<I extends Exact<DeepPartial<GenesisState>, I>>(object: I): GenesisState {
     const message = createBaseGenesisState();
-    message.minter = (object.minter !== undefined && object.minter !== null)
-      ? Minter.fromPartial(object.minter)
+    message.params = (object.params !== undefined && object.params !== null)
+      ? Params.fromPartial(object.params)
       : undefined;
-    message.genesisTime = (object.genesisTime !== undefined && object.genesisTime !== null)
-      ? GenesisTime.fromPartial(object.genesisTime)
-      : undefined;
+    message.consumers = object.consumers?.map((e) => ConsumerRegister.fromPartial(e)) || [];
     return message;
   },
 };

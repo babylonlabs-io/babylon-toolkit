@@ -11,16 +11,19 @@ import { Timestamp } from "../../../google/protobuf/timestamp";
 export const protobufPackage = "babylon.finality.v1";
 
 /**
- * VotingPowerDistCache is the cache for voting power distribution of finality providers
- * and their BTC delegations at a height
+ * VotingPowerDistCache is the cache for voting power distribution of finality
+ * providers and their BTC delegations at a height
  */
 export interface VotingPowerDistCache {
   /**
-   * total_voting_power is the total voting power of all (active) finality providers
-   * in the cache
+   * total_voting_power is the total voting power of all (active) finality
+   * providers in the cache
    */
   totalVotingPower: number;
-  /** finality_providers is a list of finality providers' voting power information */
+  /**
+   * finality_providers is a list of finality providers' voting power
+   * information
+   */
   finalityProviders: FinalityProviderDistInfo[];
   /**
    * num_active_fps is the number of finality providers that have active BTC
@@ -29,7 +32,10 @@ export interface VotingPowerDistCache {
   numActiveFps: number;
 }
 
-/** FinalityProviderDistInfo is the reward distribution of a finality provider and its BTC delegations */
+/**
+ * FinalityProviderDistInfo is the reward distribution of a finality provider
+ * and its BTC delegations
+ */
 export interface FinalityProviderDistInfo {
   /**
    * btc_pk is the Bitcoin secp256k1 PK of this finality provider
@@ -40,7 +46,10 @@ export interface FinalityProviderDistInfo {
   addr: Uint8Array;
   /** commission defines the commission rate of finality provider */
   commission: string;
-  /** total_bonded_sat is the total amount of bonded BTC stake (in Satoshi) of the finality provider */
+  /**
+   * total_bonded_sat is the total amount of bonded BTC stake (in Satoshi) of
+   * the finality provider
+   */
   totalBondedSat: number;
   /**
    * is_timestamped indicates whether the finality provider
@@ -85,11 +94,24 @@ export interface PubRandCommit {
   numPubRand: number;
   /**
    * commitment is the value of the commitment
-   * currently, it is the root of the merkle tree constructed by the public randomness
+   * currently, it is the root of the merkle tree constructed by the public
+   * randomness
    */
   commitment: Uint8Array;
   /** epoch_num defines the epoch number that the commit falls into */
   epochNum: number;
+}
+
+/**
+ * PubRandCommitIndexValue represents a list of sorted start heights for public
+ * randomness commitments.
+ */
+export interface PubRandCommitIndexValue {
+  /**
+   * A list of start heights corresponding to committed public randomness
+   * ranges.
+   */
+  heights: number[];
 }
 
 /**
@@ -111,7 +133,8 @@ export interface Evidence {
    * canonical_finality_sig is the finality signature to the canonical block
    * where finality signature is an EOTS signature, i.e.,
    * the `s` in a Schnorr signature `(r, s)`
-   * `r` is the public randomness that is already committed by the finality provider
+   * `r` is the public randomness that is already committed by the finality
+   * provider
    */
   canonicalFinalitySig: Uint8Array;
   /**
@@ -119,11 +142,16 @@ export interface Evidence {
    * where finality signature is an EOTS signature
    */
   forkFinalitySig: Uint8Array;
+  /**
+   * signing_context is the context in which the finality signatures were used.
+   * It must be hex encoded 32 bytes, of the sha256 hash of the context string
+   */
+  signingContext: string;
 }
 
 /**
- * FinalityProviderSigningInfo defines a finality provider's signing info for monitoring their
- * liveness activity.
+ * FinalityProviderSigningInfo defines a finality provider's signing info for
+ * monitoring their liveness activity.
  */
 export interface FinalityProviderSigningInfo {
   /** fp_btc_pk is the BTC PK of the finality provider that casts this vote */
@@ -597,6 +625,78 @@ export const PubRandCommit: MessageFns<PubRandCommit> = {
   },
 };
 
+function createBasePubRandCommitIndexValue(): PubRandCommitIndexValue {
+  return { heights: [] };
+}
+
+export const PubRandCommitIndexValue: MessageFns<PubRandCommitIndexValue> = {
+  encode(message: PubRandCommitIndexValue, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    writer.uint32(10).fork();
+    for (const v of message.heights) {
+      writer.uint64(v);
+    }
+    writer.join();
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PubRandCommitIndexValue {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    let end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePubRandCommitIndexValue();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag === 8) {
+            message.heights.push(longToNumber(reader.uint64()));
+
+            continue;
+          }
+
+          if (tag === 10) {
+            const end2 = reader.uint32() + reader.pos;
+            while (reader.pos < end2) {
+              message.heights.push(longToNumber(reader.uint64()));
+            }
+
+            continue;
+          }
+
+          break;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PubRandCommitIndexValue {
+    return {
+      heights: globalThis.Array.isArray(object?.heights) ? object.heights.map((e: any) => globalThis.Number(e)) : [],
+    };
+  },
+
+  toJSON(message: PubRandCommitIndexValue): unknown {
+    const obj: any = {};
+    if (message.heights?.length) {
+      obj.heights = message.heights.map((e) => Math.round(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PubRandCommitIndexValue>, I>>(base?: I): PubRandCommitIndexValue {
+    return PubRandCommitIndexValue.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PubRandCommitIndexValue>, I>>(object: I): PubRandCommitIndexValue {
+    const message = createBasePubRandCommitIndexValue();
+    message.heights = object.heights?.map((e) => e) || [];
+    return message;
+  },
+};
+
 function createBaseEvidence(): Evidence {
   return {
     fpBtcPk: new Uint8Array(0),
@@ -606,6 +706,7 @@ function createBaseEvidence(): Evidence {
     forkAppHash: new Uint8Array(0),
     canonicalFinalitySig: new Uint8Array(0),
     forkFinalitySig: new Uint8Array(0),
+    signingContext: "",
   };
 }
 
@@ -631,6 +732,9 @@ export const Evidence: MessageFns<Evidence> = {
     }
     if (message.forkFinalitySig.length !== 0) {
       writer.uint32(58).bytes(message.forkFinalitySig);
+    }
+    if (message.signingContext !== "") {
+      writer.uint32(66).string(message.signingContext);
     }
     return writer;
   },
@@ -698,6 +802,14 @@ export const Evidence: MessageFns<Evidence> = {
           message.forkFinalitySig = reader.bytes();
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.signingContext = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -718,6 +830,7 @@ export const Evidence: MessageFns<Evidence> = {
         ? bytesFromBase64(object.canonicalFinalitySig)
         : new Uint8Array(0),
       forkFinalitySig: isSet(object.forkFinalitySig) ? bytesFromBase64(object.forkFinalitySig) : new Uint8Array(0),
+      signingContext: isSet(object.signingContext) ? globalThis.String(object.signingContext) : "",
     };
   },
 
@@ -744,6 +857,9 @@ export const Evidence: MessageFns<Evidence> = {
     if (message.forkFinalitySig.length !== 0) {
       obj.forkFinalitySig = base64FromBytes(message.forkFinalitySig);
     }
+    if (message.signingContext !== "") {
+      obj.signingContext = message.signingContext;
+    }
     return obj;
   },
 
@@ -759,6 +875,7 @@ export const Evidence: MessageFns<Evidence> = {
     message.forkAppHash = object.forkAppHash ?? new Uint8Array(0);
     message.canonicalFinalitySig = object.canonicalFinalitySig ?? new Uint8Array(0);
     message.forkFinalitySig = object.forkFinalitySig ?? new Uint8Array(0);
+    message.signingContext = object.signingContext ?? "";
     return message;
   },
 };
