@@ -101,7 +101,7 @@ const msgCreateBTCDelegationConverter = {
           json.delegator_unbonding_slashing_sig,
           "base64",
         ),
-      } as any;
+      };
     },
   },
 };
@@ -174,7 +174,7 @@ const msgBtcStakeExpandConverter = {
         ),
         previousStakingTxHash: json.previous_staking_tx_hash,
         fundingTx: Buffer.from(json.funding_tx, "base64"),
-      } as any;
+      };
     },
   },
 };
