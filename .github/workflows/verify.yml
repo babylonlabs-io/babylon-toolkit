@@ -20,7 +20,7 @@ jobs:
           node-version: '22.3.0'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Lint affected
         run: npx nx affected --target=lint --base=origin/main
