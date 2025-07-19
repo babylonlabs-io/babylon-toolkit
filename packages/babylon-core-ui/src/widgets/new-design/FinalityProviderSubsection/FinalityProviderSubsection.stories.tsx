@@ -87,8 +87,8 @@ export const Default: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: () => alert("Remove clicked"),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -99,8 +99,8 @@ export const Empty: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: () => alert("Remove clicked"),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -111,8 +111,8 @@ export const MultipleItems: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -123,8 +123,8 @@ export const AtMaximumCapacity: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -135,8 +135,8 @@ export const SingleProviderMode: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: () => alert("Remove clicked"),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -147,8 +147,8 @@ export const SingleProviderModeWithItem: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -177,8 +177,8 @@ export const ProvidersWithoutLogos: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
 
@@ -209,7 +209,7 @@ export const ProvidersWithoutDescriptions: Story = {
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
   },
-  render: (props: { max: number; items: ProviderItem[]; onAdd: () => void; onRemove: (bsnId?: string) => void }) => (
-    <FinalityProviderSubsection {...props} />
+  render: ({max, items, onAdd, onRemove}) => (
+    <FinalityProviderSubsection max={max} items={items} onAdd={onAdd} onRemove={onRemove} />
   ),
 };

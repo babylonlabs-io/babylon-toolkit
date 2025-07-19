@@ -56,21 +56,21 @@ const mockProviders = [
 export const Default: Story = {
   args: {
     items: mockProviders,
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
 export const SingleProvider: Story = {
   args: {
     items: [mockProviders[0]],
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
 export const EmptyList: Story = {
   args: {
     items: [],
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -102,7 +102,7 @@ export const WithoutLogos: Story = {
         },
       },
     ],
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -146,6 +146,6 @@ export const MixedProviders: Story = {
         },
       },
     ],
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };

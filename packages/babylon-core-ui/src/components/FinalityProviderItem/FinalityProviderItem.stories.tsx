@@ -36,7 +36,7 @@ export const Default: Story = {
     bsnName: "Babylon",
     bsnLogoUrl: "/images/fps/pumpbtc.jpeg",
     provider: mockProvider,
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -46,7 +46,7 @@ export const WithoutBsnLogo: Story = {
     bsnName: "Babylon Chain",
     bsnLogoUrl: undefined,
     provider: mockProvider,
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -56,7 +56,7 @@ export const WithoutProviderLogo: Story = {
     bsnName: "Babylon Network",
     bsnLogoUrl: "/images/fps/solv.jpeg",
     provider: mockProviderWithoutLogo,
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -72,7 +72,7 @@ export const HighRankProvider: Story = {
         moniker: "High Rank Provider",
       },
     },
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
 
@@ -88,6 +88,6 @@ export const LongNames: Story = {
         moniker: "Very Long Finality Provider Name That Should Handle Text Overflow",
       },
     },
-    onRemove: (bsnId) => alert(`Remove clicked for ${bsnId}`),
+    onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
