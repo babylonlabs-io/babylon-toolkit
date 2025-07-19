@@ -3,20 +3,18 @@ import { SubSection } from "../../../components/SubSection";
 import { useMemo } from "react";
 
 import { CounterButton } from "../../../components/CounterButton/CounterButton";
-import { ProvidersList, ProviderItem } from "../../../components/ProvidersList/ProvidersList";
+import { ProvidersList, ProviderItem } from "../../../elements/ProvidersList/ProvidersList";
 
 interface Props {
   max: number;
   items: ProviderItem[];
+  actionText: string;
   onAdd: () => void;
-  onRemove: (bsnId?: string) => void;
+  onRemove: (id?: string) => void;
 }
 
-export function FinalityProviderSubsection({ max, items = [], onAdd, onRemove }: Props) {
+export function FinalityProviderSubsection({ max, items = [], actionText, onAdd, onRemove }: Props) {
   const count = useMemo(() => items.length, [items]);
-
-  const allowsMultipleBsns = max > 1;
-  const actionText = allowsMultipleBsns ? "Add BSN and Finality Provider" : "Add Finality Provider";
 
   return (
     <SubSection>

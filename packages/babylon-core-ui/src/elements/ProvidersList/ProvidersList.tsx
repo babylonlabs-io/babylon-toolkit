@@ -21,7 +21,7 @@ export interface ProviderItem {
 
 interface ProvidersListProps {
   items: ProviderItem[];
-  onRemove: (bsnId?: string) => void;
+  onRemove: (id?: string) => void;
 }
 
 export function ProvidersList({ items, onRemove }: ProvidersListProps) {

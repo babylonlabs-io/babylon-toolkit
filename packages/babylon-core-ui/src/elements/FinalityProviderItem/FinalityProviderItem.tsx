@@ -1,6 +1,6 @@
-import { Avatar } from "../Avatar";
-import { Text } from "../Text";
-import { FinalityProviderLogo } from "../FinalityProviderLogo";
+import { Avatar } from "../../components/Avatar";
+import { Text } from "../../components/Text";
+import { FinalityProviderLogo } from "../FinalityProviderLogo/FinalityProviderLogo";
 
 interface ProviderDescription {
   moniker?: string;
@@ -17,7 +17,7 @@ interface FinalityProviderItemProps {
   bsnName: string;
   bsnLogoUrl?: string;
   provider: Provider;
-  onRemove: (bsnId?: string) => void;
+  onRemove: (id?: string) => void;
 }
 
 export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, provider, onRemove }: FinalityProviderItemProps) {
