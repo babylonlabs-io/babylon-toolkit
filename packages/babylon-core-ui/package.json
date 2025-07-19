@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/core-ui",
-  "version": "1.6.0",
+  "version": "0.0.0",
   "type": "module",
   "types": "dist/index.d.ts",
   "publishConfig": {
