@@ -1,13 +1,15 @@
 import { type PropsWithChildren, Children, cloneElement, isValidElement, ReactElement } from "react";
-import "./List.css";
+import "./ListLegacy.css";
 import { twMerge } from "tailwind-merge";
 
-import { type ListItemProps, ListItem } from "./components/ListItem";
+import { type ListItemLegacyProps, ListItemLegacy } from "./components/ListItemLegacy";
 
-export interface ListProps {
+export interface ListLegacyProps {
   className?: string;
   orientation: "adaptive" | "horizontal" | "vertical";
-  children: ReactElement<ListItemProps, typeof ListItem> | ReactElement<ListItemProps, typeof ListItem>[];
+  children:
+    | ReactElement<ListItemLegacyProps, typeof ListItemLegacy>
+    | ReactElement<ListItemLegacyProps, typeof ListItemLegacy>[];
 }
 
 const ROW_ORIENTATION = {
@@ -16,9 +18,9 @@ const ROW_ORIENTATION = {
   vertical: "horizontal",
 } as const;
 
-export function List({ className, orientation = "vertical", children }: PropsWithChildren<ListProps>) {
+export function ListLegacy({ className, orientation = "vertical", children }: PropsWithChildren<ListLegacyProps>) {
   return (
-    <div className={twMerge("bbn-list", `bbn-list-${orientation}`, className)}>
+    <div className={twMerge("bbn-list-legacy", `bbn-list-legacy-${orientation}`, className)}>
       {Children.map(children, (item) =>
         isValidElement(item)
           ? cloneElement(item, {

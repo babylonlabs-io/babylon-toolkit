@@ -1,37 +1,38 @@
 .bbn-list {
-  @apply rounded border border-secondary-strokeLight;
+  @apply flex items-start gap-2;
 
   &-horizontal {
-    @apply flex py-3;
+    @apply flex-row;
   }
 
   &-vertical {
-    @apply px-4;
+    @apply flex-col;
   }
 
   &-adaptive {
-    @apply px-4 md:flex md:py-3;
+    @apply flex-col md:flex-row;
   }
 }
 
 .bbn-list-item {
-  @apply flex;
+  @apply flex border-0 rounded bg-secondary-highlight px-6 py-4 w-full;
 
   &-horizontal {
-    @apply flex-row items-center justify-between border-b border-secondary-strokeLight py-4 last-of-type:border-0;
+    @apply flex-row items-center justify-between py-4 border-0;
   }
 
   &-vertical {
-    @apply flex-1 flex-col items-start justify-start gap-1.5 border-r border-secondary-strokeLight px-6 last-of-type:border-0;
+    @apply flex-1 flex-col items-start justify-start gap-1.5 px-6 border-0;
   }
 
   &-adaptive {
-    @apply flex-row items-center justify-between border-b border-secondary-strokeLight py-4 last-of-type:border-0 md:flex-1 md:flex-col md:items-start md:justify-start md:gap-1.5 md:border-b-0 md:border-r md:px-6 md:py-0;
+    @apply flex-1 border-0 items-center justify-between py-4 md:flex-col md:items-start md:justify-center md:px-6 md:py-4 md:flex-1 md:h-auto;
   }
 }
 
+
 .bbn-list-title {
-  @apply text-accent-secondary;
+  @apply text-accent-primary;
 
   &-adaptive {
     @apply text-base md:text-sm;

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { AiOutlinePlus, AiOutlineMinus } from "react-icons/ai";
 
-import { Accordion, AccordionSummary, AccordionDetails } from "./";
+import { Accordion, AccordionSummary, AccordionDetails } from ".";
 import { Heading } from "../Heading";
 import { Text } from "../Text";
 

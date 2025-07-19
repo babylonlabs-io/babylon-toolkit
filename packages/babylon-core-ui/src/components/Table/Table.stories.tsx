@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState, useCallback } from "react";
 
-import { ColumnProps, Table } from "./";
+import { ColumnProps, Table } from ".";
 import { Avatar } from "../Avatar";
 import { Select } from "../Form";
 

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
-import { Select, type Option } from "./Select";
+import { Select } from "./Select";
 import { useState } from "react";
 
 const meta: Meta<typeof Select> = {
@@ -59,6 +59,6 @@ export const CustomSelectedDisplay: Story = {
   args: {
     options,
     placeholder: "Select status",
-    renderSelectedOption: (option: Option) => `Showing ${option.value}`,
+    renderSelectedOption: (option) => `Showing ${option.value}`,
   },
 };

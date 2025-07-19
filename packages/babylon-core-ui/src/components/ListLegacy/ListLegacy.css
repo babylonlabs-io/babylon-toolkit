@@ -1,0 +1,55 @@
+.bbn-list-legacy {
+  @apply rounded border border-secondary-strokeLight;
+
+  &-horizontal {
+    @apply flex py-3;
+  }
+
+  &-vertical {
+    @apply px-4;
+  }
+
+  &-adaptive {
+    @apply px-4 md:flex md:py-3;
+  }
+}
+
+.bbn-list-item-legacy {
+  @apply flex;
+
+  &-horizontal {
+    @apply flex-row items-center justify-between border-b border-secondary-strokeLight py-4 last-of-type:border-0;
+  }
+
+  &-vertical {
+    @apply flex-1 flex-col items-start justify-start gap-1.5 border-r border-secondary-strokeLight px-6 last-of-type:border-0;
+  }
+
+  &-adaptive {
+    @apply flex-row items-center justify-between border-b border-secondary-strokeLight py-4 last-of-type:border-0 md:flex-1 md:flex-col md:items-start md:justify-start md:gap-1.5 md:border-b-0 md:border-r md:px-6 md:py-0;
+  }
+}
+
+.bbn-list-title-legacy {
+  @apply text-accent-secondary;
+
+  &-adaptive {
+    @apply text-base md:text-sm;
+  }
+}
+
+.bbn-list-value-legacy {
+  @apply text-accent-primary;
+
+  &-horizontal {
+    @apply flex items-center gap-1;
+  }
+
+  &-vertical {
+    @apply flex w-full items-center justify-between;
+  }
+
+  &-adaptive {
+    @apply flex items-center gap-1 md:w-full md:justify-between;
+  }
+}

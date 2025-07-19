@@ -33,7 +33,7 @@ export const Default: Story = {
         <Button
           ref={setAnchorEl}
           onClick={() => {
-            setOpen((state: boolean) => !state);
+            setOpen((state) => !state);
           }}
         >
           Show popover

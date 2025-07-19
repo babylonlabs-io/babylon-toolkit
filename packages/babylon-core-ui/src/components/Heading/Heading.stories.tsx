@@ -14,7 +14,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render: (args) =>
     args.variant ? (
-      <Heading variant={args.variant} {...args}>Heading--{args.variant}</Heading>
+      <Heading {...args}>Heading--{args.variant}</Heading>
     ) : (
       <div className="text-accent-primary">
         <Heading {...args} variant="h1">
