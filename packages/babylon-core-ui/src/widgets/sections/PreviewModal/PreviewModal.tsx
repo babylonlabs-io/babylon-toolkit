@@ -11,7 +11,8 @@ const toKebabCase = (str: string): string => {
   return str
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
 };
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
