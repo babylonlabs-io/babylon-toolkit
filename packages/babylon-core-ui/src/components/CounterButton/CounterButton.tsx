@@ -10,7 +10,7 @@ interface CounterButtonProps {
 
 export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }: CounterButtonProps) {
   const isClickable = counter < max;
-  const showsCounter = (0 < counter && 1 < max) || (alwaysShowCounter && counter === 0);
+  const showsCounter = (0 < counter) || (alwaysShowCounter && counter === 0);
 
   return (
     <div
