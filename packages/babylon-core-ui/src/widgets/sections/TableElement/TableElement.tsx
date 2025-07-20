@@ -1,6 +1,14 @@
-import React from "react";
 import { Button } from "../../../components/Button";
 import { FinalityProviderItem, FinalityProviderItemProps } from "../../../elements/FinalityProviderItem/FinalityProviderItem";
+
+interface TableElementProps {
+    providerItemProps: FinalityProviderItemProps;
+    attributes: Record<string, React.ReactNode>;
+    isSelected?: boolean;
+    isSelectable?: boolean;
+    onSelect?: () => void;
+}
+
 export const TableElement = ({
     attributes,
     providerItemProps,
