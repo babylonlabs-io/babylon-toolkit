@@ -24,9 +24,22 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, provider, onR
   if (!provider) return null;
 
   const renderBsnLogo = () => {
-    if (!bsnLogoUrl) return null;
+    if (bsnLogoUrl) {
+      return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="tiny" className="mr-1" />;
+    }
 
-    return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="tiny" className="mr-1" />;
+    const placeholderLetter = bsnName?.charAt(0).toUpperCase() || "?";
+
+    return (
+      <Avatar variant="rounded" size="tiny" className="mr-1">
+        <Text
+          as="span"
+          className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
+        >
+          {placeholderLetter}
+        </Text>
+      </Avatar>
+    );
   };
 
   return (
@@ -41,12 +54,13 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, provider, onR
           />
         </div>
         <div className="flex flex-col justify-center text-accent-primary">
-          <div className="flex items-center text-xs text-accent-secondary">
-            <div className="shrink-0">
-              {renderBsnLogo()}
-            </div>
-            {bsnName}
-          </div>
+          {bsnName ?
+            <div className="flex items-center text-xs text-accent-secondary">
+              <div className="shrink-0">
+                {renderBsnLogo()}
+              </div>
+              {bsnName}
+            </div> : null}
           <Text as="div" className="text-base font-medium text-accent-primary">
             {provider.description?.moniker}
           </Text>
