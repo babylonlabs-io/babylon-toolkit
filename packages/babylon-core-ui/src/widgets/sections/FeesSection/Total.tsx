@@ -1,5 +1,6 @@
 import { Text } from "../../../components/Text";
 import { twMerge } from "tailwind-merge";
+import { BTC_DECIMAL_PLACES } from "../../../utils/constants";
 
 interface TotalProps {
   total: number | string;
@@ -10,16 +11,18 @@ interface TotalProps {
   decimals?: number;
 }
 
-export function Total({ total, coinSymbol, hint, title = "Total", className, decimals = 8 }: TotalProps) {
-  const formattedTotal =
-    typeof total === "number"
-      ? total === 0
-        ? "0"
-        : (() => {
-            const str = total.toFixed(decimals);
-            return str.replace(/0+$/, "").replace(/\.$/, "");
-          })()
-      : total;
+export function Total({ total, coinSymbol, hint, title = "Total", className, decimals = BTC_DECIMAL_PLACES }: TotalProps) {
+  let formattedTotal;
+  if (typeof total === "number") {
+    if (total === 0) {
+      formattedTotal = "0";
+    } else {
+      const str = total.toFixed(decimals);
+      formattedTotal = str.replace(/0+$/, "").replace(/\.$/, "");
+    }
+  } else {
+    formattedTotal = total;
+  }
 
   return (
     <div className={twMerge("flex flex-row items-start justify-between text-accent-primary", className)}>

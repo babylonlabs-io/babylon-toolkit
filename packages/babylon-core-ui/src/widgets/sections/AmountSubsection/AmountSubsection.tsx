@@ -3,6 +3,7 @@ import { SubSection } from "@/components/SubSection";
 import { useFormContext, useWatch } from "react-hook-form";
 
 import { calculateTokenValueInCurrency, maxDecimals } from "@/utils/helpers";
+import { BTC_DECIMAL_PLACES } from "@/utils/constants";
 
 interface BalanceDetails {
   balance: number | string;
@@ -73,7 +74,7 @@ export const AmountSubsection = ({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="w-2/3 bg-transparent text-right text-lg outline-none"
+          className="w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
       </div>
       <HiddenField name={fieldName} defaultValue="" />
@@ -83,7 +84,7 @@ export const AmountSubsection = ({
           <div>
             Stakable:{" "}
             <span className="cursor-default">
-              {maxDecimals(Number(balanceDetails.balance), balanceDetails.decimals ?? 8)}
+              {maxDecimals(Number(balanceDetails.balance), balanceDetails.decimals ?? BTC_DECIMAL_PLACES)}
             </span>{" "}
             {balanceDetails.symbol}
           </div>

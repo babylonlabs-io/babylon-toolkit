@@ -65,10 +65,3 @@ export const SingleMax: Story = {
     max: 1,
   },
 };
-
-export const SingleMaxAtCapacity: Story = {
-  args: {
-    counter: 1,
-    max: 1,
-  },
-};

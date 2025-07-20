@@ -32,15 +32,19 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, provider, onR
   return (
     <div className="flex flex-row items-center justify-between">
       <div className="flex h-10 flex-row gap-2">
-        <FinalityProviderLogo
-          logoUrl={provider.logo_url}
-          rank={provider.rank}
-          moniker={provider.description?.moniker}
-          size="lg"
-        />
+        <div className="shrink-0">
+          <FinalityProviderLogo
+            logoUrl={provider.logo_url}
+            rank={provider.rank}
+            moniker={provider.description?.moniker}
+            size="lg"
+          />
+        </div>
         <div className="flex flex-col justify-center text-accent-primary">
           <div className="flex items-center text-xs text-accent-secondary">
-            {renderBsnLogo()}
+            <div className="shrink-0">
+              {renderBsnLogo()}
+            </div>
             {bsnName}
           </div>
           <Text as="div" className="text-base font-medium text-accent-primary">
@@ -51,7 +55,7 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, provider, onR
 
       <button
         onClick={() => onRemove(bsnId)}
-        className="cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
+        className="ml-[10px] cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
       >
         Remove
       </button>

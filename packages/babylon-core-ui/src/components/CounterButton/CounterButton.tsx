@@ -4,8 +4,8 @@ import { twJoin } from "tailwind-merge";
 interface CounterButtonProps {
   counter: number;
   max: number;
-  onAdd: () => void;
   alwaysShowCounter?: boolean;
+  onAdd: () => void;
 }
 
 export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }: CounterButtonProps) {
@@ -15,7 +15,7 @@ export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }
   return (
     <div
       className={twJoin(
-        "bg-primary-highlight flex overflow-hidden rounded-md border border-accent-primary",
+        "bg-primary-highlight flex overflow-hidden rounded-md border border-accent-primary w-fit",
         isClickable && "cursor-pointer",
         !showsCounter && !isClickable && "hidden",
         !showsCounter && "w-10",
@@ -28,7 +28,10 @@ export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }
         </div>
       )}
       {showsCounter && (
-        <div className="flex h-10 items-center border-l border-accent-primary px-2 text-sm sm:px-4 sm:text-base">
+        <div className={twJoin(
+          "flex h-10 items-center px-2 text-sm sm:px-4 sm:text-base",
+          isClickable && "border-l border-accent-primary"
+        )}>
           {counter}/{max}
         </div>
       )}
