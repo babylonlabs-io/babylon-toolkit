@@ -40,8 +40,8 @@ export function ActivityCardDetailsSection({
   return (
     <div className="space-y-3 sm:space-y-4 overflow-x-auto">
       <div className="space-y-4 sm:space-y-6">
-        {details.map((detail) => (
-          <DetailRow key={detail.id} label={detail.label} value={detail.value} />
+        {details.map((detail, detailIndex) => (
+          <DetailRow key={detailIndex} label={detail.label} value={detail.value} />
         ))}
       </div>
 
