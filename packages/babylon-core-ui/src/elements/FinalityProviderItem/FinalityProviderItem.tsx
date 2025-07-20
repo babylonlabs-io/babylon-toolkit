@@ -12,7 +12,7 @@ interface Provider {
   description?: ProviderDescription;
 }
 
-interface FinalityProviderItemProps {
+export interface FinalityProviderItemProps {
   bsnId: string;
   bsnName: string;
   bsnLogoUrl?: string;
