@@ -1,34 +1,6 @@
 import React from "react";
 import { Button } from "../../../components/Button";
-import { FinalityProviderItem } from "../../../elements/FinalityProviderItem/FinalityProviderItem";
-
-interface ProviderDescription {
-    moniker?: string;
-}
-
-interface Provider {
-    logo_url?: string;
-    rank: number;
-    description?: ProviderDescription;
-}
-
-export interface ProviderItemProps {
-    bsnId: string;
-    bsnName: string;
-    bsnLogoUrl?: string;
-    address?: string;
-    provider: Provider;
-    onRemove?: (id?: string) => void;
-}
-
-interface TableElementProps {
-    providerItemProps: ProviderItemProps;
-    attributes: Record<string, React.ReactNode>;
-    isSelected?: boolean;
-    isSelectable?: boolean;
-    onSelect?: () => void;
-}
-
+import { FinalityProviderItem, FinalityProviderItemProps } from "../../../elements/FinalityProviderItem/FinalityProviderItem";
 export const TableElement = ({
     attributes,
     providerItemProps,
