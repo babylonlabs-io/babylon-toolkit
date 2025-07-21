@@ -19,6 +19,11 @@ export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export * from "./components/DisplayHash";
+export * from "./components/Copy";
+export * from "./components/Icons";
+
+export * from "./hooks";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
