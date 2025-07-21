@@ -1,12 +1,13 @@
-import { BaseIconProps } from "../index";
+import { IconProps } from "../index";
 import { ThemedIcon } from "../ThemedIcon";
 
 export const BitcoinPublicKeyIcon = ({
   className = "",
   size = 24,
-}: BaseIconProps) => {
+  variant = "primary",
+}: IconProps) => {
   return (
-    <ThemedIcon variant="primary" background rounded className={className}>
+    <ThemedIcon variant={variant} background rounded className={className}>
       <svg
         style={{ width: size, height: size * 0.545 }}
         viewBox="0 0 22 12"

@@ -1,12 +1,13 @@
-import { BaseIconProps } from "../index";
+import { IconProps } from "../index";
 import { ThemedIcon } from "../ThemedIcon";
 
 export const UsingInscriptionIcon = ({
   className = "",
   size = 24,
-}: BaseIconProps) => {
+  variant = "primary",
+}: IconProps) => {
   return (
-    <ThemedIcon variant="primary" background rounded className={className}>
+    <ThemedIcon variant={variant} background rounded className={className}>
       <svg
         style={{ width: size, height: size }}
         viewBox="0 0 20 20"

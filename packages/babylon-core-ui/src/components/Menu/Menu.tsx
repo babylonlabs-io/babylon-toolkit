@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { Popover } from "../Popover";
+import { MobileDialog } from "../Dialog";
 import { MenuProvider } from "./MenuContext";
 import { MenuDrawer } from "./MenuDrawer";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -15,6 +16,7 @@ interface MenuProps {
   placement?: Placement;
   offset?: [number, number];
   className?: string;
+  mobileMode?: "drawer" | "dialog" | "auto";
 }
 
 export const Menu: React.FC<MenuProps> = ({
@@ -25,6 +27,7 @@ export const Menu: React.FC<MenuProps> = ({
   placement = "bottom-end",
   offset = [0, 8],
   className,
+  mobileMode = "auto",
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -60,17 +63,30 @@ export const Menu: React.FC<MenuProps> = ({
       </div>
 
       {isMobile ? (
-        <MenuDrawer
-          isOpen={isOpen}
-          onClose={onClose}
-          onBackdropClick={onClose}
-          fullHeight={true}
-          fullWidth={true}
-          showBackButton={true}
-          showDivider={false}
-        >
-          {menuContent}
-        </MenuDrawer>
+        mobileMode === "dialog" ? (
+          <MobileDialog
+            open={isOpen}
+            onClose={onClose}
+            className={twJoin(
+              "bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
+              className
+            )}
+          >
+            {menuContent}
+          </MobileDialog>
+        ) : (
+          <MenuDrawer
+            isOpen={isOpen}
+            onClose={onClose}
+            onBackdropClick={onClose}
+            fullHeight={true}
+            fullWidth={true}
+            showBackButton={true}
+            showDivider={false}
+          >
+            {menuContent}
+          </MenuDrawer>
+        ) 
       ) : (
         <Popover
           anchorEl={triggerRef.current}

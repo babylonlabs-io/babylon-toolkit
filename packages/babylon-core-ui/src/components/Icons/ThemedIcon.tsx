@@ -4,7 +4,7 @@ interface ThemedIconProps {
   children: React.ReactNode;
   className?: string;
   size?: number;
-  variant?: "default" | "primary" | "secondary" | "error" | "success";
+  variant?: "default" | "primary" | "secondary" | "error" | "success" | "accent-primary" | "accent-secondary";
   background?: boolean;
   rounded?: boolean;
 }
@@ -23,6 +23,8 @@ export const ThemedIcon = ({
     secondary: "text-accent-secondary",
     error: "text-error-main",
     success: "text-success-main",
+    "accent-primary": "text-accent-primary",
+    "accent-secondary": "text-accent-secondary",
   };
 
   const backgroundStyles = {
@@ -31,6 +33,8 @@ export const ThemedIcon = ({
     secondary: "bg-accent-secondary/10",
     error: "bg-error-main/10",
     success: "bg-success-main/10",
+    "accent-primary": "bg-accent-primary/10",
+    "accent-secondary": "bg-accent-secondary/10",
   };
 
   return (

@@ -1,5 +1,7 @@
 import React from "react";
 import { twJoin } from "tailwind-merge";
+import { Portal } from "../Portal";
+import { useIsMobile } from "@/hooks";
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -30,13 +32,16 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
   showDivider = true,
   onBackdropClick,
 }) => {
+  const isMobile = useIsMobile();
+
   const titleAlignment = {
     left: "text-left",
     center: "text-center",
     right: "text-right",
   };
 
-  return (
+
+  const menuContent = (
     <>
       {fullHeight && isOpen && onBackdropClick && (
         <div className="fixed inset-0 z-40 bg-black/50 transition-opacity duration-300" onClick={onBackdropClick} />
@@ -105,4 +110,14 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
       </div>
     </>
   );
+
+  if (isMobile) {
+    return (
+      <Portal mounted={true} rootClassName="portal-root-menu-drawer">
+        {menuContent}
+      </Portal>
+    );
+  }
+
+  return menuContent;
 };

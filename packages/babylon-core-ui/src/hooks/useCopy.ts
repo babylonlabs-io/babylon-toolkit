@@ -22,9 +22,7 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
       if (!id || !value) return;
       
       // Copy to clipboard using the native API
-      navigator.clipboard.writeText(value).catch(err => {
-        console.error('Failed to copy to clipboard:', err);
-      });
+      navigator.clipboard.writeText(value)
       
       setCopiedStates((prev) => ({ ...prev, [id]: true }));
       setCopiedTexts((prev) => ({ ...prev, [id]: copiedText }));
