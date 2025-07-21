@@ -41,48 +41,6 @@
     "tailwind-merge": "^2.5.4",
     "yup": "^1.5.0"
   },
-  "devDependencies": {
-    "@chromatic-com/storybook": "^3.2.2",
-    "@commitlint/cli": "^19.8.0",
-    "@commitlint/config-conventional": "^19.8.0",
-    "@eslint/js": "^9.13.0",
-    "@semantic-release/github": "^11.0.2",
-    "@semantic-release/npm": "^12.0.1",
-    "@storybook/addon-essentials": "^8.4.2",
-    "@storybook/addon-interactions": "^8.4.2",
-    "@storybook/addon-onboarding": "^8.4.2",
-    "@storybook/blocks": "^8.4.2",
-    "@storybook/react": "^8.4.2",
-    "@storybook/react-vite": "^8.4.2",
-    "@storybook/test": "^8.4.2",
-    "@types/lodash.throttle": "^4.1.9",
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^9.13.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.14",
-    "eslint-plugin-storybook": "^0.11.0",
-    "eslint-plugin-tailwindcss": "^3.17.5",
-    "globals": "^15.11.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.2.10",
-    "lodash.throttle": "^4.1.1",
-    "postcss": "^8.4.47",
-    "prettier": "^3.3.3",
-    "prettier-plugin-tailwindcss": "^0.6.8",
-    "react-icons": "^5.3.0",
-    "semantic-release": "^24.2.3",
-    "storybook": "^8.4.2",
-    "storybook-dark-mode": "^4.0.2",
-    "tailwindcss": "^3.4.14",
-    "typescript": "~5.6.2",
-    "typescript-eslint": "^8.11.0",
-    "vite": "^5.4.10",
-    "vite-plugin-dts": "^4.3.0"
-  },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "eslint --quiet --fix",
@@ -93,13 +51,5 @@
     "extends": [
       "plugin:storybook/recommended"
     ]
-  },
-  "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
-    "@popperjs/core": "^2.11.8",
-    "decimal.js-light": "^2.5.1",
-    "react-hook-form": "^7.54.0",
-    "react-popper": "^2.3.0",
-    "tw-colors": "^3.3.2"
   }
 }
