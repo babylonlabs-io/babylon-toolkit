@@ -1,6 +1,6 @@
 {
-  "name": "@babylonlabs-io/core-ui",
-  "version": "0.0.0",
+  "name": "@babylonlabs-io/wallet-connector",
+  "version": "0.0.0-semantic-release",
   "type": "module",
   "types": "dist/index.d.ts",
   "publishConfig": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+    "url": "https://github.com/babylonlabs-io/wallet-connector"
   },
   "main": "dist/index.cjs.js",
   "exports": {
@@ -17,51 +17,84 @@
       "require": "./dist/index.cjs.js",
       "import": "./dist/index.es.js"
     },
-    "./tailwind": "./tailwind.config.js",
     "./style.css": "./dist/style.css"
   },
   "scripts": {
     "dev": "npm run storybook",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint --fix .",
     "format": "prettier . --write",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "prepare": "husky",
-    "release": "npm run build && changeset publish"
+    "release": "npm run build && changeset publish",
+    "extensions:download": "tsx tests/e2e/setup/downloadExtensions.ts",
+    "test:e2e:setup": "npm run extensions:download",
+    "test:e2e": "playwright test --project=e2e",
+    "test:e2e:ui": "playwright test --ui --project=e2e",
+    "test:e2e:debug": "playwright test --debug --project=e2e",
+    "test:e2e:headed": "playwright test --headed --project=e2e",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:codegen": "playwright codegen",
+    "test:unit": "playwright test --project=unit",
+    "test:unit:ui": "playwright test --ui --project=unit",
+    "test:unit:debug": "playwright test --debug --project=unit",
+    "test": "playwright test",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "visualizer": "npx vite-bundle-visualizer"
+  },
+  "dependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "*",
+    "@cosmjs/stargate": "*",
+    "@keplr-wallet/provider-extension": "*",
+    "@keplr-wallet/types": "*",
+    "@keystonehq/animated-qr": "*",
+    "@keystonehq/keystone-sdk": "*",
+    "@keystonehq/sdk": "*",
+    "@ledgerhq/hw-transport-webhid": "*",
+    "@ledgerhq/hw-transport-webusb": "*",
+    "@tomo-inc/wallet-connect-sdk": "*",
+    "bitcoinjs-lib": "*",
+    "buffer": "*",
+    "ledger-bitcoin-babylon": "*",
+    "nanoevents": "*",
+    "usehooks-ts": "*",
+    "uuid": "*"
   },
   "files": [
-    "dist",
-    "./tailwind.config.js"
+    "dist"
   ],
   "peerDependencies": {
+    "@babylonlabs-io/core-ui": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.5.4",
-    "yup": "^1.5.0"
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "@changesets/cli": "*",
     "@chromatic-com/storybook": "*",
     "@commitlint/cli": "*",
     "@commitlint/config-conventional": "*",
     "@eslint/js": "*",
+    "@playwright/test": "*",
     "@semantic-release/github": "*",
     "@semantic-release/npm": "*",
     "@storybook/addon-essentials": "*",
     "@storybook/addon-interactions": "*",
-    "@storybook/addon-onboarding": "*",
     "@storybook/blocks": "*",
     "@storybook/react": "*",
     "@storybook/react-vite": "*",
     "@storybook/test": "*",
-    "@types/lodash.throttle": "*",
+    "@types/node": "*",
     "@types/react": "*",
     "@types/react-dom": "*",
     "@vitejs/plugin-react": "*",
     "autoprefixer": "*",
+    "dotenv": "*",
     "eslint": "*",
     "eslint-config-prettier": "*",
+    "eslint-plugin-import": "*",
     "eslint-plugin-react-hooks": "*",
     "eslint-plugin-react-refresh": "*",
     "eslint-plugin-storybook": "*",
@@ -69,19 +102,20 @@
     "globals": "*",
     "husky": "*",
     "lint-staged": "*",
-    "lodash.throttle": "*",
     "postcss": "*",
     "prettier": "*",
+    "prettier-plugin-organize-imports": "*",
     "prettier-plugin-tailwindcss": "*",
-    "react-icons": "*",
     "semantic-release": "*",
     "storybook": "*",
     "storybook-dark-mode": "*",
     "tailwindcss": "*",
-    "typescript": "*",
+    "tsx": "*",
+    "typescript": "~5.6.2",
     "typescript-eslint": "*",
     "vite": "*",
-    "vite-plugin-dts": "*"
+    "vite-plugin-dts": "*",
+    "vite-plugin-node-polyfills": "*"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -93,13 +127,5 @@
     "extends": [
       "plugin:storybook/recommended"
     ]
-  },
-  "dependencies": {
-    "@hookform/resolvers": "*",
-    "@popperjs/core": "*",
-    "decimal.js-light": "*",
-    "react-hook-form": "*",
-    "react-popper": "*",
-    "tw-colors": "*"
   }
 }
