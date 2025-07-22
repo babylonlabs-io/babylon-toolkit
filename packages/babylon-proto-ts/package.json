@@ -4,8 +4,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc && node scripts/build-proto.js",
-    "prepublishOnly": "npm run build",
+    "build-proto": "node scripts/build-proto.js",
     "prepare": "husky",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\""
