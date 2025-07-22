@@ -1,8 +1,10 @@
+import { maxDecimals } from "@/utils/helpers";
 import { HiddenField } from "@/widgets/form/HiddenField";
 import { SubSection } from "@/components/SubSection";
 import { useFormContext, useWatch } from "react-hook-form";
 
-import { calculateTokenValueInCurrency, maxDecimals } from "@/utils/helpers";
+import { calculateTokenValueInCurrency } from "@/utils/helpers";
+import { AmountItem } from "../../../components/AmountItem/AmountItem";
 
 interface BalanceDetails {
   balance: number | string;
@@ -57,39 +59,28 @@ export const AmountSubsection = ({
     }
   };
 
+  const subtitle = `Stakable: ${maxDecimals(Number(balanceDetails?.balance), balanceDetails?.decimals ?? 8)} ${balanceDetails?.symbol}`;
+
   return (
-    <SubSection className="flex w-full flex-col content-center justify-between gap-4">
-      <div className="flex w-full flex-row content-center items-center justify-between font-normal">
-        <div className="flex items-center gap-2">
-          <img src={currencyIcon} alt={currencyName} className="h-10 max-h-[2.5rem] w-10 max-w-[2.5rem]" />
-          <div className="text-lg">{currencyName}</div>
-        </div>
-        <input
-          type="number"
-          value={amount ?? ""}
+    <>
+      <HiddenField name={fieldName} defaultValue="" />
+      <SubSection className="flex w-full flex-col content-center justify-between gap-4">
+        <AmountItem
+          amount={amount}
+          currencyIcon={currencyIcon}
+          currencyName={currencyName}
+          placeholder={placeholder}
+          displayBalance={displayBalance}
+          balanceDetails={balanceDetails}
           min={min}
           step={step}
+          autoFocus={autoFocus}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          autoFocus={autoFocus}
-          className="w-2/3 bg-transparent text-right text-lg outline-none"
+          amountUsd={amountUsd}
+          subtitle={subtitle}
         />
-      </div>
-      <HiddenField name={fieldName} defaultValue="" />
-
-      {balanceDetails && displayBalance ? (
-        <div className="flex w-full flex-row content-center justify-between text-sm">
-          <div>
-            Stakable:{" "}
-            <span className="cursor-default">
-              {maxDecimals(Number(balanceDetails.balance), balanceDetails.decimals ?? 8)}
-            </span>{" "}
-            {balanceDetails.symbol}
-          </div>
-          {balanceDetails.displayUSD && balanceDetails.price !== undefined && <div>{amountUsd} USD</div>}
-        </div>
-      ) : null}
-    </SubSection>
+      </SubSection>
+    </>
   );
 };
