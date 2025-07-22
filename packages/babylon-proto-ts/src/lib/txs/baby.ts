@@ -1,27 +1,8 @@
 import { Coin } from "cosmjs-types/cosmos/base/v1beta1/coin";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
-import { BTC_STAKER, REGISTRY_TYPE_URLS } from "../constants";
-import * as btcstakingtx from "../generated/babylon/btcstaking/v1/tx";
-import * as epochingtx from "../generated/babylon/epoching/v1/tx";
-import * as incentivetx from "../generated/babylon/incentive/tx";
-
-/**
- * Creates a withdraw reward message for withdrawing rewards for BTC staking.
- * @param address - The address to withdraw rewards from
- * @returns The withdraw reward message
- */
-export const createWithdrawRewardForBTCStakingMsg = (address: string) => {
-  const withdrawRewardMsg = incentivetx.MsgWithdrawReward.fromPartial({
-    type: BTC_STAKER,
-    address,
-  });
-
-  return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,
-    value: withdrawRewardMsg,
-  };
-};
+import { REGISTRY_TYPE_URLS } from "../../constants";
+import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
 
 /**
  * Creates a staking message for BABY staking.
@@ -30,7 +11,7 @@ export const createWithdrawRewardForBTCStakingMsg = (address: string) => {
  * @param amount - The amount to stake
  * @returns The staking message
  */
-export const createStakeBABYMsg = (
+export const createStakeMsg = (
   delegatorAddress: string,
   validatorAddress: string,
   amount: Coin,
@@ -56,7 +37,7 @@ export const createStakeBABYMsg = (
  * @param amount - The amount to unstake
  * @returns The unstaking message
  */
-export const createUnstakeBABYMsg = (
+export const createUnstakeMsg = (
   delegatorAddress: string,
   validatorAddress: string,
   amount: Coin,
@@ -81,7 +62,7 @@ export const createUnstakeBABYMsg = (
  * @param validatorAddress - The validator address
  * @returns The withdraw delegator reward message
  */
-export const createWithdrawRewardForBABYStakingMsg = (
+export const createWithdrawRewardMsg = (
   delegatorAddress: string,
   validatorAddress: string,
 ) => {
@@ -96,26 +77,8 @@ export const createWithdrawRewardForBABYStakingMsg = (
   };
 };
 
-/**
- * Creates a BTC stake expansion message
- * @param params - The parameters for the stake expansion
- * @returns The BTC stake expansion message
- */
-export const createBTCStakeExpandMsg = (
-  params: Partial<btcstakingtx.MsgBtcStakeExpand>,
-) => {
-  const stakeExpandMsg = btcstakingtx.MsgBtcStakeExpand.fromPartial(params);
-
-  return {
-    typeUrl: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
-    value: stakeExpandMsg,
-  };
-};
-
 export default {
-  createWithdrawRewardForBTCStakingMsg,
-  createBTCStakeExpandMsg,
-  createStakeBABYMsg,
-  createUnstakeBABYMsg,
-  createWithdrawRewardForBABYStakingMsg,
+  createStakeMsg,
+  createUnstakeMsg,
+  createWithdrawRewardMsg,
 };

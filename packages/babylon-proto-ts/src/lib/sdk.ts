@@ -1,18 +1,9 @@
-import { createBabylonClient } from "./client";
-import messages from "./messages";
+import createClient from "./client";
+import txs from "./txs";
 import utils from "./utils";
 
-interface BabylonConfig {
-  rpcUrl: string;
+export default {
+  utils,
+  txs,
+  createClient
 }
-
-export const createBabylonSDK = ({ rpcUrl }: BabylonConfig) => {
-  const client = createBabylonClient(rpcUrl);
-
-  return {
-    connect: () => client.connect(),
-    client,
-    messages,
-    utils,
-  };
-};
