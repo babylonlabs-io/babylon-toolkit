@@ -10,11 +10,7 @@ interface MenuContextValue {
 const MenuContext = createContext<MenuContextValue | undefined>(undefined);
 
 export const useMenuContext = () => {
-  const context = useContext(MenuContext);
-  if (!context && process.env.NODE_ENV === "development") {
-    // No-op: Silently handled in prod
-  }
-  return context;
+  return useContext(MenuContext);
 };
 
 export const MenuProvider: React.FC<{
