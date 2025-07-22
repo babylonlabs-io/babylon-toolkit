@@ -39,6 +39,7 @@ export * from "./widgets/sections/AmountSubsection";
 export * from "./widgets/sections/FinalityProviderSubsection";
 export * from "./widgets/sections/FeesSection";
 export * from "./widgets/sections/PreviewModal";
+export * from "./widgets/sections/SettingMenu";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
