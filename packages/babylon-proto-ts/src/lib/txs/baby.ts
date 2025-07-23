@@ -11,17 +11,15 @@ import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
  * @param amount - The amount to stake
  * @returns The staking message
  */
-export const createStakeMsg = (
-  delegatorAddress: string,
-  validatorAddress: string,
-  amount: Coin,
-) => {
+export interface StakeParams {
+  delegatorAddress: string;
+  validatorAddress: string;
+  amount: Coin;
+}
+
+const createStakeMsg = (msg: StakeParams) => {
   const wrappedDelegateMsg = epochingtx.MsgWrappedDelegate.fromPartial({
-    msg: {
-      delegatorAddress,
-      validatorAddress,
-      amount,
-    },
+    msg,
   });
 
   return {
@@ -37,18 +35,14 @@ export const createStakeMsg = (
  * @param amount - The amount to unstake
  * @returns The unstaking message
  */
-export const createUnstakeMsg = (
-  delegatorAddress: string,
-  validatorAddress: string,
-  amount: Coin,
-) => {
-  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({
-    msg: {
-      delegatorAddress,
-      validatorAddress,
-      amount,
-    },
-  });
+export interface UnstakeParams {
+  delegatorAddress: string;
+  validatorAddress: string;
+  amount: Coin;
+}
+
+const createUnstakeMsg = (msg: UnstakeParams) => {
+  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({ msg });
 
   return {
     typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,
@@ -62,14 +56,13 @@ export const createUnstakeMsg = (
  * @param validatorAddress - The validator address
  * @returns The withdraw delegator reward message
  */
-export const createWithdrawRewardMsg = (
-  delegatorAddress: string,
-  validatorAddress: string,
-) => {
-  const withdrawRewardMsg = MsgWithdrawDelegatorReward.fromPartial({
-    delegatorAddress,
-    validatorAddress,
-  });
+export interface ClaimRewardParams {
+  delegatorAddress: string;
+  validatorAddress: string;
+}
+
+const createClaimRewardMsg = (params: ClaimRewardParams) => {
+  const withdrawRewardMsg = MsgWithdrawDelegatorReward.fromPartial(params);
 
   return {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBABYStaking,
@@ -80,5 +73,5 @@ export const createWithdrawRewardMsg = (
 export default {
   createStakeMsg,
   createUnstakeMsg,
-  createWithdrawRewardMsg,
+  createClaimRewardMsg,
 };
