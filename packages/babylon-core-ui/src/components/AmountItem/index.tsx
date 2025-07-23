@@ -1,1 +1,1 @@
-export { AmountItem } from "./AmountItem"
+export { AmountItem } from "./AmountItem";
