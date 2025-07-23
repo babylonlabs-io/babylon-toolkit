@@ -74,4 +74,4 @@ export const AmountItem = ({
     );
 };
 
-export default AmountItem; 
+export default AmountItem;
