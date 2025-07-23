@@ -39,7 +39,6 @@ export const Default: StoryFn = () => {
 
   const handleThemeChange = (theme: "light" | "dark" | "auto") => {
     setSelectedTheme(theme);
-    console.log(`${theme} theme selected`);
   };
 
   const getThemeDescription = () => {

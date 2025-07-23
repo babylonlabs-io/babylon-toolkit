@@ -96,7 +96,6 @@ export const Default: Story = {
                     selected={selectedTheme === theme.id}
                     onClick={() => {
                       setSelectedTheme(theme.id);
-                      console.log(`Theme selected: ${theme.id}`);
                     }}
                   />
                 ))}
