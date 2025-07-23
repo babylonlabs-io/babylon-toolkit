@@ -33,4 +33,4 @@ export const Default: Story = {
         amountUsd: "250.00",
         disabled: false,
     },
-}; 
+};
