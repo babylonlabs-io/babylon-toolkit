@@ -62,4 +62,4 @@ export const RewardSubsection = ({
     );
 };
 
-export default RewardSubsection; 
+export default RewardSubsection;
