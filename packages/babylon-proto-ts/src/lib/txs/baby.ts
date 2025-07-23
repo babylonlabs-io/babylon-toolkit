@@ -14,12 +14,19 @@ import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
 export interface StakeParams {
   delegatorAddress: string;
   validatorAddress: string;
-  amount: Coin;
+  amount: number;
 }
 
-const createStakeMsg = (msg: StakeParams) => {
+const createStakeMsg = ({ delegatorAddress, validatorAddress, amount }: StakeParams) => {
   const wrappedDelegateMsg = epochingtx.MsgWrappedDelegate.fromPartial({
-    msg,
+    msg: {
+      delegatorAddress,
+      validatorAddress,
+      amount: {
+        denom: 'ubbn',
+        amount: amount.toString()
+      }
+    },
   });
 
   return {
@@ -38,11 +45,20 @@ const createStakeMsg = (msg: StakeParams) => {
 export interface UnstakeParams {
   delegatorAddress: string;
   validatorAddress: string;
-  amount: Coin;
+  amount: number;
 }
 
-const createUnstakeMsg = (msg: UnstakeParams) => {
-  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({ msg });
+const createUnstakeMsg = ({ delegatorAddress, validatorAddress, amount }: UnstakeParams) => {
+  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({ 
+    msg: {
+      delegatorAddress,
+      validatorAddress,
+      amount: {
+        denom: 'ubbn',
+        amount: amount.toString()
+      }
+    }
+  });
 
   return {
     typeUrl: REGISTRY_TYPE_URLS.MsgUnstakeBABY,

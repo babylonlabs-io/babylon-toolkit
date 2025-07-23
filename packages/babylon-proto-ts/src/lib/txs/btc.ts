@@ -23,6 +23,7 @@ const createClaimRewardMsg = ({ address }: ClaimRewardParams) => {
   };
 };
 
+//TODO: modify input params to accept tx hashes instead of raw bin format (Uint8Array -> string)
 /**
  * Creates a BTC stake expansion message
  * @param params - The parameters for the stake expansion
