@@ -1,7 +1,7 @@
 import React from 'react';
-import { Text } from '../../../components/Text';
-import { DisplayHash } from '../../../components/DisplayHash';
-import { CopyIcon } from '../../../components/Icons';
+import { Text } from '../../../../components/Text';
+import { DisplayHash } from '../../../../components/DisplayHash';
+import { CopyIcon } from '../../../../components/Icons';
 import { twJoin } from 'tailwind-merge';
 
 export interface WalletInfoSectionProps {

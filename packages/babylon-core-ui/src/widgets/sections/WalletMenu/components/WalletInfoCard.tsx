@@ -1,8 +1,8 @@
 import React from 'react';
-import { Avatar } from '../../../components/Avatar';
-import { Text } from '../../../components/Text';
-import { DisplayHash } from '../../../components/DisplayHash';
-import { CopyIcon } from '../../../components/Icons';
+import { Avatar } from '../../../../components/Avatar';
+import { Text } from '../../../../components/Text';
+import { DisplayHash } from '../../../../components/DisplayHash';
+import { CopyIcon } from '../../../../components/Icons';
 import { twJoin } from 'tailwind-merge';
 
 export interface WalletInfoCardProps {

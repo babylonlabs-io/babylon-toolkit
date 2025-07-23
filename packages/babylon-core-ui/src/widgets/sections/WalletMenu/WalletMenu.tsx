@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from "react";
-import { Menu } from "../../components/Menu";
-import { WalletDisconnectButton } from "../../components/Button";
+import { Menu } from "../../../components/Menu";
+import { WalletDisconnectButton } from "../../../components/Button";
 import { WalletInfoCard } from "./components/WalletInfoCard";
 import { WalletSettingItem } from "./components/WalletSettingItem";
 import { WalletInfoSection } from "./components/WalletInfoSection";
-import { UsingInscriptionIcon, LinkWalletIcon, BitcoinPublicKeyIcon } from "../../components/Icons";
-import { useCopy } from "../../hooks/useCopy";
+import { UsingInscriptionIcon, LinkWalletIcon, BitcoinPublicKeyIcon } from "../../../components/Icons";
+import { useCopy } from "../../../hooks/useCopy";
 
 export interface WalletMenuProps {
   trigger: React.ReactNode;

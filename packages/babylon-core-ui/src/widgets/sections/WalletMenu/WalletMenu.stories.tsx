@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
 import { WalletMenu } from "./WalletMenu";
-import { AvatarGroup, Avatar } from "../../components/Avatar";
+import { AvatarGroup, Avatar } from "../../../components/Avatar";
 
 const meta: Meta<typeof WalletMenu> = {
   title: "Widgets/sections/WalletMenu",
