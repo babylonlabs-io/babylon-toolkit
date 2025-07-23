@@ -16,7 +16,7 @@ interface MenuProps {
   placement?: Placement;
   offset?: [number, number];
   className?: string;
-  mobileMode?: "drawer" | "dialog" | "auto";
+  mobileMode?: "drawer" | "dialog";
 }
 
 export const Menu: React.FC<MenuProps> = ({
@@ -27,7 +27,7 @@ export const Menu: React.FC<MenuProps> = ({
   placement = "bottom-end",
   offset = [0, 8],
   className,
-  mobileMode = "auto",
+  mobileMode = "dialog",
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +68,7 @@ export const Menu: React.FC<MenuProps> = ({
             open={isOpen}
             onClose={onClose}
             className={twJoin(
-              "bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
+              "relative bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
               className
             )}
           >
