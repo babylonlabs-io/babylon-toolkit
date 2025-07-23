@@ -24,4 +24,4 @@ export const Default: Story = {
             decimals: 8,
         },
     },
-}; 
+};
