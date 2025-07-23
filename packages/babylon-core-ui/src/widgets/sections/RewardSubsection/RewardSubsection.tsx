@@ -1,7 +1,7 @@
 import { SubSection } from "@/components/SubSection";
 import { calculateTokenValueInCurrency } from "@/utils/helpers";
 import { AmountItem } from "../../../components/AmountItem/AmountItem";
-import { Button } from "../../../components/Button"
+import { Button } from "../../../components/Button";
 
 interface BalanceDetails {
     balance: number | string;
