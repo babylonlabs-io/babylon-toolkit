@@ -8,13 +8,13 @@ import * as epochingtx from "../../generated/babylon/epoching/v1/tx";
  * Creates a staking message for BABY staking.
  * @param delegatorAddress - The delegator address
  * @param validatorAddress - The validator address
- * @param amount - The amount to stake
+ * @param amount - The amount to stake in ubbn
  * @returns The staking message
  */
 export interface StakeParams {
   delegatorAddress: string;
   validatorAddress: string;
-  amount: number;
+  amount: bigint;
 }
 
 const createStakeMsg = ({ delegatorAddress, validatorAddress, amount }: StakeParams) => {
@@ -39,13 +39,13 @@ const createStakeMsg = ({ delegatorAddress, validatorAddress, amount }: StakePar
  * Creates an unstaking message for BABY staking.
  * @param delegatorAddress - The delegator address
  * @param validatorAddress - The validator address
- * @param amount - The amount to unstake
+ * @param amount - The amount to unstake in ubbn
  * @returns The unstaking message
  */
 export interface UnstakeParams {
   delegatorAddress: string;
   validatorAddress: string;
-  amount: number;
+  amount: bigint;
 }
 
 const createUnstakeMsg = ({ delegatorAddress, validatorAddress, amount }: UnstakeParams) => {
