@@ -7,10 +7,9 @@ import * as incentivequery from "../../generated/babylon/incentive/query";
 interface Dependencies {
   incentive: incentivequery.QueryClientImpl;
   btcLight: btclightclientquery.QueryClientImpl;
-  bank: BankExtension["bank"];
 }
 
-const createBTCClient = ({ incentive, bank, btcLight }: Dependencies) => ({
+const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
 /**
    * Gets the rewards of the user's account.
    * @param {string} address - The address to get the rewards of.
@@ -58,23 +57,6 @@ const createBTCClient = ({ incentive, bank, btcLight }: Dependencies) => ({
         return 0;
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
-        cause: error,
-      });
-    }
-  },
-
-  /**
-   * Gets the balance of an address in the Babylon chain.
-   * @param {string} address - The address to get the balance of.
-   * @param {string} denom - The denom of the balance to get.
-   * @returns {Promise<number>} - The balance of the address.
-   */
-  async getBalance(address: string, denom: string = "ubbn"): Promise<number> {
-    try {
-      const balance = await bank.balance(address, denom);
-      return Number(balance?.amount ?? 0);
-    } catch (error) {
-      throw new Error(`Failed to fetch balance for ${address}`, {
         cause: error,
       });
     }
