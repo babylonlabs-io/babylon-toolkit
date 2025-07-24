@@ -3,8 +3,29 @@ import { Card } from "@/components/Card";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
 import { Text } from "@/components/Text";
-import { PropsWithChildren, ReactNode, useEffect, useState } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { PropsWithChildren, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
+
+const toKebabCase = (str: string): string => {
+  let result = '';
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i].toLowerCase();
+
+    if ((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+      result += char;
+    } else if (result.length > 0 && result[result.length - 1] !== '-') {
+      result += '-';
+    }
+  }
+
+  if (result.endsWith('-')) {
+    result = result.slice(0, -1);
+  }
+
+  return result;
+};
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -12,21 +33,10 @@ interface ResponsiveDialogProps extends DialogComponentProps {
   children?: ReactNode;
 }
 
-function useIsMobileView() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const update = () => setIsMobile(window.innerWidth <= 640);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  return isMobile;
-}
+const WINDOW_BREAKPOINT = 640;
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
-  const isMobileView = useIsMobileView();
+  const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
   const DialogComponent = isMobileView ? MobileDialog : Dialog;
 
   return <DialogComponent {...restProps} className={twMerge("w-[41.25rem] max-w-full", className)} />;
@@ -107,7 +117,7 @@ export const PreviewModal = ({
             <div className="grid grid-cols-2 items-center gap-4 rounded bg-primary-contrast p-4">
               <div className="flex flex-col gap-3">
                 {bsns.map((bsnItem, index) => (
-                  <div key={`bsn-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
+                  <div key={`bsn-${toKebabCase(bsnItem.name)}-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
                     {bsnItem.icon}
                     <Text variant="body2" className="font-medium">
                       {bsnItem.name}
@@ -117,7 +127,7 @@ export const PreviewModal = ({
               </div>
               <div className="flex flex-col gap-3">
                 {finalityProviders.map((fpItem, index) => (
-                  <div key={`fp-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
+                  <div key={`fp-${toKebabCase(fpItem.name)}-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
                     {fpItem.icon}
                     <Text variant="body2" className="font-medium">
                       {fpItem.name}
@@ -150,9 +160,7 @@ export const PreviewModal = ({
           </Heading>
           <Text variant="body2" className="text-secondary">
             1. No third party possesses your staked BTC. You are the only one who can unbond and withdraw your stake.
-            <br />
           </Text>
-          <br />
           <Text variant="body2" className="text-secondary">
             2. Your stake will first be sent to Babylon Genesis for verification (~20 seconds), then you will be
             prompted to submit it to the Bitcoin ledger. It will be marked as &apos;Pending&apos; until it receives 10
@@ -160,12 +168,12 @@ export const PreviewModal = ({
           </Text>
         </div>
       </DialogBody>
-      <DialogFooter className="flex gap-4 pb-8 pt-0">
-        <Button variant="outlined" color="primary" onClick={onClose} className="flex-1">
-          Cancel
-        </Button>
-        <Button variant="contained" color="primary" onClick={onProceed} className="flex-1" disabled={processing}>
+      <DialogFooter className="flex flex-col gap-4 pb-8 pt-0 sm:flex-row">
+        <Button variant="contained" color="primary" onClick={onProceed} className="w-full sm:flex-1 sm:order-2" disabled={processing}>
           {processing ? "Processing..." : "Proceed to Signing"}
+        </Button>
+        <Button variant="outlined" color="primary" onClick={onClose} className="w-full sm:flex-1 sm:order-1">
+          Cancel
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

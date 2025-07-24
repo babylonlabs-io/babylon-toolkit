@@ -1,10 +1,10 @@
-import { maxDecimals } from "@/utils/helpers";
 import { HiddenField } from "@/widgets/form/HiddenField";
 import { SubSection } from "@/components/SubSection";
 import { useFormContext, useWatch } from "react-hook-form";
 
-import { calculateTokenValueInCurrency } from "@/utils/helpers";
 import { AmountItem } from "../../../components/AmountItem/AmountItem";
+import { calculateTokenValueInCurrency, maxDecimals } from "@/utils/helpers";
+import { BTC_DECIMAL_PLACES } from "@/utils/constants";
 
 interface BalanceDetails {
   balance: number | string;
@@ -59,7 +59,7 @@ export const AmountSubsection = ({
     }
   };
 
-  const subtitle = `Stakable: ${maxDecimals(Number(balanceDetails?.balance), balanceDetails?.decimals ?? 8)} ${balanceDetails?.symbol}`;
+  const subtitle = `Stakable: ${maxDecimals(Number(balanceDetails?.balance), balanceDetails?.decimals ?? BTC_DECIMAL_PLACES)} ${balanceDetails?.symbol}`;
 
   return (
     <>

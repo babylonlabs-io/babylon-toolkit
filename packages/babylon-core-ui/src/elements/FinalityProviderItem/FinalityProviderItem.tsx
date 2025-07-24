@@ -25,9 +25,22 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
   if (!provider) return null;
 
   const renderBsnLogo = () => {
-    if (!bsnLogoUrl) return null;
+    if (bsnLogoUrl) {
+      return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="tiny" className="mr-1" />;
+    }
 
-    return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="tiny" className="mr-1" />;
+    const placeholderLetter = bsnName?.charAt(0).toUpperCase() || "?";
+
+    return (
+      <Avatar variant="rounded" size="tiny" className="mr-1">
+        <Text
+          as="span"
+          className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
+        >
+          {placeholderLetter}
+        </Text>
+      </Avatar>
+    );
   };
 
   const shortenAddress = (value: string): string => {
@@ -54,12 +67,14 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
   return (
     <div className="flex flex-row items-center justify-between">
       <div className="flex h-10 flex-row gap-2">
-        <FinalityProviderLogo
-          logoUrl={provider.logo_url}
-          rank={provider.rank}
-          moniker={provider.description?.moniker}
-          size="lg"
-        />
+        <div className="shrink-0">
+          <FinalityProviderLogo
+            logoUrl={provider.logo_url}
+            rank={provider.rank}
+            moniker={provider.description?.moniker}
+            size="lg"
+          />
+        </div>
         <div className="flex flex-col justify-center text-accent-primary">
           {renderChainOrAddress()}
           <Text as="div" className="text-base font-medium text-accent-primary">
@@ -70,7 +85,7 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
       {onRemove ?
         <button
           onClick={() => onRemove(bsnId)}
-          className="cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
+          className="ml-[10px] cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
         >
           Remove
         </button> : null}
