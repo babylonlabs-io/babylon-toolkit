@@ -1,5 +1,6 @@
 import { Avatar } from "../../components/Avatar";
 import { Text } from "../../components/Text";
+import { CloseIcon } from "../../components/Icons";
 import { FinalityProviderLogo } from "../FinalityProviderLogo/FinalityProviderLogo";
 
 interface ProviderDescription {
@@ -85,9 +86,9 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
       {onRemove ?
         <button
           onClick={() => onRemove(bsnId)}
-          className="ml-[10px] cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
+          className="ml-[10px] flex items-center justify-center cursor-pointer p-1"
         >
-          Remove
+          <CloseIcon size={12} />
         </button> : null}
     </div>
   );
