@@ -3,11 +3,6 @@ import { Text } from "@/components/Text";
 import { ReactNode } from "react";
 
 interface TableProps {
-    /**
-     * A 2-dimensional array where the first row contains the column headers and
-     * the remaining rows contain the data to render. Each cell can be any
-     * ReactNode (text, JSX, icon + text composition, etc.).
-     */
     data: ReactNode[][];
 }
 
@@ -18,8 +13,6 @@ export const Table = ({ data }: TableProps) => {
     const rows = data.slice(1);
     const columnCount = headers.length;
 
-    // Build a dynamic grid style so we don't rely on Tailwind's fixed
-    // `grid-cols-*` utility classes (they need to be known at build time).
     const gridStyle = {
         gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
     } as const;
@@ -41,7 +34,7 @@ export const Table = ({ data }: TableProps) => {
                 {rows.map((row, rowIdx) => (
                     <div
                         key={`row-${rowIdx}`}
-                        className="items-center gap-4 rounded bg-primary-contrast p-4 grid"
+                        className="items-center gap-4 rounded bg-primary-contrast p-1 grid"
                         style={gridStyle}
                     >
                         {row.map((cell, cellIdx) => (
