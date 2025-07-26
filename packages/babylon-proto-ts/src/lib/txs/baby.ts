@@ -1,4 +1,3 @@
-import { Coin } from "cosmjs-types/cosmos/base/v1beta1/coin";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
 import { REGISTRY_TYPE_URLS } from "../../constants";

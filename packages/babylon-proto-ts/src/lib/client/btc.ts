@@ -1,4 +1,4 @@
-import type{ BankExtension, Coin } from "@cosmjs/stargate";
+import type{ Coin } from "@cosmjs/stargate";
 
 import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../../constants";
 import * as btclightclientquery from "../../generated/babylon/btclightclient/v1/query";
