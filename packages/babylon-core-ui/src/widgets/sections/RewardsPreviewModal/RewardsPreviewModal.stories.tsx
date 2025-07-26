@@ -51,5 +51,42 @@ export const Default: Story = {
                 name: "3000",
             },
         ],
+        amount: {
+            token: "100.000 BABY",
+            usd: "$6,677.15 USD",
+        },
+        transactionFees: {
+            token: "10 BABY",
+            usd: "$0.56 USD",
+        },
+    },
+};
+
+export const OneReceivingToken: Story = {
+    args: {
+        open: true,
+        processing: false,
+        onClose: () => { },
+        onProceed: () => { },
+        bsns: [
+            {
+                icon: <PlaceholderIcon text="B1" bgColor="bg-black" />,
+                name: "Token 1",
+            },
+        ],
+        finalityProviders: [
+            {
+                icon: <PlaceholderIcon text="F1" bgColor="bg-black" />,
+                name: "100",
+            },
+        ],
+        amount: {
+            token: "100.000 BABY",
+            usd: "$6,677.15 USD",
+        },
+        transactionFees: {
+            token: "10 BABY",
+            usd: "$0.56 USD",
+        },
     },
 }; 

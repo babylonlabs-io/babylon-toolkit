@@ -1,10 +1,10 @@
 import { Button } from "@/components/Button";
-import { Table } from "@/elements/Table";
+import { Warning } from "@/components/Warning";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
-import { Text } from "@/components/Text";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { PropsWithChildren, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
+import { FeeItem } from "@/components/FeeItem/FeeItem";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -20,7 +20,6 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 
     return <DialogComponent {...restProps} className={twMerge("w-[41.25rem] max-w-full", className)} />;
 }
-
 interface Info {
     icon: ReactNode;
     name: string;
@@ -33,6 +32,14 @@ interface PreviewModalProps {
     onProceed: () => void;
     bsns: Info[];
     finalityProviders: Info[];
+    amount: {
+        token: string;
+        usd: string;
+    };
+    transactionFees: {
+        token: string;
+        usd: string;
+    };
 }
 
 export const RewardsPreviewModal = ({
@@ -41,42 +48,41 @@ export const RewardsPreviewModal = ({
     onClose,
     onProceed,
     bsns,
-    finalityProviders,
+    amount,
+    transactionFees,
 }: PropsWithChildren<PreviewModalProps>) => {
 
     return (
         <ResponsiveDialog open={open} onClose={onClose}>
-            <DialogHeader title="Claim BABY Rewards" onClose={onClose} className="text-accent-primary" />
-            <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto text-accent-primary">
-                <Table
-                    data={[
-                        ["Token", "Amount Receiving"],
-                        ...bsns.map((bsnItem, index) => {
-                            const fpItem = finalityProviders[index];
-                            return [
-                                <div key={`bsn-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
-                                    {bsnItem.icon}
-                                    <Text variant="body2" className="font-medium">
-                                        {bsnItem.name}
-                                    </Text>
-                                </div>,
-                                fpItem ? (
-                                    <div key={`fp-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
-                                        {fpItem.icon}
-                                        <Text variant="body2" className="font-medium">
-                                            {fpItem.name}
-                                        </Text>
-                                    </div>
-                                ) : (
-                                    <div key={`fp-${index}`} />
-                                ),
-                            ];
-                        }),
-                    ]}
-                />
-                <div className="border-divider w-full border-t" />
+            <DialogHeader title="Claim BABY Rewards" className="text-accent-primary" />
+            <DialogBody className="no-scrollbar mb-[40px] mt-8 flex max-h-[calc(100vh-12rem)] flex-col gap-[40px] overflow-y-auto text-accent-primary">
+                <div className="flex flex-col gap-2">
+                    <FeeItem title="Receiving">
+                        <div className="flex flex-col items-end gap-1">
+                            {bsns.map((item, index) => (
+                                <div key={`bsn-${index}`} className="flex items-center gap-2">
+                                    {item.icon}
+                                    {item.name}
+                                </div>
+                            ))}
+                        </div>
+                    </FeeItem>
+
+                    <div className="border-divider w-full border-t" />
+
+                    <FeeItem title="Amount" hint={amount.usd}>
+                        {amount.token}
+                    </FeeItem>
+
+                    <div className="border-divider w-full border-t" />
+
+                    <FeeItem title="Transaction Fees" hint={transactionFees.usd}>
+                        {transactionFees.token}
+                    </FeeItem>
+                </div>
+                <Warning>Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.</Warning>
             </DialogBody>
-            <DialogFooter className="flex flex-col gap-4 pb-8 pt-0 sm:flex-row">
+            <DialogFooter className="flex flex-col gap-4 pt-0 sm:flex-row">
                 <Button variant="contained" color="primary" onClick={onProceed} className="w-full sm:flex-1 sm:order-2" disabled={processing}>
                     {processing ? "Processing..." : "Proceed"}
                 </Button>
