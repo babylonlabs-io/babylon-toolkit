@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
+    "incremental": true,
+    "target": "ES2022",
+    "baseUrl": "./src",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler Resolution */
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+
+    /* Declarations */
+    "declaration": true,
+    "declarationDir": "dist",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": false,
+    "paths": {
+      "@/*": ["*", "./*"]
+    },
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "keywords": ["react", "babylonlabs", "bbn", "wallet-connect", "bitcoin", "btc", "bitcoin-wallet"]
+}

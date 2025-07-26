@@ -1,12 +1,15 @@
 import { spawn } from 'node:child_process';
 import { releaseChangelog, releasePublish, releaseVersion } from 'nx/release';
 
+const DRY_RUN = process.env.DRY_RUN === 'true';
+
 const release = async () => {
   const { workspaceVersion, projectsVersionData } = await releaseVersion({
     gitCommit: false,
     gitTag: false,
     gitPush: false,
     verbose: true,
+    dryRun: DRY_RUN,
   });
 
   const projectHasNewVersion = Object.entries(projectsVersionData).filter(
@@ -19,6 +22,7 @@ const release = async () => {
   }
 
   await releaseChangelog({
+    dryRun: DRY_RUN,
     versionData: projectsVersionData,
     version: workspaceVersion,
     gitCommit: false,
@@ -30,9 +34,12 @@ const release = async () => {
   /**
    * We intentionally not commit all the version changes but only push the tags
    */
-  await gitPush();
+  if (!DRY_RUN) {
+    await gitPush();
+  }
 
   const publishResults = await releasePublish({
+    dryRun: DRY_RUN,
     projects: projectHasNewVersion,
     verbose: true,
   });

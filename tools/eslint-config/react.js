@@ -30,10 +30,7 @@ export const reactConfig = defineConfig([
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
-    },
-    rules: {
-      "tailwindcss/no-custom-classname": 0,
-    },
+    }
   },
   prettier,
 ]);
