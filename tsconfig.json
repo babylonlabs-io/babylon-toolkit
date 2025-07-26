@@ -7,6 +7,9 @@
       "path": "./packages/babylon-proto-ts"
     },
     {
+      "path": "./packages/babylon-wallet-connector"
+    },
+    {
       "path": "./packages/babylon-core-ui"
     }
   ]
