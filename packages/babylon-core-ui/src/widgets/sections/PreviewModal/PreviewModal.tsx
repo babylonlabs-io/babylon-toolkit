@@ -7,25 +7,6 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { PropsWithChildren, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
-const toKebabCase = (str: string): string => {
-  let result = '';
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i].toLowerCase();
-
-    if ((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
-      result += char;
-    } else if (result.length > 0 && result[result.length - 1] !== '-') {
-      result += '-';
-    }
-  }
-
-  if (result.endsWith('-')) {
-    result = result.slice(0, -1);
-  }
-
-  return result;
-};
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
