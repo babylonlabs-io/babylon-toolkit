@@ -1,4 +1,4 @@
-import { Text } from "../../../components/Text";
+import { Text } from "../Text";
 import { PropsWithChildren } from "react";
 import { twMerge } from "tailwind-merge";
 

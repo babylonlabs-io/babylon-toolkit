@@ -60,3 +60,30 @@ export function calculateTokenValueInCurrency(amount: number, price: number, opt
 export const maxDecimals = (value: number, maxDecimals: number, rm?: number): number => {
   return new Decimal(value).toDecimalPlaces(maxDecimals, rm).toNumber();
 };
+
+
+/**
+ * Converts a string to kebab-case for use as unique or semantic keys.
+ *
+ * @param str The input string to convert.
+ * @returns The kebab-case version of the input string.
+ */
+export const toKebabCase = (str: string): string => {
+  let result = "";
+
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i].toLowerCase();
+
+    if ((char >= "a" && char <= "z") || (char >= "0" && char <= "9")) {
+      result += char;
+    } else if (result.length > 0 && result[result.length - 1] !== "-") {
+      result += "-";
+    }
+  }
+
+  if (result.endsWith("-")) {
+    result = result.slice(0, -1);
+  }
+
+  return result;
+};

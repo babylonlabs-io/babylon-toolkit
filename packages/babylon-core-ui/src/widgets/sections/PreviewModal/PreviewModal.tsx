@@ -1,5 +1,6 @@
 import { Button } from "@/components/Button";
-import { Card } from "@/components/Card";
+import { WINDOW_BREAKPOINT } from "../../../utils/constants";
+import { Table } from "@/elements/Table";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
 import { Text } from "@/components/Text";
@@ -7,33 +8,11 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { PropsWithChildren, ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
-const toKebabCase = (str: string): string => {
-  let result = '';
-
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i].toLowerCase();
-
-    if ((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
-      result += char;
-    } else if (result.length > 0 && result[result.length - 1] !== '-') {
-      result += '-';
-    }
-  }
-
-  if (result.endsWith('-')) {
-    result = result.slice(0, -1);
-  }
-
-  return result;
-};
-
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
 interface ResponsiveDialogProps extends DialogComponentProps {
   children?: ReactNode;
 }
-
-const WINDOW_BREAKPOINT = 640;
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
   const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
@@ -102,42 +81,32 @@ export const PreviewModal = ({
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader title="Preview" onClose={onClose} className="text-accent-primary" />
       <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto text-accent-primary">
-        <Card className="p-6 pt-4">
-          <div className="flex flex-col">
-            {bsns.length > 1 ? (
-              <div className="grid grid-cols-2 items-center gap-4 pb-4">
-                <Text variant="caption" className="text-secondary text-center">
-                  BSNs
-                </Text>
-                <Text variant="caption" className="text-secondary text-center">
-                  Finality Provider
-                </Text>
-              </div>
-            ) : null}
-            <div className="grid grid-cols-2 items-center gap-4 rounded bg-primary-contrast p-4">
-              <div className="flex flex-col gap-3">
-                {bsns.map((bsnItem, index) => (
-                  <div key={`bsn-${toKebabCase(bsnItem.name)}-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
-                    {bsnItem.icon}
-                    <Text variant="body2" className="font-medium">
-                      {bsnItem.name}
-                    </Text>
-                  </div>
-                ))}
-              </div>
-              <div className="flex flex-col gap-3">
-                {finalityProviders.map((fpItem, index) => (
-                  <div key={`fp-${toKebabCase(fpItem.name)}-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
+        <Table
+          data={[
+            ["BSNs", "Finality Provider"],
+            ...bsns.map((bsnItem, index) => {
+              const fpItem = finalityProviders[index];
+              return [
+                <div key={`bsn-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
+                  {bsnItem.icon}
+                  <Text variant="body2" className="font-medium">
+                    {bsnItem.name}
+                  </Text>
+                </div>,
+                fpItem ? (
+                  <div key={`fp-${index}`} className="flex w-full items-center justify-center gap-2 py-1">
                     {fpItem.icon}
                     <Text variant="body2" className="font-medium">
                       {fpItem.name}
                     </Text>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Card>
+                ) : (
+                  <div key={`fp-${index}`} />
+                ),
+              ];
+            }),
+          ]}
+        />
 
         <div className="flex flex-col">
           {fields.map((field, index) => (

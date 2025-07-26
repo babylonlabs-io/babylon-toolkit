@@ -22,6 +22,7 @@ export * from "./components/Menu";
 export * from "./components/DisplayHash";
 export * from "./components/Copy";
 export * from "./components/Icons";
+export * from "./components/Warning";
 
 export * from "./hooks";
 

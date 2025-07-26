@@ -1,4 +1,4 @@
-import { FeeItem } from "./FeeItem";
+import { FeeItem } from "../../../components/FeeItem/FeeItem";
 import { BTC_DECIMAL_PLACES } from "../../../utils/constants";
 
 interface BTCFeeAmountProps {

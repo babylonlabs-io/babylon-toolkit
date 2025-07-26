@@ -1,0 +1,14 @@
+.bbn-warning {
+    @apply flex items-start gap-4 rounded p-4 bg-primary-contrast text-accent-primary;
+
+    /* Allow the component to take the full width of its parent and let height adapt to content */
+    @apply w-full;
+
+    &-icon {
+        @apply w-6 h-6 shrink-0;
+    }
+
+    &-message {
+        @apply text-sm leading-snug;
+    }
+}
