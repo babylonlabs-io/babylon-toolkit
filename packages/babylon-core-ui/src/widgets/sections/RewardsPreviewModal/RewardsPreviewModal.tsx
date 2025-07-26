@@ -1,5 +1,6 @@
 import { Button } from "@/components/Button";
 import { Warning } from "@/components/Warning";
+import { WINDOW_BREAKPOINT } from "../../../utils/constants"
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { PropsWithChildren, ReactNode } from "react";
@@ -11,9 +12,6 @@ type DialogComponentProps = Parameters<typeof Dialog>[0];
 interface ResponsiveDialogProps extends DialogComponentProps {
     children?: ReactNode;
 }
-
-const WINDOW_BREAKPOINT = 640;
-
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
     const DialogComponent = isMobileView ? MobileDialog : Dialog;
@@ -28,8 +26,10 @@ interface Info {
 interface PreviewModalProps {
     open: boolean;
     processing?: boolean;
+    title: string;
     onClose: () => void;
     onProceed: () => void;
+    warning: string;
     bsns: Info[];
     finalityProviders: Info[];
     amount: {
@@ -45,16 +45,18 @@ interface PreviewModalProps {
 export const RewardsPreviewModal = ({
     open,
     processing = false,
+    title,
     onClose,
     onProceed,
     bsns,
+    warning,
     amount,
     transactionFees,
 }: PropsWithChildren<PreviewModalProps>) => {
 
     return (
         <ResponsiveDialog open={open} onClose={onClose}>
-            <DialogHeader title="Claim BABY Rewards" className="text-accent-primary" />
+            <DialogHeader title={title} className="text-accent-primary" />
             <DialogBody className="no-scrollbar mb-[40px] mt-8 flex max-h-[calc(100vh-12rem)] flex-col gap-[40px] overflow-y-auto text-accent-primary">
                 <div className="flex flex-col gap-2">
                     <FeeItem title="Receiving">
@@ -80,7 +82,7 @@ export const RewardsPreviewModal = ({
                         {transactionFees.token}
                     </FeeItem>
                 </div>
-                <Warning>Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.</Warning>
+                <Warning>{warning}</Warning>
             </DialogBody>
             <DialogFooter className="flex flex-col gap-4 pt-0 sm:flex-row">
                 <Button variant="contained" color="primary" onClick={onProceed} className="w-full sm:flex-1 sm:order-2" disabled={processing}>

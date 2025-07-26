@@ -49,6 +49,8 @@ export const Default: Story = {
             token: "10 BABY",
             usd: "$0.56 USD",
         },
+        warning: "Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.",
+        title: "Claim BABY Rewards",
     },
 };
 
@@ -72,5 +74,7 @@ export const OneReceivingToken: Story = {
             token: "10 BABY",
             usd: "$0.56 USD",
         },
+        warning: "Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.",
+        title: "Claim BABY Rewards",
     },
 }; 

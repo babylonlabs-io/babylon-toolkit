@@ -1,4 +1,5 @@
 import { Button } from "@/components/Button";
+import { WINDOW_BREAKPOINT } from "../../../utils/constants";
 import { Table } from "@/elements/Table";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
@@ -12,8 +13,6 @@ type DialogComponentProps = Parameters<typeof Dialog>[0];
 interface ResponsiveDialogProps extends DialogComponentProps {
   children?: ReactNode;
 }
-
-const WINDOW_BREAKPOINT = 640;
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
   const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
