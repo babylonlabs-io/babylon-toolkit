@@ -27,14 +27,12 @@ export const LongText: Story = {
 
 export const CustomAltText: Story = {
     args: {
-        iconAlt: "Exclamation triangle icon",
         children: "Custom alt text is provided for better accessibility.",
     },
 };
 
 export const CustomStyled: Story = {
     args: {
-        className: "max-w-sm mx-auto",
         children: "This warning box has a custom max-width and is centered using Tailwind utility classes.",
     },
 }; 

@@ -41,16 +41,6 @@ export const Default: Story = {
                 name: "Token 2",
             },
         ],
-        finalityProviders: [
-            {
-                icon: <PlaceholderIcon text="F1" bgColor="bg-black" />,
-                name: "100",
-            },
-            {
-                icon: <PlaceholderIcon text="F2" bgColor="bg-black" />,
-                name: "3000",
-            },
-        ],
         amount: {
             token: "100.000 BABY",
             usd: "$6,677.15 USD",
@@ -72,12 +62,6 @@ export const OneReceivingToken: Story = {
             {
                 icon: <PlaceholderIcon text="B1" bgColor="bg-black" />,
                 name: "Token 1",
-            },
-        ],
-        finalityProviders: [
-            {
-                icon: <PlaceholderIcon text="F1" bgColor="bg-black" />,
-                name: "100",
             },
         ],
         amount: {
