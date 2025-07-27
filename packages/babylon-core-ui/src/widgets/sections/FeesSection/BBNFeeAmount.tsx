@@ -1,4 +1,5 @@
 import { FeeItem } from "./FeeItem";
+import { BBN_DECIMAL_PLACES } from "../../../utils/constants";
 
 interface BBNFeeAmountProps {
   amount: number | string;
@@ -9,7 +10,7 @@ interface BBNFeeAmountProps {
   decimals?: number;
 }
 
-export function BBNFeeAmount({ amount, coinSymbol, hint, title, className, decimals = 5 }: BBNFeeAmountProps) {
+export function BBNFeeAmount({ amount, coinSymbol, hint, title, className, decimals = BBN_DECIMAL_PLACES }: BBNFeeAmountProps) {
   const formattedAmount = typeof amount === "number" ? amount.toFixed(decimals) : amount;
 
   return (

@@ -19,6 +19,11 @@ export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export * from "./components/DisplayHash";
+export * from "./components/Copy";
+export * from "./components/Icons";
+
+export * from "./hooks";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
@@ -28,12 +33,15 @@ export * from "./widgets/form/RadioField";
 export * from "./widgets/form/SelectField";
 export * from "./widgets/form/HiddenField";
 export * from "./widgets/form/hooks";
+export * from "./widgets/sections/TableElement";
 
 export * from "./widgets/sections/AmountSubsection";
 export * from "./widgets/sections/FinalityProviderSubsection";
 export * from "./widgets/sections/FeesSection";
 export * from "./widgets/sections/PreviewModal";
 export * from "./widgets/sections/ActivityCard";
+export * from "./widgets/sections/SettingMenu";
+export * from "./widgets/sections/WalletMenu";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";

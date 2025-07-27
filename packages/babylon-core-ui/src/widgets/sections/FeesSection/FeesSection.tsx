@@ -30,7 +30,6 @@ export function FeesSection({
   feeAmountHint,
   total,
   totalHint,
-
   bbnFeeAmount,
   bbnCoinSymbol,
   bbnFeeAmountHint,

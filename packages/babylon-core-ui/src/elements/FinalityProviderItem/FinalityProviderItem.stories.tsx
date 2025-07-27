@@ -91,3 +91,22 @@ export const LongNames: Story = {
     onRemove: (bsnId: string) => alert(`Remove clicked for ${bsnId}`),
   },
 };
+
+export const WithoutRemove: Story = {
+  args: {
+    bsnId: "bsn321",
+    bsnName: "Babylon Network",
+    bsnLogoUrl: "/images/fps/lombard.jpeg",
+    provider: mockProvider,
+  },
+};
+
+export const AddressOnly: Story = {
+  args: {
+    bsnId: "bsnAddr",
+    bsnName: "",
+    bsnLogoUrl: undefined,
+    address: "dfe19b1234567890f732de",
+    provider: mockProvider,
+  },
+};

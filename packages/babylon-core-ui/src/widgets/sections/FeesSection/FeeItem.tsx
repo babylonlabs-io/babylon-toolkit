@@ -21,11 +21,7 @@ export function FeeItem({ title, children, className, hint }: FeeItemProps) {
         {title}
       </Text>
 
-      {!hint ? (
-        <Text as="div" className="flex items-center gap-2">
-          {children}
-        </Text>
-      ) : (
+      {hint ? (
         <div className="flex flex-col items-end">
           <Text as="div" className="flex items-center gap-2">
             {children}
@@ -34,6 +30,10 @@ export function FeeItem({ title, children, className, hint }: FeeItemProps) {
             {hint}
           </Text>
         </div>
+      ) : (
+        <Text as="div" className="flex items-center gap-2">
+          {children}
+        </Text>
       )}
     </div>
   );

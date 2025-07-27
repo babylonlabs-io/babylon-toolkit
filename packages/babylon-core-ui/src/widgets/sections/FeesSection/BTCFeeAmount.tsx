@@ -1,4 +1,5 @@
 import { FeeItem } from "./FeeItem";
+import { BTC_DECIMAL_PLACES } from "../../../utils/constants";
 
 interface BTCFeeAmountProps {
   amount: number | string;
@@ -9,16 +10,19 @@ interface BTCFeeAmountProps {
   decimals?: number;
 }
 
-export function BTCFeeAmount({ amount, coinSymbol, hint, title, className, decimals = 8 }: BTCFeeAmountProps) {
-  const formattedAmount =
-    typeof amount === "number"
-      ? amount === 0
-        ? "0"
-        : (() => {
-            const str = amount.toFixed(decimals);
-            return str.replace(/0+$/, "").replace(/\.$/, "");
-          })()
-      : amount;
+export function BTCFeeAmount({ amount, coinSymbol, hint, title, className, decimals = BTC_DECIMAL_PLACES }: BTCFeeAmountProps) {
+  let formattedAmount: string;
+
+  if (typeof amount === "number") {
+    if (amount === 0) {
+      formattedAmount = "0";
+    } else {
+      const str = amount.toFixed(decimals);
+      formattedAmount = str.replace(/0+$/, "").replace(/\.$/, "");
+    }
+  } else {
+    formattedAmount = amount;
+  }
 
   return (
     <FeeItem title={title ?? `${coinSymbol} Network Fee`} hint={hint} className={className}>

@@ -11,7 +11,7 @@ const release = async () => {
 
   const projectHasNewVersion = Object.entries(projectsVersionData).filter(
     ([_, project]) => project.newVersion !== null
-  );
+  ).map(([key]) => key);
 
   if (projectHasNewVersion.length === 0) {
     console.log('No project release needed');
@@ -33,6 +33,7 @@ const release = async () => {
   await gitPush();
 
   const publishResults = await releasePublish({
+    projects: projectHasNewVersion,
     verbose: true,
   });
 

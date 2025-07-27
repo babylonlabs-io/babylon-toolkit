@@ -38,8 +38,8 @@ export const AlmostAtMax: Story = {
 
 export const AtMaxCapacity: Story = {
   args: {
-    counter: 5,
-    max: 5,
+    counter: 1,
+    max: 1,
   },
 };
 
@@ -48,27 +48,5 @@ export const AlwaysShowCounter: Story = {
     counter: 0,
     max: 3,
     alwaysShowCounter: true,
-  },
-};
-
-export const AlwaysShowCounterWithValue: Story = {
-  args: {
-    counter: 1,
-    max: 3,
-    alwaysShowCounter: true,
-  },
-};
-
-export const SingleMax: Story = {
-  args: {
-    counter: 0,
-    max: 1,
-  },
-};
-
-export const SingleMaxAtCapacity: Story = {
-  args: {
-    counter: 1,
-    max: 1,
   },
 };
