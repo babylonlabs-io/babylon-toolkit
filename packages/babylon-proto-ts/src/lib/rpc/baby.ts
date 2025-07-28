@@ -1,6 +1,13 @@
-import type { BankExtension, DistributionExtension, StakingExtension } from "@cosmjs/stargate";
+import type {
+  BankExtension,
+  DistributionExtension,
+  StakingExtension,
+} from "@cosmjs/stargate";
 import type { DelegationDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/distribution";
-import type { DelegationResponse, Validator } from "cosmjs-types/cosmos/staking/v1beta1/staking";
+import type {
+  DelegationResponse,
+  Validator,
+} from "cosmjs-types/cosmos/staking/v1beta1/staking";
 
 interface Dependencies {
   bank: BankExtension["bank"];
@@ -8,18 +15,19 @@ interface Dependencies {
   distribution: DistributionExtension["distribution"];
 }
 
-const createBabylonClient = ({ staking, distribution, bank }: Dependencies) => ({
+const createBabylonClient = ({
+  staking,
+  distribution,
+  bank,
+}: Dependencies) => ({
   /**
    * Gets all delegations of the user's account.
    * @param {string} address - The address to get the delegations of.
    * @returns {Promise<DelegationResponse[]>} - The delegations of the address.
    */
-  async getDelegations(
-    address: string,
-  ): Promise<DelegationResponse[]> {
+  async getDelegations(address: string): Promise<DelegationResponse[]> {
     try {
-      const response =
-        await staking.delegatorDelegations(address);
+      const response = await staking.delegatorDelegations(address);
       return response.delegationResponses || [];
     } catch (error) {
       throw new Error(`Failed to fetch delegations for ${address}`, {
@@ -33,12 +41,9 @@ const createBabylonClient = ({ staking, distribution, bank }: Dependencies) => (
    * @param {string} address - The address to get the delegation rewards of.
    * @returns {Promise<DelegationDelegatorReward[]>} - The delegation rewards of the address.
    */
-  async getRewards(
-    address: string,
-  ): Promise<DelegationDelegatorReward[]> {
+  async getRewards(address: string): Promise<DelegationDelegatorReward[]> {
     try {
-      const response =
-        await distribution.delegationTotalRewards(address);
+      const response = await distribution.delegationTotalRewards(address);
       return response.rewards || [];
     } catch (error) {
       if (error instanceof Error && error.message.includes("no delegation")) {
@@ -81,6 +86,6 @@ const createBabylonClient = ({ staking, distribution, bank }: Dependencies) => (
       });
     }
   },
-})
+});
 
 export default createBabylonClient;

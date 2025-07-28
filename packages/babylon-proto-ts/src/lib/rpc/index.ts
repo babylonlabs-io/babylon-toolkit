@@ -10,10 +10,10 @@ import { Tendermint34Client } from "@cosmjs/tendermint-rpc";
 import * as btclightclientquery from "../../generated/babylon/btclightclient/v1/query";
 import * as incentivequery from "../../generated/babylon/incentive/query";
 
-import createBTCClient from "./btc";
 import createBabylonClient from "./baby";
+import createBTCClient from "./btc";
 
-const createClient = async ({ rpcUrl }: any) => {
+const createRPCClient = async ({ rpcUrl }: { rpcUrl: string }) => {
   const tmClient = await Tendermint34Client.connect(rpcUrl);
   const queryClient = QueryClient.withExtensions(
     tmClient,
@@ -31,8 +31,8 @@ const createClient = async ({ rpcUrl }: any) => {
 
   return {
     baby: createBabylonClient({ staking, distribution, bank }),
-    btc: createBTCClient({ incentive, btcLight })
-  }
-}
+    btc: createBTCClient({ incentive, btcLight }),
+  };
+};
 
-export default createClient;
+export default createRPCClient;
