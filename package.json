@@ -37,5 +37,10 @@
   "workspaces": [
     "packages/*",
     "tools/*"
-  ]
+  ],
+  "overrides": {
+    "vite@^5.4.10": {
+      "esbuild": "^0.25.8"
+    }
+  }
 }
