@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { FeesSection } from "./FeesSection";
+import { BBNFeeAmount } from "./BBNFeeAmount";
 
 const meta: Meta<typeof FeesSection> = {
   component: FeesSection,
@@ -18,4 +19,10 @@ export const Default: Story = {
     coinSymbol: "BTC",
     total: "0.0001",
   },
+};
+
+export const BabylonNetworkFee: Story = {
+  render: () => (
+    <FeesSection bbnFeeAmount={0} bbnCoinSymbol="BABY" bbnFeeAmountHint="$0,00" />
+  ),
 };
