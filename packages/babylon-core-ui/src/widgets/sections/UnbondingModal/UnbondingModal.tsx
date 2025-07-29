@@ -6,7 +6,7 @@ import { Warning } from "@/components/Warning";
 import { Button } from "@/components/Button";
 import { WINDOW_BREAKPOINT, MAX_WINDOW_HEIGHT } from "../../../utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { ReactNode, PropsWithChildren } from "react";
+import { ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 
 interface BalanceDetails {
