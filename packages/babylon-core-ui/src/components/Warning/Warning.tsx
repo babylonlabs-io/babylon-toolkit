@@ -10,7 +10,7 @@ export function Warning({ children, className }: WarningProps) {
     return (
         <div className={twJoin("bbn-warning", className)}>
             <img src="/images/status/warning_dark2.svg" alt={"Warning icon"} className="bbn-warning-icon" />
-            <p className="bbn-warning-message">{children}</p>
+            <p className="bbn-warning-message whitespace-pre-line">{children}</p>
         </div>
     );
 }

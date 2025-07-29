@@ -43,6 +43,7 @@ export * from "./widgets/sections/PreviewModal";
 export * from "./widgets/sections/ActivityCard";
 export * from "./widgets/sections/SettingMenu";
 export * from "./widgets/sections/WalletMenu";
+export * from "./widgets/sections/UnbondingModal";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
