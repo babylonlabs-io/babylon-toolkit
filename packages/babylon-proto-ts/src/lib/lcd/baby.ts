@@ -24,11 +24,6 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-  /**
-   * Gets all delegation rewards of the user's account.
-   * @param {string} address - The address to get the delegation rewards of.
-   * @returns {Promise<DelegationDelegatorReward[]>} - The delegation rewards of the address.
-   */
   async getRewards(address: string): Promise<DelegationDelegatorReward[]> {
     try {
       const response = await request(
@@ -45,10 +40,6 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-  /**
-   * Gets all the validators.
-   * @returns {Promise<Validator[]>} - All validators.
-   */
   async getValidators(): Promise<Validator[]> {
     try {
       const response = await request("/cosmos/staking/v1beta1/validators");
@@ -60,12 +51,6 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-  /**
-   * Gets the balance of an address in the Babylon chain.
-   * @param {string} address - The address to get the balance of.
-   * @param {string} denom - The denom of the balance to get.
-   * @returns {Promise<number>} - The balance of the address.
-   */
   async getBalance(address: string, denom: string = "ubbn"): Promise<bigint> {
     try {
       const response = await request(
@@ -75,6 +60,21 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       return BigInt(response?.balance?.amount ?? 0);
     } catch (error) {
       throw new Error(`Failed to fetch balance for ${address}`, {
+        cause: error,
+      });
+    }
+  },
+
+  async getPool() {
+    try {
+      const { pool } = await request("/cosmos/staking/v1beta1/pool");
+
+      return {
+        notBondedTokens: parseInt(pool.notBondedTokens, 10),
+        bondedTokens: parseInt(pool.bondedTokens, 10),
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to fetch pool`, {
         cause: error,
       });
     }

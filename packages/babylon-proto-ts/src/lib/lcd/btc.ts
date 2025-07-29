@@ -8,11 +8,6 @@ interface Dependencies {
 }
 
 const createBTCClient = ({ request }: Dependencies) => ({
-  /**
-   * Gets the rewards of the user's account.
-   * @param {string} address - The address to get the rewards of.
-   * @returns {Promise<number>} - The rewards of the address.
-   */
   async getRewards(address: string): Promise<number> {
     try {
       const response = await request(
@@ -56,10 +51,6 @@ const createBTCClient = ({ request }: Dependencies) => ({
     }
   },
 
-  /**
-   * Gets the tip of the Bitcoin blockchain.
-   * @returns {Promise<BTCHeaderInfoResponse>} - The tip of the Bitcoin blockchain.
-   */
   async getBTCTipHeight(): Promise<number> {
     try {
       const { header } = await request("/babylon/btclightclient/v1/tip");

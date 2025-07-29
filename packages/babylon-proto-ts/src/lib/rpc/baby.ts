@@ -20,11 +20,6 @@ const createBabylonClient = ({
   distribution,
   bank,
 }: Dependencies) => ({
-  /**
-   * Gets all delegations of the user's account.
-   * @param {string} address - The address to get the delegations of.
-   * @returns {Promise<DelegationResponse[]>} - The delegations of the address.
-   */
   async getDelegations(address: string): Promise<DelegationResponse[]> {
     try {
       const response = await staking.delegatorDelegations(address);
@@ -36,11 +31,6 @@ const createBabylonClient = ({
     }
   },
 
-  /**
-   * Gets all delegation rewards of the user's account.
-   * @param {string} address - The address to get the delegation rewards of.
-   * @returns {Promise<DelegationDelegatorReward[]>} - The delegation rewards of the address.
-   */
   async getRewards(address: string): Promise<DelegationDelegatorReward[]> {
     try {
       const response = await distribution.delegationTotalRewards(address);
@@ -55,10 +45,6 @@ const createBabylonClient = ({
     }
   },
 
-  /**
-   * Gets all the validators.
-   * @returns {Promise<Validator[]>} - All validators.
-   */
   async getValidators(): Promise<Validator[]> {
     try {
       const response = await staking.validators("");
@@ -70,18 +56,27 @@ const createBabylonClient = ({
     }
   },
 
-  /**
-   * Gets the balance of an address in the Babylon chain.
-   * @param {string} address - The address to get the balance of.
-   * @param {string} denom - The denom of the balance to get.
-   * @returns {Promise<number>} - The balance of the address.
-   */
   async getBalance(address: string, denom: string = "ubbn"): Promise<bigint> {
     try {
       const balance = await bank.balance(address, denom);
       return BigInt(balance?.amount ?? 0);
     } catch (error) {
       throw new Error(`Failed to fetch balance for ${address}`, {
+        cause: error,
+      });
+    }
+  },
+
+  async getPool() {
+    try {
+      const { pool } = await staking.pool();
+
+      return {
+        notBondedTokens: parseInt(pool.notBondedTokens, 10),
+        bondedTokens: parseInt(pool.bondedTokens, 10),
+      };
+    } catch (error: any) {
+      throw new Error(`Failed to fetch pool`, {
         cause: error,
       });
     }
