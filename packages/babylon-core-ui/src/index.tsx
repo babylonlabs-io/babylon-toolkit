@@ -35,6 +35,7 @@ export * from "./widgets/form/SelectField";
 export * from "./widgets/form/HiddenField";
 export * from "./widgets/form/hooks";
 export * from "./widgets/sections/TableElement";
+export * from "./widgets/sections/ValidatorSelector";
 
 export * from "./widgets/sections/AmountSubsection";
 export * from "./widgets/sections/FinalityProviderSubsection";
