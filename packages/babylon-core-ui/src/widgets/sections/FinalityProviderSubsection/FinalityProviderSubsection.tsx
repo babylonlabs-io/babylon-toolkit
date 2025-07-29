@@ -11,9 +11,11 @@ interface Props {
   actionText: string;
   onAdd: () => void;
   onRemove: (id?: string) => void;
+  /** Whether to display chain information (logo and name) for each provider item. Defaults to true. */
+  showChain?: boolean;
 }
 
-export function FinalityProviderSubsection({ max, items = [], actionText, onAdd, onRemove }: Props) {
+export function FinalityProviderSubsection({ max, items = [], actionText, onAdd, onRemove, showChain = true }: Props) {
   const count = useMemo(() => items.length, [items]);
 
   return (
@@ -25,7 +27,7 @@ export function FinalityProviderSubsection({ max, items = [], actionText, onAdd,
             <CounterButton counter={count} max={max} onAdd={onAdd} />
           </div>
         </div>
-        {count > 0 && <ProvidersList items={items} onRemove={onRemove} />}
+        {count > 0 && <ProvidersList items={items} onRemove={onRemove} showChain={showChain} />}
       </div>
     </SubSection>
   );
