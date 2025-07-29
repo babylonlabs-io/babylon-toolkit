@@ -20,6 +20,10 @@ export interface FinalityProviderItemProps {
   address?: string;
   provider: Provider;
   onRemove?: (id?: string) => void;
+  /**
+   * Controls whether the chain-related information (e.g., address or BSN name/logo) is displayed.
+   * Defaults to `true`.
+   */
   showChain?: boolean;
 }
 
