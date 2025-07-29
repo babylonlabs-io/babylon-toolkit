@@ -236,7 +236,7 @@ export const SingleProviderWithoutBsnLogo: Story = {
         },
       },
     ],
-    actionText: "Add Finality Provider",
+    actionText: "Select Validator",
     onAdd: () => alert("Add clicked"),
     onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
     showChain: false,
