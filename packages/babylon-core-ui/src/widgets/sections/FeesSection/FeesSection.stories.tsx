@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { FeesSection } from "./FeesSection";
-import { BBNFeeAmount } from "./BBNFeeAmount";
 
 const meta: Meta<typeof FeesSection> = {
   component: FeesSection,
