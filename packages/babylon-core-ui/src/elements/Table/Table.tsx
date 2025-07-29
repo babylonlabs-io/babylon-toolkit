@@ -25,7 +25,7 @@ export const Table = ({ data }: TableProps) => {
                     style={gridStyle}
                 >
                     {headers.map((header, idx) => (
-                        <Text key={`header-${idx}`} variant="caption" className="text-secondary text-center">
+                        <Text key={`header-${idx}`} variant="caption" className="text-secondary px-2.5">
                             {header}
                         </Text>
                     ))}
@@ -40,7 +40,7 @@ export const Table = ({ data }: TableProps) => {
                         {row.map((cell, cellIdx) => (
                             <div
                                 key={`cell-${rowIdx}-${cellIdx}`}
-                                className="flex w-full items-center justify-center gap-2 py-1"
+                                className="flex w-full items-center gap-2 py-1 px-2.5"
                             >
                                 {cell}
                             </div>
