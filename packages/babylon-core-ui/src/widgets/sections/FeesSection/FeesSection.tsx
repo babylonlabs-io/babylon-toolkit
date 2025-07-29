@@ -8,12 +8,12 @@ import { Total } from "./Total";
 
 interface FeesSectionProps {
   className?: string;
-  feeRate: number | string;
+  feeRate?: number | string;
   onFeeRateEdit?: () => void;
-  feeAmount: number | string;
-  coinSymbol: string;
+  feeAmount?: number | string;
+  coinSymbol?: string;
   feeAmountHint?: string;
-  total: number | string;
+  total?: number | string;
   totalHint?: string;
   bbnFeeAmount?: number | string;
   bbnCoinSymbol?: string;
@@ -38,8 +38,12 @@ export function FeesSection({
   return (
     <SubSection className={twMerge("flex w-full flex-col content-center justify-between gap-4", className)}>
       <div className="flex flex-col gap-6 p-4">
-        <BTCFeeRate value={feeRate} onEdit={onFeeRateEdit} />
-        <BTCFeeAmount amount={feeAmount} coinSymbol={coinSymbol} hint={feeAmountHint} />
+        {feeRate !== undefined && <BTCFeeRate value={feeRate} onEdit={onFeeRateEdit} />}
+
+        {feeAmount !== undefined && coinSymbol !== undefined && (
+          <BTCFeeAmount amount={feeAmount} coinSymbol={coinSymbol} hint={feeAmountHint} />
+        )}
+
         {bbnFeeAmount !== undefined && bbnCoinSymbol ? (
           <BBNFeeAmount
             amount={bbnFeeAmount}
@@ -48,8 +52,10 @@ export function FeesSection({
             decimals={bbnFeeDecimals}
           />
         ) : null}
-        <div className="divider my-4" />
-        <Total total={total} coinSymbol={coinSymbol} hint={totalHint} />
+
+        {total !== undefined && coinSymbol !== undefined && <div className="divider my-4" />}
+
+        {total !== undefined && coinSymbol !== undefined && <Total total={total} coinSymbol={coinSymbol} hint={totalHint} />}
       </div>
     </SubSection>
   );

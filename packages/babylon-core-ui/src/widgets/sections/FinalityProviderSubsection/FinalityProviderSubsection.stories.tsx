@@ -221,3 +221,34 @@ export const ProvidersWithoutDescriptions: Story = {
     <FinalityProviderSubsection max={max} items={items} actionText={actionText} onAdd={onAdd} onRemove={onRemove} />
   ),
 };
+
+export const SingleProviderWithoutBsnLogo: Story = {
+  args: {
+    max: 1,
+    items: [
+      {
+        bsnId: "babylon",
+        bsnName: "Babylon Genesis",
+        provider: {
+          rank: 1,
+          logo_url: "https://placehold.co/40x40",
+          description: { moniker: "Babylon Provider" },
+        },
+      },
+    ],
+    actionText: "Select Validator",
+    onAdd: () => alert("Add clicked"),
+    onRemove: (bsnId?: string) => alert(`Remove clicked for ${bsnId}`),
+    showChain: false,
+  },
+  render: ({ max, items, actionText, onAdd, onRemove, showChain }) => (
+    <FinalityProviderSubsection
+      max={max}
+      items={items}
+      actionText={actionText}
+      onAdd={onAdd}
+      onRemove={onRemove}
+      showChain={showChain}
+    />
+  ),
+};

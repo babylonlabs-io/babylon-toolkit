@@ -20,9 +20,14 @@ export interface FinalityProviderItemProps {
   address?: string;
   provider: Provider;
   onRemove?: (id?: string) => void;
+  /**
+   * Controls whether the chain-related information (e.g., address or BSN name/logo) is displayed.
+   * Defaults to `true`.
+   */
+  showChain?: boolean;
 }
 
-export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove }: FinalityProviderItemProps) {
+export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true }: FinalityProviderItemProps) {
   if (!provider) return null;
 
   const renderBsnLogo = () => {
@@ -51,6 +56,8 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
   };
 
   const renderChainOrAddress = () => {
+    if (!showChain) return null;
+
     if (address) {
       return (
         <div className="text-xs text-accent-secondary">{shortenAddress(address)}</div>

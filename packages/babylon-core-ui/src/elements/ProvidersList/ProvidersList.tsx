@@ -22,9 +22,11 @@ export interface ProviderItem {
 interface ProvidersListProps {
   items: ProviderItem[];
   onRemove: (id?: string) => void;
+  /** Whether to display the chain (BSN) info for each provider. Defaults to true. */
+  showChain?: boolean;
 }
 
-export function ProvidersList({ items, onRemove }: ProvidersListProps) {
+export function ProvidersList({ items, onRemove, showChain = true }: ProvidersListProps) {
   const values = useMemo(() => items, [items]);
 
   if (values.length === 0) return null;
@@ -39,6 +41,7 @@ export function ProvidersList({ items, onRemove }: ProvidersListProps) {
           bsnLogoUrl={bsnLogoUrl}
           provider={provider}
           onRemove={onRemove}
+          showChain={showChain}
         />
       ))}
     </div>
