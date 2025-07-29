@@ -111,7 +111,7 @@ export const UnbondingModal = ({
                         onChange={onChange}
                         onKeyDown={onKeyDown}
                         amountUsd={amountUsd}
-                        disabled={true}
+                        disabled={disabled ?? true}
                         subtitle={`Staked: ${reward.stakedAmount || 0} ${reward.stakedTokenName || reward.currencyName}`}
                     />
                 </SubSection>
