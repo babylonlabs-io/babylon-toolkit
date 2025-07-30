@@ -13,8 +13,8 @@ import * as incentivequery from "../../generated/babylon/incentive/query";
 import createBabylonClient from "./baby";
 import createBTCClient from "./btc";
 
-const createRPCClient = async ({ rpcUrl }: { rpcUrl: string }) => {
-  const tmClient = await Tendermint34Client.connect(rpcUrl);
+const createRPCClient = async ({ url }: { url: string }) => {
+  const tmClient = await Tendermint34Client.connect(url);
   const queryClient = QueryClient.withExtensions(
     tmClient,
     setupBankExtension,
