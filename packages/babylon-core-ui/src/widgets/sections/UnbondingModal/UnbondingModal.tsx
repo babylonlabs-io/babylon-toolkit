@@ -49,6 +49,8 @@ interface UnbondingModalProps {
     onChange?: React.ChangeEventHandler<HTMLInputElement>;
     /** onKeyDown handler for the amount input */
     onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+    /** Whether the amount input should be disabled */
+    disabled?: boolean;
     /** Warning text to display below the amount section */
     warningText?: string;
     /** Text for the action button */
@@ -77,8 +79,9 @@ export const UnbondingModal = ({
     description,
     reward,
     amountUsd = "",
-    onChange,
-    onKeyDown,
+    onChange = () => { },
+    onKeyDown = () => { },
+    disabled = false,
     warningText,
     actionButtonText = "Unbond",
     onActionClick,
@@ -111,7 +114,7 @@ export const UnbondingModal = ({
                         onChange={onChange}
                         onKeyDown={onKeyDown}
                         amountUsd={amountUsd}
-                        disabled={disabled ?? true}
+                        disabled={disabled}
                         subtitle={`Staked: ${reward.stakedAmount || 0} ${reward.stakedTokenName || reward.currencyName}`}
                     />
                 </SubSection>
