@@ -31,3 +31,4 @@ export { UsingInscriptionIcon } from "./wallet/UsingInscriptionIcon";
 // Common icons
 export { CopyIcon } from "./common/CopyIcon";
 export { CloseIcon } from "./common/CloseIcon";
+export { WarningIcon } from "./common/WarningIcon";
