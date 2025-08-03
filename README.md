@@ -10,4 +10,9 @@
 <br/>
 
 
-WIP
+# Babylon Monorepo
+
+This repository is a monorepo for Babylon Labs TypeScript applications and libraries. It uses [Nx](https://nx.dev/) to manage multiple packages, allowing for efficient development and deployment of TypeScript-based projects.
+
+# Contributing
+Please follow the guidelines outlined in the [CONTRIBUTING.md](CONTRIBUTING.md) file.
