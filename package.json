@@ -20,7 +20,7 @@
     "@swc-node/register": "~1.9.1",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
-    "@types/node": "18.16.9",
+    "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "eslint": "^9.32.0",
     "eslint-plugin-react-hooks": "^5.0.0",
@@ -29,9 +29,10 @@
     "husky": "^9.1.7",
     "nx": "^21.3.7",
     "prettier": "^3.6.2",
+    "syncpack": "^13.0.4",
     "tslib": "^2.3.0",
     "tsx": "^4.19.4",
-    "typescript": "~5.7.2",
+    "typescript": "^5.8.2",
     "uuid": "^11.1.0"
   },
   "workspaces": [
