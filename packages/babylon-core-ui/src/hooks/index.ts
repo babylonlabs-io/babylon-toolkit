@@ -8,3 +8,4 @@ export { useModalManager } from './useModalManager';
 export { useResizeObserver } from './useResizeObserver';
 export { useTableScroll } from './useTableScroll';
 export { useTableSort } from './useTableSort';
+export { useFrozenColumns } from './useFrozenColumns';

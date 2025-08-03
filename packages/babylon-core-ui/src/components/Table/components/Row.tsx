@@ -8,12 +8,16 @@ export function Row<T extends { id: string | number }>({
   isSelected,
   isSelectable,
   onSelect,
+  isLeftScrolled,
+  isRightScrolled,
 }: {
   row: T;
   columns: ColumnProps<T>[];
   isSelected: boolean;
   isSelectable: boolean;
   onSelect: (row: T) => void;
+  isLeftScrolled?: boolean;
+  isRightScrolled?: boolean;
 }) {
   return (
     <tr
@@ -30,6 +34,11 @@ export function Row<T extends { id: string | number }>({
           value={row[column.key as keyof T]}
           columnName={column.key}
           className={column.cellClassName}
+          frozen={column.frozen}
+          showFrozenShadow={
+            (column.frozen === 'left' && isLeftScrolled) || 
+            (column.frozen === 'right' && isRightScrolled)
+          }
           render={column.render ? (value) => column.render!(value, row) : undefined}
         />
       ))}

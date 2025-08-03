@@ -9,6 +9,8 @@ interface ColumnProps<T = unknown> {
   name?: string;
   sorter?: (a: T, b: T) => number;
   className?: string;
+  frozen?: 'left' | 'right';
+  showFrozenShadow?: boolean;
 }
 
 export function Column<T>({
@@ -16,17 +18,22 @@ export function Column<T>({
   className,
   children,
   sorter,
+  frozen,
+  showFrozenShadow,
   ...restProps
 }: PropsWithChildren<ColumnProps<T> & HTMLAttributes<HTMLTableCellElement>>) {
   const { columns, sortStates, onColumnSort } = useContext(TableContext);
   const sortState = sortStates[name ?? ""];
   const sortDirection = sortState?.direction;
 
+  const frozenClasses = frozen ? `bbn-table-frozen bbn-table-frozen-${frozen}` : '';
+  const shadowClass = frozen && showFrozenShadow ? 'bbn-frozen-shadow' : '';
+
   return (
     <Text
       variant="caption"
       as="th"
-      className={twJoin(`bbn-cell-left`, sorter && "bbn-table-sortable", className)}
+      className={twJoin(`bbn-cell-left`, sorter && "bbn-table-sortable", frozenClasses, shadowClass, className)}
       onClick={() => {
         if (sorter && name) {
           const column = columns.find((col) => col.key === name);
