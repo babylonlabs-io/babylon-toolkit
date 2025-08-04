@@ -31,7 +31,6 @@ interface PreviewModalProps {
     onProceed: () => void;
     warning: string;
     bsns: Info[];
-    finalityProviders: Info[];
     amount: {
         token: string;
         usd: string;
