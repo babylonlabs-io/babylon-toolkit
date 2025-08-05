@@ -17,6 +17,7 @@ import {
   type SettingMenuDescriptionProps,
   type SettingMenuCustomContentProps,
 } from "./components";
+import { twJoin } from "tailwind-merge";
 
 export interface SettingMenuProps {
   /** Custom trigger element (defaults to settings icon button) */
@@ -69,8 +70,9 @@ const SettingMenuBase: React.FC<SettingMenuProps> = ({
       open={open}
       onOpenChange={onOpenChange}
       placement={placement}
-      className={className}
+      className={twJoin("relative", className)}
       offset={offset}
+      mobileMode="drawer"
     >
       {children}
     </Menu>
