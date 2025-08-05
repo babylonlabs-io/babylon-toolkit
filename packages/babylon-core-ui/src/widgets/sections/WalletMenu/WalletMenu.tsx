@@ -80,7 +80,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
           />
         </div>
 
-        <div className="flex flex-col gap-8 w-full">
+        <div className="flex flex-col w-full bg-secondary-highlight dark:bg-secondary-strokeLight rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
           <WalletSettingItem
             icon={<UsingInscriptionIcon />}
             title="Using Inscriptions"
@@ -105,6 +105,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
             isCopied={isCopied("publicKey")}
             onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
             icon={<BitcoinPublicKeyIcon />}
+            className="rounded-b-lg rounded-t-none md:rounded-none"
           />
         </div>
 

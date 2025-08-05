@@ -22,7 +22,7 @@ export const WalletSettingItem: React.FC<WalletSettingItemProps> = ({
 }) => {
   return (
     <div className={twJoin(
-      "flex items-center justify-between w-full bg-secondary-highlight dark:bg-secondary-strokeLight rounded-[4px] p-3 md:bg-transparent md:dark:bg-transparent md:p-0 md:mb-0",
+      "flex items-center justify-between w-full p-3 md:p-0 md:mb-0",
       className
     )}>
       <div className="flex items-center gap-4">
