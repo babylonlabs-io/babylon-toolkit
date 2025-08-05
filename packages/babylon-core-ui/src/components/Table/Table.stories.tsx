@@ -77,12 +77,16 @@ const columns: ColumnProps<FinalityProvider>[] = [
   {
     key: "name",
     header: "Finality Provider",
-    render: (_: unknown, row: FinalityProvider) => (
-      <div className="flex items-center gap-2">
-        <Avatar size="small" url={row.icon} alt={row.name} />
-        <span>{row.name}</span>
-      </div>
-    ),
+    render: (value, row) => {
+      void value;
+      void row;
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar size="small" url={row.icon} alt={row.name} />
+          <span>{row.name}</span>
+        </div>
+      );
+    },
     sorter: (a, b) => a.name.localeCompare(b.name),
   },
   {
@@ -96,13 +100,21 @@ const columns: ColumnProps<FinalityProvider>[] = [
   {
     key: "totalDelegation",
     header: "Total Delegation",
-    render: (_: unknown, row: FinalityProvider) => `${row.totalDelegation} sBTC`,
+    render: (value, row) => {
+      void value;
+      void row;
+      return `${row.totalDelegation} sBTC`;
+    },
     sorter: (a, b) => a.totalDelegation - b.totalDelegation,
   },
   {
     key: "commission",
     header: "Commission",
-    render: (_: unknown, row: FinalityProvider) => `${row.commission}%`,
+    render: (value, row) => {
+      void value;
+      void row;
+      return `${row.commission}%`;
+    },
     sorter: (a, b) => a.commission - b.commission,
   },
 ];
@@ -112,12 +124,16 @@ const columnsWithActions: ColumnProps<FinalityProvider>[] = [
     key: "name",
     header: "Finality Provider",
     frozen: "left",
-    render: (_: unknown, row: FinalityProvider) => (
-      <div className="flex items-center gap-2">
-        <Avatar size="small" url={row.icon} alt={row.name} />
-        <span>{row.name}</span>
-      </div>
-    ),
+         render: (value, row) => {
+      void value;
+      void row;
+      return (
+       <div className="flex items-center gap-2">
+         <Avatar size="small" url={row.icon} alt={row.name} />
+         <span>{row.name}</span>
+       </div>
+     );
+    },
     sorter: (a, b) => a.name.localeCompare(b.name),
   },
   {
@@ -131,29 +147,41 @@ const columnsWithActions: ColumnProps<FinalityProvider>[] = [
   {
     key: "totalDelegation",
     header: "Total Delegation",
-    render: (_: unknown, row: FinalityProvider) => `${row.totalDelegation} sBTC`,
+         render: (value, row) => {
+      void value;
+      void row;
+      return `${row.totalDelegation} sBTC`;
+    },
     sorter: (a, b) => a.totalDelegation - b.totalDelegation,
   },
   {
     key: "commission",
     header: "Commission",
-    render: (_: unknown, row: FinalityProvider) => `${row.commission}%`,
+    render: (value, row) => {
+      void value;
+      void row;
+      return `${row.commission}%`;
+    },
     sorter: (a, b) => a.commission - b.commission,
   },
   {
     key: "actions",
     header: "Actions",
     frozen: "right",
-    render: (_: unknown, _row: FinalityProvider) => (
-      <div className="flex gap-2">
-        <Button size="small" variant="contained">
-          Delegate
-        </Button>
-        <Button size="small" variant="outlined">
-          Unbond
-        </Button>
-      </div>
-    ),
+    render: (value, row) => {
+      void value;
+      void row;
+      return (
+        <div className="flex gap-2">
+          <Button size="small" variant="contained">
+            Delegate
+          </Button>
+          <Button size="small" variant="outlined">
+            Unbond
+          </Button>
+        </div>
+      );
+    },
   },
 ];
 
