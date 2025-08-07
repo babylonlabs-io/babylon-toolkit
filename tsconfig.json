@@ -14,6 +14,9 @@
     },
     {
       "path": "./packages/babylon-bsn-registry"
+    },
+    {
+      "path": "./packages/babylon-campaigns"
     }
   ]
 }
