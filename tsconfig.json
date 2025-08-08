@@ -11,6 +11,10 @@
     },
     {
       "path": "./packages/babylon-core-ui"
-    }
+    },
+    {
+      "path": "./packages/babylon-campaigns"
+    },
+    
   ]
 }
