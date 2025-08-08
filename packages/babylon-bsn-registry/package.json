@@ -1,0 +1,32 @@
+{
+  "name": "@babylonlabs-io/bsn-registry",
+  "version": "0.0.0-semantic-release",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "prepare": "husky",
+    "format": "prettier --check \"src/**/*.ts\"",
+    "format:fix": "prettier --write \"src/**/*.ts\""
+  },
+  "files": [
+    "dist",
+    "src/testnet.json",
+    "src/mainnet.json"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+  },
+  "keywords": ["babylon", "bsn", "registry", "bitcoin", "testnet", "mainnet"],
+  "author": "Babylon Labs",
+  "license": "MIT",
+  "description": "Babylon BSN Registry - A registry of Bitcoin Staking Node (BSN) information for testnet and mainnet",
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.8.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
