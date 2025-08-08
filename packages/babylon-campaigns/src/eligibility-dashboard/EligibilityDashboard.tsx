@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Heading, Text, Button } from "@babylonlabs-io/core-ui";
+import { Card, Heading, Button } from "@babylonlabs-io/core-ui";
 
 export interface EligibilityDashboardProps {
   className?: string;
