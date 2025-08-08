@@ -11,7 +11,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
   return (
     <div className={`eligibility-dashboard ${className}`}>
       <Card className="p-6">
-        <Heading variant="h2" className="mb-4">
+        <Heading variant="h2" className="mb-4 text-accent-primary">
           Eligibility Dashboard
         </Heading>
         <div className="mt-6">
