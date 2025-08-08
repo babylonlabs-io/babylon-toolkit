@@ -21,6 +21,7 @@ interface Props {
   placeholder?: string;
   displayBalance?: boolean;
   balanceDetails?: BalanceDetails;
+  prefix?: string;
   min?: string;
   step?: string;
   autoFocus?: boolean;
@@ -33,6 +34,7 @@ export const AmountSubsection = ({
   displayBalance,
   placeholder = "Enter Amount",
   balanceDetails,
+  prefix,
   min = "0",
   step = "any",
   autoFocus = true,
@@ -59,7 +61,13 @@ export const AmountSubsection = ({
     }
   };
 
-  const subtitle = `Stakable: ${maxDecimals(Number(balanceDetails?.balance), balanceDetails?.decimals ?? BTC_DECIMAL_PLACES)} ${balanceDetails?.symbol}`;
+  let subtitle: string | undefined;
+  if (balanceDetails) {
+    subtitle = `${maxDecimals(Number(balanceDetails.balance), balanceDetails.decimals ?? BTC_DECIMAL_PLACES)} ${balanceDetails.symbol}`;
+    if (prefix) {
+      subtitle = `${prefix}: ${subtitle}`;
+    }
+  }
 
   return (
     <>
