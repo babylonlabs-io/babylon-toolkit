@@ -7,7 +7,7 @@
     "lint": "nx run-many --target=lint --all --verbose",
     "nx:sync": "nx sync",
     "prepare": "husky",
-    "ci:release": "tsx ./scripts/release"
+    "ci:release": "node ./tools/release"
   },
   "private": true,
   "devDependencies": {
