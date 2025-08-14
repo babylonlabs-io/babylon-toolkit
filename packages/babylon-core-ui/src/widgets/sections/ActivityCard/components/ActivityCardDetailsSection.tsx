@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ActivityCardDetailItem, ActivityListItemData } from "../ActivityCard";
 import { ActivityListItem } from "./ActivityListItem";
+import { CollapseIcon, OpenIcon } from "../../../../components/Icons";
 
 interface ActivityCardDetailsSectionProps {
   details: ActivityCardDetailItem[];
@@ -38,11 +39,11 @@ function DetailRow({ label, value, collapsible = false, nestedDetails }: DetailR
               className="w-5 h-5 flex-shrink-0 hover:opacity-70 transition-opacity"
               aria-label={isExpanded ? "Collapse" : "Expand"}
             >
-              <img
-                src={isExpanded ? "/images/status/collapse.svg" : "/images/status/open.svg"}
-                alt={isExpanded ? "Collapse" : "Expand"}
-                className="w-full h-full"
-              />
+              {isExpanded ? (
+                <CollapseIcon size={20} variant="secondary" />
+              ) : (
+                <OpenIcon size={20} variant="secondary" />
+              )}
             </button>
           </div>
           <span className="text-xs sm:text-sm text-accent-primary font-medium text-right min-w-0 overflow-x-auto whitespace-nowrap">

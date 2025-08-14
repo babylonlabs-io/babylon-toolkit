@@ -14,7 +14,7 @@ export interface IconProps extends BaseIconProps {
 export const iconColorVariants = {
   default: "text-accent-primary",
   primary: "text-primary-light",
-  secondary: "text-accent-secondary", 
+  secondary: "text-accent-secondary",
   error: "text-error-main",
   success: "text-success-main",
   "accent-primary": "text-accent-primary",
@@ -32,3 +32,5 @@ export { UsingInscriptionIcon } from "./wallet/UsingInscriptionIcon";
 export { CopyIcon } from "./common/CopyIcon";
 export { CloseIcon } from "./common/CloseIcon";
 export { WarningIcon } from "./common/WarningIcon";
+export { CollapseIcon } from "./common/CollapseIcon";
+export { OpenIcon } from "./common/OpenIcon";

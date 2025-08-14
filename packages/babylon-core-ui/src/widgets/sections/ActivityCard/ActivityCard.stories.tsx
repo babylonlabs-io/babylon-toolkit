@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
 import { ActivityCard } from "./ActivityCard";
+import { WarningIcon } from "../../../components/Icons";
 
 const meta: Meta<typeof ActivityCard> = {
     component: ActivityCard,
@@ -249,7 +250,7 @@ export const ErrorState: Story = {
     args: {
         data: {
             formattedAmount: "0.5 BTC",
-            icon: "/images/status/warning.svg",
+            icon: <WarningIcon size={32} variant="error" />,
             iconAlt: "Warning",
             chainName: "Babylon Labs",
             chainIcon: "https://placehold.co/32x32?text=B",
