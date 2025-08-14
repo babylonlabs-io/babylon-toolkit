@@ -1,3 +1,4 @@
+import { Button } from "../../../components/Button";
 import { ActivityCardActionSection } from "./components/ActivityCardActionSection";
 import { ActivityCardAmountSection } from "./components/ActivityCardAmountSection";
 import { ActivityCardDetailsSection } from "./components/ActivityCardDetailsSection";
@@ -5,6 +6,8 @@ import { ActivityCardDetailsSection } from "./components/ActivityCardDetailsSect
 export interface ActivityCardDetailItem {
   label: string;
   value: string | React.ReactNode;
+  collapsible?: boolean;
+  nestedDetails?: ActivityCardDetailItem[];
 }
 
 export interface ActivityListItemData {
@@ -27,6 +30,9 @@ export interface ActivityCardData {
   formattedAmount: string;
   icon?: string | React.ReactNode;
   iconAlt?: string;
+  chainName?: string;
+  chainIcon?: string | React.ReactNode;
+  chainIconAlt?: string;
   details: ActivityCardDetailItem[];
   optionalDetails?: ActivityCardDetailItem[];
   listItems?: {
@@ -45,23 +51,38 @@ interface ActivityCardProps {
 export function ActivityCard({ data, className }: ActivityCardProps) {
   return (
     <div
-      className={`w-full bg-secondary-highlight p-3 sm:p-4 space-y-3 sm:space-y-4 rounded ${className || ""}`}
+      className={`w-full bg-secondary-highlight p-3 sm:p-4 rounded flex flex-col justify-between ${className || ""}`}
     >
-      <ActivityCardAmountSection
-        formattedAmount={data.formattedAmount}
-        icon={data.icon}
-        iconAlt={data.iconAlt}
-        primaryAction={data.primaryAction}
-      />
+      <div className="space-y-3 sm:space-y-4">
+        <ActivityCardAmountSection
+          formattedAmount={data.formattedAmount}
+          icon={data.icon}
+          iconAlt={data.iconAlt}
+          chainName={data.chainName}
+          chainIcon={data.chainIcon}
+          chainIconAlt={data.chainIconAlt}
+        />
 
-      <ActivityCardDetailsSection
-        details={data.details}
-        optionalDetails={data.optionalDetails}
-        listItems={data.listItems}
-      />
+        <ActivityCardDetailsSection
+          details={data.details}
+          optionalDetails={data.optionalDetails}
+          listItems={data.listItems}
+        />
 
-      {data.secondaryActions && data.secondaryActions.length > 0 && (
-        <ActivityCardActionSection actions={data.secondaryActions} />
+        {data.secondaryActions && data.secondaryActions.length > 0 && (
+          <ActivityCardActionSection actions={data.secondaryActions} />
+        )}
+      </div>
+
+      {data.primaryAction && (
+        <Button
+          variant="outlined"
+          className={`mt-4 ${data.primaryAction.className || ""}`}
+          onClick={data.primaryAction.onClick}
+          fluid={data.primaryAction.fullWidth !== false}
+        >
+          {data.primaryAction.label}
+        </Button>
       )}
     </div>
   );

@@ -1,22 +1,22 @@
-import { Button } from "../../../../components/Button";
-
-import { ActivityCardActionButton } from "../ActivityCard";
-
 interface ActivityCardAmountSectionProps {
   formattedAmount: string;
   icon?: string | React.ReactNode;
   iconAlt?: string;
-  primaryAction?: ActivityCardActionButton;
+  chainName?: string;
+  chainIcon?: string | React.ReactNode;
+  chainIconAlt?: string;
 }
 
 export function ActivityCardAmountSection({
   formattedAmount,
   icon,
   iconAlt,
-  primaryAction,
+  chainName,
+  chainIcon,
+  chainIconAlt,
 }: ActivityCardAmountSectionProps) {
   return (
-    <div className="flex items-center justify-between mb-4 sm:mb-6">
+    <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         {icon &&
           (typeof icon === "string" ? (
@@ -33,15 +33,22 @@ export function ActivityCardAmountSection({
         </span>
       </div>
 
-      {primaryAction && (
-        <Button
-          variant={primaryAction.variant || "contained"}
-          size={primaryAction.size || "small"}
-          className={`sm:bbn-btn-medium ${primaryAction.className || ""}`}
-          onClick={primaryAction.onClick}
-        >
-          {primaryAction.label}
-        </Button>
+      {chainName && (
+        <div className="flex items-center gap-2">
+          <span className="text-base sm:text-lg font-medium text-accent-primary">
+            {chainName}
+          </span>
+          {chainIcon &&
+            (typeof chainIcon === "string" ? (
+              <img
+                src={chainIcon}
+                alt={chainIconAlt || "chain icon"}
+                className="w-6 h-6 sm:w-8 sm:h-8"
+              />
+            ) : (
+              chainIcon
+            ))}
+        </div>
       )}
     </div>
   );
