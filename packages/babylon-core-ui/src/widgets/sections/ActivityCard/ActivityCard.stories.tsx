@@ -261,15 +261,15 @@ export const ErrorState: Story = {
             ],
             secondaryActions: [
                 {
-                    label: "Retry",
-                    onClick: () => alert("Retry clicked"),
-                    variant: "contained",
-                    size: "small",
-                },
-                {
                     label: "Cancel",
                     onClick: () => alert("Cancel clicked"),
                     variant: "outlined",
+                    size: "small",
+                },
+                {
+                    label: "Retry",
+                    onClick: () => alert("Retry clicked"),
+                    variant: "contained",
                     size: "small",
                 },
             ],
