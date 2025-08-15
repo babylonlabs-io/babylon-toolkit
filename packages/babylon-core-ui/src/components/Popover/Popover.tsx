@@ -36,8 +36,12 @@ export function Popover({
   useClickOutside([tooltipRef, anchorEl], onClickOutside, { enabled: open });
 
   return (
-    <Portal mounted={open}>
-      <div ref={setTooltipRef} style={{ ...styles.popper, ...style }} className={twJoin("bbn-popover", className)}>
+    <Portal mounted={open} rootClassName="popover-portal">
+      <div 
+        ref={setTooltipRef} 
+        style={{ ...styles.popper, ...style, pointerEvents: 'auto' }} 
+        className={twJoin("bbn-popover", className)}
+      >
         {children}
       </div>
     </Portal>

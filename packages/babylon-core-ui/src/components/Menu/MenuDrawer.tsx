@@ -1,6 +1,7 @@
 import React from "react";
 import { twJoin } from "tailwind-merge";
 import { Portal } from "../Portal";
+import { useDrawerAnimation } from "@/hooks/useDrawerAnimation";
 
 interface MenuDrawerProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
   showDivider = true,
   onBackdropClick,
 }) => {
+  const { mounted, shouldShowOpen, handleAnimationEnd } = useDrawerAnimation({ isOpen });
 
   const titleAlignment = {
     left: "text-left",
@@ -98,12 +100,12 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
   // For fullHeight drawers (mobile), use Portal to ensure proper theme sync
   if (fullHeight) {
     return (
-      <Portal mounted rootClassName="menu-drawer-portal">
+      <Portal mounted={mounted} rootClassName="menu-drawer-portal">
         {onBackdropClick && (
           <div
             className={twJoin(
               "fixed inset-0 z-40 bg-black/50 transition-opacity duration-300",
-              isOpen ? "opacity-100" : "pointer-events-none opacity-0",
+              shouldShowOpen ? "opacity-100" : "pointer-events-none opacity-0",
             )}
             onClick={onBackdropClick}
           />
@@ -115,9 +117,10 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
             "bg-[#FFFFFF] dark:bg-[#252525]",
             "fixed inset-y-0 right-0 z-50",
             fullWidth ? "w-full" : "w-full max-w-sm",
-            isOpen ? "translate-x-0" : "translate-x-full",
+            shouldShowOpen ? "translate-x-0" : "translate-x-full",
             className,
           )}
+          onTransitionEnd={handleAnimationEnd}
         >
           {renderContent()}
         </div>

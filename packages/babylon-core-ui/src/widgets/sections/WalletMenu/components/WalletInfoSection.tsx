@@ -23,11 +23,11 @@ export const WalletInfoSection: React.FC<WalletInfoSectionProps> = ({
 }) => {
   return (
     <div className={twJoin(
-      "flex items-center justify-between w-full bg-secondary-highlight dark:bg-secondary-strokeLight rounded-[4px] p-3 md:bg-transparent md:dark:bg-transparent md:p-0 md:mb-0",
+      "flex items-center justify-between w-full p-3 md:p-0 md:mb-0",
       className
     )}>
       <div className="flex flex-col w-full">
-        <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-4">
           {icon && (
             <div className="flex-shrink-0">
               {icon}

@@ -1,6 +1,7 @@
 export { useCopy } from './useCopy';
 export type { UseCopyReturn, UseCopyOptions } from './useCopy';
 export { useIsMobile } from './useIsMobile';
+export { useDrawerAnimation } from './useDrawerAnimation';
 export { useClickOutside } from './useClickOutside';
 export { useControlledState } from './useControlledState';
 export { useMemoizedArray } from './useMemoizedArray';
