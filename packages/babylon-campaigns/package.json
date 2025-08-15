@@ -1,5 +1,5 @@
 {
-  "name": "@babylonlabs-io/campaigns",
+  "name": "@babylonlabs-io/babylon-campaigns",
   "version": "0.0.0-semantic-release",
   "type": "module",
   "types": "dist/index.d.ts",
