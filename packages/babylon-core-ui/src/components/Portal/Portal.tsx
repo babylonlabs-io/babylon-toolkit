@@ -23,8 +23,6 @@ export function Portal({
     return rootClassName.includes('popover');
   }, [rootClassName]);
 
-  console.log('shouldDisablePointerEvents', shouldDisablePointerEvents);
-
   // Memoize theme detection logic
   const detectDarkMode = useCallback((): boolean => {
     return document.documentElement.classList.contains("dark") ||
