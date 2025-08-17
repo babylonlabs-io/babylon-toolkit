@@ -6,6 +6,7 @@ import { WalletSettingItem } from "./components/WalletSettingItem";
 import { WalletInfoSection } from "./components/WalletInfoSection";
 import { UsingInscriptionIcon, LinkWalletIcon, BitcoinPublicKeyIcon } from "../../../components/Icons";
 import { useCopy } from "../../../hooks/useCopy";
+import { twJoin } from "tailwind-merge";
 
 export interface WalletMenuProps {
   trigger: React.ReactNode;
@@ -21,6 +22,15 @@ export interface WalletMenuProps {
   onDisconnect: () => void;
   forceOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
+
+  // Optional overrides and configuration
+  className?: string;
+  mobileMode?: "drawer" | "dialog";
+  copy?: {
+    isCopied?: (key: "btc" | "bbn" | "publicKey") => boolean;
+    copyToClipboard?: (key: "btc" | "bbn" | "publicKey", value: string) => void;
+    timeout?: number;
+  };
 }
 
 export const WalletMenu: React.FC<WalletMenuProps> = ({
@@ -37,8 +47,13 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   onDisconnect,
   forceOpen = false,
   onOpenChange,
+  className,
+  mobileMode = "dialog",
+  copy,
 }) => {
-  const { copyToClipboard, isCopied } = useCopy();
+  const { copyToClipboard: internalCopy, isCopied: internalIsCopied } = useCopy({ timeout: copy?.timeout });
+  const isCopied = copy?.isCopied ?? internalIsCopied;
+  const copyToClipboard = copy?.copyToClipboard ?? internalCopy;
   const [isOpen, setIsOpen] = useState(forceOpen);
 
   const handleOpenChange = useCallback((open: boolean) => {
@@ -56,8 +71,11 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
       trigger={trigger}
       open={isOpen}
       onOpenChange={handleOpenChange}
-      mobileMode="dialog"
-      className="shadow-lg border border-[#38708533] bg-[#FFFFFF] dark:bg-[#252525] dark:border-[#404040] rounded-lg"
+      mobileMode={mobileMode}
+      className={twJoin(
+        "shadow-lg border border-[#38708533] bg-[#FFFFFF] dark:bg-[#252525] dark:border-[#404040] rounded-lg",
+        className,
+      )}
     >
       <div className="p-4 space-y-6 w-full text-primary-main">
         <div className="flex flex-row gap-2 w-full md:flex-col overflow-x-auto">
