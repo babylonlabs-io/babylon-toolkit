@@ -99,11 +99,8 @@ export function Portal({
       if (observer) {
         observer.disconnect();
       }
-      try {
-        if (document.body.contains(root)) {
-          document.body.removeChild(root);
-        }
-      } catch {
+      if (document.body.contains(root)) {
+        document.body.removeChild(root);
       }
     };
   }, [mounted, rootClassName, syncTheme, inheritViewport, shouldDisablePointerEvents, syncThemeClass]);

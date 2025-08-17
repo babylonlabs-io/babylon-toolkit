@@ -1,17 +1,21 @@
-import { BaseIconProps } from "../index";
+import { twJoin } from "tailwind-merge";
+import { iconColorVariants, IconProps } from "../index";
 
 export const ChevronLeftIcon = ({
   className = "",
   size = 16,
-}: BaseIconProps) => {
+  variant = "default",
+  color
+}: IconProps) => {
+  const colorClass = color || iconColorVariants[variant];
+
   return (
     <svg
-      width={size}
-      height={size}
+      style={{ width: size, height: size }}
       viewBox="0 0 16 16"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={className}
+      className={twJoin("transition-opacity duration-200", colorClass, className)}
     >
       <path
         d="M10 12L6 8L10 4"
