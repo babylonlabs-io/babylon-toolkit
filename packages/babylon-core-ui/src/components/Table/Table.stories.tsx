@@ -401,7 +401,15 @@ const columnsWithActionPopover: ColumnProps<FinalityProvider>[] = [
             >
               More
             </Button>
-            <Popover open={open} anchorEl={anchorEl} onClickOutside={close} placement="top" offset={[0, 8]}>
+            <Popover 
+              open={open} 
+              anchorEl={anchorEl} 
+              onClickOutside={close} 
+              placement="top" 
+              offset={[0, 8]}
+              closeOnScroll={true}
+              scrollContainerSelector=".bbn-table-wrapper"
+            >
               <div className="min-w-[160px] rounded border border-neutral-200 bg-surface p-2 text-sm shadow-md">
                 <button className="block w-full rounded px-2 py-1 text-left hover:bg-neutral-100" onClick={close}>
                   View details

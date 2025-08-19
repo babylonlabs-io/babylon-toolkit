@@ -1,4 +1,4 @@
-import { type PropsWithChildren, type CSSProperties, useEffect, useState } from "react";
+import { type PropsWithChildren, type CSSProperties, useEffect, useState, useRef } from "react";
 import { twJoin } from "tailwind-merge";
 import { usePopper } from "react-popper";
 import { type Placement } from "@popperjs/core";
@@ -16,6 +16,7 @@ export interface PopoverProps extends PropsWithChildren {
   onClickOutside?: () => void;
   style?: CSSProperties;
   closeOnScroll?: boolean;
+  scrollContainerSelector?: string;
 }
 
 export function Popover({
@@ -28,6 +29,7 @@ export function Popover({
   style,
   onClickOutside,
   closeOnScroll = true,
+  scrollContainerSelector = ".bbn-table-wrapper",
 }: PopoverProps) {
   const [tooltipRef, setTooltipRef] = useState<HTMLElement | null>(null);
   const { styles } = usePopper(anchorEl, tooltipRef, {
@@ -37,22 +39,37 @@ export function Popover({
 
   useClickOutside([tooltipRef, anchorEl], onClickOutside, { enabled: open });
 
+  // Use ref to maintain stable reference to onClickOutside
+  const onClickOutsideRef = useRef(onClickOutside);
+  onClickOutsideRef.current = onClickOutside;
+
   useEffect(() => {
     if (!open || !closeOnScroll) return;
+
     const handleScroll = () => {
-      onClickOutside?.();
+      onClickOutsideRef.current?.();
     };
 
+    // Add window scroll listener
     window.addEventListener("scroll", handleScroll, { passive: true });
 
-    const scrollContainer = anchorEl?.closest?.(".bbn-table-wrapper") as HTMLElement | null;
-    scrollContainer?.addEventListener("scroll", handleScroll, { passive: true });
+    // Add container scroll listener if selector is provided and element exists
+    let scrollContainer: HTMLElement | null = null;
+    if (scrollContainerSelector && anchorEl) {
+      const container = anchorEl.closest(scrollContainerSelector);
+      if (container instanceof HTMLElement) {
+        scrollContainer = container;
+        scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+      }
+    }
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      scrollContainer?.removeEventListener("scroll", handleScroll);
+      if (scrollContainer) {
+        scrollContainer.removeEventListener("scroll", handleScroll);
+      }
     };
-  }, [open, closeOnScroll, anchorEl, onClickOutside]);
+  }, [open, closeOnScroll, anchorEl, scrollContainerSelector]);
 
   return (
     <Portal mounted={open}>
