@@ -263,3 +263,29 @@ export const NoPrefix: Story = {
     ),
   ],
 };
+
+export const RestrictedDecimals: Story = {
+  args: {
+    fieldName: "amount",
+    currencyIcon: "https://placehold.co/40x40/FF6B6B/FFFFFF?text=₿",
+    currencyName: "BTC",
+    placeholder: "Enter BTC amount (max 2 decimals)",
+    prefix: "Available",
+    displayBalance: true,
+    decimals: 2, // Restrict to 2 decimal places
+    balanceDetails: {
+      balance: 1.23456789,
+      symbol: "BTC",
+      price: 65000,
+      displayUSD: true,
+      decimals: 8,
+    },
+  },
+  decorators: [
+    (Story) => (
+      <Form onChange={console.log} schema={schema}>
+        <Story />
+      </Form>
+    ),
+  ],
+};
