@@ -1,15 +1,6 @@
 import type { RequestFn } from "./http";
 
-// Types for the actual response format from LCD endpoints
-export interface PaginatedResponse<T> {
-  pagination: {
-    nextKey: string | null;
-    total: string;
-  };
-  [key: string]: T[] | any; // The actual data array will be under a key like 'validators', 'delegations', etc.
-}
-
-// Types for the generated protobuf pagination (for reference)
+const DEFAULT_PAGINATION_LIMIT = 100;
 export interface PageRequest {
   key: Uint8Array;
   offset: number;
@@ -72,7 +63,7 @@ export async function fetchAllPages<T>(
 ): Promise<T[]> {
   const allData: T[] = [];
   let nextKey: string | null = options.key || null;
-  const limit = options.limit || 100; // Default limit
+  const limit = options.limit || DEFAULT_PAGINATION_LIMIT;
   
   do {
     const params = buildPaginationParams({
@@ -81,8 +72,8 @@ export async function fetchAllPages<T>(
       key: nextKey || undefined,
     });
     
-    const response = await request(endpoint, params) as PaginatedResponse<T>;
-    const data = response[dataKey] as T[];
+    const response = await request(endpoint, params);
+    const data = response[dataKey];
     
     if (data && Array.isArray(data)) {
       allData.push(...data);
@@ -103,8 +94,8 @@ export async function fetchPage<T>(
 ): Promise<PaginatedResult<T>> {
   const params = buildPaginationParams(options);
   
-  const response = await request(endpoint, params) as PaginatedResponse<T>;
-  const data = response[dataKey] as T[];
+  const response = await request(endpoint, params);
+  const data = response[dataKey];
   
   return {
     data: data || [],

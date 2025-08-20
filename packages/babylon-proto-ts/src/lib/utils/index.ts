@@ -4,9 +4,7 @@ import { createRegistry } from "./registry";
 import { babyToUbbn, ubbnToBaby } from './baby';
 import { 
   fetchAllPages, 
-  buildPaginationParams,
-  type PaginationOptions,
-  type PaginatedResponse
+  buildPaginationParams
 } from "./pagination";
 
 export default {
@@ -19,6 +17,4 @@ export default {
   // Pagination utilities
   fetchAllPages,
   buildPaginationParams,
-  PaginationOptions,
-  PaginatedResponse,
 };

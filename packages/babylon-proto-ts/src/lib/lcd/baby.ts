@@ -93,7 +93,7 @@ const createBabylonClient = ({ request }: Dependencies) => ({
         epochBoundary: parseInt(epoch_boundary, 10),
         currentEpoch: parseInt(current_epoch, 10),
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       throw new Error(`Failed to fetch current epoch`, {
         cause: error,
       });
