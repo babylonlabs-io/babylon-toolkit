@@ -52,11 +52,20 @@ export const AmountSubsection = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
     
-    // If decimals is specified, restrict input to that many decimal places
-    if (decimals !== undefined && value.includes('.')) {
-      const parts = value.split('.');
-      if (parts.length === 2 && parts[1].length > decimals) {
-        value = parts[0] + '.' + parts[1].slice(0, decimals);
+    // If decimals is specified, validate and restrict input
+    if (decimals !== undefined && decimals >= 0) {
+      // Handle multiple decimal points by taking only the first one
+      const [integer, decimal] = value.split('.', 2);
+      
+      if (decimal !== undefined && decimal.length > decimals) {
+        // Truncate decimal part to specified length
+        value = integer + '.' + decimal.slice(0, decimals);
+      } else if (decimal !== undefined) {
+        // Ensure we only have one decimal point
+        value = integer + '.' + decimal;
+      } else if (value.includes('.')) {
+        // Handle case where there are multiple dots but no decimal part
+        value = integer;
       }
     }
     
