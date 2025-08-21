@@ -1,0 +1,11 @@
+.bbn-subsection {
+  @apply flex rounded p-4 text-accent-primary;
+}
+
+.bbn-subsection-contained {
+  @apply bg-secondary-highlight;
+}
+
+.bbn-subsection-outlined {
+  @apply border border-current;
+}
