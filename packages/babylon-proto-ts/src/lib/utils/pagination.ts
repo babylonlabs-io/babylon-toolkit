@@ -1,25 +1,11 @@
 import type { RequestFn } from "./http";
 
 const DEFAULT_PAGINATION_LIMIT = 100;
-export interface PageRequest {
-  key: Uint8Array;
-  offset: number;
-  limit: number;
-  countTotal: boolean;
-  reverse: boolean;
-}
-
-export interface PageResponse {
-  nextKey: Uint8Array;
-  total: number;
-}
 
 // Options for paginated requests
 export interface PaginationOptions {
   limit?: number;
   key?: string;
-  countTotal?: boolean;
-  reverse?: boolean;
 }
 
 // Result of a paginated request
@@ -36,19 +22,11 @@ export function buildPaginationParams(options: PaginationOptions = {}): Record<s
   const params: Record<string, string> = {};
   
   if (options.limit !== undefined) {
-    params.limit = options.limit.toString();
+    params['pagination.limit'] = options.limit.toString();
   }
   
   if (options.key !== undefined && options.key !== '') {
-    params.key = options.key;
-  }
-  
-  if (options.countTotal !== undefined) {
-    params.count_total = options.countTotal.toString();
-  }
-  
-  if (options.reverse !== undefined) {
-    params.reverse = options.reverse.toString();
+    params['pagination.key'] = options.key;
   }
   
   return params;
