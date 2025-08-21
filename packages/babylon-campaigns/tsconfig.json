@@ -1,7 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "files": [],
-  "references": [{ "path": "./tsconfig.lib.json" }, { "path": "./tsconfig.node.json" }],
+  "references": [
+    {
+      "path": "../babylon-core-ui"
+    },
+    {
+      "path": "./tsconfig.lib.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ],
   "compilerOptions": {
     "declaration": true
   }
