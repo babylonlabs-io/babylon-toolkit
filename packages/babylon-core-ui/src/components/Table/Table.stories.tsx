@@ -5,6 +5,8 @@ import { ColumnProps, Table } from ".";
 import { Avatar } from "../Avatar";
 import { Select } from "../Form";
 import { Button } from "../Button";
+import { Popover } from "../Popover";
+import type { MouseEvent } from "react";
 
 const meta: Meta<typeof Table> = {
   component: Table,
@@ -295,21 +297,145 @@ export const ControlledSelection: Story = {
           placeholder="Select a provider"
         />
 
-        <div className="h-[150px]">
-          <Table
-            data={data}
-            columns={columns}
-            selectedRow={selectedId}
-            onSelectedRowChange={setSelectedId}
-            onRowSelect={handleRowSelect}
-          />
-        </div>
+        <Table
+          wrapperClassName="h-[150px]"
+          data={data}
+          columns={columns}
+          selectedRow={selectedId}
+          onSelectedRowChange={setSelectedId}
+          onRowSelect={handleRowSelect}
+        />
 
         {selectedProvider && (
           <div className="rounded bg-primary-contrast p-4">
             Selected Provider: {selectedProvider.name} (Commission: {selectedProvider.commission}%)
           </div>
         )}
+      </div>
+    );
+  },
+};
+
+const columnsWithActionPopover: ColumnProps<FinalityProvider>[] = [
+  {
+    key: "name",
+    header: "Finality Provider",
+    frozen: "left",
+    render: (value, row) => {
+      void value;
+      void row;
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar size="small" url={row.icon} alt={row.name} />
+          <span>{row.name}</span>
+        </div>
+      );
+    },
+    sorter: (a, b) => a.name.localeCompare(b.name),
+  },
+  { key: "status", header: "Status" },
+  { key: "btcPk", header: "BTC PK" },
+  {
+    key: "totalDelegation",
+    header: "Total Delegation",
+    render: (value, row) => {
+      void value;
+      void row;
+      return `${row.totalDelegation} sBTC`;
+    },
+    sorter: (a, b) => a.totalDelegation - b.totalDelegation,
+  },
+  {
+    key: "commission",
+    header: "Commission",
+    render: (value, row) => {
+      void value;
+      void row;
+      return `${row.commission}%`;
+    },
+    sorter: (a, b) => a.commission - b.commission,
+  },
+  {
+    key: "actions",
+    header: "Actions",
+    frozen: "right",
+    render: () => {
+      function ActionsCell() {
+        const [open, setOpen] = useState(false);
+        const [anchorEl, setAnchorEl] = useState<Element | null>(null);
+
+        const toggle = (e: MouseEvent<HTMLButtonElement>) => {
+          setAnchorEl(e.currentTarget);
+          setOpen((prev) => !prev);
+        };
+
+        const close = () => setOpen(false);
+
+        return (
+          <div className="flex gap-2">
+            <Button
+              size="small"
+              variant="contained"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              Delegate
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            >
+              Unbond
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggle(e);
+              }}
+            >
+              More
+            </Button>
+            <Popover open={open} anchorEl={anchorEl} onClickOutside={close} placement="top" offset={[0, 8]}>
+              <div className="min-w-[160px] rounded border border-neutral-200 bg-surface p-2 text-sm shadow-md">
+                <button className="block w-full rounded px-2 py-1 text-left hover:bg-neutral-100" onClick={close}>
+                  View details
+                </button>
+                <button className="block w-full rounded px-2 py-1 text-left hover:bg-neutral-100" onClick={close}>
+                  Edit
+                </button>
+                <button className="block w-full rounded px-2 py-1 text-left text-danger-main hover:bg-neutral-100" onClick={close}>
+                  Remove
+                </button>
+              </div>
+            </Popover>
+          </div>
+        );
+      }
+
+      return <ActionsCell />;
+    },
+  },
+];
+
+export const ActionsPopover: Story = {
+  render: () => {
+    return (
+      <div className="space-y-4">
+        <Table
+          wrapperClassName="h-[220px]"
+          data={data}
+          columns={columnsWithActionPopover}
+          defaultSelectedRow="1"
+        />
+        <div className="text-accent-secondary">
+          Click "More" in the Actions column. The popover uses a portal with high z-index so it should not be clipped by the table's overflow.
+        </div>
       </div>
     );
   },
