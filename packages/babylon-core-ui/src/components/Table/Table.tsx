@@ -16,6 +16,7 @@ function TableBase<T extends TableData>(
     columns,
     className,
     wrapperClassName,
+    fluid = false,
     hasMore = false,
     loading = false,
     onLoadMore,
@@ -64,21 +65,25 @@ function TableBase<T extends TableData>(
     [sortedData, columns, sortStates, handleColumnSort, handleRowSelect],
   );
 
+  const isHeadVisible = useMemo(() => {
+    return columns.some((column) => column.header && column.header !== '');
+  }, [columns]);
+
   return (
     <TableContext.Provider value={contextValue as TableContextType<unknown>}>
-      <div ref={tableRef} className={twJoin("bbn-table-wrapper", wrapperClassName)}>
-        <table className={twJoin("bbn-table", className)} {...restProps}>
-          <thead className={twJoin("bbn-table-header", isScrolledTop && "scrolled-top")}>
+      <div ref={tableRef} className={twJoin("bbn-table-wrapper", fluid && "bbn-table-wrapper-fluid", wrapperClassName)}>
+        <table className={twJoin("bbn-table", fluid && "bbn-table-fluid", className)} {...restProps}>
+          <thead className={twJoin("bbn-table-header", isScrolledTop && "scrolled-top", !isHeadVisible && "hidden")}>
             <tr>
               {columns.map((column) => (
-                <Column 
-                  key={column.key} 
-                  className={column.headerClassName} 
-                  name={column.key} 
+                <Column
+                  key={column.key}
+                  className={column.headerClassName}
+                  name={column.key}
                   sorter={column.sorter}
                   frozen={column.frozen}
                   showFrozenShadow={
-                    (column.frozen === 'left' && isLeftScrolled) || 
+                    (column.frozen === 'left' && isLeftScrolled) ||
                     (column.frozen === 'right' && isRightScrolled)
                   }
                 >
