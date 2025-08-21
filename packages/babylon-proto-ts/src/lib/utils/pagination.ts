@@ -80,9 +80,9 @@ export async function fetchAllPages<T>(
     }
 
     const newNextKey = response.pagination?.nextKey;
-    nextKey = newNextKey ? newNextKey : null;
+    nextKey = newNextKey && newNextKey !== '' ? newNextKey : null;
 
-    if (data && Array.isArray(data) && data.length === 0) {
+    if (data && data.length === 0 && nextKey === null) {  
       break;
     } 
   } while (nextKey !== null);
