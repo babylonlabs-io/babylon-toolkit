@@ -21,6 +21,7 @@ export interface AccordionProps {
   onChange?: (expanded: boolean) => void;
   className?: string;
   disabled?: boolean;
+  fluid?: boolean;
 }
 
 export function Accordion({
@@ -29,6 +30,7 @@ export function Accordion({
   onChange,
   className,
   disabled = false,
+  fluid = false,
   children,
 }: PropsWithChildren<AccordionProps>) {
   const [expanded = false, setExpanded] = useControlledState({
@@ -53,7 +55,7 @@ export function Accordion({
 
   return (
     <Context.Provider value={context}>
-      <div className={twJoin("bbn-accordion", disabled && "bbn-accordion-disabled", className)}>{children}</div>
+      <div className={twJoin("bbn-accordion", disabled && "bbn-accordion-disabled", fluid && "bbn-accordion-fluid", className)}>{children}</div>
     </Context.Provider>
   );
 }

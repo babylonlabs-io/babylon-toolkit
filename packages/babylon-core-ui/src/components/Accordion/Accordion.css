@@ -1,6 +1,10 @@
 .bbn-accordion {
   @apply transition-opacity;
 
+  &-fluid {
+    @apply w-full;
+  }
+
   &-summary {
     @apply text-accent-primary relative cursor-pointer pr-10 transition-colors;
   }
