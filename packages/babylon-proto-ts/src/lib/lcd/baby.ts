@@ -99,6 +99,23 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       });
     }
   },
+
+  async getValidatorSet(epoch: number): Promise<{
+    addr: string;
+    power: string;
+  }[]> {
+    try {
+      return await fetchAllPages(
+        request,
+        `/babylon/epoching/v1/epochs/${epoch}/validator_set`,
+        "validators",
+      );
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch validator set for epoch ${epoch}`, {
+        cause: error,
+      });
+    }
+  },
 });
 
 export default createBabylonClient;
