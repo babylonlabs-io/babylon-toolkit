@@ -1,5 +1,5 @@
 .bbn-btn-icon {
-  @apply inline-flex items-center justify-center rounded border border-current transition-all duration-200;
+  @apply inline-flex items-center justify-center rounded transition-all duration-200;
 }
 
 .bbn-btn-icon-small {
@@ -19,4 +19,5 @@
 }
 
 .bbn-btn-icon-outlined {
+  @apply border border-current;
 }
