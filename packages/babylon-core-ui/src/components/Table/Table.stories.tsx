@@ -314,3 +314,23 @@ export const ControlledSelection: Story = {
     );
   },
 };
+
+export const HeaderVisibility: Story = {
+  render: () => {
+    const noHeaderColumns = columns.map((col) => ({ ...col, header: "" }));
+
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <div>With header</div>
+          <Table data={data} columns={columns} />
+        </div>
+
+        <div className="space-y-2">
+          <div>Without header (hidden)</div>
+          <Table data={data} columns={noHeaderColumns} />
+        </div>
+      </div>
+    );
+  },
+};
