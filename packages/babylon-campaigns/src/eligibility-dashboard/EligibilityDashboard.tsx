@@ -106,7 +106,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
     <div className={`eligibility-dashboard ${className}`}>
       <Card className="flex w-full flex-col content-center justify-between">
         <div className="flex flex-col gap-6 mb-10">
-          <Heading variant="h5" className="">
+          <Heading variant="h5" className="text-accent-primary">
             Multi-Staking Eligibility
           </Heading>
 
@@ -120,7 +120,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
           </SubSection>
         </div>
         <div className="flex flex-col gap-2 mb-10">
-          <Heading variant="h6" className="">
+          <Heading variant="h6" className="text-accent-primary">
             Your Eligibility
           </Heading>
           <List orientation="horizontal">
@@ -137,7 +137,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
         </div>
 
         <SubSection className="mb-10" variant="outlined">
-          <Accordion fluid className="b-text-primary">
+          <Accordion fluid>
             <AccordionSummary
               className="b-p-2"
               renderIcon={expanded => (expanded ? <AiOutlineMinus /> : <AiOutlinePlus />)}
@@ -145,7 +145,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
                 size: "small",
               }}
             >
-              <Heading variant="h6">
+              <Heading variant="h6" className="text-accent-primary">
                 BTC Stakes Eligibility Overview
               </Heading>
             </AccordionSummary>
@@ -159,7 +159,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
         </SubSection>
 
         <div className="flex flex-col gap-2 mb-4">
-          <Heading variant="h6" className="">
+          <Heading variant="h6" className="text-accent-primary">
             Projected Multi-staking Eligibility
           </Heading>
           <Table fluid data={multiStakingEligibilityRows} columns={multiStakingEligibilityColumns} />
