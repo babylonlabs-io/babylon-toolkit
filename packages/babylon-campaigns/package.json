@@ -85,6 +85,7 @@
     ]
   },
   "dependencies": {
-    "@babylonlabs-io/core-ui": "*"
+    "@babylonlabs-io/core-ui": "*",
+    "react-icons": "^5.0.0"
   }
 }
