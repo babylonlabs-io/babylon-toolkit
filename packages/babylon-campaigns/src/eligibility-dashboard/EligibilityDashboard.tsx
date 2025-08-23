@@ -166,7 +166,7 @@ export const EligibilityDashboard: React.FC<EligibilityDashboardProps> = ({
         </div>
 
         <div className="mt-6">
-          <Button onClick={() => { }} fluid>
+          <Button onClick={() => { window.location.href = "/baby"; }} fluid>
             Stake More BABY To Boost Your Eligibility
           </Button>
         </div>
