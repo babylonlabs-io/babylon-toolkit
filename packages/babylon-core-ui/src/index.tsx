@@ -56,3 +56,5 @@ export * from "./components/ListLegacy";
 
 export { ScrollLocker } from "./context/Dialog.context";
 export { useFormContext, useFormState, useWatch } from "react-hook-form";
+
+export * from "./providers/CoreUIProvider";

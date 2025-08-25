@@ -34,3 +34,5 @@ export { CloseIcon } from "./common/CloseIcon";
 export { WarningIcon } from "./common/WarningIcon";
 export { CollapseIcon } from "./common/CollapseIcon";
 export { OpenIcon } from "./common/OpenIcon";
+export { ChevronLeftIcon } from "./common/ChevronLeftIcon";
+export { BugReportIcon } from "./common/BugReportIcon";
