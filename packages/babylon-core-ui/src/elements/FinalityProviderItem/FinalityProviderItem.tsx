@@ -1,7 +1,8 @@
 import { Avatar } from "../../components/Avatar";
 import { Text } from "../../components/Text";
-import { CloseIcon } from "../../components/Icons";
+import { CloseIcon, CopyIcon } from "../../components/Icons";
 import { FinalityProviderLogo } from "../FinalityProviderLogo/FinalityProviderLogo";
+import { Copy } from "../../components/Copy";
 
 interface ProviderDescription {
   moniker?: string;
@@ -60,7 +61,12 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
 
     if (address) {
       return (
-        <div className="text-xs text-accent-secondary">{shortenAddress(address)}</div>
+        <div className="flex items-center gap-1 text-xs text-accent-secondary">
+          {shortenAddress(address)}
+          <Copy value={address} className="cursor-pointer" copiedText="✓">
+            <CopyIcon size={12} />
+          </Copy>
+        </div>
       );
     }
 
