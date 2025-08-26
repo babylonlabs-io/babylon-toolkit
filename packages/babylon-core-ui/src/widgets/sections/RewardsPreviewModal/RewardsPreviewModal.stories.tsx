@@ -31,26 +31,36 @@ export const Default: Story = {
         processing: false,
         onClose: () => { },
         onProceed: () => { },
-        bsns: [
+        tokens: [
             {
                 icon: <PlaceholderIcon text="B1" bgColor="bg-black" />,
-                name: "Token 1",
+                name: "Babylon Genesis",
+                amount: {
+                    token: "1000 BABY",
+                    usd: "~ $5,677.39 USD",
+                },
             },
             {
-                icon: <PlaceholderIcon text="B2" bgColor="bg-black" />,
-                name: "Token 2",
+                icon: <PlaceholderIcon text="C" bgColor="bg-blue-500" />,
+                name: "Cosmos",
+                amount: {
+                    token: "500 ATOM",
+                    usd: "~ $2,621.78 USD",
+                },
+            },
+            {
+                name: "Sui",
+                amount: {
+                    token: "100 SUI",
+                    usd: "~ $399.79 USD",
+                },
             },
         ],
-        amount: {
-            token: "100.000 BABY",
-            usd: "$6,677.15 USD",
-        },
         transactionFees: {
             token: "10 BABY",
             usd: "$0.56 USD",
         },
-        warning: "Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.",
-        title: "Claim BABY Rewards",
+        title: "Claim Rewards",
     },
 };
 
@@ -60,21 +70,143 @@ export const OneReceivingToken: Story = {
         processing: false,
         onClose: () => { },
         onProceed: () => { },
-        bsns: [
+        tokens: [
             {
                 icon: <PlaceholderIcon text="B1" bgColor="bg-black" />,
-                name: "Token 1",
+                name: "Babylon Genesis",
+                amount: {
+                    token: "1000 BABY",
+                    usd: "~ $5,677.39 USD",
+                },
             },
         ],
-        amount: {
-            token: "100.000 BABY",
-            usd: "$6,677.15 USD",
-        },
         transactionFees: {
             token: "10 BABY",
             usd: "$0.56 USD",
         },
-        warning: "Processing your claim will take approximately 2 blocks to complete. BABY is a test token without any real world value.",
         title: "Claim BABY Rewards",
+    },
+};
+
+export const TokensWithoutIcons: Story = {
+    args: {
+        open: true,
+        processing: false,
+        onClose: () => { },
+        onProceed: () => { },
+        tokens: [
+            {
+                name: "Babylon Genesis",
+                amount: {
+                    token: "1000 BABY",
+                    usd: "~ $5,677.39 USD",
+                },
+            },
+            {
+                name: "Cosmos",
+                amount: {
+                    token: "500 ATOM",
+                    usd: "~ $2,621.78 USD",
+                },
+            },
+        ],
+        transactionFees: {
+            token: "10 BABY",
+            usd: "$0.56 USD",
+        },
+        title: "Claim Rewards - No Icons",
+    },
+};
+
+export const LongTokenList: Story = {
+    args: {
+        open: true,
+        processing: false,
+        onClose: () => { },
+        onProceed: () => { },
+        tokens: [
+            {
+                icon: <PlaceholderIcon text="B" bgColor="bg-black" />,
+                name: "Babylon Genesis",
+                amount: {
+                    token: "1000 BABY",
+                    usd: "~ $5,677.39 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="C" bgColor="bg-blue-500" />,
+                name: "Cosmos",
+                amount: {
+                    token: "500 ATOM",
+                    usd: "~ $2,621.78 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="S" bgColor="bg-green-500" />,
+                name: "Sui",
+                amount: {
+                    token: "100 SUI",
+                    usd: "~ $399.79 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="E" bgColor="bg-purple-500" />,
+                name: "Ethereum",
+                amount: {
+                    token: "2.5 ETH",
+                    usd: "~ $8,250.00 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="B" bgColor="bg-orange-500" />,
+                name: "Bitcoin",
+                amount: {
+                    token: "0.15 BTC",
+                    usd: "~ $6,450.00 USD",
+                },
+            },
+            {
+                name: "Polygon",
+                amount: {
+                    token: "2000 MATIC",
+                    usd: "~ $1,800.00 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="A" bgColor="bg-red-500" />,
+                name: "Avalanche",
+                amount: {
+                    token: "150 AVAX",
+                    usd: "~ $5,250.00 USD",
+                },
+            },
+            {
+                name: "Solana",
+                amount: {
+                    token: "25 SOL",
+                    usd: "~ $2,750.00 USD",
+                },
+            },
+            {
+                icon: <PlaceholderIcon text="D" bgColor="bg-yellow-500" />,
+                name: "Dogecoin",
+                amount: {
+                    token: "10000 DOGE",
+                    usd: "~ $800.00 USD",
+                },
+            },
+            {
+                name: "Cardano",
+                amount: {
+                    token: "5000 ADA",
+                    usd: "~ $2,000.00 USD",
+                },
+            },
+        ],
+        transactionFees: {
+            token: "15 BABY",
+            usd: "$0.84 USD",
+        },
+        title: "Claim Large Rewards - Scrollable List",
     },
 }; 
