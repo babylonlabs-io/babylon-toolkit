@@ -35,16 +35,22 @@ export function Portal({
     root.className = rootClassName;
     
     if (inheritViewport) {
-      const styles = {
-        position: "absolute" as const,
-        top: "0",
-        left: "0", 
-        width: "100vw",
-        height: "100vh",
-        zIndex: "9999",
-        pointerEvents: shouldDisablePointerEvents ? "none" as const : "auto" as const
-      };
-      Object.assign(root.style, styles);
+      if (!rootClassName.includes('popover')) {
+        const styles = {
+          position: "fixed" as const,
+          top: "0",
+          left: "0", 
+          width: "100vw",
+          height: "100vh",
+          zIndex: "9999",
+          pointerEvents: shouldDisablePointerEvents ? "none" as const : "auto" as const
+        };
+        Object.assign(root.style, styles);
+      } else {
+        // For popovers, just set z-index and pointer events
+        root.style.zIndex = "9999";
+        root.style.pointerEvents = shouldDisablePointerEvents ? "none" : "auto";
+      }
     }
     
     const container = portalContainer || document.body;
