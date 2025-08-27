@@ -59,7 +59,7 @@ export const RewardsPreviewModal = ({
                             <div key={`token-${index}`}>
                                 <FeeItem title={token.name} hint={token.amount.usd}>
                                     <div className="flex items-center gap-2">
-                                        {token.icon && token.icon}
+                                        {token.icon}
                                         {token.amount.token}
                                     </div>
                                 </FeeItem>
