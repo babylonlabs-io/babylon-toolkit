@@ -1,4 +1,4 @@
-import { PropsWithChildren, useEffect, useState, useMemo } from "react";
+import { PropsWithChildren, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useCoreUI } from "../../providers/CoreUIProvider";
 
@@ -21,9 +21,7 @@ export function Portal({
   const [rootRef, setRootRef] = useState<HTMLElement | null>(null);
   const { portalContainer } = useCoreUI();
 
-  const shouldDisablePointerEvents = useMemo(() => {
-    return pointerEvents === 'none';
-  }, [pointerEvents]);
+  const shouldDisablePointerEvents = pointerEvents === 'none';
 
   useEffect(() => {
     if (!mounted) {
