@@ -3,6 +3,19 @@ import { MenuItem } from "@/components/Menu/MenuItem";
 import { ChevronRightIcon } from "@/elements/Icons";
 import { SettingMenuDescription } from "./SettingMenuDescription";
 
+interface SettingMenuItemToggleProps {
+  /** Current toggle value */
+  value?: boolean;
+  /** Default toggle value */
+  defaultValue?: boolean;
+  /** Toggle change handler */
+  onChange?: (value: boolean) => void;
+  /** Icon to show when toggle is active */
+  activeIcon?: React.ReactNode;
+  /** Icon to show when toggle is inactive */
+  inactiveIcon?: React.ReactNode;
+}
+
 export interface SettingMenuItemProps {
   /** Icon element */
   icon?: ReactNode;
@@ -16,6 +29,8 @@ export interface SettingMenuItemProps {
   selected?: boolean;
   /** Additional CSS classes */
   className?: string;
+  /** Toggle configuration - when provided, renders a toggle switch as suffix */
+  toggle?: SettingMenuItemToggleProps;
   /** Children (label and description) */
   children: ReactNode;
 }
@@ -27,6 +42,7 @@ export const SettingMenuItem: React.FC<SettingMenuItemProps> = ({
   disabled = false,
   selected = false,
   className = "",
+  toggle,
   children,
 }) => {
   const childrenArray = React.Children.toArray(children);
@@ -38,7 +54,7 @@ export const SettingMenuItem: React.FC<SettingMenuItemProps> = ({
   );
 
   const labelText = typeof label === "string" ? label : "";
-  const defaultSuffix = onClick ? <ChevronRightIcon /> : undefined;
+  const defaultSuffix = onClick && !toggle ? <ChevronRightIcon /> : undefined;
 
   return (
     <MenuItem
@@ -50,6 +66,7 @@ export const SettingMenuItem: React.FC<SettingMenuItemProps> = ({
       selected={selected}
       className={className}
       suffix={suffix || defaultSuffix}
+      toggle={toggle}
     />
   );
 }; 
