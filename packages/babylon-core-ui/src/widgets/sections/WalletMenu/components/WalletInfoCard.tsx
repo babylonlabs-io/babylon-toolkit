@@ -26,7 +26,7 @@ export const WalletInfoCard: React.FC<WalletInfoCardProps> = ({
 }) => {
   return (
     <div className={twJoin(
-      "bg-secondary-highlight dark:bg-secondary-strokeLight rounded-[4px] p-3 flex-1 md:p-4",
+      "bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-[4px] p-3 flex-1 md:p-4",
       className
     )}>
       <div className="flex flex-col w-full">
@@ -64,7 +64,7 @@ export const WalletInfoCard: React.FC<WalletInfoCardProps> = ({
           </div>
           <button
             onClick={onCopy}
-            className="flex-shrink-0 ml-3 p-1 rounded hover:bg-surface-tertiary transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
+            className="flex-shrink-0 ml-3 p-1 rounded hover:bg-[#d7e1e7] dark:hover:bg-[#252525] transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
           >
             <CopyIcon size={14} className="md:w-4 md:h-4" />
           </button>

@@ -11,7 +11,7 @@ export default {
   safelist: [
     // Include theme color classes with proper pattern syntax
     {
-      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success)-(main|light|dark|contrast|highlight|strokeLight|strokeDark)/,
+      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success|neutral)-(main|light|dark|contrast|highlight|strokeLight|strokeDark|100|200)/,
       variants: ['dark', 'hover', 'focus', 'disabled'],
     },
     // Animation patterns
@@ -189,7 +189,6 @@ export default {
   plugins: [
     createThemes({
       light: {
-        current: "currentColor",
         transparent: "transparent",
         surface: "#ffffff",
         accent: {
@@ -237,7 +236,6 @@ export default {
         },
       },
       dark: {
-        current: "currentColor",
         transparent: "transparent",
         surface: "#202020",
         accent: {
