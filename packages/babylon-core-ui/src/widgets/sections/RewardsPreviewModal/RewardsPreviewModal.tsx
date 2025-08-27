@@ -20,7 +20,7 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 interface TokenReward {
     icon?: ReactNode;
     name: string;
-    amount: {
+    amount?: {
         token: string;
         usd: string;
     };
@@ -57,10 +57,10 @@ export const RewardsPreviewModal = ({
                     <div className="max-h-[300px] overflow-y-auto">
                         {tokens.map((token, index) => (
                             <div key={`token-${index}`}>
-                                <FeeItem title={token.name} hint={token.amount.usd}>
+                                <FeeItem title={token.name} hint={token.amount?.usd}>
                                     <div className="flex items-center gap-2">
                                         {token.icon}
-                                        {token.amount.token}
+                                        {token.amount?.token}
                                     </div>
                                 </FeeItem>
                                 {index < tokens.length - 1 && <div className="h-4" />}
