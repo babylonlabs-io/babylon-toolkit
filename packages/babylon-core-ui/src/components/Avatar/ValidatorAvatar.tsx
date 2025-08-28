@@ -15,5 +15,3 @@ export function ValidatorAvatar({ url, name, variant = "rounded", size = "large"
         </Avatar>
     );
 }
-
-
