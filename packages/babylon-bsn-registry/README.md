@@ -11,12 +11,12 @@ npm install @babylonlabs-io/bsn-registry
 ## Usage
 
 ```typescript
-import { 
-  testnetRegistry, 
-  mainnetRegistry, 
+import {
+  testnetRegistry,
+  mainnetRegistry,
   getRegistry,
-  BSNRegistry, 
-  BSNEntry 
+  BSNRegistry,
+  BSNEntry
 } from '@babylonlabs-io/bsn-registry';
 
 // Access testnet BSN entries
@@ -41,7 +41,7 @@ Object.entries(testnetRegistry).forEach(([bsnId, entry]) => {
 ## Data Structure
 
 Each BSN entry contains:
-- `logoUrl`: URL to the BSN's logo image
+- `logoUrl`: URL to the BSN's logo image (GitHub raw URL)
 - `rpcUrl`: RPC endpoint URL for the BSN (environment-specific)
 
 ## Environments
@@ -59,24 +59,31 @@ We welcome contributions to add new BSN entries to the registry! To add a new BS
 
 1. **Register your BSN** with the Babylon node first to get your official BSN ID
 2. **Fork the repository** and create a new branch
-3. **Edit the registry files**: Update both `src/testnet.json` and `src/mainnet.json` to add your BSN entry
-4. **Follow the format**: Each entry should have the following structure:
+3. **Add your icon to the repository**:
+   - Place your logo at `packages/babylon-bsn-registry/images/<your-official-bsn-id>/logo.svg` (preferred) or `logo.png`.
+   - SVG preferred; if PNG, use at least 256x256.
+4. **Edit the registry files**: Update `src/testnet.json` and/or `src/mainnet.json` to add your BSN entry.
+5. **Use GitHub raw URL for logoUrl**:
    ```json
    "your-official-bsn-id": {
-     "logoUrl": "https://your-domain.com/logo.png",
+     "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/your-official-bsn-id/logo.svg",
      "rpcUrl": "https://rpc.your-bsn.com"
    }
    ```
-5. **Use your official BSN ID**: The BSN ID must match exactly what was assigned during Babylon node registration
-6. **Provide environment-specific URLs**: Ensure RPC URLs are correct for each environment
-7. **Submit a Pull Request** with a clear description of the BSN being added
+6. **Use your official BSN ID**: The BSN ID must match exactly what was assigned during Babylon node registration
+7. **Provide environment-specific URLs**: Ensure RPC URLs are correct for each environment
+8. **Run validation** locally before opening a PR:
+   ```bash
+   npm --prefix packages/babylon-bsn-registry run validate-images
+   ```
+9. **Submit a Pull Request** with a clear description of the BSN being added
 
 ### Guidelines
 
-- **BSN ID**: Must be the official BSN ID assigned during Babylon node registration (e.g., `bsn-001`, `bsn-company-name`)
-- **Logo Requirements**: 
-  - Must be a publicly accessible URL
-  - Recommended format: PNG or SVG
-  - Recommended size: 256x256 pixels or larger
-  - Ensure the URL is stable and won't change
-- **RPC URL**: Must be a valid, accessible RPC endpoint (different for testnet/mainnet)
+- **BSN ID**: Must be the official BSN ID assigned during Babylon node registration (e.g., `bsn-001`, `bsn-company-name`).
+- **Logo Requirements**:
+  - Store the image in this repo under `packages/babylon-bsn-registry/images/<bsn-id>/`.
+  - Use `logo.svg` (preferred) or `logo.png`.
+  - PNG should be ≥ 256x256. Keep file size reasonable (< 100KB if possible).
+  - `logoUrl` must use GitHub raw: `https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/<bsn-id>/logo.(svg|png)`.
+- **RPC URL**: Must be a valid, accessible RPC endpoint (different for testnet/mainnet).

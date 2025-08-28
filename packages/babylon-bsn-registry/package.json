@@ -1,13 +1,15 @@
 {
   "name": "@babylonlabs-io/bsn-registry",
   "version": "0.0.0-semantic-release",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
     "prepare": "husky",
     "format": "prettier --check \"src/**/*.ts\"",
-    "format:fix": "prettier --write \"src/**/*.ts\""
+    "format:fix": "prettier --write \"src/**/*.ts\"",
+    "validate-images": "node scripts/validate-images.js"
   },
   "files": [
     "dist",

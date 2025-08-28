@@ -1,6 +1,6 @@
 {
   "bsn-devnet-1": {
-    "logoUrl": "https://cdn.prod.website-files.com/671f8903fede075d021ba774/672814b751b60d8f6206d19b_Orange%20Logo.svg",
+    "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/bsn-devnet-1/logo.svg",
     "rpcUrl": "https://rpc.bsn-devnet.babylonlabs.io/"
   }
 }
