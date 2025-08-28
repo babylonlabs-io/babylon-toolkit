@@ -3,6 +3,7 @@ import { MdOutlineInfo, MdAccountBalanceWallet, MdTrendingUp } from "react-icons
 
 import { List } from "./List";
 import { ListItem } from "./components/ListItem";
+import { StatItem } from "./StatItem";
 
 const meta: Meta<typeof List> = {
   component: List,
@@ -82,5 +83,17 @@ export const SingleItem: Story = {
   args: {
     orientation: "horizontal",
     children: [<ListItem title="Single Entry" value="Only one item in list" suffix={<MdOutlineInfo size={20} />} />],
+  },
+};
+
+export const WithStatItems: Story = {
+  name: "With StatItem examples",
+  args: {
+    orientation: "adaptive",
+    children: [
+      <StatItem title="Total BTC TVL" value="2,345 BTC" tooltip="Total value locked in BTC" />,
+      <StatItem title="BTC Staking APR" value="3.2%" tooltip="Estimated APR" />,
+      <StatItem title="Finality Providers" value="24 Active (30 Total)" />,
+    ],
   },
 };
