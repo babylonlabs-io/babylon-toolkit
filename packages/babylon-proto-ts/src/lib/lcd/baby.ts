@@ -116,6 +116,51 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       });
     }
   },
+
+  async getSigningInfos(): Promise<{ address: string; tombstoned: boolean }[]> {
+    try {
+      const results: { address: string; tombstoned: boolean }[] = [];
+      let nextKey: string | null = null;
+
+      do {
+        const params: Record<string, string> = {};
+        if (nextKey) params["pagination.key"] = nextKey;
+        params["pagination.limit"] = "200";
+
+        const page = await request(
+          "/cosmos/slashing/v1beta1/signing_infos",
+          params,
+        );
+
+        const infos = (page?.signingInfos ?? page?.info ?? []).map((i: any) => ({
+          address: i.address,
+          tombstoned: Boolean(i.tombstoned),
+        }));
+        results.push(...infos);
+        nextKey = page?.pagination?.nextKey ?? null;
+      } while (nextKey);
+
+      return results;
+    } catch (error: unknown) {
+      throw new Error("Failed to fetch signing infos", { cause: error });
+    }
+  },
+
+  async getLatestValidatorSet(): Promise<
+    { address: string; pubKey?: { key?: string } }[]
+  > {
+    try {
+      const validators = await fetchAllPages<any>(
+        request,
+        "/cosmos/base/tendermint/v1beta1/validatorsets/latest",
+        "validators",
+        { limit: 200 },
+      );
+      return validators as { address: string; pubKey?: { key?: string } }[];
+    } catch (error: unknown) {
+      throw new Error("Failed to fetch latest validator set", { cause: error });
+    }
+  },
 });
 
 export default createBabylonClient;
