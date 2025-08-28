@@ -100,47 +100,18 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-  async getValidatorSet(epoch: number): Promise<{
-    addr: string;
-    power: string;
-  }[]> {
-    try {
-      return await fetchAllPages(
-        request,
-        `/babylon/epoching/v1/epochs/${epoch}/validator_set`,
-        "validators",
-      );
-    } catch (error: unknown) {
-      throw new Error(`Failed to fetch validator set for epoch ${epoch}`, {
-        cause: error,
-      });
-    }
-  },
-
   async getSigningInfos(): Promise<{ address: string; tombstoned: boolean }[]> {
     try {
-      const results: { address: string; tombstoned: boolean }[] = [];
-      let nextKey: string | null = null;
-
-      do {
-        const params: Record<string, string> = {};
-        if (nextKey) params["pagination.key"] = nextKey;
-        params["pagination.limit"] = "200";
-
-        const page = await request(
-          "/cosmos/slashing/v1beta1/signing_infos",
-          params,
-        );
-
-        const infos = (page?.signingInfos ?? page?.info ?? []).map((i: any) => ({
-          address: i.address,
-          tombstoned: Boolean(i.tombstoned),
-        }));
-        results.push(...infos);
-        nextKey = page?.pagination?.nextKey ?? null;
-      } while (nextKey);
-
-      return results;
+      const infos = await fetchAllPages<any>(
+        request,
+        "/cosmos/slashing/v1beta1/signing_infos",
+        "info",
+        { limit: 200 },
+      );
+      return infos.map((i: any) => ({
+        address: i.address,
+        tombstoned: Boolean(i.tombstoned),
+      }));
     } catch (error: unknown) {
       throw new Error("Failed to fetch signing infos", { cause: error });
     }
