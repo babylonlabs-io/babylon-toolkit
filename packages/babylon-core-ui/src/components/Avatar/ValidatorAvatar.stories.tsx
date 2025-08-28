@@ -27,5 +27,3 @@ export const Initials: Story = {
         variant: "rounded",
     },
 };
-
-
