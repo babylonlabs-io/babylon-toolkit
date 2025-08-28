@@ -24,4 +24,4 @@ jobs:
         run: npm ci --verbose
 
       - name: Validate BSN registry icons and URLs
-        run: npm --prefix packages/babylon-bsn-registry run validate
+        run: npm --prefix packages/babylon-bsn-registry run validate-images
