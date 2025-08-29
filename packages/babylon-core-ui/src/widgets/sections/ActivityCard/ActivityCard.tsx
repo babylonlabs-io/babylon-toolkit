@@ -4,7 +4,7 @@ import { ActivityCardAmountSection } from "./components/ActivityCardAmountSectio
 import { ActivityCardDetailsSection } from "./components/ActivityCardDetailsSection";
 
 export interface ActivityCardDetailItem {
-  label: string;
+  label: string | React.ReactNode;
   value: string | React.ReactNode;
   collapsible?: boolean;
   nestedDetails?: ActivityCardDetailItem[];
