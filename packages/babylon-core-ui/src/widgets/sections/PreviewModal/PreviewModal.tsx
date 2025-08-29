@@ -53,8 +53,8 @@ interface PreviewModalProps {
    * Labels should match the exact ones defined internally (e.g. "Stake Amount", "Transaction Fees").
    */
   visibleFields?: string[];
-  /** Custom notice text displayed under "Attention!" heading. If not provided, default disclaimers are shown. */
-  attentionText?: string;
+  /** Warning lines rendered under the "Attention!" section. */
+  warnings: string[];
   /** Label for the primary action button; defaults to "Proceed to Signing" */
   proceedLabel?: string;
 }
@@ -68,7 +68,7 @@ export const PreviewModal = ({
   finalityProviders,
   details,
   visibleFields,
-  attentionText,
+  warnings,
   proceedLabel = "Proceed to Signing",
 }: PropsWithChildren<PreviewModalProps>) => {
   const allFields = [
@@ -165,23 +165,11 @@ export const PreviewModal = ({
           <Heading variant="h6" className="text-primary mb-2">
             Attention!
           </Heading>
-          {attentionText ? (
-            <Text variant="body2" className="text-secondary">
-              {attentionText}
+          {warnings.map((line, idx) => (
+            <Text key={idx} variant="body2" className="text-secondary">
+              {line}
             </Text>
-          ) : (
-            <>
-              <Text variant="body2" className="text-secondary">
-                1. No third party possesses your staked BTC. You are the only one who can unbond and withdraw your
-                stake.
-              </Text>
-              <Text variant="body2" className="text-secondary">
-                2. Your stake will first be sent to Babylon Genesis for verification (~20 seconds), then you will be
-                prompted to submit it to the Bitcoin ledger. It will be marked as 'Pending' until it receives 10
-                Bitcoin confirmations.
-              </Text>
-            </>
-          )}
+          ))}
         </div>
       </DialogBody>
       <DialogFooter className="flex flex-col gap-4 pb-8 pt-0 sm:flex-row">

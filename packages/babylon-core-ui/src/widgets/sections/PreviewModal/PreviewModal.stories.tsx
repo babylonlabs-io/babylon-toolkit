@@ -54,6 +54,10 @@ export const Default: Story = {
       unbonding: "~ 1 day",
       unbondingFee: "0 BTC",
     },
+    warnings: [
+      "1. No third party possesses your staked BTC. You are the only one who can unbond and withdraw your stake.",
+      "2. Your stake will first be sent to Babylon Genesis for verification (~20 seconds), then you will be prompted to submit it to the Bitcoin ledger. It will be marked as 'Pending' until it receives 10 Bitcoin confirmations.",
+    ],
   },
 };
 
@@ -82,8 +86,43 @@ export const ValidatorOnly: Story = {
       unbondingFee: "0 BTC",
     },
     visibleFields: ["Stake Amount", "Transaction Fees"],
-    attentionText:
-      "The staking transaction may take up to one (1) hour to process. Funds will not be deducted instantly; a sufficient available balance must be maintained until the transaction is confirmed and the deduction is finalized.",
+    warnings: [
+      "The staking transaction may take up to one (1) hour to process.",
+      "Funds will not be deducted instantly; maintain sufficient balance until confirmed.",
+    ],
     proceedLabel: "Stake",
+  },
+};
+
+export const CustomWarnings: Story = {
+  args: {
+    open: true,
+    processing: false,
+    onClose: () => { },
+    onProceed: () => { },
+    bsns: [
+      {
+        icon: <PlaceholderIcon text="B" bgColor="bg-black" />,
+        name: "Babylon Genesis",
+      },
+    ],
+    finalityProviders: [],
+    details: {
+      stakeAmount: "0.25 BTC",
+      feeRate: "4 sat/vB",
+      transactionFees: "0.00005 BTC",
+      term: {
+        blocks: "40320 blocks",
+        duration: "~ 4 weeks",
+      },
+      unbonding: "~ 1 day",
+      unbondingFee: "0 BTC",
+    },
+    warnings: [
+      "1. Custom line one for this integration.",
+      "2. Second line explaining processing behavior.",
+      "3. Optional extra note about timelock reset in expansions.",
+    ],
+    proceedLabel: "Proceed",
   },
 };
