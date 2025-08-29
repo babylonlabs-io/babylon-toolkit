@@ -2,5 +2,9 @@
   "bsn-devnet-1": {
     "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/bsn-devnet-1/logo.svg",
     "rpcUrl": "https://rpc.bsn-devnet.babylonlabs.io/"
+  },
+  "devnet-12": {
+    "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/devnet-12/logo.svg",
+    "rpcUrl": "https://rpc.devnet.babylonlabs.io/"
   }
 }
