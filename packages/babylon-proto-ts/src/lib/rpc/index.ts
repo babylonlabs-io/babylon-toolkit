@@ -30,7 +30,7 @@ const createRPCClient = async ({ url }: { url: string }) => {
   const distribution = setupDistributionExtension(queryClient).distribution;
 
   return {
-    baby: createBabylonClient({ staking, distribution, bank }),
+    baby: createBabylonClient({ staking, distribution, bank, tmClient }),
     btc: createBTCClient({ incentive, btcLight }),
   };
 };

@@ -1,8 +1,9 @@
-import type {
+import {
   BankExtension,
   DistributionExtension,
   StakingExtension,
 } from "@cosmjs/stargate";
+import { Tendermint34Client } from "@cosmjs/tendermint-rpc";
 import type { DelegationDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/distribution";
 import type {
   DelegationResponse,
@@ -13,12 +14,14 @@ interface Dependencies {
   bank: BankExtension["bank"];
   staking: StakingExtension["staking"];
   distribution: DistributionExtension["distribution"];
+  tmClient: Tendermint34Client;
 }
 
 const createBabylonClient = ({
   staking,
   distribution,
   bank,
+  tmClient,
 }: Dependencies) => ({
   async getDelegations(address: string): Promise<DelegationResponse[]> {
     try {
@@ -77,6 +80,17 @@ const createBabylonClient = ({
       };
     } catch (error: any) {
       throw new Error(`Failed to fetch pool`, {
+        cause: error,
+      });
+    }
+  },
+
+  async getBlockHeight() {
+    try {
+      const status = await tmClient.status();
+      return status.syncInfo.latestBlockHeight;
+    } catch (error) {
+      throw new Error(`Failed to fetch block height`, {
         cause: error,
       });
     }
