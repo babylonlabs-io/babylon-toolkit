@@ -13,7 +13,7 @@ interface ActivityCardDetailsSectionProps {
 }
 
 interface DetailRowProps {
-  label: string;
+  label: string | React.ReactNode;
   value: string | React.ReactNode;
   collapsible?: boolean;
   nestedDetails?: ActivityCardDetailItem[];
