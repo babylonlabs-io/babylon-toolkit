@@ -14,7 +14,7 @@
   }
 
   &-menu {
-    @apply border-secondary-strokeDark/50 bg-surface z-50 max-h-60 overflow-auto rounded border py-1 shadow-lg;
+    @apply border-secondary-strokeDark/50 bg-surface z-[9999] max-h-60 overflow-auto rounded border py-1 shadow-lg;
   }
 
   &-option {

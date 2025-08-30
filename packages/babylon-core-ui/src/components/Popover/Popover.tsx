@@ -37,9 +37,9 @@ export function Popover({
 
   return (
     <Portal mounted={open} rootClassName="popover-portal">
-      <div 
-        ref={setTooltipRef} 
-        style={{ ...styles.popper, ...style, pointerEvents: 'auto' }} 
+      <div
+        ref={setTooltipRef}
+        style={{ ...styles.popper, ...style, pointerEvents: 'auto' }}
         className={twJoin("bbn-popover", className)}
       >
         {children}
