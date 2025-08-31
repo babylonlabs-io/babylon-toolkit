@@ -1,4 +1,5 @@
 import "./index.css";
+import "react-tooltip/dist/react-tooltip.css";
 
 export * from "./components/Accordion";
 export * from "./components/Text";
@@ -24,6 +25,7 @@ export * from "./components/DisplayHash";
 export * from "./components/Copy";
 export * from "./components/Icons";
 export * from "./components/Warning";
+export * from "./components/Hint";
 
 export * from "./hooks";
 

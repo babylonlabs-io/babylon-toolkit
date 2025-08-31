@@ -52,7 +52,6 @@
     "@storybook/addon-essentials": "^8.4.2",
     "@storybook/addon-interactions": "^8.4.2",
     "@storybook/addon-onboarding": "^8.4.2",
-
     "@storybook/blocks": "^8.4.2",
     "@storybook/react": "^8.4.2",
     "@storybook/react-vite": "^8.4.2",
@@ -97,6 +96,7 @@
     "decimal.js-light": "^2.5.1",
     "react-hook-form": "^7.54.0",
     "react-popper": "^2.3.0",
+    "react-tooltip": "^5.29.1",
     "tw-colors": "^3.3.2"
   }
 }

@@ -43,7 +43,7 @@ export const Menu: React.FC<MenuProps> = ({
 
   const onClose = () => setIsOpen(false);
 
-  const menuContent = <div className="relative w-full overflow-hidden">{children}</div>;
+  const menuContent = <div className="relative w-full">{children}</div>;
 
   const triggerElement = trigger || (
     <button className="rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800" onClick={() => setIsOpen(!isOpen)}>

@@ -4,7 +4,7 @@ import { DisplayHash } from '../../../../components/DisplayHash';
 import { CopyIcon } from '../../../../components/Icons';
 import { twJoin } from 'tailwind-merge';
 
-export interface WalletInfoSectionProps {
+export interface WalletMenuInfoItemProps {
   title: string;
   value: string;
   isCopied: boolean;
@@ -13,7 +13,7 @@ export interface WalletInfoSectionProps {
   icon?: React.ReactNode;
 }
 
-export const WalletInfoSection: React.FC<WalletInfoSectionProps> = ({
+export const WalletMenuInfoItem: React.FC<WalletMenuInfoItemProps> = ({
   title,
   value,
   isCopied,

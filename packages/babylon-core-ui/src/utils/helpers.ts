@@ -87,3 +87,47 @@ export const toKebabCase = (str: string): string => {
 
   return result;
 };
+
+/**
+ * Creates a generic balance formatter function for cryptocurrency amounts
+ * @param coinSymbol The symbol of the cryptocurrency (e.g., 'BTC', 'ETH', 'BABY')
+ * @param decimals Number of decimal places to display
+ * @returns A formatter function that takes an amount and returns formatted string
+ */
+export function createBalanceFormatter(coinSymbol: string, decimals: number = 8) {
+  return (amount: number): string => {
+    return `${amount.toLocaleString(undefined, {
+      minimumFractionDigits: Math.min(2, decimals),
+      maximumFractionDigits: decimals,
+    })} ${coinSymbol}`;
+  };
+}
+
+/**
+ * Format balance with fewer decimals for larger amounts, more decimals for smaller amounts
+ * @param amount The amount to format
+ * @param coinSymbol The coin symbol
+ * @returns Formatted balance string
+ */
+export function formatCryptoBalance(amount: number, coinSymbol: string): string {
+  if (amount === 0) return `0 ${coinSymbol}`;
+
+  // For amounts >= 1, show 2-4 decimals
+  if (amount >= 1) {
+    return `${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })} ${coinSymbol}`;
+  }
+
+  // For smaller amounts, show up to 8 decimals but remove trailing zeros
+  const formatted = amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  });
+
+  // Remove trailing zeros after decimal point
+  const trimmed = formatted.replace(/\.?0+$/, '');
+
+  return `${trimmed} ${coinSymbol}`;
+}

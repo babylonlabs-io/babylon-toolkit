@@ -1,9 +1,9 @@
 export { WalletToggle } from './WalletToggle';
-export { WalletSettingItem } from './WalletSettingItem';
-export { WalletInfoCard } from './WalletInfoCard';
-export { WalletInfoSection } from './WalletInfoSection';
+export { WalletMenuSettingItem } from './WalletMenuSettingItem';
+export { WalletMenuCard } from './WalletMenuCard';
+export { WalletMenuInfoItem } from './WalletMenuInfoItem';
 
 export type { WalletToggleProps } from './WalletToggle';
-export type { WalletSettingItemProps } from './WalletSettingItem';
-export type { WalletInfoCardProps } from './WalletInfoCard';
-export type { WalletInfoSectionProps } from './WalletInfoSection';
+export type { WalletMenuSettingItemProps } from './WalletMenuSettingItem';
+export type { WalletMenuCardProps, WalletBalanceData } from './WalletMenuCard';
+export type { WalletMenuInfoItemProps } from './WalletMenuInfoItem';

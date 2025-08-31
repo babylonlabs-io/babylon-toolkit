@@ -27,6 +27,16 @@ const mockWalletData = {
     },
   },
   publicKeyNoCoord: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  btcBalances: {
+    staked: 0.15,
+    stakable: 0.85,
+    available: 1.0,
+    total: 1.05,
+    inscriptions: 0.05,
+  },
+  bbnBalances: {
+    available: 250.5,
+  },
 };
 
 export const Default: Story = {
@@ -34,6 +44,8 @@ export const Default: Story = {
     const [ordinalsExcluded, setOrdinalsExcluded] = useState(false);
     const [linkedDelegationsVisibility, setLinkedDelegationsVisibility] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [balancesLoading, setBalancesLoading] = useState(false);
+    const [hasUnconfirmedTx, setHasUnconfirmedTx] = useState(false);
 
     const trigger = (
       <div className="cursor-pointer">
@@ -54,21 +66,57 @@ export const Default: Story = {
       </div>
     );
 
+    const customFormatBalance = (amount: number, coinSymbol: string) => {
+      return `${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      })} ${coinSymbol}`;
+    };
+
     return (
-      <WalletMenu
-        trigger={trigger}
-        btcAddress={mockWalletData.btcAddress}
-        bbnAddress={mockWalletData.bbnAddress}
-        selectedWallets={mockWalletData.selectedWallets}
-        ordinalsExcluded={ordinalsExcluded}
-        linkedDelegationsVisibility={linkedDelegationsVisibility}
-        onIncludeOrdinals={() => setOrdinalsExcluded(false)}
-        onExcludeOrdinals={() => setOrdinalsExcluded(true)}
-        onDisplayLinkedDelegations={setLinkedDelegationsVisibility}
-        publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
-        onDisconnect={() => console.log("Disconnect wallets")}
-        onOpenChange={setIsMenuOpen}
-      />
+      <div className="space-y-4">
+        <WalletMenu
+          trigger={trigger}
+          btcAddress={mockWalletData.btcAddress}
+          bbnAddress={mockWalletData.bbnAddress}
+          selectedWallets={mockWalletData.selectedWallets}
+          ordinalsExcluded={ordinalsExcluded}
+          linkedDelegationsVisibility={linkedDelegationsVisibility}
+          onIncludeOrdinals={() => setOrdinalsExcluded(false)}
+          onExcludeOrdinals={() => setOrdinalsExcluded(true)}
+          onDisplayLinkedDelegations={setLinkedDelegationsVisibility}
+          publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
+          onDisconnect={() => console.log("Disconnect wallets")}
+          onOpenChange={setIsMenuOpen}
+          btcBalances={mockWalletData.btcBalances}
+          bbnBalances={mockWalletData.bbnBalances}
+          btcCoinSymbol="BTC"
+          bbnCoinSymbol="BABY"
+          balancesLoading={balancesLoading}
+          hasUnconfirmedTransactions={hasUnconfirmedTx}
+          formatBalance={customFormatBalance}
+        />
+        
+        <div className="flex flex-col gap-4 p-4 border border-gray-300 rounded-lg max-w-md">
+          <h4 className="font-semibold">State Controls</h4>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={balancesLoading}
+              onChange={(e) => setBalancesLoading(e.target.checked)}
+            />
+            Loading State
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={hasUnconfirmedTx}
+              onChange={(e) => setHasUnconfirmedTx(e.target.checked)}
+            />
+            Has Unconfirmed Transactions (BTC only)
+          </label>
+        </div>
+      </div>
     );
   },
 };

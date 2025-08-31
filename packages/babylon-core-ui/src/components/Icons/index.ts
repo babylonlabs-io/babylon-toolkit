@@ -37,3 +37,4 @@ export { OpenIcon } from "./common/OpenIcon";
 export { ChevronLeftIcon } from "./common/ChevronLeftIcon";
 export { BugReportIcon } from "./common/BugReportIcon";
 export { ThemeIcon } from "./common/ThemeIcon";
+export { InfoIcon } from "./common/InfoIcon";
