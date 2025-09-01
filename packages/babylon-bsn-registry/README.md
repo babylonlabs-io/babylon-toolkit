@@ -35,8 +35,7 @@ const bsnEntry = registry['bsn-devnet-1'];
 Object.entries(testnetRegistry).forEach(([bsnId, entry]) => {
   console.log(`Testnet BSN ${bsnId}: ${entry.rpcUrl}`);
 });
-
-
+```
 
 ## Data Structure
 
@@ -48,8 +47,6 @@ Each BSN entry contains:
 
 - **Testnet**: Use `testnetRegistry` or `getRegistry('testnet')` for testnet BSNs
 - **Mainnet**: Use `mainnetRegistry` or `getRegistry('mainnet')` for mainnet BSNs
-
-
 
 ## Contributing
 
