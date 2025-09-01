@@ -1,4 +1,4 @@
-import { FeeItem } from "./FeeItem";
+import { FeeItem } from "../../../components/FeeItem/FeeItem";
 import { Button } from "../../../components/Button";
 import { FaPen } from "react-icons/fa6";
 

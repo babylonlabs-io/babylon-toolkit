@@ -1,3 +1,23 @@
 .bbn-btn-icon {
-  @apply inline-flex size-10 items-center justify-center rounded border border-current;
+  @apply inline-flex items-center justify-center rounded transition-all duration-200;
+}
+
+.bbn-btn-icon-small {
+  @apply size-8;
+}
+
+.bbn-btn-icon-medium {
+  @apply size-9;
+}
+
+.bbn-btn-icon-large {
+  @apply size-10;
+}
+
+.bbn-btn-icon-contained {
+  @apply text-accent-contrast bg-primary-light hover:brightness-110 disabled:bg-primary-light/30;
+}
+
+.bbn-btn-icon-outlined {
+  @apply border border-current;
 }

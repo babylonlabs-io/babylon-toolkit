@@ -17,3 +17,51 @@ export const Default: Story = {
     children: <RiCloseLargeLine size={24} />,
   },
 };
+
+export const OutlinedSmall: Story = {
+  args: {
+    size: "small",
+    variant: "outlined",
+    children: <RiCloseLargeLine size={20} />,
+  },
+};
+
+export const OutlinedMedium: Story = {
+  args: {
+    size: "medium",
+    variant: "outlined",
+    children: <RiCloseLargeLine size={22} />,
+  },
+};
+
+export const OutlinedLarge: Story = {
+  args: {
+    size: "large",
+    variant: "outlined",
+    children: <RiCloseLargeLine size={24} />,
+  },
+};
+
+export const ContainedSmall: Story = {
+  args: {
+    size: "small",
+    variant: "contained",
+    children: <RiCloseLargeLine size={20} />,
+  },
+};
+
+export const ContainedMedium: Story = {
+  args: {
+    size: "medium",
+    variant: "contained",
+    children: <RiCloseLargeLine size={22} />,
+  },
+};
+
+export const ContainedLarge: Story = {
+  args: {
+    size: "large",
+    variant: "contained",
+    children: <RiCloseLargeLine size={24} />,
+  },
+};

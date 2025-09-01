@@ -1,4 +1,5 @@
 import "./index.css";
+import "react-tooltip/dist/react-tooltip.css";
 
 export * from "./components/Accordion";
 export * from "./components/Text";
@@ -19,9 +20,12 @@ export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export * from "./components/AmountItem";
 export * from "./components/DisplayHash";
 export * from "./components/Copy";
 export * from "./components/Icons";
+export * from "./components/Warning";
+export * from "./components/Hint";
 
 export * from "./hooks";
 
@@ -34,13 +38,18 @@ export * from "./widgets/form/SelectField";
 export * from "./widgets/form/HiddenField";
 export * from "./widgets/form/hooks";
 export * from "./widgets/sections/TableElement";
+export * from "./widgets/sections/ValidatorSelector";
 
 export * from "./widgets/sections/AmountSubsection";
 export * from "./widgets/sections/FinalityProviderSubsection";
 export * from "./widgets/sections/FeesSection";
 export * from "./widgets/sections/PreviewModal";
+export * from "./widgets/sections/ActivityCard";
+export * from "./widgets/sections/RewardsPreviewModal";
+export * from "./widgets/sections/RewardsSubsection";
 export * from "./widgets/sections/SettingMenu";
 export * from "./widgets/sections/WalletMenu";
+export * from "./widgets/sections/UnbondingModal";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
@@ -49,3 +58,5 @@ export * from "./components/ListLegacy";
 
 export { ScrollLocker } from "./context/Dialog.context";
 export { useFormContext, useFormState, useWatch } from "react-hook-form";
+
+export * from "./providers/CoreUIProvider";

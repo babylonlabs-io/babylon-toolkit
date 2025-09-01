@@ -3,8 +3,93 @@ import { createThemes } from "tw-colors";
 
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./src/**/*.{js,ts,jsx,tsx,css}"],
+  content: [
+    "./src/**/*.{js,ts,jsx,tsx,css}",
+    "./dist/**/*.{js,ts,jsx,tsx}"
+  ],
   darkMode: ["class", '[data-mode="dark"]'],
+  safelist: [
+    // Include theme color classes with proper pattern syntax
+    {
+      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success|neutral)-(main|light|dark|contrast|highlight|strokeLight|strokeDark|100|200)/,
+      variants: ['dark', 'hover', 'focus', 'disabled'],
+    },
+    // Animation patterns
+    {
+      pattern: /animate-(modal|mobile-modal|backdrop)-(in|out)/,
+    },
+    // Common opacity values used
+    {
+      pattern: /opacity-(0|30|100)/,
+      variants: ['dark', 'hover'],
+    },
+    // Transform patterns used in dialogs/drawers
+    {
+      pattern: /-?translate-(x|y)-(0|full|1\/2|1\/4)/,
+    },
+    // Critical dark mode and color classes
+    'dark',
+    'bg-[#FFFFFF]',
+    'dark:bg-[#252525]',
+    'dark:bg-[#404040]',
+    'border-[#38708533]',
+    'dark:border-[#404040]',
+    'bg-black/50',
+    // Essential layout classes
+    'fixed',
+    'absolute',
+    'relative',
+    'z-40',
+    'z-50',
+    'z-[9999]',
+    'inset-0',
+    'inset-x-0',
+    'inset-y-0',
+    'top-0',
+    'right-0',
+    'bottom-0',
+    'left-0',
+    // Essential display/flex
+    'hidden',
+    'block',
+    'flex',
+    'inline-block',
+    'inline-flex',
+    'contents',
+    'items-center',
+    'justify-center',
+    'justify-between',
+    // Essential sizing
+    'w-full',
+    'h-full',
+    'min-w-[294px]',
+    'max-w-sm',
+    'max-h-full',
+    // Essential spacing  
+    'p-4',
+    'px-4',
+    'pb-4',
+    'pt-12',
+    'mt-4',
+    // Essential borders/rounds
+    'border',
+    'rounded',
+    'rounded-lg',
+    'rounded-t-3xl',
+    'rounded-full',
+    // Essential transitions
+    'transition-opacity',
+    'transition-transform',
+    'transition-colors',
+    'duration-300',
+    'duration-500',
+    // Essential utilities
+    'shadow-lg',
+    'pointer-events-none',
+    'pointer-events-auto',
+    'overflow-hidden',
+    'overflow-y-auto',
+  ],
   theme: {
     fontFamily: {
       sans: ["Px Grotesk", ...defaultTheme.fontFamily.sans],
@@ -104,7 +189,6 @@ export default {
   plugins: [
     createThemes({
       light: {
-        current: "currentColor",
         transparent: "transparent",
         surface: "#ffffff",
         accent: {
@@ -152,7 +236,6 @@ export default {
         },
       },
       dark: {
-        current: "currentColor",
         transparent: "transparent",
         surface: "#202020",
         accent: {

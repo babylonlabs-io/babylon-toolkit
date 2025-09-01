@@ -63,27 +63,71 @@ export const maxDecimals = (value: number, maxDecimals: number, rm?: number): nu
 
 
 /**
- * Converts a string to kebab-case (lowercase words separated by hyphens, removing non-alphanumeric characters).
+ * Converts a string to kebab-case for use as unique or semantic keys.
  *
  * @param str The input string to convert.
  * @returns The kebab-case version of the input string.
  */
 export const toKebabCase = (str: string): string => {
-  let result = '';
+  let result = "";
 
   for (let i = 0; i < str.length; i++) {
     const char = str[i].toLowerCase();
 
-    if ((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+    if ((char >= "a" && char <= "z") || (char >= "0" && char <= "9")) {
       result += char;
-    } else if (result.length > 0 && result[result.length - 1] !== '-') {
-      result += '-';
+    } else if (result.length > 0 && result[result.length - 1] !== "-") {
+      result += "-";
     }
   }
 
-  if (result.endsWith('-')) {
+  if (result.endsWith("-")) {
     result = result.slice(0, -1);
   }
 
   return result;
 };
+
+/**
+ * Creates a generic balance formatter function for cryptocurrency amounts
+ * @param coinSymbol The symbol of the cryptocurrency (e.g., 'BTC', 'ETH', 'BABY')
+ * @param decimals Number of decimal places to display
+ * @returns A formatter function that takes an amount and returns formatted string
+ */
+export function createBalanceFormatter(coinSymbol: string, decimals: number = 8) {
+  return (amount: number): string => {
+    return `${amount.toLocaleString(undefined, {
+      minimumFractionDigits: Math.min(2, decimals),
+      maximumFractionDigits: decimals,
+    })} ${coinSymbol}`;
+  };
+}
+
+/**
+ * Format balance with fewer decimals for larger amounts, more decimals for smaller amounts
+ * @param amount The amount to format
+ * @param coinSymbol The coin symbol
+ * @returns Formatted balance string
+ */
+export function formatCryptoBalance(amount: number, coinSymbol: string): string {
+  if (amount === 0) return `0 ${coinSymbol}`;
+
+  // For amounts >= 1, show 2-4 decimals
+  if (amount >= 1) {
+    return `${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 4,
+    })} ${coinSymbol}`;
+  }
+
+  // For smaller amounts, show up to 8 decimals but remove trailing zeros
+  const formatted = amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 8,
+  });
+
+  // Remove trailing zeros after decimal point
+  const trimmed = formatted.replace(/\.?0+$/, '');
+
+  return `${trimmed} ${coinSymbol}`;
+}

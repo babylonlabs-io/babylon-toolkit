@@ -1,3 +1,3 @@
 .bbn-popover {
-  @apply z-50;
+  @apply z-[9999];
 }

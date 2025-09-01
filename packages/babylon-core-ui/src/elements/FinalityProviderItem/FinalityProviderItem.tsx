@@ -1,6 +1,8 @@
 import { Avatar } from "../../components/Avatar";
 import { Text } from "../../components/Text";
+import { CloseIcon, CopyIcon } from "../../components/Icons";
 import { FinalityProviderLogo } from "../FinalityProviderLogo/FinalityProviderLogo";
+import { Copy } from "../../components/Copy";
 
 interface ProviderDescription {
   moniker?: string;
@@ -19,9 +21,14 @@ export interface FinalityProviderItemProps {
   address?: string;
   provider: Provider;
   onRemove?: (id?: string) => void;
+  /**
+   * Controls whether the chain-related information (e.g., address or BSN name/logo) is displayed.
+   * Defaults to `true`.
+   */
+  showChain?: boolean;
 }
 
-export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove }: FinalityProviderItemProps) {
+export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true }: FinalityProviderItemProps) {
   if (!provider) return null;
 
   const renderBsnLogo = () => {
@@ -50,9 +57,16 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
   };
 
   const renderChainOrAddress = () => {
+    if (!showChain) return null;
+
     if (address) {
       return (
-        <div className="text-xs text-accent-secondary">{shortenAddress(address)}</div>
+        <div className="flex items-center gap-1 text-xs text-accent-secondary">
+          {shortenAddress(address)}
+          <Copy value={address} className="cursor-pointer" copiedText="✓">
+            <CopyIcon size={12} />
+          </Copy>
+        </div>
       );
     }
 
@@ -85,9 +99,9 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
       {onRemove ?
         <button
           onClick={() => onRemove(bsnId)}
-          className="ml-[10px] cursor-pointer rounded bg-accent-secondary/20 px-2 py-0.5 text-xs tracking-[0.4px] text-accent-primary"
+          className="ml-[10px] flex items-center justify-center cursor-pointer p-1"
         >
-          Remove
+          <CloseIcon size={12} />
         </button> : null}
     </div>
   );

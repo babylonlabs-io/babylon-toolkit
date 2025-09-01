@@ -19,3 +19,9 @@ export const Default: Story = {
     total: "0.0001",
   },
 };
+
+export const BabylonNetworkFee: Story = {
+  render: () => (
+    <FeesSection bbnFeeAmount={0} bbnCoinSymbol="BABY" bbnFeeAmountHint="$0,00" />
+  ),
+};

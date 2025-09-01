@@ -68,7 +68,7 @@ export const Menu: React.FC<MenuProps> = ({
             open={isOpen}
             onClose={onClose}
             className={twJoin(
-              "relative bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
+              "bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
               className
             )}
           >

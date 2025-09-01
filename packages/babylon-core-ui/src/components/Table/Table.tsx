@@ -1,6 +1,7 @@
 import { useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from "react";
 import { twJoin } from "tailwind-merge";
 import { useTableScroll } from "@/hooks/useTableScroll";
+import { useFrozenColumns } from "@/hooks/useFrozenColumns";
 import { TableContext, TableContextType } from "../../context/Table.context";
 import { Column } from "./components/Column";
 import type { TableData, TableProps } from "./types";
@@ -15,6 +16,7 @@ function TableBase<T extends TableData>(
     columns,
     className,
     wrapperClassName,
+    fluid = false,
     hasMore = false,
     loading = false,
     onLoadMore,
@@ -34,6 +36,7 @@ function TableBase<T extends TableData>(
 
   const { sortStates, handleColumnSort, sortedData } = useTableSort(data, columns);
   const { isScrolledTop } = useTableScroll(tableRef, { onLoadMore, hasMore, loading });
+  const { isLeftScrolled, isRightScrolled } = useFrozenColumns(tableRef);
 
   const [selectedRow, setSelectedRow] = useControlledState<string | number | null>({
     value: selectedRowProp,
@@ -62,14 +65,28 @@ function TableBase<T extends TableData>(
     [sortedData, columns, sortStates, handleColumnSort, handleRowSelect],
   );
 
+  const isHeadVisible = useMemo(() => {
+    return columns.some((column) => column.header && column.header !== '');
+  }, [columns]);
+
   return (
     <TableContext.Provider value={contextValue as TableContextType<unknown>}>
-      <div ref={tableRef} className={twJoin("bbn-table-wrapper", wrapperClassName)}>
-        <table className={twJoin("bbn-table", className)} {...restProps}>
-          <thead className={twJoin("bbn-table-header", isScrolledTop && "scrolled-top")}>
+      <div ref={tableRef} className={twJoin("bbn-table-wrapper", fluid && "bbn-table-wrapper-fluid", wrapperClassName)}>
+        <table className={twJoin("bbn-table", fluid && "bbn-table-fluid", className)} {...restProps}>
+          <thead className={twJoin("bbn-table-header", isScrolledTop && "scrolled-top", !isHeadVisible && "hidden")}>
             <tr>
               {columns.map((column) => (
-                <Column key={column.key} className={column.headerClassName} name={column.key} sorter={column.sorter}>
+                <Column
+                  key={column.key}
+                  className={column.headerClassName}
+                  name={column.key}
+                  sorter={column.sorter}
+                  frozen={column.frozen}
+                  showFrozenShadow={
+                    (column.frozen === 'left' && isLeftScrolled) ||
+                    (column.frozen === 'right' && isRightScrolled)
+                  }
+                >
                   {column.header}
                 </Column>
               ))}
@@ -84,6 +101,8 @@ function TableBase<T extends TableData>(
                 isSelected={selectedRow === row.id}
                 isSelectable={isRowSelectable ? isRowSelectable(row) : true}
                 onSelect={handleRowSelect}
+                isLeftScrolled={isLeftScrolled}
+                isRightScrolled={isRightScrolled}
               />
             ))}
           </tbody>

@@ -27,3 +27,29 @@
     @apply bg-accent-secondary/15;
   }
 }
+
+.react-tooltip {
+  @apply !bg-[#F5F5F5] !text-accent-primary !rounded-md !text-xs !max-w-xs !px-3 !py-2 !opacity-100 !shadow-lg !z-[99999];
+  text-wrap: pretty;
+  max-width: min(280px, 90vw) !important;
+}
+
+/* Dark mode styles using :root selector */
+:root.dark .react-tooltip,
+:root[data-mode="dark"] .react-tooltip {
+  @apply !bg-[#202020];
+}
+
+.react-tooltip.react-tooltip--secondary {
+  @apply !text-accent-secondary;
+}
+
+.react-tooltip-arrow {
+  @apply !text-[#F5F5F5];
+}
+
+/* Dark mode arrow styles */
+:root.dark .react-tooltip-arrow,
+:root[data-mode="dark"] .react-tooltip-arrow {
+  @apply !text-[#202020];
+}

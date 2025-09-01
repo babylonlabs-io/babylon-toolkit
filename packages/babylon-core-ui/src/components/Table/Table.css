@@ -13,6 +13,11 @@
   }
 }
 
+/* Fluid wrapper */
+.bbn-table-wrapper-fluid {
+  @apply w-full;
+}
+
 /* Main table styles */
 .bbn-table {
   @apply border-separate border-spacing-0;
@@ -151,4 +156,47 @@
       @apply text-left;
     }
   }
+
+  /* Frozen column styles */
+  &-frozen {
+    @apply sticky z-20;
+
+    &-left {
+      @apply left-0;
+
+      &.bbn-frozen-shadow {
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+      }
+    }
+
+    &-right {
+      @apply right-0;
+
+      &.bbn-frozen-shadow {
+        box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+      }
+    }
+  }
+
+  /* Ensure frozen cells have solid backgrounds */
+  &-header th.bbn-table-frozen {
+    @apply bg-surface;
+  }
+
+  &-body td.bbn-table-frozen {
+    @apply bg-surface;
+  }
+
+  &-body tr:nth-child(odd) td.bbn-table-frozen {
+    @apply bg-surface;
+  }
+
+  &-body tr:nth-child(even) td.bbn-table-frozen {
+    @apply bg-neutral-100;
+  }
+}
+
+/* Fluid table */
+.bbn-table-fluid {
+  @apply w-full;
 }

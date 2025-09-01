@@ -26,6 +26,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Single Version Policy
+        run: |-
+          # Exit immediately if any command in the script fails
+          set -e
+
+          if npx syncpack list-mismatches; then
+            echo "✅ Dependency versions are aligned"
+          else
+            # Add an annotation to the Checks tab with a helpful hint
+            echo "::error title=Dependency mismatch::Run 'npx syncpack list-mismatches' locally (and 'npx syncpack fix-mismatches' to auto-fix)." >&2
+            exit 1
+          fi
+
       - name: Lint all
         run: npx nx run-many --target=lint --all
 

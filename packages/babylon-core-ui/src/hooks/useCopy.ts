@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface UseCopyReturn {
   isCopied: (id: string) => boolean;
@@ -12,29 +12,38 @@ export interface UseCopyOptions {
 }
 
 export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
-  const { copiedText = 'Copied ✓', timeout = 2000 } = options;
+  const { copiedText: copiedLabel = 'Copied ✓', timeout = 2000 } = options;
 
   const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
-  const [copiedTexts, setCopiedTexts] = useState<Record<string, string>>({});
-
-  const handleCopy = useCallback(
-    (id: string, value: string) => {
-      if (!id || !value) return;
-      
-      // Copy to clipboard using the native API
-      navigator.clipboard.writeText(value)
-      
-      setCopiedStates((prev) => ({ ...prev, [id]: true }));
-      setCopiedTexts((prev) => ({ ...prev, [id]: copiedText }));
-    },
-    [copiedText],
-  );
+  const timersRef = useRef<Record<string, ReturnType<typeof setTimeout> | undefined>>({});
 
   const reset = useCallback((id: string) => {
     if (!id) return;
     setCopiedStates((prev) => ({ ...prev, [id]: false }));
-    setCopiedTexts((prev) => ({ ...prev, [id]: '' }));
   }, []);
+
+  const handleCopy = useCallback(
+    (id: string, value: string) => {
+      if (!id || !value) return;
+
+      void navigator.clipboard.writeText(value).catch(() => {});
+
+      setCopiedStates((prev) => ({ ...prev, [id]: true }));
+
+      const existing = timersRef.current[id];
+      if (existing) clearTimeout(existing);
+
+      if (timeout > 0) {
+        timersRef.current[id] = setTimeout(() => {
+          timersRef.current[id] = undefined;
+          reset(id);
+        }, timeout);
+      }
+    },
+    [timeout, reset],
+  );
+
+  
 
   const isCopied = useCallback(
     (id: string) => {
@@ -45,28 +54,16 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   );
 
   const getText = useCallback(
-    (id: string) => {
-      if (!id) return '';
-      return copiedTexts[id] || '';
-    },
-    [copiedTexts],
+    (id: string) => (id && copiedStates[id] ? copiedLabel : ''),
+    [copiedStates, copiedLabel],
   );
 
   useEffect(() => {
-    const timers: Record<string, NodeJS.Timeout> = {};
-
-    Object.entries(copiedStates).forEach(([id, copied]) => {
-      if (copied) {
-        timers[id] = setTimeout(() => {
-          reset(id);
-        }, timeout);
-      }
-    });
-
     return () => {
-      Object.values(timers).forEach((timer) => clearTimeout(timer));
+      Object.values(timersRef.current).forEach((t) => t && clearTimeout(t));
+      timersRef.current = {};
     };
-  }, [copiedStates, timeout, reset]);
+  }, []);
 
   return {
     isCopied,

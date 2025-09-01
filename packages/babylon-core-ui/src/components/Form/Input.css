@@ -21,6 +21,10 @@
     @apply pointer-events-none opacity-50;
   }
 
+  &.bbn-input-has-suffix {
+    @apply pr-2;
+  }
+
   &-field {
     @apply placeholder-accent-disabled/50 w-full bg-transparent text-sm outline-none;
   }

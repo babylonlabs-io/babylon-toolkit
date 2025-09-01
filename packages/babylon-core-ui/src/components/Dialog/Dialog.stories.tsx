@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { Checkbox } from "@/components/Form";
 import { Text } from "@/components/Text";
 import { Heading } from "@/index";
+import { WarningIcon } from "@/components/Icons";
 
 const meta: Meta<typeof Dialog> = {
   component: Dialog,
@@ -99,7 +100,7 @@ export const NoBackdrop: Story = {
 
         <Dialog {...props} open={visible} hasBackdrop={false}>
           <DialogBody className="flex flex-col items-center pb-8 pt-4 text-primary-dark">
-            <img src="/images/status/warning.svg" alt="Warning" width={88} height={88} />
+            <WarningIcon size={88} variant="default" />
             <Heading variant="h5" className="mt-4">
               Unbonding Error
             </Heading>

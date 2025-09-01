@@ -6,7 +6,21 @@
   }
 
   &-body {
-    @apply custom-scrollbar min-h-0 flex-1 overflow-y-auto;
+    @apply min-h-0 flex-1 overflow-y-auto;
+
+    /* Custom scrollbar styles */
+    &::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply bg-accent-primary/80;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-accent-secondary/15;
+    }
   }
 
   &-header {

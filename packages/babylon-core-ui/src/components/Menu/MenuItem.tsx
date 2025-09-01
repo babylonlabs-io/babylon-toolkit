@@ -2,6 +2,20 @@ import React from "react";
 import { twJoin } from "tailwind-merge";
 
 import { useMenuContext } from "./MenuContext";
+import { Toggle } from "../Toggle/Toggle";
+
+interface MenuItemToggleProps {
+  /** Current toggle value */
+  value?: boolean;
+  /** Default toggle value */
+  defaultValue?: boolean;
+  /** Toggle change handler */
+  onChange?: (value: boolean) => void;
+  /** Icon to show when toggle is active */
+  activeIcon?: React.ReactNode;
+  /** Icon to show when toggle is inactive */
+  inactiveIcon?: React.ReactNode;
+}
 
 interface MenuItemProps {
   /** Leading icon or element */
@@ -24,6 +38,8 @@ interface MenuItemProps {
   selected?: boolean;
   /** Role attribute for accessibility */
   role?: string;
+  /** Toggle configuration - when provided, renders a toggle switch as suffix */
+  toggle?: MenuItemToggleProps;
 }
 
 export const MenuItem: React.FC<MenuItemProps> = ({
@@ -37,19 +53,34 @@ export const MenuItem: React.FC<MenuItemProps> = ({
   suffix,
   selected = false,
   role = "menuitem",
+  toggle,
 }) => {
   const menuContext = useMenuContext();
 
+  const toggleElement = toggle ? (
+    <Toggle
+      value={toggle.value}
+      defaultValue={toggle.defaultValue}
+      onChange={toggle.onChange}
+    />
+  ) : null;
+
+  const finalSuffix = toggleElement || suffix;
+
   const handleClick = () => {
-    if (disabled || !onClick) return;
-    onClick();
-    // Close menu after click unless it has a suffix (indicating a submenu)
-    if (menuContext && !suffix) {
+    if (disabled) return;
+    
+    if (toggleElement) return;
+    
+    if (onClick) {
+      onClick();
+    }
+    
+    if (menuContext && !finalSuffix) {
       menuContext.onClose();
     }
   };
 
-  // If children are provided, render them instead of the default layout
   if (children) {
     return (
       <button
@@ -63,21 +94,20 @@ export const MenuItem: React.FC<MenuItemProps> = ({
   }
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={disabled}
+    <div
       className={twJoin(
         "flex w-full items-center justify-between p-6",
-        "transition-colors hover:bg-accent-secondary/5",
+        "transition-colors",
+        !toggleElement && "cursor-pointer hover:bg-accent-secondary/5", // Only hover if no toggle
         "text-left",
-        "focus:outline-none",
         selected && "bg-accent-secondary/10",
         disabled && "cursor-not-allowed opacity-50",
+        toggleElement && "cursor-default", // Disable pointer cursor when toggle is present
         className,
       )}
       role={role}
       aria-selected={selected}
-      tabIndex={disabled ? -1 : 0}
+      onClick={handleClick}
     >
       <div className="flex items-center gap-3">
         {icon && <div className="flex-shrink-0">{icon}</div>}
@@ -86,7 +116,11 @@ export const MenuItem: React.FC<MenuItemProps> = ({
           {description && <div className="text-xs text-accent-secondary">{description}</div>}
         </div>
       </div>
-      {suffix}
-    </button>
+      {finalSuffix && (
+        <div className="flex-shrink-0">
+          {finalSuffix}
+        </div>
+      )}
+    </div>
   );
 };

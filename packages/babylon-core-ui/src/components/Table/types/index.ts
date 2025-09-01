@@ -7,6 +7,7 @@ export type ColumnProps<T = unknown> = {
   cellClassName?: string;
   render?: (value: unknown, row: T) => ReactNode;
   sorter?: (a: T, b: T) => number;
+  frozen?: 'left' | 'right';
 };
 
 export type TableData = { id: string | number };
@@ -16,6 +17,7 @@ export type TableProps<T extends TableData> = ControlledTableProps & {
   columns: ColumnProps<T>[];
   className?: string;
   wrapperClassName?: string;
+  fluid?: boolean;
   hasMore?: boolean;
   loading?: boolean;
   onLoadMore?: () => void;

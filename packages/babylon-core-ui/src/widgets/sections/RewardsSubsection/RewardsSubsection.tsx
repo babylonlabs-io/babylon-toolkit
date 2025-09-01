@@ -25,9 +25,11 @@ interface Reward {
 
 interface Props {
     rewards: Reward[];
+    onClick?: () => void;
+    disabled?: boolean;
 }
 
-export const RewardsSubsection = ({ rewards }: Props) => {
+export const RewardsSubsection = ({ rewards, onClick, disabled }: Props) => {
     return (
         <SubSection className="flex w-full flex-col content-center justify-between gap-4">
             {rewards.map((reward, index) => {
@@ -58,7 +60,7 @@ export const RewardsSubsection = ({ rewards }: Props) => {
                     />
                 );
             })}
-            <Button>Claim</Button>
+            <Button onClick={onClick} disabled={disabled}>Claim</Button>
         </SubSection>
     );
 };
