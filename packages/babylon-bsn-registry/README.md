@@ -35,7 +35,7 @@ const bsnEntry = registry['bsn-devnet-1'];
 Object.entries(testnetRegistry).forEach(([bsnId, entry]) => {
   console.log(`Testnet BSN ${bsnId}: ${entry.rpcUrl}`);
 });
-
+```
 
 
 ## Data Structure
