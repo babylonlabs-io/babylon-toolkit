@@ -147,18 +147,18 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
           <div className="flex flex-1 flex-col items-start min-w-0">
             <Text
               variant="body1"
-              className="text-accent-primary font-medium !text-[12px]"
+              className="text-accent-primary font-medium text-xs"
             >
               {walletType} Wallet
             </Text>
             <div className="flex items-center gap-1">
               {isCopied ? (
-                <Text className="text-accent-secondary !text-[12px]">
+                <Text className="text-accent-secondary text-xs">
                   Copied ✓
                 </Text>
               ) : (
                 <DisplayHash
-                  className="text-accent-secondary !text-[12px]"
+                  className="text-accent-secondary text-xs"
                   value={address}
                   symbols={6}
                 />
