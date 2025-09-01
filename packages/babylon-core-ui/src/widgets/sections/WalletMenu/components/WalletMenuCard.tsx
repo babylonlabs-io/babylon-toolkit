@@ -69,7 +69,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
     }
 
     if (value === undefined) {
-      return <Text className="text-accent-secondary">N/A</Text>;
+      return <Text className="text-accent-secondary text-sm">N/A</Text>;
     }
 
     return (
@@ -136,49 +136,46 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
       className
     )}>
       <div className="flex flex-col w-full">
-        <div className="flex justify-start mb-2 md:mb-3">
+        <div className="flex items-center gap-2.5 mb-2 md:mb-3">
           <Avatar
             alt={walletName || walletType}
             url={walletIcon || ''}
             size="large"
-            className="w-8 h-8 md:w-10 md:h-10"
+            className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0"
           />
-        </div>
-
-        <div className="flex justify-start mb-[1px]">
-          <Text
-            variant="body1"
-            className="text-accent-secondary font-medium !text-xs"
-          >
-            {walletType} Wallet
-          </Text>
-        </div>
-
-        <div className="flex items-center justify-between w-full">
-          <div className="flex-1 min-w-0">
-            {isCopied ? (
-              <Text className="text-accent-primary !text-sm truncate whitespace-nowrap">
-                Copied ✓
-              </Text>
-            ) : (
-              <DisplayHash
-                className="text-accent-primary !text-sm"
-                value={address}
-                symbols={6}
-              />
-            )}
+          
+          <div className="flex flex-1 flex-col items-start min-w-0">
+            <Text
+              variant="body1"
+              className="text-accent-primary font-medium !text-[12px]"
+            >
+              {walletType} Wallet
+            </Text>
+            <div className="flex items-center gap-1">
+              {isCopied ? (
+                <Text className="text-accent-secondary !text-[12px]">
+                  Copied ✓
+                </Text>
+              ) : (
+                <DisplayHash
+                  className="text-accent-secondary !text-[12px]"
+                  value={address}
+                  symbols={6}
+                />
+              )}
+              <button
+                onClick={onCopy}
+                className="flex-shrink-0 p-1 rounded hover:bg-[#d7e1e7] dark:hover:bg-[#252525] transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
+              >
+                <CopyIcon size={14} className="md:w-4 md:h-4" />
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onCopy}
-            className="flex-shrink-0 ml-3 p-1 rounded hover:bg-[#d7e1e7] dark:hover:bg-[#252525] transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
-          >
-            <CopyIcon size={14} className="md:w-4 md:h-4" />
-          </button>
         </div>
 
         {/* Balance Sections - only show if balances are provided */}
         {balances && coinSymbol && (
-          <div className="mt-3 space-y-2">
+          <div className="space-y-2">
             {walletType === 'Bitcoin' ? renderBitcoinBalances() : renderBabylonBalances()}
           </div>
         )}

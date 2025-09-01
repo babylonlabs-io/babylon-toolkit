@@ -37,7 +37,7 @@ export const WalletMenuInfoItem: React.FC<WalletMenuInfoItemProps> = ({
             <div className="flex flex-col w-full">
               <Text
                 variant="body2"
-                className="text-accent-primary font-medium text-xs"
+                className="text-accent-primary font-medium text-sm"
               >
                 {title}
               </Text>
