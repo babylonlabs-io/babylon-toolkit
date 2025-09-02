@@ -43,7 +43,7 @@ export function Hint({
   className,
   placement = "top",
   tooltipVariant = "primary",
-  offset = [0, 8],
+  offset = [8, 8],
 }: PropsWithChildren<HintProps>) {
   const id = useId();
   const statusColor = STATUS_COLORS[status];
@@ -51,10 +51,24 @@ export function Hint({
   // Create custom middleware for horizontal offset
   const customOffset = {
     name: 'customOffset',
-    fn: ({ x, y }: { x: number; y: number }) => ({
-      x: x + offset[0], // horizontal offset
-      y: y + offset[1], // vertical offset
-    }),
+    fn: ({ x, y, placement }: any) => {
+      let nextX = x;
+      let nextY = y;
+
+      // Apply offsets based on placement direction so that positive offsets
+      // move the tooltip away from the reference element on the main axis
+      if (placement === 'top') {
+        nextY = y - offset[1];
+      } else if (placement === 'bottom') {
+        nextY = y + offset[1];
+      } else if (placement === 'left') {
+        nextX = x - offset[0];
+      } else if (placement === 'right') {
+        nextX = x + offset[0];
+      }
+
+      return { x: nextX, y: nextY };
+    },
   };
 
   if (!tooltip) {
@@ -88,7 +102,6 @@ export function Hint({
           }
           data-tooltip-place={placement}
           data-tooltip-position-strategy="fixed"
-          data-tooltip-offset={0}
           data-tooltip-wrapper="span"
         >
           {children}
@@ -122,7 +135,6 @@ export function Hint({
           }
           data-tooltip-place={placement}
           data-tooltip-position-strategy="fixed"
-          data-tooltip-offset={0}
           data-tooltip-wrapper="span"
         >
           {tooltipIcon}
