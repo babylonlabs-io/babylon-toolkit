@@ -51,7 +51,7 @@ export function Hint({
   // Create custom middleware for horizontal offset
   const customOffset = {
     name: 'customOffset',
-    fn: ({ x, y, placement }: any) => {
+    fn: ({ x, y, placement }: { x: number; y: number; placement: HintProps['placement'] }) => {
       let nextX = x;
       let nextY = y;
 
