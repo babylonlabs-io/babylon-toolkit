@@ -6,5 +6,9 @@
   "devnet-12": {
     "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/devnet-12/logo.svg",
     "rpcUrl": "https://rpc.devnet.babylonlabs.io/"
+  },
+  "bbn-test-5": {
+    "logoUrl": "https://raw.githubusercontent.com/babylonlabs-io/babylon-toolkit/main/packages/babylon-bsn-registry/images/bbn-test-5/logo.svg",
+    "rpcUrl": "https://rpc-dapp.testnet.babylonlabs.io/"
   }
 }
