@@ -22,7 +22,7 @@ const mockWalletData = {
       icon: "/images/wallets/binance.webp",
     },
     BBN: {
-      name: "Binance Wallet", 
+      name: "Binance Wallet",
       icon: "/images/wallets/binance.webp",
     },
   },
@@ -96,7 +96,82 @@ export const Default: Story = {
           hasUnconfirmedTransactions={hasUnconfirmedTx}
           formatBalance={customFormatBalance}
         />
-        
+
+        <div className="flex flex-col gap-4 p-4 border border-gray-300 rounded-lg max-w-md">
+          <h4 className="font-semibold">State Controls</h4>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={balancesLoading}
+              onChange={(e) => setBalancesLoading(e.target.checked)}
+            />
+            Loading State
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={hasUnconfirmedTx}
+              onChange={(e) => setHasUnconfirmedTx(e.target.checked)}
+            />
+            Has Unconfirmed Transactions (BTC only)
+          </label>
+        </div>
+      </div>
+    );
+  },
+};
+
+export const WithoutBitcoin: Story = {
+  render: () => {
+    const [ordinalsExcluded, setOrdinalsExcluded] = useState(false);
+    const [linkedDelegationsVisibility, setLinkedDelegationsVisibility] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [balancesLoading, setBalancesLoading] = useState(false);
+    const [hasUnconfirmedTx, setHasUnconfirmedTx] = useState(false);
+
+    const trigger = (
+      <div className="cursor-pointer">
+        <AvatarGroup max={1} variant="circular">
+          <Avatar
+            alt={mockWalletData.selectedWallets.BBN.name}
+            url={mockWalletData.selectedWallets.BBN.icon}
+            size="large"
+            className={`object-contain bg-accent-contrast box-content ${isMenuOpen ? "outline outline-[2px] outline-accent-primary" : ""}`}
+          />
+        </AvatarGroup>
+      </div>
+    );
+
+    const customFormatBalance = (amount: number, coinSymbol: string) => {
+      return `${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      })} ${coinSymbol}`;
+    };
+
+    return (
+      <div className="space-y-4">
+        <WalletMenu
+          trigger={trigger}
+          btcAddress=""
+          bbnAddress={mockWalletData.bbnAddress}
+          selectedWallets={mockWalletData.selectedWallets}
+          ordinalsExcluded={ordinalsExcluded}
+          linkedDelegationsVisibility={linkedDelegationsVisibility}
+          onIncludeOrdinals={() => setOrdinalsExcluded(false)}
+          onExcludeOrdinals={() => setOrdinalsExcluded(true)}
+          onDisplayLinkedDelegations={setLinkedDelegationsVisibility}
+          publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
+          onDisconnect={() => console.log("Disconnect wallets")}
+          onOpenChange={setIsMenuOpen}
+          bbnBalances={mockWalletData.bbnBalances}
+          btcCoinSymbol="BTC"
+          bbnCoinSymbol="BABY"
+          balancesLoading={balancesLoading}
+          hasUnconfirmedTransactions={hasUnconfirmedTx}
+          formatBalance={customFormatBalance}
+        />
+
         <div className="flex flex-col gap-4 p-4 border border-gray-300 rounded-lg max-w-md">
           <h4 className="font-semibold">State Controls</h4>
           <label className="flex items-center gap-2">

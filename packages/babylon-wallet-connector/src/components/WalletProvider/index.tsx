@@ -19,6 +19,7 @@ interface WalletProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
+  requiredChains?: ("BTC" | "BBN")[];
 }
 
 export function WalletProvider({
@@ -31,6 +32,7 @@ export function WalletProvider({
   context = window,
   onError,
   disabledWallets,
+  requiredChains,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
@@ -44,6 +46,7 @@ export function WalletProvider({
           config={config}
           onError={onError}
           disabledWallets={disabledWallets}
+          requiredChains={requiredChains}
         >
           {children}
           <TomoBTCConnector persistent={persistent} storage={storage} />

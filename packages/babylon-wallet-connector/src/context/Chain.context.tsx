@@ -36,6 +36,7 @@ interface ProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
+  requiredChains?: ("BTC" | "BBN")[];
 }
 
 export interface Connectors {
@@ -58,6 +59,7 @@ export function ChainProvider({
   config,
   onError,
   disabledWallets,
+  requiredChains,
 }: PropsWithChildren<ProviderProps>) {
   const [connectors, setConnectors] = useState(defaultState);
 
@@ -88,10 +90,17 @@ export function ChainProvider({
   }, [setConnectors, init, onError]);
 
   const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
+  const visibleChains = useMemo(
+    () =>
+      requiredChains && requiredChains.length
+        ? supportedChains.filter((chain) => requiredChains.includes(chain!.id as "BTC" | "BBN"))
+        : supportedChains,
+    [supportedChains, requiredChains],
+  );
 
   return (
     <InscriptionProvider context={context}>
-      <StateProvider chains={supportedChains}>
+      <StateProvider chains={visibleChains}>
         <Context.Provider value={connectors}>{children}</Context.Provider>
       </StateProvider>
     </InscriptionProvider>

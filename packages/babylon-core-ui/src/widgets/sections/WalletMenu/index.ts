@@ -1,5 +1,5 @@
 export { WalletMenu } from './WalletMenu';
-export type { WalletMenuProps } from './WalletMenu';
+export type { WalletMenuProps, WalletChain } from './WalletMenu';
 
 export { WalletToggle } from './components';
 export { WalletMenuSettingItem } from './components';
