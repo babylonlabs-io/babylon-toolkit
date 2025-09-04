@@ -39,20 +39,7 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
     return `${value.slice(0, visibleChars)}...${value.slice(-visibleChars)}`;
   };
 
-  const renderChainOrAddress = () => {
-    if (!showChain) return null;
-
-    if (address) {
-      return (
-        <div className="flex items-center gap-1 text-xs text-accent-secondary">
-          {shortenAddress(address)}
-          <Copy value={address} className="cursor-pointer" copiedText="✓">
-            <CopyIcon size={12} />
-          </Copy>
-        </div>
-      );
-    }
-
+  const renderProviderSmall = () => {
     return (
       <div className="flex items-center text-xs text-accent-secondary">
         <FinalityProviderLogo
@@ -62,8 +49,29 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
           size="sm"
           className="mr-1"
         />
-        {bsnName}
+        {provider.description?.moniker}
       </div>
+    );
+  };
+
+  const renderChainOrAddress = () => {
+    if (!showChain) return null;
+
+    if (address) {
+      return (
+        <Text as="div" className="flex items-center gap-1 text-base font-medium text-accent-primary">
+          {shortenAddress(address)}
+          <Copy value={address} className="cursor-pointer" copiedText="✓">
+            <CopyIcon size={12} />
+          </Copy>
+        </Text>
+      );
+    }
+
+    return (
+      <Text as="div" className="text-base font-medium text-accent-primary">
+        {bsnName}
+      </Text>
     );
   };
 
@@ -85,10 +93,8 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
           )}
         </div>
         <div className="flex flex-col justify-center text-accent-primary">
+          {renderProviderSmall()}
           {renderChainOrAddress()}
-          <Text as="div" className="text-base font-medium text-accent-primary">
-            {provider.description?.moniker}
-          </Text>
         </div>
       </div>
       {onRemove ?
