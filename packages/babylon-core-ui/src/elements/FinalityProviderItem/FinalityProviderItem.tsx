@@ -31,24 +31,7 @@ export interface FinalityProviderItemProps {
 export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true }: FinalityProviderItemProps) {
   if (!provider) return null;
 
-  const renderBsnLogo = () => {
-    if (bsnLogoUrl) {
-      return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="tiny" className="mr-1" />;
-    }
-
-    const placeholderLetter = bsnName?.charAt(0).toUpperCase() || "?";
-
-    return (
-      <Avatar variant="rounded" size="tiny" className="mr-1">
-        <Text
-          as="span"
-          className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
-        >
-          {placeholderLetter}
-        </Text>
-      </Avatar>
-    );
-  };
+  const bsnPlaceholderLetter = bsnName?.charAt(0).toUpperCase() || "?";
 
   const shortenAddress = (value: string): string => {
     const visibleChars = 6;
@@ -72,7 +55,13 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
 
     return (
       <div className="flex items-center text-xs text-accent-secondary">
-        {renderBsnLogo()}
+        <FinalityProviderLogo
+          logoUrl={provider.logo_url}
+          rank={provider.rank}
+          moniker={provider.description?.moniker}
+          size="sm"
+          className="mr-1"
+        />
         {bsnName}
       </div>
     );
@@ -82,12 +71,18 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
     <div className="flex flex-row items-center justify-between">
       <div className="flex h-10 flex-row gap-2">
         <div className="shrink-0">
-          <FinalityProviderLogo
-            logoUrl={provider.logo_url}
-            rank={provider.rank}
-            moniker={provider.description?.moniker}
-            size="lg"
-          />
+          {bsnLogoUrl ? (
+            <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="large" />
+          ) : (
+            <Avatar variant="rounded" size="large">
+              <Text
+                as="span"
+                className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
+              >
+                {bsnPlaceholderLetter}
+              </Text>
+            </Avatar>
+          )}
         </div>
         <div className="flex flex-col justify-center text-accent-primary">
           {renderChainOrAddress()}
