@@ -1,12 +1,20 @@
 .bbn-select {
-  @apply border-secondary-strokeDark/50 bg-surface text-accent-secondary relative flex w-full cursor-pointer items-center justify-between rounded border px-4 py-2 text-sm outline-none transition-all;
+  @apply border-secondary-strokeDark/50 bg-surface text-accent-secondary relative flex w-full cursor-pointer items-center rounded border px-4 py-2 text-sm outline-none transition-all;
 
   &:focus-visible {
     @apply border-secondary-strokeDark;
   }
 
+  &-text-container {
+    @apply flex-grow min-w-0 mr-2;
+  }
+
+  &-text {
+    @apply block truncate;
+  }
+
   &-icon {
-    @apply text-secondary-strokeDark ml-2 transition-transform;
+    @apply text-secondary-strokeDark flex-shrink-0 transition-transform;
 
     &-open {
       @apply rotate-180;

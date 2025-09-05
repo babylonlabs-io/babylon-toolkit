@@ -73,6 +73,15 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
     useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(ref, () => anchorEl.current, []);
     const { width } = useResizeObserver(anchorEl.current);
 
+    const getTooltipText = (option: Option | undefined): string => {
+      if (!option) return placeholder || "";
+      const rendered = renderSelectedOption(option);
+      
+      if (typeof rendered === "string") return rendered;
+      
+      return option.label;
+    };
+
     const [isOpen, setIsOpen] = useControlledState({
       value: open,
       defaultValue: defaultOpen,
@@ -117,7 +126,14 @@ export const Select = forwardRef<HTMLDivElement, SelectProps>(
           tabIndex={disabled ? -1 : 0}
           {...props}
         >
-          <span>{selectedOption ? renderSelectedOption(selectedOption) : placeholder}</span>
+          <div className="bbn-select-text-container">
+            <span 
+              className="bbn-select-text"
+              title={getTooltipText(selectedOption)}
+            >
+              {selectedOption ? renderSelectedOption(selectedOption) : placeholder}
+            </span>
+          </div>
           <RiArrowDownSLine className={twJoin("bbn-select-icon", isOpen && "bbn-select-icon-open")} size={20} />
         </div>
 
