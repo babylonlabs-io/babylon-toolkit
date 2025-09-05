@@ -84,7 +84,7 @@ export const ValidatorSelector = ({
     }, [validators, searchTerm]);
 
     return (
-        <ResponsiveDialog open={open} onClose={onClose}>
+        <ResponsiveDialog open={open} onClose={onClose} className="w-[52rem]">
             <DialogHeader title={title} onClose={onClose} className="text-accent-primary" />
             <DialogBody
                 style={{ maxHeight: MAX_WINDOW_HEIGHT }}
