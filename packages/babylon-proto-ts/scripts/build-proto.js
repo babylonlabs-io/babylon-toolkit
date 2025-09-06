@@ -1,5 +1,5 @@
 // scripts/build-proto.js
-const shell = require("shelljs");
+import shell from 'shelljs';
 
 const BABYLON_REPO_URL = "https://github.com/babylonlabs-io/babylon.git";
 const BABYLON_REPO_DIR = "babylon";

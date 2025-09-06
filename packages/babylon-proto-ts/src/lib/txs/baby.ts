@@ -1,4 +1,4 @@
-import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
+import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx.js";
 
 import { REGISTRY_TYPE_URLS } from "../../constants";
 import * as epochingtx from "../../generated/babylon/epoching/v1/tx";

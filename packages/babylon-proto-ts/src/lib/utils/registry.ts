@@ -1,5 +1,5 @@
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
-import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
+import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx.js";
 
 import { REGISTRY_TYPE_URLS } from "../../constants";
 import * as btcstakingtx from "../../generated/babylon/btcstaking/v1/tx";
