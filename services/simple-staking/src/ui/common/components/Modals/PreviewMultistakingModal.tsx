@@ -60,14 +60,14 @@ export const PreviewMultistakingModal = ({
         onClose={onClose}
         className="text-accent-primary"
       />
-      <DialogBody className="flex flex-col mb-8 mt-4 text-accent-primary gap-4 overflow-y-auto no-scrollbar max-h-[calc(100vh-12rem)]">
+      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto text-accent-primary">
         <Card className="p-4 pt-2">
           <div className="flex flex-col">
             {bsns.length > 1 && (
-              <div className="grid grid-cols-2 gap-4 items-center mb-2">
+              <div className="mb-2 grid grid-cols-2 items-center gap-4">
                 <Text
                   variant="caption"
-                  className="text-secondary text-left ml-4"
+                  className="text-secondary ml-4 text-left"
                 >
                   BSNs
                 </Text>
@@ -76,17 +76,17 @@ export const PreviewMultistakingModal = ({
                 </Text>
               </div>
             )}
-            <div className="bg-primary-contrast rounded p-4 max-h-48 overflow-y-auto">
+            <div className="max-h-48 overflow-y-auto rounded bg-primary-contrast p-4">
               <div className="flex flex-col gap-2">
                 {bsns.map((bsnItem, index) => {
                   const fpItem = finalityProviders[index];
                   return (
                     <div
                       key={`pair-${index}`}
-                      className="grid grid-cols-2 gap-4 items-center"
+                      className="grid grid-cols-2 items-center gap-4"
                     >
                       <div
-                        className={`flex items-center justify-start gap-2 w-full py-1 ${
+                        className={`flex w-full items-center justify-start gap-2 py-1 ${
                           bsnItem.isExisting ? "opacity-50" : ""
                         }`}
                       >
@@ -96,7 +96,7 @@ export const PreviewMultistakingModal = ({
                         </Text>
                       </div>
                       <div
-                        className={`flex items-center justify-start gap-2 w-full py-1 ${
+                        className={`flex w-full items-center justify-start gap-2 py-1 ${
                           fpItem?.isExisting ? "opacity-50" : ""
                         }`}
                       >
@@ -129,9 +129,9 @@ export const PreviewMultistakingModal = ({
           ))}
         </div>
 
-        <div className="border-t border-divider w-full" />
+        <div className="border-divider w-full border-t" />
 
-        <div className="pt-2 gap-2 flex flex-col">
+        <div className="flex flex-col gap-2 pt-2">
           <Text variant="body1" className="text-secondary">
             Attention!
           </Text>

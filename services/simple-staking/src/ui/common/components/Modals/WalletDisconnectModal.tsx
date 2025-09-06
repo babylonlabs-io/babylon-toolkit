@@ -36,13 +36,13 @@ export const WalletDisconnectModal = ({
 
   return (
     <ResponsiveDialog open={isOpen} onClose={onClose}>
-      <DialogBody className="flex flex-col pb-8 pt-4 text-accent-primary items-center">
-        <div className="bg-primary-contrast relative w-[5.5rem] h-[5.5rem]">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+      <DialogBody className="flex flex-col items-center pb-8 pt-4 text-accent-primary">
+        <div className="relative h-[5.5rem] w-[5.5rem] bg-primary-contrast">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <MdCancel className="text-primary-light" size={52} />
           </div>
         </div>
-        <Heading variant="h4" className="mt-6 mb-4">
+        <Heading variant="h4" className="mb-4 mt-6">
           Disconnect Wallets
         </Heading>
         <Text variant="body1" className="text-center">

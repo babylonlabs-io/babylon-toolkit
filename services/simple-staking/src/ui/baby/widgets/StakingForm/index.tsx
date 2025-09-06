@@ -28,7 +28,7 @@ export default function StakingForm() {
   return (
     <Form
       schema={formSchema}
-      className="flex flex-col gap-2 h-[500px]"
+      className="flex h-[500px] flex-col gap-2"
       onSubmit={handlePreview}
     >
       <AmountField balance={balance} price={babyPrice} />

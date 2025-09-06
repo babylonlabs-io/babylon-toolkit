@@ -71,7 +71,7 @@ export const FinalityProviderTable = ({ selectedFP, onSelectRow }: Props) => {
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4 w-full h-[500px] overflow-scroll">
+    <div className="grid h-[500px] w-full grid-cols-2 gap-4 overflow-scroll">
       {finalityProviders.map((fp) => {
         const isSelected = selectedFP === fp.btcPk;
         const isSelectable = isRowSelectable(fp);

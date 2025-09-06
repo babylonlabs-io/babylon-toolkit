@@ -50,7 +50,7 @@ export default defineConfig({
   plugins: [
     react(),
     tsconfigPaths({
-      projects: [ resolve(__dirname, './tsconfig.lib.json')]
+      projects: [resolve(__dirname, "./tsconfig.lib.json")],
     }),
     nodePolyfills({ include: ["buffer", "crypto"] }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),

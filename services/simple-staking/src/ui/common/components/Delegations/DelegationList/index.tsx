@@ -118,7 +118,7 @@ export function DelegationList() {
 
   return (
     <Card>
-      <Heading variant="h6" className="text-accent-primary py-2 mb-6">
+      <Heading variant="h6" className="mb-6 py-2 text-accent-primary">
         {networkConfig.bbn.networkFullName} Stakes
       </Heading>
 

@@ -15,7 +15,7 @@ export const columns: ColumnProps<Validator>[] = [
         <Avatar variant="circular" size="small" url="">
           <Text
             as="span"
-            className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] text-accent-contrast uppercase"
+            className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] uppercase text-accent-contrast"
           >
             {row.name.charAt(0)}
           </Text>

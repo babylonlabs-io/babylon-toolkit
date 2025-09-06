@@ -52,7 +52,7 @@ interface ActivityCardProps {
 export function ActivityCard({ data, className }: ActivityCardProps) {
   return (
     <div
-      className={`w-full bg-secondary-highlight p-3 sm:p-4 space-y-3 sm:space-y-4 rounded ${className || ""}`}
+      className={`w-full space-y-3 rounded bg-secondary-highlight p-3 sm:space-y-4 sm:p-4 ${className || ""}`}
     >
       <ActivityCardAmountSection
         formattedAmount={data.formattedAmount}

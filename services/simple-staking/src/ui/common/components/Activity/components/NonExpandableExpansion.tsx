@@ -18,13 +18,13 @@ export function NonExpandableExpansion({
     <div>
       <Card
         className={twMerge(
-          "flex items-center justify-between w-full gap-4 p-4",
+          "flex w-full items-center justify-between gap-4 p-4",
           className,
         )}
       >
         <div className="flex items-center gap-4">
-          <div className="flex flex-col w-full items-start">
-            <Text variant="body1" className="text-accent-primary font-medium">
+          <div className="flex w-full flex-col items-start">
+            <Text variant="body1" className="font-medium text-accent-primary">
               Stake Expansion
             </Text>
           </div>
@@ -43,7 +43,7 @@ export function NonExpandableExpansion({
         anchorEl={anchorRef.current}
         placement="top-end"
         onClickOutside={() => setOpen(false)}
-        className="bg-surface p-4 rounded border border-secondary-strokeLight w-[18rem] shadow-md"
+        className="w-[18rem] rounded border border-secondary-strokeLight bg-surface p-4 shadow-md"
       >
         <Text variant="body2" className="text-accent-primary">
           {STAKE_EXPANSION_MESSAGE}

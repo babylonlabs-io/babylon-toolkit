@@ -20,15 +20,15 @@ export default function GenericError({
   image = BitcoinBlock,
 }: Props) {
   return (
-    <div className="h-full min-h-svh w-full flex flex-col justify-between">
+    <div className="flex h-full min-h-svh w-full flex-col justify-between">
       <SimplifiedHeader isMinimal />
 
-      <Container className="py-12 px-6">
+      <Container className="px-6 py-12">
         <div className="flex flex-col items-center justify-center gap-8">
           <img
             src={image}
             alt="Generic Error"
-            className="w-full h-auto max-w-[120px]"
+            className="h-auto w-full max-w-[120px]"
           />
           <Heading variant="h5" className="text-accent-primary">
             {title}

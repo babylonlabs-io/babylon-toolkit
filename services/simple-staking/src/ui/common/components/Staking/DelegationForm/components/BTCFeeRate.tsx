@@ -90,7 +90,7 @@ export function BTCFeeRate({ defaultRate = 0 }: FeeFiledProps) {
         type="button"
         size="small"
         variant="outlined"
-        className="pl-1 w-6 h-6 text-secondary-strokeDark"
+        className="h-6 w-6 pl-1 text-secondary-strokeDark"
         onClick={() => void setVisibility(true)}
       >
         <FaPen size={16} className="text-secondary-strokeDark" />

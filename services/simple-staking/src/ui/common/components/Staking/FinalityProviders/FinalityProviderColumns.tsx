@@ -27,7 +27,7 @@ export const finalityProviderColumns = [
 
       return (
         <span
-          className="inline-flex gap-2 items-center"
+          className="inline-flex items-center gap-2"
           title={row.description?.moniker}
         >
           <FinalityProviderLogo

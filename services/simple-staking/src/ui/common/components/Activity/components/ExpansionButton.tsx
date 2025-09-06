@@ -23,32 +23,32 @@ export function ExpansionButton({
   return (
     <button
       className={twMerge(
-        "border-0 btn btn-ghost",
-        disabled && "opacity-50 cursor-not-allowed",
+        "btn btn-ghost border-0",
+        disabled && "cursor-not-allowed opacity-50",
         className,
       )}
       onClick={onClick}
       disabled={disabled}
     >
-      <div className="flex items-center justify-between w-full gap-4">
+      <div className="flex w-full items-center justify-between gap-4">
         <ThemedIcon
           variant="primary"
           background
           rounded
           className={twMerge(
-            "w-10 h-10 flex-shrink-0 flex items-center justify-center p-2",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center p-2",
             className,
           )}
         >
-          <img src={Icon} alt={text} className="w-8 h-8" />
+          <img src={Icon} alt={text} className="h-8 w-8" />
         </ThemedIcon>
-        <div className="flex flex-col w-full items-start">
+        <div className="flex w-full flex-col items-start">
           <span className="text-sm text-accent-primary">{text}</span>
           {counter && <span className="text-xs">{counter}</span>}
         </div>
         <MdKeyboardArrowDown
           size={24}
-          className="transform -rotate-90 text-current"
+          className="-rotate-90 transform text-current"
         />
       </div>
     </button>

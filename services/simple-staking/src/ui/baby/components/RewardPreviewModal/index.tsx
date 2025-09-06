@@ -101,7 +101,7 @@ export const RewardsPreviewModal = ({
 
           <Text variant="body1" className="flex justify-between">
             <span>Transaction Fees</span>
-            <span className="flex flex-col gap-2 items-end">
+            <span className="flex flex-col items-end gap-2">
               {feeLoading ? (
                 <Text variant="body2">Calculating...</Text>
               ) : (

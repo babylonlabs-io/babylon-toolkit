@@ -20,11 +20,11 @@ export const SettingMenuButton = forwardRef<
         props.onClick?.(e);
       }}
       className={twJoin(
-        "flex items-center justify-center w-10 h-10 p-1 border-secondary-contrast text-secondary-contrast",
+        "flex h-10 w-10 items-center justify-center border-secondary-contrast p-1 text-secondary-contrast",
         className,
       )}
     >
-      <img src={cogIcon} alt="Settings" className="w-8 h-8" />
+      <img src={cogIcon} alt="Settings" className="h-8 w-8" />
     </button>
   );
 });

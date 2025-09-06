@@ -8,7 +8,7 @@ export function ConnectButton() {
   const { blocked: isGeoBlocked } = useStakingState();
 
   return (
-    <Button onClick={open} className={"w-full mt-2"} disabled={isGeoBlocked}>
+    <Button onClick={open} className={"mt-2 w-full"} disabled={isGeoBlocked}>
       Connect Wallet
     </Button>
   );

@@ -12,11 +12,11 @@ export const SimplifiedHeader = ({
     <nav className="w-full">
       <section
         className={twJoin(
-          "bg-primary-main w-full",
+          "w-full bg-primary-main",
           isMinimal ? "h-[84px]" : "h-[300px]",
         )}
       >
-        <Container className="h-20 p-6 flex items-center justify-between">
+        <Container className="flex h-20 items-center justify-between p-6">
           <Logo />
         </Container>
       </section>

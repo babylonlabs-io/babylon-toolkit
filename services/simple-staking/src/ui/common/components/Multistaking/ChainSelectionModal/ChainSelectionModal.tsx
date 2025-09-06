@@ -39,10 +39,10 @@ const ChainButton = ({
     disabled={disabled}
     as="button"
     className={twMerge(
-      "bg-secondary-highlight w-full py-[14px] px-6 pl-[14px] rounded border",
+      "w-full rounded border bg-secondary-highlight px-6 py-[14px] pl-[14px]",
       selected ? "border-[#CE6533]" : "border-transparent",
       disabled
-        ? "opacity-50 pointer-events-none cursor-default"
+        ? "pointer-events-none cursor-default opacity-50"
         : "cursor-pointer",
       className,
     )}
@@ -54,7 +54,7 @@ const ChainButton = ({
           <img
             src={logo}
             alt="bitcoin"
-            className="max-w-[40px] max-h-[40px] mr-2 rounded-full"
+            className="mr-2 max-h-[40px] max-w-[40px] rounded-full"
           />
         )}
         {title}
@@ -104,12 +104,12 @@ export const ChainSelectionModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col mb-4 mt-4 text-accent-primary">
+      <DialogBody className="mb-4 mt-4 flex flex-col text-accent-primary">
         <div>
           Bitcoin Supercharged Networks (BSNs) are Proof-of-Stake systems
           secured by Bitcoin staking. Select a network to delegate your stake.
         </div>
-        <div className="overflow-y-auto max-h-[350px] flex flex-col gap-2 mt-10">
+        <div className="mt-10 flex max-h-[350px] flex-col gap-2 overflow-y-auto">
           {loading && <div>Loading...</div>}
           {babylonBsn && (
             <ChainButton
@@ -132,7 +132,7 @@ export const ChainSelectionModal = ({
           ))}
         </div>
         {!isBabylonSelected && (
-          <SubSection className="text-base text-[#387085] gap-3 flex-row mt-4 rounded">
+          <SubSection className="mt-4 flex-row gap-3 rounded text-base text-[#387085]">
             <div>
               <MdOutlineInfo size={22} />
             </div>

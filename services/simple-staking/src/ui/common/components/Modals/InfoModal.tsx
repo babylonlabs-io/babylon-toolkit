@@ -36,8 +36,8 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
         onClose={onClose}
         className="text-accent-primary"
       />
-      <DialogBody className="flex flex-col pb-8 pt-4 text-accent-primary gap-4">
-        <div className="py-4 flex flex-col items-start gap-4">
+      <DialogBody className="flex flex-col gap-4 pb-8 pt-4 text-accent-primary">
+        <div className="flex flex-col items-start gap-4 py-4">
           <Text variant="body1">
             Stakes made through this dashboard are locked for up to{" "}
             {maxStakingPeriod}. You can on-demand unbond at any time, with
@@ -45,7 +45,7 @@ export function InfoModal({ open, onClose }: InfoModalProps) {
             the maximum staking period expires, your stake becomes withdrawable
             automatically, with no need for prior unbonding.
           </Text>
-          <Text variant="body1" className="text-accent-secondary italic">
+          <Text variant="body1" className="italic text-accent-secondary">
             Note: Timeframes are approximate, based on an average {coinName}{" "}
             block time of 10 minutes.
           </Text>

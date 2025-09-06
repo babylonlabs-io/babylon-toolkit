@@ -138,7 +138,7 @@ export function BabyActivityList() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-8">
+      <div className="flex items-center justify-center py-8">
         <div className="text-accent-secondary">Loading delegations...</div>
       </div>
     );
@@ -146,7 +146,7 @@ export function BabyActivityList() {
 
   if (activityItems.length === 0) {
     return (
-      <div className="flex flex-col pb-16 pt-6 text-accent-primary gap-4 text-center items-center justify-center">
+      <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
         <h4 className="text-xl font-semibold">No BABY Stakes</h4>
         <p className="text-base">
           No activity found. Start by staking some BABY tokens.

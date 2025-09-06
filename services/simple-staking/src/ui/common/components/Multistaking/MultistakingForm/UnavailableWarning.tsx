@@ -9,7 +9,7 @@ export function UnavailableWarning() {
   // If allow list is active, show warning about multi-staking being unavailable
   if (isMultiStakingAllowListInForce) {
     return (
-      <div className="flex items-center text-sm gap-2">
+      <div className="flex items-center gap-2 text-sm">
         <WarningIcon variant="accent-primary" size={14} />
         <Text variant="body2" className="text-accent-primary">
           {STAKE_EXPANSION_MESSAGE}

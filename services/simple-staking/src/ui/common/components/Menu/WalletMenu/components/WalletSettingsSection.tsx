@@ -32,19 +32,19 @@ export const WalletSettingsSection = ({
   };
 
   return (
-    <div className="flex flex-col gap-8 w-full">
+    <div className="flex w-full flex-col gap-8">
       {/* Using Inscriptions Toggle */}
-      <div className="flex items-center justify-between w-full">
+      <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-3">
           <UsingInscriptionIcon />
           <div className="flex flex-col">
             <Text
               variant="body1"
-              className="text-accent-primary font-medium text-sm"
+              className="text-sm font-medium text-accent-primary"
             >
               Using Inscriptions
             </Text>
-            <Text variant="body2" className="text-accent-secondary text-xs">
+            <Text variant="body2" className="text-xs text-accent-secondary">
               {ordinalsExcluded ? "Off" : "On"}
             </Text>
           </div>
@@ -58,17 +58,17 @@ export const WalletSettingsSection = ({
       </div>
 
       {/* Linked Wallet Stakes Toggle */}
-      <div className="flex items-center justify-between w-full">
+      <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-3">
           <LinkWalletIcon />
           <div className="flex flex-col">
             <Text
               variant="body1"
-              className="text-accent-primary font-medium text-sm"
+              className="text-sm font-medium text-accent-primary"
             >
               Linked Wallet Stakes
             </Text>
-            <Text variant="body2" className="text-accent-secondary text-xs">
+            <Text variant="body2" className="text-xs text-accent-secondary">
               {linkedDelegationsVisibility ? "On" : "Off"}
             </Text>
           </div>
@@ -80,18 +80,18 @@ export const WalletSettingsSection = ({
       </div>
 
       {/* Bitcoin Public Key */}
-      <div className="flex items-center justify-between w-full">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className="flex w-full items-center justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <BitcoinPublicKeyIcon />
-          <div className="flex flex-col flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 flex-col">
             <Text
               variant="body1"
-              className="text-accent-primary font-medium text-sm"
+              className="text-sm font-medium text-accent-primary"
             >
               Bitcoin Public Key
             </Text>
             <Hash
-              className="text-accent-secondary text-xs"
+              className="text-xs text-accent-secondary"
               value={publicKeyNoCoord}
               address
               noFade
@@ -102,7 +102,7 @@ export const WalletSettingsSection = ({
         </div>
         <button
           onClick={() => copyToClipboard(publicKeyNoCoord)}
-          className="flex-shrink-0 ml-3 p-1 rounded hover:bg-surface-tertiary transition-colors h-6 w-6 flex items-center justify-center hover:opacity-80"
+          className="hover:bg-surface-tertiary ml-3 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded p-1 transition-colors hover:opacity-80"
         >
           <CopyIcon size={16} />
         </button>

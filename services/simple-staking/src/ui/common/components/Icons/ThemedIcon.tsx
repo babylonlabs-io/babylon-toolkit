@@ -40,8 +40,8 @@ export const ThemedIcon = ({
         background && backgroundStyles[variant],
         rounded && "rounded-full",
         background
-          ? "[&_svg]:w-4 [&_svg]:h-4"
-          : "[&_svg]:w-full [&_svg]:h-full",
+          ? "[&_svg]:h-4 [&_svg]:w-4"
+          : "[&_svg]:h-full [&_svg]:w-full",
         "[&_svg_path]:fill-current",
         background && "dark:[&_svg_path]:fill-white",
         variants[variant],

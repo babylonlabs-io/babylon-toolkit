@@ -17,8 +17,8 @@ export const ChainButton = ({
   <div
     className={twMerge(
       provider
-        ? "bg-secondary-highlight w-full py-[14px] px-[14px] rounded"
-        : "bg-secondary-highlight w-full py-[14px] px-[14px] rounded flex items-center justify-between",
+        ? "w-full rounded bg-secondary-highlight px-[14px] py-[14px]"
+        : "flex w-full items-center justify-between rounded bg-secondary-highlight px-[14px] py-[14px]",
       disabled ? "opacity-50" : "",
     )}
   >
@@ -38,7 +38,7 @@ export const ChainButton = ({
             <img
               src={logoUrl}
               alt="chain-logo"
-              className="max-w-[40px] max-h-[40px] mr-2 rounded-full"
+              className="mr-2 max-h-[40px] max-w-[40px] rounded-full"
             />
           )}
           {title}
@@ -50,7 +50,7 @@ export const ChainButton = ({
         variant="outlined"
         disabled={disabled}
         onClick={onSelectFp}
-        className="box-border flex items-center justify-center p-1 w-[86px] h-[28px] border border-secondary-strokeDark rounded text-accent-primary text-sm"
+        className="box-border flex h-[28px] w-[86px] items-center justify-center rounded border border-secondary-strokeDark p-1 text-sm text-accent-primary"
       >
         Select FP
       </Button>

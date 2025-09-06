@@ -107,7 +107,7 @@ export const Connect: React.FC<ConnectProps> = ({
         <Button
           size="large"
           color="secondary"
-          className="h-[2.5rem] min-h-[2.5rem] rounded-full px-6 py-2 text-white text-base md:rounded"
+          className="h-[2.5rem] min-h-[2.5rem] rounded-full px-6 py-2 text-base text-white md:rounded"
           onClick={onConnect}
           disabled={isLoading}
         >
@@ -137,14 +137,14 @@ export const Connect: React.FC<ConnectProps> = ({
     <div className="relative flex flex-row items-center gap-4">
       <WalletMenuContainer
         trigger={
-          <div className="flex flex-row cursor-pointer">
+          <div className="flex cursor-pointer flex-row">
             <AvatarGroup max={2} variant="circular">
               <Avatar
                 alt={selectedWallets["BTC"]?.name}
                 url={selectedWallets["BTC"]?.icon}
                 size="large"
                 className={twMerge(
-                  "object-contain bg-accent-contrast box-content",
+                  "box-content bg-accent-contrast object-contain",
                   isWalletMenuOpen &&
                     "outline outline-[2px] outline-accent-primary",
                 )}
@@ -154,7 +154,7 @@ export const Connect: React.FC<ConnectProps> = ({
                 url={selectedWallets["BBN"]?.icon}
                 size="large"
                 className={twMerge(
-                  "object-contain bg-accent-contrast box-content",
+                  "box-content bg-accent-contrast object-contain",
                   isWalletMenuOpen &&
                     "outline outline-[2px] outline-accent-primary",
                 )}

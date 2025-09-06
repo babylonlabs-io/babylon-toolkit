@@ -59,10 +59,10 @@ export const PreviewModal = ({
       />
       <DialogBody className="no-scrollbar mb-8 mt-4 flex flex-col gap-4 overflow-y-auto text-accent-primary">
         <div className="rounded border border-secondary-strokeLight px-6 pb-6">
-          <Text variant="caption" className="text-accent-secondary p-4">
+          <Text variant="caption" className="p-4 text-accent-secondary">
             Validator
           </Text>
-          <div className="bg-secondary-highlight rounded p-4">
+          <div className="rounded bg-secondary-highlight p-4">
             <ValidatorItem
               logoUrl={validator?.url}
               name={validator?.name}
@@ -111,7 +111,7 @@ export const PreviewModal = ({
           variant="contained"
           color="primary"
           onClick={onSubmit}
-          className="w-full sm:flex-1 sm:order-2"
+          className="w-full sm:order-2 sm:flex-1"
           disabled={loading}
         >
           Stake
@@ -120,7 +120,7 @@ export const PreviewModal = ({
           variant="outlined"
           color="primary"
           onClick={onClose}
-          className="w-full sm:flex-1 sm:order-1"
+          className="w-full sm:order-1 sm:flex-1"
         >
           Cancel
         </Button>

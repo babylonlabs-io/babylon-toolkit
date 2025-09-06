@@ -24,7 +24,7 @@ interface StepProps {
 const renderIcon = (step: number, currentStep: number) => {
   if (currentStep > step) {
     return (
-      <div className="rounded-full shrink-0 bg-primary-light flex h-10 w-10 items-center justify-center">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-light">
         <IoCheckmarkSharp size={24} className="text-accent-contrast" />
       </div>
     );
@@ -32,14 +32,14 @@ const renderIcon = (step: number, currentStep: number) => {
 
   if (currentStep === step) {
     return (
-      <div className="rounded-full shrink-0 bg-secondary-main flex h-10 w-10 items-center justify-center">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-main">
         <Loader size={24} className="text-accent-contrast" />
       </div>
     );
   }
 
   return (
-    <div className="rounded-full shrink-0 bg-secondary-main flex h-10 w-10 items-center justify-center">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary-main">
       <Text variant="body1" className="text-accent-contrast">
         {step}
       </Text>
@@ -55,11 +55,11 @@ export const Step = ({
   options,
 }: PropsWithChildren<StepProps>) => {
   return (
-    <div className="flex flex-col w-full border border-secondary-strokeLight rounded bg-surface">
+    <div className="flex w-full flex-col rounded border border-secondary-strokeLight bg-surface">
       {shouldShowDetails && options ? (
         <Accordion disabled={step !== currentStep}>
           <AccordionSummary
-            className="p-4 mr-4"
+            className="mr-4 p-4"
             renderIcon={(expanded) =>
               expanded ? (
                 <AiOutlineMinus size={16} />
@@ -68,7 +68,7 @@ export const Step = ({
               )
             }
           >
-            <div className="flex flex-row items-center gap-3 mr-8">
+            <div className="mr-8 flex flex-row items-center gap-3">
               {renderIcon(step, currentStep)}
               <Text variant="body1" className="text-accent-primary">
                 Step {step}: {children}
@@ -82,7 +82,7 @@ export const Step = ({
       ) : (
         <div
           className={twMerge(
-            "p-4 flex flex-row items-center justify-between gap-3 self-stretch",
+            "flex flex-row items-center justify-between gap-3 self-stretch p-4",
             step !== currentStep && "opacity-25",
           )}
         >

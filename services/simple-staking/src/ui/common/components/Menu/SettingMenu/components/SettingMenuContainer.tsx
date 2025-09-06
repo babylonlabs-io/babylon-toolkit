@@ -34,7 +34,7 @@ export const SettingMenuContainer = ({
       offset={[0, 11]}
       placement="bottom-end"
       onClickOutside={onClose}
-      className={`flex flex-col gap-2 bg-surface rounded p-4 border border-secondary-strokeLight ${className}`}
+      className={`flex flex-col gap-2 rounded border border-secondary-strokeLight bg-surface p-4 ${className}`}
     >
       {children}
     </Popover>

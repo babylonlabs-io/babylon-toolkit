@@ -26,18 +26,18 @@ export function CounterButton({
   return (
     <div
       className={twJoin(
-        "flex border border-accent-primary rounded-md bg-primary-highlight overflow-hidden",
+        "bg-primary-highlight flex overflow-hidden rounded-md border border-accent-primary",
         isClickable && "cursor-pointer",
       )}
       onClick={isClickable ? onAdd : undefined}
     >
       {isClickable && (
-        <div className="w-10 h-10 flex items-center justify-center">
+        <div className="flex h-10 w-10 items-center justify-center">
           <AiOutlinePlus size={20} />
         </div>
       )}
       {showsCounter && (
-        <div className="px-2 sm:px-4 h-10 flex items-center text-sm sm:text-base border-l border-accent-primary">
+        <div className="flex h-10 items-center border-l border-accent-primary px-2 text-sm sm:px-4 sm:text-base">
           {counter}/{max}
         </div>
       )}

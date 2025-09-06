@@ -68,7 +68,7 @@ export const WalletMenuContainer = ({
   }, [disconnect]);
 
   const menuContent = (
-    <div className="p-4 space-y-6 w-full text-primary-main">
+    <div className="w-full space-y-6 p-4 text-primary-main">
       <WalletInfoSection
         btcAddress={btcAddress}
         bbnAddress={bbnAddress}
@@ -87,7 +87,7 @@ export const WalletMenuContainer = ({
       <div className="pt-2">
         <button
           onClick={handleDisconnectClick}
-          className="flex items-center justify-center w-full py-3 px-4 bg-error-main text-white font-medium text-sm rounded-lg hover:bg-error-main/90 transition-colors cursor-pointer"
+          className="flex w-full cursor-pointer items-center justify-center rounded-lg bg-error-main px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-error-main/90"
         >
           Disconnect Wallets
         </button>
@@ -117,7 +117,7 @@ export const WalletMenuContainer = ({
         <MobileDialog
           open={forceOpen || mobileDialogOpen}
           onClose={handleCloseMenu}
-          className="bg-[#FFFFFF] dark:bg-[#252525] text-primary-main"
+          className="bg-[#FFFFFF] text-primary-main dark:bg-[#252525]"
         >
           {menuContent}
         </MobileDialog>
@@ -141,7 +141,7 @@ export const WalletMenuContainer = ({
         offset={[0, 8]}
         onClickOutside={handleCloseMenu}
         className={twJoin(
-          "w-80 shadow-lg border border-[#38708533] bg-[#FFFFFF] dark:bg-[#252525] dark:border-[#404040] rounded-lg",
+          "w-80 rounded-lg border border-[#38708533] bg-[#FFFFFF] shadow-lg dark:border-[#404040] dark:bg-[#252525]",
         )}
       >
         {menuContent}

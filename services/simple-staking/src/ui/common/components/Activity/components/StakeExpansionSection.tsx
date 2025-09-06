@@ -105,7 +105,7 @@ export function StakeExpansionSection({
 
   return (
     <div className="w-full">
-      <Accordion className="border border-secondary-strokeLight rounded bg-surface">
+      <Accordion className="rounded border border-secondary-strokeLight bg-surface">
         <AccordionSummary
           className="p-4"
           renderIcon={(expanded) =>
@@ -117,12 +117,12 @@ export function StakeExpansionSection({
           }
           iconClassName="mr-4"
         >
-          <Text variant="body1" className="text-accent-primary font-medium">
+          <Text variant="body1" className="font-medium text-accent-primary">
             Stake Expansion
           </Text>
         </AccordionSummary>
-        <AccordionDetails className="px-4 pb-4 space-y-3">
-          <div className="flex flex-col gap-4 w-full">
+        <AccordionDetails className="space-y-3 px-4 pb-4">
+          <div className="flex w-full flex-col gap-4">
             <ExpansionButton
               Icon={iconBSNFp}
               text="Add BSNs and Finality Providers"

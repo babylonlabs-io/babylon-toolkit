@@ -24,7 +24,7 @@ export function List<I extends { id: string }>({
           {onRemove ? (
             <button
               onClick={() => onRemove(item)}
-              className="ml-[10px] flex items-center justify-center cursor-pointer p-1"
+              className="ml-[10px] flex cursor-pointer items-center justify-center p-1"
             >
               <IoCloseSharp className="text-primary" size={20} />
             </button>

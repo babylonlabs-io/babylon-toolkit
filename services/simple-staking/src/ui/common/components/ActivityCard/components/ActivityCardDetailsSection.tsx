@@ -18,11 +18,11 @@ interface DetailRowProps {
 
 function DetailRow({ label, value }: DetailRowProps) {
   return (
-    <div className="flex items-center justify-between gap-2 min-w-0 overflow-x-auto">
-      <span className="text-xs sm:text-sm text-accent-primary flex-shrink-0">
+    <div className="flex min-w-0 items-center justify-between gap-2 overflow-x-auto">
+      <span className="flex-shrink-0 text-xs text-accent-primary sm:text-sm">
         {label}
       </span>
-      <span className="text-xs sm:text-sm text-accent-primary font-medium text-right min-w-0 overflow-x-auto whitespace-nowrap">
+      <span className="min-w-0 overflow-x-auto whitespace-nowrap text-right text-xs font-medium text-accent-primary sm:text-sm">
         {value}
       </span>
     </div>
@@ -38,7 +38,7 @@ export function ActivityCardDetailsSection({
   const hasListItems = listItems && listItems.length > 0;
 
   return (
-    <div className="space-y-3 sm:space-y-4 overflow-x-auto">
+    <div className="space-y-3 overflow-x-auto sm:space-y-4">
       <div className="space-y-4 sm:space-y-6">
         {details.map((detail, index) => (
           <DetailRow key={index} label={detail.label} value={detail.value} />
@@ -50,10 +50,10 @@ export function ActivityCardDetailsSection({
           {listItems.map((listSection, sectionIndex) => (
             <div
               key={sectionIndex}
-              className="bg-surface p-3 sm:p-4 rounded space-y-3 sm:space-y-4 overflow-x-auto"
+              className="space-y-3 overflow-x-auto rounded bg-surface p-3 sm:space-y-4 sm:p-4"
             >
-              <div className="flex justify-between items-start gap-2">
-                <span className="text-xs sm:text-sm text-accent-primary">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs text-accent-primary sm:text-sm">
                   {listSection.label}
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -68,7 +68,7 @@ export function ActivityCardDetailsSection({
       )}
 
       {hasOptionalDetails && (
-        <div className="bg-surface p-3 sm:p-4 rounded space-y-3 sm:space-y-4 overflow-x-auto">
+        <div className="space-y-3 overflow-x-auto rounded bg-surface p-3 sm:space-y-4 sm:p-4">
           {optionalDetails.map((detail, index) => (
             <DetailRow key={index} label={detail.label} value={detail.value} />
           ))}

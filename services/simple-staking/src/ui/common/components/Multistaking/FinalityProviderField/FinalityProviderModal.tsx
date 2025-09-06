@@ -43,7 +43,7 @@ export const FinalityProviderModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col mb-4 mt-4 text-accent-primary gap-4">
+      <DialogBody className="mb-4 mt-4 flex flex-col gap-4 text-accent-primary">
         <div className="text-accent-secondary">
           Finality Providers play a key role in securing Proof-of-Stake networks
           by validating and finalising transactions. Select one to delegate your
@@ -51,7 +51,7 @@ export const FinalityProviderModal = ({
         </div>
         <UnavailableWarning />
         <div
-          className="overflow-x-auto flex flex-col gap-2"
+          className="flex flex-col gap-2 overflow-x-auto"
           style={{ maxHeight: "min(60vh, 500px)" }}
         >
           <FinalityProviders selectedFP={selectedFP} onChange={setSelectedFp} />

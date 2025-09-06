@@ -16,7 +16,7 @@ const BG_COLOR = {
 export const FloatingTopBar = ({ type }: Props) => {
   return (
     <div
-      className={twJoin(BG_COLOR[type], "h-1 absolute left-0 right-0 top-0")}
+      className={twJoin(BG_COLOR[type], "absolute left-0 right-0 top-0 h-1")}
     ></div>
   );
 };

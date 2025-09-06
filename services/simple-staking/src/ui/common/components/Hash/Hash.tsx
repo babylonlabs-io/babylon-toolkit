@@ -54,7 +54,7 @@ export const Hash: React.FC<HashProps> = ({
     <div
       className={twMerge(
         "inline-flex min-h-[25px] items-center",
-        !noCopy && "cursor-pointer hover:opacity-100 pointer-events-auto",
+        !noCopy && "pointer-events-auto cursor-pointer hover:opacity-100",
         "text-accent-primary",
         className,
         !noFade && "opacity-50",

@@ -93,7 +93,7 @@ export const transformDelegationToActivityCard = (
               logoUrl={finalityProvider.logo_url}
               rank={finalityProvider.rank}
               moniker={finalityProvider.description?.moniker}
-              className="w-4 h-4"
+              className="h-4 w-4"
             />
           ),
           iconAlt: finalityProvider.description?.moniker || "Finality Provider",

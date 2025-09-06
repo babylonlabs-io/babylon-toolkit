@@ -50,7 +50,7 @@ export const ValidatorTable = ({
   const searchPrefix = searchTerm ? (
     <button
       onClick={onClearSearch}
-      className="opacity-60 hover:opacity-100 transition-opacity"
+      className="opacity-60 transition-opacity hover:opacity-100"
     >
       <MdCancel size={18} className="text-secondary-strokeDark" />
     </button>

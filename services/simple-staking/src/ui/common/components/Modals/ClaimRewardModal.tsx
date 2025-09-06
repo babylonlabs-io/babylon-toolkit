@@ -40,7 +40,7 @@ export const ClaimRewardModal = ({
       onClose={onClose}
       onSubmit={onSubmit}
     >
-      <div className="flex flex-col mt-8 gap-10">
+      <div className="mt-8 flex flex-col gap-10">
         <div className="flex flex-col gap-4 divide-y divide-inherit">
           <div className="flex flex-row items-center justify-between">
             <Text variant="body1" className="text-center">
@@ -68,7 +68,7 @@ export const ClaimRewardModal = ({
             )}
           </div>
         </div>
-        <div className="flex flex-col gap-4 mb-10">
+        <div className="mb-10 flex flex-col gap-4">
           <Heading variant="h6">Attention!</Heading>
           <Text variant="body2">
             Processing your claim will take approximately 2 blocks to complete.
