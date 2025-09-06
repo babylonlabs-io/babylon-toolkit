@@ -37,7 +37,8 @@
   },
   "workspaces": [
     "packages/*",
-    "tools/*"
+    "tools/*",
+    "services/*"
   ],
   "overrides": {
     "vite@^5.4.10": {
