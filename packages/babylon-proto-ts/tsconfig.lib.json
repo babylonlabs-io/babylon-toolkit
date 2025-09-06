@@ -7,8 +7,8 @@
     "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "module": "Node16",
-    "moduleResolution": "node16",
+    "module": "esnext",
+    "moduleResolution": "Bundler",
     "target": "es2022"
   },
   "include": ["src/**/*.ts"],
