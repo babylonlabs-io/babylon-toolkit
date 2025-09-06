@@ -1,6 +1,11 @@
 {
   "versionGroups": [
     {
+      "label": "ignored",
+      "dependencies": ["vite"],
+      "isIgnored": true
+    },
+    {
       "label": "Local packages must be referenced with *",
       "dependencies": ["$LOCAL"],      
       "dependencyTypes": ["!local"],
