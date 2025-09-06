@@ -39,14 +39,16 @@ jobs:
             exit 1
           fi
 
+      - name: Build all
+        run: npx nx run-many --target=build --all
+
       - name: Lint all
         run: npx nx run-many --target=lint --all
 
       - name: Test all
         run: npx nx run-many --target=test --all
 
-      - name: Build all
-        run: npx nx run-many --target=build --all
+
 
       - name: Release changed packages
         run: |
