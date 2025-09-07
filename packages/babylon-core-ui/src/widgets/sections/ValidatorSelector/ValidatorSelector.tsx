@@ -93,7 +93,7 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     return (
         <DialogComponent
             {...restProps}
-            {...(!isMobileView ? { dialogClassName: "max-h-[90vh] max-h-[720px] flex flex-col" } : {})}
+            {...(!isMobileView ? { dialogClassName: "max-h-[720px] flex flex-col" } : {})}
             className={twMerge("w-[41.25rem] max-w-full", className)}
         />
     );
