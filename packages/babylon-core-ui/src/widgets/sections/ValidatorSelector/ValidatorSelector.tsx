@@ -2,139 +2,21 @@ import { Dialog, MobileDialog, DialogBody, DialogHeader, DialogFooter } from "@/
 import { Table } from "@/components/Table";
 import { Input } from "@/components/Form/Input";
 import { Text } from "@/components/Text";
-import type { ColumnProps } from "@/components/Table/types";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { ReactNode, PropsWithChildren, useState, useMemo, memo } from "react";
+import { PropsWithChildren, useState, useMemo, memo } from "react";
 import { twMerge } from "tailwind-merge";
 import { MdCancel } from "react-icons/md";
 import { RiSearchLine } from "react-icons/ri";
 import { TableElement } from "@/widgets/sections/TableElement";
-import { FinalityProviderItemProps } from "@/elements/FinalityProviderItem/FinalityProviderItem";
 import { Button, IconButton } from "@/components/Button";
 import { MdTableRows } from "react-icons/md";
 import { IoGridSharp } from "react-icons/io5";
 import { useControlledState } from "@/hooks/useControlledState";
 import { Select } from "@/components/Form";
-import type { Option } from "@/components/Form/Select";
+import type { ValidatorSelectorProps, HeaderControlsProps, GridViewProps, ListViewProps, ConfirmFooterProps, ResponsiveDialogProps, ValidatorRow } from "./ValidatorSelector.types";
 
-// Types for table rows representing validators
-export interface ValidatorRow {
-    id: string | number;
-    icon?: ReactNode;
-    name: string;
-    apr: string;
-    votingPower: string;
-    commission: string;
-}
-
-interface ValidatorSelectorProps {
-    open: boolean;
-    validators: ValidatorRow[];
-    /** Column configuration for the table */
-    columns: ColumnProps<ValidatorRow>[];
-    onClose: () => void;
-    /** Called when the user confirms selection. Provides selected validator row. */
-    onSelect: (validator: ValidatorRow) => void;
-    /** Optional title for the dialog – defaults to "Select Validator" */
-    title?: string;
-    /** Optional description text to display above the search input */
-    description?: string;
-    /** If true, show footer with Back/Add and only confirm selection on Add */
-    confirmSelection?: boolean;
-    /** Optional back handler to show Back button in footer */
-    onBack?: () => void;
-    /** Called when Add is pressed with the selected validator */
-    onAdd?: (validator: ValidatorRow) => void;
-    /** Layout style for displaying validators */
-    layout?: "grid" | "list";
-    /** Default layout when component manages internal state */
-    defaultLayout?: "grid" | "list";
-    /** Called when layout changes (for controlled usage) */
-    onLayoutChange?: (layout: "grid" | "list") => void;
-    /** Determine if a row/card is selectable */
-    isRowSelectable?: (row: ValidatorRow) => boolean;
-    /**
-     * Maps a validator row to TableElement props when using grid layout.
-     * Required if layout is "grid".
-     */
-    gridItemMapper?: (row: ValidatorRow, index: number) => {
-        providerItemProps: FinalityProviderItemProps;
-        attributes: Record<string, React.ReactNode>;
-    };
-    /** Optional filter component slot to render next to the search input */
-    filterSlot?: ReactNode;
-    /** Built-in filter: options list (if provided, a Select will render when no filterSlot) */
-    filterOptions?: Option[];
-    /** Built-in filter: current value */
-    filterValue?: string | number;
-    /** Built-in filter: disabled state (in addition to searchTerm presence) */
-    filterDisabled?: boolean;
-    /** Built-in filter: placeholder text */
-    filterPlaceholder?: string;
-    /** Built-in filter: handle selection */
-    onFilterSelect?: (value: string | number) => void;
-    /** Built-in filter: custom selected option renderer */
-    renderSelectedFilterOption?: (option: Option) => ReactNode;
-    /** Built-in filter: custom className */
-    filterClassName?: string;
-}
-
-type DialogComponentProps = Parameters<typeof Dialog>[0];
-
-interface ResponsiveDialogProps extends DialogComponentProps {
-    children?: ReactNode;
-}
-
-interface HeaderControlsProps {
-    searchTerm: string;
-    onClearSearch: () => void;
-    onSearchChange: (value: string) => void;
-    filterSlot?: ReactNode;
-    filterOptions?: Option[];
-    filterValue?: string | number;
-    filterDisabled?: boolean;
-    filterPlaceholder: string;
-    onFilterSelect?: (value: string | number) => void;
-    renderSelectedFilterOption?: (option: Option) => ReactNode;
-    filterClassName?: string;
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    currentLayout: "grid" | "list";
-    onToggleLayout: () => void;
-}
-interface ListViewProps {
-    rows: ValidatorRow[];
-    currentLayout: "grid" | "list";
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    columns: ColumnProps<ValidatorRow>[];
-    selectedId: string | number | null;
-    onSelectRowId: (id: string | number | null) => void;
-    confirmSelection: boolean;
-    onSelect: (row: ValidatorRow) => void;
-    onClose: () => void;
-    isRowSelectable?: (row: ValidatorRow) => boolean;
-}
-
-interface ConfirmFooterProps {
-    confirmSelection: boolean;
-    onBack?: () => void;
-    selectedRow: ValidatorRow | null;
-    onAdd?: (validator: ValidatorRow) => void;
-    onClose: () => void;
-    clearSelection: () => void;
-}
-
-interface GridViewProps {
-    rows: ValidatorRow[];
-    currentLayout: "grid" | "list";
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    isRowSelectable?: (row: ValidatorRow) => boolean;
-    selectedId: string | number | null;
-    onSelectRowId: (id: string | number | null) => void;
-    confirmSelection: boolean;
-    onSelect: (row: ValidatorRow) => void;
-    onClose: () => void;
-}
+export type { ValidatorRow } from "./ValidatorSelector.types";
 
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
@@ -165,14 +47,7 @@ export const ValidatorSelector = ({
     onLayoutChange,
     isRowSelectable,
     gridItemMapper,
-    filterSlot,
-    filterOptions,
-    filterValue,
-    filterDisabled,
-    filterPlaceholder = "Select Status",
-    onFilterSelect,
-    renderSelectedFilterOption,
-    filterClassName,
+    filters,
 }: PropsWithChildren<ValidatorSelectorProps>) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedId, setSelectedId] = useState<string | number | null>(null);
@@ -191,14 +66,7 @@ export const ValidatorSelector = ({
             searchTerm={searchTerm}
             onClearSearch={onClearSearch}
             onSearchChange={setSearchTerm}
-            filterSlot={filterSlot}
-            filterOptions={filterOptions}
-            filterValue={filterValue}
-            filterDisabled={filterDisabled}
-            filterPlaceholder={filterPlaceholder}
-            onFilterSelect={onFilterSelect}
-            renderSelectedFilterOption={renderSelectedFilterOption}
-            filterClassName={filterClassName}
+            filters={filters}
             gridItemMapper={gridItemMapper}
             currentLayout={currentLayout ?? "list"}
             onToggleLayout={() => setCurrentLayout(currentLayout === "grid" ? "list" : "grid")}
@@ -266,19 +134,11 @@ export const ValidatorSelector = ({
     );
 };
 
-
 const HeaderControls = memo(({
     searchTerm,
     onClearSearch,
     onSearchChange,
-    filterSlot,
-    filterOptions,
-    filterValue,
-    filterDisabled,
-    filterPlaceholder,
-    onFilterSelect,
-    renderSelectedFilterOption,
-    filterClassName,
+    filters,
     gridItemMapper,
     currentLayout,
     onToggleLayout,
@@ -309,18 +169,18 @@ const HeaderControls = memo(({
                     className="w-full"
                 />
             </div>
-            {filterSlot ? (
-                <div className="w-full md:w-[200px]">{filterSlot}</div>
-            ) : filterOptions && filterOptions.length > 0 ? (
+            {filters?.slot ? (
+                <div className="w-full md:w-[200px]">{filters.slot}</div>
+            ) : filters?.options && filters.options.length > 0 ? (
                 <div className="w-full md:w-[200px]">
                     <Select
-                        options={filterOptions}
-                        onSelect={(value) => onFilterSelect?.(value)}
-                        placeholder={filterPlaceholder}
-                        value={searchTerm ? "" : filterValue}
-                        disabled={Boolean(searchTerm) || filterDisabled}
-                        renderSelectedOption={renderSelectedFilterOption}
-                        className={twMerge("h-10", filterClassName)}
+                        options={filters.options}
+                        onSelect={(value) => filters?.onSelect?.(value)}
+                        placeholder={filters.placeholder ?? "Select Status"}
+                        value={searchTerm ? "" : filters.value}
+                        disabled={Boolean(searchTerm) || filters.disabled}
+                        renderSelectedOption={filters.renderSelectedOption}
+                        className={twMerge("h-10", filters.className)}
                     />
                 </div>
             ) : null}

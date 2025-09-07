@@ -112,13 +112,15 @@ export const WithFilter: Story = {
         defaultLayout: "list",
         onClose: () => { },
         onSelect: (validator: ValidatorRow) => alert(`Selected ${validator.name}`),
-        filterOptions: [
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-        ],
-        renderSelectedFilterOption: (option: { label: string }) => `Showing ${option.label}`,
-        filterClassName: "h-10",
+        filters: {
+            options: [
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+            ],
+            renderSelectedOption: (option: { label: string }) => `Showing ${option.label}`,
+            className: "h-10",
+        },
     },
     render: (args) => {
         const [status, setStatus] = useState<string | number>("all");
@@ -132,8 +134,7 @@ export const WithFilter: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filterValue={status}
-                onFilterSelect={(value) => setStatus(value)}
+                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -155,13 +156,15 @@ export const WithConfirmFooter: Story = {
         onBack: () => alert("Back clicked"),
         onAdd: (validator: ValidatorRow) => alert(`Added ${validator.name}`),
         onClose: () => { },
-        filterOptions: [
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-        ],
-        renderSelectedFilterOption: (option: { label: string }) => `Showing ${option.label}`,
-        filterClassName: "h-10",
+        filters: {
+            options: [
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+            ],
+            renderSelectedOption: (option: { label: string }) => `Showing ${option.label}`,
+            className: "h-10",
+        },
     },
     render: (args) => {
         const [status, setStatus] = useState<string | number>("all");
@@ -175,8 +178,7 @@ export const WithConfirmFooter: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filterValue={status}
-                onFilterSelect={(value) => setStatus(value)}
+                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -199,13 +201,15 @@ export const GridWithFilterAndConfirm: Story = {
         onBack: () => alert("Back clicked"),
         onAdd: (validator: ValidatorRow) => alert(`Added ${validator.name}`),
         onClose: () => { },
-        filterOptions: [
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-        ],
-        renderSelectedFilterOption: (option: { label: string }) => `Showing ${option.label}`,
-        filterClassName: "h-10",
+        filters: {
+            options: [
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+            ],
+            renderSelectedOption: (option: { label: string }) => `Showing ${option.label}`,
+            className: "h-10",
+        },
         gridItemMapper: (row: ValidatorRow): { providerItemProps: FinalityProviderItemProps; attributes: Record<string, React.ReactNode>; } => ({
             providerItemProps: {
                 bsnId: String(row.id),
@@ -235,8 +239,7 @@ export const GridWithFilterAndConfirm: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filterValue={status}
-                onFilterSelect={(value) => setStatus(value)}
+                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -257,13 +260,15 @@ export const ConfirmFooterNoBack: Story = {
         confirmSelection: true,
         onAdd: (validator: ValidatorRow) => alert(`Added ${validator.name}`),
         onClose: () => { },
-        filterOptions: [
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "inactive", label: "Inactive" },
-        ],
-        renderSelectedFilterOption: (option: { label: string }) => `Showing ${option.label}`,
-        filterClassName: "h-10",
+        filters: {
+            options: [
+                { value: "all", label: "All" },
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+            ],
+            renderSelectedOption: (option: { label: string }) => `Showing ${option.label}`,
+            className: "h-10",
+        },
     },
     render: (args) => {
         const [status, setStatus] = useState<string | number>("all");
@@ -277,8 +282,7 @@ export const ConfirmFooterNoBack: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filterValue={status}
-                onFilterSelect={(value) => setStatus(value)}
+                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
