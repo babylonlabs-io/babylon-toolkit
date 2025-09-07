@@ -3,8 +3,7 @@ name: docker_publish
 on:
   push:
     branches:
-      - "main"
-      - "release/v1.x"
+      - "*"
     tags:
       - "*"
   workflow_dispatch:
@@ -22,7 +21,8 @@ jobs:
     strategy:
       matrix:
         environment:
-          [phase-2-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          # [phase-2-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          [phase-2-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -81,7 +81,7 @@ jobs:
           sha256sum $FILES_CHECKSUM_PATH | cut -d' ' -f1 > $GLOBAL_CHECKSUM_PATH # cut is for remove the filename from the output
 
       - name: Archive output
-        run: tar -czvf /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C dist .
+        run: tar -czvf /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C services/simple-staking/dist .
 
       - name: Upload to S3 with commit sha
         env:
