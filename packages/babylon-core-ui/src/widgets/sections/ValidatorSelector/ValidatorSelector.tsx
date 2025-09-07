@@ -299,7 +299,6 @@ export const ValidatorSelector = ({
         [filteredValidators, selectedId]
     );
 
-
     return (
         <ResponsiveDialog open={open} onClose={onClose} className="w-[52rem]">
             <DialogHeader title={title} onClose={onClose} className="text-accent-primary" />
