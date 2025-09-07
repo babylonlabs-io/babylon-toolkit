@@ -5,7 +5,7 @@ import { Text } from "@/components/Text";
 import type { ColumnProps } from "@/components/Table/types";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { ReactNode, PropsWithChildren, useState, useMemo } from "react";
+import { ReactNode, PropsWithChildren, useState, useMemo, memo } from "react";
 import { twMerge } from "tailwind-merge";
 import { MdCancel } from "react-icons/md";
 import { RiSearchLine } from "react-icons/ri";
@@ -136,155 +136,24 @@ export const ValidatorSelector = ({
         setSearchTerm("");
     };
 
-    function HeaderControls() {
-        const searchPrefix = searchTerm ? (
-            <button
-                onClick={onClearSearch}
-                className="opacity-60 hover:opacity-100 transition-opacity"
-            >
-                <MdCancel size={18} className="text-secondary-strokeDark" />
-            </button>
-        ) : (
-            <span className="text-secondary-strokeDark">
-                <RiSearchLine size={20} />
-            </span>
-        );
-
-        return (
-            <div className="mt-4 flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                    <Input
-                        placeholder="Search"
-                        wrapperClassName="h-full"
-                        id='validator-selector-search'
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        prefix={searchPrefix}
-                        className="w-full"
-                    />
-                </div>
-                {filterSlot ? (
-                    <div className="w-full md:w-[200px]">{filterSlot}</div>
-                ) : filterOptions && filterOptions.length > 0 ? (
-                    <div className="w-full md:w-[200px]">
-                        <Select
-                            options={filterOptions}
-                            onSelect={(value) => onFilterSelect?.(value)}
-                            placeholder={filterPlaceholder}
-                            value={searchTerm ? "" : filterValue}
-                            disabled={Boolean(searchTerm) || filterDisabled}
-                            renderSelectedOption={renderSelectedFilterOption}
-                            className={twMerge("h-10", filterClassName)}
-                        />
-                    </div>
-                ) : null}
-                {gridItemMapper ? (
-                    <div className="flex items-center gap-2 text-secondary-strokeDark/50">
-                        <IconButton
-                            onClick={() => setCurrentLayout(currentLayout === "grid" ? "list" : "grid")}
-                        >
-                            <div className="text-accent-primary">
-                                {currentLayout === "grid" ? (
-                                    <MdTableRows size={24} />
-                                ) : (
-                                    <IoGridSharp size={20} />
-                                )}
-                            </div>
-                        </IconButton>
-                    </div>
-                ) : null}
-            </div>
-        );
-    }
-
-    function GridView({ rows }: { rows: ValidatorRow[] }) {
-        if (!(currentLayout === "grid" && gridItemMapper)) return null;
-
-        return (
-            <div className="grid grid-cols-2 gap-4 w-full flex-1 min-h-0 overflow-auto">
-                {rows.map((row, index) => {
-                    const mapped = gridItemMapper(row, index);
-                    const selectable = isRowSelectable ? isRowSelectable(row) : true;
-                    return (
-                        <TableElement
-                            key={row.id}
-                            providerItemProps={mapped.providerItemProps}
-                            attributes={mapped.attributes}
-                            isSelected={selectedId === row.id}
-                            isSelectable={selectable}
-                            onSelect={() => {
-                                if (!selectable) return;
-                                if (confirmSelection) {
-                                    setSelectedId(row.id);
-                                } else {
-                                    onSelect(row);
-                                    onClose();
-                                }
-                            }}
-                        />
-                    );
-                })}
-            </div>
-        );
-    }
-
-    function ListView({ rows }: { rows: ValidatorRow[] }) {
-        if (currentLayout === "grid" && gridItemMapper) return null;
-
-        return (
-            <Table<ValidatorRow>
-                data={rows}
-                columns={columns}
-                className="w-full"
-                wrapperClassName="w-full flex-1 min-h-0 overflow-auto"
-                fluid
-                selectedRow={selectedId ?? undefined}
-                onSelectedRowChange={(rowId) => setSelectedId(rowId)}
-                onRowSelect={(row) => {
-                    if (!row) {
-                        setSelectedId(null);
-                        return;
-                    }
-                    if (confirmSelection) {
-                        setSelectedId(row.id);
-                    } else {
-                        onSelect(row);
-                        onClose();
-                    }
-                }}
-                isRowSelectable={isRowSelectable}
-            />
-        );
-    }
-
-    function ConfirmFooter() {
-        if (!confirmSelection) return null;
-
-        return (
-            <DialogFooter className="flex mt-4 justify-between">
-                {onBack ? (
-                    <Button variant="outlined" onClick={onBack}>
-                        Back
-                    </Button>
-                ) : (
-                    <div />
-                )}
-                <Button
-                    variant="contained"
-                    onClick={() => {
-                        if (selectedRow && onAdd) {
-                            onAdd(selectedRow);
-                            setSelectedId(null);
-                            onClose();
-                        }
-                    }}
-                    disabled={!selectedRow}
-                >
-                    Add
-                </Button>
-            </DialogFooter>
-        );
-    }
+    const headerControls = (
+        <HeaderControls
+            searchTerm={searchTerm}
+            onClearSearch={onClearSearch}
+            onSearchChange={setSearchTerm}
+            filterSlot={filterSlot}
+            filterOptions={filterOptions}
+            filterValue={filterValue}
+            filterDisabled={filterDisabled}
+            filterPlaceholder={filterPlaceholder}
+            onFilterSelect={onFilterSelect}
+            renderSelectedFilterOption={renderSelectedFilterOption}
+            filterClassName={filterClassName}
+            gridItemMapper={gridItemMapper}
+            currentLayout={currentLayout ?? "list"}
+            onToggleLayout={() => setCurrentLayout(currentLayout === "grid" ? "list" : "grid")}
+        />
+    );
 
     const filteredValidators = useMemo(() => {
         if (!searchTerm.trim()) return validators;
@@ -309,12 +178,256 @@ export const ValidatorSelector = ({
                     </Text>
                 </div>
             )}
-            {HeaderControls()}
+            {headerControls}
             <DialogBody className="mt-4 flex flex-col" style={{ overflowY: "hidden" }}>
-                {GridView({ rows: filteredValidators })}
-                {ListView({ rows: filteredValidators })}
+                <GridView
+                    rows={filteredValidators}
+                    currentLayout={currentLayout ?? "list"}
+                    gridItemMapper={gridItemMapper}
+                    isRowSelectable={isRowSelectable}
+                    selectedId={selectedId}
+                    onSelectRowId={setSelectedId}
+                    confirmSelection={confirmSelection}
+                    onSelect={onSelect}
+                    onClose={onClose}
+                />
+                <ListView
+                    rows={filteredValidators}
+                    currentLayout={currentLayout ?? "list"}
+                    gridItemMapper={gridItemMapper}
+                    columns={columns}
+                    selectedId={selectedId}
+                    onSelectRowId={setSelectedId}
+                    confirmSelection={confirmSelection}
+                    onSelect={onSelect}
+                    onClose={onClose}
+                    isRowSelectable={isRowSelectable}
+                />
             </DialogBody>
-            {ConfirmFooter()}
+            <ConfirmFooter
+                confirmSelection={confirmSelection}
+                onBack={onBack}
+                selectedRow={selectedRow}
+                onAdd={onAdd}
+                onClose={onClose}
+                clearSelection={() => setSelectedId(null)}
+            />
         </ResponsiveDialog>
     );
-}; 
+};
+
+// ----- Extracted stable subcomponents -----
+
+interface HeaderControlsProps {
+    searchTerm: string;
+    onClearSearch: () => void;
+    onSearchChange: (value: string) => void;
+    filterSlot?: ReactNode;
+    filterOptions?: Option[];
+    filterValue?: string | number;
+    filterDisabled?: boolean;
+    filterPlaceholder: string;
+    onFilterSelect?: (value: string | number) => void;
+    renderSelectedFilterOption?: (option: Option) => ReactNode;
+    filterClassName?: string;
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    currentLayout: "grid" | "list";
+    onToggleLayout: () => void;
+}
+
+const HeaderControls = memo(({
+    searchTerm,
+    onClearSearch,
+    onSearchChange,
+    filterSlot,
+    filterOptions,
+    filterValue,
+    filterDisabled,
+    filterPlaceholder,
+    onFilterSelect,
+    renderSelectedFilterOption,
+    filterClassName,
+    gridItemMapper,
+    currentLayout,
+    onToggleLayout,
+}: HeaderControlsProps) => {
+    const searchPrefix = searchTerm ? (
+        <button
+            onClick={onClearSearch}
+            className="opacity-60 hover:opacity-100 transition-opacity"
+        >
+            <MdCancel size={18} className="text-secondary-strokeDark" />
+        </button>
+    ) : (
+        <span className="text-secondary-strokeDark">
+            <RiSearchLine size={20} />
+        </span>
+    );
+
+    return (
+        <div className="mt-4 flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+                <Input
+                    placeholder="Search"
+                    wrapperClassName="h-full"
+                    id='validator-selector-search'
+                    value={searchTerm}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    prefix={searchPrefix}
+                    className="w-full"
+                />
+            </div>
+            {filterSlot ? (
+                <div className="w-full md:w-[200px]">{filterSlot}</div>
+            ) : filterOptions && filterOptions.length > 0 ? (
+                <div className="w-full md:w-[200px]">
+                    <Select
+                        options={filterOptions}
+                        onSelect={(value) => onFilterSelect?.(value)}
+                        placeholder={filterPlaceholder}
+                        value={searchTerm ? "" : filterValue}
+                        disabled={Boolean(searchTerm) || filterDisabled}
+                        renderSelectedOption={renderSelectedFilterOption}
+                        className={twMerge("h-10", filterClassName)}
+                    />
+                </div>
+            ) : null}
+            {gridItemMapper ? (
+                <div className="flex items-center gap-2 text-secondary-strokeDark/50">
+                    <IconButton onClick={onToggleLayout}>
+                        <div className="text-accent-primary">
+                            {currentLayout === "grid" ? (
+                                <MdTableRows size={24} />
+                            ) : (
+                                <IoGridSharp size={20} />
+                            )}
+                        </div>
+                    </IconButton>
+                </div>
+            ) : null}
+        </div>
+    );
+});
+
+interface GridViewProps {
+    rows: ValidatorRow[];
+    currentLayout: "grid" | "list";
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    isRowSelectable?: (row: ValidatorRow) => boolean;
+    selectedId: string | number | null;
+    onSelectRowId: (id: string | number | null) => void;
+    confirmSelection: boolean;
+    onSelect: (row: ValidatorRow) => void;
+    onClose: () => void;
+}
+
+const GridView = memo(({ rows, currentLayout, gridItemMapper, isRowSelectable, selectedId, onSelectRowId, confirmSelection, onSelect, onClose }: GridViewProps) => {
+    if (!(currentLayout === "grid" && gridItemMapper)) return null;
+
+    return (
+        <div className="grid grid-cols-2 gap-4 w-full flex-1 min-h-0 overflow-auto">
+            {rows.map((row, index) => {
+                const mapped = gridItemMapper(row, index);
+                const selectable = isRowSelectable ? isRowSelectable(row) : true;
+                return (
+                    <TableElement
+                        key={row.id}
+                        providerItemProps={mapped.providerItemProps}
+                        attributes={mapped.attributes}
+                        isSelected={selectedId === row.id}
+                        isSelectable={selectable}
+                        onSelect={() => {
+                            if (!selectable) return;
+                            if (confirmSelection) {
+                                onSelectRowId(row.id);
+                            } else {
+                                onSelect(row);
+                                onClose();
+                            }
+                        }}
+                    />
+                );
+            })}
+        </div>
+    );
+});
+
+interface ListViewProps {
+    rows: ValidatorRow[];
+    currentLayout: "grid" | "list";
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    columns: ColumnProps<ValidatorRow>[];
+    selectedId: string | number | null;
+    onSelectRowId: (id: string | number | null) => void;
+    confirmSelection: boolean;
+    onSelect: (row: ValidatorRow) => void;
+    onClose: () => void;
+    isRowSelectable?: (row: ValidatorRow) => boolean;
+}
+
+const ListView = memo(({ rows, currentLayout, gridItemMapper, columns, selectedId, onSelectRowId, confirmSelection, onSelect, onClose, isRowSelectable }: ListViewProps) => {
+    if (currentLayout === "grid" && gridItemMapper) return null;
+
+    return (
+        <Table<ValidatorRow>
+            data={rows}
+            columns={columns}
+            className="w-full"
+            wrapperClassName="w-full flex-1 min-h-0 overflow-auto"
+            fluid
+            selectedRow={selectedId ?? undefined}
+            onSelectedRowChange={(rowId) => onSelectRowId(rowId)}
+            onRowSelect={(row) => {
+                if (!row) {
+                    onSelectRowId(null);
+                    return;
+                }
+                if (confirmSelection) {
+                    onSelectRowId(row.id);
+                } else {
+                    onSelect(row);
+                    onClose();
+                }
+            }}
+            isRowSelectable={isRowSelectable}
+        />
+    );
+});
+
+interface ConfirmFooterProps {
+    confirmSelection: boolean;
+    onBack?: () => void;
+    selectedRow: ValidatorRow | null;
+    onAdd?: (validator: ValidatorRow) => void;
+    onClose: () => void;
+    clearSelection: () => void;
+}
+
+const ConfirmFooter = memo(({ confirmSelection, onBack, selectedRow, onAdd, onClose, clearSelection }: ConfirmFooterProps) => {
+    if (!confirmSelection) return null;
+
+    return (
+        <DialogFooter className="flex mt-4 justify-between">
+            {onBack ? (
+                <Button variant="outlined" onClick={onBack}>
+                    Back
+                </Button>
+            ) : (
+                <div />
+            )}
+            <Button
+                variant="contained"
+                onClick={() => {
+                    if (selectedRow && onAdd) {
+                        onAdd(selectedRow);
+                        clearSelection();
+                        onClose();
+                    }
+                }}
+                disabled={!selectedRow}
+            >
+                Add
+            </Button>
+        </DialogFooter>
+    );
+});
