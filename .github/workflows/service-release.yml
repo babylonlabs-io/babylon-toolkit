@@ -81,7 +81,7 @@ jobs:
           sha256sum $FILES_CHECKSUM_PATH | cut -d' ' -f1 > $GLOBAL_CHECKSUM_PATH # cut is for remove the filename from the output
 
       - name: Archive output
-        run: tar -czvf /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C dist .
+        run: tar -czvf /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C services/simple-staking/dist .
 
       - name: Upload to S3 with commit sha
         env:
