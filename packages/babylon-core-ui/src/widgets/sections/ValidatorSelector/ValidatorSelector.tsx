@@ -86,6 +86,56 @@ interface ResponsiveDialogProps extends DialogComponentProps {
     children?: ReactNode;
 }
 
+interface HeaderControlsProps {
+    searchTerm: string;
+    onClearSearch: () => void;
+    onSearchChange: (value: string) => void;
+    filterSlot?: ReactNode;
+    filterOptions?: Option[];
+    filterValue?: string | number;
+    filterDisabled?: boolean;
+    filterPlaceholder: string;
+    onFilterSelect?: (value: string | number) => void;
+    renderSelectedFilterOption?: (option: Option) => ReactNode;
+    filterClassName?: string;
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    currentLayout: "grid" | "list";
+    onToggleLayout: () => void;
+}
+interface ListViewProps {
+    rows: ValidatorRow[];
+    currentLayout: "grid" | "list";
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    columns: ColumnProps<ValidatorRow>[];
+    selectedId: string | number | null;
+    onSelectRowId: (id: string | number | null) => void;
+    confirmSelection: boolean;
+    onSelect: (row: ValidatorRow) => void;
+    onClose: () => void;
+    isRowSelectable?: (row: ValidatorRow) => boolean;
+}
+
+interface ConfirmFooterProps {
+    confirmSelection: boolean;
+    onBack?: () => void;
+    selectedRow: ValidatorRow | null;
+    onAdd?: (validator: ValidatorRow) => void;
+    onClose: () => void;
+    clearSelection: () => void;
+}
+
+interface GridViewProps {
+    rows: ValidatorRow[];
+    currentLayout: "grid" | "list";
+    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
+    isRowSelectable?: (row: ValidatorRow) => boolean;
+    selectedId: string | number | null;
+    onSelectRowId: (id: string | number | null) => void;
+    confirmSelection: boolean;
+    onSelect: (row: ValidatorRow) => void;
+    onClose: () => void;
+}
+
 function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
     const isMobileView = useIsMobile(WINDOW_BREAKPOINT);
     const DialogComponent = isMobileView ? MobileDialog : Dialog;
@@ -216,24 +266,6 @@ export const ValidatorSelector = ({
     );
 };
 
-// ----- Extracted stable subcomponents -----
-
-interface HeaderControlsProps {
-    searchTerm: string;
-    onClearSearch: () => void;
-    onSearchChange: (value: string) => void;
-    filterSlot?: ReactNode;
-    filterOptions?: Option[];
-    filterValue?: string | number;
-    filterDisabled?: boolean;
-    filterPlaceholder: string;
-    onFilterSelect?: (value: string | number) => void;
-    renderSelectedFilterOption?: (option: Option) => ReactNode;
-    filterClassName?: string;
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    currentLayout: "grid" | "list";
-    onToggleLayout: () => void;
-}
 
 const HeaderControls = memo(({
     searchTerm,
@@ -309,17 +341,6 @@ const HeaderControls = memo(({
     );
 });
 
-interface GridViewProps {
-    rows: ValidatorRow[];
-    currentLayout: "grid" | "list";
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    isRowSelectable?: (row: ValidatorRow) => boolean;
-    selectedId: string | number | null;
-    onSelectRowId: (id: string | number | null) => void;
-    confirmSelection: boolean;
-    onSelect: (row: ValidatorRow) => void;
-    onClose: () => void;
-}
 
 const GridView = memo(({ rows, currentLayout, gridItemMapper, isRowSelectable, selectedId, onSelectRowId, confirmSelection, onSelect, onClose }: GridViewProps) => {
     if (!(currentLayout === "grid" && gridItemMapper)) return null;
@@ -352,19 +373,6 @@ const GridView = memo(({ rows, currentLayout, gridItemMapper, isRowSelectable, s
     );
 });
 
-interface ListViewProps {
-    rows: ValidatorRow[];
-    currentLayout: "grid" | "list";
-    gridItemMapper?: ValidatorSelectorProps["gridItemMapper"];
-    columns: ColumnProps<ValidatorRow>[];
-    selectedId: string | number | null;
-    onSelectRowId: (id: string | number | null) => void;
-    confirmSelection: boolean;
-    onSelect: (row: ValidatorRow) => void;
-    onClose: () => void;
-    isRowSelectable?: (row: ValidatorRow) => boolean;
-}
-
 const ListView = memo(({ rows, currentLayout, gridItemMapper, columns, selectedId, onSelectRowId, confirmSelection, onSelect, onClose, isRowSelectable }: ListViewProps) => {
     if (currentLayout === "grid" && gridItemMapper) return null;
 
@@ -394,14 +402,6 @@ const ListView = memo(({ rows, currentLayout, gridItemMapper, columns, selectedI
     );
 });
 
-interface ConfirmFooterProps {
-    confirmSelection: boolean;
-    onBack?: () => void;
-    selectedRow: ValidatorRow | null;
-    onAdd?: (validator: ValidatorRow) => void;
-    onClose: () => void;
-    clearSelection: () => void;
-}
 
 const ConfirmFooter = memo(({ confirmSelection, onBack, selectedRow, onAdd, onClose, clearSelection }: ConfirmFooterProps) => {
     if (!confirmSelection) return null;
