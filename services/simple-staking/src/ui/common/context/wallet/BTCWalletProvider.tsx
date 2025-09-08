@@ -39,9 +39,6 @@ import { useAddressScreeningService } from "../../hooks/services/useAddressScree
 
 const btcConfig = getNetworkConfigBTC();
 
-const supportedNetworkMessage =
-  "Only Native SegWit and Taproot addresses are supported. Please switch the address type in your wallet and try again.";
-
 interface BTCWalletContextProps {
   loading: boolean;
   network?: networks.Network;
@@ -143,6 +140,9 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
           );
           throw noAddressError;
         }
+
+        const supportedNetworkMessage =
+          "Only Native SegWit and Taproot addresses are supported. Please switch the address type in your wallet and try again.";
 
         const supported = isSupportedAddressType(address);
         if (!supported) {
