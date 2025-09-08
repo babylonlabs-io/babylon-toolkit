@@ -112,7 +112,7 @@ function BabyLayoutContent() {
       as="main"
       className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
     >
-      <Tabs items={fallbackTabItems} defaultActiveTab="stake" />
+      <Tabs items={fallbackTabItems} defaultActiveTab="stake" keepMounted />
     </Container>
   );
 

@@ -1,21 +1,29 @@
 import { Form } from "@babylonlabs-io/core-ui";
+import { useMemo } from "react";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
 import { FeeField } from "@/ui/baby/components/FeeField";
-import { useStakingState } from "@/ui/baby/state/StakingState";
+import { useStakingState, type FormData } from "@/ui/baby/state/StakingState";
 import { StakingModal } from "@/ui/baby/widgets/StakingModal";
 import { SubmitButton } from "@/ui/baby/widgets/SubmitButton";
 import { ValidatorField } from "@/ui/baby/widgets/ValidatorField";
 import { FormAlert } from "@/ui/common/components/Multistaking/MultistakingForm/FormAlert";
-
-interface FormFields {
-  amount: number;
-  validatorAddresses: string[];
-  feeAmount: number;
-}
+import { useFormPersistenceState } from "@/ui/common/state/FormPersistenceState";
 
 interface StakingFormProps {
   isGeoBlocked?: boolean;
+}
+
+/**
+ * StakingForm supports multi-validator selection and draft persistence, so it
+ * uses 'validatorAddresses' (string[]) instead of the single 'validatorAddress'
+ * expected by 'FormData' in 'StakingState'.
+ *
+ * This interface removes 'validatorAddress' from 'FormData' and adds
+ * 'validatorAddresses' to align with the validation schema and 'FormPersistenceState'.
+ */
+export interface StakingFormFields extends Omit<FormData, "validatorAddress"> {
+  validatorAddresses: string[];
 }
 
 export default function StakingForm({
@@ -30,12 +38,26 @@ export default function StakingForm({
     showPreview,
   } = useStakingState();
 
+  const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
+
+  const defaultValues = useMemo<Partial<StakingFormFields>>(() => {
+    return {
+      amount: babyStakeDraft?.amount,
+      validatorAddresses: babyStakeDraft?.validatorAddresses,
+      feeAmount: babyStakeDraft?.feeAmount,
+    };
+  }, [babyStakeDraft]);
+
   const handlePreview = ({
     amount,
     validatorAddresses,
     feeAmount,
-  }: FormFields) => {
-    showPreview({ amount, feeAmount, validatorAddress: validatorAddresses[0] });
+  }: Required<StakingFormFields>) => {
+    showPreview({
+      amount,
+      feeAmount,
+      validatorAddress: validatorAddresses[0],
+    });
   };
 
   return (
@@ -43,6 +65,11 @@ export default function StakingForm({
       schema={formSchema}
       className="flex h-[500px] flex-col gap-2"
       onSubmit={handlePreview}
+      defaultValues={defaultValues}
+      onChange={(a) => setBabyStakeDraft({
+        ...a,
+        validatorAddresses: a.validatorAddresses?.filter(i => i !== undefined),
+      })}
     >
       <AmountField balance={availableBalance} price={babyPrice} />
       <ValidatorField />
