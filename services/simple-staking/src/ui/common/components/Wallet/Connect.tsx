@@ -167,7 +167,12 @@ export const Connect: React.FC<ConnectProps> = ({
         </Hint>
       </>
     );
-  }, [isGeoBlocked, isApiNormal, isHealthcheckError, healthCheckError?.message]);
+  }, [
+    isGeoBlocked,
+    isApiNormal,
+    isHealthcheckError,
+    healthCheckError?.message,
+  ]);
 
   // DISCONNECTED STATE: Show connect button + settings menu
   if (!isConnected) {
