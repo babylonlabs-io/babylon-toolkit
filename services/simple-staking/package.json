@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "watchDeps": "./scripts/watch-deps.sh @services/simple-staking",
     "build": "npx --node-options=--max-old-space-size=8192 tsc --noEmit -p tsconfig.lib.json && npx --node-options=--max-old-space-size=8192 vite build",
     "lint": "eslint",
     "preview": "vite preview",

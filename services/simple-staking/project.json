@@ -1,0 +1,18 @@
+{
+  "targets": {
+    "dev:watchDeps": {
+      "dependsOn": ["^build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "services/simple-staking",
+        "parallel": true,
+        "commands": [
+          {
+            "command": "./scripts/watch-deps.sh {projectName}"
+          },
+          { "command": "npx vite" }
+        ]
+      }
+    }
+  }
+}
