@@ -110,7 +110,6 @@ export const Connect: React.FC<ConnectProps> = ({
   const {
     isApiNormal,
     isGeoBlocked,
-    apiMessage,
     isError: isHealthcheckError,
     error: healthCheckError,
     isLoading: isHealthcheckLoading,
@@ -147,16 +146,28 @@ export const Connect: React.FC<ConnectProps> = ({
   }, [selectedWallets]);
 
   const renderApiNotAvailableTooltip = useMemo(() => {
-    if (!isGeoBlocked && isApiNormal && !isHealthcheckError && !healthCheckError?.message) return null;
+    if (
+      !isGeoBlocked &&
+      isApiNormal &&
+      !isHealthcheckError &&
+      !healthCheckError?.message
+    ) {
+      return null;
+    }
 
     return (
       <>
-        <Hint className="cursor-pointer" tooltip={healthCheckError?.message} placement="left" attachToChildren={true}>
+        <Hint
+          className="cursor-pointer"
+          tooltip={healthCheckError?.message}
+          placement="left"
+          attachToChildren={true}
+        >
           <AiOutlineInfoCircle />
         </Hint>
       </>
     );
-  }, [isGeoBlocked, isApiNormal, apiMessage]);
+  }, [isGeoBlocked, isApiNormal, isHealthcheckError, healthCheckError?.message]);
 
   // DISCONNECTED STATE: Show connect button + settings menu
   if (!isConnected) {
@@ -195,7 +206,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                      "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
@@ -206,7 +217,7 @@ export const Connect: React.FC<ConnectProps> = ({
                 className={twMerge(
                   "box-content bg-accent-contrast object-contain",
                   isWalletMenuOpen &&
-                  "outline outline-[2px] outline-accent-primary",
+                    "outline outline-[2px] outline-accent-primary",
                 )}
               />
             </AvatarGroup>
