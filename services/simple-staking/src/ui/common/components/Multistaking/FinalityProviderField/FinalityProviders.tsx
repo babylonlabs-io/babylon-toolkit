@@ -13,7 +13,7 @@ interface Props {
 }
 
 export const FinalityProviders = ({ selectedFP, onChange }: Props) => {
-  const [layout, setLayout] = useState<"grid" | "list">("grid");
+  const [layout, setLayout] = useState<"grid" | "list">("list");
 
   return (
     <div className="flex flex-col gap-4">
