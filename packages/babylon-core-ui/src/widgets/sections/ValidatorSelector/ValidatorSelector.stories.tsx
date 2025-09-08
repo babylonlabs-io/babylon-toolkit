@@ -57,7 +57,6 @@ const meta: Meta<typeof ValidatorSelector> = {
 };
 export default meta;
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
@@ -134,7 +133,7 @@ export const WithFilter: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
+                filters={{ ...(args.filters ?? {}), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -178,7 +177,7 @@ export const WithConfirmFooter: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
+                filters={{ ...(args.filters ?? {}), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -239,7 +238,7 @@ export const GridWithFilterAndConfirm: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
+                filters={{ ...(args.filters ?? {}), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
@@ -282,7 +281,7 @@ export const ConfirmFooterNoBack: Story = {
             <ValidatorSelector
                 {...args}
                 validators={filteredValidators}
-                filters={{ ...(args.filters as any), value: status, onSelect: (value) => setStatus(value) }}
+                filters={{ ...(args.filters ?? {}), value: status, onSelect: (value) => setStatus(value) }}
                 onSelect={args.onSelect!}
                 onClose={args.onClose!}
                 columns={args.columns!}
