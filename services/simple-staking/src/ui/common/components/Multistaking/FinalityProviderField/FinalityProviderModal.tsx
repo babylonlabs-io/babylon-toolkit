@@ -1,14 +1,18 @@
 import {
-  Button,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
+  Avatar,
+  Text,
+  ValidatorSelector,
+  type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useRef } from "react";
 
-import { ResponsiveDialog } from "@/ui/common/components/Modals/ResponsiveDialog";
-import { FinalityProviders } from "@/ui/common/components/Multistaking/FinalityProviderField/FinalityProviders";
 import { useFinalityProviderBsnState } from "@/ui/common/state/FinalityProviderBsnState";
+import { FinalityProviderStateLabels } from "@/ui/common/types/finalityProviders";
+import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { satoshiToBtc } from "@/ui/common/utils/btc";
+import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPercentage";
+import { Hash } from "@/ui/common/components/Hash/Hash";
 
 interface Props {
   open: boolean;
@@ -20,65 +24,195 @@ interface Props {
 }
 
 export const FinalityProviderModal = ({
-  defaultFinalityProvider = "",
+  defaultFinalityProvider: _defaultFinalityProvider = "",
   open,
   selectedBsnId,
   onClose,
   onAdd,
   onBack,
 }: Props) => {
-  const [selectedFP, setSelectedFp] = useState(defaultFinalityProvider);
-  const { modalTitle } = useFinalityProviderBsnState();
+  const {
+    modalTitle,
+    finalityProviders,
+    filterOptions,
+    filter,
+    handleFilter,
+    isRowSelectable,
+  } = useFinalityProviderBsnState();
+
+  const { coinSymbol } = getNetworkConfigBTC();
+
+  const fpById = useMemo(() => {
+    const map = new Map<string, (typeof finalityProviders)[number]>();
+    for (const fp of finalityProviders) map.set(fp.btcPk, fp);
+    return map;
+  }, [finalityProviders]);
+
+  const rows = useMemo(
+    () =>
+      finalityProviders.map((fp) => ({
+        id: fp.btcPk,
+        name: fp.description?.moniker || "No name provided",
+        apr: "",
+        votingPower: "",
+        commission: formatCommissionPercentage(Number(fp.commission) || 0),
+      })),
+    [finalityProviders],
+  );
+
+  const columns: ColumnProps<any>[] = [
+    {
+      key: "provider",
+      header: "Finality Provider",
+      headerClassName: "max-w-[240px]",
+      cellClassName: "text-primary-dark max-w-[240px]",
+      render: (_: unknown, row: { id: string; name: string }) => (
+        <div className="flex items-center gap-2 min-w-0">
+          <Avatar variant="circular" size="small" url="">
+            <Text
+              as="span"
+              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] text-accent-contrast uppercase"
+            >
+              {row.name.charAt(0)}
+            </Text>
+          </Avatar>
+          <span className="truncate">{row.name}</span>
+        </div>
+      ),
+      sorter: (a, b) => a.name.localeCompare(b.name),
+    },
+    {
+      key: "btcPk",
+      header: "BTC PK",
+      headerClassName: "max-w-[220px]",
+      cellClassName: "max-w-[220px]",
+      render: (_: unknown, row: { id: string }) => (
+        <div className="truncate">
+          <Hash value={String(row.id)} address small noFade />
+        </div>
+      ),
+    },
+    {
+      key: "totalDelegation",
+      header: "Total Delegation",
+      headerClassName: "max-w-[160px]",
+      render: (_: unknown, row: { id: string }) => {
+        const fp = fpById.get(String(row.id));
+        const total = maxDecimals(satoshiToBtc(fp?.activeTVLSat || 0), 8);
+        return (
+          <span className="truncate inline-block max-w-[160px] text-right">
+            {total} {coinSymbol}
+          </span>
+        );
+      },
+      cellClassName: "text-right pr-4 max-w-[160px]",
+      sorter: (a: { id: string }, b: { id: string }) => {
+        const fa = fpById.get(String(a.id));
+        const fb = fpById.get(String(b.id));
+        const va = fa?.activeTVLSat ?? 0;
+        const vb = fb?.activeTVLSat ?? 0;
+        return va - vb;
+      },
+    },
+    {
+      key: "commission",
+      header: "Commission",
+      headerClassName: "max-w-[140px]",
+      cellClassName: "text-right pr-4 max-w-[140px]",
+      render: (_: unknown, row: { commission: string }) => (
+        <span className="truncate inline-block max-w-[140px] text-right">{row.commission}</span>
+      ),
+      sorter: (a: { commission: string }, b: { commission: string }) =>
+        parseFloat(a.commission) - parseFloat(b.commission),
+    },
+  ];
+
+  const closingFromAddRef = useRef(false);
 
   const handleClose = () => {
+    if (closingFromAddRef.current) {
+      closingFromAddRef.current = false;
+      return;
+    }
     onClose();
-    setSelectedFp("");
+  };
+
+  const handleAdd = (row: any) => {
+    if (selectedBsnId !== undefined) {
+      closingFromAddRef.current = true;
+      onAdd(selectedBsnId, String(row.id));
+    }
+  };
+
+  const mapGridItem = (row: any) => {
+    const fp = fpById.get(String(row.id));
+    if (!fp) {
+      return {
+        providerItemProps: {
+          bsnId: "",
+          bsnName: "",
+          address: String(row.id),
+          provider: { rank: 0, description: { moniker: row.name } },
+        },
+        attributes: {},
+      };
+    }
+    const totalDelegation = maxDecimals(
+      satoshiToBtc(fp.activeTVLSat || 0),
+      8,
+    );
+    const commission = formatCommissionPercentage(
+      Number(fp.commission) || 0,
+    );
+    const status = FinalityProviderStateLabels[fp.state] || "Unknown";
+    return {
+      providerItemProps: {
+        bsnId: fp.bsnId || "",
+        bsnName: fp.chain || "",
+        address: fp.btcPk,
+        provider: {
+          logo_url: fp.logo_url,
+          rank: fp.rank,
+          description: fp.description,
+        },
+      },
+      attributes: {
+        Status: status,
+        "Total Delegation": (
+          <>
+            {totalDelegation} {coinSymbol}
+          </>
+        ),
+        Commission: commission,
+      },
+    };
+  };
+
+  const handleIsRowSelectable = (row: any) => {
+    const fp = fpById.get(String(row.id));
+    return fp ? isRowSelectable(fp as any) : false;
   };
 
   return (
-    <ResponsiveDialog open={open} onClose={handleClose} className="w-[52rem]">
-      <DialogHeader
-        title={modalTitle}
-        onClose={handleClose}
-        className="text-accent-primary"
-      />
-
-      <DialogBody className="mb-4 mt-4 flex flex-col gap-4 text-accent-primary">
-        <div className="text-accent-secondary">
-          Finality Providers play a key role in securing Proof-of-Stake networks
-          by validating and finalising transactions. Select one to delegate your
-          stake.
-        </div>
-
-        <div
-          className="flex flex-col gap-2 overflow-x-auto"
-          style={{ maxHeight: "min(60vh, 500px)" }}
-        >
-          <FinalityProviders selectedFP={selectedFP} onChange={setSelectedFp} />
-        </div>
-      </DialogBody>
-
-      <DialogFooter className="flex justify-between">
-        {onBack ? (
-          <Button variant="outlined" onClick={onBack}>
-            Back
-          </Button>
-        ) : (
-          <div />
-        )}
-        <Button
-          variant="contained"
-          onClick={() => {
-            if (selectedBsnId !== undefined) {
-              onAdd(selectedBsnId, selectedFP);
-              setSelectedFp("");
-            }
-          }}
-          disabled={!selectedFP}
-        >
-          Add
-        </Button>
-      </DialogFooter>
-    </ResponsiveDialog>
+    <ValidatorSelector
+      open={open}
+      validators={rows as any}
+      columns={columns as ColumnProps<any>[]}
+      onClose={handleClose}
+      onSelect={() => { }}
+      title={modalTitle}
+      description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
+      confirmSelection
+      onBack={onBack}
+      onAdd={handleAdd}
+      defaultLayout="grid"
+      gridItemMapper={mapGridItem}
+      isRowSelectable={handleIsRowSelectable}
+      filters={{
+        options: filterOptions,
+        value: filter.providerStatus,
+        onSelect: (value) => handleFilter("providerStatus", String(value)),
+      }}
+    />
   );
 };
