@@ -35,7 +35,12 @@ import {
   toNetwork,
 } from "@/ui/common/utils/wallet";
 
+import { useAddressScreeningService } from "../../hooks/services/useAddressScreeningService";
+
 const btcConfig = getNetworkConfigBTC();
+
+const supportedNetworkMessage =
+  "Only Native SegWit and Taproot addresses are supported. Please switch the address type in your wallet and try again.";
 
 interface BTCWalletContextProps {
   loading: boolean;
@@ -43,6 +48,7 @@ interface BTCWalletContextProps {
   publicKeyNoCoord: string;
   address: string;
   connected: boolean;
+  failedBtcAddressRiskAssessment: boolean;
   disconnect: () => void;
   open: () => void;
   getAddress: () => Promise<string>;
@@ -70,6 +76,7 @@ const BTCWalletContext = createContext<BTCWalletContextProps>({
   connected: false,
   publicKeyNoCoord: "",
   address: "",
+  failedBtcAddressRiskAssessment: false,
   disconnect: () => {},
   open: () => {},
   getAddress: async () => "",
@@ -91,29 +98,32 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
   const [network, setNetwork] = useState<networks.Network>();
   const [publicKeyNoCoord, setPublicKeyNoCoord] = useState("");
   const [address, setAddress] = useState("");
+  const [failedBtcAddressRiskAssessment, setFailedBtcAddressRiskAssessment] =
+    useState(false);
 
   const { handleError } = useError();
   const btcConnector = useChainConnector("BTC");
   const { open = () => {}, connected } = useWalletConnect();
   const logger = useLogger();
   const { updateUser } = useSentryUser();
+  const { screenAddress, clearAddressScreeningResult } =
+    useAddressScreeningService();
 
   const btcDisconnect = useCallback(() => {
     setBTCWalletProvider(undefined);
     setNetwork(undefined);
     setPublicKeyNoCoord("");
     setAddress("");
+    setFailedBtcAddressRiskAssessment(false);
 
     updateUser({ btcAddress: null });
-  }, [updateUser]);
+    clearAddressScreeningResult();
+  }, [updateUser, clearAddressScreeningResult]);
 
   const connectBTC = useCallback(
     async (walletProvider: IBTCProvider | null) => {
       if (!walletProvider) return;
       setLoading(true);
-
-      const supportedNetworkMessage =
-        "Only Native SegWit and Taproot addresses are supported. Please switch the address type in your wallet and try again.";
 
       try {
         const network = await walletProvider.getNetwork();
@@ -163,6 +173,8 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
           );
           throw emptyProcessedPubKeyError;
         }
+        const failedRiskAssessment = await screenAddress(address);
+        setFailedBtcAddressRiskAssessment(failedRiskAssessment);
 
         setBTCWalletProvider(walletProvider);
         setNetwork(toNetwork(network));
@@ -192,7 +204,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
         });
       }
     },
-    [handleError, publicKeyNoCoord, address, logger, updateUser],
+    [handleError, publicKeyNoCoord, address, logger, updateUser, screenAddress],
   );
 
   useEffect(() => {
@@ -292,6 +304,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
       connected,
       open,
       disconnect: btcDisconnect,
+      failedBtcAddressRiskAssessment,
       ...btcWalletMethods,
     }),
     [
@@ -302,6 +315,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
       address,
       open,
       btcDisconnect,
+      failedBtcAddressRiskAssessment,
       btcWalletMethods,
     ],
   );

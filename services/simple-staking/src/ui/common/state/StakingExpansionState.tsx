@@ -39,6 +39,7 @@ const { StateProvider, useState: useStakingExpansionState } =
     hasError: false,
     processing: false,
     errorMessage: undefined,
+    expansionDisabled: false,
     formData: undefined,
     step: undefined,
     verifiedDelegation: undefined,
@@ -76,7 +77,7 @@ const { StateProvider, useState: useStakingExpansionState } =
 export function StakingExpansionState({ children }: PropsWithChildren) {
   const eventBus = useEventBus();
   const maxFinalityProviders = useMaxFinalityProviders();
-  const { publicKeyNoCoord } = useBTCWallet();
+  const { publicKeyNoCoord, failedBtcAddressRiskAssessment } = useBTCWallet();
   const { bech32Address } = useCosmosWallet();
 
   // Fetch delegations from API for expansion storage sync
@@ -117,6 +118,10 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
     selectedDelegationForVerifiedModal,
     setSelectedDelegationForVerifiedModal,
   ] = useState<DelegationWithFP | null>(null);
+
+  const expansionDisabled = useMemo(() => {
+    return failedBtcAddressRiskAssessment;
+  }, [failedBtcAddressRiskAssessment]);
 
   useEffect(() => {
     const unsubscribe = eventBus.on("delegation:expand", (options) => {
@@ -227,6 +232,7 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
       isExpansionModalOpen,
       expansions,
       maxFinalityProviders,
+      expansionDisabled,
       // Stable functions (created with useCallback)
       goToStep,
       setProcessing,
@@ -253,6 +259,7 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
       errorMessage,
       formData,
       step,
+      expansionDisabled,
       verifiedDelegation,
       expansionStepOptions,
       expansionHistoryModalOpen,

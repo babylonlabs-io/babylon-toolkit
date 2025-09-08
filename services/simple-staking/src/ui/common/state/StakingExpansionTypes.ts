@@ -80,6 +80,8 @@ export interface StakingExpansionState {
   isExpansionModalOpen: boolean;
   /** Whether the verified expansion modal is open */
   verifiedExpansionModalOpen: boolean;
+  /** Whether the expansion is disabled */
+  expansionDisabled: boolean;
   /** Set verified expansion modal open state */
   setVerifiedExpansionModalOpen: (open: boolean) => void;
   /** Selected delegation for filtering verified expansions */
