@@ -17,9 +17,9 @@ export function ExpansionPendingBanner({
 
   return (
     <div
-      className={`mb-4 p-4 bg-warning-surface border border-warning-strokeLight rounded ${className}`}
+      className={`bg-warning-surface border-warning-strokeLight mb-4 rounded border p-4 ${className}`}
     >
-      <Text variant="body1" className="text-accent-primary font-medium mb-2">
+      <Text variant="body1" className="mb-2 font-medium text-accent-primary">
         Stake Expansion Pending
       </Text>
       <Text variant="body2" className="text-accent-secondary">

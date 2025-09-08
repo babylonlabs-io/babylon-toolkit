@@ -10,7 +10,7 @@ export function ActivityCardActionSection({
   actions,
 }: ActivityCardActionSectionProps) {
   return (
-    <div className="mt-4 sm:mt-6 space-y-2">
+    <div className="mt-4 space-y-2 sm:mt-6">
       {actions.map((action, index) => (
         <Button
           key={index}

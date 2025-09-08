@@ -61,7 +61,7 @@ export const ValidatorTable = ({
   const searchPrefix = searchTerm ? (
     <button
       onClick={onClearSearch}
-      className="opacity-60 hover:opacity-100 transition-opacity"
+      className="opacity-60 transition-opacity hover:opacity-100"
     >
       <MdCancel size={18} className="text-secondary-strokeDark" />
     </button>
@@ -88,8 +88,8 @@ export const ValidatorTable = ({
           of Babylon Genesis.
         </Text>
 
-        <div className="flex gap-3 items-center">
-          <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
             <Input
               placeholder="Search"
               value={searchTerm}
@@ -117,7 +117,7 @@ export const ValidatorTable = ({
         <Table
           data={validators}
           columns={columns}
-          className="min-w-0 w-full table-fixed"
+          className="w-full min-w-0 table-fixed"
           wrapperClassName="w-full overflow-x-hidden"
           onRowSelect={(row) => {
             if (row) {

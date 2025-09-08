@@ -8,13 +8,13 @@ import { NavItem } from "../Nav/NavItem";
 export const SimplifiedHeader = () => {
   return (
     <header className="mb-20">
-      <Container className="h-20 flex items-center justify-between relative">
+      <Container className="relative flex h-20 items-center justify-between">
         <div className="flex items-center">
           <SmallLogo />
         </div>
 
         {FF.IsBabyStakingEnabled && (
-          <div className="absolute left-1/2 transform -translate-x-1/2">
+          <div className="absolute left-1/2 -translate-x-1/2 transform">
             <Nav>
               <NavItem title="BTC Staking" to="/btc" />
               <NavItem title="BABY Staking" to="/baby" />

@@ -13,8 +13,8 @@ export const MobileNavOverlay = ({ open, onClose }: MobileNavOverlayProps) => {
   if (!open) return null;
 
   return (
-    <div className="fixed flex flex-col inset-0 z-50 bg-surface">
-      <div className="container h-20 flex items-center px-4 mx-auto sm:px-0 gap-4">
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface">
+      <div className="container mx-auto flex h-20 items-center gap-4 px-4 sm:px-0">
         <MobileLogo />
         <button
           type="button"
@@ -26,7 +26,7 @@ export const MobileNavOverlay = ({ open, onClose }: MobileNavOverlayProps) => {
         </button>
       </div>
 
-      <nav className="container flex flex-col gap-9 px-4 sm:px-0 m-auto pb-20">
+      <nav className="container m-auto flex flex-col gap-9 px-4 pb-20 sm:px-0">
         <NavLink
           to="/btc"
           onClick={onClose}

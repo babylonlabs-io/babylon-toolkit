@@ -49,10 +49,10 @@ export const Alert = ({
   return (
     <div className={twMerge(baseClasses, styles.bg, className)} role="alert">
       <div className="flex flex-row items-start py-2 pr-3">{styledIcon}</div>
-      <div className="flex flex-col items-start py-2 w-full">
+      <div className="flex w-full flex-col items-start py-2">
         <div
           className={twMerge(
-            "flex flex-col sm:flex-row sm:gap-x-1 text-xs sm:text-sm md:text-base",
+            "flex flex-col text-xs sm:flex-row sm:gap-x-1 sm:text-sm md:text-base",
             styles.text,
           )}
         >

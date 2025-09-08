@@ -43,13 +43,13 @@ export const FinalityProviderLogo = ({
         <img
           src={logoUrl}
           alt={moniker || `Finality Provider ${rank}`}
-          className="w-full h-full rounded-full object-cover"
+          className="h-full w-full rounded-full object-cover"
           onError={() => setImageError(true)}
         />
       ) : (
         <Text
           as="span"
-          className="inline-flex justify-center items-center w-full h-full bg-secondary-main text-accent-contrast rounded-full text-[1rem]"
+          className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] text-accent-contrast"
         >
           {fallbackLabel}
         </Text>

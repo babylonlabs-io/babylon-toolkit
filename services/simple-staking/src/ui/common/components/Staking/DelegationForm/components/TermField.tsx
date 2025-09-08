@@ -12,7 +12,7 @@ export function TermField({ min = 0, defaultValue }: TermFieldProps) {
   }
 
   const label = (
-    <div className="flex flex-1 justify-between items-center">
+    <div className="flex flex-1 items-center justify-between">
       <Text as="span" variant="body1">
         Term
       </Text>

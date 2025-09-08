@@ -16,19 +16,19 @@ export function ActivityCardAmountSection({
   primaryAction,
 }: ActivityCardAmountSectionProps) {
   return (
-    <div className="flex items-center justify-between mb-4 sm:mb-6">
+    <div className="mb-4 flex items-center justify-between sm:mb-6">
       <div className="flex items-center gap-2">
         {icon &&
           (typeof icon === "string" ? (
             <img
               src={icon}
               alt={iconAlt || "icon"}
-              className="w-6 h-6 sm:w-8 sm:h-8"
+              className="h-6 w-6 sm:h-8 sm:w-8"
             />
           ) : (
             icon
           ))}
-        <span className="text-base sm:text-lg font-medium text-accent-primary">
+        <span className="text-base font-medium text-accent-primary sm:text-lg">
           {formattedAmount}
         </span>
       </div>

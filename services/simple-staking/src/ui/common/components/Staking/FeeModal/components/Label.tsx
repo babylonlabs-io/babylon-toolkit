@@ -12,7 +12,7 @@ interface LabelProps {
 export const Label = ({ label, amount, warning, hint }: LabelProps) => (
   <Text
     as="span"
-    className="flex flex-1 justify-between items-center"
+    className="flex flex-1 items-center justify-between"
     variant="body1"
   >
     <span>

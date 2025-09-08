@@ -9,8 +9,8 @@ export const Banner = () => {
   }
 
   return (
-    <div className="flex flex-row gap-2 px-4 py-3 bg-[#D5FCE8] text-primary-main items-center justify-between">
-      <div className="flex flex-row gap-2 items-center">
+    <div className="flex flex-row items-center justify-between gap-2 bg-[#D5FCE8] px-4 py-3 text-primary-main">
+      <div className="flex flex-row items-center gap-2">
         <PiWarningOctagonFill />
         <Text variant="body1">
           <strong>This is a testing app</strong>

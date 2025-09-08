@@ -131,13 +131,13 @@ export const ExpansionChainSelectionModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col mb-4 mt-4 text-accent-primary">
+      <DialogBody className="mb-4 mt-4 flex flex-col text-accent-primary">
         <div>
           Bitcoin Supercharged Networks (BSNs) are Proof-of-Stake systems
           secured by Bitcoin staking. Select a network to delegate your stake.
         </div>
         <div
-          className="overflow-y-auto flex flex-col gap-2 mt-10"
+          className="mt-10 flex flex-col gap-2 overflow-y-auto"
           style={{ maxHeight: "min(60vh, 500px)" }}
         >
           {loading && <div>Loading...</div>}

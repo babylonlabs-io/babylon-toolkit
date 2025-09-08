@@ -22,7 +22,7 @@ export const FinalityProviders = () => {
         Select a Finality Provider
       </Text>
 
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col gap-4 md:flex-row">
         <div className="flex-1">
           <FinalityProviderSearch />
         </div>

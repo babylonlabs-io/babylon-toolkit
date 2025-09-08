@@ -17,7 +17,7 @@ const BG_TEXT_COLOR = {
 
 export const IconWrapper = ({ ReactIcon, type }: Props) => {
   return (
-    <div className={twJoin("p-2 rounded-full", BG_TEXT_COLOR[type])}>
+    <div className={twJoin("rounded-full p-2", BG_TEXT_COLOR[type])}>
       <ReactIcon size={24} />
     </div>
   );

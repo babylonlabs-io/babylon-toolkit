@@ -28,7 +28,7 @@ export function SubmitButton({
         //@ts-expect-error - fix type issue in core-ui
         type="submit"
         disabled={disabled || !isValid}
-        className="w-full mt-2 capitalize disabled:!text-accent-primary disabled:!bg-accent-primary/10"
+        className="mt-2 w-full capitalize disabled:!bg-accent-primary/10 disabled:!text-accent-primary"
         onClick={onClick}
       >
         {errorField ? errors[errorField]?.message?.toString() : "Preview"}

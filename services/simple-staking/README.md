@@ -22,7 +22,7 @@ where,
   system queries
 - `NEXT_PUBLIC_NETWORK` specifies the BTC network environment
 - `NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES` boolean value to indicate whether display
-testing network related message. Default to true
+  testing network related message. Default to true
 - `NEXT_PUBLIC_FIXED_STAKING_TERM` boolean value to indicate whether the staking term is fixed. Default to false
 - `NEXT_PUBLIC_STAKING_DISABLED` boolean value to disable staking on the dashboard
 - `NEXT_PUBLIC_BBN_GAS_PRICE` specifies the gas price for BABY. Default to 0.002
@@ -51,11 +51,13 @@ Instructions for wallet integration can be found in the
 ## E2E Tests
 
 To build the E2E tests, run:
+
 ```bash
 npm run build:e2e
 ```
 
 To run the E2E tests, run:
+
 ```bash
 npm run test:e2e
 ```

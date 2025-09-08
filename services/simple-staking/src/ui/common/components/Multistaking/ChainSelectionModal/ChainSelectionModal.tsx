@@ -61,12 +61,12 @@ export const ChainSelectionModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col mb-4 mt-4 text-accent-primary">
+      <DialogBody className="mb-4 mt-4 flex flex-col text-accent-primary">
         <div>
           Bitcoin Supercharged Networks (BSNs) are Proof-of-Stake systems
           secured by Bitcoin staking. Select a network to delegate your stake.
         </div>
-        <div className="overflow-y-auto max-h-[350px] flex flex-col gap-2 mt-10">
+        <div className="mt-10 flex max-h-[350px] flex-col gap-2 overflow-y-auto">
           {loading && <div>Loading...</div>}
           {babylonBsn && (
             <ChainButton
@@ -111,7 +111,7 @@ export const ChainSelectionModal = ({
           ))}
         </div>
         {!isBabylonSelected && (
-          <SubSection className="text-base text-[#387085] gap-3 flex-row mt-4 rounded">
+          <SubSection className="mt-4 flex-row gap-3 rounded text-base text-[#387085]">
             <div>
               <MdOutlineInfo size={22} />
             </div>

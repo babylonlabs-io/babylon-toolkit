@@ -31,7 +31,7 @@ export function createBsnFpGroupedDetails(
                 <img
                   src={fp.bsnLogoUrl}
                   alt={fp.bsnId}
-                  className="w-4 h-4 rounded-full object-cover"
+                  className="h-4 w-4 rounded-full object-cover"
                 />
                 <span>{fp.bsnId}</span>
               </div>
@@ -45,7 +45,7 @@ export function createBsnFpGroupedDetails(
                   logoUrl={fp.logo_url}
                   rank={fp.rank}
                   moniker={fp.description?.moniker}
-                  className="w-4 h-4"
+                  className="h-4 w-4"
                 />
                 <span>{fp.description?.moniker || `Provider ${fp.rank}`}</span>
               </div>

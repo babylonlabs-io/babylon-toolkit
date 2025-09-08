@@ -15,8 +15,8 @@ export const SuccessContent = ({
     </Text>
     {transactionHash && (
       <div className="flex flex-col gap-2">
-        <div className="flex flex-col sm:flex-row items-center justify-center">
-          <Text variant="body2" className="sm:mr-2 mb-1 sm:mb-0">
+        <div className="flex flex-col items-center justify-center sm:flex-row">
+          <Text variant="body2" className="mb-1 sm:mb-0 sm:mr-2">
             Transaction Hash:
           </Text>
           {BABYLON_EXPLORER ? (
@@ -24,7 +24,7 @@ export const SuccessContent = ({
               href={`${BABYLON_EXPLORER}/transaction/${transactionHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-light hover:text-primary-light/80 underline break-all text-center"
+              className="break-all text-center text-primary-light underline hover:text-primary-light/80"
             >
               {trim(transactionHash, 8)}
             </a>

@@ -25,7 +25,7 @@ export const CustomLabel = forwardRef<HTMLInputElement, CustomLabelProps>(
         value={amount}
         disabled={disabled}
         suffix={
-          <Text className="whitespace-nowrap text-primary inline-flex items-center gap-2">
+          <Text className="text-primary inline-flex items-center gap-2 whitespace-nowrap">
             {warning && <WarningTooltip />}
             sats vB
           </Text>

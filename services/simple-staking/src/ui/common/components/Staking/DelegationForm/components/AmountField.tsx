@@ -12,7 +12,7 @@ const { coinSymbol } = getNetworkConfigBTC();
 
 export function AmountField({ min = 0, max = 0 }: AmountFieldProps) {
   const label = (
-    <div className="flex flex-1 justify-between items-center">
+    <div className="flex flex-1 items-center justify-between">
       <Text as="span" variant="body1">
         Amount
       </Text>

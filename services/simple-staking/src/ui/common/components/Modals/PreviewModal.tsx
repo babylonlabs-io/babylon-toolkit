@@ -98,7 +98,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="text-accent-secondary ml-2"
+              className="ml-2 text-accent-secondary"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(stakingAmountSat),
@@ -124,7 +124,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="text-accent-secondary ml-2"
+              className="ml-2 text-accent-secondary"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(stakingFeeSat),
@@ -163,7 +163,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="text-accent-secondary ml-2"
+              className="ml-2 text-accent-secondary"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(unbondingFeeSat),
@@ -184,7 +184,7 @@ export const PreviewModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col mb-8 mt-4 text-accent-primary gap-4">
+      <DialogBody className="mb-8 mt-4 flex flex-col gap-4 text-accent-primary">
         <div className="flex flex-col">
           {previewFields.map((field, index) => (
             <Fragment key={field.key}>

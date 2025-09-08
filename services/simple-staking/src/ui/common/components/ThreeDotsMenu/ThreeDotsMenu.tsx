@@ -33,7 +33,7 @@ export const ThreeDotsMenu = ({
         anchorEl={anchorEl}
         placement="bottom-end"
         onClickOutside={() => setOpen(false)}
-        className="bg-surface p-4 rounded border border-secondary-strokeLight w-60 shadow-md"
+        className="w-60 rounded border border-secondary-strokeLight bg-surface p-4 shadow-md"
       >
         <div className="flex flex-col gap-6">
           <Text

@@ -84,7 +84,7 @@ export const FinalityProviderTable = ({
   return (
     <>
       {layout === "grid" ? (
-        <div className="grid grid-cols-2 gap-4 w-full overflow-scroll max-h-[440px]">
+        <div className="grid max-h-[440px] w-full grid-cols-2 gap-4 overflow-scroll">
           {finalityProviders.map((fp) => {
             const isSelected = selectedFP === fp.btcPk;
             const isSelectable = isRowSelectable(fp);
@@ -129,7 +129,7 @@ export const FinalityProviderTable = ({
           })}
         </div>
       ) : (
-        <div className="flex flex-col gap-4 w-full overflow-scroll max-h-[440px]">
+        <div className="flex max-h-[440px] w-full flex-col gap-4 overflow-scroll">
           <Table
             onRowSelect={(row) => handleSelect(row?.address || "")}
             fluid

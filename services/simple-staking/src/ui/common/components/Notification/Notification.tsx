@@ -32,7 +32,7 @@ export const Notification = ({
   return (
     <div>
       <FloatingTopBar type={toastProps.type} />
-      <div className="flex flex-row justify-evenly items-start md:items-center gap-2">
+      <div className="flex flex-row items-start justify-evenly gap-2 md:items-center">
         <IconWrapper ReactIcon={reactIcon} type={toastProps.type} />
         <div className="flex flex-col items-start gap-1">
           <NotificationTitle>{title}</NotificationTitle>

@@ -120,9 +120,9 @@ function VerifiedExpansionItem({
   const stakingAmount = maxDecimals(satoshiToBtc(delegation.stakingAmount), 8);
 
   return (
-    <div className="border border-secondary-strokeLight rounded-lg p-4 space-y-3">
+    <div className="space-y-3 rounded-lg border border-secondary-strokeLight p-4">
       <div className="flex items-start justify-between">
-        <div className="space-y-2 flex-1">
+        <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
             <BiSolidBadgeCheck className="text-xl text-primary-light" />
             <Text variant="body1" className="font-medium text-accent-primary">
@@ -148,7 +148,7 @@ function VerifiedExpansionItem({
               <Text variant="body2" className="text-accent-secondary">
                 Transaction:
               </Text>
-              <Text variant="body2" className="text-accent-primary font-mono">
+              <Text variant="body2" className="font-mono text-accent-primary">
                 {trim(delegation.stakingTxHashHex, 10)}
               </Text>
             </div>
@@ -197,7 +197,7 @@ function VerifiedExpansionItem({
 
           {/* Show BSN/FP pairs - different display for different operation types */}
           <div className="mt-3 space-y-1">
-            <Text variant="body2" className="text-accent-secondary mb-1">
+            <Text variant="body2" className="mb-1 text-accent-secondary">
               BSN / Finality Provider pairs:
             </Text>
             <div className="space-y-1">
@@ -214,7 +214,7 @@ function VerifiedExpansionItem({
                   {/* Only show NEW labels for ADD_BSN_FP operations and actually new pairs */}
                   {operationType === EXPANSION_OPERATIONS.ADD_BSN_FP &&
                     pair.isNew && (
-                      <span className="text-xs bg-primary-light/10 text-primary-light px-2 py-0.5 rounded">
+                      <span className="rounded bg-primary-light/10 px-2 py-0.5 text-xs text-primary-light">
                         NEW
                       </span>
                     )}
@@ -265,14 +265,14 @@ function VerifiedStakeExpansionModalInner({
         onClose={onClose}
         className="text-accent-primary"
       />
-      <Text variant="body1" className="text-accent-secondary mb-4">
+      <Text variant="body1" className="mb-4 text-accent-secondary">
         Your expansion requests have been verified by the Babylon network. You
         can now complete the expansion by signing and broadcasting to Bitcoin.
       </Text>
-      <DialogBody className="flex flex-col text-accent-primary gap-4 max-h-[70vh] pb-4 overflow-y-auto no-scrollbar">
+      <DialogBody className="no-scrollbar flex max-h-[70vh] flex-col gap-4 overflow-y-auto pb-4 text-accent-primary">
         <div className="flex flex-col gap-2">
           {verifiedExpansions.length === 0 ? (
-            <div className="text-center py-8">
+            <div className="py-8 text-center">
               <Text variant="body1" className="text-accent-secondary">
                 No verified expansions found.
               </Text>

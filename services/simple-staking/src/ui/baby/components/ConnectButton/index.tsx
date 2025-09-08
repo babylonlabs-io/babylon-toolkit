@@ -14,7 +14,7 @@ export function ConnectButton({ disabled }: ConnectButtonProps) {
       //@ts-expect-error - fix type issue in core-ui
       type="button"
       onClick={open}
-      className="w-full mt-2"
+      className="mt-2 w-full"
       disabled={disabled}
     >
       Connect Wallet

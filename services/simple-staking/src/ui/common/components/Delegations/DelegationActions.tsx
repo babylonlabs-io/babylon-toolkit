@@ -162,7 +162,7 @@ export const DelegationActions: React.FC<DelegationActionsProps> = ({
         <button
           ref={setAnchorEl}
           onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-          className="ml-1 py-2 px-0 hover:bg-secondary-highlight rounded"
+          className="ml-1 rounded px-0 py-2 hover:bg-secondary-highlight"
         >
           <IoMdMore className="h-6 w-6" />
         </button>
@@ -172,7 +172,7 @@ export const DelegationActions: React.FC<DelegationActionsProps> = ({
           anchorEl={anchorEl}
           placement="bottom-end"
           onClickOutside={() => setIsPopoverOpen(false)}
-          className="bg-surface p-4 rounded border border-secondary-strokeLight w-48 shadow-md"
+          className="w-48 rounded border border-secondary-strokeLight bg-surface p-4 shadow-md"
         >
           <Text
             variant="body2"
@@ -187,12 +187,12 @@ export const DelegationActions: React.FC<DelegationActionsProps> = ({
               "flex items-center gap-1 text-accent-primary transition-all",
               isStakingManagerReady
                 ? "hover:brightness-125"
-                : "opacity-50 cursor-not-allowed",
+                : "cursor-not-allowed opacity-50",
             )}
           >
             Unbond
             {!isStakingManagerReady && (
-              <Loader size={12} className="text-accent-primary ml-1" />
+              <Loader size={12} className="ml-1 text-accent-primary" />
             )}
           </Text>
         </Popover>
