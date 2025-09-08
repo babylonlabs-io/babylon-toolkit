@@ -55,7 +55,7 @@ export function DelegationForm({
   if (loading) {
     return (
       <StatusView
-        className="h-auto flex-1"
+        className="flex-1 h-auto"
         icon={<Loader className="text-primary-light" />}
         title="Please wait..."
       />
@@ -150,7 +150,7 @@ export function DelegationForm({
             <HiddenField name="feeAmount" defaultValue="0" />
 
             <FeeSection>
-              <div className="mt-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-4 mt-4">
                 <BTCFeeRate defaultRate={stakingInfo?.defaultFeeRate} />
                 <BTCFeeAmount />
                 {BBN_FEE_AMOUNT && <BBNFeeAmount amount={BBN_FEE_AMOUNT} />}

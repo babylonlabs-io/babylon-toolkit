@@ -16,7 +16,7 @@ const { networkName } = getNetworkConfigBTC();
 export const WithdrawModal = (props: WithdrawModalProps) => {
   return (
     <ConfirmationModal title="Withdraw" {...props}>
-      <Text variant="body1" className="pb-10 pt-8">
+      <Text variant="body1" className="pt-8 pb-10">
         You are about to withdraw your stake. <br /> A transaction fee will be
         deduced from your stake by the {networkName} network.
       </Text>

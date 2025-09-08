@@ -11,12 +11,12 @@ export function InfoAlert() {
   const { stakingInfo } = useStakingState();
 
   return (
-    <div className="flex flex-row items-start justify-between rounded bg-secondary-highlight px-4 py-2">
+    <div className="rounded bg-secondary-highlight flex flex-row items-start justify-between py-2 px-4">
       <div className="py-2 pr-3">
         <MdErrorOutline size={22} className="text-secondary-strokeDark" />
       </div>
 
-      <div className="flex grow flex-col gap-1">
+      <div className="flex flex-col gap-1 grow">
         <Text variant="subtitle1" className="font-medium text-accent-primary">
           Info
         </Text>

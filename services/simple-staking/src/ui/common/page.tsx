@@ -8,7 +8,7 @@ import { Activity } from "./components/Activity/Activity";
 import { Container } from "./components/Container/Container";
 import { FAQ } from "./components/FAQ/FAQ";
 import { MultistakingFormWrapper } from "./components/Multistaking/MultistakingForm/MultistakingFormWrapper";
-import { PersonalBalance } from "./components/PersonalBalance/PersonalBalance";
+import { Rewards } from "./components/Rewards";
 import { Stats } from "./components/Stats/Stats";
 import { Tabs } from "./components/Tabs";
 
@@ -39,28 +39,28 @@ const Home = () => {
     ...(isConnected
       ? [
           {
-            id: "balances",
-            label: "Balances",
-            content: <PersonalBalance />,
-          },
-          {
             id: "activity",
             label: "Activity",
             content: <Activity />,
+          },
+          {
+            id: "rewards",
+            label: "Rewards",
+            content: <Rewards />,
           },
         ]
       : []),
     {
       id: "faqs",
       label: "FAQs",
-      content: <FAQ />,
+      content: <FAQ variant="btc" />,
     },
   ];
 
   return (
     <Container
       as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-16"
+      className="flex flex-col gap-[3rem] pb-24 max-w-[760px] mx-auto flex-1"
     >
       <Stats />
       <Tabs

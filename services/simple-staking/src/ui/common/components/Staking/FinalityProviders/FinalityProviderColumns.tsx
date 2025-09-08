@@ -27,7 +27,7 @@ export const finalityProviderColumns = [
 
       return (
         <span
-          className="inline-flex items-center gap-2"
+          className="inline-flex gap-2 items-center"
           title={row.description?.moniker}
         >
           <FinalityProviderLogo
@@ -55,7 +55,7 @@ export const finalityProviderColumns = [
   },
   {
     key: "btcPk",
-    header: `${coinSymbol} PK`,
+    header: "BTC PK",
     render: (_: unknown, row?: FinalityProvider) => {
       if (!row?.btcPk) return null;
       return <Hash value={row.btcPk} address small noFade />;

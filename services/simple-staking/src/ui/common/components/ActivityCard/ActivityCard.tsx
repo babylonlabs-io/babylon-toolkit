@@ -1,8 +1,7 @@
+import { ExpansionPendingBanner } from "@/ui/common/components/Activity/components/ExpansionPendingBanner";
 import { StakeExpansionSection } from "@/ui/common/components/Activity/components/StakeExpansionSection";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
-
-import { NonExpandableExpansion } from "../Activity/components/NonExpandableExpansion";
 
 import { ActivityCardActionSection } from "./components/ActivityCardActionSection";
 import { ActivityCardAmountSection } from "./components/ActivityCardAmountSection";
@@ -39,9 +38,16 @@ export interface ActivityCardData {
     label: string;
     items: ActivityListItemData[];
   }[];
+  groupedDetails?: {
+    label?: string;
+    items: ActivityCardDetailItem[];
+  }[];
   primaryAction?: ActivityCardActionButton;
   secondaryActions?: ActivityCardActionButton[];
   expansionSection?: DelegationWithFP;
+  isPendingExpansion?: boolean;
+  showExpansionPendingBanner?: boolean;
+  hideExpansionCompletely?: boolean;
 }
 
 interface ActivityCardProps {
@@ -50,9 +56,12 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ data, className }: ActivityCardProps) {
+  const shouldShowExpansion =
+    FeatureFlagService.IsPhase3Enabled && !data.hideExpansionCompletely;
+
   return (
     <div
-      className={`w-full space-y-3 rounded bg-secondary-highlight p-3 sm:space-y-4 sm:p-4 ${className || ""}`}
+      className={`w-full bg-secondary-highlight p-3 sm:p-4 space-y-3 sm:space-y-4 rounded ${className || ""}`}
     >
       <ActivityCardAmountSection
         formattedAmount={data.formattedAmount}
@@ -60,20 +69,19 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
         iconAlt={data.iconAlt}
         primaryAction={data.primaryAction}
       />
-
       <ActivityCardDetailsSection
         details={data.details}
         optionalDetails={data.optionalDetails}
         listItems={data.listItems}
+        groupedDetails={data.groupedDetails}
       />
-
-      {FeatureFlagService.IsPhase3Enabled &&
-        (data.expansionSection ? (
-          <StakeExpansionSection delegation={data.expansionSection} />
-        ) : (
-          <NonExpandableExpansion />
-        ))}
-
+      {data.showExpansionPendingBanner && <ExpansionPendingBanner />}
+      {shouldShowExpansion && data.expansionSection && (
+        <StakeExpansionSection
+          delegation={data.expansionSection}
+          isPendingExpansion={data.isPendingExpansion}
+        />
+      )}
       {data.secondaryActions && data.secondaryActions.length > 0 && (
         <ActivityCardActionSection actions={data.secondaryActions} />
       )}

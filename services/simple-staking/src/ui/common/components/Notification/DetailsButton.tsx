@@ -1,7 +1,7 @@
 export const DetailsButton = () => {
   return (
     <button
-      className="whitespace-nowrap text-base font-medium text-black dark:text-white"
+      className="text-base font-medium dark:text-white text-black whitespace-nowrap"
       onClick={() => {}}
     >
       Details

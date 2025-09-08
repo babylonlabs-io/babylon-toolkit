@@ -43,10 +43,10 @@ export function ExpansionHistoryModal({
         onClose={onClose}
         className="text-accent-primary"
       />
-      <DialogBody className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto pb-4 pt-4 text-accent-primary">
+      <DialogBody className="flex flex-col pb-4 pt-4 text-accent-primary gap-4 max-h-[70vh] overflow-y-auto">
         <div className="flex flex-col gap-2">
           {!hasExpansionHistory ? (
-            <div className="py-8 text-center">
+            <div className="text-center py-8">
               <Text variant="body1" className="text-accent-secondary">
                 No expansion history found
               </Text>

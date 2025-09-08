@@ -21,15 +21,15 @@ export function RewardCard() {
 
   return (
     <SubSection className="flex-col gap-4">
-      <div className="flex w-full items-center justify-between">
-        <div className="inline-flex items-center gap-2">
+      <div className="flex justify-between items-center w-full">
+        <div className="inline-flex gap-2 items-center">
           <Avatar size="medium" url={logo} alt="BABY" />
-          <span className="text-base font-medium text-accent-primary sm:text-lg">
+          <span className="text-base sm:text-lg font-medium text-accent-primary">
             {coinSymbol}
           </span>
         </div>
 
-        <span className="text-base font-medium text-accent-primary sm:text-lg">
+        <span className="text-base sm:text-lg font-medium text-accent-primary">
           {formattedReward} {coinSymbol}
         </span>
       </div>
@@ -37,7 +37,7 @@ export function RewardCard() {
       <Text
         as="div"
         variant="body2"
-        className="flex items-center justify-between text-accent-secondary"
+        className="flex justify-between items-center text-accent-secondary"
       >
         <span>Babylon Genesis</span>
         <span>

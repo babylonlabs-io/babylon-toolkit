@@ -1,29 +1,3 @@
-import babylon from "@/ui/common/assets/chains/babylon-genesis.png";
-import cosmos from "@/ui/common/assets/chains/cosmos.png";
-import ethereum from "@/ui/common/assets/chains/ethereum.png";
-import placeholder from "@/ui/common/assets/chains/placeholder.svg";
-import sui from "@/ui/common/assets/chains/sui.png";
-import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
-
-const { chainId: BABYLON_BSN_ID } = getNetworkConfigBBN();
-
-export const chainLogos: Record<string, string> = {
-  babylon,
-  [BABYLON_BSN_ID]: babylon,
-  cosmos,
-  ethereum,
-  sui,
-  placeholder,
-};
-
-export const chainNames = {
-  babylon: "Babylon Genesis",
-  cosmos: "Cosmos",
-  ethereum: "Ethereum",
-  sui: "Sui",
-  unknown: "Unknown Chain",
-} as const;
-
 export const ONE_SECOND = 1000;
 export const ONE_MINUTE = 60 * ONE_SECOND;
 
@@ -61,6 +35,20 @@ export const REPLAYS_ON_ERROR_RATE = parseFloat(
 export const DEFAULT_MAX_FINALITY_PROVIDERS = 1;
 
 /**
+ * Default Bitcoin confirmation depth required for transactions
+ * Used when network info is not available
+ */
+export const DEFAULT_CONFIRMATION_DEPTH = 30;
+
+/**
+ * Staking expansion operation types
+ */
+export const EXPANSION_OPERATIONS = {
+  ADD_BSN_FP: "ADD_BSN_FP",
+  RENEW_TIMELOCK: "RENEW_TIMELOCK",
+};
+
+/**
  * Shared EOI steps used across staking workflows
  */
 export enum EOIStep {
@@ -85,6 +73,3 @@ export enum BaseStakingStep {
   FEEDBACK_SUCCESS = "feedback-success",
   FEEDBACK_CANCEL = "feedback-cancel",
 }
-
-export const STAKE_EXPANSION_MESSAGE =
-  "New stakes can only delegate to Babylon Genesis. Multi-Staking is currently unavailable due to allow list restrictions.";

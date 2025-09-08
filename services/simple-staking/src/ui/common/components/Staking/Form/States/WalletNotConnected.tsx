@@ -16,12 +16,12 @@ export const WalletNotConnected = () => {
       </div>
 
       <div className="text-center">
-        <Heading variant="h5" className="mb-2 text-2xl text-accent-primary">
+        <Heading variant="h5" className="text-accent-primary text-2xl mb-2">
           Connect wallets to start staking
         </Heading>
         <Text
           variant="body1"
-          className="p-0 text-center text-base text-accent-secondary"
+          className="text-center text-base text-accent-secondary p-0"
         >
           To start staking your {coinName} first connect wallets then select a
           Finality Provider

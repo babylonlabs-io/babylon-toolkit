@@ -2,15 +2,15 @@ import {
   btcstakingtx,
   epochingtx,
   incentivetx,
-  googleProtoAny,
 } from "@babylonlabs-io/babylon-proto-ts";
+import { MessageFns } from "@babylonlabs-io/babylon-proto-ts/dist/generated/google/protobuf/any";
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
 // Define the structure of each proto to register
 type ProtoToRegister<T> = {
   typeUrl: string;
-  messageType: googleProtoAny.MessageFns<T>;
+  messageType: MessageFns<T>;
 };
 
 export const BBN_REGISTRY_TYPE_URLS = {

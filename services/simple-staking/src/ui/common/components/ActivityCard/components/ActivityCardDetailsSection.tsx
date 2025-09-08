@@ -9,6 +9,10 @@ interface ActivityCardDetailsSectionProps {
     label: string;
     items: ActivityListItemData[];
   }[];
+  groupedDetails?: {
+    label?: string;
+    items: ActivityCardDetailItem[];
+  }[];
 }
 
 interface DetailRowProps {
@@ -18,11 +22,11 @@ interface DetailRowProps {
 
 function DetailRow({ label, value }: DetailRowProps) {
   return (
-    <div className="flex min-w-0 items-center justify-between gap-2 overflow-x-auto">
-      <span className="flex-shrink-0 text-xs text-accent-primary sm:text-sm">
+    <div className="flex items-center justify-between gap-2 min-w-0">
+      <span className="text-xs sm:text-sm text-accent-primary flex-shrink-0">
         {label}
       </span>
-      <span className="min-w-0 overflow-x-auto whitespace-nowrap text-right text-xs font-medium text-accent-primary sm:text-sm">
+      <span className="text-xs sm:text-sm text-accent-primary font-medium text-right min-w-0 truncate overflow-hidden text-ellipsis">
         {value}
       </span>
     </div>
@@ -33,27 +37,53 @@ export function ActivityCardDetailsSection({
   details,
   optionalDetails,
   listItems,
+  groupedDetails,
 }: ActivityCardDetailsSectionProps) {
   const hasOptionalDetails = optionalDetails && optionalDetails.length > 0;
   const hasListItems = listItems && listItems.length > 0;
+  const hasGroupedDetails = groupedDetails && groupedDetails.length > 0;
 
   return (
-    <div className="space-y-3 overflow-x-auto sm:space-y-4">
+    <div className="space-y-3 sm:space-y-4 overflow-x-auto">
       <div className="space-y-4 sm:space-y-6">
         {details.map((detail, index) => (
           <DetailRow key={index} label={detail.label} value={detail.value} />
         ))}
       </div>
 
+      {hasGroupedDetails && (
+        <div className="space-y-3 sm:space-y-4">
+          {groupedDetails.map((group, groupIndex) => (
+            <div
+              key={groupIndex}
+              className="bg-surface p-3 sm:p-4 rounded space-y-3 sm:space-y-4 overflow-x-auto"
+            >
+              {group.label && (
+                <span className="text-xs sm:text-sm text-accent-primary">
+                  {group.label}
+                </span>
+              )}
+              {group.items.map((detail, detailIndex) => (
+                <DetailRow
+                  key={detailIndex}
+                  label={detail.label}
+                  value={detail.value}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
       {hasListItems && (
         <div className="space-y-3 sm:space-y-4">
           {listItems.map((listSection, sectionIndex) => (
             <div
               key={sectionIndex}
-              className="space-y-3 overflow-x-auto rounded bg-surface p-3 sm:space-y-4 sm:p-4"
+              className="bg-surface p-3 sm:p-4 rounded space-y-3 sm:space-y-4 overflow-x-auto"
             >
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-xs text-accent-primary sm:text-sm">
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-xs sm:text-sm text-accent-primary">
                   {listSection.label}
                 </span>
                 <div className="flex flex-wrap gap-2">
@@ -68,7 +98,7 @@ export function ActivityCardDetailsSection({
       )}
 
       {hasOptionalDetails && (
-        <div className="space-y-3 overflow-x-auto rounded bg-surface p-3 sm:space-y-4 sm:p-4">
+        <div className="bg-surface p-3 sm:p-4 rounded space-y-3 sm:space-y-4 overflow-x-auto">
           {optionalDetails.map((detail, index) => (
             <DetailRow key={index} label={detail.label} value={detail.value} />
           ))}

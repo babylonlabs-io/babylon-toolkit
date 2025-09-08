@@ -43,12 +43,12 @@ export const SignModal = ({
       className="text-accent-primary"
     />
 
-    <DialogBody className="flex flex-col gap-4 pb-8 pt-4 text-accent-primary">
+    <DialogBody className="flex flex-col pb-8 pt-4 text-accent-primary gap-4">
       <Text variant="body1" className="text-accent-secondary">
         Please sign the following messages
       </Text>
 
-      <div className="flex flex-col items-start gap-6 py-4">
+      <div className="py-4 flex flex-col items-start gap-6">
         <Step step={1} currentStep={step} shouldShowDetails options={options}>
           Consent to slashing
         </Step>

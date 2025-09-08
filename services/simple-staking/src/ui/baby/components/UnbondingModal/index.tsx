@@ -72,7 +72,7 @@ const UnbondingModalContent = ({
         <Text
           as="div"
           variant="body2"
-          className="whitespace-pre-line text-accent-secondary"
+          className="text-accent-secondary whitespace-pre-line"
         >
           Choose how much BABY you'd like to unbond from your current
           delegation. Unbonded tokens will enter a waiting period before they
@@ -89,7 +89,7 @@ const UnbondingModalContent = ({
         </Warning>
       </DialogBody>
 
-      <DialogFooter className="mt-[80px] flex justify-end">
+      <DialogFooter className="flex justify-end mt-[80px]">
         <Button onClick={handleSubmit(handleFormSubmit)} disabled={!isValid}>
           Unbond
         </Button>

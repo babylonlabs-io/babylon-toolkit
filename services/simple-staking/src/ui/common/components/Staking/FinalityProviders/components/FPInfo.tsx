@@ -22,7 +22,7 @@ export const FPInfo = ({ moniker, website }: FPInfoProps) => {
             href={website}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-primary relative top-[1px] ml-1 inline-flex"
+            className="text-primary inline-flex ml-1 relative top-[1px]"
           >
             <FiExternalLink />
           </a>

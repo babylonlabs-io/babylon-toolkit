@@ -1,15 +1,14 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
-import { getCurrentBabylonEpoch } from "@/ui/common/api/getCurrentEpoch";
+import babylon from "@/infrastructure/babylon";
 import { ONE_MINUTE } from "@/ui/common/constants";
+import { setCurrentEpoch } from "@/ui/common/utils/local_storage/epochStorage";
 
 import { usePendingOperationsService } from "../services/usePendingOperationsService";
 
 import { BABY_DELEGATIONS_KEY } from "./useDelegations";
 import { BABY_UNBONDING_DELEGATIONS_KEY } from "./useUnbondingDelegations";
-
-const BABYLON_CURRENT_EPOCH_KEY = "BABYLON_CURRENT_EPOCH";
 
 export function useEpochPolling(address?: string) {
   const queryClient = useQueryClient();
@@ -17,42 +16,51 @@ export function useEpochPolling(address?: string) {
   const { cleanupAllPendingOperationsFromStorage } =
     usePendingOperationsService();
 
-  const { data: currentEpoch } = useQuery<number, Error>({
-    queryKey: [BABYLON_CURRENT_EPOCH_KEY],
-    queryFn: () => getCurrentBabylonEpoch(),
-    refetchInterval: ONE_MINUTE,
-    // Only poll if we have an address (user is connected)
-    enabled: Boolean(address),
-  });
-
   useEffect(() => {
-    if (currentEpoch === undefined) return;
+    if (!address) return;
 
-    if (previousEpochRef.current === undefined) {
-      previousEpochRef.current = currentEpoch;
-      return;
-    }
+    let cancelled = false;
 
-    if (currentEpoch !== previousEpochRef.current) {
-      // Clean up all pending operations from localStorage (everything from
-      // previous epochs is finalized)
-      cleanupAllPendingOperationsFromStorage();
+    const checkEpoch = async () => {
+      try {
+        const client = await babylon.client();
+        const { currentEpoch } = await client.baby.getCurrentEpoch();
+        const epochNumber = Number(currentEpoch);
 
-      // Invalidate all delegation queries since epoch change affects entire
-      // blockchain state
-      queryClient.invalidateQueries({
-        queryKey: [BABY_DELEGATIONS_KEY],
-      });
-      // Also invalidate unbonding delegations since they're epoch-dependent
-      queryClient.invalidateQueries({
-        queryKey: [BABY_UNBONDING_DELEGATIONS_KEY],
-      });
-      previousEpochRef.current = currentEpoch;
-    }
-  }, [
-    currentEpoch,
-    queryClient,
-    address,
-    cleanupAllPendingOperationsFromStorage,
-  ]);
+        if (!Number.isFinite(epochNumber)) {
+          return;
+        }
+
+        setCurrentEpoch(epochNumber);
+
+        if (previousEpochRef.current === undefined) {
+          previousEpochRef.current = epochNumber;
+          return;
+        }
+
+        if (!cancelled && epochNumber !== previousEpochRef.current) {
+          // Epoch advanced, prune stale pending operations first
+          cleanupAllPendingOperationsFromStorage();
+          queryClient.invalidateQueries({
+            queryKey: [BABY_DELEGATIONS_KEY],
+            refetchType: "active",
+          });
+          queryClient.invalidateQueries({
+            queryKey: [BABY_UNBONDING_DELEGATIONS_KEY],
+            refetchType: "active",
+          });
+          previousEpochRef.current = epochNumber;
+        }
+      } catch {
+        // ignore transient errors
+      }
+    };
+
+    checkEpoch();
+    const id = setInterval(checkEpoch, ONE_MINUTE);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [address, queryClient, cleanupAllPendingOperationsFromStorage]);
 }

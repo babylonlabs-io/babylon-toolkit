@@ -16,7 +16,7 @@ export const WarningTooltip = ({ className }: WarningTooltipProps) => {
       data-tooltip-content="Fees are low, inclusion is not guaranteed"
     >
       <IoWarningOutline
-        className="cursor-pointer text-warning-main"
+        className="text-warning-main cursor-pointer"
         size={16}
       />
       <Tooltip id={id} className="tooltip-wrap" />

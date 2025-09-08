@@ -102,8 +102,8 @@ export const ErrorModal: React.FC = () => {
       open={isOpen}
       onClose={dismissError}
     >
-      <DialogBody className="py-16 text-center text-accent-primary">
-        <div className="mb-6 inline-flex h-20 w-20 items-center justify-center bg-primary-contrast">
+      <DialogBody className="text-accent-primary py-16 text-center">
+        <div className="inline-flex bg-primary-contrast h-20 w-20 items-center justify-center mb-6">
           <img src={WarningTriangle} alt="Warning" width={48} height={42} />
         </div>
 
@@ -116,15 +116,15 @@ export const ErrorModal: React.FC = () => {
             {getErrorMessage()}
           </Text>
 
-          <div className="mt-2 flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4 mt-2">
             <button
               className="flex items-center gap-1 text-sm text-accent-secondary hover:opacity-70"
               onClick={copyErrorDetails}
             >
               {copied ? (
-                <FiCheck className="h-4 w-4" />
+                <FiCheck className="w-4 h-4" />
               ) : (
-                <FiCopy className="h-4 w-4" />
+                <FiCopy className="w-4 h-4" />
               )}
               <span>{copied ? "Copied!" : "Copy error details"}</span>
             </button>

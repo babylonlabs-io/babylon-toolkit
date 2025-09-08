@@ -4,6 +4,7 @@ import { BaseStakingStep, EOIStep } from "@/ui/common/constants";
 import type { Bsn } from "@/ui/common/types/bsn";
 import type {
   DelegationV2,
+  DelegationV2StakingState,
   DelegationWithFP,
 } from "@/ui/common/types/delegationsV2";
 import type { FinalityProvider } from "@/ui/common/types/finalityProviders";
@@ -77,6 +78,16 @@ export interface StakingExpansionState {
   expansionHistoryTargetDelegation: DelegationWithFP | null;
   /** Computed state: true when any expansion-related modal is open */
   isExpansionModalOpen: boolean;
+  /** Whether the verified expansion modal is open */
+  verifiedExpansionModalOpen: boolean;
+  /** Set verified expansion modal open state */
+  setVerifiedExpansionModalOpen: (open: boolean) => void;
+  /** Selected delegation for filtering verified expansions */
+  selectedDelegationForVerifiedModal: DelegationWithFP | null;
+  /** Set selected delegation for verified modal */
+  setSelectedDelegationForVerifiedModal: (
+    delegation: DelegationWithFP | null,
+  ) => void;
 
   // Core actions
   /** Navigate to a specific step in the expansion flow */
@@ -109,6 +120,16 @@ export interface StakingExpansionState {
   canAddMoreBsns: () => boolean;
   /** Check if expansion is possible for a given delegation */
   canExpand: (delegation: { finalityProviderBtcPksHex: string[] }) => boolean;
+
+  // Expansion storage functions
+  /** List of expansion delegations (pending and from API) */
+  expansions: DelegationV2[];
+  /** Add a pending expansion to local storage */
+  addPendingExpansion: (expansion: DelegationV2) => void;
+  /** Update expansion status in local storage */
+  updateExpansionStatus: (id: string, status: DelegationV2StakingState) => void;
+  /** Refetch expansions from API to trigger cleanup */
+  refetchExpansions: () => Promise<void>;
 }
 
 /**
@@ -138,6 +159,7 @@ export interface BsnFinalityProviderInfo {
   fpPkHex?: string;
   provider?: FinalityProvider;
   title: string;
+  logoUrl: string;
   isDisabled: boolean;
   isExisting: boolean;
 }

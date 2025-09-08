@@ -10,7 +10,7 @@ export const ThemeToggle = () => {
 
   return (
     <div className="flex flex-row items-center justify-between">
-      <Text variant="body2" className="text-sm capitalize text-accent-primary">
+      <Text variant="body2" className="text-sm text-accent-primary capitalize">
         {theme} Mode
       </Text>
       <div className="flex flex-col items-center justify-center">

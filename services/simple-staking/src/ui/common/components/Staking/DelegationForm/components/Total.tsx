@@ -32,7 +32,7 @@ export function Total() {
           {total} {coinSymbol}
         </Text>
         {displayUSD && (
-          <Text variant="body1" className="text-sm text-accent-secondary">
+          <Text variant="body1" className="text-accent-secondary text-sm">
             {totalInUsd}
           </Text>
         )}

@@ -21,7 +21,7 @@ export const NetworkBadge = () => {
             currently the text is absolutely positioned
             since the image has a shadow
           */}
-          <p className="absolute left-1 top-[1rem] text-sm text-secondary-contrast md:top-[2rem]">
+          <p className="absolute left-1 top-[1rem] md:top-[2rem] text-sm text-secondary-contrast">
             Testnet
           </p>
         </>

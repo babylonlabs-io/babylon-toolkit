@@ -1,32 +1,29 @@
-import { Bsn } from "../types/bsn";
+import { BsnType } from "../types/bsn";
 
 import { apiWrapper } from "./apiWrapper";
 
-interface BsnAPI {
+export const BSN_TYPE_COSMOS: BsnType = "COSMOS";
+export const BSN_TYPE_ROLLUP: BsnType = "ROLLUP";
+
+export interface BsnAPI {
   id: string;
   name: string;
   description: string;
   active_tvl: number;
+  type: BsnType;
+  allowlist?: string[]; // BTC FP pubkeys (hex)
 }
 
 interface BsnDataResponse {
   data: BsnAPI[];
 }
 
-const createBSN = (bsn: BsnAPI): Bsn => ({
-  id: bsn.id,
-  name: bsn.name,
-  description: bsn.description,
-  activeTvl: bsn.active_tvl,
-});
-
-export const getBSNs = async (): Promise<Bsn[]> => {
+export const getBsnAPI = async (): Promise<BsnAPI[]> => {
   const response = await apiWrapper<BsnDataResponse>(
     "GET",
     "/v2/bsn",
     "Error getting BSN list",
   );
 
-  const { data } = response.data;
-  return data.map(createBSN);
+  return response.data.data;
 };

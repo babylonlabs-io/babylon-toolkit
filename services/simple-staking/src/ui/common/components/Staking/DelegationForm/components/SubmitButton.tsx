@@ -26,7 +26,7 @@ export function SubmitButton() {
 
   return (
     <span
-      className="mt-8 cursor-pointer text-xs"
+      className="cursor-pointer text-xs mt-8"
       data-tooltip-id="tooltip-staking-preview"
       data-tooltip-content={invalid ? tooltip : ""}
       data-tooltip-place="top"

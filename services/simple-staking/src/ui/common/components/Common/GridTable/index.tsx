@@ -39,7 +39,7 @@ export function GridTable<R extends object, P extends object = object>({
   if (loading) {
     return (
       <StatusView
-        className="h-auto flex-1"
+        className="flex-1 h-auto"
         icon={<Loader className="text-primary-light" />}
         title="Please wait..."
       />

@@ -7,8 +7,10 @@ import {
   useState,
 } from "react";
 
+import { network } from "@/ui/common/config/network/bbn";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
+import { getCurrentEpoch } from "@/ui/common/utils/local_storage/epochStorage";
 
 export interface PendingOperation {
   validatorAddress: string;
@@ -16,6 +18,7 @@ export interface PendingOperation {
   operationType: "stake" | "unstake";
   timestamp: number;
   walletAddress: string;
+  epoch?: number;
 }
 
 interface PendingOperationStorage {
@@ -24,10 +27,11 @@ interface PendingOperationStorage {
   operationType: "stake" | "unstake";
   timestamp: number;
   walletAddress: string;
+  epoch?: number;
 }
 
 const getPendingOperationsKey = (walletAddress: string) =>
-  `baby-pending-operations-${walletAddress}`;
+  `baby-pending-operations-${network}-${walletAddress}`;
 
 // Create the context
 const PendingOperationsContext = createContext<ReturnType<
@@ -139,12 +143,15 @@ function usePendingOperationsServiceInternal() {
           return newState;
         } else {
           // Create new operation
+          const operationEpoch = getCurrentEpoch();
+
           const pendingOperation: PendingOperation = {
             validatorAddress,
             amount,
             operationType,
             timestamp: Date.now(),
             walletAddress: bech32Address,
+            epoch: operationEpoch,
           };
 
           return [...prev, pendingOperation];
@@ -164,22 +171,43 @@ function usePendingOperationsServiceInternal() {
     setPendingOperations([]);
   }, []);
 
-  // Cleanup function to remove all pending operations from localStorage when epoch changes
+  // Cleanup function to prune pending operations created before the current epoch
   const cleanupAllPendingOperationsFromStorage = useCallback(() => {
     try {
-      // Get all localStorage keys that match our pattern
+      const currentEpoch = getCurrentEpoch();
+      if (currentEpoch === undefined) return;
+
+      // Get all localStorage keys that match our pattern for the current network
       const allKeys = Object.keys(localStorage);
       const pendingOperationKeys = allKeys.filter((key) =>
-        key.startsWith("baby-pending-operations-"),
+        key.startsWith(`baby-pending-operations-${network}-`),
       );
 
-      // Remove all pending operations for all wallet addresses
+      // For each wallet's pending operations, prune those with older epoch
       pendingOperationKeys.forEach((storageKey) => {
-        localStorage.removeItem(storageKey);
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (!stored) return;
+          const parsedStorage: PendingOperationStorage[] = JSON.parse(stored);
+          const filtered = parsedStorage.filter(
+            (op) => op.epoch !== undefined && op.epoch === currentEpoch,
+          );
+          if (filtered.length > 0) {
+            localStorage.setItem(storageKey, JSON.stringify(filtered));
+          } else {
+            localStorage.removeItem(storageKey);
+          }
+        } catch {
+          /* noop */
+        }
       });
 
-      // Also clear the in-memory state for current wallet
-      setPendingOperations([]);
+      // Also prune the in-memory state for current wallet
+      setPendingOperations((prev) =>
+        prev.filter(
+          (op) => op.epoch !== undefined && op.epoch === currentEpoch,
+        ),
+      );
     } catch (error) {
       console.error("[BABY] Error during localStorage cleanup:", error);
     }

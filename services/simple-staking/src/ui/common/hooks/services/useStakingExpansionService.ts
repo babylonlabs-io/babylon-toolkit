@@ -6,7 +6,7 @@ import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
-import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
+import { useAppState } from "@/ui/common/state";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import {
   StakingExpansionStep,
@@ -17,6 +17,7 @@ import {
   DelegationV2,
 } from "@/ui/common/types/delegationsV2";
 import { retry } from "@/ui/common/utils";
+import { markExpansionAsBroadcasted } from "@/ui/common/utils/local_storage/expansionStorage";
 import { getTxHex } from "@/ui/common/utils/mempool_api";
 import { validateExpansionFormData } from "@/ui/common/utils/stakingExpansionValidation";
 
@@ -31,16 +32,16 @@ import {
  * Helper function to extract covenant expansion signatures from delegation data.
  * These signatures are available after the expansion EOI is verified by Babylon.
  */
-const getCovenantExpansionSignatures = (delegation: any) => {
+const getCovenantExpansionSignatures = (delegation: DelegationV2) => {
   if (!delegation?.covenantUnbondingSignatures) {
     return [];
   }
 
   return delegation.covenantUnbondingSignatures
-    .filter((sig: any) => sig.stakeExpansionSignatureHex)
-    .map((sig: any) => ({
+    .filter((sig) => sig.stakeExpansionSignatureHex)
+    .map((sig) => ({
       btcPkHex: sig.covenantBtcPkHex,
-      sigHex: sig.stakeExpansionSignatureHex,
+      sigHex: sig.stakeExpansionSignatureHex as string,
     }));
 };
 
@@ -96,14 +97,17 @@ const buildExpansionInput = (
  * Handles the complete expansion workflow from fee calculation to transaction submission.
  */
 export function useStakingExpansionService() {
-  const { setFormData, goToStep, setProcessing, setVerifiedDelegation, reset } =
-    useStakingExpansionState();
-  const { sendBbnTx } = useBbnTransaction();
   const {
-    addDelegation,
-    updateDelegationStatus,
-    refetch: refetchDelegations,
-  } = useDelegationV2State();
+    setFormData,
+    goToStep,
+    setProcessing,
+    setVerifiedDelegation,
+    reset,
+    addPendingExpansion,
+    updateExpansionStatus,
+    refetchExpansions,
+  } = useStakingExpansionState();
+  const { sendBbnTx } = useBbnTransaction();
   const {
     estimateStakingExpansionFee,
     createStakingExpansionEoi,
@@ -112,6 +116,7 @@ export function useStakingExpansionService() {
   const { handleError } = useError();
   const { publicKeyNoCoord } = useBTCWallet();
   const logger = useLogger();
+  const { isLoading: isUTXOsLoading, availableUTXOs } = useAppState();
 
   /**
    * Calculate the fee amount for a staking expansion transaction.
@@ -122,6 +127,14 @@ export function useStakingExpansionService() {
         throw new ClientError(
           ERROR_CODES.VALIDATION_ERROR,
           "Invalid expansion form data provided",
+        );
+      }
+
+      // Check if UTXOs are still loading
+      if (isUTXOsLoading || !availableUTXOs || availableUTXOs.length === 0) {
+        throw new ClientError(
+          ERROR_CODES.INITIALIZATION_ERROR,
+          "Wallet UTXOs are still loading. Please wait a moment and try again.",
         );
       }
 
@@ -157,7 +170,7 @@ export function useStakingExpansionService() {
         );
       }
     },
-    [estimateStakingExpansionFee],
+    [estimateStakingExpansionFee, isUTXOsLoading, availableUTXOs],
   );
 
   /**
@@ -178,6 +191,17 @@ export function useStakingExpansionService() {
 
   const createExpansionEOI = useCallback(
     async (formData: StakingExpansionFormData) => {
+      // Check if UTXOs are still loading
+      if (isUTXOsLoading || !availableUTXOs || availableUTXOs.length === 0) {
+        const clientError = new ClientError(
+          ERROR_CODES.INITIALIZATION_ERROR,
+          "Wallet UTXOs are still loading. Please wait a moment and try again.",
+        );
+        handleError({ error: clientError });
+        reset();
+        return;
+      }
+
       try {
         const previousStakingTxHex = await fetchAndValidateTxHex(
           formData.originalDelegation.stakingTxHashHex,
@@ -235,7 +259,7 @@ export function useStakingExpansionService() {
           paramsVersion: formData.originalDelegation.paramsVersion || 0,
         };
 
-        addDelegation(pendingDelegation);
+        addPendingExpansion(pendingDelegation);
         goToStep(StakingExpansionStep.VERIFYING);
 
         // Poll for verification - same as regular staking flow
@@ -246,7 +270,7 @@ export function useStakingExpansionService() {
         );
 
         setVerifiedDelegation(delegation as DelegationV2);
-        refetchDelegations();
+        refetchExpansions();
         goToStep(StakingExpansionStep.VERIFIED);
         setProcessing(false);
       } catch (error) {
@@ -263,17 +287,30 @@ export function useStakingExpansionService() {
       setProcessing,
       setVerifiedDelegation,
       goToStep,
-      addDelegation,
-      refetchDelegations,
+      addPendingExpansion,
+      refetchExpansions,
       publicKeyNoCoord,
       logger,
       handleError,
       reset,
+      isUTXOsLoading,
+      availableUTXOs,
     ],
   );
 
   const stakeDelegationExpansion = useCallback(
     async (delegation: DelegationV2) => {
+      // Check if UTXOs are still loading before starting
+      if (isUTXOsLoading || !availableUTXOs || availableUTXOs.length === 0) {
+        const clientError = new ClientError(
+          ERROR_CODES.INITIALIZATION_ERROR,
+          "Wallet UTXOs are still loading. Please wait a moment and try again.",
+        );
+        handleError({ error: clientError });
+        reset();
+        return;
+      }
+
       try {
         setProcessing(true);
 
@@ -346,10 +383,16 @@ export function useStakingExpansionService() {
           covenantExpansionSignatures,
         );
 
-        // Update delegation status to pending BTC confirmation
-        updateDelegationStatus(
+        // Update expansion status to pending BTC confirmation
+        updateExpansionStatus(
           delegation.stakingTxHashHex,
           DelegationState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
+        );
+
+        // Mark expansion as broadcasted in localStorage for visibility tracking
+        markExpansionAsBroadcasted(
+          delegation.stakingTxHashHex,
+          publicKeyNoCoord,
         );
 
         // Navigate to success
@@ -369,8 +412,11 @@ export function useStakingExpansionService() {
       logger,
       handleError,
       submitStakingExpansionTx,
-      updateDelegationStatus,
+      updateExpansionStatus,
       reset,
+      isUTXOsLoading,
+      availableUTXOs,
+      publicKeyNoCoord,
     ],
   );
 

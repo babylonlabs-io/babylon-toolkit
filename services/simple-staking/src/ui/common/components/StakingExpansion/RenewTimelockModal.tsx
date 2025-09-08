@@ -45,8 +45,8 @@ export const RenewTimelockModal = ({
             change will take effect after it’s confirmed on the Bitcoin network.
           </Text>
 
-          <div className="rounded-lg bg-primary-contrast p-4">
-            <div className="flex items-start justify-between">
+          <div className="bg-primary-contrast rounded-lg p-4">
+            <div className="flex justify-between items-start">
               <Text variant="body1" className="text-secondary">
                 Staking Term End Date
               </Text>
@@ -57,7 +57,7 @@ export const RenewTimelockModal = ({
                 >
                   {stakingEndInfo.blocks.toLocaleString()} Blocks
                 </Text>
-                <Text variant="caption" className="text-secondary mt-1 block">
+                <Text variant="caption" className="text-secondary block mt-1">
                   ~ {stakingEndInfo.displayTime}
                 </Text>
               </div>
@@ -65,7 +65,7 @@ export const RenewTimelockModal = ({
           </div>
 
           {feeCalculationError && (
-            <div className="border-error rounded-lg border bg-error-light p-4">
+            <div className="bg-error-light border border-error rounded-lg p-4">
               <Text variant="body2" className="text-error">
                 {feeCalculationError}
               </Text>
@@ -73,7 +73,7 @@ export const RenewTimelockModal = ({
           )}
 
           {paramsError && (
-            <div className="border-info rounded-lg border bg-info-light p-4">
+            <div className="bg-info-light border border-info rounded-lg p-4">
               <Text variant="body2" className="text-info">
                 {paramsError}
               </Text>
@@ -81,7 +81,7 @@ export const RenewTimelockModal = ({
           )}
 
           {!newStakingTimeBlocks && !isLoadingParams && (
-            <div className="border-warning rounded-lg border bg-warning-light p-4">
+            <div className="bg-warning-light border border-warning rounded-lg p-4">
               <Text variant="body2" className="text-warning">
                 Unable to load staking parameters. This may be due to a network
                 issue or a problem retrieving data from the backend. Please try

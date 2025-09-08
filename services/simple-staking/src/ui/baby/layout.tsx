@@ -2,12 +2,13 @@ import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useState } from "react";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
-import { RewardState, useRewardState } from "@/ui/baby/state/RewardState";
+import { RewardState } from "@/ui/baby/state/RewardState";
 import { StakingState } from "@/ui/baby/state/StakingState";
 import { ValidatorState } from "@/ui/baby/state/ValidatorState";
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
+import { FAQ } from "@/ui/common/components/FAQ/FAQ";
 import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
@@ -20,92 +21,53 @@ import { useEpochPolling } from "./hooks/api/useEpochPolling";
 import { PendingOperationsProvider } from "./hooks/services/usePendingOperationsService";
 import StakingForm from "./widgets/StakingForm";
 
-type TabId = "stake" | "activity" | "rewards";
+type TabId = "stake" | "activity" | "rewards" | "faqs";
 
 export default function BabyLayout() {
+  return (
+    <PendingOperationsProvider>
+      <BabyLayoutContent />
+    </PendingOperationsProvider>
+  );
+}
+
+function BabyLayoutContent() {
   const [activeTab, setActiveTab] = useState<TabId>("stake");
   const { connected } = useWalletConnect();
   const { isGeoBlocked, isLoading } = useHealthCheck();
   const { bech32Address } = useCosmosWallet();
   const isConnected = connected && !isGeoBlocked && !isLoading;
-
-  return (
-    <PendingOperationsProvider>
-      <BabyLayoutContent
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isConnected={isConnected}
-        bech32Address={bech32Address}
-        connected={connected}
-        isGeoBlocked={isGeoBlocked}
-      />
-    </PendingOperationsProvider>
-  );
-}
-
-function BabyLayoutContent({
-  activeTab,
-  setActiveTab,
-  isConnected,
-  bech32Address,
-  connected,
-  isGeoBlocked,
-}: {
-  activeTab: TabId;
-  setActiveTab: (tab: TabId) => void;
-  isConnected: boolean;
-  bech32Address: string | undefined;
-  connected: boolean;
-  isGeoBlocked: boolean;
-}) {
-  // Enable epoch polling to refetch delegations when epoch changes
-  useEpochPolling(bech32Address);
-
-  const RewardsTab: React.FC = () => {
-    const {
-      showClaimModal,
-      closeClaimModal,
-      claimAll,
-      loading: rewardLoading,
-      totalReward,
-      rewards,
-    } = useRewardState();
-
-    return (
-      <Section>
-        <div className="h-[500px]">
-          <RewardCard />
-          <RewardsPreviewModal
-            open={showClaimModal}
-            processing={rewardLoading}
-            title="Claim Rewards"
-            totalReward={totalReward}
-            rewards={rewards}
-            onClose={closeClaimModal}
-            onProceed={claimAll}
-          />
-        </div>
-      </Section>
-    );
-  };
-
   useEffect(() => {
     if (!connected) {
       setActiveTab("stake");
     }
-  }, [connected, setActiveTab]);
+  }, [connected]);
 
   useEffect(() => {
     if (isGeoBlocked && (activeTab === "activity" || activeTab === "rewards")) {
       setActiveTab("stake");
     }
-  }, [isGeoBlocked, activeTab, setActiveTab]);
+  }, [isGeoBlocked, activeTab]);
+
+  // Enable epoch polling to refetch delegations when epoch changes
+  useEpochPolling(bech32Address);
+
+  const RewardsTab: React.FC = () => {
+    return (
+      <Section>
+        <div className="h-[500px]">
+          <RewardCard />
+          <RewardsPreviewModal />
+        </div>
+      </Section>
+    );
+  };
 
   const tabItems = [
     {
       id: "stake",
       label: "Stake",
-      content: <StakingForm />,
+      content: <StakingForm isGeoBlocked={isGeoBlocked} />,
     },
     ...(isConnected
       ? [
@@ -125,20 +87,30 @@ function BabyLayoutContent({
           },
         ]
       : []),
+    {
+      id: "faqs",
+      label: "FAQs",
+      content: <FAQ variant="baby" />,
+    },
   ];
 
   const fallbackTabItems = [
     {
       id: "stake",
       label: "Stake",
-      content: <StakingForm />,
+      content: <StakingForm isGeoBlocked={isGeoBlocked} />,
+    },
+    {
+      id: "faqs",
+      label: "FAQs",
+      content: <FAQ variant="baby" />,
     },
   ];
 
   const fallbackContent = (
     <Container
       as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-16"
+      className="flex flex-col gap-[3rem] pb-24 max-w-[760px] mx-auto flex-1"
     >
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" />
     </Container>
@@ -150,10 +122,10 @@ function BabyLayoutContent({
         <DelegationState>
           <RewardState>
             <Content>
-              <AuthGuard fallback={fallbackContent}>
+              <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
                 <Container
                   as="main"
-                  className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-16"
+                  className="flex flex-col gap-[3rem] pb-24 max-w-[760px] mx-auto flex-1"
                 >
                   <Tabs
                     items={tabItems}

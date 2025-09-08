@@ -47,7 +47,7 @@ export const Tabs = ({
 
   return (
     <div className={twMerge("w-full", className)}>
-      <div className="flex w-full gap-2" role="tablist">
+      <div className="flex gap-2 w-full" role="tablist">
         {items.map((item) => (
           <button
             key={item.id}
@@ -57,7 +57,7 @@ export const Tabs = ({
             aria-controls={`panel-${item.id}`}
             tabIndex={activeTab === item.id ? 0 : -1}
             className={twMerge(
-              "text-primary rounded px-4 py-2 transition-colors duration-200",
+              "px-4 py-2 rounded transition-colors duration-200 text-primary",
               activeTab === item.id
                 ? "bg-secondary-highlight"
                 : "bg-transparent",

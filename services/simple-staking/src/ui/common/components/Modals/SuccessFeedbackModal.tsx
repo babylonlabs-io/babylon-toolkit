@@ -19,7 +19,7 @@ export const SuccessFeedbackModal: React.FC<FeedbackModalProps> = ({
     cancelButton=""
     onSubmit={onClose}
   >
-    <p className="text-center text-base">
+    <p className="text-base text-center">
       Share feedback or report issues on our{" "}
       <a
         href="https://forum.babylonlabs.io/"

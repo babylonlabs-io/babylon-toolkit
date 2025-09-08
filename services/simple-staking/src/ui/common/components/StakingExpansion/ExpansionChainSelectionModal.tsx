@@ -9,7 +9,6 @@ import { useCallback, useMemo } from "react";
 import { ResponsiveDialog } from "@/ui/common/components/Modals/ResponsiveDialog";
 import { ChainButton } from "@/ui/common/components/Multistaking/ChainSelectionModal/shared";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
-import { chainLogos } from "@/ui/common/constants";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
 import type {
   BsnFinalityProviderInfo,
@@ -100,6 +99,7 @@ export const ExpansionChainSelectionModal = ({
         fpPkHex,
         provider,
         title,
+        logoUrl: bsn.logoUrl,
         isDisabled,
         isExisting,
       };
@@ -131,13 +131,13 @@ export const ExpansionChainSelectionModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="mb-4 mt-4 flex flex-col text-accent-primary">
+      <DialogBody className="flex flex-col mb-4 mt-4 text-accent-primary">
         <div>
           Bitcoin Supercharged Networks (BSNs) are Proof-of-Stake systems
           secured by Bitcoin staking. Select a network to delegate your stake.
         </div>
         <div
-          className="mt-10 flex flex-col gap-2 overflow-y-auto"
+          className="overflow-y-auto flex flex-col gap-2 mt-10"
           style={{ maxHeight: "min(60vh, 500px)" }}
         >
           {loading && <div>Loading...</div>}
@@ -150,7 +150,7 @@ export const ExpansionChainSelectionModal = ({
                   provider={bsnInfo.provider}
                   bsnName={displayBsns.babylon.name}
                   bsnId={displayBsns.babylon.id}
-                  logoUrl={chainLogos.babylon}
+                  logoUrl={bsnInfo.logoUrl}
                   title={bsnInfo.title}
                   disabled={bsnInfo.isDisabled}
                   isExisting={bsnInfo.isExisting}
@@ -173,7 +173,7 @@ export const ExpansionChainSelectionModal = ({
                   provider={bsnInfo.provider}
                   bsnName={bsn.name}
                   bsnId={bsn.id}
-                  logoUrl={chainLogos[bsn.id] || chainLogos.placeholder}
+                  logoUrl={bsnInfo.logoUrl}
                   title={bsnInfo.title}
                   disabled={bsnInfo.isDisabled}
                   isExisting={bsnInfo.isExisting}

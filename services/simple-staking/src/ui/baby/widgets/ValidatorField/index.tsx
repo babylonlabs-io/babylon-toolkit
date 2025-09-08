@@ -1,8 +1,6 @@
-import { useField } from "@babylonlabs-io/core-ui";
+import { FinalityProviderSubsection, useField } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
 
-import { ListSubsection } from "@/ui/baby/components/ListSubSection";
-import { ValidatorItem } from "@/ui/baby/components/ValidatorItem";
 import { ValidatorTable } from "@/ui/baby/components/ValidatorTable";
 import { useValidatorState } from "@/ui/baby/state/ValidatorState";
 
@@ -30,6 +28,8 @@ export function ValidatorField() {
     openModal,
     closeModal,
     search,
+    handleFilter,
+    toggleShowSlashed,
     selectValidator,
   } = useValidatorState();
 
@@ -40,9 +40,10 @@ export function ValidatorField() {
     onBlur();
   };
 
-  const handleRemoveValidator = (validator: Validator) => {
+  const handleRemoveValidatorById = (id?: string) => {
+    if (!id) return;
     const set = new Set(value);
-    set.delete(validator.address);
+    set.delete(id);
     onChange(Array.from(set));
     onBlur();
   };
@@ -58,20 +59,28 @@ export function ValidatorField() {
 
   return (
     <>
-      <ListSubsection
-        title="Selected Validator"
+      <FinalityProviderSubsection
+        actionText="Select Validator"
         max={1}
-        items={selectedValidators}
-        renderItem={(item) => <ValidatorItem name={item.name} />}
+        items={selectedValidators.map((v, index) => ({
+          bsnId: v.id,
+          bsnName: v.name,
+          provider: { rank: index + 1, description: { moniker: v.name } },
+        }))}
         onAdd={openModal}
-        onRemove={handleRemoveValidator}
+        onRemove={handleRemoveValidatorById}
+        showChain={false}
       />
       <ValidatorTable
         open={open}
         searchTerm={filter.search}
+        status={filter.status}
+        showSlashed={filter.showSlashed}
         validators={validators}
         onClose={handleClose}
         onSearch={search}
+        onStatusChange={(v) => handleFilter("status", v)}
+        onShowSlashedChange={toggleShowSlashed}
         onSelect={handleSelectValidator}
       />
     </>

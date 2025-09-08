@@ -15,11 +15,11 @@ export const StatusView = ({
   className,
 }: StatusViewProps) => (
   <div
-    className={twMerge("flex h-[21rem] items-center justify-center", className)}
+    className={twMerge("flex items-center justify-center h-[21rem]", className)}
   >
     <div className="flex flex-col items-center gap-4">
-      <div className="relative h-[5.5rem] w-[5.5rem] bg-primary-contrast">
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+      <div className="bg-primary-contrast relative w-[5.5rem] h-[5.5rem]">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
           {icon}
         </div>
       </div>
@@ -27,7 +27,7 @@ export const StatusView = ({
         {title}
       </Heading>
       {description && (
-        <Text variant="body1" className="text-center text-accent-primary">
+        <Text variant="body1" className="text-accent-primary text-center">
           {description}
         </Text>
       )}

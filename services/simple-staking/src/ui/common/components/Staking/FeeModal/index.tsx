@@ -127,10 +127,10 @@ export function FeeModal({ open, onSubmit, onClose }: FeeModalProps) {
         </Text>
       </DialogHeader>
 
-      <DialogBody className="mt-6 flex flex-col gap-6 md:min-h-96">
+      <DialogBody className="mt-6 md:min-h-96 flex flex-col gap-6">
         {isLoading ? (
           <StatusView
-            className="h-auto flex-1"
+            className="flex-1 h-auto"
             icon={<Loader className="text-accent-primary" />}
             title="Please wait..."
           />

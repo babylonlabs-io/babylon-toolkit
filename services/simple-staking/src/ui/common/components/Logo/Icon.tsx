@@ -21,7 +21,7 @@ export const Icon = () => {
   }
 
   return (
-    <span className="mx-2 inline-block">
+    <span className="inline-block mx-2">
       <img
         src={lightSelected ? darkIcon : lightIcon}
         alt="Babylon Genesis"

@@ -367,7 +367,7 @@ export const Delegations = () => {
     <>
       {combinedDelegationsData.length !== 0 && (
         <Card className="mb-6">
-          <Heading variant="h6" className="mb-6 py-2 text-accent-primary">
+          <Heading variant="h6" className="text-accent-primary py-2 mb-6">
             Pending Registration
           </Heading>
 
@@ -380,20 +380,20 @@ export const Delegations = () => {
           >
             <table className="w-full">
               <thead className="sticky top-0 bg-surface">
-                <tr className="text-xs text-accent-secondary">
-                  <th className="h-[52px] px-2 text-left font-normal">
+                <tr className="text-accent-secondary text-xs">
+                  <th className="text-left h-[52px] px-2 font-normal">
                     Inception
                   </th>
-                  <th className="h-[52px] max-w-[12rem] truncate px-2 text-left font-normal">
+                  <th className="text-left h-[52px] px-2 font-normal max-w-[12rem] truncate">
                     Finality Provider
                   </th>
-                  <th className="h-[52px] min-w-[8rem] px-2 text-left font-normal">
+                  <th className="text-left h-[52px] px-2 font-normal min-w-[8rem]">
                     Amount
                   </th>
-                  <th className="h-[52px] px-2 text-left font-normal">
+                  <th className="text-left h-[52px] px-2 font-normal">
                     Transaction ID
                   </th>
-                  <th className="h-[52px] px-2 text-left font-normal">
+                  <th className="text-left h-[52px] px-2 font-normal">
                     Action
                   </th>
                 </tr>

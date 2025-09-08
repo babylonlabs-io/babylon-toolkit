@@ -10,19 +10,19 @@ export const FinalityProviderSearch = () => {
 
   const onSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      handleFilter("search", e.target.value);
+      handleFilter("searchTerm", e.target.value);
     },
     [handleFilter],
   );
 
   const onClearSearch = useCallback(() => {
-    handleFilter("search", "");
+    handleFilter("searchTerm", "");
   }, [handleFilter]);
 
-  const searchSuffix = filter.search ? (
+  const searchSuffix = filter.searchTerm ? (
     <button
       onClick={onClearSearch}
-      className="opacity-60 transition-opacity hover:opacity-100"
+      className="opacity-60 hover:opacity-100 transition-opacity"
     >
       <MdCancel size={18} className="text-secondary-strokeDark" />
     </button>
@@ -36,8 +36,9 @@ export const FinalityProviderSearch = () => {
     <Input
       placeholder="Search by Name or Public Key"
       suffix={searchSuffix}
-      value={filter.search}
+      value={filter.searchTerm}
       onChange={onSearchChange}
+      className="h-[22px]"
     />
   );
 };

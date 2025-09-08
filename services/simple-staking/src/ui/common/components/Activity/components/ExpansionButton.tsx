@@ -1,7 +1,6 @@
+import { ThemedIcon } from "@babylonlabs-io/core-ui";
 import { MdKeyboardArrowDown } from "react-icons/md";
 import { twMerge } from "tailwind-merge";
-
-import { ThemedIcon } from "../../Icons/ThemedIcon";
 
 interface ExpansionButtonProps {
   Icon: string;
@@ -23,32 +22,32 @@ export function ExpansionButton({
   return (
     <button
       className={twMerge(
-        "btn btn-ghost border-0",
-        disabled && "cursor-not-allowed opacity-50",
+        "border-0 btn btn-ghost",
+        disabled && "opacity-50 cursor-not-allowed",
         className,
       )}
       onClick={onClick}
       disabled={disabled}
     >
-      <div className="flex w-full items-center justify-between gap-4">
+      <div className="flex items-center justify-between w-full gap-4">
         <ThemedIcon
           variant="primary"
           background
           rounded
           className={twMerge(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center p-2",
+            "w-10 h-10 flex-shrink-0 flex items-center justify-center p-2",
             className,
           )}
         >
-          <img src={Icon} alt={text} className="h-8 w-8" />
+          <img src={Icon} alt={text} className="w-8 h-8" />
         </ThemedIcon>
-        <div className="flex w-full flex-col items-start">
+        <div className="flex flex-col w-full items-start">
           <span className="text-sm text-accent-primary">{text}</span>
           {counter && <span className="text-xs">{counter}</span>}
         </div>
         <MdKeyboardArrowDown
           size={24}
-          className="-rotate-90 transform text-current"
+          className="transform -rotate-90 text-current"
         />
       </div>
     </button>

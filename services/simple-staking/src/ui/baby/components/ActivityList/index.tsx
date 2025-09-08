@@ -1,3 +1,4 @@
+import { Hint } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import babylon from "@/infrastructure/babylon";
@@ -89,7 +90,11 @@ export function BabyActivityList() {
                 ...(validatorPendingStake > 0n
                   ? [
                       {
-                        label: "Pending Stake",
+                        label: (
+                          <Hint tooltip="Your stake will be activated in the next epoch, which takes around 1 hour">
+                            Pending Stake
+                          </Hint>
+                        ),
                         value: `${maxDecimals(ubbnToBaby(Number(validatorPendingStake)), 6)} ${coinSymbol}`,
                       },
                     ]
@@ -97,7 +102,11 @@ export function BabyActivityList() {
                 ...(validatorPendingUnstake > 0n
                   ? [
                       {
-                        label: "Pending Unbonding",
+                        label: (
+                          <Hint tooltip="It will take 50 hours for the amount to be liquid">
+                            Pending Unbonding
+                          </Hint>
+                        ),
                         value: `${maxDecimals(ubbnToBaby(Number(validatorPendingUnstake)), 6)} ${coinSymbol}`,
                       },
                     ]
@@ -138,7 +147,7 @@ export function BabyActivityList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
+      <div className="flex justify-center items-center py-8">
         <div className="text-accent-secondary">Loading delegations...</div>
       </div>
     );
@@ -146,7 +155,7 @@ export function BabyActivityList() {
 
   if (activityItems.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
+      <div className="flex flex-col pb-16 pt-6 text-accent-primary gap-4 text-center items-center justify-center">
         <h4 className="text-xl font-semibold">No BABY Stakes</h4>
         <p className="text-base">
           No activity found. Start by staking some BABY tokens.

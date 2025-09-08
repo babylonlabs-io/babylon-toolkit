@@ -6,6 +6,7 @@ import { useStakingState } from "@/ui/baby/state/StakingState";
 import { StakingModal } from "@/ui/baby/widgets/StakingModal";
 import { SubmitButton } from "@/ui/baby/widgets/SubmitButton";
 import { ValidatorField } from "@/ui/baby/widgets/ValidatorField";
+import { FormAlert } from "@/ui/common/components/Multistaking/MultistakingForm/FormAlert";
 
 interface FormFields {
   amount: number;
@@ -13,9 +14,21 @@ interface FormFields {
   feeAmount: number;
 }
 
-export default function StakingForm() {
-  const { loading, formSchema, balance, babyPrice, calculateFee, showPreview } =
-    useStakingState();
+interface StakingFormProps {
+  isGeoBlocked?: boolean;
+}
+
+export default function StakingForm({
+  isGeoBlocked = false,
+}: StakingFormProps) {
+  const {
+    loading,
+    formSchema,
+    availableBalance,
+    babyPrice,
+    calculateFee,
+    showPreview,
+  } = useStakingState();
 
   const handlePreview = ({
     amount,
@@ -28,15 +41,16 @@ export default function StakingForm() {
   return (
     <Form
       schema={formSchema}
-      className="flex h-[500px] flex-col gap-2"
+      className="flex flex-col gap-2 h-[500px]"
       onSubmit={handlePreview}
     >
-      <AmountField balance={balance} price={babyPrice} />
+      <AmountField balance={availableBalance} price={babyPrice} />
       <ValidatorField />
       <FeeField babyPrice={babyPrice} calculateFee={calculateFee} />
 
-      <SubmitButton disabled={loading} />
+      <SubmitButton disabled={loading} isGeoBlocked={isGeoBlocked} />
       <StakingModal />
+      <FormAlert isGeoBlocked={isGeoBlocked} />
     </Form>
   );
 }

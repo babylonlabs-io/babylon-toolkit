@@ -18,7 +18,7 @@ export const Staker: React.FC<StakerProps> = ({
   const { coinName } = getNetworkConfigBTC();
 
   return (
-    <div className="card bg-base-300 dark:bg-base-200 border p-4 text-sm dark:border-0">
+    <div className="card border bg-base-300 p-4 text-sm dark:border-0 dark:bg-base-200">
       <div className="mb-2 block lg:hidden">
         <Hash value={pkHex} address small noFade />
       </div>
@@ -27,13 +27,13 @@ export const Staker: React.FC<StakerProps> = ({
           <Hash value={pkHex} address small noFade />
         </div>
         <div>
-          <p className="dark:text-neutral-content text-xs lg:hidden">
+          <p className="text-xs lg:hidden dark:text-neutral-content">
             Delegations
           </p>
           <p>{delegations || 0}</p>
         </div>
         <div>
-          <p className="dark:text-neutral-content text-xs lg:hidden">Stake</p>
+          <p className="text-xs lg:hidden dark:text-neutral-content">Stake</p>
           <p>
             {activeTVLSat
               ? `${maxDecimals(satoshiToBtc(activeTVLSat), 8)} ${coinName}`

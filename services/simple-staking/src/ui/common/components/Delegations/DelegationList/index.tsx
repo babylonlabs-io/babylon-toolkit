@@ -1,10 +1,9 @@
-import { Card, Heading } from "@babylonlabs-io/core-ui";
+import { Card, Heading, Hint } from "@babylonlabs-io/core-ui";
 
 import {
   GridTable,
   type TableColumn,
 } from "@/ui/common/components/Common/GridTable";
-import { Hint } from "@/ui/common/components/Common/Hint";
 import { FinalityProviderMoniker } from "@/ui/common/components/Delegations/DelegationList/components/FinalityProviderMoniker";
 import { getNetworkConfig } from "@/ui/common/config/network";
 import {
@@ -118,7 +117,7 @@ export function DelegationList() {
 
   return (
     <Card>
-      <Heading variant="h6" className="mb-6 py-2 text-accent-primary">
+      <Heading variant="h6" className="text-accent-primary py-2 mb-6">
         {networkConfig.bbn.networkFullName} Stakes
       </Heading>
 

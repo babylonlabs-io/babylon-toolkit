@@ -48,7 +48,7 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
     return (
       <Text
         variant="body2"
-        className="break-all text-right text-accent-primary"
+        className="text-accent-primary break-all text-right"
       >
         {blocksToDisplayTime(value)}
       </Text>
@@ -57,7 +57,7 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
   // Finality providers, covenant public keys
   if (Array.isArray(value)) {
     return (
-      <div className="flex max-w-xs flex-col items-end">
+      <div className="flex flex-col items-end max-w-xs">
         {value.map((item, index) => (
           <Hash key={index} value={String(item)} small noFade address />
         ))}
@@ -80,7 +80,7 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
     return (
       <Text
         variant="body2"
-        className="break-all text-right text-accent-primary"
+        className="text-accent-primary break-all text-right"
       >
         {capitalizedTitle}
       </Text>
@@ -91,7 +91,7 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
     return (
       <Text
         variant="body2"
-        className="break-all text-right text-accent-primary"
+        className="text-accent-primary break-all text-right"
       >
         {maxDecimals(satoshiToBtc(value), 8)} {coinName}
       </Text>
@@ -99,7 +99,7 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
   }
   // Default case for other values
   return (
-    <Text variant="body2" className="break-all text-right text-accent-primary">
+    <Text variant="body2" className="text-accent-primary break-all text-right">
       {String(value)}
     </Text>
   );
@@ -129,15 +129,15 @@ export const SignDetails: React.FC<SignDetailsProps> = ({
   return (
     <div
       className={twMerge(
-        "flex flex-1 flex-col gap-4 overflow-y-auto rounded border border-secondary-strokeLight bg-primary-contrast/50 p-4",
+        "border flex flex-1 flex-col border-secondary-strokeLight p-4 bg-primary-contrast/50 rounded overflow-y-auto gap-4",
         shouldHaveMargin && "m-4",
       )}
     >
       {getOrderedKeys(details).map((key) => (
-        <div key={key} className="flex items-start justify-between gap-2">
+        <div key={key} className="flex justify-between items-start gap-2">
           <Text
             variant="body2"
-            className="whitespace-nowrap text-accent-secondary"
+            className="text-accent-secondary whitespace-nowrap"
           >
             {formatDisplayKey(key)}:
           </Text>

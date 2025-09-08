@@ -1,4 +1,5 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
+import { useNavigate } from "react-router";
 
 import BitcoinBlock from "@/ui/common/assets/bitcoin-block.svg";
 import { Container } from "@/ui/common/components/Container/Container";
@@ -15,20 +16,22 @@ interface Props {
 export default function GenericError({
   title = "Oops! Something Went Wrong",
   message = `It looks like we’re experiencing a temporary issue on our end.
-  Our team is already on it, and we’ll have things back to normal as soon as possible. 
+  Our team is already on it, and we’ll have things back to normal as soon as possible.
   Please check back shortly, and thank you for your patience!`,
   image = BitcoinBlock,
 }: Props) {
-  return (
-    <div className="flex h-full min-h-svh w-full flex-col justify-between">
-      <SimplifiedHeader isMinimal />
+  const navigate = useNavigate();
 
-      <Container className="px-6 py-12">
+  return (
+    <div className="h-full min-h-svh w-full flex flex-col justify-between">
+      <SimplifiedHeader />
+
+      <Container className="py-12 px-6">
         <div className="flex flex-col items-center justify-center gap-8">
           <img
             src={image}
             alt="Generic Error"
-            className="h-auto w-full max-w-[120px]"
+            className="w-full h-auto max-w-[120px]"
           />
           <Heading variant="h5" className="text-accent-primary">
             {title}
@@ -41,7 +44,7 @@ export default function GenericError({
           <Button
             variant="outlined"
             color="primary"
-            onClick={() => history.go()}
+            onClick={() => navigate("/")}
           >
             Back to homepage
           </Button>

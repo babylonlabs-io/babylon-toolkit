@@ -12,6 +12,7 @@ import { Fragment } from "react";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { DEFAULT_CONFIRMATION_DEPTH } from "@/ui/common/constants";
 import { useNetworkInfo } from "@/ui/common/hooks/client/api/useNetworkInfo";
 import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
 import { useIsMobileView } from "@/ui/common/hooks/useBreakpoint";
@@ -57,7 +58,7 @@ export const PreviewModal = ({
   const { data: networkInfo } = useNetworkInfo();
   const confirmationDepth =
     networkInfo?.params.btcEpochCheckParams?.latestParam
-      ?.btcConfirmationDepth || 30;
+      ?.btcConfirmationDepth || DEFAULT_CONFIRMATION_DEPTH;
   const unbondingTime =
     blocksToDisplayTime(
       networkInfo?.params.bbnStakingParams?.latestParam?.unbondingTime,
@@ -97,7 +98,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="ml-2 text-accent-secondary"
+              className="text-accent-secondary ml-2"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(stakingAmountSat),
@@ -123,7 +124,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="ml-2 text-accent-secondary"
+              className="text-accent-secondary ml-2"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(stakingFeeSat),
@@ -162,7 +163,7 @@ export const PreviewModal = ({
             <Text
               as="span"
               variant="body2"
-              className="ml-2 text-accent-secondary"
+              className="text-accent-secondary ml-2"
             >
               {calculateTokenValueInCurrency(
                 satoshiToBtc(unbondingFeeSat),
@@ -183,7 +184,7 @@ export const PreviewModal = ({
         className="text-accent-primary"
       />
 
-      <DialogBody className="mb-8 mt-4 flex flex-col gap-4 text-accent-primary">
+      <DialogBody className="flex flex-col mb-8 mt-4 text-accent-primary gap-4">
         <div className="flex flex-col">
           {previewFields.map((field, index) => (
             <Fragment key={field.key}>

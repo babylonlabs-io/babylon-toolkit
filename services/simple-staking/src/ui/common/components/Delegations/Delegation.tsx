@@ -1,6 +1,6 @@
+import { Hint } from "@babylonlabs-io/core-ui";
 import { FaBitcoin } from "react-icons/fa";
 
-import { Hint } from "@/ui/common/components/Common/Hint";
 import { DelegationActions } from "@/ui/common/components/Delegations/DelegationActions";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { DOCUMENTATION_LINKS } from "@/ui/common/constants";
@@ -60,7 +60,7 @@ const FinalityProviderDisplay: React.FC<FinalityProviderDisplayProps> = ({
         }
         status="error"
       >
-        <span className="truncate text-error-main" title={fpName}>
+        <span className="text-error-main truncate" title={fpName}>
           {fpName}
         </span>
       </Hint>
@@ -84,7 +84,7 @@ const FinalityProviderDisplay: React.FC<FinalityProviderDisplayProps> = ({
         }
         status="error"
       >
-        <span className="truncate text-error-main" title={fpName}>
+        <span className="text-error-main truncate" title={fpName}>
           {fpName}
         </span>
       </Hint>
@@ -132,7 +132,7 @@ const DelegationState: React.FC<{
 
   const renderState = () => {
     if (isSlashed) {
-      return <span className="text-xs text-error-main">Slashed</span>;
+      return <span className="text-error-main text-xs">Slashed</span>;
     }
     return <span className="text-xs">{getState(displayState)}</span>;
   };
@@ -211,7 +211,7 @@ export const Delegation: React.FC<DelegationProps> = ({
 
   return (
     <>
-      <tr className="bg-surface text-sm text-accent-primary odd:bg-secondary-highlight">
+      <tr className="bg-surface odd:bg-secondary-highlight text-sm text-accent-primary">
         <DelegationCell>
           <div className="flex flex-col">
             <span>
@@ -234,7 +234,7 @@ export const Delegation: React.FC<DelegationProps> = ({
         </DelegationCell>
 
         <DelegationCell className="min-w-[8rem]">
-          <div className="flex items-center gap-1">
+          <div className="flex gap-1 items-center">
             <FaBitcoin className="text-primary" />
             <p>
               {maxDecimals(satoshiToBtc(stakingValueSat), 8)} {coinSymbol}
