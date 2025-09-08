@@ -1,5 +1,11 @@
 import { useDebounce } from "@uidotdev/usehooks";
-import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from "react";
 import { useSearchParams } from "react-router";
 
 import { BSN_TYPE_COSMOS } from "@/ui/common/api/getBsn";
@@ -12,6 +18,8 @@ import {
 } from "@/ui/common/services/bsnService";
 import {
   filterFinalityProvidersByBsn,
+  getAvailableProviderStatus,
+  getDefaultProviderStatus,
   isFinalityProviderRowSelectable,
   type FinalityProviderFilterState,
 } from "@/ui/common/services/finalityProviderFilterService";
@@ -102,7 +110,7 @@ const FILTERS = {
 const defaultState: FinalityProviderBsnState = {
   filter: {
     searchTerm: "",
-    providerStatus: "active",
+    providerStatus: getDefaultProviderStatus(),
     allowlistStatus: "",
   },
   finalityProviders: [],
@@ -144,7 +152,7 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
 
   const [filter, setFilter] = useState<FilterState>({
     searchTerm: fpParam || "",
-    providerStatus: "active",
+    providerStatus: getDefaultProviderStatus(),
     allowlistStatus: "",
   });
   const [sortState, setSortState] = useState<SortState>({});
@@ -154,6 +162,7 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
     BBN_CHAIN_ID,
   );
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>([]);
+  const [userHasSelectedFilter, setUserHasSelectedFilter] = useState(false);
 
   const { data, isFetching, isError, hasNextPage, fetchNextPage } =
     useFinalityProvidersV2({
@@ -212,7 +221,29 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
       }));
   }, [data?.finalityProviders]);
 
+  useEffect(() => {
+    if (userHasSelectedFilter) return;
+    
+    const newProviderStatus = getAvailableProviderStatus(
+      finalityProviders, 
+      selectedBsn
+    );
+    if (newProviderStatus !== filter.providerStatus) {
+      setFilter((prevFilter) => ({
+        ...prevFilter,
+        providerStatus: newProviderStatus,
+      }));
+    }
+  }, [selectedBsn, finalityProviders, userHasSelectedFilter]);
+
+  useEffect(() => {
+    setUserHasSelectedFilter(false);
+  }, [selectedBsn]);
+
   const handleFilter = useCallback((key: keyof FilterState, value: string) => {
+    if (key === 'providerStatus') {
+      setUserHasSelectedFilter(true);
+    }
     setFilter((state) => ({ ...state, [key]: value }));
   }, []);
 
