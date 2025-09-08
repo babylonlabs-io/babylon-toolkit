@@ -13,7 +13,6 @@ import { useMemo, useState } from "react";
 import { AiOutlineInfoCircle } from "react-icons/ai";
 import { PiWalletBold } from "react-icons/pi";
 import { useLocation } from "react-router";
-import { Tooltip } from "react-tooltip";
 import { twMerge } from "tailwind-merge";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -112,6 +111,8 @@ export const Connect: React.FC<ConnectProps> = ({
     isApiNormal,
     isGeoBlocked,
     apiMessage,
+    isError: isHealthcheckError,
+    error: healthCheckError,
     isLoading: isHealthcheckLoading,
   } = useHealthCheck();
 
@@ -146,11 +147,11 @@ export const Connect: React.FC<ConnectProps> = ({
   }, [selectedWallets]);
 
   const renderApiNotAvailableTooltip = useMemo(() => {
-    if (!isGeoBlocked && isApiNormal) return null;
+    if (!isGeoBlocked && isApiNormal && !isHealthcheckError && !healthCheckError?.message) return null;
 
     return (
       <>
-        <Hint className="cursor-pointer" tooltip={apiMessage || "Unknown error"} placement="left" attachToChildren={true}>
+        <Hint className="cursor-pointer" tooltip={healthCheckError?.message} placement="left" attachToChildren={true}>
           <AiOutlineInfoCircle />
         </Hint>
       </>
