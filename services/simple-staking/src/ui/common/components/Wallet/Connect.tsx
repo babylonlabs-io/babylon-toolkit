@@ -3,6 +3,7 @@ import {
   AvatarGroup,
   Button,
   WalletMenu,
+  Hint,
 } from "@babylonlabs-io/core-ui";
 import {
   useWalletConnect,
@@ -149,15 +150,9 @@ export const Connect: React.FC<ConnectProps> = ({
 
     return (
       <>
-        <span
-          className="cursor-pointer text-xs"
-          data-tooltip-id="tooltip-connect"
-          data-tooltip-content={apiMessage}
-          data-tooltip-place="bottom"
-        >
+        <Hint className="cursor-pointer" tooltip={apiMessage || "Unknown error"} placement="left" attachToChildren={true}>
           <AiOutlineInfoCircle />
-        </span>
-        <Tooltip id="tooltip-connect" className="tooltip-wrap" />
+        </Hint>
       </>
     );
   }, [isGeoBlocked, isApiNormal, apiMessage]);
@@ -199,7 +194,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                      "outline outline-[2px] outline-accent-primary",
+                    "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
@@ -210,7 +205,7 @@ export const Connect: React.FC<ConnectProps> = ({
                 className={twMerge(
                   "box-content bg-accent-contrast object-contain",
                   isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                  "outline outline-[2px] outline-accent-primary",
                 )}
               />
             </AvatarGroup>
