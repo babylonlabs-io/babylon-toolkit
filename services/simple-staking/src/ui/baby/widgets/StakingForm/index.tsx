@@ -66,9 +66,9 @@ export default function StakingForm({
       className="flex h-[500px] flex-col gap-2"
       onSubmit={handlePreview}
       defaultValues={defaultValues}
-      onChange={(a) => setBabyStakeDraft({
-        ...a,
-        validatorAddresses: a.validatorAddresses?.filter(i => i !== undefined),
+      onChange={data => setBabyStakeDraft({
+        ...data,
+        validatorAddresses: data.validatorAddresses?.filter(i => i !== undefined),
       })}
     >
       <AmountField balance={availableBalance} price={babyPrice} />
