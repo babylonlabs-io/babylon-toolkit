@@ -80,7 +80,7 @@ export const RewardsPreviewModal = () => {
 
       <DialogBody className="no-scrollbar mb-[40px] mt-8 flex max-h-[calc(100vh-12rem)] flex-col gap-[40px] overflow-y-auto text-accent-primary">
         <div className="flex flex-col gap-4">
-          <Text variant="body1" className="flex justify-between">
+          <Text as="div" variant="body1" className="flex justify-between">
             <span>Babylon Genesis</span>
             <span className="flex flex-col items-end">
               {maxDecimals(rewardInBaby, 6)} {coinSymbol}
@@ -90,7 +90,7 @@ export const RewardsPreviewModal = () => {
 
           <div className="border-divider w-full border-t" />
 
-          <Text variant="body1" className="flex justify-between">
+          <Text as="div" variant="body1" className="flex justify-between">
             <span>Transaction Fees</span>
             <span className="flex flex-col items-end gap-2">
               {feeLoading ? (

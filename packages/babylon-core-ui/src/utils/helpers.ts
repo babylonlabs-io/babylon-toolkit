@@ -25,6 +25,13 @@ export function formatCurrency(currencyValue: number, options: FormatCurrencyOpt
 
   if (currencyValue === 0) return zeroDisplay;
 
+  // Show a meaningful value for very small non-zero amounts instead of "$0.00"
+  const minUnit = 1 / Math.pow(10, format?.minimumFractionDigits ?? precision);
+
+  if (currencyValue > 0 && currencyValue < minUnit) {
+    return `< ${prefix}${minUnit.toFixed(format?.minimumFractionDigits ?? precision)}`;
+  }
+
   const formatted = currencyValue.toLocaleString("en", format ?? { maximumFractionDigits: precision });
 
   return `${prefix}${formatted}`;
