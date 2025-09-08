@@ -62,11 +62,11 @@ export function ValidatorField() {
       cellClassName: "max-w-[240px]",
       sorter: (a, b) => a.name.localeCompare(b.name),
       render: (_: unknown, row: ValidatorRow) => (
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
           <Avatar variant="circular" size="small" url="">
             <Text
               as="span"
-              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] text-accent-contrast uppercase"
+              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] uppercase text-accent-contrast"
             >
               {row.name.charAt(0)}
             </Text>
@@ -168,7 +168,8 @@ export function ValidatorField() {
     toggleShowSlashed(String(value) === "slashed");
   };
 
-  const renderSelectedOption = (option: { label: string }) => `Showing ${option.label}`;
+  const renderSelectedOption = (option: { label: string }) =>
+    `Showing ${option.label}`;
 
   return (
     <>

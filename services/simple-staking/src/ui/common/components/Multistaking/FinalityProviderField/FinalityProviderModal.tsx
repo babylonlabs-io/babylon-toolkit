@@ -24,7 +24,6 @@ interface Props {
 }
 
 export const FinalityProviderModal = ({
-  defaultFinalityProvider: _defaultFinalityProvider = "",
   open,
   selectedBsnId,
   onClose,
@@ -67,11 +66,11 @@ export const FinalityProviderModal = ({
       headerClassName: "max-w-[240px]",
       cellClassName: "text-primary-dark max-w-[240px]",
       render: (_: unknown, row: { id: string; name: string }) => (
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
           <Avatar variant="circular" size="small" url="">
             <Text
               as="span"
-              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] text-accent-contrast uppercase"
+              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] uppercase text-accent-contrast"
             >
               {row.name.charAt(0)}
             </Text>
@@ -100,7 +99,7 @@ export const FinalityProviderModal = ({
         const fp = fpById.get(String(row.id));
         const total = maxDecimals(satoshiToBtc(fp?.activeTVLSat || 0), 8);
         return (
-          <span className="truncate inline-block max-w-[160px] text-right">
+          <span className="inline-block max-w-[160px] truncate text-right">
             {total} {coinSymbol}
           </span>
         );
@@ -120,7 +119,9 @@ export const FinalityProviderModal = ({
       headerClassName: "max-w-[140px]",
       cellClassName: "text-right pr-4 max-w-[140px]",
       render: (_: unknown, row: { commission: string }) => (
-        <span className="truncate inline-block max-w-[140px] text-right">{row.commission}</span>
+        <span className="inline-block max-w-[140px] truncate text-right">
+          {row.commission}
+        </span>
       ),
       sorter: (a: { commission: string }, b: { commission: string }) =>
         parseFloat(a.commission) - parseFloat(b.commission),
@@ -157,13 +158,8 @@ export const FinalityProviderModal = ({
         attributes: {},
       };
     }
-    const totalDelegation = maxDecimals(
-      satoshiToBtc(fp.activeTVLSat || 0),
-      8,
-    );
-    const commission = formatCommissionPercentage(
-      Number(fp.commission) || 0,
-    );
+    const totalDelegation = maxDecimals(satoshiToBtc(fp.activeTVLSat || 0), 8);
+    const commission = formatCommissionPercentage(Number(fp.commission) || 0);
     const status = FinalityProviderStateLabels[fp.state] || "Unknown";
     return {
       providerItemProps: {
@@ -199,7 +195,7 @@ export const FinalityProviderModal = ({
       validators={rows as any}
       columns={columns as ColumnProps<any>[]}
       onClose={handleClose}
-      onSelect={() => { }}
+      onSelect={() => {}}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
       confirmSelection
