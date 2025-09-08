@@ -31,6 +31,7 @@ export interface FinalityProviderItemProps {
 export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true }: FinalityProviderItemProps) {
   if (!provider) return null;
 
+  const providerMoniker = provider.description?.moniker;
   const bsnPlaceholderLetter = bsnName?.charAt(0).toUpperCase() || "?";
 
   const shortenAddress = (value: string): string => {
@@ -39,23 +40,27 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
     return `${value.slice(0, visibleChars)}...${value.slice(-visibleChars)}`;
   };
 
-  const renderProviderSmall = () => {
-    return (
-      <div className="flex items-center text-xs text-accent-secondary">
-        <FinalityProviderLogo
-          logoUrl={provider.logo_url}
-          rank={provider.rank}
-          moniker={provider.description?.moniker}
-          size="sm"
-          className="mr-1"
-        />
-        {provider.description?.moniker}
-      </div>
-    );
-  };
+  const renderProviderMeta = () => (
+    <div className="flex items-center text-xs text-accent-secondary">
+      <FinalityProviderLogo
+        logoUrl={provider.logo_url}
+        rank={provider.rank}
+        moniker={providerMoniker}
+        size="sm"
+        className="mr-1"
+      />
+      {providerMoniker}
+    </div>
+  );
 
-  const renderChainOrAddress = () => {
-    if (!showChain) return null;
+  const renderPrimaryContent = () => {
+    if (!showChain) {
+      return (
+        <Text as="div" className="text-base font-medium text-accent-primary">
+          {providerMoniker}
+        </Text>
+      );
+    }
 
     if (address) {
       return (
@@ -75,26 +80,41 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
     );
   };
 
+  const renderAvatar = () => {
+    if (!showChain) {
+      return (
+        <FinalityProviderLogo
+          logoUrl={provider.logo_url}
+          rank={provider.rank}
+          moniker={providerMoniker}
+          size="lg"
+        />
+      );
+    }
+
+    if (bsnLogoUrl) {
+      return <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="large" />;
+    }
+
+    return (
+      <Avatar variant="rounded" size="large">
+        <Text
+          as="span"
+          className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
+        >
+          {bsnPlaceholderLetter}
+        </Text>
+      </Avatar>
+    );
+  };
+
   return (
     <div className="flex flex-row items-center justify-between">
       <div className="flex h-10 flex-row gap-2">
-        <div className="shrink-0">
-          {bsnLogoUrl ? (
-            <Avatar url={bsnLogoUrl} alt={bsnName} variant="rounded" size="large" />
-          ) : (
-            <Avatar variant="rounded" size="large">
-              <Text
-                as="span"
-                className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
-              >
-                {bsnPlaceholderLetter}
-              </Text>
-            </Avatar>
-          )}
-        </div>
+        <div className="shrink-0">{renderAvatar()}</div>
         <div className="flex flex-col justify-center text-accent-primary">
-          {renderProviderSmall()}
-          {renderChainOrAddress()}
+          {showChain && renderProviderMeta()}
+          {renderPrimaryContent()}
         </div>
       </div>
       {onRemove ?

@@ -110,3 +110,13 @@ export const AddressOnly: Story = {
     provider: mockProvider,
   },
 };
+
+export const WithoutChain: Story = {
+  args: {
+    bsnId: "bsnNoChain",
+    bsnName: "",
+    bsnLogoUrl: undefined,
+    provider: mockProvider,
+    showChain: false,
+  },
+};
