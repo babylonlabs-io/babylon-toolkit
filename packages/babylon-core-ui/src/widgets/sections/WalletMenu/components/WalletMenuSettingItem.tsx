@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text } from '../../../../components/Text';
 import { Hint } from '../../../../components/Hint';
-import { WalletToggle } from './WalletToggle';
+import { Toggle } from '../../../../components/Toggle/Toggle';
 import { twJoin } from 'tailwind-merge';
 
 export interface WalletMenuSettingItemProps {
@@ -73,7 +73,7 @@ export const WalletMenuSettingItem: React.FC<WalletMenuSettingItemProps> = ({
           </Text>
         </div>
       </div>
-      <WalletToggle
+      <Toggle
         value={value}
         onChange={onChange}
       />

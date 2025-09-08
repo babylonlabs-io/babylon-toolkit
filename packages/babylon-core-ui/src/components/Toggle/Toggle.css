@@ -1,23 +1,28 @@
 .bbn-toggle {
-  @apply border-secondary-strokeLight relative inline-flex cursor-pointer gap-0.5 rounded-full border-[0.5px] p-1;
+  @apply relative inline-flex items-center rounded-full transition-colors duration-300 ease-in-out h-[31px] w-[55px] bg-[#78788029] border-0 cursor-pointer;
+
+  &-active {
+    @apply bg-primary-main;
+  }
+
+  /* dark mode override for active state */
+  .dark &-active {
+    @apply bg-primary-light;
+  }
+
+  &-disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 
   &-control {
-    @apply absolute inset-x-1 left-1 size-4 rounded-full bg-primary-light transition-colors transition-transform duration-200;
+    @apply inline-block w-[27px] h-[27px] transform rounded-full bg-white transition-transform duration-300 ease-in-out flex items-center justify-center shadow-sm translate-x-[2px];
 
     &-active {
-      @apply translate-x-[18px] bg-secondary-main;
+      @apply translate-x-[26px];
     }
   }
+}
 
-  &-bg {
-    @apply flex size-4 items-center justify-center;
-
-    &:first-of-type {
-      @apply justify-self-start text-secondary-main;
-    }
-
-    &:last-of-type {
-      @apply justify-self-end text-primary-light;
-    }
-  }
+.bbn-toggle:focus {
+  @apply outline-none ring-2 ring-primary-main ring-offset-2;
 }

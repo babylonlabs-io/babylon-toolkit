@@ -1,6 +1,5 @@
 import { Meta, StoryFn } from "@storybook/react";
 import { useState } from "react";
-import { FaSun, FaMoon } from "react-icons/fa";
 import { SettingMenu } from "./SettingMenu";
 import { Button } from "@/components/Button";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -114,8 +113,6 @@ export const WithThemeToggle: StoryFn = () => {
                 setIsLightMode(value);
                 console.log("Theme changed to:", value ? "Light" : "Dark");
               },
-              activeIcon: <FaSun size={10} />,
-              inactiveIcon: <FaMoon size={10} />
             }}
           >
             Theme

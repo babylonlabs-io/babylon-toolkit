@@ -2,20 +2,7 @@ import React from "react";
 import { twJoin } from "tailwind-merge";
 
 import { useMenuContext } from "./MenuContext";
-import { Toggle } from "../Toggle/Toggle";
-
-interface MenuItemToggleProps {
-  /** Current toggle value */
-  value?: boolean;
-  /** Default toggle value */
-  defaultValue?: boolean;
-  /** Toggle change handler */
-  onChange?: (value: boolean) => void;
-  /** Icon to show when toggle is active */
-  activeIcon?: React.ReactNode;
-  /** Icon to show when toggle is inactive */
-  inactiveIcon?: React.ReactNode;
-}
+import { Toggle, ToggleProps } from "../Toggle/Toggle";
 
 interface MenuItemProps {
   /** Leading icon or element */
@@ -39,7 +26,7 @@ interface MenuItemProps {
   /** Role attribute for accessibility */
   role?: string;
   /** Toggle configuration - when provided, renders a toggle switch as suffix */
-  toggle?: MenuItemToggleProps;
+  toggle?: ToggleProps;
 }
 
 export const MenuItem: React.FC<MenuItemProps> = ({

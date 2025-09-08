@@ -1,7 +1,6 @@
 import { SettingMenu, ThemeIcon } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { FaMoon, FaSun } from "react-icons/fa";
 
 type Theme = "light" | "dark" | "system";
 
@@ -55,8 +54,6 @@ export const SettingMenuWrapper = () => {
           toggle={{
             value: isLightMode,
             onChange: handleToggleTheme,
-            activeIcon: <FaSun size={10} />,
-            inactiveIcon: <FaMoon size={10} />,
           }}
         >
           Theme

@@ -2,19 +2,7 @@ import React, { ReactNode } from "react";
 import { MenuItem } from "@/components/Menu/MenuItem";
 import { ChevronRightIcon } from "@/elements/Icons";
 import { SettingMenuDescription } from "./SettingMenuDescription";
-
-interface SettingMenuItemToggleProps {
-  /** Current toggle value */
-  value?: boolean;
-  /** Default toggle value */
-  defaultValue?: boolean;
-  /** Toggle change handler */
-  onChange?: (value: boolean) => void;
-  /** Icon to show when toggle is active */
-  activeIcon?: React.ReactNode;
-  /** Icon to show when toggle is inactive */
-  inactiveIcon?: React.ReactNode;
-}
+import { ToggleProps } from "@/components/Toggle/Toggle";
 
 export interface SettingMenuItemProps {
   /** Icon element */
@@ -30,7 +18,7 @@ export interface SettingMenuItemProps {
   /** Additional CSS classes */
   className?: string;
   /** Toggle configuration - when provided, renders a toggle switch as suffix */
-  toggle?: SettingMenuItemToggleProps;
+  toggle?: ToggleProps;
   /** Children (label and description) */
   children: ReactNode;
 }
