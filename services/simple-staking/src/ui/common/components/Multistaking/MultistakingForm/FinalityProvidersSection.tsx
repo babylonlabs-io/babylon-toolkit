@@ -4,6 +4,7 @@ import { Fragment, useMemo } from "react";
 import { ChainSelectionModal } from "@/ui/common/components/Multistaking/ChainSelectionModal/ChainSelectionModal";
 import { FinalityProviderModal } from "@/ui/common/components/Multistaking/FinalityProviderField/FinalityProviderModal";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
+import { MODAL_CLOSE_DELAY } from "@/ui/common/constants";
 import {
   StakingModalPage,
   useFinalityProviderBsnState,
@@ -94,7 +95,9 @@ export function FinalityProvidersSection() {
 
   const handleClose = () => {
     setStakingModalPage(StakingModalPage.DEFAULT);
-    setSelectedBsnId(undefined);
+    setTimeout(() => {
+      setSelectedBsnId(undefined);
+    }, MODAL_CLOSE_DELAY);
   };
 
   const handleNext = () =>

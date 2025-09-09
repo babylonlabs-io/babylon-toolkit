@@ -13,22 +13,27 @@ const { chainId: BBN_CHAIN_ID } = getNetworkConfigBBN();
 export const normalizeHex = (hex?: string): string =>
   (hex ?? "").trim().toLowerCase().replace(/^0x/, "");
 
-
 const BSN_CONFIG = {
   [BBN_CHAIN_ID]: {
     filters: {
-      active: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.ACTIVE,
-      inactive: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.INACTIVE,
-      jailed: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.JAILED,
-      slashed: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.SLASHED,
+      active: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.ACTIVE,
+      inactive: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.INACTIVE,
+      jailed: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.JAILED,
+      slashed: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.SLASHED,
     },
     priorities: ["active", "inactive", "slashed", "jailed"] as const,
     fallback: "active" as const,
   },
   COSMOS: {
     filters: {
-      registered: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.INACTIVE,
-      slashed: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.SLASHED,
+      registered: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.INACTIVE,
+      slashed: (fp: FinalityProvider) =>
+        fp.state === FinalityProviderStateEnum.SLASHED,
     },
     priorities: ["registered", "slashed"] as const,
     fallback: "registered" as const,
@@ -39,13 +44,22 @@ const BSN_CONFIG = {
       const hasAllowlist = allowlist.length > 0;
 
       return {
-        allowlisted: (fp: FinalityProvider) => hasAllowlist ? allowSet.has(normalizeHex(fp.btcPk)) : true,
-        "non-allowlisted": (fp: FinalityProvider) => hasAllowlist ? !allowSet.has(normalizeHex(fp.btcPk)) : true,
-        slashed: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.SLASHED,
-        jailed: (fp: FinalityProvider) => fp.state === FinalityProviderStateEnum.JAILED,
+        allowlisted: (fp: FinalityProvider) =>
+          hasAllowlist ? allowSet.has(normalizeHex(fp.btcPk)) : true,
+        "non-allowlisted": (fp: FinalityProvider) =>
+          hasAllowlist ? !allowSet.has(normalizeHex(fp.btcPk)) : true,
+        slashed: (fp: FinalityProvider) =>
+          fp.state === FinalityProviderStateEnum.SLASHED,
+        jailed: (fp: FinalityProvider) =>
+          fp.state === FinalityProviderStateEnum.JAILED,
       };
     },
-    priorities: ["allowlisted", "non-allowlisted", "slashed", "jailed"] as const,
+    priorities: [
+      "allowlisted",
+      "non-allowlisted",
+      "slashed",
+      "jailed",
+    ] as const,
     fallback: "allowlisted" as const,
   },
 } as const;
@@ -81,7 +95,7 @@ const getBsnConfig = (bsn?: Bsn) => {
 const createBsnFilters = (bsn?: Bsn) => {
   const config = getBsnConfig(bsn);
 
-  if ('createFilters' in config && typeof config.createFilters === 'function') {
+  if ("createFilters" in config && typeof config.createFilters === "function") {
     // ROLLUP type with dynamic filters based on allowlist
     return config.createFilters(bsn?.allowlist ?? []);
   }
@@ -117,7 +131,8 @@ export const filterFinalityProvidersByBsn = (
   // Apply status filtering using unified configuration
   if (filter.providerStatus) {
     const bsnFilters = createBsnFilters(selectedBsn);
-    const statusFilter = bsnFilters[filter.providerStatus as keyof typeof bsnFilters];
+    const statusFilter =
+      bsnFilters[filter.providerStatus as keyof typeof bsnFilters];
 
     if (statusFilter) {
       filtered = filtered.filter(statusFilter);
@@ -127,7 +142,8 @@ export const filterFinalityProvidersByBsn = (
   // Apply allowlist filtering
   if (filter.allowlistStatus && selectedBsn?.type === "ROLLUP") {
     const bsnFilters = createBsnFilters(selectedBsn);
-    const allowlistFilter = bsnFilters[filter.allowlistStatus as keyof typeof bsnFilters];
+    const allowlistFilter =
+      bsnFilters[filter.allowlistStatus as keyof typeof bsnFilters];
 
     if (allowlistFilter) {
       filtered = filtered.filter(allowlistFilter);
@@ -143,8 +159,6 @@ export const filterFinalityProvidersByBsn = (
  */
 export const isFinalityProviderRowSelectable = (
   row: FinalityProvider,
-  _selectedBsnId?: string | undefined,
-  _selectedBsn?: Bsn | undefined,
 ): boolean => {
   // Only disable selection for jailed and slashed providers
   return (

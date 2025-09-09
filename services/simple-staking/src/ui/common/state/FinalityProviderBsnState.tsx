@@ -223,10 +223,10 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (userHasSelectedFilter) return;
-    
+
     const newProviderStatus = getAvailableProviderStatus(
-      finalityProviders, 
-      selectedBsn
+      finalityProviders,
+      selectedBsn,
     );
     if (newProviderStatus !== filter.providerStatus) {
       setFilter((prevFilter) => ({
@@ -234,14 +234,19 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
         providerStatus: newProviderStatus,
       }));
     }
-  }, [selectedBsn, finalityProviders, userHasSelectedFilter]);
+  }, [
+    selectedBsn,
+    finalityProviders,
+    userHasSelectedFilter,
+    filter.providerStatus,
+  ]);
 
   useEffect(() => {
     setUserHasSelectedFilter(false);
   }, [selectedBsn]);
 
   const handleFilter = useCallback((key: keyof FilterState, value: string) => {
-    if (key === 'providerStatus') {
+    if (key === "providerStatus") {
       setUserHasSelectedFilter(true);
     }
     setFilter((state) => ({ ...state, [key]: value }));
@@ -262,9 +267,8 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
   }, []);
 
   const isRowSelectable = useCallback(
-    (row: FinalityProvider) =>
-      isFinalityProviderRowSelectable(row, selectedBsnId, selectedBsn),
-    [selectedBsnId, selectedBsn],
+    (row: FinalityProvider) => isFinalityProviderRowSelectable(row),
+    [],
   );
 
   const filteredFinalityProviders = useMemo(() => {

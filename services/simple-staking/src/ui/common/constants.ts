@@ -41,6 +41,12 @@ export const DEFAULT_MAX_FINALITY_PROVIDERS = 1;
 export const DEFAULT_CONFIRMATION_DEPTH = 30;
 
 /**
+ * Modal close animation delay in milliseconds
+ * Used to prevent visual flicker when resetting state during modal close
+ */
+export const MODAL_CLOSE_DELAY = 400;
+
+/**
  * Staking expansion operation types
  */
 export const EXPANSION_OPERATIONS = {
