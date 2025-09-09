@@ -77,7 +77,7 @@ export const FinalityProviderTable = ({
 
   const handleSelect = (btcPk: string) => {
     if (onSelectRow) {
-      onSelectRow(btcPk);
+      onSelectRow(selectedFP === btcPk ? "" : btcPk);
     }
   };
 
