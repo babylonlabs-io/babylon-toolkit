@@ -1,5 +1,6 @@
 import { Form } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
+import { DeepPartial } from 'react-hook-form';
 
 import { AmountField } from "@/ui/baby/components/AmountField";
 import { FeeField } from "@/ui/baby/components/FeeField";
@@ -60,20 +61,22 @@ export default function StakingForm({
     });
   };
 
+  const handleChange = (data: DeepPartial<StakingFormFields>) => {
+    setBabyStakeDraft({
+      ...data,
+      validatorAddresses: data.validatorAddresses?.filter(
+        (i) => i !== undefined,
+      ),
+    })
+  };
+
   return (
     <Form
       schema={formSchema}
       className="flex h-[500px] flex-col gap-2"
       onSubmit={handlePreview}
       defaultValues={defaultValues}
-      onChange={(data) =>
-        setBabyStakeDraft({
-          ...data,
-          validatorAddresses: data.validatorAddresses?.filter(
-            (i) => i !== undefined,
-          ),
-        })
-      }
+      onChange={handleChange}
     >
       <AmountField balance={availableBalance} price={babyPrice} />
       <ValidatorField />

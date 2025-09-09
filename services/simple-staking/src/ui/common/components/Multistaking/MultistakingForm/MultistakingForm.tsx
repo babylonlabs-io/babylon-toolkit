@@ -1,5 +1,6 @@
 import { Form } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo } from "react";
+import { DeepPartial } from "react-hook-form";
 
 import { useFormPersistenceState } from "@/ui/common/state/FormPersistenceState";
 import {
@@ -20,11 +21,7 @@ export function MultistakingForm() {
       finalityProviders: btcStakeDraft?.finalityProviders,
       amount: btcStakeDraft?.amount,
       term: btcStakeDraft?.term ?? stakingInfo?.defaultStakingTimeBlocks,
-      feeRate:
-        btcStakeDraft?.feeRate ??
-        (stakingInfo?.defaultFeeRate !== undefined
-          ? stakingInfo.defaultFeeRate
-          : 0),
+      feeRate: btcStakeDraft?.feeRate ?? stakingInfo?.defaultFeeRate ?? 0,
       feeAmount: btcStakeDraft?.feeAmount,
     }),
     [
@@ -49,6 +46,21 @@ export function MultistakingForm() {
     [setFormData, goToStep],
   );
 
+  const handleChange = (data: DeepPartial<MultistakingFormFields>) => {
+    const sanitizedFinalityProviders: Record<string, string> = {};
+
+    Object.entries(data.finalityProviders ?? {}).forEach(([key, value]) => {
+      if (typeof value === "string") {
+        sanitizedFinalityProviders[key] = value;
+      }
+    });
+
+    setBtcStakeDraft({
+      ...data,
+      finalityProviders: sanitizedFinalityProviders,
+    });
+  }
+
   if (!stakingInfo) {
     return null;
   }
@@ -59,20 +71,7 @@ export function MultistakingForm() {
       mode="onChange"
       reValidateMode="onChange"
       defaultValues={defaultValues}
-      onChange={(data) => {
-        const sanitizedFinalityProviders: Record<string, string> = {};
-
-        Object.entries(data.finalityProviders ?? {}).forEach(([key, value]) => {
-          if (typeof value === "string") {
-            sanitizedFinalityProviders[key] = value;
-          }
-        });
-
-        setBtcStakeDraft({
-          ...data,
-          finalityProviders: sanitizedFinalityProviders,
-        });
-      }}
+      onChange={handleChange}
       onSubmit={handlePreview}
     >
       <MultistakingFormContent />
