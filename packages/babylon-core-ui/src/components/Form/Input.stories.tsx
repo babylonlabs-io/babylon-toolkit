@@ -7,6 +7,7 @@ import { Loader } from "@/components/Loader";
 import { Input } from "./Input";
 
 const meta: Meta<typeof Input> = {
+  title: "Components/Input",
   component: Input,
   tags: ["autodocs"],
 };

@@ -4,6 +4,7 @@ import { FormControl } from "./FormControl";
 import { Input } from "./Input";
 
 const meta: Meta<typeof FormControl> = {
+  title: "Components/FormControl",
   component: FormControl,
   tags: ["autodocs"],
 };

@@ -3,6 +3,7 @@ import { Avatar } from "./Avatar";
 import { AvatarGroup } from "./AvatarGroup";
 
 const meta: Meta<typeof AvatarGroup> = {
+  title: "Components/AvatarGroup",
   component: AvatarGroup,
   tags: ["autodocs"],
 };
