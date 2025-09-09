@@ -1,4 +1,5 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
@@ -11,6 +12,7 @@ import { Content } from "@/ui/common/components/Content/Content";
 import { FAQ } from "@/ui/common/components/FAQ/FAQ";
 import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
+import FF from "@/ui/common/utils/FeatureFlagService";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 
@@ -71,21 +73,21 @@ function BabyLayoutContent() {
     },
     ...(isConnected
       ? [
-          {
-            id: "activity",
-            label: "Activity",
-            content: (
-              <Section>
-                <BabyActivityList />
-              </Section>
-            ),
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <RewardsTab />,
-          },
-        ]
+        {
+          id: "activity",
+          label: "Activity",
+          content: (
+            <Section>
+              <BabyActivityList />
+            </Section>
+          ),
+        },
+        {
+          id: "rewards",
+          label: "Rewards",
+          content: <RewardsTab />,
+        },
+      ]
       : []),
     {
       id: "faqs",
@@ -110,11 +112,49 @@ function BabyLayoutContent() {
   const fallbackContent = (
     <Container
       as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
+      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
     >
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" />
     </Container>
   );
+
+  const Page = () => {
+    return (
+      <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
+        <Container
+          as="main"
+          className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+        >
+          <Tabs
+            items={tabItems}
+            defaultActiveTab="stake"
+            activeTab={activeTab}
+            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+          />
+        </Container>
+      </AuthGuard>
+    )
+  }
+
+  if (FF.IsPhase3Enabled) {
+    return (
+      <StakingState>
+        <ValidatorState>
+          <DelegationState>
+            <RewardState>
+              <Content>
+                <Card
+                  className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] px-4 bg-surface"
+                >
+                  <Page />
+                </Card>
+              </Content>
+            </RewardState>
+          </DelegationState>
+        </ValidatorState>
+      </StakingState>
+    );
+  }
 
   return (
     <StakingState>
@@ -122,19 +162,7 @@ function BabyLayoutContent() {
         <DelegationState>
           <RewardState>
             <Content>
-              <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
-                <Container
-                  as="main"
-                  className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
-                >
-                  <Tabs
-                    items={tabItems}
-                    defaultActiveTab="stake"
-                    activeTab={activeTab}
-                    onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-                  />
-                </Container>
-              </AuthGuard>
+              <Page />
             </Content>
           </RewardState>
         </DelegationState>

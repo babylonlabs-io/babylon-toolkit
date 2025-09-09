@@ -1,5 +1,6 @@
 import { initBTCCurve } from "@babylonlabs-io/btc-staking-ts";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
@@ -11,6 +12,7 @@ import { MultistakingFormWrapper } from "./components/Multistaking/MultistakingF
 import { Rewards } from "./components/Rewards";
 import { Stats } from "./components/Stats/Stats";
 import { Tabs } from "./components/Tabs";
+import FF from "@/ui/common/utils/FeatureFlagService";
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState("stake");
@@ -38,17 +40,17 @@ const Home = () => {
     },
     ...(isConnected
       ? [
-          {
-            id: "activity",
-            label: "Activity",
-            content: <Activity />,
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <Rewards />,
-          },
-        ]
+        {
+          id: "activity",
+          label: "Activity",
+          content: <Activity />,
+        },
+        {
+          id: "rewards",
+          label: "Rewards",
+          content: <Rewards />,
+        },
+      ]
       : []),
     {
       id: "faqs",
@@ -56,21 +58,34 @@ const Home = () => {
       content: <FAQ variant="btc" />,
     },
   ];
+  const Page = () => {
+    return (
+      <Container
+        as="main"
+        className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+      >
+        <Stats />
+        <Tabs
+          items={tabItems}
+          defaultActiveTab="stake"
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+      </Container>
+    );
+  };
 
-  return (
-    <Container
-      as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
-    >
-      <Stats />
-      <Tabs
-        items={tabItems}
-        defaultActiveTab="stake"
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
-    </Container>
-  );
+  if (FF.IsPhase3Enabled) {
+    return (
+      <Card
+        className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] px-4 bg-surface"
+      >
+        <Page />
+      </Card>
+    );
+  }
+
+  return <Page />;
 };
 
 export default Home;
