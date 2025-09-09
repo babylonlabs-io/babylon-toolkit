@@ -1,6 +1,6 @@
 import { Form } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
-import { DeepPartial } from 'react-hook-form';
+import { DeepPartial } from "react-hook-form";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
 import { FeeField } from "@/ui/baby/components/FeeField";
@@ -67,7 +67,7 @@ export default function StakingForm({
       validatorAddresses: data.validatorAddresses?.filter(
         (i) => i !== undefined,
       ),
-    })
+    });
   };
 
   return (

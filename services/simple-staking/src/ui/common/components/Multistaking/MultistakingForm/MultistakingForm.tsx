@@ -59,7 +59,7 @@ export function MultistakingForm() {
       ...data,
       finalityProviders: sanitizedFinalityProviders,
     });
-  }
+  };
 
   if (!stakingInfo) {
     return null;
