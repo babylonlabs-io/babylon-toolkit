@@ -9,10 +9,8 @@ import {
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
-import { AiOutlineInfoCircle } from "react-icons/ai";
 import { PiWalletBold } from "react-icons/pi";
 import { useLocation } from "react-router";
-import { Tooltip } from "react-tooltip";
 import { twMerge } from "tailwind-merge";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -110,7 +108,6 @@ export const Connect: React.FC<ConnectProps> = ({
   const {
     isApiNormal,
     isGeoBlocked,
-    apiMessage,
     isLoading: isHealthcheckLoading,
   } = useHealthCheck();
 
@@ -144,24 +141,6 @@ export const Connect: React.FC<ConnectProps> = ({
     return result;
   }, [selectedWallets]);
 
-  const renderApiNotAvailableTooltip = useMemo(() => {
-    if (!isGeoBlocked && isApiNormal) return null;
-
-    return (
-      <>
-        <span
-          className="cursor-pointer text-xs"
-          data-tooltip-id="tooltip-connect"
-          data-tooltip-content={apiMessage}
-          data-tooltip-place="bottom"
-        >
-          <AiOutlineInfoCircle />
-        </span>
-        <Tooltip id="tooltip-connect" className="tooltip-wrap" />
-      </>
-    );
-  }, [isGeoBlocked, isApiNormal, apiMessage]);
-
   // DISCONNECTED STATE: Show connect button + settings menu
   if (!isConnected) {
     return (
@@ -178,8 +157,6 @@ export const Connect: React.FC<ConnectProps> = ({
         </Button>
 
         <SettingMenuWrapper />
-
-        {!isApiNormal && renderApiNotAvailableTooltip}
       </div>
     );
   }
