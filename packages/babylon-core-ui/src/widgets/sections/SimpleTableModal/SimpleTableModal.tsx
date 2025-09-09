@@ -4,7 +4,7 @@ import { WINDOW_BREAKPOINT } from "@/utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useState } from "react";
 import { Avatar } from "@/components/Avatar";
-import { SimpleTable } from "@/elements/SimpleTable";
+import { SimpleTable } from "@/components/SimpleTable";
 
 export interface FinalityProvider {
   name: string;

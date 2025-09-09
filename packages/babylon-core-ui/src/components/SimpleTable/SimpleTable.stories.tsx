@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { SimpleTable } from "./SimpleTable";
-import { Avatar } from "../../components/Avatar/Avatar";
+import { Avatar } from "../Avatar/Avatar";
 
 const meta: Meta<typeof SimpleTable> = {
     title: "Elements/Data Display/Collections/SimpleTable",

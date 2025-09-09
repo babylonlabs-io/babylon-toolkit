@@ -1,6 +1,6 @@
 import { Button } from "@/components/Button";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
-import { SimpleTable } from "@/elements/SimpleTable";
+import { SimpleTable } from "@/components/SimpleTable";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
 import { Text } from "@/components/Text";
