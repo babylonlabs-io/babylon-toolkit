@@ -21,6 +21,7 @@ import { useRpcErrorHandler } from "../useRpcErrorHandler";
 const BBN_BTCLIGHTCLIENT_TIP_KEY = "BBN_BTCLIGHTCLIENT_TIP";
 const BBN_BALANCE_KEY = "BBN_BALANCE";
 const BBN_REWARDS_KEY = "BBN_REWARDS";
+const BBN_REWARDS_COINS_KEY = "BBN_REWARDS_COINS";
 const BBN_HEIGHT_KEY = "BBN_HEIGHT";
 const REWARD_GAUGE_KEY_BTC_DELEGATION = "BTC_STAKER";
 
@@ -73,15 +74,18 @@ export const useBbnQuery = () => {
         return 0;
       }
 
-      const coins =
-        rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
+      const coins = rewards.rewardGauges[
+        REWARD_GAUGE_KEY_BTC_DELEGATION
+      ]?.coins?.filter((c) => c.denom === "ubbn");
       if (!coins) {
         return 0;
       }
 
       const withdrawnCoins = rewards.rewardGauges[
         REWARD_GAUGE_KEY_BTC_DELEGATION
-      ]?.withdrawnCoins.reduce((acc, coin) => acc + Number(coin.amount), 0);
+      ]?.withdrawnCoins
+        .filter((c) => c.denom === "ubbn")
+        .reduce((acc, coin) => acc + Number(coin.amount), 0);
 
       return (
         coins.reduce((acc, coin) => acc + Number(coin.amount), 0) -
@@ -90,10 +94,89 @@ export const useBbnQuery = () => {
     },
     enabled: Boolean(
       queryClient &&
-        connected &&
-        bech32Address &&
-        !isGeoBlocked &&
-        !isHealthcheckLoading,
+      connected &&
+      bech32Address &&
+      !isGeoBlocked &&
+      !isHealthcheckLoading,
+    ),
+    staleTime: ONE_MINUTE,
+    refetchInterval: ONE_MINUTE,
+  });
+
+  /**
+   * Gets per-denom rewards coins for BTC_STAKER gauge.
+   * Returns an array of { denom: string; amount: number } with withdrawn amounts subtracted.
+   */
+  const rewardCoinsQuery = useClientQuery({
+    queryKey: [BBN_REWARDS_COINS_KEY, bech32Address, connected],
+    queryFn: async () => {
+      if (!connected || !queryClient || !bech32Address) {
+        return [] as Array<{ denom: string; amount: number }>;
+      }
+      console.log("[RewardsFlow] Query rewards: start", {
+        address: bech32Address,
+      });
+      const { incentive } = setupIncentiveExtension(queryClient);
+      const req: incentivequery.QueryRewardGaugesRequest =
+        incentivequery.QueryRewardGaugesRequest.fromPartial({
+          address: bech32Address,
+        });
+
+      let rewards: incentivequery.QueryRewardGaugesResponse;
+      try {
+        rewards = await incentive.RewardGauges(req);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message.includes("reward gauge not found")
+        ) {
+          console.log(
+            "[RewardsFlow] Query rewards: no rewards (gauge not found)",
+          );
+          return [] as Array<{ denom: string; amount: number }>;
+        }
+        throw new ClientError(
+          ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
+          "Error getting rewards",
+          { cause: error as Error },
+        );
+      }
+
+      const gauge = rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION];
+      if (!gauge) {
+        console.log("[RewardsFlow] Query rewards: no BTC_STAKER gauge");
+        return [] as Array<{ denom: string; amount: number }>;
+      }
+      const totalByDenom = new Map<string, number>();
+      const withdrawnByDenom = new Map<string, number>();
+
+      for (const coin of gauge.coins ?? []) {
+        const prev = totalByDenom.get(coin.denom) ?? 0;
+        totalByDenom.set(coin.denom, prev + Number(coin.amount));
+      }
+      for (const coin of gauge.withdrawnCoins ?? []) {
+        const prev = withdrawnByDenom.get(coin.denom) ?? 0;
+        withdrawnByDenom.set(coin.denom, prev + Number(coin.amount));
+      }
+      const results: Array<{ denom: string; amount: number }> = [];
+      for (const [denom, total] of totalByDenom.entries()) {
+        const withdrawn = withdrawnByDenom.get(denom) ?? 0;
+        const net = Math.max(0, total - withdrawn);
+        if (net > 0) {
+          results.push({ denom, amount: net });
+        }
+      }
+      console.log("[RewardsFlow] Query rewards: done", {
+        denomCount: results.length,
+      });
+      return results;
+    },
+    enabled: Boolean(
+      queryClient &&
+      connected &&
+      bech32Address &&
+      !isGeoBlocked &&
+      !isHealthcheckLoading,
     ),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
@@ -115,10 +198,10 @@ export const useBbnQuery = () => {
     },
     enabled: Boolean(
       queryClient &&
-        connected &&
-        bech32Address &&
-        !isGeoBlocked &&
-        !isHealthcheckLoading,
+      connected &&
+      bech32Address &&
+      !isGeoBlocked &&
+      !isHealthcheckLoading,
     ),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
@@ -172,6 +255,7 @@ export const useBbnQuery = () => {
 
   return {
     rewardsQuery,
+    rewardCoinsQuery,
     balanceQuery,
     btcTipQuery,
     babyTipQuery,
