@@ -47,7 +47,7 @@ export const Tabs = ({
 
   return (
     <div className={twMerge("w-full", className)}>
-      <div className="flex w-full gap-2 mb-6" role="tablist">
+      <div className="mb-6 flex w-full gap-2" role="tablist">
         {items.map((item) => (
           <button
             key={item.id}

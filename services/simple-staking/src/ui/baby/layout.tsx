@@ -73,21 +73,21 @@ function BabyLayoutContent() {
     },
     ...(isConnected
       ? [
-        {
-          id: "activity",
-          label: "Activity",
-          content: (
-            <Section>
-              <BabyActivityList />
-            </Section>
-          ),
-        },
-        {
-          id: "rewards",
-          label: "Rewards",
-          content: <RewardsTab />,
-        },
-      ]
+          {
+            id: "activity",
+            label: "Activity",
+            content: (
+              <Section>
+                <BabyActivityList />
+              </Section>
+            ),
+          },
+          {
+            id: "rewards",
+            label: "Rewards",
+            content: <RewardsTab />,
+          },
+        ]
       : []),
     {
       id: "faqs",
@@ -133,8 +133,8 @@ function BabyLayoutContent() {
           />
         </Container>
       </AuthGuard>
-    )
-  }
+    );
+  };
 
   if (FF.IsPhase3Enabled) {
     return (
@@ -143,9 +143,7 @@ function BabyLayoutContent() {
           <DelegationState>
             <RewardState>
               <Content>
-                <Card
-                  className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] px-4 bg-surface"
-                >
+                <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4">
                   <Page />
                 </Card>
               </Content>
