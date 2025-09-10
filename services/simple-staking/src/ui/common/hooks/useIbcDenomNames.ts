@@ -34,9 +34,9 @@ export function useIbcDenomNames(params: {
                             const hash = denom.slice(4);
                             const candidates = [
                                 // Standard path with just the hash
-                                `${baseRoot}/ibc/apps/transfer/v1/denom_traces/${encodeURIComponent(hash)}`,
+                                `${baseRoot}/ibc/apps/transfer/v1/denoms/${encodeURIComponent(hash)}`,
                                 // Some LCDs expose it under '/denom_traces/ibc/{hash}'
-                                `${baseRoot}/ibc/apps/transfer/v1/denom_traces/ibc/${encodeURIComponent(hash)}`,
+                                `${baseRoot}/ibc/apps/transfer/v1/denoms/ibc/${encodeURIComponent(hash)}`,
                             ];
                             for (const url of candidates) {
                                 try {
@@ -50,7 +50,7 @@ export function useIbcDenomNames(params: {
                                     }
                                     const data: any = await res.json();
                                     const base: string | undefined =
-                                        data?.denom_trace?.base_denom;
+                                        data?.denom?.base;
                                     if (base) return [denom, base] as const;
                                 } catch {
                                     // try next candidate
