@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 
 import { useUtxoValidation } from "@/ui/common/hooks/services/useUtxoValidation";
+import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import { StakingExpansionStep } from "@/ui/common/state/StakingExpansionTypes";
 import {
@@ -22,6 +23,7 @@ export function useVerifiedStakingExpansionService() {
     selectedDelegationForVerifiedModal,
     setSelectedDelegationForVerifiedModal,
   } = useStakingExpansionState();
+  const { findDelegationByTxHash } = useDelegationV2State();
 
   /**
    * Get all verified staking expansions with valid UTXOs.
@@ -178,6 +180,40 @@ export function useVerifiedStakingExpansionService() {
     [getVerifiedExpansionsForDelegation],
   );
 
+  /**
+   * Check if a delegation has a verified timelock renewal expansion.
+   * This is used to disable the "Renew Staking Term" button when a renewal is already verified.
+   */
+  const hasVerifiedTimelockRenewal = useCallback(
+    (originalStakingTxHashHex: string) => {
+      // Get all verified expansions for this delegation
+      const delegationExpansions = getVerifiedExpansionsForDelegation(
+        originalStakingTxHashHex,
+      );
+
+      // Check if any of the verified expansions is a pure timelock renewal
+      return delegationExpansions.some((expansion) => {
+        // Find the original delegation using the same method as VerifiedStakeExpansionModal
+        const originalDelegation = expansion.previousStakingTxHashHex
+          ? findDelegationByTxHash(expansion.previousStakingTxHashHex)
+          : undefined;
+
+        if (!originalDelegation) {
+          return false;
+        }
+
+        // Check if all FPs in the expansion exist in the original
+        // If yes, it's a pure timelock renewal (same logic as VerifiedStakeExpansionModal)
+        const newFPs = expansion.finalityProviderBtcPksHex.filter(
+          (fp) => !originalDelegation.finalityProviderBtcPksHex.includes(fp),
+        );
+
+        return newFPs.length === 0;
+      });
+    },
+    [getVerifiedExpansionsForDelegation, findDelegationByTxHash],
+  );
+
   return {
     verifiedExpansions: validVerifiedExpansions,
     openVerifiedExpansionModal,
@@ -187,5 +223,6 @@ export function useVerifiedStakingExpansionService() {
     resumeVerifiedExpansion,
     getVerifiedExpansionsForDelegation,
     getVerifiedExpansionInfoForDelegation,
+    hasVerifiedTimelockRenewal,
   };
 }
