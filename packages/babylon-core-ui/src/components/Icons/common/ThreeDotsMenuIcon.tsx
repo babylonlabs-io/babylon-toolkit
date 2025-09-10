@@ -1,4 +1,4 @@
-import { iconColorVariants } from "@/components/Icons";
+import { iconColorVariants } from "@babylonlabs-io/core-ui";
 import { twJoin } from "tailwind-merge";
 
 interface ThreeDotsMenuIconProps {
