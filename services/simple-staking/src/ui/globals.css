@@ -7,6 +7,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  @apply bg-surface;
+}
+
 :root {
   --primary: #ff7c2a;
   --secondary: "#0DB7BF";

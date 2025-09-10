@@ -143,7 +143,7 @@ function BabyLayoutContent() {
           <DelegationState>
             <RewardState>
               <Content>
-                <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4">
+                <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
                   <Page />
                 </Card>
               </Content>
