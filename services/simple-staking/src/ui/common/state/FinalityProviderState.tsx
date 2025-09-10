@@ -10,7 +10,6 @@ import {
   type FinalityProvider,
 } from "@/ui/common/types/finalityProviders";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 interface SortState {
   field?: string;
@@ -107,8 +106,7 @@ export function FinalityProviderState({ children }: PropsWithChildren) {
       order: sortState.direction,
       name: debouncedSearch,
       // By default, if no bsn is passed, the FP endpoint will return babylon
-      // FP only
-      ...(FeatureFlagService.IsPhase3Enabled ? { bsnId: "all" } : {}),
+      bsnId: "all",
     });
 
   const { data: dataV1 } = useFinalityProviders();

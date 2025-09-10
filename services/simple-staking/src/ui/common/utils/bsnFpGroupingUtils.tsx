@@ -2,6 +2,7 @@ import { FinalityProviderLogo } from "@/ui/common/components/Staking/FinalityPro
 import { FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { trim } from "@/ui/common/utils/trim";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ActivityCardDetailItem } from "../components/ActivityCard/ActivityCard";
 
@@ -52,42 +53,55 @@ export function createBsnFpGroupedDetails(
 
   finalityProviderBtcPksHex.forEach((fpBtcPk) => {
     const fp = finalityProviderMap.get(fpBtcPk);
-    const bsnId = fp?.bsnId || BBN_CHAIN_ID;
 
-    // Determine if this is a new FP pair
-    const isNew = options.originalFinalityProviderBtcPksHex
-      ? !options.originalFinalityProviderBtcPksHex.includes(fpBtcPk)
-      : false;
+    if (!fp) {
+      return;
+    }
 
-    // Apply opacity based on new/old status for expansions
-    const opacityClass =
-      options.originalFinalityProviderBtcPksHex && !isNew ? "opacity-60" : "";
+    const shouldShowFp = FeatureFlagService.IsPhase3Enabled
+      ? fp.bsnId // Phase 3: require BSN
+      : true; // Phase 2: always show FP
 
-    if (fp || bsnId) {
-      // Create a group for each BSN+FP pair
+    if (shouldShowFp) {
+      const shouldShowBsnItem = FeatureFlagService.IsPhase3Enabled || fp.bsnId;
+      const bsnId = fp.bsnId || BBN_CHAIN_ID;
+
+      // Determine if this is a new FP pair (expansion feature)
+      const isNew = options.originalFinalityProviderBtcPksHex
+        ? !options.originalFinalityProviderBtcPksHex.includes(fpBtcPk)
+        : false;
+
+      // Apply opacity based on new/old status for expansions
+      const opacityClass =
+        options.originalFinalityProviderBtcPksHex && !isNew ? "opacity-60" : "";
+
       groupedDetails.push({
         items: [
-          {
-            label: "BSN",
-            value: (
-              <div className={`flex items-center gap-2 ${opacityClass}`}>
-                <img
-                  src={fp?.bsnLogoUrl || ""}
-                  alt={bsnId}
-                  className="h-4 w-4 rounded-full object-cover"
-                />
-                <span>{bsnId}</span>
-              </div>
-            ),
-          },
+          ...(shouldShowBsnItem
+            ? [
+                {
+                  label: "BSN",
+                  value: (
+                    <div className={`flex items-center gap-2 ${opacityClass}`}>
+                      <img
+                        src={fp.bsnLogoUrl || ""}
+                        alt={bsnId}
+                        className="h-4 w-4 rounded-full object-cover"
+                      />
+                      <span>{bsnId}</span>
+                    </div>
+                  ),
+                },
+              ]
+            : []),
           {
             label: "Finality Provider",
             value: (
               <div className={`flex items-center gap-2 ${opacityClass}`}>
                 <FinalityProviderLogo
-                  logoUrl={fp?.logo_url}
-                  rank={fp?.rank || 0}
-                  moniker={fp?.description?.moniker}
+                  logoUrl={fp.logo_url}
+                  rank={fp.rank || 0}
+                  moniker={fp.description?.moniker}
                   className="h-4 w-4"
                 />
                 <span>{getFinalityProviderDisplayName(fp, fpBtcPk)}</span>
