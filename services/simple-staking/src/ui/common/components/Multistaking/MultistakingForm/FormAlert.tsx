@@ -7,7 +7,7 @@ export const FormAlert = ({
   message,
 }: {
   title?: string;
-  message?: string;
+  message?: string | React.ReactNode;
 }) => {
   if (!title) {
     return null;

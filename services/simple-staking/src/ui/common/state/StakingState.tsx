@@ -100,7 +100,7 @@ export interface StakingState {
   reset: () => void;
   disabled?: {
     title: string;
-    message: string;
+    message: string | React.ReactNode;
   };
   stakingStepOptions: EventData | undefined;
   setStakingStepOptions?: (options?: EventData) => void;
@@ -249,8 +249,21 @@ export function StakingState({ children }: PropsWithChildren) {
     if (failedBtcAddressRiskAssessment) {
       return {
         title: "Staking Unavailable",
-        message:
-          "Staking is currently unavailable for your BTC address. Please contact support for assistance.",
+        message: (
+          <>
+            This wallet is not eligible for staking. To understand the
+            requirements, please review Babylon's{" "}
+            <a
+              href="https://babylonlabs.io/terms-of-use"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-800"
+            >
+              Terms of Use
+            </a>
+            . If you require assistance, please reach out to our support team.
+          </>
+        ),
       };
     }
 
