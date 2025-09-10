@@ -68,7 +68,7 @@ export const Menu: React.FC<MenuProps> = ({
             open={isOpen}
             onClose={onClose}
             className={twJoin(
-              "bg-[#FFFFFF] dark:bg-[#252525] text-primary-main",
+              "bg-surface text-primary-main",
               className
             )}
           >
@@ -86,7 +86,7 @@ export const Menu: React.FC<MenuProps> = ({
           >
             {menuContent}
           </MenuDrawer>
-        ) 
+        )
       ) : (
         <Popover
           anchorEl={triggerRef.current}
