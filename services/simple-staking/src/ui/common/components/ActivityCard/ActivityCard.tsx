@@ -26,6 +26,7 @@ export interface ActivityCardActionButton {
   size?: "small" | "medium" | "large";
   className?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 }
 
 export interface ActivityCardData {
