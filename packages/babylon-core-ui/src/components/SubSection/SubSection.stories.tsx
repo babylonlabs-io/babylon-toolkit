@@ -4,6 +4,7 @@ import { SubSection } from "./SubSection";
 import { Text } from "../Text";
 
 const meta: Meta<typeof SubSection> = {
+  title: "Components/Containers/Panels/SubSection",
   component: SubSection,
   tags: ["autodocs"],
 };

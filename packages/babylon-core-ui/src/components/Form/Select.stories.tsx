@@ -4,14 +4,14 @@ import { Select, type Option } from "./Select";
 import { useState } from "react";
 
 const meta: Meta<typeof Select> = {
-  title: "Components/Select",
+  title: "Components/Inputs/Controls/Select",
   component: Select,
   tags: ["autodocs"],
 };
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
+type Story = StoryObj<typeof Select>;
 
 const options: Option[] = [
   { value: "active", label: "Active" },

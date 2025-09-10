@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { TableElement } from "./TableElement";
 
 const meta: Meta<typeof TableElement> = {
+    title: "Elements/Data Display/Providers/TableElement",
     component: TableElement,
     tags: ["autodocs"],
 };

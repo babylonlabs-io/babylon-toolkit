@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { FinalityProviderItem } from "./FinalityProviderItem";
 
 const meta: Meta<typeof FinalityProviderItem> = {
+  title: "Elements/Data Display/Providers/FinalityProviderItem",
   component: FinalityProviderItem,
   tags: ["autodocs"],
   parameters: {

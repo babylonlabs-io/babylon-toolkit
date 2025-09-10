@@ -48,6 +48,7 @@ const IconsGallery = () => {
 };
 
 const meta: Meta<typeof IconsGallery> = {
+    title: "Components/Identity/Icons/Icons",
     component: IconsGallery,
     tags: ["autodocs"],
 };

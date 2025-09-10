@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { Warning } from "./Warning";
 
 const meta: Meta<typeof Warning> = {
+    title: "Components/Data Display/Indicators/Warning",
     component: Warning,
     tags: ["autodocs"],
 };

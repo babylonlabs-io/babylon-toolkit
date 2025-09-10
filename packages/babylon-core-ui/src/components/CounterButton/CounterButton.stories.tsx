@@ -4,6 +4,7 @@ import { fn } from "@storybook/test";
 import { CounterButton } from "./CounterButton";
 
 const meta: Meta<typeof CounterButton> = {
+  title: "Components/Inputs/Actions/CounterButton",
   component: CounterButton,
   tags: ["autodocs"],
   args: {

@@ -3,6 +3,7 @@ import { Table } from "./Table";
 import { Avatar } from "../../components/Avatar/Avatar";
 
 const meta: Meta<typeof Table> = {
+    title: "Elements/Data Display/Collections/Table",
     component: Table,
     tags: ["autodocs"],
     parameters: {

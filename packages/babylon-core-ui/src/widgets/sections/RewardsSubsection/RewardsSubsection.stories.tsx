@@ -3,6 +3,7 @@ import { action } from "@storybook/addon-actions";
 import { RewardsSubsection } from "./RewardsSubsection";
 
 const meta: Meta<typeof RewardsSubsection> = {
+    title: "Widgets/Rewards/RewardsSubsection",
     component: RewardsSubsection,
     tags: ["autodocs"],
 };

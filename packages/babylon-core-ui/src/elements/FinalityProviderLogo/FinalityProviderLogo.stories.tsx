@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { FinalityProviderLogo } from "./FinalityProviderLogo";
 
 const meta: Meta<typeof FinalityProviderLogo> = {
+  title: "Components/Identity/Avatars/FinalityProviderLogo",
   component: FinalityProviderLogo,
   tags: ["autodocs"],
 };

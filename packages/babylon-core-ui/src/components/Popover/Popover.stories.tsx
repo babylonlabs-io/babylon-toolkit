@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { Popover } from "./Popover";
 
 const meta: Meta<typeof Popover> = {
+  title: "Components/Containers/Overlays/Popover",
   component: Popover,
   tags: ["autodocs"],
 };

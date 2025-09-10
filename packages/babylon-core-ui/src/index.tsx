@@ -27,7 +27,8 @@ export * from "./components/Icons";
 export * from "./components/Warning";
 export * from "./components/Hint";
 
-export * from "./hooks";
+export * from "./elements/FinalityProviderLogo";
+export * from "./elements/FinalityProviderItem";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
@@ -37,7 +38,6 @@ export * from "./widgets/form/RadioField";
 export * from "./widgets/form/SelectField";
 export * from "./widgets/form/HiddenField";
 export * from "./widgets/form/hooks";
-
 export * from "./widgets/sections/TableElement";
 export * from "./widgets/sections/ValidatorSelector";
 export * from "./widgets/sections/AmountSubsection";
@@ -51,10 +51,7 @@ export * from "./widgets/sections/SettingMenu";
 export * from "./widgets/sections/WalletMenu";
 export * from "./widgets/sections/UnbondingModal";
 
-export * from "./elements/FinalityProviderLogo";
-export * from "./elements/FinalityProviderItem";
-
-export * from "./components/ListLegacy";
+export * from "./hooks";
 
 export { ScrollLocker } from "./context/Dialog.context";
 export { useFormContext, useFormState, useWatch } from "react-hook-form";

@@ -5,6 +5,7 @@ import { Form } from "@/widgets/form/Form";
 import { CheckboxField } from "./CheckboxField";
 
 const meta: Meta<typeof CheckboxField> = {
+  title: "Elements/Inputs/Controls/CheckboxField",
   component: CheckboxField,
   tags: ["autodocs"],
 };

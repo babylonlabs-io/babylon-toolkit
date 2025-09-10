@@ -5,6 +5,7 @@ import { AmountSubsection } from "./AmountSubsection";
 import { Form } from "@/widgets/form/Form";
 
 const meta: Meta<typeof AmountSubsection> = {
+  title: "Widgets/Staking/AmountSubsection",
   component: AmountSubsection,
   tags: ["autodocs"],
 };
