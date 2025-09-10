@@ -13,7 +13,7 @@ const config = {
   ],
   darkMode: "class",
   theme: {
-      screens: screenBreakPoints,
+    screens: screenBreakPoints,
   },
 };
 
