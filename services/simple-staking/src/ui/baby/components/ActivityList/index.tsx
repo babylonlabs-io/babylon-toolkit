@@ -156,7 +156,7 @@ export function BabyActivityList() {
   if (activityItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
-        <img src="/mascot.png" alt="Mascot" className="size-[300px]" />
+        <img src="/mascot.png" alt="Empty state mascot illustration" className="size-[300px]" />
         <h4 className="text-xl font-semibold text-accent-primary">
           No BABY Stakes
         </h4>
