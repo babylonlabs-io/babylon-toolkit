@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Table } from "./Table";
-import { Avatar } from "../../components/Avatar/Avatar";
+import { SimpleTable } from "./SimpleTable";
+import { Avatar } from "../Avatar/Avatar";
 
-const meta: Meta<typeof Table> = {
-    title: "Elements/Data Display/Collections/Table",
-    component: Table,
+const meta: Meta<typeof SimpleTable> = {
+    title: "Elements/Data Display/Collections/SimpleTable",
+    component: SimpleTable,
     tags: ["autodocs"],
     parameters: {
         layout: "centered",
@@ -16,17 +16,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const BsnAvatar = (url: string, alt: string) => (
-    <Avatar url={url} alt={alt} size="small" variant="circular" />
+    <Avatar url={url} alt={alt} size="small" variant="circular" className="flex-shrink-0" />
 );
 
 export const SinglePair: Story = {
     render: () => (
-        <Table
+        <SimpleTable
+            headers={["BSNs", "Finality Provider"]}
             data={[
-                [
-                    "BSNs",
-                    "Finality Provider",
-                ],
                 [
                     <>
                         {BsnAvatar("/images/fps/pumpbtc.jpeg", "Babylon")} Babylon
@@ -42,9 +39,9 @@ export const SinglePair: Story = {
 
 export const MultiplePairs: Story = {
     render: () => (
-        <Table
+        <SimpleTable
+            headers={["BSNs", "Finality Provider"]}
             data={[
-                ["BSNs", "Finality Provider"],
                 [
                     <>
                         {BsnAvatar("/images/fps/pumpbtc.jpeg", "Babylon")} Babylon
@@ -68,9 +65,9 @@ export const MultiplePairs: Story = {
 
 export const LongNames: Story = {
     render: () => (
-        <Table
+        <SimpleTable
+            headers={["BSNs", "Finality Provider"]}
             data={[
-                ["BSNs", "Finality Provider"],
                 [
                     <>
                         {BsnAvatar("/images/fps/pumpbtc.jpeg", "VeryLongBSNName")} Very Long Name for Babylon Network That Might Wrap
@@ -90,4 +87,4 @@ export const LongNames: Story = {
             ]}
         />
     ),
-}; 
+};
