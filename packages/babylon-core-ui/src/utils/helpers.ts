@@ -123,32 +123,3 @@ export function createBalanceFormatter(coinSymbol: string, decimals: number = 8)
     })} ${coinSymbol}`;
   };
 }
-
-/**
- * Format balance with fewer decimals for larger amounts, more decimals for smaller amounts
- * @param amount The amount to format
- * @param coinSymbol The coin symbol
- * @returns Formatted balance string
- */
-export function formatCryptoBalance(amount: number, coinSymbol: string): string {
-  if (amount === 0) return `0 ${coinSymbol}`;
-
-  // For amounts >= 1, show 2-4 decimals
-  if (amount >= 1) {
-    return `${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 4,
-    })} ${coinSymbol}`;
-  }
-
-  // For smaller amounts, show up to 8 decimals but remove trailing zeros
-  const formatted = amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 8,
-  });
-
-  // Remove trailing zeros after decimal point
-  const trimmed = formatted.replace(/\.?0+$/, '');
-
-  return `${trimmed} ${coinSymbol}`;
-}

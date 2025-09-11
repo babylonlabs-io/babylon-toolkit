@@ -18,7 +18,7 @@ export function Total({ total, coinSymbol, hint, title = "Total", className, dec
       formattedTotal = "0";
     } else {
       const str = total.toFixed(decimals);
-      formattedTotal = str.replace(/0+$/, "").replace(/\.$/, "");
+      formattedTotal = str.replace(/\.?0+$/, "");
     }
   } else {
     formattedTotal = total;
