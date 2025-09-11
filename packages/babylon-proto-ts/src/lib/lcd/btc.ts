@@ -7,6 +7,12 @@ interface Dependencies {
   request: RequestFn;
 }
 
+type IbcDenomBaseResponse = {
+  denom?: { base?: string };
+  denomTrace?: { base?: string };
+  base?: string;
+};
+
 const createBTCClient = ({ request }: Dependencies) => ({
   async getRewards(address: string): Promise<number> {
     try {
@@ -60,6 +66,31 @@ const createBTCClient = ({ request }: Dependencies) => ({
         cause: error,
       });
     }
+  },
+
+  /**
+   * Resolve the base denom for an IBC denom hash using the LCD.
+   * Returns the base denom (e.g. "uosmo") or undefined if not found.
+   */
+  async getIbcDenomBase(hash: string): Promise<string | undefined> {
+    const sanitized = encodeURIComponent(hash.replace(/^ibc\//, ""));
+    const candidates = [
+      `/ibc/apps/transfer/v1/denoms/${sanitized}`,
+      `/ibc/apps/transfer/v1/denoms/ibc/${sanitized}`,
+    ];
+    for (const path of candidates) {
+      try {
+        const data = await request<IbcDenomBaseResponse>(path);
+        const base: string | undefined =
+          data?.denom?.base || data?.denomTrace?.base || data?.base;
+        if (base) return base;
+      } catch (error) {
+        throw new Error(`Failed to fetch IBC denom`, {
+          cause: error,
+        });
+      }
+    }
+    return undefined;
   },
 });
 
