@@ -53,13 +53,14 @@ export const getBsnConfig = (bsn?: Bsn): BsnConfig => {
   // If BSN is unknown, fall back to Babylon defaults
   if (!bsn) return BSN_CONFIGS[BBN_CHAIN_ID];
 
-  // Resolve base config to determine available filters
-  const baseConfig =
-    bsn.id === BBN_CHAIN_ID
-      ? BSN_CONFIGS[BBN_CHAIN_ID]
-      : BSN_CONFIGS[bsn.type] ?? BSN_CONFIGS[BBN_CHAIN_ID];
+  const isBbnChain = bsn.id === BBN_CHAIN_ID;
 
-  if (!BSN_CONFIGS[bsn.type] && bsn.id !== BBN_CHAIN_ID) {
+  // Resolve base config to determine available filters
+  const baseConfig = isBbnChain
+    ? BSN_CONFIGS[BBN_CHAIN_ID]
+    : (BSN_CONFIGS[bsn.type] ?? BSN_CONFIGS[BBN_CHAIN_ID]);
+
+  if (!BSN_CONFIGS[bsn.type] && !isBbnChain) {
     logger.error(new Error(`BSN config not found for type: ${bsn.type}`), {
       tags: { service: "bsnService", function: "getBsnConfig" },
       data: {
