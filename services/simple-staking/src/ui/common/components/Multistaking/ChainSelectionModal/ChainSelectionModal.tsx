@@ -100,11 +100,11 @@ export const ChainSelectionModal = ({
               logoUrl={bsn.logoUrl}
               title={bsn.name}
               bsnName={bsn.name}
-              subContent={[
+              subContent={
                 bsn.activeTvl !== undefined
-                  ? compactNumberFormatter.format(bsn.activeTvl) + " TVL"
-                  : "",
-              ]}
+                  ? [compactNumberFormatter.format(bsn.activeTvl) + " TVL"]
+                  : []
+              }
               provider={
                 selectedBsns[bsn.id]
                   ? finalityProviderMap.get(selectedBsns[bsn.id])
