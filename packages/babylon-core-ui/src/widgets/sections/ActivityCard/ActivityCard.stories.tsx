@@ -4,6 +4,7 @@ import { ActivityCard } from "./ActivityCard";
 import { WarningIcon } from "../../../components/Icons";
 
 const meta: Meta<typeof ActivityCard> = {
+    title: "Widgets/Rewards/ActivityCard",
     component: ActivityCard,
     tags: ["autodocs"],
 };

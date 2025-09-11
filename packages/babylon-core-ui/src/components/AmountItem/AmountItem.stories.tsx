@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { AmountItem } from "./AmountItem";
 
 const meta: Meta<typeof AmountItem> = {
+    title: "Elements/Inputs/Controls/AmountItem",
     component: AmountItem,
     tags: ["autodocs"],
 };

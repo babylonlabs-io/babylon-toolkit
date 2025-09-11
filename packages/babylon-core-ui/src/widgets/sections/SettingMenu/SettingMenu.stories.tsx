@@ -6,7 +6,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { ThemeIcon } from "@/components/Icons";
 
 export default {
-  title: "Widgets/sections/SettingMenu",
+  title: "Widgets/Menus/SettingMenu",
   component: SettingMenu,
   argTypes: {
     onOpenChange: { action: "open state changed" },
@@ -71,7 +71,7 @@ export const Default: StoryFn = () => {
           </SettingMenu.Item>
         </SettingMenu.Group>
 
-        { isMobile && <SettingMenu.Spacer />}
+        {isMobile && <SettingMenu.Spacer />}
 
         <SettingMenu.Group background="secondary">
           <SettingMenu.Item onClick={() => window.open("https://example.com/terms", "_blank")}>
@@ -105,7 +105,7 @@ export const WithThemeToggle: StoryFn = () => {
         <SettingMenu.Title>Settings</SettingMenu.Title>
 
         <SettingMenu.Group background="secondary">
-          <SettingMenu.Item 
+          <SettingMenu.Item
             icon={<ThemeIcon />}
             toggle={{
               value: isLightMode,

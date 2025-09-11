@@ -5,6 +5,7 @@ import { Form } from "@/widgets/form/Form";
 import { RadioField } from "./RadioField";
 
 const meta: Meta<typeof RadioField> = {
+  title: "Elements/Inputs/Controls/RadioField",
   component: RadioField,
   tags: ["autodocs"],
 };

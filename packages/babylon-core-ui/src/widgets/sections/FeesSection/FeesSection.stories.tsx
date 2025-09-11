@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { FeesSection } from "./FeesSection";
 
 const meta: Meta<typeof FeesSection> = {
+  title: "Widgets/Staking/FeesSection",
   component: FeesSection,
   tags: ["autodocs"],
 };

@@ -3,6 +3,7 @@ import { Badge } from "./Badge";
 import { Avatar } from "../Avatar/Avatar";
 
 const meta: Meta<typeof Badge> = {
+  title: "Components/Data Display/Indicators/Badge",
   component: Badge,
   tags: ["autodocs"],
   parameters: {
@@ -11,6 +12,7 @@ const meta: Meta<typeof Badge> = {
 };
 
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
 export const WithWhiteBorder: Story = {

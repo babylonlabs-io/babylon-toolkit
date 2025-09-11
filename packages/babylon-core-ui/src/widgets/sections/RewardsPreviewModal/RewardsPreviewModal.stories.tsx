@@ -16,6 +16,7 @@ const PlaceholderIcon = ({
 );
 
 const meta: Meta<typeof RewardsPreviewModal> = {
+    title: "Widgets/Modals/RewardsPreviewModal",
     component: RewardsPreviewModal,
     tags: ["autodocs"],
 };

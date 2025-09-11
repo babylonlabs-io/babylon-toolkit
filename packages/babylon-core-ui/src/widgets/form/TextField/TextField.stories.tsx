@@ -5,6 +5,7 @@ import { TextField } from "./TextField";
 import { Form } from "@/widgets/form/Form";
 
 const meta: Meta<typeof TextField> = {
+  title: "Elements/Inputs/Controls/TextField",
   component: TextField,
   tags: ["autodocs"],
 };

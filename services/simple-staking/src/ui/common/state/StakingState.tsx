@@ -14,7 +14,7 @@ import { useLocalStorage } from "usehooks-ts";
 import { array, number, object, ObjectSchema, string } from "yup";
 
 import { validateDecimalPoints } from "@/ui/common/components/Staking/Form/validation/validation";
-import { getDisabledWallets, IS_FIXED_TERM_FIELD } from "@/ui/common/config";
+import { IS_FIXED_TERM_FIELD } from "@/ui/common/config";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import {
   BaseStakingStep,
@@ -22,7 +22,6 @@ import {
   STAKING_DISABLED,
 } from "@/ui/common/constants";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
-import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useNetworkFees } from "@/ui/common/hooks/client/api/useNetworkFees";
 import { useEventBus } from "@/ui/common/hooks/useEventBus";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
@@ -35,6 +34,8 @@ import {
   formatStakingAmount,
 } from "@/ui/common/utils/formTransforms";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
+
+import { GEO_BLOCK_MESSAGE } from "../types/services/healthCheck";
 
 import { useBalanceState } from "./BalanceState";
 
@@ -99,7 +100,7 @@ export interface StakingState {
   reset: () => void;
   disabled?: {
     title: string;
-    message: string;
+    message: string | React.ReactNode;
   };
   stakingStepOptions: EventData | undefined;
   setStakingStepOptions?: (options?: EventData) => void;
@@ -184,8 +185,7 @@ export function StakingState({ children }: PropsWithChildren) {
   } = useNetworkFees();
   const { stakableBtcBalance, loading: isBalanceLoading } = useBalanceState();
 
-  const { publicKeyNoCoord } = useBTCWallet();
-  const { walletName: cosmosWalletName } = useCosmosWallet();
+  const { publicKeyNoCoord, failedBtcAddressRiskAssessment } = useBTCWallet();
 
   const loading =
     isStateLoading || isCheckLoading || isFeeLoading || isBalanceLoading;
@@ -238,21 +238,38 @@ export function StakingState({ children }: PropsWithChildren) {
           "Staking is temporarily disabled due to network downtime. New stakes are paused until the network resumes.",
       };
     }
-    // Disable wallet by their name in the event of incident
-    // TODO: Add support for BTC wallet in the future
-    if (
-      cosmosWalletName != "" &&
-      getDisabledWallets().includes(cosmosWalletName)
-    ) {
+    if (isGeoBlocked) {
       return {
-        title: `Staking registration is temporarily disabled for ${cosmosWalletName} wallet.`,
-        message: "Please try again later.",
+        title: "Unavailable In Your Region",
+        message: GEO_BLOCK_MESSAGE,
+      };
+    }
+
+    // Check BTC address risk assessment
+    if (failedBtcAddressRiskAssessment) {
+      return {
+        title: "Staking Unavailable",
+        message: (
+          <>
+            This wallet is not eligible for staking. To understand the
+            requirements, please review Babylon's{" "}
+            <a
+              href="https://babylonlabs.io/terms-of-use"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-800"
+            >
+              Terms of Use
+            </a>
+            . If you require assistance, please reach out to our support team.
+          </>
+        ),
       };
     }
 
     // If the staking is not disabled, return undefined
     return undefined;
-  }, [cosmosWalletName]);
+  }, [failedBtcAddressRiskAssessment, isGeoBlocked]);
 
   const validationSchema = useMemo(
     () =>

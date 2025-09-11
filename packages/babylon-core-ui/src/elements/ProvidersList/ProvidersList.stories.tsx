@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { ProvidersList } from "./ProvidersList";
 
 const meta: Meta<typeof ProvidersList> = {
+  title: "Elements/Data Display/Collections/ProvidersList",
   component: ProvidersList,
   tags: ["autodocs"],
   parameters: {

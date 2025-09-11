@@ -11,6 +11,7 @@ import { Heading } from "@/index";
 import { WarningIcon } from "@/components/Icons";
 
 const meta: Meta<typeof Dialog> = {
+  title: "Components/Containers/Overlays/Dialog",
   component: Dialog,
   tags: ["autodocs"],
 };

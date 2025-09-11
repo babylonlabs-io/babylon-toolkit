@@ -8,7 +8,9 @@ const PlaceholderIcon = ({ text, bgColor = "bg-primary-300" }: { text: string; b
   </div>
 );
 
+
 const meta: Meta<typeof PreviewModal> = {
+  title: "Widgets/Modals/PreviewModal",
   component: PreviewModal,
   tags: ["autodocs"],
 };

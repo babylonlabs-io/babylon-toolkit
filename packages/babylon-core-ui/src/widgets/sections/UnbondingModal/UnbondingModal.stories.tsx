@@ -6,6 +6,7 @@ import { ScrollLocker } from "@/context/Dialog.context";
 import { Button } from "@/components/Button";
 
 const meta: Meta<typeof UnbondingModal> = {
+    title: "Widgets/Modals/UnbondingModal",
     component: UnbondingModal,
     tags: ["autodocs"],
 };

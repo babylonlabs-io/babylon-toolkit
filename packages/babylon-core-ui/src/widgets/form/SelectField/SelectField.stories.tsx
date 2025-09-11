@@ -5,6 +5,7 @@ import { SelectField } from "./SelectField";
 import { Form } from "../Form";
 
 const meta: Meta<typeof SelectField> = {
+  title: "Elements/Inputs/Controls/SelectField",
   component: SelectField,
   tags: ["autodocs"],
 };

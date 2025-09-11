@@ -52,6 +52,7 @@ const columns: ColumnProps<ValidatorRow>[] = [
 ];
 
 const meta: Meta<typeof ValidatorSelector> = {
+    title: "Widgets/Modals/ValidatorSelector",
     component: ValidatorSelector,
     tags: ["autodocs"],
 };

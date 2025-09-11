@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { ValidatorAvatar } from "./ValidatorAvatar";
 
 const meta: Meta<typeof ValidatorAvatar> = {
+    title: "Components/Identity/Avatars/ValidatorAvatar",
     component: ValidatorAvatar,
     tags: ["autodocs"],
 };

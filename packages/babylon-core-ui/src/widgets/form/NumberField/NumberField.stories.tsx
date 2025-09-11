@@ -5,6 +5,7 @@ import { NumberField } from "./NumberField";
 import { Form } from "@/widgets/form/Form";
 
 const meta: Meta<typeof NumberField> = {
+  title: "Elements/Inputs/Controls/NumberField",
   component: NumberField,
   tags: ["autodocs"],
 };

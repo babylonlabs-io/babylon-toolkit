@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { FeeItem } from "./FeeItem";
 
 const meta: Meta<typeof FeeItem> = {
+    title: "Components/Data Display/Values/FeeItem",
     component: FeeItem,
     tags: ["autodocs"],
 };

@@ -1,7 +1,5 @@
-import { Popover, Text } from "@babylonlabs-io/core-ui";
+import { Popover, Text, ThreeDotsMenuIcon } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-
-import threeDots from "@/ui/common/assets/three-dots.svg";
 
 interface ThreeDotsMenuProps {
   onChange: () => void;
@@ -25,7 +23,10 @@ export const ThreeDotsMenu = ({
         className={className}
         aria-label="Open options"
       >
-        <img src={threeDots} alt="options" width={20} height={20} />
+        <ThreeDotsMenuIcon
+          size={20}
+          className="text-accent-primary dark:text-white"
+        />
       </button>
 
       <Popover

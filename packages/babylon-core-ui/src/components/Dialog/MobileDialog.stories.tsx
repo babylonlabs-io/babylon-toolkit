@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/Form";
 import { Text } from "@/components/Text";
 
 const meta: Meta<typeof MobileDialog> = {
+  title: "Components/Containers/Overlays/MobileDialog",
   component: MobileDialog,
   tags: ["autodocs"],
 };
