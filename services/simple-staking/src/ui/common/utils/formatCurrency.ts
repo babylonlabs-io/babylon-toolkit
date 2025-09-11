@@ -21,7 +21,7 @@ const defaultFormatOptions: Required<FormatCurrencyOptions> = {
  * @param precision The default precision to use if format doesn't specify
  * @returns The minimum unit value (e.g., 0.01 for 2 decimal places)
  */
-function getMinimumDisplayUnit(
+export function getMinimumDisplayUnit(
   format: Intl.NumberFormatOptions | undefined,
   precision: number,
 ): number {
