@@ -95,7 +95,7 @@ export const Menu: React.FC<MenuProps> = ({
           placement={placement}
           onClickOutside={onClose}
           className={twJoin(
-            "rounded-lg border border-[#38708533] bg-[#FFFFFF] shadow-lg dark:border-[#404040] dark:bg-[#252525]",
+            "rounded-lg border border-[#38708533] bg-surface shadow-lg dark:border-[#404040]",
             "min-w-[294px]",
             className,
           )}
