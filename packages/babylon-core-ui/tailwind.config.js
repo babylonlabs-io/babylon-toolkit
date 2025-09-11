@@ -237,7 +237,7 @@ export default {
       },
       dark: {
         transparent: "transparent",
-        surface: "#202020", // should be changed to #121212 when phase 3 is enabled
+        surface: "#121212",
         accent: {
           primary: "#F0F0F0",
           secondary: "#B0B0B0",

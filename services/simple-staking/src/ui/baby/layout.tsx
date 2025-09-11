@@ -12,7 +12,6 @@ import { Content } from "@/ui/common/components/Content/Content";
 import { FAQ } from "@/ui/common/components/FAQ/FAQ";
 import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
-import FF from "@/ui/common/utils/FeatureFlagService";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 
@@ -118,49 +117,27 @@ function BabyLayoutContent() {
     </Container>
   );
 
-  const Page = () => {
-    return (
-      <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
-        <Container
-          as="main"
-          className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
-        >
-          <Tabs
-            items={tabItems}
-            defaultActiveTab="stake"
-            activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-          />
-        </Container>
-      </AuthGuard>
-    );
-  };
-
-  if (FF.IsPhase3Enabled) {
-    return (
-      <StakingState>
-        <ValidatorState>
-          <DelegationState>
-            <RewardState>
-              <Content>
-                <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
-                  <Page />
-                </Card>
-              </Content>
-            </RewardState>
-          </DelegationState>
-        </ValidatorState>
-      </StakingState>
-    );
-  }
-
   return (
     <StakingState>
       <ValidatorState>
         <DelegationState>
           <RewardState>
             <Content>
-              <Page />
+              <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
+                <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
+                  <Container
+                    as="main"
+                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+                  >
+                    <Tabs
+                      items={tabItems}
+                      defaultActiveTab="stake"
+                      activeTab={activeTab}
+                      onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+                    />
+                  </Container>
+                </AuthGuard>
+              </Card>
             </Content>
           </RewardState>
         </DelegationState>

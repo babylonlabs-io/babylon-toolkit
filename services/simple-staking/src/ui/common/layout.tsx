@@ -3,7 +3,6 @@ import { twJoin } from "tailwind-merge";
 import { useIsMobile } from "@babylonlabs-io/core-ui";
 
 import { network } from "@/ui/common/config/network/btc";
-import FF from "@/ui/common/utils/FeatureFlagService";
 import { Network } from "@/ui/common/types/network";
 import "@/ui/globals.css";
 
@@ -19,7 +18,7 @@ export default function RootLayout() {
       className={twJoin(
         `relative h-full min-h-svh w-full`,
         network === Network.MAINNET ? "main-app-mainnet" : "main-app-testnet",
-        FF.IsPhase3Enabled && !isMobile
+        !isMobile
           ? "bg-[url('/background-light.png')] bg-cover bg-fixed bg-center bg-no-repeat dark:bg-[url('/background-dark.png')]"
           : "",
       )}
