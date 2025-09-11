@@ -49,7 +49,7 @@ export const Tabs = ({
 
   return (
     <div className={twMerge("w-full", className)}>
-      <div className="flex w-full gap-2" role="tablist">
+      <div className="mb-6 flex w-full gap-2" role="tablist">
         {items.map((item) => (
           <button
             key={item.id}
@@ -72,7 +72,7 @@ export const Tabs = ({
       </div>
 
       {keepMounted ? (
-        <div className="mt-6 min-h-[450px]">
+        <div className="mt-6 min-h-[500px]">
           {items.map((item) => (
             <div
               key={item.id}
@@ -87,7 +87,7 @@ export const Tabs = ({
         </div>
       ) : (
         <div
-          className="mt-6 min-h-[450px]"
+          className="min-h-[500px]"
           role="tabpanel"
           id={`panel-${activeTab}`}
           aria-labelledby={`tab-${activeTab}`}

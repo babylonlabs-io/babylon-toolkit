@@ -7,6 +7,10 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  @apply bg-surface;
+}
+
 :root {
   --primary: #ff7c2a;
   --secondary: "#0DB7BF";
@@ -35,6 +39,12 @@ input[type="number"] {
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .app-bg {
+    background-image: url('./common/assets/background-light.webp');
+  }
+  .dark .app-bg {
+    background-image: url('./common/assets/background-dark.webp');
   }
 }
 

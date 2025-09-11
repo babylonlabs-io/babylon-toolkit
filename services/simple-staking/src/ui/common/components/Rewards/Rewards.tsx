@@ -104,7 +104,7 @@ export function Rewards() {
 
   return (
     <AuthGuard>
-      <Section title="Rewards" titleClassName="md:text-[1.25rem] mt-10">
+      <Section title="Rewards" titleClassName="md:text-[1.25rem]">
         <RewardsSubsection
           rewards={rewards}
           disabled={claimDisabled}

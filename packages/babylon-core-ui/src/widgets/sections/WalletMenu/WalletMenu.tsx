@@ -100,7 +100,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
       onOpenChange={handleOpenChange}
       mobileMode={mobileMode}
       className={twJoin(
-        "shadow-lg border border-[#38708533] bg-[#FFFFFF] dark:bg-[#252525] dark:border-[#404040] rounded-lg",
+        "shadow-lg border border-[#38708533] bg-surface dark:border-[#404040] rounded-lg",
         className,
       )}
     >
