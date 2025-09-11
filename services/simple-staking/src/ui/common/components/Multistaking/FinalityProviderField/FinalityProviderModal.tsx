@@ -6,6 +6,7 @@ import {
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef } from "react";
+import { AiOutlinePlus } from "react-icons/ai";
 
 import { useFinalityProviderBsnState } from "@/ui/common/state/FinalityProviderBsnState";
 import { FinalityProviderStateLabels } from "@/ui/common/types/finalityProviders";
@@ -14,7 +15,6 @@ import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPercentage";
 import { Hash } from "@/ui/common/components/Hash/Hash";
-import { AiOutlinePlus } from "react-icons/ai";
 
 interface Props {
   open: boolean;
@@ -131,7 +131,7 @@ export const FinalityProviderModal = ({
     {
       key: "action",
       header: "",
-      render: (_value, _row) => (
+      render: () => (
         <IconButton size="small">
           <AiOutlinePlus size={18} className="text-accent-primary" />
         </IconButton>
