@@ -40,6 +40,12 @@ input[type="number"] {
   .text-balance {
     text-wrap: balance;
   }
+  .app-bg {
+    background-image: url('./common/assets/background-light.webp');
+  }
+  .dark .app-bg {
+    background-image: url('./common/assets/background-dark.webp');
+  }
 }
 
 [data-theme="dark"] .gradient-primary {
