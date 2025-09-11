@@ -152,7 +152,9 @@ export const Connect: React.FC<ConnectProps> = ({
           disabled={isLoading}
         >
           <PiWalletBold size={20} className="flex md:hidden" />
-          <span className="hidden md:flex">{isBabyRoute ? "Connect Wallet" : "Connect Wallets"}</span>
+          <span className="hidden md:flex">
+            {isBabyRoute ? "Connect Wallet" : "Connect Wallets"}
+          </span>
         </Button>
 
         <SettingMenuWrapper />

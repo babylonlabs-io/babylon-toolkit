@@ -17,10 +17,14 @@ export function renderNameCell(name: string) {
   );
 }
 
-export function renderRightAlignedCell(value: ReactNode, maxWidthClass: string) {
+export function renderRightAlignedCell(
+  value: ReactNode,
+  maxWidthClass: string,
+) {
   return (
-    <span className={`inline-block ${maxWidthClass} truncate text-right`}>{value}</span>
+    <span className={`inline-block ${maxWidthClass} truncate text-right`}>
+      {value}
+    </span>
   );
 }
-
 
