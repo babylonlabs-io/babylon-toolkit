@@ -12,6 +12,7 @@ export const ChainButton = ({
   bsnId,
   bsnName,
   logoUrl,
+  subContent,
   onSelectFp,
   onRemove,
   isExisting = false,
@@ -23,27 +24,31 @@ export const ChainButton = ({
     )}
   >
     <div className="flex items-center text-base">
-      {provider ? (
-        <div className="w-full">
+      <div className="w-full">
+        {provider ? (
           <FinalityProviderItem
             bsnId={bsnId || ""}
             bsnName={bsnName || ""}
             provider={provider}
+            subContent={subContent}
             onRemove={isExisting ? undefined : () => onRemove?.(bsnId || "")}
           />
-        </div>
-      ) : (
-        <>
-          {logoUrl && (
-            <img
-              src={logoUrl}
-              alt="chain-logo"
-              className="mr-2 max-h-[40px] max-w-[40px] rounded-full"
-            />
-          )}
-          {title}
-        </>
-      )}
+        ) : (
+          <FinalityProviderItem
+            bsnId={""}
+            bsnName={""}
+            provider={{
+              logo_url: logoUrl,
+              rank: 0,
+              description: {
+                moniker: typeof title === "string" ? title : "",
+              },
+            }}
+            subContent={subContent}
+            showChain={false}
+          />
+        )}
+      </div>
     </div>
     {provider ? (
       <ThreeDotsMenu
