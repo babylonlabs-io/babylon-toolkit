@@ -156,8 +156,15 @@ export function BabyActivityList() {
   if (activityItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
-        <h4 className="text-xl font-semibold">No BABY Stakes</h4>
-        <p className="text-base">
+        <img
+          src="/mascot.png"
+          alt="Empty state mascot illustration"
+          className="size-[300px]"
+        />
+        <h4 className="text-xl font-semibold text-accent-primary">
+          No BABY Stakes
+        </h4>
+        <p className="text-base text-accent-secondary">
           No activity found. Start by staking some BABY tokens.
         </p>
       </div>
