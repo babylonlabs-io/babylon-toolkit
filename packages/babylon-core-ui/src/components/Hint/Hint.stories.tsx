@@ -4,12 +4,13 @@ import { WarningIcon, InfoIcon } from "../Icons";
 import "react-tooltip/dist/react-tooltip.css";
 
 const meta: Meta<typeof Hint> = {
-  title: "Components/Hint",
+  title: "Components/Data Display/Indicators/Hint",
   component: Hint,
   tags: ["autodocs"],
 };
 
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {

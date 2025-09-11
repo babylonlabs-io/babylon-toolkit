@@ -1,6 +1,8 @@
 import { Form } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { DeepPartial } from "react-hook-form";
 
+import { useFormPersistenceState } from "@/ui/common/state/FormPersistenceState";
 import {
   useMultistakingState,
   type MultistakingFormFields,
@@ -12,15 +14,31 @@ import { MultistakingFormContent } from "./MultistakingFormContent";
 export function MultistakingForm() {
   const { stakingInfo, setFormData, goToStep } = useStakingState();
   const { validationSchema } = useMultistakingState();
+  const { btcStakeDraft, setBtcStakeDraft } = useFormPersistenceState();
+
+  const defaultValues = useMemo<Partial<MultistakingFormFields>>(
+    () => ({
+      finalityProviders: btcStakeDraft?.finalityProviders,
+      amount: btcStakeDraft?.amount,
+      term: btcStakeDraft?.term ?? stakingInfo?.defaultStakingTimeBlocks,
+      feeRate: btcStakeDraft?.feeRate ?? stakingInfo?.defaultFeeRate ?? 0,
+      feeAmount: btcStakeDraft?.feeAmount,
+    }),
+    [
+      btcStakeDraft,
+      stakingInfo?.defaultStakingTimeBlocks,
+      stakingInfo?.defaultFeeRate,
+    ],
+  );
 
   const handlePreview = useCallback(
-    (formValues: MultistakingFormFields) => {
+    (formValues: Required<MultistakingFormFields>) => {
       setFormData({
         finalityProviders: Object.values(formValues.finalityProviders),
-        term: Number(formValues.term),
-        amount: Number(formValues.amount),
-        feeRate: Number(formValues.feeRate),
-        feeAmount: Number(formValues.feeAmount),
+        term: formValues.term,
+        amount: formValues.amount,
+        feeRate: formValues.feeRate,
+        feeAmount: formValues.feeAmount,
       });
 
       goToStep(StakingStep.PREVIEW);
@@ -28,15 +46,32 @@ export function MultistakingForm() {
     [setFormData, goToStep],
   );
 
+  const handleChange = (data: DeepPartial<MultistakingFormFields>) => {
+    const sanitizedFinalityProviders: Record<string, string> = {};
+
+    Object.entries(data.finalityProviders ?? {}).forEach(([key, value]) => {
+      if (typeof value === "string") {
+        sanitizedFinalityProviders[key] = value;
+      }
+    });
+
+    setBtcStakeDraft({
+      ...data,
+      finalityProviders: sanitizedFinalityProviders,
+    });
+  };
+
   if (!stakingInfo) {
     return null;
   }
 
   return (
     <Form
-      schema={validationSchema as any}
+      schema={validationSchema}
       mode="onChange"
       reValidateMode="onChange"
+      defaultValues={defaultValues}
+      onChange={handleChange}
       onSubmit={handlePreview}
     >
       <MultistakingFormContent />

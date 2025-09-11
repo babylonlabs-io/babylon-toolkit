@@ -73,6 +73,7 @@ const maxCapacityItems: ProviderItem[] = [
 ];
 
 const meta: Meta<typeof FinalityProviderSubsection> = {
+  title: "Widgets/Staking/FinalityProviderSubsection",
   component: FinalityProviderSubsection,
   tags: ["autodocs"],
 };

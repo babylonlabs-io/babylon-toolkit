@@ -4,6 +4,7 @@ import { RiCloseLargeLine } from "react-icons/ri";
 import { IconButton } from "./IconButton";
 
 const meta: Meta<typeof IconButton> = {
+  title: "Components/Inputs/Actions/IconButton",
   component: IconButton,
   tags: ["autodocs"],
 };

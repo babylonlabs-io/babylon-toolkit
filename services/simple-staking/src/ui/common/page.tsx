@@ -75,15 +75,23 @@ const Home = () => {
     );
   };
 
-  if (FF.IsPhase3Enabled) {
-    return (
-      <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
-        <Page />
-      </Card>
-    );
-  }
-
-  return <Page />;
+  return (
+    <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
+      <Container
+        as="main"
+        className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+      >
+        <Stats />
+        <Tabs
+          items={tabItems}
+          defaultActiveTab="stake"
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          keepMounted
+        />
+      </Container>
+    </Card>
+  );
 };
 
 export default Home;

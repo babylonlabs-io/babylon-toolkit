@@ -39,6 +39,7 @@ export function ActivityCardAmountSection({
           size={primaryAction.size || "small"}
           className={`sm:bbn-btn-medium ${primaryAction.className || ""}`}
           onClick={primaryAction.onClick}
+          disabled={primaryAction.disabled}
         >
           {primaryAction.label}
         </Button>

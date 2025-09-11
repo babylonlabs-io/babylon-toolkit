@@ -4,12 +4,13 @@ import { WalletMenu } from "./WalletMenu";
 import { AvatarGroup, Avatar } from "../../../components/Avatar";
 
 const meta: Meta<typeof WalletMenu> = {
-  title: "Widgets/sections/WalletMenu",
+  title: "Widgets/Menus/WalletMenu",
   component: WalletMenu,
   tags: ["autodocs"],
 };
 
 export default meta;
+
 type Story = StoryObj<typeof meta>;
 
 // Example wallet data

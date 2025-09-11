@@ -1,11 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { AiOutlinePlus, AiOutlineMinus } from "react-icons/ai";
 
-import { Accordion, AccordionSummary, AccordionDetails } from ".";
+import { Accordion } from "./Accordion";
+import { AccordionSummary, AccordionDetails } from ".";
 import { Heading } from "../Heading";
 import { Text } from "../Text";
 
 const meta: Meta<typeof Accordion> = {
+  title: "Elements/Data Display/Containers/Accordion",
   component: Accordion,
   tags: ["autodocs"],
 };

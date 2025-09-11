@@ -1,6 +1,7 @@
 import { Status } from "@/ui/common/components/Delegations/DelegationList/components/Status";
 import { Hash } from "@/ui/common/components/Hash/Hash";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { EXPANSION_OPERATIONS } from "@/ui/common/constants";
 import {
   DelegationV2,
   DelegationV2StakingState,
@@ -9,6 +10,7 @@ import {
 import { FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
 import { durationTillNow } from "@/ui/common/utils/time";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
@@ -126,5 +128,71 @@ export function transformDelegationToActivityCard(
     isPendingExpansion,
     showExpansionPendingBanner,
     hideExpansionCompletely: options.hideExpansionCompletely,
+  };
+}
+
+/**
+ * Transforms a delegation into ActivityCard data specifically for verified expansions
+ * Shows "Verified" status and includes expansion type information
+ */
+export function transformDelegationToVerifiedExpansionCard(
+  delegation: DelegationV2,
+  originalDelegation: DelegationV2,
+  finalityProviderMap: Map<string, FinalityProvider>,
+): ActivityCardData {
+  // Determine expansion type
+  const operationType = getExpansionType(delegation, originalDelegation);
+
+  const details: ActivityCardDetailItem[] = [
+    {
+      label: "Status",
+      value: "Verified",
+    },
+    {
+      label: "Inception",
+      value: delegation.bbnInceptionTime
+        ? durationTillNow(delegation.bbnInceptionTime, Date.now(), false)
+        : "N/A",
+    },
+    {
+      label: "Tx Hash",
+      value: (
+        <Hash
+          value={delegation.stakingTxHashHex}
+          address
+          small
+          noFade
+          size="caption"
+        />
+      ),
+    },
+    {
+      label: "Expansion Type",
+      value:
+        operationType === EXPANSION_OPERATIONS.RENEW_TIMELOCK
+          ? "Timelock Renewal"
+          : "Added BSN/FP",
+    },
+  ];
+
+  // Create grouped details for BSN/FP pairs with expansion support
+  const groupedDetails = createBsnFpGroupedDetails(
+    delegation.finalityProviderBtcPksHex,
+    finalityProviderMap,
+    {
+      originalFinalityProviderBtcPksHex:
+        originalDelegation.finalityProviderBtcPksHex,
+    },
+  );
+
+  const formattedAmount = `${maxDecimals(satoshiToBtc(delegation.stakingAmount), 8)} ${coinName}`;
+
+  return {
+    formattedAmount,
+    icon: icon,
+    iconAlt: "bitcoin",
+    details,
+    groupedDetails: groupedDetails.length > 0 ? groupedDetails : undefined,
+    hideExpansionCompletely: true, // Hide expansion section in verified modal
   };
 }

@@ -18,6 +18,7 @@ export function ActivityCardActionSection({
           size={action.size || "small"}
           className={`sm:bbn-btn-medium ${action.fullWidth ? "w-full" : ""} ${action.className || ""}`}
           onClick={action.onClick}
+          disabled={action.disabled}
         >
           {action.label}
         </Button>

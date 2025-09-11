@@ -21,14 +21,13 @@ const withThemeSync = (StoryFn: any) => {
       }
     };
 
-    // Get current theme from localStorage on component mount
     const getCurrentTheme = () => {
       try {
         const stored = localStorage.getItem('storybook-dark-mode');
         if (stored === 'null' || stored === null || stored === 'undefined') {
           const storybookManager = window.parent?.document;
           const isDarkFromManager = storybookManager?.documentElement?.classList?.contains('dark') ||
-                                   storybookManager?.body?.classList?.contains('dark');
+            storybookManager?.body?.classList?.contains('dark');
           return isDarkFromManager || false;
         }
         return stored === 'true';
@@ -55,6 +54,11 @@ const withThemeSync = (StoryFn: any) => {
 
 const preview: Preview = {
   parameters: {
+    options: {
+      storySort: {
+        order: ["Components", "Elements", "Widgets", "*"],
+      },
+    },
     darkMode: {
       current: "light",
       darkClass: "dark",
@@ -73,9 +77,7 @@ const preview: Preview = {
       },
     },
   },
-  decorators: [
-    withThemeSync,
-  ],
+  decorators: [withThemeSync],
 };
 
 export default preview;

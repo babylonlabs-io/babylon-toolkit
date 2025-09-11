@@ -9,6 +9,7 @@ interface ExpansionButtonProps {
   onClick: () => void;
   className?: string;
   disabled?: boolean;
+  hideArrow?: boolean;
 }
 
 export function ExpansionButton({
@@ -18,6 +19,7 @@ export function ExpansionButton({
   onClick,
   className = "",
   disabled = false,
+  hideArrow = false,
 }: ExpansionButtonProps) {
   return (
     <button
@@ -45,10 +47,12 @@ export function ExpansionButton({
           <span className="text-sm text-accent-primary">{text}</span>
           {counter && <span className="text-xs">{counter}</span>}
         </div>
-        <MdKeyboardArrowDown
-          size={24}
-          className="-rotate-90 transform text-current"
-        />
+        {!hideArrow && (
+          <MdKeyboardArrowDown
+            size={24}
+            className="-rotate-90 transform text-current"
+          />
+        )}
       </div>
     </button>
   );

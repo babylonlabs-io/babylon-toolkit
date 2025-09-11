@@ -6,6 +6,7 @@ import { ListItem } from "./components/ListItem";
 import { StatItem } from "./StatItem";
 
 const meta: Meta<typeof List> = {
+  title: "Elements/Data Display/Collections/List",
   component: List,
   tags: ["autodocs"],
   argTypes: {

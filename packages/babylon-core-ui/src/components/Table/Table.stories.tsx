@@ -7,6 +7,7 @@ import { Select } from "../Form";
 import { Button } from "../Button";
 
 const meta: Meta<typeof Table> = {
+  title: "Elements/Data Display/Collections/Table",
   component: Table,
   tags: ["autodocs"],
 };
@@ -124,15 +125,15 @@ const columnsWithActions: ColumnProps<FinalityProvider>[] = [
     key: "name",
     header: "Finality Provider",
     frozen: "left",
-         render: (value, row) => {
+    render: (value, row) => {
       void value;
       void row;
       return (
-       <div className="flex items-center gap-2">
-         <Avatar size="small" url={row.icon} alt={row.name} />
-         <span>{row.name}</span>
-       </div>
-     );
+        <div className="flex items-center gap-2">
+          <Avatar size="small" url={row.icon} alt={row.name} />
+          <span>{row.name}</span>
+        </div>
+      );
     },
     sorter: (a, b) => a.name.localeCompare(b.name),
   },
@@ -147,7 +148,7 @@ const columnsWithActions: ColumnProps<FinalityProvider>[] = [
   {
     key: "totalDelegation",
     header: "Total Delegation",
-         render: (value, row) => {
+    render: (value, row) => {
       void value;
       void row;
       return `${row.totalDelegation} sBTC`;

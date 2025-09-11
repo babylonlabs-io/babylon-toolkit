@@ -2,6 +2,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Hint,
   Text,
 } from "@babylonlabs-io/core-ui";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai";
@@ -36,12 +37,14 @@ export function StakeExpansionSection({
     maxFinalityProviders,
     canExpand,
     openExpansionHistoryModal,
+    expansionDisabled,
   } = useStakingExpansionState();
   const { delegations } = useDelegationV2State();
   const { getHistoryCount } = useExpansionHistoryService();
   const {
     openVerifiedExpansionModalForDelegation,
     getVerifiedExpansionInfoForDelegation,
+    hasVerifiedTimelockRenewal,
   } = useVerifiedStakingExpansionService();
   const { isLoading: isUTXOsLoading } = useAppState();
 
@@ -135,9 +138,30 @@ export function StakeExpansionSection({
     delegation.stakingTxHashHex,
   );
 
+  // Check if this delegation has a verified timelock renewal
+  const hasVerifiedRenewal = hasVerifiedTimelockRenewal(
+    delegation.stakingTxHashHex,
+  );
+
+  // Create the renew button once with conditional arrow hiding
+  const renewButton = (
+    <ExpansionButton
+      Icon={iconRenew}
+      text="Renew Staking Term"
+      onClick={handleRenewStakingTerm}
+      disabled={
+        processing || isUTXOsLoading || isPendingExpansion || hasVerifiedRenewal
+      }
+      hideArrow={hasVerifiedRenewal}
+    />
+  );
+
   return (
     <div className="w-full">
-      <Accordion className="rounded border border-secondary-strokeLight bg-surface">
+      <Accordion
+        disabled={expansionDisabled}
+        className="rounded border border-secondary-strokeLight bg-surface"
+      >
         <AccordionSummary
           className="p-4"
           renderIcon={(expanded) =>
@@ -167,12 +191,16 @@ export function StakeExpansionSection({
                 isPendingExpansion
               }
             />
-            <ExpansionButton
-              Icon={iconRenew}
-              text="Renew Staking Term"
-              onClick={handleRenewStakingTerm}
-              disabled={processing || isUTXOsLoading || isPendingExpansion}
-            />
+            {hasVerifiedRenewal ? (
+              <Hint
+                tooltip="A timelock renewal is already verified. Please check 'Verified Stake Expansion' to complete it."
+                placement="top"
+              >
+                {renewButton}
+              </Hint>
+            ) : (
+              renewButton
+            )}
             <ExpansionButton
               Icon={iconHistory}
               text="Expansion History"
