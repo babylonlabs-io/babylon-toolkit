@@ -17,6 +17,11 @@ import { ChainButton } from "./shared/ChainButton";
 
 const { chainId: BSN_ID } = getNetworkConfigBBN();
 
+const compactNumberFormatter = Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
 interface ChainSelectionModalProps {
   open: boolean;
   loading?: boolean;
@@ -95,6 +100,11 @@ export const ChainSelectionModal = ({
               logoUrl={bsn.logoUrl}
               title={bsn.name}
               bsnName={bsn.name}
+              subContent={[
+                bsn.activeTvl !== undefined
+                  ? compactNumberFormatter.format(bsn.activeTvl) + " TVL"
+                  : "",
+              ]}
               provider={
                 selectedBsns[bsn.id]
                   ? finalityProviderMap.get(selectedBsns[bsn.id])

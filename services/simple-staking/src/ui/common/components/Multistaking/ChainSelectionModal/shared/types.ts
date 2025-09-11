@@ -7,6 +7,7 @@ export interface ChainButtonProps {
   bsnName?: string;
   logoUrl?: string;
   title?: string | JSX.Element;
+  subContent?: string[];
   onSelectFp?: () => void;
   onRemove?: (bsnId: string) => void;
   isExisting?: boolean;

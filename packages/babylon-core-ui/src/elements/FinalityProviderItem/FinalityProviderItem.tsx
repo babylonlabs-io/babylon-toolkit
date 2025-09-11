@@ -26,9 +26,13 @@ export interface FinalityProviderItemProps {
    * Defaults to `true`.
    */
   showChain?: boolean;
+  /**
+   * To show information like APR, TVL, etc. when showChain is false.
+   */
+  subContent?: string[];
 }
 
-export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true }: FinalityProviderItemProps) {
+export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, provider, onRemove, showChain = true, subContent = [] }: FinalityProviderItemProps) {
   if (!provider) return null;
 
   const providerMoniker = provider.description?.moniker;
@@ -108,6 +112,17 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
     );
   };
 
+  const renderSubContent = () => {
+    const subContentString = subContent.filter(Boolean).join(" • ");
+
+    return (
+      <Text variant="caption" className="text-accent-secondary">
+        {subContentString}
+      </Text>
+    );
+  };
+
+
   return (
     <div className="flex flex-row items-center justify-between">
       <div className="flex h-10 flex-row gap-2">
@@ -115,6 +130,7 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
         <div className="flex flex-col justify-center text-accent-primary">
           {showChain && renderProviderMeta()}
           {renderPrimaryContent()}
+          {!showChain && renderSubContent()}
         </div>
       </div>
       {onRemove ?

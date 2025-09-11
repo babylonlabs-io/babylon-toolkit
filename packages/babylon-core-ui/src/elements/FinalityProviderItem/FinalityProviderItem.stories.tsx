@@ -119,5 +119,6 @@ export const WithoutChain: Story = {
     bsnLogoUrl: undefined,
     provider: mockProvider,
     showChain: false,
+    subContent: ["1.23 APR", "2.12B TVL"],
   },
 };
