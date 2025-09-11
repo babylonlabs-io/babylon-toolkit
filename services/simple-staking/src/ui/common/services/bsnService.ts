@@ -50,16 +50,16 @@ export const BSN_CONFIGS: Record<string, BsnConfig> = {
  * Get BSN configuration based on BSN type
  */
 export const getBsnConfig = (bsn?: Bsn): BsnConfig => {
+  // If BSN is unknown, fall back to Babylon defaults
   if (!bsn) return BSN_CONFIGS[BBN_CHAIN_ID];
 
-  // Check if it's Babylon Genesis first
-  if (bsn.id === BBN_CHAIN_ID) {
-    return BSN_CONFIGS[BBN_CHAIN_ID];
-  }
+  // Resolve base config to determine available filters
+  const baseConfig =
+    bsn.id === BBN_CHAIN_ID
+      ? BSN_CONFIGS[BBN_CHAIN_ID]
+      : BSN_CONFIGS[bsn.type] ?? BSN_CONFIGS[BBN_CHAIN_ID];
 
-  // Use type-based config
-  const config = BSN_CONFIGS[bsn.type];
-  if (!config) {
+  if (!BSN_CONFIGS[bsn.type] && bsn.id !== BBN_CHAIN_ID) {
     logger.error(new Error(`BSN config not found for type: ${bsn.type}`), {
       tags: { service: "bsnService", function: "getBsnConfig" },
       data: {
@@ -68,9 +68,13 @@ export const getBsnConfig = (bsn?: Bsn): BsnConfig => {
         fallback: "Babylon Genesis config",
       },
     });
-    return BSN_CONFIGS[BBN_CHAIN_ID];
   }
-  return config;
+
+  // Always make the title BSN-name specific
+  return {
+    ...baseConfig,
+    modalTitle: `Select ${bsn.name} Finality Provider`,
+  };
 };
 
 export const createBSN = (bsn: {
