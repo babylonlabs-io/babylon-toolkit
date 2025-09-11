@@ -43,7 +43,6 @@ export function mapRewardCoinsToItems(params: {
     const { coins, ibcDenomNames, bbnNetworkName, bbnCoinSymbol, babyIcon } = params;
 
     return (coins ?? []).map(({ denom, amount }) => {
-        // Arrow: switch on denom
         if (denom === "ubbn") {
             const amt = ubbnToBaby(amount).toString();
             return {
@@ -103,7 +102,6 @@ export function mapRewardCoinsToItems(params: {
             };
         }
 
-        // Fallback: show raw denom
         const symbol = denom;
         return {
             amount: String(amount),

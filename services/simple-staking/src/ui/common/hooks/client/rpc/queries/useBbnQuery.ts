@@ -113,7 +113,7 @@ export const useBbnQuery = () => {
       if (!connected || !queryClient || !bech32Address) {
         return [] as Array<{ denom: string; amount: number }>;
       }
-      // start
+
       const { incentive } = setupIncentiveExtension(queryClient);
       const req: incentivequery.QueryRewardGaugesRequest =
         incentivequery.QueryRewardGaugesRequest.fromPartial({
@@ -128,7 +128,6 @@ export const useBbnQuery = () => {
           error instanceof Error &&
           error.message.includes("reward gauge not found")
         ) {
-          // no rewards (gauge not found)
           return [] as Array<{ denom: string; amount: number }>;
         }
         throw new ClientError(
@@ -161,7 +160,6 @@ export const useBbnQuery = () => {
           results.push({ denom, amount: net });
         }
       }
-      // done
       return results;
     },
     enabled: Boolean(

@@ -16,17 +16,6 @@ import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService"
 
 import { ClaimStatusModal } from "../Modals/ClaimStatusModal/ClaimStatusModal";
 
-// (local typing removed; using types from view-model and core-ui)
-
-/**
- * Generates a circular placeholder icon with a letter in the center as an SVG data URI.
- * Used as a fallback when the BABY token icon is not available for non-BABY tokens.
- *
- * @param letter - The character to display in the center of the circular icon
- * @returns SVG data URI string that can be used as an image source
- */
-// kept for local use through utils
-
 export function Rewards() {
   const {
     processing,

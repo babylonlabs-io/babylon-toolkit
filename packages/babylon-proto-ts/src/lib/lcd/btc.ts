@@ -7,6 +7,12 @@ interface Dependencies {
   request: RequestFn;
 }
 
+type IbcDenomBaseResponse = {
+  denom?: { base?: string };
+  denomTrace?: { base?: string };
+  base?: string;
+};
+
 const createBTCClient = ({ request }: Dependencies) => ({
   async getRewards(address: string): Promise<number> {
     try {
@@ -74,12 +80,12 @@ const createBTCClient = ({ request }: Dependencies) => ({
     ];
     for (const path of candidates) {
       try {
-        const data: any = await request(path);
+        const data = await request<IbcDenomBaseResponse>(path);
         const base: string | undefined =
           data?.denom?.base || data?.denomTrace?.base || data?.base;
         if (base) return base;
-      } catch {
-        // try next candidate
+      } catch (error) {
+        throw error;
       }
     }
     return undefined;
