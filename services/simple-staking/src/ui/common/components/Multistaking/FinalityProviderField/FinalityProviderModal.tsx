@@ -1,5 +1,6 @@
 import {
   Avatar,
+  IconButton,
   Text,
   ValidatorSelector,
   type ColumnProps,
@@ -13,6 +14,7 @@ import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPercentage";
 import { Hash } from "@/ui/common/components/Hash/Hash";
+import { AiOutlinePlus } from "react-icons/ai";
 
 interface Props {
   open: boolean;
@@ -126,6 +128,15 @@ export const FinalityProviderModal = ({
       sorter: (a: { commission: string }, b: { commission: string }) =>
         parseFloat(a.commission) - parseFloat(b.commission),
     },
+    {
+      key: "action",
+      header: "",
+      render: (_value, _row) => (
+        <IconButton size="small">
+          <AiOutlinePlus size={18} className="text-accent-primary" />
+        </IconButton>
+      ),
+    },
   ];
 
   const closingFromAddRef = useRef(false);
@@ -192,8 +203,8 @@ export const FinalityProviderModal = ({
   return (
     <ValidatorSelector
       open={open}
-      validators={rows as any}
-      columns={columns as ColumnProps<any>[]}
+      validators={rows}
+      columns={columns}
       onClose={handleClose}
       onSelect={() => {}}
       title={modalTitle}
