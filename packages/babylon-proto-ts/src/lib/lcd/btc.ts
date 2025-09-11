@@ -61,6 +61,29 @@ const createBTCClient = ({ request }: Dependencies) => ({
       });
     }
   },
+
+  /**
+   * Resolve the base denom for an IBC denom hash using the LCD.
+   * Returns the base denom (e.g. "uosmo") or undefined if not found.
+   */
+  async getIbcDenomBase(hash: string): Promise<string | undefined> {
+    const sanitized = encodeURIComponent(hash.replace(/^ibc\//, ""));
+    const candidates = [
+      `/ibc/apps/transfer/v1/denoms/${sanitized}`,
+      `/ibc/apps/transfer/v1/denoms/ibc/${sanitized}`,
+    ];
+    for (const path of candidates) {
+      try {
+        const data: any = await request(path);
+        const base: string | undefined =
+          data?.denom?.base || data?.denomTrace?.base || data?.base;
+        if (base) return base;
+      } catch (e) {
+        // try next candidate
+      }
+    }
+    return undefined;
+  },
 });
 
 export default createBTCClient;

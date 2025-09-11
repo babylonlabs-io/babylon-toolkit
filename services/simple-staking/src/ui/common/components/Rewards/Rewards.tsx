@@ -3,35 +3,20 @@ import {
   RewardsSubsection,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-
-import babyTokenIcon from "@/ui/common/assets/baby-token.svg";
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
 import { Section } from "@/ui/common/components/Section/Section";
-import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
-import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
-import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
-import { useIbcDenomNames } from "@/ui/common/hooks/useIbcDenomNames";
 import { useRewardsState } from "@/ui/common/state/RewardState";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
+import babyTokenIcon from "@/ui/common/assets/baby-token.svg";
+import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
+import { useIbcDenomNames } from "@/ui/common/hooks/useIbcDenomNames";
 import { mapRewardCoinsToItems } from "@/ui/common/utils/rewards";
+import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
+import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
 
 import { ClaimStatusModal } from "../Modals/ClaimStatusModal/ClaimStatusModal";
 
-interface RewardItem {
-  amount: string;
-  currencyIcon: string;
-  chainName: string;
-  currencyName: string;
-  placeholder: string;
-  displayBalance: boolean;
-  balanceDetails: {
-    balance: string;
-    symbol: string;
-    price: number;
-    displayUSD: boolean;
-    decimals: number;
-  };
-}
+// (local typing removed; using types from view-model and core-ui)
 
 /**
  * Generates a circular placeholder icon with a letter in the center as an SVG data URI.
@@ -53,29 +38,16 @@ export function Rewards() {
     setTransactionHash,
   } = useRewardsState();
 
-  const { showPreview, claimRewards } = useRewardsService();
   const { rewardCoinsQuery } = useBbnQuery();
+  const { showPreview, claimRewards } = useRewardsService();
 
-  const {
-    networkName: bbnNetworkName,
-    coinSymbol: bbnCoinSymbol,
-    lcdUrl,
-  } = getNetworkConfigBBN();
-
-  // Build rewards list from per-denom rewards; fallback to BABY only if empty
-  const formattedRewardBaby = rewardBalance
-    ? ubbnToBaby(rewardBalance).toString()
-    : "0";
+  const { networkName: bbnNetworkName, coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
   const babyIcon = /BABY$/i.test(bbnCoinSymbol) ? babyTokenIcon : "";
-
-  // Resolve base denoms for IBC tokens via LCD denom traces
-  const ibcDenomNames = useIbcDenomNames({
-    coins: rewardCoinsQuery.data,
-    lcdUrl,
-  });
-
-  const rewards: RewardItem[] = (() => {
-    const coins = rewardCoinsQuery.data ?? [];
+  const rewardCoins = rewardCoinsQuery.data ?? [];
+  const ibcDenomNames = useIbcDenomNames({ coins: rewardCoins });
+  const formattedRewardBaby = rewardBalance ? ubbnToBaby(rewardBalance).toString() : "0";
+  const rewards = (() => {
+    const coins = rewardCoins ?? [];
     if (!coins.length) {
       return [
         {
@@ -95,18 +67,18 @@ export function Rewards() {
         },
       ];
     }
-
-    const items = mapRewardCoinsToItems({
+    return mapRewardCoinsToItems({
       coins,
       ibcDenomNames,
       bbnNetworkName,
       bbnCoinSymbol,
       babyIcon,
-    }) as RewardItem[];
-    return items;
+    }).map((r) => ({ ...r, currencyIcon: r.currencyIcon ?? "" }));
   })();
 
   const [previewOpen, setPreviewOpen] = useState(false);
+
+  const claimDisabled = processing || ((rewardCoinsQuery.data?.length ?? 0) === 0 && !rewardBalance);
 
   const handleClick = async () => {
     const hasAnyRewards = (rewardCoinsQuery.data?.length ?? 0) > 0;
@@ -123,10 +95,6 @@ export function Rewards() {
   const handleClose = () => {
     setPreviewOpen(false);
   };
-
-  const claimDisabled =
-    processing ||
-    ((rewardCoinsQuery.data?.length ?? 0) === 0 && !rewardBalance);
 
   return (
     <AuthGuard>
