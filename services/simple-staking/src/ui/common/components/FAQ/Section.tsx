@@ -15,7 +15,7 @@ interface SectionProps {
 
 export const Section: React.FC<SectionProps> = ({ title, content }) => {
   return (
-    <div className="border-secondary-strokeDark pb-2 pt-6 first:pb-0 first:pt-0">
+    <div className="pb-2 pt-6 first:pb-0 first:pt-0">
       <Accordion className="text-primary-dark">
         <AccordionSummary
           renderIcon={(expanded) =>
