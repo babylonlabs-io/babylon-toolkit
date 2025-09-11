@@ -149,6 +149,7 @@ export function ValidatorField() {
           rank,
           description: { moniker: name },
         },
+        showChain: false,
       },
       attributes: {
         "Voting Power": votingPower,

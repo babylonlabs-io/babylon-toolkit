@@ -171,6 +171,7 @@ export const FinalityProviderModal = ({
           rank: fp.rank,
           description: fp.description,
         },
+        showChain: false,
       },
       attributes: {
         Status: status,
