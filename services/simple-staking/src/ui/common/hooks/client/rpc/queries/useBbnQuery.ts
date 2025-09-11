@@ -113,9 +113,7 @@ export const useBbnQuery = () => {
       if (!connected || !queryClient || !bech32Address) {
         return [] as Array<{ denom: string; amount: number }>;
       }
-      console.log("[RewardsFlow] Query rewards: start", {
-        address: bech32Address,
-      });
+      // start
       const { incentive } = setupIncentiveExtension(queryClient);
       const req: incentivequery.QueryRewardGaugesRequest =
         incentivequery.QueryRewardGaugesRequest.fromPartial({
@@ -130,9 +128,7 @@ export const useBbnQuery = () => {
           error instanceof Error &&
           error.message.includes("reward gauge not found")
         ) {
-          console.log(
-            "[RewardsFlow] Query rewards: no rewards (gauge not found)",
-          );
+          // no rewards (gauge not found)
           return [] as Array<{ denom: string; amount: number }>;
         }
         throw new ClientError(
@@ -144,7 +140,6 @@ export const useBbnQuery = () => {
 
       const gauge = rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION];
       if (!gauge) {
-        console.log("[RewardsFlow] Query rewards: no BTC_STAKER gauge");
         return [] as Array<{ denom: string; amount: number }>;
       }
       const totalByDenom = new Map<string, number>();
@@ -166,9 +161,7 @@ export const useBbnQuery = () => {
           results.push({ denom, amount: net });
         }
       }
-      console.log("[RewardsFlow] Query rewards: done", {
-        denomCount: results.length,
-      });
+      // done
       return results;
     },
     enabled: Boolean(

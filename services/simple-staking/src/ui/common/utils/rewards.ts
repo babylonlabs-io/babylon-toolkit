@@ -48,9 +48,6 @@ export function mapRewardCoinsToItems(params: {
     return (coins ?? []).map(({ denom, amount }) => {
         // Arrow: switch on denom
         if (denom === "ubbn") {
-            console.log("[RewardsFlow] Arrow: ubbn -> handle BABY token as-is", {
-                denom,
-            });
             const amt = ubbnToBaby(amount).toString();
             return {
                 amount: amt,
@@ -66,16 +63,12 @@ export function mapRewardCoinsToItems(params: {
                     displayUSD: false,
                     decimals: 6,
                 },
-            } as any;
+            };
         }
 
         if (denom.startsWith("factory/")) {
             const parts = denom.split("/");
             const subdenom = parts[parts.length - 1] || denom;
-            console.log("[RewardsFlow] Arrow: factory token -> use subdenom", {
-                denom,
-                subdenom,
-            });
             return {
                 amount: String(amount),
                 currencyIcon: undefined,
@@ -90,18 +83,12 @@ export function mapRewardCoinsToItems(params: {
                     displayUSD: false,
                     decimals: 0,
                 },
-            } as any;
+            };
         }
 
         if (denom.startsWith("ibc/")) {
             const resolved = ibcDenomNames[denom];
             const symbol = resolved ?? denom;
-            console.log(
-                resolved
-                    ? "[RewardsFlow] Arrow: IBC token -> use base_denom"
-                    : "[RewardsFlow] Arrow: IBC token -> fallback to hash",
-                { denom, symbol },
-            );
             return {
                 amount: String(amount),
                 currencyIcon: undefined,
@@ -116,14 +103,11 @@ export function mapRewardCoinsToItems(params: {
                     displayUSD: false,
                     decimals: 0,
                 },
-            } as any;
+            };
         }
 
         // Fallback: show raw denom
         const symbol = denom;
-        console.log("[RewardsFlow] Arrow: anything else -> show full denom", {
-            denom,
-        });
         return {
             amount: String(amount),
             currencyIcon: undefined,
@@ -138,6 +122,6 @@ export function mapRewardCoinsToItems(params: {
                 displayUSD: false,
                 decimals: 0,
             },
-        } as any;
+        };
     });
 }

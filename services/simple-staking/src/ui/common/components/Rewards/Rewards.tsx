@@ -76,9 +76,6 @@ export function Rewards() {
 
   const rewards: RewardItem[] = (() => {
     const coins = rewardCoinsQuery.data ?? [];
-    console.log("[RewardsFlow] For each reward denom (switch): start", {
-      count: coins.length,
-    });
     if (!coins.length) {
       return [
         {
@@ -106,9 +103,6 @@ export function Rewards() {
       bbnCoinSymbol,
       babyIcon,
     }) as RewardItem[];
-    console.log("[RewardsFlow] For each reward denom (switch): done", {
-      produced: items.length,
-    });
     return items;
   })();
 

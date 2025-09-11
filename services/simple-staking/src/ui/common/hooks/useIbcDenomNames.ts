@@ -42,15 +42,11 @@ export function useIbcDenomNames(params: {
                                 try {
                                     const res = await fetch(url);
                                     if (!res.ok) {
-                                        console.log(
-                                            "[RewardsFlow] Arrow: IBC token -> denom_traces LCD not available",
-                                            { url, status: res.status },
-                                        );
                                         continue;
                                     }
-                                    const data: any = await res.json();
-                                    const base: string | undefined =
-                                        data?.denom?.base;
+                                    const data: { denom?: { base?: string } } =
+                                        await res.json();
+                                    const base: string | undefined = data?.denom?.base;
                                     if (base) return [denom, base] as const;
                                 } catch {
                                     // try next candidate
