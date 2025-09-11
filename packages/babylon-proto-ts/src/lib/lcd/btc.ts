@@ -78,7 +78,7 @@ const createBTCClient = ({ request }: Dependencies) => ({
         const base: string | undefined =
           data?.denom?.base || data?.denomTrace?.base || data?.base;
         if (base) return base;
-      } catch (e) {
+      } catch {
         // try next candidate
       }
     }

@@ -10,9 +10,7 @@ export function getUniqueIbcDenomsFromCoins(coins: RewardCoin[]): string[] {
         new Set(
             (coins ?? [])
                 .map((c) => c?.denom)
-                .filter(
-                    (d): d is string => typeof d === "string" && d.startsWith("ibc/"),
-                ),
+                .filter((d): d is string => typeof d === "string" && d.startsWith("ibc/")),
         ),
     );
 }
@@ -42,8 +40,7 @@ export function mapRewardCoinsToItems(params: {
         decimals: number;
     };
 }> {
-    const { coins, ibcDenomNames, bbnNetworkName, bbnCoinSymbol, babyIcon } =
-        params;
+    const { coins, ibcDenomNames, bbnNetworkName, bbnCoinSymbol, babyIcon } = params;
 
     return (coins ?? []).map(({ denom, amount }) => {
         // Arrow: switch on denom

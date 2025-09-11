@@ -13,9 +13,7 @@ export function useIbcDenomNames(params: {
     coins: RewardCoin[] | undefined;
 }): Record<string, string> {
     const { coins } = params;
-    const [ibcDenomNames, setIbcDenomNames] = useState<Record<string, string>>(
-        {},
-    );
+    const [ibcDenomNames, setIbcDenomNames] = useState<Record<string, string>>({});
 
     const ibcDenoms = useMemo(
         () => getUniqueIbcDenomsFromCoins(coins ?? []),
