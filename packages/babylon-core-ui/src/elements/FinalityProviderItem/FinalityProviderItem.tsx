@@ -115,6 +115,8 @@ export function FinalityProviderItem({ bsnId, bsnName, bsnLogoUrl, address, prov
   const renderSubContent = () => {
     const subContentString = subContent.filter(Boolean).join(" • ");
 
+    if (!subContentString) return null;
+
     return (
       <Text variant="caption" className="text-accent-secondary">
         {subContentString}
