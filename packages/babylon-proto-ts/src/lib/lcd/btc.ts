@@ -85,7 +85,9 @@ const createBTCClient = ({ request }: Dependencies) => ({
           data?.denom?.base || data?.denomTrace?.base || data?.base;
         if (base) return base;
       } catch (error) {
-        throw error;
+        throw new Error(`Failed to fetch IBC denom`, {
+          cause: error,
+        });
       }
     }
     return undefined;
