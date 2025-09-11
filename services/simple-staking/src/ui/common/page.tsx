@@ -4,7 +4,6 @@ import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
-import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { Activity } from "./components/Activity/Activity";
 import { Container } from "./components/Container/Container";
@@ -58,22 +57,6 @@ const Home = () => {
       content: <FAQ variant="btc" />,
     },
   ];
-  const Page = () => {
-    return (
-      <Container
-        as="main"
-        className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
-      >
-        <Stats />
-        <Tabs
-          items={tabItems}
-          defaultActiveTab="stake"
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
-      </Container>
-    );
-  };
 
   return (
     <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
