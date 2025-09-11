@@ -19,7 +19,7 @@ export default function RootLayout() {
         `relative h-full min-h-svh w-full`,
         network === Network.MAINNET ? "main-app-mainnet" : "main-app-testnet",
         !isMobile
-          ? `app-bg bg-cover bg-fixed bg-center bg-no-repeat dark:app-bg`
+          ? `dark:app-bg app-bg bg-cover bg-fixed bg-center bg-no-repeat`
           : "",
       )}
     >
