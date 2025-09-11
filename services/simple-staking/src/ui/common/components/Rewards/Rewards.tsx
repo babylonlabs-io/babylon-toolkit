@@ -3,6 +3,7 @@ import {
   RewardsSubsection,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
+
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
 import { Section } from "@/ui/common/components/Section/Section";
 import { useRewardsState } from "@/ui/common/state/RewardState";
@@ -30,11 +31,14 @@ export function Rewards() {
   const { rewardCoinsQuery } = useBbnQuery();
   const { showPreview, claimRewards } = useRewardsService();
 
-  const { networkName: bbnNetworkName, coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
+  const { networkName: bbnNetworkName, coinSymbol: bbnCoinSymbol } =
+    getNetworkConfigBBN();
   const babyIcon = /BABY$/i.test(bbnCoinSymbol) ? babyTokenIcon : "";
   const rewardCoins = rewardCoinsQuery.data ?? [];
   const ibcDenomNames = useIbcDenomNames({ coins: rewardCoins });
-  const formattedRewardBaby = rewardBalance ? ubbnToBaby(rewardBalance).toString() : "0";
+  const formattedRewardBaby = rewardBalance
+    ? ubbnToBaby(rewardBalance).toString()
+    : "0";
   const rewards = (() => {
     const coins = rewardCoins ?? [];
     if (!coins.length) {
@@ -67,7 +71,9 @@ export function Rewards() {
 
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  const claimDisabled = processing || ((rewardCoinsQuery.data?.length ?? 0) === 0 && !rewardBalance);
+  const claimDisabled =
+    processing ||
+    ((rewardCoinsQuery.data?.length ?? 0) === 0 && !rewardBalance);
 
   const handleClick = async () => {
     const hasAnyRewards = (rewardCoinsQuery.data?.length ?? 0) > 0;

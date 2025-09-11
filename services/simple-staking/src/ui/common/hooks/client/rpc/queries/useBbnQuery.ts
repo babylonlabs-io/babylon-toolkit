@@ -94,10 +94,10 @@ export const useBbnQuery = () => {
     },
     enabled: Boolean(
       queryClient &&
-      connected &&
-      bech32Address &&
-      !isGeoBlocked &&
-      !isHealthcheckLoading,
+        connected &&
+        bech32Address &&
+        !isGeoBlocked &&
+        !isHealthcheckLoading,
     ),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
@@ -164,10 +164,10 @@ export const useBbnQuery = () => {
     },
     enabled: Boolean(
       queryClient &&
-      connected &&
-      bech32Address &&
-      !isGeoBlocked &&
-      !isHealthcheckLoading,
+        connected &&
+        bech32Address &&
+        !isGeoBlocked &&
+        !isHealthcheckLoading,
     ),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
@@ -189,10 +189,10 @@ export const useBbnQuery = () => {
     },
     enabled: Boolean(
       queryClient &&
-      connected &&
-      bech32Address &&
-      !isGeoBlocked &&
-      !isHealthcheckLoading,
+        connected &&
+        bech32Address &&
+        !isGeoBlocked &&
+        !isHealthcheckLoading,
     ),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
