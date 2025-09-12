@@ -177,7 +177,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                      "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
@@ -188,7 +188,7 @@ export const Connect: React.FC<ConnectProps> = ({
                 className={twMerge(
                   "box-content bg-accent-contrast object-contain",
                   isWalletMenuOpen &&
-                  "outline outline-[2px] outline-accent-primary",
+                    "outline outline-[2px] outline-accent-primary",
                 )}
               />
             </AvatarGroup>

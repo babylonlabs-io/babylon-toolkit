@@ -189,7 +189,7 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
-  const handleSelect = () => { };
+  const handleSelect = () => {};
 
   return (
     <ValidatorSelector
