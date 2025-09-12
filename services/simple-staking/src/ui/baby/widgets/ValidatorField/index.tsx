@@ -159,7 +159,7 @@ export function ValidatorField() {
   };
 
   const handleAddRow = (row: any) => {
-    handleSelectValidator(row as any);
+    handleSelectValidator(row);
     handleClose();
   };
 
@@ -187,15 +187,13 @@ export function ValidatorField() {
       />
       <ValidatorSelector
         open={open}
-        validators={validatorRows as any}
-        columns={columns as ColumnProps<any>[]}
+        validators={validatorRows}
+        columns={columns}
         onClose={handleClose}
-        onSelect={handleSelectValidator as any}
+        onSelect={handleAddRow}
         title="Select Validator"
         description="Validators are responsible for verifying transactions, proposing and confirming new blocks, and helping maintain the security and consensus of Babylon Genesis."
-        confirmSelection
-        onAdd={handleAddRow}
-        defaultLayout="grid"
+        defaultLayout="list"
         gridItemMapper={mapGridItem}
         filters={{
           options: [

@@ -217,6 +217,7 @@ const GridView = memo(({ rows, currentLayout, gridItemMapper, isRowSelectable, s
                         attributes={mapped.attributes}
                         isSelected={selectedId === row.id}
                         isSelectable={selectable}
+                        actionLabel={!confirmSelection ? "Add" : undefined}
                         onSelect={() => {
                             if (!selectable) return;
                             if (confirmSelection) {

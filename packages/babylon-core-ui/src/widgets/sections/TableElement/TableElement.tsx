@@ -7,6 +7,10 @@ interface TableElementProps {
     isSelected?: boolean;
     isSelectable?: boolean;
     onSelect?: () => void;
+    /** Optional label for the CTA when not selected. Defaults to "Select" */
+    actionLabel?: string;
+    /** Optional label for the CTA when selected. Defaults to "Selected" */
+    selectedLabel?: string;
 }
 
 export const TableElement = ({
@@ -15,6 +19,8 @@ export const TableElement = ({
     isSelected = false,
     isSelectable = true,
     onSelect,
+    actionLabel = "Select",
+    selectedLabel = "Selected",
 }: TableElementProps) => {
     return (
         <div className="bg-secondary-highlight h-[316px] overflow-hidden p-4 flex flex-col rounded justify-between">
@@ -39,7 +45,7 @@ export const TableElement = ({
                     disabled={!isSelectable}
                     variant={isSelected ? "contained" : "outlined"}
                 >
-                    {isSelected ? "Selected" : "Select"}
+                    {isSelected ? selectedLabel : actionLabel }
                 </Button>
             )}
         </div>

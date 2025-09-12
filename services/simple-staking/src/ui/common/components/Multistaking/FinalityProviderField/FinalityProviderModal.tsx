@@ -88,7 +88,12 @@ export const FinalityProviderModal = ({
       headerClassName: "max-w-[220px]",
       cellClassName: "max-w-[220px]",
       render: (_: unknown, row: { id: string }) => (
-        <div className="truncate">
+        <div
+          className="truncate"
+          // stop propagation to prevent selection of row
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Hash value={String(row.id)} address small noFade />
         </div>
       ),
@@ -132,7 +137,7 @@ export const FinalityProviderModal = ({
       key: "action",
       header: "",
       render: () => (
-        <IconButton size="small">
+        <IconButton size="medium">
           <AiOutlinePlus size={18} className="text-accent-primary" />
         </IconButton>
       ),
@@ -206,13 +211,11 @@ export const FinalityProviderModal = ({
       validators={rows}
       columns={columns}
       onClose={handleClose}
-      onSelect={() => {}}
+      onSelect={handleAdd}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
-      confirmSelection
       onBack={onBack}
-      onAdd={handleAdd}
-      defaultLayout="grid"
+      defaultLayout="list"
       gridItemMapper={mapGridItem}
       isRowSelectable={handleIsRowSelectable}
       filters={{
