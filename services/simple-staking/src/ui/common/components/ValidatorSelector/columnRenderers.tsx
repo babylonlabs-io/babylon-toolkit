@@ -16,7 +16,6 @@ export function renderNameCell(name: string) {
     </div>
   );
 }
-
 export function renderRightAlignedCell(
   value: ReactNode,
   maxWidthClass: string,
@@ -27,4 +26,3 @@ export function renderRightAlignedCell(
     </span>
   );
 }
-
