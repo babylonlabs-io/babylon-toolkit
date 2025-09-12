@@ -13,15 +13,15 @@ interface FinalityProviderLogoProps {
 const STYLES = {
   lg: {
     logo: "size-10",
-    badge: "text-[60%] size-3",
+    badge: "size-4",
   },
   md: {
     logo: "size-6",
-    badge: "text-[60%] size-3",
+    badge: "size-3.5",
   },
   sm: {
     logo: "size-5",
-    badge: "text-[60%] size-3",
+    badge: "size-3",
   },
 };
 
@@ -55,7 +55,7 @@ export const FinalityProviderLogo = ({ logoUrl, rank, moniker, size = "md", clas
       )}
       <span
         className={twMerge(
-          "absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-secondary-main text-accent-contrast leading-none border border-accent-primary overflow-hidden",
+          "absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-secondary-main text-accent-contrast leading-none border border-accent-contrast overflow-hidden",
           styles.badge,
           badgeTextSizeClass,
         )}
