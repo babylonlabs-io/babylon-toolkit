@@ -1,12 +1,14 @@
 import {
   Avatar,
   FinalityProviderSubsection,
+  IconButton,
   Text,
   useField,
   ValidatorSelector,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, type ReactNode } from "react";
+import { AiOutlinePlus } from "react-icons/ai";
 
 import { useValidatorState } from "@/ui/baby/state/ValidatorState";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -98,6 +100,15 @@ export function ValidatorField() {
       cellClassName: "text-right pr-4 max-w-[180px]",
       sorter: (a: ValidatorRow, b: ValidatorRow) =>
         parseFloat(a.totalStaked) - parseFloat(b.totalStaked),
+    },
+    {
+      key: "action",
+      header: "",
+      render: () => (
+        <IconButton size="medium">
+          <AiOutlinePlus size={18} className="text-accent-primary" />
+        </IconButton>
+      ),
     },
   ];
 
