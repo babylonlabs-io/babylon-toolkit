@@ -37,7 +37,7 @@ export function FeesSection({
 }: FeesSectionProps) {
   return (
     <SubSection className={twMerge("flex w-full flex-col content-center justify-between gap-4", className)}>
-      <div className="flex flex-col gap-6 p-4">
+      <div className="flex flex-col gap-6">
         {feeRate !== undefined && <BTCFeeRate value={feeRate} onEdit={onFeeRateEdit} />}
 
         {feeAmount !== undefined && coinSymbol !== undefined && (
@@ -53,7 +53,7 @@ export function FeesSection({
           />
         ) : null}
 
-        {total !== undefined && coinSymbol !== undefined && <div className="divider my-4" />}
+        {total !== undefined && coinSymbol !== undefined && <div className="divider my-1" />}
 
         {total !== undefined && coinSymbol !== undefined && <Total total={total} coinSymbol={coinSymbol} hint={totalHint} />}
       </div>

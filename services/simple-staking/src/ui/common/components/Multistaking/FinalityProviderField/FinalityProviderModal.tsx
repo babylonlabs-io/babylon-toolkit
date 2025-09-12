@@ -99,12 +99,12 @@ export const FinalityProviderModal = ({
         const fp = fpById.get(String(row.id));
         const total = maxDecimals(satoshiToBtc(fp?.activeTVLSat || 0), 8);
         return (
-          <span className="inline-block max-w-[160px] truncate text-right">
+          <span className="inline-block max-w-[160px] truncate text-left">
             {total} {coinSymbol}
           </span>
         );
       },
-      cellClassName: "text-right pr-4 max-w-[160px]",
+      cellClassName: "pr-4 max-w-[160px]",
       sorter: (a: { id: string }, b: { id: string }) => {
         const fa = fpById.get(String(a.id));
         const fb = fpById.get(String(b.id));
@@ -117,9 +117,9 @@ export const FinalityProviderModal = ({
       key: "commission",
       header: "Commission",
       headerClassName: "max-w-[140px]",
-      cellClassName: "text-right pr-4 max-w-[140px]",
+      cellClassName: "pr-4 max-w-[140px]",
       render: (_: unknown, row: { commission: string }) => (
-        <span className="inline-block max-w-[140px] truncate text-right">
+        <span className="inline-block max-w-[140px] truncate text-left">
           {row.commission}
         </span>
       ),
@@ -189,13 +189,15 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
+  const handleSelect = () => {};
+
   return (
     <ValidatorSelector
       open={open}
       validators={rows as any}
       columns={columns as ColumnProps<any>[]}
       onClose={handleClose}
-      onSelect={() => {}}
+      onSelect={handleSelect}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
       confirmSelection

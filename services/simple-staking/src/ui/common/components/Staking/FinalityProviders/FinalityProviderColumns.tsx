@@ -64,6 +64,7 @@ export const finalityProviderColumns = [
   {
     key: "activeTVLSat",
     header: "Total Delegation",
+    cellClassName: "text-left",
     render: (value: unknown) => {
       const amount = Number(value);
       if (isNaN(amount)) return "-";
@@ -78,6 +79,7 @@ export const finalityProviderColumns = [
   {
     key: "commission",
     header: "Commission",
+    cellClassName: "text-left",
     render: (value: unknown) => {
       const commission = Number(value);
       if (isNaN(commission)) return "-";

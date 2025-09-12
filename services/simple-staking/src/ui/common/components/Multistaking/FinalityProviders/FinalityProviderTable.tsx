@@ -193,7 +193,7 @@ export const FinalityProviderTable = ({
                 key: "totalDelegation",
                 header: "Total Delegation",
                 render: (_value, row) => (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-start gap-2">
                     {row.totalDelegation} {coinSymbol}
                   </div>
                 ),
@@ -203,7 +203,7 @@ export const FinalityProviderTable = ({
                 key: "commission",
                 header: "Commission",
                 render: (_value, row) => (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-start gap-2">
                     {row.commission} %
                   </div>
                 ),
