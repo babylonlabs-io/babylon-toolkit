@@ -189,13 +189,15 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
+  const handleSelect = () => { };
+
   return (
     <ValidatorSelector
       open={open}
       validators={rows as any}
       columns={columns as ColumnProps<any>[]}
       onClose={handleClose}
-      onSelect={() => { }}
+      onSelect={handleSelect}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
       confirmSelection
