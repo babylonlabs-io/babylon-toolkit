@@ -13,15 +13,15 @@ interface FinalityProviderLogoProps {
 const STYLES = {
   lg: {
     logo: "size-10",
-    subLogo: "text-[0.8rem]",
+    badge: "text-[60%] size-3",
   },
   md: {
     logo: "size-6",
-    subLogo: "text-[0.5rem]",
+    badge: "text-[60%] size-3",
   },
   sm: {
     logo: "size-5",
-    subLogo: "text-[0.4rem]",
+    badge: "text-[60%] size-3",
   },
 };
 
@@ -30,6 +30,11 @@ export const FinalityProviderLogo = ({ logoUrl, rank, moniker, size = "md", clas
   const styles = STYLES[size];
 
   const fallbackLabel = moniker?.charAt(0).toUpperCase() ?? String(rank);
+
+  // Determine badge text size based on number of digits in rank
+  const rankDigitCount = String(Math.abs(rank)).length;
+  const badgeTextSizeClass =
+    rankDigitCount === 1 ? "text-[60%]" : rankDigitCount === 2 ? "text-[50%]" : "text-[40%]";
 
   return (
     <span className={twMerge("relative inline-block", styles.logo, className)}>
@@ -48,6 +53,15 @@ export const FinalityProviderLogo = ({ logoUrl, rank, moniker, size = "md", clas
           {fallbackLabel}
         </Text>
       )}
+      <span
+        className={twMerge(
+          "absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-secondary-main text-accent-contrast leading-none border border-accent-primary overflow-hidden",
+          styles.badge,
+          badgeTextSizeClass,
+        )}
+      >
+        {rank}
+      </span>
     </span>
   );
 };
