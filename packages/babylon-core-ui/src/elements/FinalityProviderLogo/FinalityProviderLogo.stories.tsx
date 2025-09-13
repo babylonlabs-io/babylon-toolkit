@@ -89,3 +89,10 @@ export const ThreeDigitRank: Story = {
     moniker: "Three Digit Rank Provider",
   },
 };
+
+export const NoRank: Story = {
+  args: {
+    logoUrl: "/images/fps/lombard.jpeg",
+    moniker: "No Rank Provider",
+  },
+};

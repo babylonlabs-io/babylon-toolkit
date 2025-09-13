@@ -1,10 +1,11 @@
 import { Text } from "../../components/Text";
+import { Badge } from "../../components/Badge";
 import { useState } from "react";
 import { twMerge } from "tailwind-merge";
 
 interface FinalityProviderLogoProps {
   logoUrl?: string;
-  rank: number;
+  rank?: number;
   moniker?: string;
   className?: string;
   size?: "lg" | "md" | "sm";
@@ -13,15 +14,18 @@ interface FinalityProviderLogoProps {
 const STYLES = {
   lg: {
     logo: "size-10",
-    badge: "size-4",
+    badge: "!min-w-5 !h-5",
+    badgeText: "!text-xs",
   },
   md: {
     logo: "size-6",
-    badge: "size-3.5",
+    badge: "!min-w-4 !h-4 !px-0.5",
+    badgeText: "!text-[10px]",
   },
   sm: {
     logo: "size-5",
-    badge: "size-3",
+    badge: "!min-w-3 !h-3 !px-0.5",
+    badgeText: "!text-[8px]",
   },
 };
 
@@ -29,19 +33,24 @@ export const FinalityProviderLogo = ({ logoUrl, rank, moniker, size = "md", clas
   const [imageError, setImageError] = useState(false);
   const styles = STYLES[size];
 
-  const fallbackLabel = moniker?.charAt(0).toUpperCase() ?? String(rank);
+  const hasRank = typeof rank === "number" && !Number.isNaN(rank);
+  const fallbackLabel = moniker?.charAt(0).toUpperCase() ?? (hasRank ? String(rank) : "?");
 
-  // Determine badge text size based on number of digits in rank
-  const rankDigitCount = String(Math.abs(rank)).length;
-  const badgeTextSizeClass =
-    rankDigitCount === 1 ? "text-[60%]" : rankDigitCount === 2 ? "text-[50%]" : "text-[40%]";
 
   return (
-    <span className={twMerge("relative inline-block", styles.logo, className)}>
+    <Badge
+      count={hasRank ? rank : undefined}
+      position="bottom-right"
+      color="secondary"
+      className={twMerge(styles.logo, className)}
+      badgeClassName={twMerge("border border-accent-contrast overflow-hidden", styles.badge)}
+      contentClassName={styles.badgeText}
+      max={99}
+    >
       {logoUrl && !imageError ? (
         <img
           src={logoUrl}
-          alt={moniker || `Finality Provider ${rank}`}
+          alt={moniker || (hasRank ? `Finality Provider ${rank}` : "Finality Provider")}
           className="h-full w-full rounded-full object-cover"
           onError={() => setImageError(true)}
         />
@@ -53,15 +62,6 @@ export const FinalityProviderLogo = ({ logoUrl, rank, moniker, size = "md", clas
           {fallbackLabel}
         </Text>
       )}
-      <span
-        className={twMerge(
-          "absolute -bottom-1 -right-1 flex items-center justify-center rounded-full bg-secondary-main text-accent-contrast leading-none border border-accent-contrast overflow-hidden",
-          styles.badge,
-          badgeTextSizeClass,
-        )}
-      >
-        {rank}
-      </span>
-    </span>
+    </Badge>
   );
 };
