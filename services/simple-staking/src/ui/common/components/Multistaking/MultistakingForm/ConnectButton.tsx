@@ -9,7 +9,7 @@ export function ConnectButton() {
 
   return (
     <Button onClick={open} className={"mt-2 w-full"} disabled={isGeoBlocked}>
-      Connect Wallet
+      Connect Wallets
     </Button>
   );
 }
