@@ -46,7 +46,7 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
-    "@cosmjs/stargate": "^0.33.1",
+    "@cosmjs/stargate": "^0.36.0",
     "@keplr-wallet/provider-extension": "^0.12.204",
     "@keplr-wallet/types": "^0.12.204",
     "@keystonehq/animated-qr": "0.10.0",
