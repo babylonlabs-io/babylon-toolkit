@@ -46,7 +46,7 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "^2.2.3",
-    "@cosmjs/stargate": "^0.33.1",
+    "@cosmjs/stargate": "^0.36.0",
     "@keplr-wallet/provider-extension": "^0.12.204",
     "@keplr-wallet/types": "^0.12.204",
     "@keystonehq/animated-qr": "0.10.0",
@@ -58,7 +58,7 @@
     "bip174": "^2.1.1",
     "bitcoinjs-lib": "6.1.5",
     "buffer": "^6.0.3",
-    "ledger-bitcoin-babylon": "^0.3.0-alpha.7",
+    "ledger-bitcoin-babylon": "0.3.1-alpha.0",
     "nanoevents": "^9.1.0",
     "usehooks-ts": "^3.0.2",
     "uuid": "^11.1.0"

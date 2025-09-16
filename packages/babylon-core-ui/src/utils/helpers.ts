@@ -17,6 +17,20 @@ const defaultFormatOptions: Required<FormatCurrencyOptions> = {
   },
 };
 
+/**
+ * Calculates the minimum displayable unit based on formatting options
+ * @param format The number format options
+ * @param precision The default precision to use if format doesn't specify
+ * @returns The minimum unit value (e.g., 0.01 for 2 decimal places)
+ */
+function getMinimumDisplayUnit(
+  format: Intl.NumberFormatOptions | undefined,
+  precision: number,
+): number {
+  const decimalPlaces = format?.minimumFractionDigits ?? precision;
+  return Math.pow(10, -decimalPlaces);
+}
+
 export function formatCurrency(currencyValue: number, options: FormatCurrencyOptions = {}): string {
   const { prefix, precision, zeroDisplay, format } = {
     ...defaultFormatOptions,
@@ -24,6 +38,13 @@ export function formatCurrency(currencyValue: number, options: FormatCurrencyOpt
   };
 
   if (currencyValue === 0) return zeroDisplay;
+
+  // Show a meaningful value for very small non-zero amounts instead of "$0.00"
+  const minUnit = getMinimumDisplayUnit(format, precision);
+
+  if (currencyValue > 0 && currencyValue < minUnit) {
+    return `< ${prefix}${minUnit.toFixed(format?.minimumFractionDigits ?? precision)}`;
+  }
 
   const formatted = currencyValue.toLocaleString("en", format ?? { maximumFractionDigits: precision });
 

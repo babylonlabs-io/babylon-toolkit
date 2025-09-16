@@ -42,6 +42,7 @@
     "services/*"
   ],
   "overrides": {
+    "axios": "^1.12.2",
     "vite@^5.4.10": {
       "esbuild": "^0.25.8"
     }

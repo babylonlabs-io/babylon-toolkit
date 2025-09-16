@@ -1,11 +1,11 @@
 import {
-  Avatar,
   FinalityProviderSubsection,
   IconButton,
   Text,
   useField,
   ValidatorSelector,
-  type ColumnProps,
+  ValidatorRow,
+  FinalityProviderLogo,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, type ReactNode } from "react";
 import { AiOutlinePlus } from "react-icons/ai";
@@ -17,16 +17,6 @@ import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPe
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 
 const { coinSymbol } = getNetworkConfigBBN();
-
-interface ValidatorRow {
-  id: string | number;
-  icon?: ReactNode;
-  name: string;
-  apr: string;
-  votingPower: string;
-  commission: string;
-  totalStaked: string;
-}
 
 export function ValidatorField() {
   const { value, onChange, onBlur } = useField<string[]>({
@@ -45,43 +35,39 @@ export function ValidatorField() {
     selectValidator,
   } = useValidatorState();
 
-  const validatorRows: ValidatorRow[] = validators.map(
-    (v): ValidatorRow => ({
-      id: v.id,
-      name: v.name,
-      apr: "",
-      votingPower: `${maxDecimals(v.votingPower * 100, 2)}%`,
-      commission: formatCommissionPercentage(v.commission),
-      totalStaked: `${maxDecimals(ubbnToBaby(v.tokens), 2)} ${coinSymbol}`,
-    }),
-  );
+  const validatorRows: ValidatorRow[] = validators.map((v) => ({
+    id: v.id,
+    name: v.name,
+    apr: "",
+    votingPower: `${maxDecimals(v.votingPower * 100, 2)}%`,
+    commission: formatCommissionPercentage(v.commission),
+    totalStaked: `${maxDecimals(ubbnToBaby(v.tokens), 2)} ${coinSymbol}`,
+  }));
 
-  const columns: ColumnProps<any>[] = [
+  const columns = [
     {
       key: "name",
       header: "Validator",
       headerClassName: "max-w-[240px]",
       cellClassName: "max-w-[240px]",
-      sorter: (a, b) => a.name.localeCompare(b.name),
-      render: (_: unknown, row: ValidatorRow) => (
-        <div className="flex min-w-0 items-center gap-2">
-          <Avatar variant="circular" size="small" url="">
-            <Text
-              as="span"
-              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] uppercase text-accent-contrast"
-            >
-              {row.name.charAt(0)}
-            </Text>
-          </Avatar>
-          <span className="truncate">{row.name}</span>
-        </div>
-      ),
+      sorter: (a: ValidatorRow, b: ValidatorRow) =>
+        a.name.localeCompare(b.name),
+      render: (_: unknown, row: ValidatorRow) => {
+        const original = validators.find((v) => v.id === row.id);
+        const rank = original ? validators.indexOf(original) + 1 : 0;
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <FinalityProviderLogo logoUrl={""} rank={rank} moniker={row.name} />
+            <span className="truncate">{row.name}</span>
+          </div>
+        );
+      },
     },
     {
       key: "votingPower",
       header: "Voting Power",
       headerClassName: "max-w-[160px]",
-      cellClassName: "text-right pr-4 max-w-[160px]",
+      cellClassName: "max-w-[160px]",
       sorter: (a: ValidatorRow, b: ValidatorRow) =>
         parseFloat(a.votingPower) - parseFloat(b.votingPower),
     },
@@ -89,7 +75,7 @@ export function ValidatorField() {
       key: "commission",
       header: "Commission",
       headerClassName: "max-w-[140px]",
-      cellClassName: "text-right pr-4 max-w-[140px]",
+      cellClassName: "max-w-[140px]",
       sorter: (a: ValidatorRow, b: ValidatorRow) =>
         parseFloat(a.commission) - parseFloat(b.commission),
     },
@@ -97,9 +83,17 @@ export function ValidatorField() {
       key: "totalStaked",
       header: "Total Staked",
       headerClassName: "max-w-[180px]",
-      cellClassName: "text-right pr-4 max-w-[180px]",
-      sorter: (a: ValidatorRow, b: ValidatorRow) =>
-        parseFloat(a.totalStaked) - parseFloat(b.totalStaked),
+      cellClassName: "max-w-[180px]",
+      sorter: (a: ValidatorRow, b: ValidatorRow) => {
+        // Remove non-numeric characters from the totalStaked values
+        const aValue = a.totalStaked
+          ? parseFloat(a.totalStaked.replace(/[^\d.-]/g, ""))
+          : 0;
+        const bValue = b.totalStaked
+          ? parseFloat(b.totalStaked.replace(/[^\d.-]/g, ""))
+          : 0;
+        return aValue - bValue;
+      },
     },
     {
       key: "action",
@@ -138,7 +132,7 @@ export function ValidatorField() {
     selectValidator(value);
   }, [value, selectValidator]);
 
-  const mapGridItem = (row: any) => {
+  const mapGridItem = (row: ValidatorRow) => {
     const original = validators.find((v) => v.id === row.id);
     const name = row.name;
     const rank = original ? validators.indexOf(original) + 1 : 0;
@@ -158,8 +152,10 @@ export function ValidatorField() {
         address: String(row.id),
         provider: {
           rank,
+          logo_url: "",
           description: { moniker: name },
         },
+        showChain: false,
       },
       attributes: {
         "Voting Power": votingPower,
@@ -169,12 +165,12 @@ export function ValidatorField() {
     };
   };
 
-  const handleAddRow = (row: any) => {
+  const handleAddRow = (row: ValidatorRow) => {
     handleSelectValidator(row);
     handleClose();
   };
 
-  const handleFilterSelect = (value: unknown) => {
+  const handleFilterSelect = (value: string | number) => {
     handleFilter("status", String(value));
     toggleShowSlashed(String(value) === "slashed");
   };

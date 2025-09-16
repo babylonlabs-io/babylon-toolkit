@@ -24,10 +24,7 @@ import {
   type FinalityProviderFilterState,
 } from "@/ui/common/services/finalityProviderFilterService";
 import { Bsn } from "@/ui/common/types/bsn";
-import {
-  FinalityProviderState as FinalityProviderStateEnum,
-  type FinalityProvider,
-} from "@/ui/common/types/finalityProviders";
+import { type FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 
 import { getBsnLogoUrl } from "../utils/bsnLogo";
@@ -81,13 +78,6 @@ export enum StakingModalPage {
   BSN,
   FINALITY_PROVIDER,
 }
-
-const FP_STATUSES = {
-  [FinalityProviderStateEnum.ACTIVE]: 1,
-  [FinalityProviderStateEnum.INACTIVE]: 0,
-  [FinalityProviderStateEnum.SLASHED]: 0,
-  [FinalityProviderStateEnum.JAILED]: 0,
-} as const;
 
 const SORT_DIRECTIONS = {
   undefined: "desc",
@@ -204,21 +194,18 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
       return [];
     }
 
-    return data.finalityProviders
+    const sorted = data.finalityProviders
+      .map((fp, idx) => ({ fp, idx })) // Keep original index
       .sort((a, b) => {
-        const condition = FP_STATUSES[b.state] - FP_STATUSES[a.state];
+        const tvlDiff = (b.fp.activeTVLSat ?? 0) - (a.fp.activeTVLSat ?? 0);
+        return tvlDiff !== 0 ? tvlDiff : a.idx - b.idx; // If equal, keep original order
+      });
 
-        if (condition !== 0) {
-          return condition;
-        }
-
-        return (b.activeTVLSat ?? 0) - (a.activeTVLSat ?? 0);
-      })
-      .map((fp, i) => ({
-        ...fp,
-        rank: i + 1,
-        id: fp.btcPk,
-      }));
+    return sorted.map(({ fp }, i) => ({
+      ...fp,
+      id: fp.btcPk,
+      rank: i + 1,
+    }));
   }, [data?.finalityProviders]);
 
   useEffect(() => {

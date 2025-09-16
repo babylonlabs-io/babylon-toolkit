@@ -74,3 +74,25 @@ export const InvalidImage: Story = {
     moniker: "Provider with Invalid Image",
   },
 };
+
+export const TwoDigitRank: Story = {
+  args: {
+    rank: 77,
+    moniker: "Two Digit Rank Provider",
+  },
+};
+
+
+export const ThreeDigitRank: Story = {
+  args: {
+    rank: 999,
+    moniker: "Three Digit Rank Provider",
+  },
+};
+
+export const NoRank: Story = {
+  args: {
+    logoUrl: "/images/fps/lombard.jpeg",
+    moniker: "No Rank Provider",
+  },
+};
