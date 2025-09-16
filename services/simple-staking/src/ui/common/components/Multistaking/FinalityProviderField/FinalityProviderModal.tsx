@@ -2,6 +2,7 @@ import {
   FinalityProviderLogo,
   ValidatorSelector,
   type ColumnProps,
+  IconButton,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef } from "react";
 import { AiOutlinePlus } from "react-icons/ai";
@@ -158,7 +159,7 @@ export const FinalityProviderModal = ({
     onClose();
   };
 
-  const handleAdd = (row: any) => {
+  const handleSelect = (row: any) => {
     if (selectedBsnId !== undefined) {
       closingFromAddRef.current = true;
       onAdd(selectedBsnId, String(row.id));
@@ -213,15 +214,13 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
-  const handleSelect = () => {};
-
   return (
     <ValidatorSelector
       open={open}
       validators={rows}
       columns={columns}
       onClose={handleClose}
-      onSelect={handleAdd}
+      onSelect={handleSelect}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
       onBack={onBack}
