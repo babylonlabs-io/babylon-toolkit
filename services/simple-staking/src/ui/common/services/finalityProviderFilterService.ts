@@ -45,9 +45,16 @@ const BSN_CONFIG = {
 
       return {
         allowlisted: (fp: FinalityProvider) =>
-          hasAllowlist ? allowSet.has(normalizeHex(fp.btcPk)) : true,
-        "non-allowlisted": (fp: FinalityProvider) =>
-          hasAllowlist ? !allowSet.has(normalizeHex(fp.btcPk)) : true,
+          hasAllowlist ? allowSet.has(normalizeHex(fp.btcPk)) : false,
+        "non-allowlisted": (fp: FinalityProvider) => {
+          if (!hasAllowlist) {
+            return (
+              fp.state === FinalityProviderStateEnum.ACTIVE ||
+              fp.state === FinalityProviderStateEnum.INACTIVE
+            );
+          }
+          return !allowSet.has(normalizeHex(fp.btcPk));
+        },
         slashed: (fp: FinalityProvider) =>
           fp.state === FinalityProviderStateEnum.SLASHED,
         jailed: (fp: FinalityProvider) =>
@@ -60,7 +67,7 @@ const BSN_CONFIG = {
       "slashed",
       "jailed",
     ] as const,
-    fallback: "allowlisted" as const,
+    fallback: "non-allowlisted" as const, // Default to non-allowlisted
   },
 } as const;
 
