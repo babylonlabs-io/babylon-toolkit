@@ -1,6 +1,5 @@
 import {
-  Avatar,
-  Text,
+  FinalityProviderLogo,
   ValidatorSelector,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
@@ -52,9 +51,11 @@ export const FinalityProviderModal = ({
       finalityProviders.map((fp) => ({
         id: fp.btcPk,
         name: fp.description?.moniker || "No name provided",
+        logo_url: fp.logo_url,
         apr: "",
         votingPower: "",
         commission: formatCommissionPercentage(Number(fp.commission) || 0),
+        rank: fp.rank,
       })),
     [finalityProviders],
   );
@@ -65,19 +66,23 @@ export const FinalityProviderModal = ({
       header: "Finality Provider",
       headerClassName: "max-w-[240px]",
       cellClassName: "text-primary-dark max-w-[240px]",
-      render: (_: unknown, row: { id: string; name: string }) => (
-        <div className="flex min-w-0 items-center gap-2">
-          <Avatar variant="circular" size="small" url="">
-            <Text
-              as="span"
-              className="inline-flex h-full w-full items-center justify-center rounded-full bg-secondary-main text-[1rem] uppercase text-accent-contrast"
-            >
-              {row.name.charAt(0)}
-            </Text>
-          </Avatar>
-          <span className="truncate">{row.name}</span>
-        </div>
-      ),
+      render: (
+        _: unknown,
+        row: { id: string; name: string; rank: number; logo_url: string },
+      ) => {
+        const original = finalityProviders.find((fp) => fp.btcPk === row.id);
+        const rank = original ? finalityProviders.indexOf(original) + 1 : 0;
+        return (
+          <div className="flex min-w-0 items-center gap-2">
+            <FinalityProviderLogo
+              logoUrl={row.logo_url}
+              rank={rank}
+              moniker={row.name}
+            />
+            <span className="truncate">{row.name}</span>
+          </div>
+        );
+      },
       sorter: (a, b) => a.name.localeCompare(b.name),
     },
     {
@@ -99,12 +104,12 @@ export const FinalityProviderModal = ({
         const fp = fpById.get(String(row.id));
         const total = maxDecimals(satoshiToBtc(fp?.activeTVLSat || 0), 8);
         return (
-          <span className="inline-block max-w-[160px] truncate text-right">
+          <span className="inline-block max-w-[160px] truncate text-left">
             {total} {coinSymbol}
           </span>
         );
       },
-      cellClassName: "text-right pr-4 max-w-[160px]",
+      cellClassName: "pr-4 max-w-[160px]",
       sorter: (a: { id: string }, b: { id: string }) => {
         const fa = fpById.get(String(a.id));
         const fb = fpById.get(String(b.id));
@@ -117,9 +122,9 @@ export const FinalityProviderModal = ({
       key: "commission",
       header: "Commission",
       headerClassName: "max-w-[140px]",
-      cellClassName: "text-right pr-4 max-w-[140px]",
+      cellClassName: "pr-4 max-w-[140px]",
       render: (_: unknown, row: { commission: string }) => (
-        <span className="inline-block max-w-[140px] truncate text-right">
+        <span className="inline-block max-w-[140px] truncate text-left">
           {row.commission}
         </span>
       ),
@@ -146,14 +151,17 @@ export const FinalityProviderModal = ({
   };
 
   const mapGridItem = (row: any) => {
+    const original = finalityProviders.find((fp) => fp.btcPk === row.id);
+    const rank = original ? finalityProviders.indexOf(original) + 1 : 0;
     const fp = fpById.get(String(row.id));
+
     if (!fp) {
       return {
         providerItemProps: {
           bsnId: "",
           bsnName: "",
           address: String(row.id),
-          provider: { rank: 0, description: { moniker: row.name } },
+          provider: { rank: rank, description: { moniker: row.name } },
         },
         attributes: {},
       };
@@ -168,9 +176,10 @@ export const FinalityProviderModal = ({
         address: fp.btcPk,
         provider: {
           logo_url: fp.logo_url,
-          rank: fp.rank,
+          rank: rank,
           description: fp.description,
         },
+        showChain: false,
       },
       attributes: {
         Status: status,
@@ -189,13 +198,15 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
+  const handleSelect = () => {};
+
   return (
     <ValidatorSelector
       open={open}
       validators={rows as any}
       columns={columns as ColumnProps<any>[]}
       onClose={handleClose}
-      onSelect={() => {}}
+      onSelect={handleSelect}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
       confirmSelection

@@ -11,6 +11,7 @@ export interface ValidatorRow {
     apr: string;
     votingPower: string;
     commission: string;
+    totalStaked?: string;
 }
 
 export interface ValidatorSelectorFilters {

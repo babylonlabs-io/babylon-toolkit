@@ -59,7 +59,7 @@ export const Tabs = ({
             aria-controls={`panel-${item.id}`}
             tabIndex={activeTab === item.id ? 0 : -1}
             className={twMerge(
-              "text-primary rounded px-4 py-2 transition-colors duration-200",
+              "rounded px-4 py-2 text-accent-primary transition-colors duration-200",
               activeTab === item.id
                 ? "bg-secondary-highlight"
                 : "bg-transparent",
