@@ -12,7 +12,7 @@ import { Rewards } from "./components/Rewards";
 import { Stats } from "./components/Stats/Stats";
 import { Tabs } from "./components/Tabs";
 
-const Home = () => {
+export const BTCStaking = () => {
   const [activeTab, setActiveTab] = useState("stake");
 
   useEffect(() => {
@@ -38,17 +38,17 @@ const Home = () => {
     },
     ...(isConnected
       ? [
-          {
-            id: "activity",
-            label: "Activity",
-            content: <Activity />,
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <Rewards />,
-          },
-        ]
+        {
+          id: "activity",
+          label: "Activity",
+          content: <Activity />,
+        },
+        {
+          id: "rewards",
+          label: "Rewards",
+          content: <Rewards />,
+        },
+      ]
       : []),
     {
       id: "faqs",
@@ -73,5 +73,3 @@ const Home = () => {
     </Container>
   );
 };
-
-export default Home;

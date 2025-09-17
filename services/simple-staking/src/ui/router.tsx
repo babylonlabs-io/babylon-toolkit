@@ -1,9 +1,9 @@
 import { Navigate, Route, Routes } from "react-router";
 
-import BabyLayout from "./baby/layout";
+import { BabyLayout } from "./baby/layout";
+import { BTCStaking } from "./common/page";
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
-import BTCStaking from "./common/page";
 import FF from "./common/utils/FeatureFlagService";
 
 export const Router = () => {

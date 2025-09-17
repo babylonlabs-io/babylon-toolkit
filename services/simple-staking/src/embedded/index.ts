@@ -1,3 +1,3 @@
-export { default as SimpleStakingApp } from "./SimpleStakingApp";
+export { SimpleStakingApp } from "./SimpleStakingApp";
 
 

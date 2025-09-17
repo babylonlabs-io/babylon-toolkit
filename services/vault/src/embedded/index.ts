@@ -1,3 +1,3 @@
-export { default as VaultApp } from "./VaultApp";
+export { VaultApp } from "./VaultApp";
 
 
