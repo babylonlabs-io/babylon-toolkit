@@ -93,32 +93,30 @@ export const ChainSelectionModal = ({
               onRemove={(id) => onRemove(id)}
             />
           )}
-          {externalBsns.map((bsn) => (
-            <ChainButton
-              key={bsn.id}
-              bsnId={bsn.id}
-              logoUrl={bsn.logoUrl}
-              title={bsn.name}
-              bsnName={bsn.name}
-              subContent={
-                bsn.activeTvl !== undefined
-                  ? [compactNumberFormatter.format(bsn.activeTvl) + " TVL"]
-                  : []
-              }
-              provider={
-                selectedBsns[bsn.id]
-                  ? finalityProviderMap.get(selectedBsns[bsn.id])
-                  : undefined
-              }
-              disabled={Boolean(selectedBsns[bsn.id]) || !isBabylonSelected}
-              isExisting={Boolean(selectedBsns[bsn.id])}
-              onSelectFp={() => {
-                onSelect(bsn.id);
-                onNext();
-              }}
-              onRemove={(id) => onRemove(id)}
-            />
-          ))}
+          {externalBsns.map((bsn) => {
+            const subContent = bsn.activeTvl !== undefined
+              ? [compactNumberFormatter.format(bsn.activeTvl) + " TVL"]
+              : [];
+
+            return (
+              <ChainButton
+                key={bsn.id}
+                bsnId={bsn.id}
+                logoUrl={bsn.logoUrl}
+                title={bsn.name}
+                bsnName={bsn.name}
+                subContent={subContent}
+                provider={finalityProviderMap.get(selectedBsns[bsn.id])}
+                disabled={Boolean(selectedBsns[bsn.id]) || !isBabylonSelected}
+                isExisting={Boolean(selectedBsns[bsn.id])}
+                onSelectFp={() => {
+                  onSelect(bsn.id);
+                  onNext();
+                }}
+                onRemove={(id) => onRemove(id)}
+              />
+            );
+          })}
         </div>
         {!isBabylonSelected && (
           <SubSection className="mt-4 flex-row gap-3 rounded text-base text-[#387085]">
