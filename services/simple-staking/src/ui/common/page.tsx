@@ -73,3 +73,5 @@ export const BTCStaking = () => {
     </Container>
   );
 };
+
+export default BTCStaking;
