@@ -20,6 +20,12 @@
     },
     {
       "path": "./services/simple-staking/tsconfig.json"
+    },
+    {
+      "path": "./services/super-app/tsconfig.json"
+    },
+    {
+      "path": "./services/vault/tsconfig.json"
     }
   ]
 }

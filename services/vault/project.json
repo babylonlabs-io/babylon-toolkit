@@ -1,0 +1,26 @@
+{
+    "name": "@services/vault",
+    "targets": {
+        "dev": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/vault",
+                "command": "npx vite"
+            }
+        },
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/vault",
+                "command": "npm run build"
+            }
+        },
+        "lint": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/vault",
+                "command": "npm run lint"
+            }
+        }
+    }
+}

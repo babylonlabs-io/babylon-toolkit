@@ -1,0 +1,41 @@
+{
+    "name": "@services/super-app",
+    "targets": {
+        "dev": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "command": "npx vite"
+            }
+        },
+        "dev:watchDeps": {
+            "dependsOn": [
+                "^build"
+            ],
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "parallel": true,
+                "commands": [
+                    {
+                        "command": "npx vite"
+                    }
+                ]
+            }
+        },
+        "build": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "command": "npm run build"
+            }
+        },
+        "lint": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "command": "npm run lint"
+            }
+        }
+    }
+}
