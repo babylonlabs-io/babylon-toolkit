@@ -17,13 +17,15 @@ export const ChainButton = ({
   onRemove,
   isExisting = false,
 }: ChainButtonProps) => {
-  const providerData = provider ? provider : {
-    logo_url: logoUrl,
-    rank: 0,
-    description: {
-      moniker: typeof title === "string" ? title : "",
-    },
-  };
+  const providerData = provider
+    ? provider
+    : {
+        logo_url: logoUrl,
+        rank: 0,
+        description: {
+          moniker: typeof title === "string" ? title : "",
+        },
+      };
 
   return (
     <div

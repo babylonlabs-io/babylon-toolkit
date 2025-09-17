@@ -94,9 +94,10 @@ export const ChainSelectionModal = ({
             />
           )}
           {externalBsns.map((bsn) => {
-            const subContent = bsn.activeTvl !== undefined
-              ? [compactNumberFormatter.format(bsn.activeTvl) + " TVL"]
-              : [];
+            const subContent =
+              bsn.activeTvl !== undefined
+                ? [compactNumberFormatter.format(bsn.activeTvl) + " TVL"]
+                : [];
 
             return (
               <ChainButton
