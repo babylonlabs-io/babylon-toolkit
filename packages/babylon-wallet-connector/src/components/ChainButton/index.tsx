@@ -14,6 +14,14 @@ interface ChainButtonProps extends PropsWithChildren {
 export function ChainButton({ className, disabled, alt, logo, title, children, onClick }: ChainButtonProps) {
   const avatar = typeof logo === "string" ? <Avatar url={logo} alt={alt} /> : <Avatar>{logo}</Avatar>;
 
+  const getTestId = () => {
+    if (typeof title === "string") {
+      if (title.includes("Bitcoin")) return "select-bitcoin-wallet-button";
+      if (title.includes("Babylon")) return "select-babylon-wallet-button";
+    }
+    return "chain-button";
+  };
+
   return (
     <Text
       disabled={disabled}
@@ -25,6 +33,7 @@ export function ChainButton({ className, disabled, alt, logo, title, children, o
         className,
       )}
       onClick={onClick}
+      data-testid={getTestId()}
     >
       <div className="flex w-full items-center gap-2.5">
         <div className="flex items-center">{avatar}</div>

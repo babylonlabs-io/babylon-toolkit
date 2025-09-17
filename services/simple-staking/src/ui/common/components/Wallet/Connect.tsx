@@ -150,6 +150,7 @@ export const Connect: React.FC<ConnectProps> = ({
           className="h-[2.5rem] min-h-[2.5rem] rounded-full px-6 py-2 text-base text-white md:rounded"
           onClick={onConnect}
           disabled={isLoading}
+          data-testid="connect-wallets-button"
         >
           <PiWalletBold size={20} className="flex md:hidden" />
           <span className="hidden md:flex">
