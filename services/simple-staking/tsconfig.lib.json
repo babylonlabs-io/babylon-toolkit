@@ -24,5 +24,10 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "tests", "sentry.client.config.ts"]
+  "include": ["src", "tests", "sentry.client.config.ts"],
+  "references": [
+    {
+      "path": "../../packages/babylon-proto-ts/tsconfig.lib.json"
+    }
+  ]
 }
