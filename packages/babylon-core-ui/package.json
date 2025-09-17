@@ -36,10 +36,10 @@
     "./tailwind.config.js"
   ],
   "peerDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.5.4",
-    "yup": "^1.6.1"
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwind-merge": "2.5.4",
+    "yup": "1.6.1"
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^3.2.2",
@@ -91,12 +91,12 @@
     ]
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
-    "@popperjs/core": "^2.11.8",
-    "decimal.js-light": "^2.5.1",
-    "react-hook-form": "^7.54.0",
-    "react-popper": "^2.3.0",
-    "react-tooltip": "^5.29.1",
-    "tw-colors": "^3.3.2"
+    "@hookform/resolvers": "3.9.1",
+    "@popperjs/core": "2.11.8",
+    "decimal.js-light": "2.5.1",
+    "react-hook-form": "7.54.0",
+    "react-popper": "2.3.0",
+    "react-tooltip": "5.29.1",
+    "tw-colors": "3.3.2"
   }
 }
