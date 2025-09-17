@@ -1,12 +1,12 @@
 import { Route, Routes, useLocation } from "react-router";
 import { useEffect } from "react";
 
-import BabyLayout from "@/ui/baby/layout";
-import BTCStaking from "@/ui/common/page";
+import { BabyLayout } from "@/ui/baby/layout";
+import { BTCStaking } from "@/ui/common/page";
 import NotFound from "@/ui/common/not-found";
 import "@/ui/globals.css";
 
-export default function SimpleStakingApp() {
+export function SimpleStakingApp() {
   const location = useLocation();
   useEffect(() => {
     document.title = "Babylon - Staking Dashboard";

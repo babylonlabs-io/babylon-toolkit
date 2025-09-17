@@ -25,7 +25,7 @@ import StakingForm from "./widgets/StakingForm";
 
 type TabId = "stake" | "activity" | "rewards" | "faqs";
 
-export default function BabyLayout() {
+export function BabyLayout() {
   return (
     <PendingOperationsProvider>
       <BabyLayoutContent />
@@ -71,21 +71,21 @@ function BabyLayoutContent() {
     },
     ...(isConnected
       ? [
-          {
-            id: "activity",
-            label: "Activity",
-            content: (
-              <Section>
-                <BabyActivityList />
-              </Section>
-            ),
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <RewardsTab />,
-          },
-        ]
+        {
+          id: "activity",
+          label: "Activity",
+          content: (
+            <Section>
+              <BabyActivityList />
+            </Section>
+          ),
+        },
+        {
+          id: "rewards",
+          label: "Rewards",
+          content: <RewardsTab />,
+        },
+      ]
       : []),
     {
       id: "faqs",
