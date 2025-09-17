@@ -76,3 +76,5 @@ export const BTCStaking = () => {
     </Card>
   );
 };
+
+export default BTCStaking;
