@@ -1,5 +1,10 @@
-# Add files here to ignore them from prettier formatting
-/dist
-/coverage
-/.nx/cache
-/.nx/workspace-data
+# Ignore generated proto TypeScript files
+packages/babylon-proto-ts/src/**
+packages/babylon-proto-ts/dist/**
+packages/babylon-proto-ts/dist/generated/**
+
+# Build outputs
+**/dist/**
+
+# Node modules
+**/node_modules/**
