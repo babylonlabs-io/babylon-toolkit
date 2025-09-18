@@ -1,46 +1,29 @@
 {
-    "compilerOptions": {
-        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.lib.tsbuildinfo",
-        "target": "ES2020",
-        "useDefineForClassFields": true,
-        "lib": [
-            "ES2023",
-            "DOM",
-            "DOM.Iterable"
-        ],
-        "module": "ESNext",
-        "skipLibCheck": true,
-        "moduleResolution": "bundler",
-        "allowImportingTsExtensions": true,
-        "verbatimModuleSyntax": false,
-        "moduleDetection": "force",
-        "noEmit": true,
-        "jsx": "react-jsx",
-        "strict": true,
-        "noUnusedLocals": true,
-        "noUnusedParameters": true,
-        "noFallthroughCasesInSwitch": true,
-        "noUncheckedSideEffectImports": true,
-        "baseUrl": "./",
-        "paths": {
-            "@/ui/*": [
-                "../simple-staking/src/ui/*"
-            ],
-            "@/*": [
-                "./src/*",
-                "../simple-staking/src/*"
-            ],
-            "@services/simple-staking/*": [
-                "../simple-staking/src/*"
-            ],
-            "@services/vault/*": [
-                "../vault/src/*"
-            ]
-        }
-    },
-    "include": [
-        "src",
-        "vite-env.d.ts",
-        "../simple-staking/src/types/**/*.d.ts"
-    ]
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.lib.tsbuildinfo",
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/ui/*": ["../simple-staking/src/ui/*"],
+      "@/*": ["./src/*", "../simple-staking/src/*"],
+      "@services/simple-staking/*": ["../simple-staking/src/*"],
+      "@services/vault/*": ["../vault/src/*"]
+    }
+  },
+  "include": ["src", "vite-env.d.ts", "../simple-staking/src/types/**/*.d.ts"]
 }
