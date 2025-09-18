@@ -20,8 +20,7 @@ export default function GenericError({
   const navigate = useNavigate();
 
   return (
-    <div className="flex w-full flex-col justify-between m-auto">
-
+    <div className="m-auto flex w-full flex-col justify-between">
       <Container className="px-6 py-12">
         <div className="flex flex-col items-center justify-center gap-8">
           <img
@@ -46,7 +45,6 @@ export default function GenericError({
           </Button>
         </div>
       </Container>
-
     </div>
   );
 }
