@@ -36,6 +36,13 @@
                 "cwd": "services/super-app",
                 "command": "npm run lint"
             }
+        },
+        "format-fix": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "command": "npm run format:fix"
+            }
         }
     }
 }

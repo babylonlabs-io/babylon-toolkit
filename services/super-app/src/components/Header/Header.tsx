@@ -1,21 +1,21 @@
-import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useState } from "react";
-import { MdOutlineMenu } from "react-icons/md";
+import { useWalletConnect } from '@babylonlabs-io/wallet-connector';
+import { useState } from 'react';
+import { MdOutlineMenu } from 'react-icons/md';
 
 import { Container } from "@services/simple-staking/src/ui/common/components/Container/Container";
 import { MobileNavOverlay, Nav, NavItem } from "@services/simple-staking/src/ui/common/components/Nav";
 import { useIsMobileView } from "@services/simple-staking/src/ui/common/hooks/useBreakpoint";
 import { useAppState } from "@services/simple-staking/src/ui/common/state";
 
-import { MobileLogo } from "@services/simple-staking/src/ui/common/components/Logo/MobileLogo";
-import { SmallLogo } from "@services/simple-staking/src/ui/common/components/Logo/SmallLogo";
-import { Connect } from "@services/simple-staking/src/ui/common/components/Wallet/Connect";
+import { MobileLogo } from '@services/simple-staking/src/ui/common/components/Logo/MobileLogo';
+import { SmallLogo } from '@services/simple-staking/src/ui/common/components/Logo/SmallLogo';
+import { Connect } from '@services/simple-staking/src/ui/common/components/Wallet/Connect';
 
 export const Header = () => {
-    const { open } = useWalletConnect();
-    const { isLoading: loading } = useAppState();
-    const isMobileView = useIsMobileView();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { open } = useWalletConnect();
+  const { isLoading: loading } = useAppState();
+  const isMobileView = useIsMobileView();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
         <header className="mb-20">
@@ -58,5 +58,3 @@ export const Header = () => {
         </header>
     );
 };
-
-
