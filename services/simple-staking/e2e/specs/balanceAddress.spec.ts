@@ -20,17 +20,15 @@ test.describe("Balance and address checks after connection", () => {
     await connectActions.setupWalletConnection();
   });
 
-  test.skip("balance is correct", async () => {
+  test("balance is correct", async () => {
     await balanceActions.waitForBalanceLoadingComplete();
 
     const stakedBalanceText = await balanceActions.getStakedBalance();
     const stakableBalance = await balanceActions.getStakableBalance();
-    const babyBalance = await balanceActions.getBabyBalance();
-    const babyRewards = await balanceActions.getBabyRewards();
+    const babylonBalance = await balanceActions.getBabylonBalance();
 
-    expect(stakedBalanceText).toContain("0.09876543 BTC");
-    expect(stakableBalance).toContain("0.00074175 BTC");
-    expect(babyBalance).toContain("1 BABY");
-    expect(babyRewards).toContain("0.5 BABY");
+    expect(stakedBalanceText).toContain("0.09876543 sBTC");
+    expect(stakableBalance).toContain("0.00074175 sBTC");
+    expect(babylonBalance).toContain("1 tBABY");
   });
 });

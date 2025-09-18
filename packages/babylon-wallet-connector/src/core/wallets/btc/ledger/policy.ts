@@ -10,7 +10,7 @@ import {
   unbondingPathPolicy,
   UnbondingPolicy,
   WalletPolicy,
-} from "ledger-bitcoin-babylon";
+} from "@tomo-inc/ledger-bitcoin-babylon";
 
 import { Action, Contract, Network } from "@/core/types";
 import { ActionName } from "@/core/utils/action";

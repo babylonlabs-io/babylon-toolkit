@@ -38,10 +38,15 @@ export function ActivityList() {
   if (activityData.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
-        <h4 className="text-xl font-semibold">
+        <img
+          src="/mascot.png"
+          alt="Empty state mascot illustration"
+          className="size-[300px]"
+        />
+        <h4 className="text-xl font-semibold text-accent-primary">
           No {networkConfig.bbn.networkFullName} Stakes
         </h4>
-        <p className="text-base">No activity found.</p>
+        <p className="text-base text-accent-secondary">No activity found.</p>
       </div>
     );
   }

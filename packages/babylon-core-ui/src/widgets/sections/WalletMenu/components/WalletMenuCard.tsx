@@ -91,7 +91,9 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
           >
             Staked Balance
           </Text>
-          {renderBalanceValue(balances.staked)}
+          <div data-testid="staked-balance">
+            {renderBalanceValue(balances.staked)}
+          </div>
         </div>
       )}
 
@@ -104,7 +106,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
           >
             Stakable Balance
           </Text>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2" data-testid="stakable-balance">
             {renderBalanceValue(balances.stakable, loading || hasUnconfirmedTransactions)}
           </div>
         </div>
@@ -124,7 +126,9 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
           >
             Balance
           </Text>
-          {renderBalanceValue(balances.available)}
+          <div data-testid="babylon-balance">
+            {renderBalanceValue(balances.available)}
+          </div>
         </div>
       )}
     </>

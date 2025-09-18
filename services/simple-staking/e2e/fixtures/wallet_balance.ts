@@ -1,12 +1,11 @@
 import type { Page } from "@playwright/test";
 
 import {
-  BABY_BALANCE_VALUE_SELECTOR,
-  BABY_REWARDS_VALUE_SELECTOR,
+  BABYLON_BALANCE_VALUE_SELECTOR,
   SPINNER_SELECTOR,
   STAKABLE_BALANCE_VALUE_SELECTOR,
-  STAKED_BALANCE_ITEM_SELECTOR,
   STAKED_BALANCE_VALUE_SELECTOR,
+  AVATAR_GROUP_SELECTOR,
 } from "./wallet_balance.selectors";
 
 export class WalletBalanceActions {
@@ -23,16 +22,12 @@ export class WalletBalanceActions {
       { timeout: 30_000 },
     );
 
-    try {
-      await this.page.waitForSelector(STAKED_BALANCE_ITEM_SELECTOR, {
-        timeout: 30000,
-        state: "attached",
-      });
-    } catch (error: unknown) {
-      await this.page.reload({ waitUntil: "domcontentloaded" });
-      await this.page.waitForLoadState("networkidle");
-      await this.page.waitForTimeout(10000);
-    }
+    await this.page.locator(AVATAR_GROUP_SELECTOR).click();
+
+    await this.page.waitForSelector(
+      `${STAKED_BALANCE_VALUE_SELECTOR}, ${STAKABLE_BALANCE_VALUE_SELECTOR}, ${BABYLON_BALANCE_VALUE_SELECTOR}`,
+      { state: "attached", timeout: 30_000 },
+    );
   }
 
   async getStakedBalance(): Promise<string | null> {
@@ -44,11 +39,7 @@ export class WalletBalanceActions {
     return this.page.locator(STAKABLE_BALANCE_VALUE_SELECTOR).textContent();
   }
 
-  async getBabyBalance(): Promise<string | null> {
-    return this.page.locator(BABY_BALANCE_VALUE_SELECTOR).textContent();
-  }
-
-  async getBabyRewards(): Promise<string | null> {
-    return this.page.locator(BABY_REWARDS_VALUE_SELECTOR).textContent();
+  async getBabylonBalance(): Promise<string | null> {
+    return this.page.locator(BABYLON_BALANCE_VALUE_SELECTOR).textContent();
   }
 }

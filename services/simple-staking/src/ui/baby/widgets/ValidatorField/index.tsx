@@ -1,11 +1,13 @@
 import {
   FinalityProviderSubsection,
+  IconButton,
   useField,
   ValidatorSelector,
   ValidatorRow,
   FinalityProviderLogo,
 } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
+import { AiOutlinePlus } from "react-icons/ai";
 
 import { useValidatorState } from "@/ui/baby/state/ValidatorState";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -92,6 +94,15 @@ export function ValidatorField() {
         return aValue - bValue;
       },
     },
+    {
+      key: "action",
+      header: "",
+      render: () => (
+        <IconButton size="medium">
+          <AiOutlinePlus size={18} className="text-accent-primary" />
+        </IconButton>
+      ),
+    },
   ];
 
   const handleSelectValidator = (validator: ValidatorRow) => {
@@ -153,7 +164,7 @@ export function ValidatorField() {
     };
   };
 
-  const handleAddRow = (row: ValidatorRow) => {
+  const handleSelect = (row: ValidatorRow) => {
     handleSelectValidator(row);
     handleClose();
   };
@@ -185,12 +196,10 @@ export function ValidatorField() {
         validators={validatorRows}
         columns={columns}
         onClose={handleClose}
-        onSelect={handleSelectValidator}
+        onSelect={handleSelect}
         title="Select Validator"
         description="Validators are responsible for verifying transactions, proposing and confirming new blocks, and helping maintain the security and consensus of Babylon Genesis."
-        confirmSelection
-        onAdd={handleAddRow}
-        defaultLayout="grid"
+        defaultLayout="list"
         gridItemMapper={mapGridItem}
         filters={{
           options: [

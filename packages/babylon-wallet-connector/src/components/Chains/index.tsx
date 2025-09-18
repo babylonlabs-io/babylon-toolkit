@@ -65,7 +65,7 @@ export const Chains = memo(
           Cancel
         </Button>
 
-        <Button disabled={disabled} fluid onClick={onConfirm}>
+        <Button disabled={disabled} fluid onClick={onConfirm} data-testid="chains-done-button">
           Done
         </Button>
       </DialogFooter>

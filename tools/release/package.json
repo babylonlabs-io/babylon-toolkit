@@ -8,6 +8,6 @@
     "dry-run": "DRY_RUN=true tsx index.ts"
   },
   "dependencies": {
-    "nx": "^21.3.7"
+    "nx": "21.3.7"
   }
 }

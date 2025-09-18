@@ -27,10 +27,12 @@ export const Dialog = ({
 
   return (
     <Portal mounted={mounted}>
-      <div {...restProps} className={twJoin("bbn-dialog-wrapper", className)}>
+      <div {...restProps} className={twJoin("bbn-dialog-wrapper", className)} data-testid="dialog-wrapper">
         <div
           className={twJoin("bbn-dialog", open ? "animate-modal-in" : "animate-modal-out", dialogClassName)}
           onAnimationEnd={unmount}
+          role="dialog"
+          data-testid="dialog"
         >
           {children}
         </div>

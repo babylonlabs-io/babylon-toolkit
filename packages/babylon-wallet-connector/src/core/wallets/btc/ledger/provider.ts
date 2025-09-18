@@ -3,7 +3,7 @@ import TransportWebHID from "@ledgerhq/hw-transport-webhid";
 import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
 import { Transaction } from "@scure/btc-signer";
 import { Buffer } from "buffer";
-import AppClient, { DefaultWalletPolicy, signMessage, signPsbt } from "ledger-bitcoin-babylon";
+import AppClient, { DefaultWalletPolicy, signMessage, signPsbt } from "@tomo-inc/ledger-bitcoin-babylon";
 
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
