@@ -8,6 +8,7 @@
     "test": "nx run-many --target=test --all --verbose",
     "nx:sync": "nx sync",
     "prepare": "husky",
+    "format:fix": "npx prettier --write .",
     "ci:release": "nx run @internal/release:run"
   },
   "private": true,
