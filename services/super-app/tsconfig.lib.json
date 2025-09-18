@@ -23,8 +23,12 @@
         "noUncheckedSideEffectImports": true,
         "baseUrl": "./",
         "paths": {
+            "@/ui/*": [
+                "../simple-staking/src/ui/*"
+            ],
             "@/*": [
-                "./src/*"
+                "./src/*",
+                "../simple-staking/src/*"
             ],
             "@services/simple-staking/*": [
                 "../simple-staking/src/*"
@@ -36,6 +40,7 @@
     },
     "include": [
         "src",
-        "vite-env.d.ts"
+        "vite-env.d.ts",
+        "../simple-staking/src/types/**/*.d.ts"
     ]
 }

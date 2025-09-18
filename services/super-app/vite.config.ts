@@ -13,6 +13,23 @@ export default defineConfig({
         outDir: "dist",
         sourcemap: true,
         rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes("node_modules")) {
+                        if (id.includes("@babylonlabs-io/wallet-connector")) return "wallet";
+                        if (id.includes("@babylonlabs-io/core-ui")) return "coreui";
+                        if (id.includes("@babylonlabs-io/babylon-proto-ts")) return "proto";
+                        if (
+                            id.includes("react") ||
+                            id.includes("react-dom") ||
+                            id.includes("react-router") ||
+                            id.includes("react-router-dom")
+                        )
+                            return "react";
+                        return "vendor";
+                    }
+                },
+            },
             input: {
                 main: resolve(__dirname, "index.html"),
             }
