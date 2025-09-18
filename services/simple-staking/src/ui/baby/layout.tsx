@@ -71,21 +71,21 @@ function BabyLayoutContent() {
     },
     ...(isConnected
       ? [
-        {
-          id: "activity",
-          label: "Activity",
-          content: (
-            <Section>
-              <BabyActivityList />
-            </Section>
-          ),
-        },
-        {
-          id: "rewards",
-          label: "Rewards",
-          content: <RewardsTab />,
-        },
-      ]
+          {
+            id: "activity",
+            label: "Activity",
+            content: (
+              <Section>
+                <BabyActivityList />
+              </Section>
+            ),
+          },
+          {
+            id: "rewards",
+            label: "Rewards",
+            content: <RewardsTab />,
+          },
+        ]
       : []),
     {
       id: "faqs",

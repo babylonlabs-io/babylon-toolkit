@@ -39,17 +39,17 @@ export const BTCStaking = () => {
     },
     ...(isConnected
       ? [
-        {
-          id: "activity",
-          label: "Activity",
-          content: <Activity />,
-        },
-        {
-          id: "rewards",
-          label: "Rewards",
-          content: <Rewards />,
-        },
-      ]
+          {
+            id: "activity",
+            label: "Activity",
+            content: <Activity />,
+          },
+          {
+            id: "rewards",
+            label: "Rewards",
+            content: <Rewards />,
+          },
+        ]
       : []),
     {
       id: "faqs",
