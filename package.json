@@ -28,13 +28,13 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "eslint-plugin-tailwindcss": "^3.18.2",
     "husky": "^9.1.7",
-    "nx": "^21.3.7",
+    "nx": "21.3.7",
     "prettier": "^3.6.2",
     "syncpack": "^13.0.4",
     "tslib": "^2.3.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
-    "uuid": "^11.1.0"
+    "uuid": "11.1.0"
   },
   "workspaces": [
     "packages/*",

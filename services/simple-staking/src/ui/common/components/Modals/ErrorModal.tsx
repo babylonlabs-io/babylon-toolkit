@@ -101,6 +101,7 @@ export const ErrorModal: React.FC = () => {
       backdropClassName="z-[100]"
       open={isOpen}
       onClose={dismissError}
+      data-testid="error-dialog"
     >
       <DialogBody className="py-16 text-center text-accent-primary">
         <div className="mb-6 inline-flex h-20 w-20 items-center justify-center bg-primary-contrast">

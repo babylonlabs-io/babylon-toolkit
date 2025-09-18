@@ -19,5 +19,5 @@
 }
 
 .bbn-btn-icon-outlined {
-  @apply border border-current;
+  @apply border border-secondary-strokeDark text-accent-primary hover:bg-secondary-strokeDark/5 hover:brightness-125 disabled:border-secondary-strokeDark/30 disabled:text-accent-primary/30 disabled:bg-transparent;
 }

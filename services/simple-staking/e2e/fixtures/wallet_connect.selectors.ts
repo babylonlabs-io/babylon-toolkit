@@ -1,35 +1,35 @@
-// Note: These should be replaced by data-testid selectors
-
-export const CONNECT_BUTTON_SELECTOR = 'button:has-text("Connect")';
+export const CONNECT_BUTTON_SELECTOR = 'button[data-testid="connect-wallets-button"]:enabled';
 
 export const DIALOG_SELECTORS = {
-  TERMS_DIALOG_HEADER: '[class*="bbn-dialog-header"]',
-  ANY_DIALOG: 'dialog, [role="dialog"]',
-  ERROR_DIALOG: '[role="dialog"]:has-text("The wallet cannot be connected")',
-  ERROR_DIALOG_DONE_BUTTON:
-    '[role="dialog"]:has-text("The wallet cannot be connected") button:has-text("Done")',
+  TERMS_DIALOG_HEADER: '[data-testid="dialog-header"]',
+  ANY_DIALOG: '[data-testid="dialog"], [role="dialog"]',
+  ERROR_DIALOG: '[data-testid="error-dialog"]',
+  ERROR_DIALOG_DONE_BUTTON: '[data-testid="error-dialog"] [data-testid="error-continue-button"]',
 };
 
 export const BUTTON_SELECTORS = {
-  NEXT: 'button:has-text("Next")',
+  NEXT: '[data-testid="terms-next-button"]',
   ACCEPT: 'button:has-text("Accept")',
-  CONTINUE: 'button:has-text("Continue")',
+  CONTINUE: '[data-testid="error-continue-button"]',
   OK: 'button:has-text("OK")',
-  SAVE: '.bbn-dialog-footer button:has-text("Save")',
-  DONE: '.bbn-dialog-footer button:has-text("Done")',
+  SAVE: 'button:has-text("Save")',
+  DONE: '[data-testid="chains-done-button"]',
+  CONTINUE_ANYWAY: '[data-testid="error-continue-button"]',
 };
 
-export const CHECKBOX_SELECTOR = '.bbn-switcher-input[type="checkbox"]';
+export const CHECKBOX_SELECTOR = '[data-testid="checkbox-input"]';
 
 export const WALLET_SELECTORS = {
-  BITCOIN: 'button:has-text("Select Bitcoin Wallet")',
+  BITCOIN: '[data-testid="select-bitcoin-wallet-button"]',
   OKX: [
+    '[data-testid="tomo-wallet-option-bitcoin_okx"]',
+    '[data-testid="wallet-option-okx"]',
     'button:has-text("OKX")',
     'div[role="button"]:has-text("OKX")',
-    '[data-testid="wallet-option-okx"]',
     'button:has-img[alt="OKX"]',
   ],
   BABYLON: [
+    '[data-testid="select-babylon-wallet-button"]',
     'button:has-text("Select Babylon Chain Wallet")',
     'button:has-img[alt="Babylon Chain"]',
     "button:has(.bbn-avatar)",
@@ -37,4 +37,4 @@ export const WALLET_SELECTORS = {
 };
 
 export const createGenericWalletSelector = (walletType: string) =>
-  `button:has(.h-10.w-10.object-contain):has-text("${walletType}")`;
+  `[data-testid="tomo-wallet-option-cosmos_${walletType.toLowerCase()}"]`

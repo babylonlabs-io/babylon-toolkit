@@ -73,6 +73,7 @@ export const Toggle = forwardRef<HTMLInputElement, ToggleProps>(function Toggle(
         type={inputType}
         disabled={disabled}
         className="bbn-switcher-input"
+        data-testid={inputType === "checkbox" ? "checkbox-input" : "radio-input"}
         {...restProps}
         {...inputProps}
         checked={checkedState}

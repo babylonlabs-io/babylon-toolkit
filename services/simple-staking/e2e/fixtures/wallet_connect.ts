@@ -43,18 +43,6 @@ export class WalletConnectActions {
   }
 
   async acceptTermsAndConditions() {
-    await Promise.race([
-      this.page
-        .locator(DIALOG_SELECTORS.TERMS_DIALOG_HEADER)
-        .waitFor({ state: "visible", timeout: 3000 })
-        .catch(() => {}),
-      this.page
-        .locator(DIALOG_SELECTORS.ANY_DIALOG)
-        .first()
-        .waitFor({ state: "visible", timeout: 3000 })
-        .catch(() => {}),
-    ]);
-
     const termsDialogVisible = await this.page
       .locator(DIALOG_SELECTORS.TERMS_DIALOG_HEADER)
       .isVisible()
@@ -89,6 +77,7 @@ export class WalletConnectActions {
       BUTTON_SELECTORS.ACCEPT,
       BUTTON_SELECTORS.CONTINUE,
       BUTTON_SELECTORS.OK,
+      BUTTON_SELECTORS.CONTINUE_ANYWAY,
     ];
 
     for (const selector of buttonSelectorsList) {
@@ -122,8 +111,37 @@ export class WalletConnectActions {
 
   async clickConnectWalletButton() {
     const saveButton = this.page.locator(BUTTON_SELECTORS.SAVE);
-    await saveButton.waitFor({ state: "visible", timeout: 3000 });
-    await saveButton.click();
+    const continueAnywayButton = this.page.locator(BUTTON_SELECTORS.CONTINUE_ANYWAY);
+
+    await Promise.race([
+      saveButton
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => "save")
+        .catch(() => 1),
+      continueAnywayButton
+        .waitFor({ state: "visible", timeout: 5000 })
+        .then(() => "continue")
+        .catch(() => 2),
+    ]);
+
+    if (await continueAnywayButton.isVisible().catch(() => false)) {
+      await continueAnywayButton.click();
+      await saveButton.waitFor({ state: "visible", timeout: 5000 });
+      await saveButton.click();
+      await this.page
+        .locator(DIALOG_SELECTORS.ANY_DIALOG)
+        .first()
+        .waitFor({ state: "hidden", timeout: 5000 })
+        .catch(() => {});
+      return;
+    }
+
+    if (await saveButton.isVisible().catch(() => false)) {
+      await saveButton.click();
+      return;
+    }
+
+    await this.handleAlternativeDialog();
   }
 
   async clickOKXWalletButton() {
@@ -158,7 +176,7 @@ export class WalletConnectActions {
   async clickDoneButton() {
     const doneButton = this.page.locator(BUTTON_SELECTORS.DONE);
     await doneButton.waitFor({ state: "visible", timeout: 3000 });
-    await doneButton.click();
+    await doneButton.click({ force: true });
   }
 
   async setupMocks() {
@@ -166,14 +184,6 @@ export class WalletConnectActions {
   }
 
   async handleVerificationErrorIfPresent() {
-    await this.page
-      .locator(DIALOG_SELECTORS.ERROR_DIALOG)
-      .waitFor({
-        state: "visible",
-        timeout: 1000,
-      })
-      .catch(() => {});
-
     const isErrorVisible = await this.page
       .locator(DIALOG_SELECTORS.ERROR_DIALOG)
       .isVisible()

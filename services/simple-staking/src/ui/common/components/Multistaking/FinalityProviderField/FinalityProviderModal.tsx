@@ -2,8 +2,10 @@ import {
   FinalityProviderLogo,
   ValidatorSelector,
   type ColumnProps,
+  IconButton,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef } from "react";
+import { AiOutlinePlus } from "react-icons/ai";
 
 import { useFinalityProviderBsnState } from "@/ui/common/state/FinalityProviderBsnState";
 import { FinalityProviderStateLabels } from "@/ui/common/types/finalityProviders";
@@ -91,7 +93,12 @@ export const FinalityProviderModal = ({
       headerClassName: "max-w-[220px]",
       cellClassName: "max-w-[220px]",
       render: (_: unknown, row: { id: string }) => (
-        <div className="truncate">
+        <div
+          className="truncate"
+          // stop propagation to prevent selection of row
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           <Hash value={String(row.id)} address small noFade />
         </div>
       ),
@@ -131,6 +138,15 @@ export const FinalityProviderModal = ({
       sorter: (a: { commission: string }, b: { commission: string }) =>
         parseFloat(a.commission) - parseFloat(b.commission),
     },
+    {
+      key: "action",
+      header: "",
+      render: () => (
+        <IconButton size="medium">
+          <AiOutlinePlus size={18} className="text-accent-primary" />
+        </IconButton>
+      ),
+    },
   ];
 
   const closingFromAddRef = useRef(false);
@@ -143,7 +159,7 @@ export const FinalityProviderModal = ({
     onClose();
   };
 
-  const handleAdd = (row: any) => {
+  const handleSelect = (row: any) => {
     if (selectedBsnId !== undefined) {
       closingFromAddRef.current = true;
       onAdd(selectedBsnId, String(row.id));
@@ -198,21 +214,17 @@ export const FinalityProviderModal = ({
     return fp ? isRowSelectable(fp as any) : false;
   };
 
-  const handleSelect = () => {};
-
   return (
     <ValidatorSelector
       open={open}
-      validators={rows as any}
-      columns={columns as ColumnProps<any>[]}
+      validators={rows}
+      columns={columns}
       onClose={handleClose}
       onSelect={handleSelect}
       title={modalTitle}
       description="Finality Providers play a key role in securing Proof-of-Stake networks by validating and finalising transactions. Select one to delegate your stake."
-      confirmSelection
       onBack={onBack}
-      onAdd={handleAdd}
-      defaultLayout="grid"
+      defaultLayout="list"
       gridItemMapper={mapGridItem}
       isRowSelectable={handleIsRowSelectable}
       filters={{

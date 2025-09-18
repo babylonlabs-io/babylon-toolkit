@@ -79,7 +79,7 @@ export function TermsOfService({ className, onClose, onSubmit }: Props) {
       </DialogBody>
 
       <DialogFooter className="mt-auto pt-10">
-        <Button disabled={!valid} fluid onClick={onSubmit}>
+        <Button disabled={!valid} fluid onClick={onSubmit} data-testid="terms-next-button">
           Next
         </Button>
       </DialogFooter>

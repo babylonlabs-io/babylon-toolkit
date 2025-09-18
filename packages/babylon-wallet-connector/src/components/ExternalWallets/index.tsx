@@ -30,6 +30,7 @@ export const ExternalWallets = ({ chainName, onError }: TomoWidgetProps) => {
             className={twJoin("flex flex-col items-center gap-2.5", wallet.isInstall ? "opacity-100" : "opacity-50")}
             key={wallet.id}
             onClick={() => handleClick(wallet)}
+            data-testid={`tomo-wallet-option-${chainName}_${wallet.name?.toLowerCase()}`}
           >
             <img className="size-10 object-contain" src={wallet.img} alt={wallet.name} />
 

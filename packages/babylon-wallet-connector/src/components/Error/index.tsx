@@ -59,7 +59,7 @@ export function Error({
         )}
 
         {submitButton && (
-          <Button fluid onClick={onSubmit}>
+          <Button fluid onClick={onSubmit} data-testid="error-continue-button">
             {submitButton}
           </Button>
         )}

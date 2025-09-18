@@ -24,6 +24,14 @@ export function WalletButton({
 }: WalletButtonProps) {
   const btnProps = installed ? { as: "button", disabled, onClick } : { as: "a", href: fallbackLink, target: "_blank" };
 
+  const getTestId = () => {
+    const normalizedName = name.toLowerCase();
+    if (normalizedName.includes("okx")) return "wallet-option-okx";
+    if (normalizedName.includes("keplr")) return "wallet-option-keplr";
+    if (normalizedName.includes("leap")) return "wallet-option-leap";
+    return `wallet-option-${normalizedName.replace(/\s+/g, "-")}`;
+  };
+
   return (
     <Text
       className={twMerge(
@@ -32,6 +40,7 @@ export function WalletButton({
         className,
       )}
       {...btnProps}
+      data-testid={getTestId()}
     >
       <Avatar variant="rounded" className="shrink-0" alt={name} url={logo} />
       {name}
