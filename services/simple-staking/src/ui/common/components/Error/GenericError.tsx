@@ -4,9 +4,6 @@ import { useNavigate } from "react-router";
 import BitcoinBlock from "@/ui/common/assets/bitcoin-block.svg";
 import { Container } from "@/ui/common/components/Container/Container";
 
-import { Footer } from "../Footer/Footer";
-import { SimplifiedHeader } from "../Header/SimplifiedHeader";
-
 interface Props {
   title?: string;
   message?: string;
@@ -23,9 +20,7 @@ export default function GenericError({
   const navigate = useNavigate();
 
   return (
-    <div className="flex h-full min-h-svh w-full flex-col justify-between">
-      <SimplifiedHeader />
-
+    <div className="m-auto flex w-full flex-col justify-between">
       <Container className="px-6 py-12">
         <div className="flex flex-col items-center justify-center gap-8">
           <img
@@ -50,8 +45,6 @@ export default function GenericError({
           </Button>
         </div>
       </Container>
-
-      <Footer />
     </div>
   );
 }

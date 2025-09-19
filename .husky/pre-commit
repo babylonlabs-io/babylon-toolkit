@@ -1,0 +1,8 @@
+#!/bin/sh
+
+files=$(git diff --name-only --cached --diff-filter=ACM | grep -E '\\.(ts|tsx|js|jsx|json|css|md|html|cjs|mjs)$' || true)
+[ -z "$files" ] && exit 0
+
+echo "$files" | xargs npx prettier --write
+
+echo "$files" | xargs git add

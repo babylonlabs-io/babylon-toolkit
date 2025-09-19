@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@testing-library/jest-dom";
 import { render } from "@testing-library/react";
 
-import Home from "@/ui/common/page";
+import { BTCStaking as Home } from "@/ui/common/page";
 
 jest.mock("@uidotdev/usehooks", () => ({
   useDebounce: jest.fn((value) => value),

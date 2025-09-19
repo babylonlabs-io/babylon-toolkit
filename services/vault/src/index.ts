@@ -1,0 +1,2 @@
+export { VaultApp } from "./embedded";
+
