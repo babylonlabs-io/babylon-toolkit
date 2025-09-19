@@ -24,6 +24,7 @@ import { useBalanceState } from "@/ui/common/state/BalanceState";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
+import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
 
 import { SettingMenuWrapper } from "../Menu/SettingMenu";
 
@@ -79,13 +80,13 @@ export const Connect: React.FC<ConnectProps> = ({
   };
 
   // Unified balance formatter
-  const formatBalance = (amount: number, coinSymbol: string) => {
+  const formatBalanceWithSymbol = (amount: number, coinSymbol: string) => {
     if (coinSymbol === btcCoinSymbol) {
-      return `${satoshiToBtc(amount)} ${coinSymbol}`;
+      return formatBalance(satoshiToBtc(amount), coinSymbol);
     } else if (coinSymbol === bbnCoinSymbol) {
-      return `${ubbnToBaby(amount)} ${coinSymbol}`;
+      return formatBalance(ubbnToBaby(amount), coinSymbol);
     }
-    return `${amount} ${coinSymbol}`;
+    return formatBalance(amount, coinSymbol);
   };
 
   // Wallet states
@@ -211,7 +212,7 @@ export const Connect: React.FC<ConnectProps> = ({
         bbnBalances={bbnBalances}
         balancesLoading={isBalanceLoading}
         hasUnconfirmedTransactions={hasUnconfirmedUTXOs}
-        formatBalance={formatBalance}
+        formatBalance={formatBalanceWithSymbol}
         btcCoinSymbol={btcCoinSymbol}
         bbnCoinSymbol={bbnCoinSymbol}
       />

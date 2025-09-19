@@ -18,7 +18,7 @@ export function BTCFeeAmount({ amount, coinSymbol, hint, title, className, decim
       formattedAmount = "0";
     } else {
       const str = amount.toFixed(decimals);
-      formattedAmount = str.replace(/0+$/, "").replace(/\.$/, "");
+      formattedAmount = str.replace(/\.?0+$/, "");
     }
   } else {
     formattedAmount = amount;
