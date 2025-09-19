@@ -82,9 +82,9 @@ export const Connect: React.FC<ConnectProps> = ({
   // Unified balance formatter
   const formatBalanceWithSymbol = (amount: number, coinSymbol: string) => {
     if (coinSymbol === btcCoinSymbol) {
-      return formatBalance(amount, coinSymbol, satoshiToBtc);
+      return formatBalance(satoshiToBtc(amount), coinSymbol);
     } else if (coinSymbol === bbnCoinSymbol) {
-      return formatBalance(amount, coinSymbol, ubbnToBaby);
+      return formatBalance(ubbnToBaby(amount), coinSymbol);
     }
     return formatBalance(amount, coinSymbol);
   };

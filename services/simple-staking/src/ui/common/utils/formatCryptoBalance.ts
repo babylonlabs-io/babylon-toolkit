@@ -1,14 +1,14 @@
 /**
- * Format cryptocurrency balance with proper handling for small amounts
+ * Format balance with proper handling for small amounts
  * @param amount The amount to format
  * @param coinSymbol The coin symbol (e.g., 'BTC', 'BBN')
  * @param minDisplayAmount The minimum amount below which to show "<minDisplayAmount" (default: 0.01)
  * @returns Formatted balance string
  */
-export function formatCryptoBalance(
-  amount: number, 
-  coinSymbol: string, 
-  minDisplayAmount: number = 0.01
+export function formatBalance(
+  amount: number,
+  coinSymbol: string,
+  minDisplayAmount: number = 0.01,
 ): string {
   if (amount === 0) return `0 ${coinSymbol}`;
 
@@ -32,25 +32,7 @@ export function formatCryptoBalance(
   });
 
   // Remove trailing zeros after decimal point (but keep the decimal point if needed)
-  const trimmed = formatted.replace(/\.?0+$/, '');
+  const trimmed = formatted.replace(/\.?0+$/, "");
 
   return `${trimmed} ${coinSymbol}`;
-}
-
-/**
- * Enhanced balance formatter that handles unit conversion and formatting
- * @param amount The raw amount (e.g., satoshis for BTC, uBBN for BBN)
- * @param coinSymbol The coin symbol
- * @param conversionFn Optional conversion function (e.g., satoshiToBtc, ubbnToBaby)
- * @param minDisplayAmount The minimum amount below which to show "<minDisplayAmount" (default: 0.01)
- * @returns Formatted balance string
- */
-export function formatBalance(
-  amount: number, 
-  coinSymbol: string, 
-  conversionFn?: (amount: number) => number,
-  minDisplayAmount?: number
-): string {
-  const convertedAmount = conversionFn ? conversionFn(amount) : amount;
-  return formatCryptoBalance(convertedAmount, coinSymbol, minDisplayAmount);
 }

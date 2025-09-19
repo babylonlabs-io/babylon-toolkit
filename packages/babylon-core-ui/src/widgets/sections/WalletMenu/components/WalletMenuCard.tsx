@@ -5,7 +5,6 @@ import { DisplayHash } from '../../../../components/DisplayHash';
 import { CopyIcon } from '../../../../components/Icons';
 import { Loader } from '../../../../components/Loader';
 import { twJoin } from 'tailwind-merge';
-import { formatCryptoBalance } from '../../../../utils/helpers';
 
 /**
  * Balance data structure for wallet display
@@ -54,10 +53,13 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
   hasUnconfirmedTransactions = false,
   formatBalance,
 }) => {
-  // Default balance formatter
+  // Simple fallback formatter (consumers should provide their own formatBalance)
   const defaultFormatBalance = (amount: number): string => {
     if (!coinSymbol) return amount.toString();
-    return formatCryptoBalance(amount, coinSymbol);
+    return `${amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 8,
+    })} ${coinSymbol}`;
   };
 
   const formatBalanceFn = formatBalance || defaultFormatBalance;
