@@ -1,4 +1,5 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
@@ -110,7 +111,7 @@ function BabyLayoutContent() {
   const fallbackContent = (
     <Container
       as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
+      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
     >
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" keepMounted />
     </Container>
@@ -122,19 +123,21 @@ function BabyLayoutContent() {
         <DelegationState>
           <RewardState>
             <Content>
-              <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
-                <Container
-                  as="main"
-                  className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
-                >
-                  <Tabs
-                    items={tabItems}
-                    defaultActiveTab="stake"
-                    activeTab={activeTab}
-                    onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-                  />
-                </Container>
-              </AuthGuard>
+              <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
+                <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
+                  <Container
+                    as="main"
+                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+                  >
+                    <Tabs
+                      items={tabItems}
+                      defaultActiveTab="stake"
+                      activeTab={activeTab}
+                      onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+                    />
+                  </Container>
+                </AuthGuard>
+              </Card>
             </Content>
           </RewardState>
         </DelegationState>

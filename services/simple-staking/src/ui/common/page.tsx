@@ -1,5 +1,6 @@
 import { initBTCCurve } from "@babylonlabs-io/btc-staking-ts";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
@@ -58,19 +59,21 @@ const Home = () => {
   ];
 
   return (
-    <Container
-      as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-24"
-    >
-      <Stats />
-      <Tabs
-        items={tabItems}
-        defaultActiveTab="stake"
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        keepMounted
-      />
-    </Container>
+    <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
+      <Container
+        as="main"
+        className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+      >
+        <Stats />
+        <Tabs
+          items={tabItems}
+          defaultActiveTab="stake"
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          keepMounted
+        />
+      </Container>
+    </Card>
   );
 };
 
