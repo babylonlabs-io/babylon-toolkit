@@ -17,7 +17,7 @@
       "require": "./dist/index.cjs.js",
       "import": "./dist/index.es.js"
     },
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/wallet-connector.css"
   },
   "scripts": {
     "dev": "npm run storybook",
@@ -114,7 +114,7 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0",
-    "vite": "^5.4.10",
+    "vite": "^6.3.5",
     "vite-plugin-dts": "^4.3.0",
     "vite-plugin-node-polyfills": "^0.23.0"
   },
