@@ -19,7 +19,13 @@ export default defineConfig({
       fileName: (format) => `index.${format}.js`,
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime", "tailwind-merge", "@babylonlabs-io/core-ui"],
+      external: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "tailwind-merge",
+        "@babylonlabs-io/core-ui",
+      ],
       output: {
         sourcemapExcludeSources: false,
       },

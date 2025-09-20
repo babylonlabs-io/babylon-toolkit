@@ -6,7 +6,7 @@ export interface EligibilityState {
 }
 
 const EligibilityContext = createContext<EligibilityState | undefined>(
-  undefined
+  undefined,
 );
 
 export const EligibilityProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -16,7 +16,7 @@ export const EligibilityProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value = useMemo<EligibilityState>(
     () => ({ isEligible, setEligible }),
-    [isEligible]
+    [isEligible],
   );
 
   return (
@@ -29,9 +29,9 @@ export const EligibilityProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useEligibilityContext = (): EligibilityState => {
   const ctx = useContext(EligibilityContext);
   if (!ctx) {
-    throw new Error("useEligibilityContext must be used within EligibilityProvider");
+    throw new Error(
+      "useEligibilityContext must be used within EligibilityProvider",
+    );
   }
   return ctx;
 };
-
-
