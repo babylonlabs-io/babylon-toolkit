@@ -18,7 +18,7 @@
       "import": "./dist/index.es.js"
     },
     "./tailwind": "./tailwind.config.js",
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/core-ui.css"
   },
   "scripts": {
     "dev": "npm run storybook",
@@ -76,7 +76,7 @@
     "tailwindcss": "^3.4.14",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.37.0",
-    "vite": "^5.4.10",
+    "vite": "^6.3.5",
     "vite-plugin-dts": "^4.3.0"
   },
   "lint-staged": {
