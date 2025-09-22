@@ -13,7 +13,11 @@ import { useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
  */
 export const VaultDemo = () => {
   const { signMessage: signBTCMessage } = useBTCWallet();
-  const { signMessage: signETHMessage, signTypedData } = useETHWallet();
+  const {
+    signMessage: signETHMessage,
+    signTypedData,
+    chainId,
+  } = useETHWallet();
 
   const [message, setMessage] = useState("Hello from Babylon Vault!");
   const [btcSignature, setBtcSignature] = useState<string>();
@@ -73,11 +77,15 @@ export const VaultDemo = () => {
       clearError("typedData");
       setLoading("typedData", true);
 
+      // Use the current connected chain ID, fallback to environment config
+      const currentChainId =
+        chainId || parseInt(process.env.NEXT_PUBLIC_ETH_CHAIN_ID || "11155111");
+
       const typedData: ETHTypedData = {
         domain: {
           name: "Babylon Vault",
           version: "1",
-          chainId: 1,
+          chainId: currentChainId,
           verifyingContract: "0x0000000000000000000000000000000000000000",
         },
         types: {
@@ -125,7 +133,7 @@ export const VaultDemo = () => {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Enter message to sign..."
-            className="w-full"
+            className="w-full text-sm"
           />
         </div>
 
@@ -136,7 +144,7 @@ export const VaultDemo = () => {
             <Button
               onClick={handleBTCSign}
               disabled={!message || isLoading.btc}
-              className="w-full"
+              className="w-full text-sm"
               variant="outlined"
             >
               {isLoading.btc ? "Signing..." : "Sign with BTC (BIP322)"}
@@ -153,7 +161,7 @@ export const VaultDemo = () => {
             <Button
               onClick={handleETHSign}
               disabled={!message || isLoading.eth}
-              className="w-full"
+              className="w-full text-sm"
               variant="outlined"
             >
               {isLoading.eth ? "Signing..." : "Sign with ETH (personal_sign)"}
@@ -170,7 +178,7 @@ export const VaultDemo = () => {
             <Button
               onClick={handleTypedDataSign}
               disabled={!message || isLoading.typedData}
-              className="w-full"
+              className="w-full text-sm"
               variant="outlined"
             >
               {isLoading.typedData

@@ -41,10 +41,10 @@ input[type="number"] {
     text-wrap: balance;
   }
   .app-bg {
-    background-image: url('./common/assets/background-light.webp');
+    background-image: url("./common/assets/background-light.webp");
   }
   .dark .app-bg {
-    background-image: url('./common/assets/background-dark.webp');
+    background-image: url("./common/assets/background-dark.webp");
   }
 }
 
