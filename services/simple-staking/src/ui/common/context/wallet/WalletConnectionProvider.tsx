@@ -3,6 +3,7 @@ import {
   ExternalWallets,
   WalletProvider,
 } from "@babylonlabs-io/wallet-connector";
+import { AppKitConnectButton } from "@/ui/common/components/Wallet/AppKitConnectButton";
 import { useTheme } from "next-themes";
 import { useCallback, type PropsWithChildren } from "react";
 import { useLocation } from "react-router";
@@ -10,6 +11,7 @@ import { useLocation } from "react-router";
 import { logTermsAcceptance } from "@/ui/common/api/logTermAcceptance";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { getNetworkConfigETH } from "@/ui/common/config/network/eth";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
@@ -47,19 +49,18 @@ const config: ChainConfigArr = [
     ],
     config: getNetworkConfigBBN(),
   },
-  // TODO: Enable when wallet connector framework supports ETH chains
-  // {
-  //   chain: "ETH",
-  //   connectors: [
-  //     {
-  //       id: "appkit-eth-connector",
-  //       widget: ({ onError }: { onError?: (e: Error) => void }) => (
-  //         <AppKitConnectButton onError={onError} />
-  //       ),
-  //     },
-  //   ],
-  //   config: getNetworkConfigETH(),
-  // },
+  {
+    chain: "ETH",
+    connectors: [
+      {
+        id: "appkit-eth-connector",
+        widget: ({ onError }: { onError?: (e: Error) => void }) => (
+          <AppKitConnectButton onError={onError} />
+        ),
+      },
+    ],
+    config: getNetworkConfigETH(),
+  },
 ];
 
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
@@ -91,9 +92,9 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     location.pathname.startsWith("/baby")
       ? ["BBN"]
       : location.pathname.startsWith("/vault")
-        ? ["BTC"] // TODO: Add "ETH" when wallet connector framework supports it
+        ? ["BTC", "ETH"]
         : ["BTC", "BBN"]
-  ) as ("BTC" | "BBN")[];
+  ) as ("BTC" | "BBN" | "ETH")[];
 
   return (
     <WalletProvider

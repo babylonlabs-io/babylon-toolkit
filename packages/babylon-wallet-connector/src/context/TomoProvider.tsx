@@ -2,7 +2,7 @@ import { TomoContextProvider } from "@tomo-inc/wallet-connect-sdk";
 import "@tomo-inc/wallet-connect-sdk/style.css";
 import { useMemo, type PropsWithChildren } from "react";
 
-import { BBNConfig, BTCConfig } from "@/core/types";
+import { BBNConfig, BTCConfig, ETHConfig } from "@/core/types";
 
 import { ChainConfigArr } from "./Chain.context";
 
@@ -31,6 +31,15 @@ const CONFIG_ADAPTERS = {
       rpcUrl: config.rpc,
     },
     logo: config.chainData.chainSymbolImageUrl,
+  }),
+  ETH: (config: ETHConfig) => ({
+    id: 3,
+    name: config.chainName,
+    type: "ethereum",
+    chainId: config.chainId,
+    rpcUrl: config.rpcUrl,
+    explorerUrl: config.explorerUrl,
+    nativeCurrency: config.nativeCurrency,
   }),
 };
 

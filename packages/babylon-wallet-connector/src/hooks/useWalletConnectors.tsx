@@ -137,6 +137,17 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
         displayChains?.();
       },
+      ETH: (connector) => (connectedWallet) => {
+        if (connectedWallet) {
+          selectWallet?.(connector.id, connectedWallet);
+
+          if (persistent) {
+            accountStorage.set(connector.id, connectedWallet.id);
+          }
+        }
+
+        displayChains?.();
+      },
     };
 
     const unsubscribeArr = connectorArr.map((connector) =>

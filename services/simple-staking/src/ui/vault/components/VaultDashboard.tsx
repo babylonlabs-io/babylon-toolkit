@@ -9,15 +9,10 @@ import { useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
  * Shows the status, addresses, and balances for both BTC and ETH wallets
  */
 export const VaultDashboard = () => {
-  const {
-    address: btcAddress,
-    publicKeyNoCoord: btcPublicKey,
-    connected: btcConnected,
-  } = useBTCWallet();
+  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
 
   const {
     address: ethAddress,
-    formattedBalance: ethBalance,
     isConnected: ethConnected,
     chainId,
     networkName,
@@ -70,26 +65,6 @@ export const VaultDashboard = () => {
               {formatAddress(btcAddress)}
             </Text>
           </div>
-
-          <div>
-            <Text variant="body2" className="mb-1 text-gray-600">
-              Balance
-            </Text>
-            <Text variant="body1" className="font-semibold">
-              —
-            </Text>
-          </div>
-
-          {btcPublicKey && (
-            <div>
-              <Text variant="body2" className="mb-1 text-gray-600">
-                Public Key
-              </Text>
-              <Text variant="body2" className="break-all font-mono text-xs">
-                {btcPublicKey.slice(0, 32)}...
-              </Text>
-            </div>
-          )}
         </div>
       </Card>
 
@@ -133,26 +108,6 @@ export const VaultDashboard = () => {
               {formatAddress(ethAddress)}
             </Text>
           </div>
-
-          <div>
-            <Text variant="body2" className="mb-1 text-gray-600">
-              Balance
-            </Text>
-            <Text variant="body1" className="font-semibold">
-              {ethBalance ? `${ethBalance} ETH` : "—"}
-            </Text>
-          </div>
-
-          {chainId && (
-            <div>
-              <Text variant="body2" className="mb-1 text-gray-600">
-                Chain ID
-              </Text>
-              <Text variant="body2" className="font-mono">
-                {chainId}
-              </Text>
-            </div>
-          )}
         </div>
       </Card>
     </div>
