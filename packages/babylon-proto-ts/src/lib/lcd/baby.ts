@@ -89,10 +89,7 @@ const createBabylonClient = ({ request }: Dependencies) => ({
         "/cosmos/mint/v1beta1/inflation",
       );
       return Number(inflation);
-    } catch (error: any) {
-      // throw new Error(`Failed to fetch inflation`, {
-      //   cause: error,
-      // });
+    } catch {
       return 0;
     }
   },

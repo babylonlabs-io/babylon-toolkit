@@ -13,5 +13,3 @@ export function useSupply({ enabled = true }: { enabled?: boolean } = {}) {
         enabled,
     });
 }
-
-

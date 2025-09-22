@@ -13,5 +13,3 @@ export function useInflation({ enabled = true }: { enabled?: boolean } = {}) {
         enabled,
     });
 }
-
-

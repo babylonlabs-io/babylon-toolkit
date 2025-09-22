@@ -20,7 +20,8 @@ const formatter = Intl.NumberFormat("en", {
 
 export const Stats = memo(() => {
     const { data: pool, isLoading: isPoolLoading } = usePool();
-    const { data: validators = [], isLoading: isValidatorsLoading } = useValidators();
+    const { data: validators = [], isLoading: isValidatorsLoading } =
+        useValidators();
     const { data: inflation = 0, isLoading: isInflationLoading } = useInflation();
     const { data: supply = 0n, isLoading: isSupplyLoading } = useSupply();
     const price = usePrice("BABY");
@@ -51,7 +52,11 @@ export const Stats = memo(() => {
                     loading={isPoolLoading}
                     title={`Total ${coinSymbol} TVL`}
                     value={`${formatter.format(tvl.amount)} ${coinSymbol}`}
-                    suffix={price ? <span>(${formatter.format(tvl.usd ?? 0)} USD)</span> : undefined}
+                    suffix={
+                        price ? (
+                            <span>({formatter.format(tvl.usd ?? 0)} USD)</span>
+                        ) : undefined
+                    }
                 />
                 <StatItem
                     loading={isPoolLoading || isSupplyLoading || isInflationLoading}
@@ -70,5 +75,3 @@ export const Stats = memo(() => {
 });
 
 Stats.displayName = "BabyStats";
-
-
