@@ -1,4 +1,8 @@
-import { formatCurrency, calculateTokenValueInCurrency, getMinimumDisplayUnit } from "@/ui/common/utils/formatCurrency";
+import {
+  formatCurrency,
+  calculateTokenValueInCurrency,
+  getMinimumDisplayUnit,
+} from "@/ui/common/utils/formatCurrency";
 
 describe("formatCurrency", () => {
   it("returns default zeroDisplay for 0", () => {
@@ -48,7 +52,10 @@ describe("calculateTokenValueInCurrency", () => {
 describe("getMinimumDisplayUnit", () => {
   it("uses minimumFractionDigits when provided", () => {
     expect(
-      getMinimumDisplayUnit({ minimumFractionDigits: 2, maximumFractionDigits: 4 }, 8),
+      getMinimumDisplayUnit(
+        { minimumFractionDigits: 2, maximumFractionDigits: 4 },
+        8,
+      ),
     ).toBe(0.01);
   });
 
@@ -60,5 +67,3 @@ describe("getMinimumDisplayUnit", () => {
     expect(getMinimumDisplayUnit({ maximumFractionDigits: 5 }, 2)).toBe(0.01);
   });
 });
-
-

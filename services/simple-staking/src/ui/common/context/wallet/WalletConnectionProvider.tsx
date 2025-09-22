@@ -47,6 +47,19 @@ const config: ChainConfigArr = [
     ],
     config: getNetworkConfigBBN(),
   },
+  // TODO: Enable when wallet connector framework supports ETH chains
+  // {
+  //   chain: "ETH",
+  //   connectors: [
+  //     {
+  //       id: "appkit-eth-connector",
+  //       widget: ({ onError }: { onError?: (e: Error) => void }) => (
+  //         <AppKitConnectButton onError={onError} />
+  //       ),
+  //     },
+  //   ],
+  //   config: getNetworkConfigETH(),
+  // },
 ];
 
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
@@ -75,7 +88,11 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   );
 
   const requiredChains = (
-    location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"]
+    location.pathname.startsWith("/baby")
+      ? ["BBN"]
+      : location.pathname.startsWith("/vault")
+        ? ["BTC"] // TODO: Add "ETH" when wallet connector framework supports it
+        : ["BTC", "BBN"]
   ) as ("BTC" | "BBN")[];
 
   return (

@@ -45,4 +45,15 @@ export default {
   get IsBabyStakingEnabled() {
     return process.env.NEXT_PUBLIC_FF_BABYSTAKING === "true";
   },
+
+  /**
+   * Vault feature flag
+   *
+   * Purpose: Enables Vault Page with BTC + ETH dual wallet support
+   * Why needed: To gradually roll out vault functionality with ETH integration
+   * ETA for removal: TBD - Will be removed once vault is fully released
+   */
+  get IsVaultEnabled() {
+    return process.env.NEXT_PUBLIC_FF_VAULT === "true";
+  },
 };

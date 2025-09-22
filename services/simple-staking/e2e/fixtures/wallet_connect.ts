@@ -111,7 +111,9 @@ export class WalletConnectActions {
 
   async clickConnectWalletButton() {
     const saveButton = this.page.locator(BUTTON_SELECTORS.SAVE);
-    const continueAnywayButton = this.page.locator(BUTTON_SELECTORS.CONTINUE_ANYWAY);
+    const continueAnywayButton = this.page.locator(
+      BUTTON_SELECTORS.CONTINUE_ANYWAY,
+    );
 
     await Promise.race([
       saveButton
