@@ -62,6 +62,134 @@ export type BBNConfig = {
   coinSymbol: string;
 };
 
+export interface ETHConfig {
+  chainId: number;
+  chainName: string;
+  rpcUrl: string;
+  explorerUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+}
+
+// Ethereum specific types
+export interface ETHTransactionRequest {
+  to: string;
+  value?: string;
+  data?: string;
+  gasLimit?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  nonce?: number;
+}
+
+export interface ETHTypedData {
+  domain: {
+    name?: string;
+    version?: string;
+    chainId?: number;
+    verifyingContract?: string;
+    salt?: string;
+  };
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message: Record<string, any>;
+}
+
+export interface NetworkInfo {
+  name: string;
+  chainId: string;
+}
+
+export interface IETHProvider extends IProvider {
+  /**
+   * Signs a human-readable message using personal_sign
+   * @param message - The message to sign
+   * @returns A promise that resolves to the signature
+   */
+  signMessage(message: string): Promise<string>;
+
+  /**
+   * Signs structured data using eth_signTypedData_v4 (EIP-712)
+   * @param typedData - The structured data to sign
+   * @returns A promise that resolves to the signature
+   */
+  signTypedData(typedData: ETHTypedData): Promise<string>;
+
+  /**
+   * Sends a transaction to the blockchain
+   * @param tx - The transaction request
+   * @returns A promise that resolves to the transaction hash
+   */
+  sendTransaction(tx: ETHTransactionRequest): Promise<string>;
+
+  /**
+   * Estimates gas for a transaction
+   * @param tx - The transaction request
+   * @returns A promise that resolves to the estimated gas
+   */
+  estimateGas(tx: ETHTransactionRequest): Promise<bigint>;
+
+  /**
+   * Gets the current chain ID
+   * @returns A promise that resolves to the chain ID
+   */
+  getChainId(): Promise<number>;
+
+  /**
+   * Switches to a different chain
+   * @param chainId - The chain ID to switch to
+   * @returns A promise that resolves when the switch is complete
+   */
+  switchChain(chainId: number): Promise<void>;
+
+  /**
+   * Gets the account balance
+   * @returns A promise that resolves to the balance in wei
+   */
+  getBalance(): Promise<bigint>;
+
+  /**
+   * Gets the account nonce
+   * @returns A promise that resolves to the nonce
+   */
+  getNonce(): Promise<number>;
+
+  /**
+   * Gets network information
+   * @returns A promise that resolves to network info
+   */
+  getNetworkInfo(): Promise<NetworkInfo>;
+
+  /**
+   * Gets the wallet provider name
+   * @returns The name of the wallet provider
+   */
+  getWalletProviderName(): string;
+
+  /**
+   * Gets the wallet provider icon
+   * @returns The icon of the wallet provider
+   */
+  getWalletProviderIcon(): string;
+
+  /**
+   * Registers an event listener for the specified event
+   * @param eventName - The name of the event to listen for
+   * @param handler - The callback function to be executed when the event occurs
+   */
+  on(eventName: string, handler: Function): void;
+
+  /**
+   * Unregisters an event listener for the specified event
+   * @param eventName - The name of the event to listen for
+   * @param handler - The callback function to be executed when the event occurs
+   */
+  off(eventName: string, handler: Function): void;
+}
+
 export interface IProvider {
   connectWallet: () => Promise<void>;
   getAddress: () => Promise<string>;
