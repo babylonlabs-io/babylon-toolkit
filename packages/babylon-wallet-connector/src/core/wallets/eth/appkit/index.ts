@@ -16,7 +16,7 @@ const WALLET_PROVIDER_NAME = "AppKit";
 const metadata: WalletMetadata<IETHProvider, ETHConfig> = {
   id: "appkit",
   name: WALLET_PROVIDER_NAME,
-  icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzM0ODlGRiIvPgo8cGF0aCBkPSJNOCAxNkM4IDExLjU4MTcgMTEuNTgxNyA4IDE2IDhDMjAuNDE4MyA4IDI0IDExLjU4MTcgMjQgMTZDMjQgMjAuNDE4MyAyMC40MTgzIDI0IDE2IDI0QzExLjU4MTcgMjQgOCAyMC40MTgzIDggMTZaIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iNCIgZmlsbD0id2hpdGUiLz4KPC9zdmc+",
+  icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=",
   docs: "https://docs.reown.com/appkit/overview",
   wallet: "ethereum", // Global identifier for Ethereum providers
   createProvider: (_wallet: any, config: ETHConfig) => new AppKitProvider(config),

@@ -1,4 +1,3 @@
-import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
 import { parseEther } from "viem";
 import {
   getAccount,
@@ -11,7 +10,12 @@ import {
   switchChain as wagmiSwitchChain,
   watchAccount,
   watchChainId,
+  connect,
 } from "wagmi/actions";
+import { injected, walletConnect } from "wagmi/connectors";
+
+import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+
 import { wagmiConfig } from "./config";
 
 /**
@@ -28,7 +32,7 @@ export class AppKitProvider implements IETHProvider {
   private config: ETHConfig;
   private address?: string;
   private chainId?: number;
-  private eventHandlers: Map<string, Set<Function>> = new Map();
+  private eventHandlers: Map<string, Set<(...args: any[]) => void>> = new Map();
   private unwatchFunctions: (() => void)[] = [];
 
   constructor(config: ETHConfig) {
@@ -65,16 +69,45 @@ export class AppKitProvider implements IETHProvider {
   }
 
   async connectWallet(): Promise<void> {
-    // AppKit handles the connection through its modal
-    // We just need to get the connected account
-    const account = getAccount(wagmiConfig);
+    try {
+      // First check if already connected
+      const currentAccount = getAccount(wagmiConfig);
+      if (currentAccount.address) {
+        this.address = currentAccount.address;
+        this.chainId = currentAccount.chainId;
+        return;
+      }
 
-    if (!account.address) {
-      throw new Error("No account connected. Please connect your wallet first.");
+      // Try to connect using injected provider (MetaMask, etc.) first
+      try {
+        const result = await connect(wagmiConfig, { connector: injected() });
+        this.address = result.accounts[0];
+        this.chainId = result.chainId;
+        return;
+      } catch {
+        // If injected connection fails, fall back to WalletConnect
+        console.log("Injected connection failed, trying WalletConnect...");
+      }
+
+      // Fall back to WalletConnect
+      const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
+      const wcConnector = walletConnect({
+        projectId,
+        metadata: {
+          name: "Babylon Vault",
+          description: "BTC and ETH Staking Platform",
+          url: "https://babylon.io",
+          icons: ["https://babylon.io/icon.png"],
+        },
+      });
+
+      const result = await connect(wagmiConfig, { connector: wcConnector });
+      this.address = result.accounts[0];
+      this.chainId = result.chainId;
+    } catch (error) {
+      console.error("Failed to connect wallet:", error);
+      throw new Error(`Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
-
-    this.address = account.address;
-    this.chainId = account.chainId;
   }
 
   async getAddress(): Promise<string> {
@@ -229,18 +262,18 @@ export class AppKitProvider implements IETHProvider {
   }
 
   getWalletProviderIcon(): string {
-    // AppKit logo as base64 data URL
-    return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzM0ODlGRiIvPgo8cGF0aCBkPSJNOCAxNkM4IDExLjU4MTcgMTEuNTgxNyA4IDE2IDhDMjAuNDE4MyA4IDI0IDExLjU4MTcgMjQgMTZDMjQgMjAuNDE4MyAyMC40MTgzIDI0IDE2IDI0QzExLjU4MTcgMjQgOCAyMC40MTgzIDggMTZaIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iNCIgZmlsbD0id2hpdGUiLz4KPC9zdmc+";
+    // Ethereum logo as base64 data URL
+    return "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=";
   }
 
-  on(eventName: string, handler: Function): void {
+  on(eventName: string, handler: (...args: any[]) => void): void {
     if (!this.eventHandlers.has(eventName)) {
       this.eventHandlers.set(eventName, new Set());
     }
     this.eventHandlers.get(eventName)!.add(handler);
   }
 
-  off(eventName: string, handler: Function): void {
+  off(eventName: string, handler: (...args: any[]) => void): void {
     const handlers = this.eventHandlers.get(eventName);
     if (handlers) {
       handlers.delete(handler);

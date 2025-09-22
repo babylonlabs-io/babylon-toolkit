@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Button, Card, Input, Text } from "@babylonlabs-io/core-ui";
 import type { ETHTypedData } from "@babylonlabs-io/wallet-connector";
 
-import { AppKitConnectButton } from "@/ui/common/components/Wallet/AppKitConnectButton";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
 
@@ -250,52 +249,6 @@ export const VaultDemo = () => {
             )}
           </div>
         )}
-      </Card>
-
-      {/* ETH Wallet Connection */}
-      <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold">
-          Ethereum Wallet Connection
-        </h3>
-        <p className="mb-6 text-gray-600">
-          Connect your Ethereum wallet to enable ETH signing functionality
-        </p>
-        <AppKitConnectButton />
-      </Card>
-
-      {/* Technical Information */}
-      <Card className="p-6">
-        <h3 className="mb-4 text-lg font-semibold">Technical Information</h3>
-        <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-          <div>
-            <h4 className="mb-2 font-medium">BTC Signing (BIP322-Simple)</h4>
-            <p className="text-gray-600">
-              Bitcoin message signing using BIP322-Simple standard for
-              compatibility with modern Bitcoin wallets.
-            </p>
-          </div>
-          <div>
-            <h4 className="mb-2 font-medium">ETH personal_sign</h4>
-            <p className="text-gray-600">
-              Ethereum message signing for human-readable messages, compatible
-              with all ETH wallets including hardware wallets.
-            </p>
-          </div>
-          <div>
-            <h4 className="mb-2 font-medium">ETH Typed Data (EIP-712)</h4>
-            <p className="text-gray-600">
-              Structured data signing for secure transaction authorization and
-              improved user experience with readable data.
-            </p>
-          </div>
-          <div>
-            <h4 className="mb-2 font-medium">AppKit Integration</h4>
-            <p className="text-gray-600">
-              Powered by Reown's AppKit, supporting 600+ wallets including
-              MetaMask, WalletConnect, Rainbow, and hardware wallets.
-            </p>
-          </div>
-        </div>
       </Card>
     </div>
   );

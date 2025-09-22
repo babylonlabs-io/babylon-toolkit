@@ -1,6 +1,7 @@
 import type { ChainMetadata, ETHConfig, IETHProvider } from "@/core/types";
 
 import appkit from "./appkit";
+import icon from "./icon.svg";
 
 /**
  * Ethereum chain metadata
@@ -11,7 +12,8 @@ import appkit from "./appkit";
 const metadata: ChainMetadata<"ETH", IETHProvider, ETHConfig> = {
   chain: "ETH",
   name: "Ethereum",
-  icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2MjdhZmYiLz4KPHBhdGggZD0iTTE2LjQ5NyA0djguODdsMTAuMjAzIDQuNTUtMTAuMjAzLTEzLjQyem0wIDBMMTYuNDk3IDRMMTAuNSAxNy40MmwxMC4yMDMtNC41NUwxNi40OTcgNHoiIGZpbGw9IiNmZmYiLz4KPHBhdGggZD0iTTE2LjQ5NyAyMS45NjhMMTYuNDk3IDI4bDEwLjIwNi00LjIzNEwxNi40OTcgMjEuOTY4em0wIDYuMDMybC0xMC4yMDYtNC4yMzRMMTYuNDk3IDI4eiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIwLjYiLz4KPHBhdGggZD0iTTE2LjQ5NyAyMC4yOTNMMjYuNyAxNy40MmwtMTAuMjAzIDIuODczem0tMTAuMjAzLTIuODczbDEwLjIwMyAyLjg3M1YxOS4yMWwtMTAuMjAzLTEuNzkweiIgZmlsbD0iI2ZmZiIgZmlsbC1vcGFjaXR5PSIwLjIiLz4KPC9zdmc+",
+  // icon: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=",
+  icon,
   wallets: [appkit],
 };
 
