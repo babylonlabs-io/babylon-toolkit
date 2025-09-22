@@ -10,6 +10,7 @@
  */
 
 import * as Sentry from "@sentry/react";
+import type { ErrorEvent, EventHint, SamplingContext } from "@sentry/types";
 import { v4 as uuidv4 } from "uuid";
 
 import { isProductionEnv } from "@/ui/common/config";
@@ -45,8 +46,8 @@ Sentry.init({
 
   // Adjust this value in production, or use tracesSampler for greater control
   tracesSampleRate: 1,
-  tracesSampler: (samplingContext) => {
-    const hasErrorTag = samplingContext.tags?.error === "true";
+  tracesSampler: (samplingContext: SamplingContext) => {
+    const hasErrorTag = (samplingContext as unknown as { tags?: Record<string, unknown> }).tags?.error === "true";
 
     // Only sample at 100% if it's an error transaction with the error tag
     if (hasErrorTag) {
@@ -77,13 +78,13 @@ Sentry.init({
     Sentry.browserTracingIntegration(),
   ],
 
-  beforeSend(event, hint) {
+  beforeSend(event: ErrorEvent, hint: EventHint) {
     event.extra = {
       ...(event.extra || {}),
       version: getCommitHash(),
     };
 
-    const exception = hint?.originalException as any;
+    const exception = hint?.originalException as unknown as { code?: string } | undefined;
 
     if (exception?.code) {
       event.fingerprint = ["{{ default }}", exception?.code];
