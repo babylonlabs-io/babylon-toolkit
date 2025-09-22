@@ -55,6 +55,8 @@
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
+    "@reown/appkit": "1.8.6",
+    "@reown/appkit-adapter-wagmi": "1.8.6",
     "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
     "@tomo-inc/wallet-connect-sdk": "0.3.24",
     "bip174": "2.1.1",
@@ -62,7 +64,9 @@
     "buffer": "6.0.3",
     "nanoevents": "9.1.0",
     "usehooks-ts": "3.0.2",
-    "uuid": "11.1.0"
+    "uuid": "11.1.0",
+    "viem": "2.37.6",
+    "wagmi": "2.17.0"
   },
   "files": [
     "dist"
