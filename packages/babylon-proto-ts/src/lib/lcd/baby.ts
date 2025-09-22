@@ -83,6 +83,35 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
+  async getInflation(): Promise<number> {
+    try {
+      const { inflation } = await request(
+        "/cosmos/mint/v1beta1/inflation",
+      );
+      return Number(inflation);
+    } catch (error: any) {
+      // throw new Error(`Failed to fetch inflation`, {
+      //   cause: error,
+      // });
+      return 0;
+    }
+  },
+
+  async getSupply(denom: string = "ubbn"): Promise<bigint> {
+    try {
+      const response = await request(
+        "/cosmos/bank/v1beta1/supply/by_denom",
+        { denom },
+      );
+      const amount = response?.amount?.amount ?? 0;
+      return BigInt(amount);
+    } catch (error: any) {
+      throw new Error(`Failed to fetch supply for ${denom}`, {
+        cause: error,
+      });
+    }
+  },
+
   async getCurrentEpoch() {
     try {
       const {
