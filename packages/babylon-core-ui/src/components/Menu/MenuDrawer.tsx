@@ -114,7 +114,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
         <div
           className={twJoin(
             "transform transition-transform duration-300 ease-in-out",
-            "bg-[#FFFFFF] dark:bg-[#252525]",
+            "bg-surface",
             "fixed inset-y-0 right-0 z-50",
             fullWidth ? "w-full" : "w-full max-w-sm",
             shouldShowOpen ? "translate-x-0" : "translate-x-full",
@@ -133,7 +133,7 @@ export const MenuDrawer: React.FC<MenuDrawerProps> = ({
     <div
       className={twJoin(
         "transform transition-transform duration-300 ease-in-out",
-        "bg-[#FFFFFF] dark:bg-[#252525]",
+        "bg-surface",
         "absolute inset-0 rounded-lg",
         isOpen ? "translate-x-0" : "translate-x-full",
         className,
