@@ -12,7 +12,7 @@ export default function ThemeableDocContainer(props: DocsContainerProps) {
 
   const activeTheme = useMemo(
     () => (isDark ? { ...themes.dark, appPreviewBg: "#222425" } : themes.light),
-    [isDark]
+    [isDark],
   );
 
   useEffect(() => {

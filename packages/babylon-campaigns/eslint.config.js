@@ -7,5 +7,5 @@ export default defineConfig([
     rules: {
       "tailwindcss/no-custom-classname": 0,
     },
-  }
+  },
 ]);

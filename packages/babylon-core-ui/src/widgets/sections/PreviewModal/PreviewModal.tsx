@@ -1,6 +1,6 @@
 import { Button } from "@/components/Button";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
-import { Table } from "@/elements/Table";
+import { SimpleTable } from "@/components/SimpleTable";
 import { Dialog, MobileDialog, DialogBody, DialogFooter, DialogHeader } from "@/components/Dialog";
 import { Heading } from "@/components/Heading";
 import { Text } from "@/components/Text";
@@ -144,7 +144,7 @@ export const PreviewModal = ({
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader title="Preview" onClose={onClose} className="text-accent-primary" />
       <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-4 overflow-y-auto text-accent-primary">
-        <Table data={tableData} />
+        <SimpleTable headers={tableData[0] as string[]} data={tableData.slice(1)} />
 
         <div className="flex flex-col">
           {fields.map((field, index) => (

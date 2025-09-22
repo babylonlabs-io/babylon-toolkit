@@ -65,7 +65,7 @@ export default {
     'min-w-[294px]',
     'max-w-sm',
     'max-h-full',
-    // Essential spacing  
+    // Essential spacing
     'p-4',
     'px-4',
     'pb-4',
@@ -237,7 +237,7 @@ export default {
       },
       dark: {
         transparent: "transparent",
-        surface: "#202020",
+        surface: "#121212",
         accent: {
           primary: "#F0F0F0",
           secondary: "#B0B0B0",
