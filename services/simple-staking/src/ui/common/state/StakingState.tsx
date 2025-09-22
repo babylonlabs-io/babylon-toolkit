@@ -34,6 +34,8 @@ import {
   formatStakingAmount,
 } from "@/ui/common/utils/formTransforms";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
+import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
+import { network as bbnNetwork } from "@/ui/common/config/network/bbn";
 
 import { GEO_BLOCK_MESSAGE } from "../types/services/healthCheck";
 
@@ -141,13 +143,13 @@ const { StateProvider, useState: useStakingState } =
     },
     step: undefined,
     verifiedDelegation: undefined,
-    setVerifiedDelegation: () => {},
-    goToStep: () => {},
-    setFormData: () => {},
-    setProcessing: () => {},
-    reset: () => {},
+    setVerifiedDelegation: () => { },
+    goToStep: () => { },
+    setFormData: () => { },
+    setProcessing: () => { },
+    reset: () => { },
     stakingStepOptions: undefined,
-    setStakingStepOptions: () => {},
+    setStakingStepOptions: () => { },
   });
 
 export function StakingState({ children }: PropsWithChildren) {
@@ -230,6 +232,14 @@ export function StakingState({ children }: PropsWithChildren) {
   }, [latestParam, mempoolFeeRates]);
 
   const isDisabled = useMemo(() => {
+    // Disable staking on testnet when sunsetting flag is enabled
+    if (FeatureFlags.IsTestnetSunsetEnabled && bbnNetwork === "testnet") {
+      return {
+        title: "This testnet is sunsetting",
+        message:
+          "Staking is disabled on testnet. Please unbond and withdraw your funds as soon as possible.",
+      };
+    }
     // System wide staking disabled
     if (STAKING_DISABLED) {
       return {

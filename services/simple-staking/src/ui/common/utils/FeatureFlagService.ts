@@ -45,4 +45,15 @@ export default {
   get IsBabyStakingEnabled() {
     return process.env.NEXT_PUBLIC_FF_BABYSTAKING === "true";
   },
+
+  /**
+   * TESTNET_SUNSET feature flag
+   *
+   * Purpose: Shows a testnet sunsetting notice and disables staking/expansion on testnet
+   * Why needed: To guide users to unbond and withdraw ahead of testnet sunset
+   * ETA for removal: When testnet is fully sunset
+   */
+  get IsTestnetSunsetEnabled() {
+    return process.env.NEXT_PUBLIC_FF_TESTNET_SUNSET === "true";
+  },
 };
