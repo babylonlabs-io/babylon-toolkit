@@ -1,3 +1,6 @@
+import { useAppKitAccount } from "@reown/appkit/react";
+import { useDisconnect } from "wagmi";
+
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
 import { BTCWalletProvider } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -5,6 +8,40 @@ import { SafeETHWalletProvider } from "@/ui/common/context/wallet/ETHWalletProvi
 
 import { VaultDashboard } from "./components/VaultDashboard";
 import { VaultDemo } from "./components/VaultDemo";
+
+/**
+ * AppKit Disconnect Button Component
+ */
+function AppKitDisconnectButton() {
+  const { isConnected, address } = useAppKitAccount();
+  const { disconnect } = useDisconnect();
+
+  const handleDisconnect = async () => {
+    try {
+      await disconnect();
+    } catch (error) {
+      console.error("Failed to disconnect AppKit wallet:", error);
+    }
+  };
+
+  if (!isConnected || !address) {
+    return null;
+  }
+
+  return (
+    <div className="mb-2 mt-2 flex items-center justify-center gap-3">
+      <span className="text-sm text-gray-600">
+        Connected: {address.slice(0, 6)}...{address.slice(-4)}
+      </span>
+      <button
+        onClick={handleDisconnect}
+        className="rounded border border-red-200 px-3 py-1 text-sm text-red-600 transition-colors hover:border-red-300 hover:bg-red-50"
+      >
+        Disconnect
+      </button>
+    </div>
+  );
+}
 
 /**
  * Vault Layout - Dual-chain wallet application
@@ -25,6 +62,7 @@ export default function VaultLayout() {
               <p className="text-gray-600">
                 Dual-chain wallet demo with BTC and ETH support
               </p>
+              <AppKitDisconnectButton />
             </div>
 
             <VaultDashboard />

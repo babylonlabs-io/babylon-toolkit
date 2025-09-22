@@ -3,6 +3,7 @@ import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 import { useDisconnect } from "wagmi";
 import { useEffect, useState } from "react";
 import { twJoin } from "tailwind-merge";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 
 interface AppKitConnectButtonProps {
   onError?: (e: Error) => void;
@@ -13,6 +14,7 @@ export const AppKitConnectButton = ({ onError }: AppKitConnectButtonProps) => {
   const { isConnected, address } = useAppKitAccount();
   const { disconnect } = useDisconnect();
   const [isConnecting, setIsConnecting] = useState(false);
+  const ethConnector = useChainConnector("ETH");
 
   // Handle wallet connection
   const handleConnect = async () => {
@@ -44,10 +46,37 @@ export const AppKitConnectButton = ({ onError }: AppKitConnectButtonProps) => {
     }
   }, [isConnected, address]);
 
+  // Bridge AppKit connection to babylon-wallet-connector
+  useEffect(() => {
+    if (isConnected && address && ethConnector) {
+      const connectToBabylonConnector = async () => {
+        try {
+          // Find the appkit wallet in the ETH connector
+          const appkitWallet = ethConnector.wallets.find(
+            (wallet: any) => wallet.id === "appkit",
+          );
+
+          if (appkitWallet) {
+            // Connect using the actual appkit wallet from the connector
+            await ethConnector.connect(appkitWallet);
+          } else {
+            console.error("AppKit wallet not found in ETH connector");
+          }
+        } catch (error) {
+          console.error(
+            "Failed to connect to babylon-wallet-connector:",
+            error,
+          );
+          onError?.(error as Error);
+        }
+      };
+
+      connectToBabylonConnector();
+    }
+  }, [isConnected, address, ethConnector, onError]);
+
   return (
     <div className="pt-10 text-accent-primary">
-      <Text className="mb-4">Connect Ethereum Wallet</Text>
-
       <div className="rounded border border-secondary-strokeLight p-6">
         {!isConnected ? (
           <div className="flex flex-col items-center gap-4">
@@ -84,8 +113,7 @@ export const AppKitConnectButton = ({ onError }: AppKitConnectButtonProps) => {
             </button>
 
             <Text className="max-w-md text-center text-sm text-gray-600">
-              Access 600+ wallets including MetaMask, Rainbow, WalletConnect,
-              Coinbase Wallet, and hardware wallets
+              AppKit <code>headless</code> UI can go there
             </Text>
           </div>
         ) : (
