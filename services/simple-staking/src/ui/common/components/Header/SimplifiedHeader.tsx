@@ -1,5 +1,3 @@
-import FF from "@/ui/common/utils/FeatureFlagService";
-
 import { Container } from "../Container/Container";
 import { SmallLogo } from "../Logo/SmallLogo";
 import { Nav } from "../Nav/Nav";
