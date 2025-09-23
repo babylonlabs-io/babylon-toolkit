@@ -34,15 +34,4 @@ export default {
   get IsPhase3Enabled() {
     return process.env.NEXT_PUBLIC_FF_PHASE_3 === "true";
   },
-
-  /**
-   * Baby Staking feature flag
-   *
-   * Purpose: Enables Baby Staking Page
-   * Why needed: To gradually roll out Baby Staking
-   * ETA for removal: TBD - Will be removed once Baby Staking is fully released
-   */
-  get IsBabyStakingEnabled() {
-    return process.env.NEXT_PUBLIC_FF_BABYSTAKING === "true";
-  },
 };

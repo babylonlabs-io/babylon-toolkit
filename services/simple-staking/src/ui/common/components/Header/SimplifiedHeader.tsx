@@ -13,14 +13,12 @@ export const SimplifiedHeader = () => {
           <SmallLogo />
         </div>
 
-        {FF.IsBabyStakingEnabled && (
-          <div className="absolute left-1/2 -translate-x-1/2 transform">
-            <Nav>
-              <NavItem title="BTC Staking" to="/btc" />
-              <NavItem title="BABY Staking" to="/baby" />
-            </Nav>
-          </div>
-        )}
+        <div className="absolute left-1/2 -translate-x-1/2 transform">
+          <Nav>
+            <NavItem title="BTC Staking" to="/btc" />
+            <NavItem title="BABY Staking" to="/baby" />
+          </Nav>
+        </div>
       </Container>
     </header>
   );
