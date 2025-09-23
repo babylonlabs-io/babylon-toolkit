@@ -45,4 +45,15 @@ export default {
   get IsBabyStakingEnabled() {
     return process.env.NEXT_PUBLIC_FF_BABYSTAKING === "true";
   },
+
+  /**
+   * Co-staking feature flag
+   *
+   * Purpose: Enables co-staking functionality for users to stake both BTC and BABY tokens for additional rewards
+   * Why needed: To gradually roll out co-staking feature with enhanced rewards system
+   * ETA for removal: TBD - Will be removed once co-staking is fully released
+   */
+  get IsCoStakingEnabled() {
+    return process.env.NEXT_PUBLIC_FF_CO_STAKING === "true";
+  },
 };
