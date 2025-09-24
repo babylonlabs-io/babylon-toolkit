@@ -2,8 +2,12 @@
   "versionGroups": [
     {
       "label": "Local packages must be referenced with *",
-      "dependencies": ["$LOCAL"],      
-      "dependencyTypes": ["!local"],
+      "dependencies": [
+        "$LOCAL"
+      ],
+      "dependencyTypes": [
+        "!local"
+      ],
       "pinVersion": "*"
     }
   ]
