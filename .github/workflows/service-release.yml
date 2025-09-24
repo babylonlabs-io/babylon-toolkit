@@ -5,6 +5,7 @@ on:
     branches:
       - "main"
       - "release/v1.x"
+      - "hiep/canon-devnet"
     tags:
       - "*"
   workflow_dispatch:
@@ -22,7 +23,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [phase-2-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          [canon-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository

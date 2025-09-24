@@ -15,7 +15,7 @@ interface ExtendedBBNConfig extends BBNConfig {
   lcdUrl: string;
 }
 
-const defaultNetwork = "devnet";
+const defaultNetwork = "canon-devnet";
 export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
 
 const config: Record<string, ExtendedBBNConfig> = {
@@ -41,7 +41,7 @@ const config: Record<string, ExtendedBBNConfig> = {
     logo: babyLogo,
     lcdUrl: bbnCanary.rest,
   },
-  devnet: {
+  "canon-devnet": {
     chainId: bbnDevnet.chainId,
     rpc: bbnDevnet.rpc,
     chainData: bbnDevnet,
