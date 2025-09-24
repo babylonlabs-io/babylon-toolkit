@@ -59,7 +59,7 @@ const iconLinks = [
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="relative mt-24 flex bg-primary-light py-10 text-accent-contrast before:absolute before:-top-2 before:left-1/4 before:h-3 before:w-2/3 before:bg-primary-light md:py-20">
+    <footer className="relative mt-24 flex bg-primary-light py-10 text-accent-contrast before:absolute before:-top-2 before:left-1/4 before:h-3 before:w-2/3 before:bg-primary-light dark:bg-primary-main dark:before:bg-primary-main md:py-20">
       <Container className="flex flex-col items-center md:flex-row-reverse md:items-start md:justify-between">
         <Logo className="h-[61px] w-[250px] lg:h-[90px] lg:w-[367px]" />
 

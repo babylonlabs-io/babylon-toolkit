@@ -24,7 +24,7 @@ jobs:
           node-version: '24.2.0'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Single Version Policy
         run: |-
