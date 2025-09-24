@@ -94,6 +94,64 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
+  async getIncentiveParams(): Promise<{
+    btcStakingPortion: number;
+    fpPortion: number;
+  }> {
+    try {
+      const response = await request("/babylon/incentive/v1/params");
+      const params = response?.params ?? response;
+      const btcStakingPortion = Number(params?.btcStakingPortion ?? 0);
+      const fpPortion = Number(params?.fpPortion ?? 0);
+      return {
+        btcStakingPortion: Number.isFinite(btcStakingPortion)
+          ? btcStakingPortion
+          : 0,
+        fpPortion: Number.isFinite(fpPortion) ? fpPortion : 0,
+      };
+    } catch (error: unknown) {
+      console.error("[LCD] Failed to fetch incentive params:", error);
+      throw new Error("Failed to fetch incentive params", { cause: error });
+    }
+  },
+
+  async getAnnualProvisions(): Promise<number> {
+    try {
+      const response = await request(
+        "/cosmos/mint/v1beta1/annual_provisions",
+      );
+      const annualProvisions = response?.annualProvisions ?? response?.annual_provisions ?? response;
+      const result = Number(annualProvisions);
+      return result;
+    } catch (error) {
+      console.error("[LCD] Failed to fetch annual provisions:", error);
+      return 0;
+    }
+  },
+
+  async getCostakingParams(): Promise<{
+    validatorsPortion: number;
+    costakingPortion: number;
+  }> {
+    try {
+      const response = await request("/babylon/costaking/v1/params");
+      const params = response?.params ?? response;
+      const validatorsPortion = Number(params?.validatorsPortion ?? 0);
+      const costakingPortion = Number(params?.costakingPortion ?? 0);
+      return {
+        validatorsPortion: Number.isFinite(validatorsPortion)
+          ? validatorsPortion
+          : 0,
+        costakingPortion: Number.isFinite(costakingPortion)
+          ? costakingPortion
+          : 0,
+      };
+    } catch (error: unknown) {
+      console.error("[LCD] Failed to fetch costaking params:", error);
+      throw new Error("Failed to fetch costaking params", { cause: error });
+    }
+  },
+
   async getSupply(denom: string = "ubbn"): Promise<bigint> {
     try {
       const response = await request(

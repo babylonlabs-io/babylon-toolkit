@@ -7,9 +7,10 @@ import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { usePool } from "@/ui/baby/hooks/api/usePool";
 import { useValidators } from "@/ui/baby/hooks/api/useValidators";
-import { useInflation } from "@/ui/baby/hooks/api/useInflation";
+import { useAnnualProvisions } from "@/ui/baby/hooks/api/useAnnualProvisions";
 import { useSupply } from "@/ui/baby/hooks/api/useSupply";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
+import { useIncentiveParams } from "@/ui/baby/hooks/api/useIncentiveParams";
 
 const { coinSymbol } = getNetworkConfigBBN();
 
@@ -22,9 +23,10 @@ export const Stats = memo(() => {
   const { data: pool, isLoading: isPoolLoading } = usePool();
   const { data: validators = [], isLoading: isValidatorsLoading } =
     useValidators();
-  const { data: inflation = 0, isLoading: isInflationLoading } = useInflation();
-  const { data: supply = 0n, isLoading: isSupplyLoading } = useSupply();
+  const { data: annualProvisions = 0, isLoading: isAnnualProvisionsLoading } = useAnnualProvisions();
+  const { isLoading: isSupplyLoading } = useSupply();
   const price = usePrice("BABY");
+  const { data: incentiveParams } = useIncentiveParams({ enabled: true });
 
   const totalStakedBABY = useMemo(() => {
     const bonded = pool?.bondedTokens ?? 0;
@@ -38,37 +40,89 @@ export const Stats = memo(() => {
   }, [totalStakedBABY, price]);
 
   const aprPct = useMemo(() => {
-    const circulatingSupply = Number(supply);
-    if (!circulatingSupply || !totalStakedBABY || !inflation) return 0;
-    const annualRewards = inflation * circulatingSupply;
-    const apr = annualRewards / (totalStakedBABY * 1_000_000);
-    return apr * 100;
-  }, [inflation, supply, totalStakedBABY]);
+    if (!annualProvisions || !totalStakedBABY) {
+      return null;
+    }
 
-  return (
-    <Section title="BABY Staking Stats">
-      <List orientation="adaptive">
+    const hasIncentiveParams = incentiveParams &&
+      incentiveParams.btcStakingPortion !== null &&
+      incentiveParams.fpPortion !== null &&
+      incentiveParams.validatorsPortion !== null &&
+      incentiveParams.costakingPortion !== null;
+
+    if (!hasIncentiveParams) {
+      return null;
+    }
+
+    const btcStakingPortion = incentiveParams.btcStakingPortion!;
+    const fpPortion = incentiveParams.fpPortion!;
+    const validatorsPortion = incentiveParams.validatorsPortion!;
+    const costakingPortion = incentiveParams.costakingPortion!;
+    const portionsSum = btcStakingPortion + fpPortion + validatorsPortion + costakingPortion;
+    const distributionPortion = Math.max(0, 1 - portionsSum);
+
+    const totalTokens = validators.reduce((acc, v) => acc + Number(v.tokens ?? 0), 0);
+    const weightedCommissionSum = validators.reduce(
+      (acc, v) => acc + (Number(v.commission?.commissionRates?.rate ?? 0) * Number(v.tokens ?? 0)),
+      0,
+    );
+    const avgCommission = totalTokens > 0 ? weightedCommissionSum / totalTokens : 0;
+    const commissionFactor = Math.max(0, 1 - avgCommission);
+
+    const annualRewardsToDistribution = annualProvisions * distributionPortion;
+    const annualRewardsToDelegators = annualRewardsToDistribution * commissionFactor;
+    const apr = annualRewardsToDelegators / (totalStakedBABY * 1_000_000);
+    const result = apr * 100;
+    return result;
+  }, [annualProvisions, totalStakedBABY, incentiveParams, validators]);
+
+  const statItems = useMemo(() => {
+    const items = [
+      <StatItem
+        key="tvl"
+        loading={isPoolLoading}
+        title={`Total ${coinSymbol} TVL`}
+        value={`${formatter.format(tvl.amount)} ${coinSymbol}`}
+      />
+    ];
+
+    if (aprPct !== null) {
+      items.push(
         <StatItem
-          loading={isPoolLoading}
-          title={`Total ${coinSymbol} TVL`}
-          value={`${formatter.format(tvl.amount)} ${coinSymbol}`}
-          suffix={
-            price ? (
-              <span>({formatter.format(tvl.usd ?? 0)} USD)</span>
-            ) : undefined
-          }
-        />
-        <StatItem
-          loading={isPoolLoading || isSupplyLoading || isInflationLoading}
+          key="apr"
+          loading={isPoolLoading || isSupplyLoading || isAnnualProvisionsLoading}
           title={`${coinSymbol} Staking APR`}
           value={`${formatter.format(aprPct)}%`}
           loadingStyle={LoadingStyle.ShowSpinnerAndValue}
         />
-        <StatItem
-          loading={isValidatorsLoading}
-          title={`Validators`}
-          value={`${formatter.format(validators.length)}`}
-        />
+      );
+    }
+
+    items.push(
+      <StatItem
+        key="validators"
+        loading={isValidatorsLoading}
+        title={`Validators`}
+        value={`${formatter.format(validators.length)}`}
+      />
+    );
+
+    return items;
+  }, [
+    isPoolLoading,
+    coinSymbol,
+    tvl.amount,
+    aprPct,
+    isSupplyLoading,
+    isAnnualProvisionsLoading,
+    isValidatorsLoading,
+    validators.length
+  ]);
+
+  return (
+    <Section title="BABY Staking Stats">
+      <List orientation="adaptive">
+        {statItems}
       </List>
     </Section>
   );
