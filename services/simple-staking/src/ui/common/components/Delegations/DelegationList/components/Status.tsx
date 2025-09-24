@@ -211,7 +211,12 @@ export function Status({ delegation, showTooltip = true }: StatusProps) {
   } = delegationStatus ?? {};
 
   return (
-    <Hint tooltip={showTooltip ? tooltip : undefined} status={status}>
+    <Hint
+      tooltip={showTooltip ? tooltip : undefined}
+      status={status}
+      placement="bottom"
+      offset={[0, 8]}
+    >
       {label}
     </Hint>
   );

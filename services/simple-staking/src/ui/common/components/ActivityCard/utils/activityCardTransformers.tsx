@@ -11,7 +11,8 @@ import { FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
-import { durationTillNow } from "@/ui/common/utils/time";
+import { durationTillNow, MINUTES_PER_BLOCK } from "@/ui/common/utils/time";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
 import { ActivityCardData, ActivityCardDetailItem } from "../ActivityCard";
@@ -33,6 +34,7 @@ export function transformDelegationToActivityCard(
   finalityProviderMap: Map<string, FinalityProvider>,
   options: ActivityCardTransformOptions = {},
   indexLabel?: string,
+  currentBtcHeight?: number | { height: number; [key: string]: any },
 ): ActivityCardData {
   // Create a delegation with FP for the Status component if not already present
   let delegationWithFP =
@@ -58,40 +60,107 @@ export function transformDelegationToActivityCard(
     };
   }
 
+  const isTimelockRenewalEnabled = FeatureFlagService.IsTimelockRenewalEnabled;
+
   const details: ActivityCardDetailItem[] = [
     {
       label: "Status",
       value: <Status delegation={delegationWithFP} showTooltip={true} />,
     },
-    {
-      label: "Inception",
-      value: delegation.bbnInceptionTime
-        ? durationTillNow(delegation.bbnInceptionTime, Date.now(), false)
-        : "N/A",
-    },
+    ...(!isTimelockRenewalEnabled
+      ? [
+          {
+            label: "Inception",
+            value: delegation.bbnInceptionTime
+              ? durationTillNow(delegation.bbnInceptionTime, Date.now(), false)
+              : "N/A",
+          },
+        ]
+      : []),
+    ...(isTimelockRenewalEnabled
+      ? [
+          {
+            label: "Finality Provider",
+            value: (() => {
+              const fp = finalityProviderMap.get(
+                delegation.finalityProviderBtcPksHex[0],
+              );
+              return fp?.description?.moniker || "Unknown Provider";
+            })(),
+          },
+          {
+            label: "Staking Term End Date",
+            value: (() => {
+              const formatStakingEndDate = (
+                delegation: DelegationV2 | DelegationWithFP,
+              ): string => {
+                if (
+                  delegation.endHeight &&
+                  typeof delegation.endHeight === "number" &&
+                  delegation.endHeight > 0
+                ) {
+                  const currentHeight =
+                    typeof currentBtcHeight === "object" &&
+                    currentBtcHeight?.height
+                      ? currentBtcHeight.height
+                      : typeof currentBtcHeight === "number"
+                        ? currentBtcHeight
+                        : 0;
+
+                  // If no current height available yet, show loading state
+                  if (currentHeight === 0) {
+                    return "Loading...";
+                  }
+                  const blocksRemaining = Math.max(
+                    0,
+                    delegation.endHeight - currentHeight,
+                  );
+
+                  // If timelock is in the past, show expired
+                  if (blocksRemaining === 0) {
+                    return "Expired";
+                  }
+
+                  const millisecondsRemaining =
+                    blocksRemaining * MINUTES_PER_BLOCK * 60 * 1000;
+                  const endDate = new Date(Date.now() + millisecondsRemaining);
+
+                  // Validate the resulting date
+                  if (isNaN(endDate.getTime())) {
+                    return "Invalid date";
+                  }
+
+                  return endDate.toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  });
+                }
+
+                return "Unknown";
+              };
+              return formatStakingEndDate(delegation);
+            })(),
+          },
+        ]
+      : []),
     {
       label: "Tx Hash",
-      value: (
-        <Hash
-          value={delegation.stakingTxHashHex}
-          address
-          small
-          noFade
-          size="caption"
-        />
-      ),
+      value: <Hash value={delegation.stakingTxHashHex} address small noFade />,
     },
   ];
 
-  // Create grouped details for BSN/FP pairs using shared utility
-  const groupedDetails = createBsnFpGroupedDetails(
-    delegation.finalityProviderBtcPksHex,
-    finalityProviderMap,
-  );
+  // Create grouped details for BSN/FP pairs - only disabled when feature flag is enabled
+  const groupedDetails = !isTimelockRenewalEnabled
+    ? createBsnFpGroupedDetails(
+        delegation.finalityProviderBtcPksHex,
+        finalityProviderMap,
+      )
+    : [];
 
   // Handle expansion section if options specify it
-  let expansionSection: DelegationWithFP | undefined;
-  let isPendingExpansion = false;
+  // let expansionSection: DelegationWithFP | undefined;
+  // let isPendingExpansion = false;
 
   if (options.showExpansionSection) {
     // Check if expansion section should be shown
@@ -105,8 +174,8 @@ export function transformDelegationToActivityCard(
       isActiveExpandable || options.isBroadcastedExpansion;
 
     if (showExpansionSection) {
-      expansionSection = delegationWithFP;
-      isPendingExpansion = !!options.isBroadcastedExpansion;
+      // expansionSection = delegationWithFP;
+      // const isPendingExpansion = !!options.isBroadcastedExpansion;
     }
   }
 
@@ -116,7 +185,7 @@ export function transformDelegationToActivityCard(
     : baseAmount;
 
   // Determine if we should show the expansion pending banner
-  const showExpansionPendingBanner = !!options.isBroadcastedExpansion;
+  // const showExpansionPendingBanner = !!options.isBroadcastedExpansion;
 
   return {
     formattedAmount,
@@ -124,10 +193,10 @@ export function transformDelegationToActivityCard(
     iconAlt: "bitcoin",
     details,
     groupedDetails: groupedDetails.length > 0 ? groupedDetails : undefined,
-    expansionSection,
-    isPendingExpansion,
-    showExpansionPendingBanner,
-    hideExpansionCompletely: options.hideExpansionCompletely,
+    // expansionSection,
+    // isPendingExpansion,
+    // showExpansionPendingBanner,
+    // hideExpansionCompletely: options.hideExpansionCompletely,
   };
 }
 
@@ -139,32 +208,97 @@ export function transformDelegationToVerifiedExpansionCard(
   delegation: DelegationV2,
   originalDelegation: DelegationV2,
   finalityProviderMap: Map<string, FinalityProvider>,
+  currentBtcHeight?: number | { height: number; [key: string]: any },
 ): ActivityCardData {
   // Determine expansion type
   const operationType = getExpansionType(delegation, originalDelegation);
+
+  const isTimelockRenewalEnabled = FeatureFlagService.IsTimelockRenewalEnabled;
 
   const details: ActivityCardDetailItem[] = [
     {
       label: "Status",
       value: "Verified",
     },
-    {
-      label: "Inception",
-      value: delegation.bbnInceptionTime
-        ? durationTillNow(delegation.bbnInceptionTime, Date.now(), false)
-        : "N/A",
-    },
+    ...(!isTimelockRenewalEnabled
+      ? [
+          {
+            label: "Inception",
+            value: delegation.bbnInceptionTime
+              ? durationTillNow(delegation.bbnInceptionTime, Date.now(), false)
+              : "N/A",
+          },
+        ]
+      : []),
+    ...(isTimelockRenewalEnabled
+      ? [
+          {
+            label: "Finality Provider",
+            value: (() => {
+              const fp = finalityProviderMap.get(
+                delegation.finalityProviderBtcPksHex[0],
+              );
+              return fp?.description?.moniker || "Unknown Provider";
+            })(),
+          },
+          {
+            label: "Staking Term End Date",
+            value: (() => {
+              const formatStakingEndDate = (
+                delegation: DelegationV2 | DelegationWithFP,
+              ): string => {
+                if (
+                  delegation.endHeight &&
+                  typeof delegation.endHeight === "number" &&
+                  delegation.endHeight > 0
+                ) {
+                  const currentHeight =
+                    typeof currentBtcHeight === "object" &&
+                    currentBtcHeight?.height
+                      ? currentBtcHeight.height
+                      : typeof currentBtcHeight === "number"
+                        ? currentBtcHeight
+                        : 0;
+
+                  if (currentHeight === 0) {
+                    return "Loading...";
+                  }
+
+                  const blocksRemaining = Math.max(
+                    0,
+                    delegation.endHeight - currentHeight,
+                  );
+
+                  // If timelock is in the past, show expired
+                  if (blocksRemaining === 0) {
+                    return "Expired";
+                  }
+
+                  const millisecondsRemaining =
+                    blocksRemaining * MINUTES_PER_BLOCK * 60 * 1000;
+                  const endDate = new Date(Date.now() + millisecondsRemaining);
+
+                  if (isNaN(endDate.getTime())) {
+                    return "Invalid date";
+                  }
+
+                  return endDate.toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  });
+                }
+
+                return "Unknown";
+              };
+              return formatStakingEndDate(delegation);
+            })(),
+          },
+        ]
+      : []),
     {
       label: "Tx Hash",
-      value: (
-        <Hash
-          value={delegation.stakingTxHashHex}
-          address
-          small
-          noFade
-          size="caption"
-        />
-      ),
+      value: <Hash value={delegation.stakingTxHashHex} address small noFade />,
     },
     {
       label: "Expansion Type",
@@ -175,17 +309,19 @@ export function transformDelegationToVerifiedExpansionCard(
     },
   ];
 
-  // Create grouped details for BSN/FP pairs with expansion support
-  const groupedDetails = createBsnFpGroupedDetails(
-    delegation.finalityProviderBtcPksHex,
-    finalityProviderMap,
-    {
-      originalFinalityProviderBtcPksHex:
-        originalDelegation.finalityProviderBtcPksHex,
-    },
-  );
-
   const formattedAmount = `${maxDecimals(satoshiToBtc(delegation.stakingAmount), 8)} ${coinName}`;
+
+  // Create grouped details for BSN/FP pairs with expansion support - only when feature flag is disabled
+  const groupedDetails = !isTimelockRenewalEnabled
+    ? createBsnFpGroupedDetails(
+        delegation.finalityProviderBtcPksHex,
+        finalityProviderMap,
+        {
+          originalFinalityProviderBtcPksHex:
+            originalDelegation.finalityProviderBtcPksHex,
+        },
+      )
+    : [];
 
   return {
     formattedAmount,
@@ -193,6 +329,6 @@ export function transformDelegationToVerifiedExpansionCard(
     iconAlt: "bitcoin",
     details,
     groupedDetails: groupedDetails.length > 0 ? groupedDetails : undefined,
-    hideExpansionCompletely: true, // Hide expansion section in verified modal
+    // hideExpansionCompletely: true, // Hide expansion section in verified modal
   };
 }

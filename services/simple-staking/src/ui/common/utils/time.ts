@@ -7,7 +7,8 @@ import {
   intervalToDuration,
 } from "date-fns";
 
-const BLOCKS_PER_HOUR = 6;
+export const BLOCKS_PER_HOUR = 6;
+export const MINUTES_PER_BLOCK = 60 / BLOCKS_PER_HOUR; // 10 minutes per block
 const WEEKS_PRECISION = 5;
 const DAY_TO_WEEK_DISPLAY_THRESHOLD = 30;
 

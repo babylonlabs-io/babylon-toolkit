@@ -13,8 +13,26 @@ export const getActionButton = (
   onAction: (action: ActionType, delegation: DelegationWithFP) => void,
   isStakingManagerReady: boolean,
   isBroadcastedExpansion?: boolean,
+  onRenewal?: (delegation: DelegationWithFP) => void,
+  hasPendingExpansion?: boolean,
 ): ActivityCardActionButton | undefined => {
   const { state, fp } = delegation;
+
+  // For ACTIVE delegations with renewal callback, show Renew button
+  // BUT NOT if there's already a pending expansion
+  if (
+    state === DelegationV2StakingState.ACTIVE &&
+    fp?.state === FinalityProviderState.ACTIVE &&
+    onRenewal &&
+    !hasPendingExpansion
+  ) {
+    return {
+      label: "Renew",
+      onClick: () => onRenewal(delegation),
+      variant: "contained",
+      size: "medium",
+    };
+  }
 
   // Define action mapping
   const actionMap: Record<
@@ -146,4 +164,34 @@ export const getActionButton = (
     size: "medium",
     className: isUnbondDisabled ? "opacity-50" : "",
   };
+};
+
+export const getSecondaryActions = (
+  delegation: DelegationWithFP,
+  onAction: (action: ActionType, delegation: DelegationWithFP) => void,
+  isStakingManagerReady: boolean,
+  hasPendingExpansion?: boolean,
+): ActivityCardActionButton[] => {
+  const { state, fp } = delegation;
+
+  // For ACTIVE delegations, show Unbond in secondary menu
+  // If there's a pending expansion, don't show secondary actions since Unbond becomes primary
+  if (
+    state === DelegationV2StakingState.ACTIVE &&
+    fp?.state === FinalityProviderState.ACTIVE &&
+    !hasPendingExpansion
+  ) {
+    return [
+      {
+        label: "Unbond",
+        onClick: () => onAction(ACTIONS.UNBOND, delegation),
+        variant: "outlined",
+        size: "small",
+        disabled: !isStakingManagerReady,
+        className: "text-accent-primary",
+      },
+    ];
+  }
+
+  return [];
 };

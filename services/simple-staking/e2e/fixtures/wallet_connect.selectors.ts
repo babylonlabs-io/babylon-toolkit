@@ -1,10 +1,12 @@
-export const CONNECT_BUTTON_SELECTOR = 'button[data-testid="connect-wallets-button"]:enabled';
+export const CONNECT_BUTTON_SELECTOR =
+  'button[data-testid="connect-wallets-button"]:enabled';
 
 export const DIALOG_SELECTORS = {
   TERMS_DIALOG_HEADER: '[data-testid="dialog-header"]',
   ANY_DIALOG: '[data-testid="dialog"], [role="dialog"]',
   ERROR_DIALOG: '[data-testid="error-dialog"]',
-  ERROR_DIALOG_DONE_BUTTON: '[data-testid="error-dialog"] [data-testid="error-continue-button"]',
+  ERROR_DIALOG_DONE_BUTTON:
+    '[data-testid="error-dialog"] [data-testid="error-continue-button"]',
 };
 
 export const BUTTON_SELECTORS = {
@@ -37,4 +39,4 @@ export const WALLET_SELECTORS = {
 };
 
 export const createGenericWalletSelector = (walletType: string) =>
-  `[data-testid="tomo-wallet-option-cosmos_${walletType.toLowerCase()}"]`
+  `[data-testid="tomo-wallet-option-cosmos_${walletType.toLowerCase()}"]`;

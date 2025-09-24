@@ -22,6 +22,7 @@ import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import { getExpansionsLocalStorageKey } from "@/ui/common/utils/local_storage/getExpansionsLocalStorageKey";
 import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
 import { network as bbnNetwork } from "@/ui/common/config/network/bbn";
+import { cleanupActiveExpansion } from "@/ui/common/utils/local_storage/expansionStorage";
 
 import {
   StakingExpansionStep,
@@ -94,6 +95,75 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
     getExpansionsLocalStorageKey(publicKeyNoCoord),
     data?.delegations,
   );
+
+  useEffect(() => {
+    if (!publicKeyNoCoord || !data?.delegations) return;
+
+    // States that indicate expansion is complete and should be cleaned up
+    const finalStates = [
+      "ACTIVE",
+      "EXPANDED",
+      "TIMELOCK_WITHDRAWN",
+      "EARLY_UNBONDING_WITHDRAWN",
+      "TIMELOCK_SLASHING_WITHDRAWN",
+      "EARLY_UNBONDING_SLASHING_WITHDRAWN",
+    ];
+
+    // Check all expansions from API that are now in final states
+    const completedExpansions = data.delegations.filter(
+      (delegation) =>
+        finalStates.includes(delegation.state) &&
+        delegation.previousStakingTxHashHex, // This is an expansion
+    );
+
+    // Clean up localStorage for completed expansions
+    completedExpansions.forEach((expansion) => {
+      cleanupActiveExpansion(expansion.stakingTxHashHex, publicKeyNoCoord);
+    });
+  }, [data?.delegations, publicKeyNoCoord]);
+
+  useEffect(() => {
+    if (!publicKeyNoCoord || !data?.delegations) return;
+
+    const activeExpansionsWithStatus = data.delegations.filter(
+      (delegation) =>
+        delegation.state === "ACTIVE" && delegation.previousStakingTxHashHex,
+    );
+
+    if (activeExpansionsWithStatus.length > 0) {
+      activeExpansionsWithStatus.forEach((expansion) => {
+        cleanupActiveExpansion(expansion.stakingTxHashHex, publicKeyNoCoord);
+      });
+    }
+
+    const storageKey = getExpansionsLocalStorageKey(publicKeyNoCoord);
+    const statusesKey = `${storageKey}_statuses`;
+
+    try {
+      const statusesData = localStorage.getItem(statusesKey);
+      if (statusesData) {
+        const statuses = JSON.parse(statusesData);
+        const orphanedHashes: string[] = [];
+
+        Object.keys(statuses).forEach((hash) => {
+          const existsInAPI = data.delegations.some(
+            (d) => d.stakingTxHashHex === hash,
+          );
+          if (!existsInAPI) {
+            orphanedHashes.push(hash);
+          }
+        });
+
+        if (orphanedHashes.length > 0) {
+          orphanedHashes.forEach((hash) => {
+            cleanupActiveExpansion(hash, publicKeyNoCoord);
+          });
+        }
+      }
+    } catch {
+      // Error ignored - localStorage access might fail
+    }
+  }, [publicKeyNoCoord, data?.delegations]);
 
   const [hasError, setHasError] = useState(false);
   const [processing, setProcessing] = useState(false);

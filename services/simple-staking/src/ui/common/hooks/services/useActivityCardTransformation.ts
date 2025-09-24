@@ -1,22 +1,31 @@
 import { useMemo } from "react";
 
-import { getActionButton } from "@/ui/common/components/ActivityCard/utils/actionButtonUtils";
+import {
+  getActionButton,
+  getSecondaryActions,
+} from "@/ui/common/components/ActivityCard/utils/actionButtonUtils";
 import {
   ActivityCardTransformOptions,
   transformDelegationToActivityCard,
 } from "@/ui/common/components/ActivityCard/utils/activityCardTransformers";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
+import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
 import { ActionType } from "@/ui/common/hooks/services/useDelegationService";
 import { useExpansionVisibilityService } from "@/ui/common/hooks/services/useExpansionVisibilityService";
+import { useVerifiedStakingExpansionService } from "@/ui/common/hooks/services/useVerifiedStakingExpansionService";
+import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import {
   DelegationV2,
+  DelegationV2StakingState,
   DelegationWithFP,
 } from "@/ui/common/types/delegationsV2";
 import { FinalityProvider } from "@/ui/common/types/finalityProviders";
+import { isExpansionBroadcasted } from "@/ui/common/utils/local_storage/expansionStorage";
 
 export interface ActivityCardData
   extends ReturnType<typeof transformDelegationToActivityCard> {
   primaryAction?: ReturnType<typeof getActionButton>;
+  secondaryActions?: ReturnType<typeof getSecondaryActions>;
 }
 
 /**
@@ -27,6 +36,7 @@ export interface ActivityCardData
  * @param finalityProviderMap - Map of finality providers for FP lookup
  * @param openConfirmationModal - Function to open confirmation modal
  * @param isStakingManagerReady - Whether staking manager is ready for actions
+ * @param openRenewalModal - Optional function to open renewal modal
  * @returns Array of transformed activity card data
  */
 export function useActivityCardTransformation(
@@ -37,15 +47,37 @@ export function useActivityCardTransformation(
     delegation: DelegationWithFP,
   ) => void,
   isStakingManagerReady: boolean,
+  openRenewalModal?: (delegation: DelegationV2) => void,
 ): ActivityCardData[] {
   const { publicKeyNoCoord } = useBTCWallet();
   const { isBroadcastedExpansion } =
     useExpansionVisibilityService(publicKeyNoCoord);
+  const { btcTipQuery } = useBbnQuery();
+  const currentBtcHeight = btcTipQuery.data;
+  const { expansions } = useStakingExpansionState();
+  const { hasVerifiedTimelockRenewal } = useVerifiedStakingExpansionService();
 
   return useMemo(() => {
     return delegations.map((delegation) => {
       // Check if this delegation is a broadcasted expansion
       const isBroadcasted = isBroadcastedExpansion(delegation);
+
+      // Check if this delegation has any pending expansions
+      const hasPendingExpansion = expansions.some(
+        (expansion) =>
+          expansion.previousStakingTxHashHex === delegation.stakingTxHashHex &&
+          (expansion.state ===
+            DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION ||
+            isExpansionBroadcasted(
+              expansion.stakingTxHashHex,
+              publicKeyNoCoord,
+            )),
+      );
+      const hasVerifiedRenewal = hasVerifiedTimelockRenewal(
+        delegation.stakingTxHashHex,
+      );
+
+      const shouldHideRenewButton = hasPendingExpansion || hasVerifiedRenewal;
 
       // Transform delegation to activity card format
       const options: ActivityCardTransformOptions = {
@@ -56,6 +88,8 @@ export function useActivityCardTransformation(
         delegation,
         finalityProviderMap,
         options,
+        undefined, // indexLabel
+        currentBtcHeight,
       );
 
       // Create delegation with FP for action button logic
@@ -74,17 +108,27 @@ export function useActivityCardTransformation(
         fp,
       } as DelegationWithFP;
 
-      // Add action button if applicable
+      // Add action buttons
       const primaryAction = getActionButton(
         delegationWithFP,
         openConfirmationModal,
         isStakingManagerReady,
-        isBroadcasted,
+        shouldHideRenewButton,
       );
+
+      const secondaryActions = openRenewalModal
+        ? getSecondaryActions(
+            delegationWithFP,
+            openConfirmationModal,
+            isStakingManagerReady,
+            shouldHideRenewButton,
+          )
+        : [];
 
       return {
         ...cardData,
         primaryAction,
+        secondaryActions,
       };
     });
   }, [
@@ -92,6 +136,11 @@ export function useActivityCardTransformation(
     finalityProviderMap,
     openConfirmationModal,
     isStakingManagerReady,
+    openRenewalModal,
     isBroadcastedExpansion,
+    currentBtcHeight,
+    expansions,
+    publicKeyNoCoord,
+    hasVerifiedTimelockRenewal,
   ]);
 }

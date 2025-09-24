@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { ActivityCard } from "@/ui/common/components/ActivityCard/ActivityCard";
 import { transformDelegationToVerifiedExpansionCard } from "@/ui/common/components/ActivityCard/utils/activityCardTransformers";
 import { ResponsiveDialog } from "@/ui/common/components/Modals/ResponsiveDialog";
+import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
 import { useVerifiedStakingExpansionService } from "@/ui/common/hooks/services/useVerifiedStakingExpansionService";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
@@ -34,6 +35,8 @@ function VerifiedExpansionItem({
 }: VerifiedExpansionItemProps) {
   const { findDelegationByTxHash } = useDelegationV2State();
   const { finalityProviderMap } = useFinalityProviderState();
+  const { btcTipQuery } = useBbnQuery();
+  const currentBtcHeight = btcTipQuery.data;
 
   // Transform delegation to activity card data
   const activityCardData = useMemo(() => {
@@ -59,8 +62,14 @@ function VerifiedExpansionItem({
       delegation,
       originalDelegation,
       finalityProviderMap,
+      currentBtcHeight,
     );
-  }, [delegation, findDelegationByTxHash, finalityProviderMap]);
+  }, [
+    delegation,
+    findDelegationByTxHash,
+    finalityProviderMap,
+    currentBtcHeight,
+  ]);
 
   // Create the activity card data with primary action
   const activityCardDataWithAction = {

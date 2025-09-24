@@ -116,7 +116,11 @@ export function useStakingExpansionService() {
   const { handleError } = useError();
   const { publicKeyNoCoord } = useBTCWallet();
   const logger = useLogger();
-  const { isLoading: isUTXOsLoading, availableUTXOs } = useAppState();
+  const {
+    isLoading: isUTXOsLoading,
+    availableUTXOs,
+    refetchUTXOs,
+  } = useAppState();
 
   /**
    * Calculate the fee amount for a staking expansion transaction.
@@ -276,8 +280,16 @@ export function useStakingExpansionService() {
       } catch (error) {
         setProcessing(false);
 
-        logger.error(error as Error);
-        handleError({ error: error as Error });
+        const errorObj =
+          error instanceof Error ? error : new Error(String(error));
+
+        logger.error(errorObj, {
+          data: {
+            message: "Failed to create expansion EOI",
+            originalError: String(error),
+          },
+        });
+        handleError({ error: errorObj });
         reset(); // Close the modal on error
       }
     },
@@ -374,6 +386,8 @@ export function useStakingExpansionService() {
           previousStakingInput,
         };
 
+        await refetchUTXOs();
+
         // Submit the staking expansion transaction using the verified delegation data
         await submitStakingExpansionTx(
           expansionInput,
@@ -395,14 +409,25 @@ export function useStakingExpansionService() {
           publicKeyNoCoord,
         );
 
+        await refetchExpansions();
+
         // Navigate to success
         goToStep(StakingExpansionStep.FEEDBACK_SUCCESS);
         setProcessing(false);
       } catch (error) {
         setProcessing(false);
 
-        logger.error(error as Error);
-        handleError({ error: error as Error });
+        const errorObj =
+          error instanceof Error ? error : new Error(String(error));
+
+        logger.error(errorObj, {
+          data: {
+            message: "Failed to stake delegation expansion",
+            delegationTxHash: delegation.stakingTxHashHex,
+            originalError: String(error),
+          },
+        });
+        handleError({ error: errorObj });
         reset(); // Close the modal on error
       }
     },
@@ -417,6 +442,8 @@ export function useStakingExpansionService() {
       isUTXOsLoading,
       availableUTXOs,
       publicKeyNoCoord,
+      refetchUTXOs,
+      refetchExpansions,
     ],
   );
 

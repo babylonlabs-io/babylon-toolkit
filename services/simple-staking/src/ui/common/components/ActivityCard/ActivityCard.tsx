@@ -1,9 +1,3 @@
-import { ExpansionPendingBanner } from "@/ui/common/components/Activity/components/ExpansionPendingBanner";
-import { StakeExpansionSection } from "@/ui/common/components/Activity/components/StakeExpansionSection";
-import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
-
-import { ActivityCardActionSection } from "./components/ActivityCardActionSection";
 import { ActivityCardAmountSection } from "./components/ActivityCardAmountSection";
 import { ActivityCardDetailsSection } from "./components/ActivityCardDetailsSection";
 
@@ -45,10 +39,10 @@ export interface ActivityCardData {
   }[];
   primaryAction?: ActivityCardActionButton;
   secondaryActions?: ActivityCardActionButton[];
-  expansionSection?: DelegationWithFP;
-  isPendingExpansion?: boolean;
-  showExpansionPendingBanner?: boolean;
-  hideExpansionCompletely?: boolean;
+  // expansionSection?: DelegationWithFP;
+  // isPendingExpansion?: boolean;
+  // showExpansionPendingBanner?: boolean;
+  // hideExpansionCompletely?: boolean;
 }
 
 interface ActivityCardProps {
@@ -57,8 +51,9 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ data, className }: ActivityCardProps) {
-  const shouldShowExpansion =
-    FeatureFlagService.IsPhase3Enabled && !data.hideExpansionCompletely;
+  // COMMENTED OUT: Phase-3 expansion functionality removed
+  // const shouldShowExpansion =
+  //   FeatureFlagService.IsPhase3Enabled && !data.hideExpansionCompletely;
 
   return (
     <div
@@ -69,6 +64,7 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
         icon={data.icon}
         iconAlt={data.iconAlt}
         primaryAction={data.primaryAction}
+        secondaryActions={data.secondaryActions}
       />
       <ActivityCardDetailsSection
         details={data.details}
@@ -76,16 +72,20 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
         listItems={data.listItems}
         groupedDetails={data.groupedDetails}
       />
-      {data.showExpansionPendingBanner && <ExpansionPendingBanner />}
+      {/* {data.showExpansionPendingBanner && <ExpansionPendingBanner />} */}
+      {/* COMMENTED OUT: Phase-3 expansion section removed
       {shouldShowExpansion && data.expansionSection && (
         <StakeExpansionSection
           delegation={data.expansionSection}
           isPendingExpansion={data.isPendingExpansion}
         />
       )}
+      */}
+      {/* COMMENTED OUT: Removed misplaced bottom action buttons
       {data.secondaryActions && data.secondaryActions.length > 0 && (
         <ActivityCardActionSection actions={data.secondaryActions} />
       )}
+      */}
     </div>
   );
 }

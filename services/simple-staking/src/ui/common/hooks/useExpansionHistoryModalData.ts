@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { transformDelegationToActivityCard } from "@/ui/common/components/ActivityCard/utils/activityCardTransformers";
+import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
 import { useExpansionHistoryService } from "@/ui/common/hooks/services/useExpansionHistoryService";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
 import {
@@ -27,6 +28,8 @@ export function useExpansionHistoryModalData({
 }: UseExpansionHistoryModalDataProps): UseExpansionHistoryModalDataReturn {
   const { getExpansionChain } = useExpansionHistoryService();
   const { finalityProviderMap } = useFinalityProviderState();
+  const { btcTipQuery } = useBbnQuery();
+  const currentBtcHeight = btcTipQuery.data;
 
   const expansionChain = useMemo(() => {
     if (!targetDelegation || !allDelegations) return [];
@@ -56,9 +59,10 @@ export function useExpansionHistoryModalData({
         finalityProviderMap,
         options,
         stepLabel,
+        currentBtcHeight,
       );
     });
-  }, [expansionChain, finalityProviderMap]);
+  }, [expansionChain, finalityProviderMap, currentBtcHeight]);
 
   const hasExpansionHistory = expansionChain.length > 0;
 

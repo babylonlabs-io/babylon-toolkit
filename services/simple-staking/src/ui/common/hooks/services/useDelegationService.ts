@@ -77,6 +77,7 @@ export function useDelegationService() {
     submitEarlyUnbondedWithdrawalTx,
     submitTimelockUnbondedWithdrawalTx,
     submitSlashingWithdrawalTx,
+    submitStakingExpansionTx,
   } = useTransactionService();
 
   const { isFetching: isFPLoading, finalityProviderMap } =
@@ -249,6 +250,34 @@ export function useDelegationService() {
           State.INTERMEDIATE_TIMELOCK_SLASHING_WITHDRAWAL_SUBMITTED,
         );
       },
+
+      [ACTIONS.RENEW]: async ({
+        stakingInput,
+        paramsVersion,
+        stakingTxHashHex,
+        stakingTxHex,
+      }: TxProps) => {
+        await submitStakingExpansionTx(
+          {
+            finalityProviderPksNoCoordHex:
+              stakingInput.finalityProviderPksNoCoordHex,
+            stakingAmountSat: stakingInput.stakingAmountSat,
+            stakingTimelock: stakingInput.stakingTimelock,
+            previousStakingTxHex: stakingTxHex,
+            previousStakingParamsVersion: paramsVersion,
+            previousStakingInput: stakingInput,
+          },
+          paramsVersion,
+          "", // expectedTxHashHex - will be set when transaction is created
+          "", // unsignedStakingExpansionTxHex - will be set when transaction is created
+          [], // covenantExpansionSignatures - will be set when signatures are available
+        );
+
+        updateDelegationStatus(
+          stakingTxHashHex,
+          State.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
+        );
+      },
     }),
     [
       submitStakingTx,
@@ -257,6 +286,7 @@ export function useDelegationService() {
       submitEarlyUnbondedWithdrawalTx,
       submitTimelockUnbondedWithdrawalTx,
       submitSlashingWithdrawalTx,
+      submitStakingExpansionTx,
     ],
   );
 
