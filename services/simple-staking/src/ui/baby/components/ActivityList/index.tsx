@@ -157,7 +157,7 @@ export function BabyActivityList() {
     return (
       <div className="flex flex-col items-center justify-center gap-4 pb-16 pt-6 text-center text-accent-primary">
         <img
-          src="/mascot.png"
+          src="/mascot-upset.png"
           alt="Empty state mascot illustration"
           className="size-[300px]"
         />

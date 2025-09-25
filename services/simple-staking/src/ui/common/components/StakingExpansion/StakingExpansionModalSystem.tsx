@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { CancelFeedbackModal } from "@/ui/common/components/Modals/CancelFeedbackModal";
 import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
-import { SuccessFeedbackModal } from "@/ui/common/components/Modals/SuccessFeedbackModal";
+import { CoStakingBoostModal } from "@/ui/common/components/Modals/CoStakingBoostModal";
 import { VerificationModal } from "@/ui/common/components/Modals/VerificationModal";
 import { FinalityProviderLogo } from "@/ui/common/components/Staking/FinalityProviders/FinalityProviderLogo";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -237,6 +237,11 @@ function StakingExpansionModalSystemInner() {
     setDelegationV2StepOptions?.(undefined);
   };
 
+  const handleCloseBoostModal = () => {
+    // TODO: Add logic
+    handleClose();
+  };
+
   const handleCloseVerifiedModal = () => {
     setVerifiedExpansionModalOpen(false);
   };
@@ -296,9 +301,9 @@ function StakingExpansionModalSystemInner() {
               onClose={handleClose}
             />
           )}
-          <SuccessFeedbackModal
+          <CoStakingBoostModal
             open={step === StakingExpansionStep.FEEDBACK_SUCCESS}
-            onClose={handleClose}
+            onClose={handleCloseBoostModal}
           />
           <CancelFeedbackModal
             open={step === StakingExpansionStep.FEEDBACK_CANCEL}
