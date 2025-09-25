@@ -37,7 +37,10 @@ export const Banner = () => {
           <div className="flex flex-row items-center gap-2">
             <PiWarningOctagonFill />
             <Text variant="body1">
-              <strong>Testnet-5 will be sunset on October 9 2025. It will be succeeded by Testnet-6.</strong>
+              <strong>
+                Testnet-5 will be sunset on October 9 2025. It will be succeeded
+                by Testnet-6.
+              </strong>
               <br />
               Please unbond your BTC delegations and withdraw your Signet BTC.
             </Text>
