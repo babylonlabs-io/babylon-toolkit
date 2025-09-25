@@ -83,17 +83,6 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-  async getInflation(): Promise<number> {
-    try {
-      const { inflation } = await request(
-        "/cosmos/mint/v1beta1/inflation",
-      );
-      return Number(inflation);
-    } catch {
-      return 0;
-    }
-  },
-
   async getIncentiveParams(): Promise<{
     btcStakingPortion: number;
     fpPortion: number;
