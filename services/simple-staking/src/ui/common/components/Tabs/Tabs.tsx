@@ -72,7 +72,7 @@ export const Tabs = ({
       </div>
 
       {keepMounted ? (
-        <div className="mt-6 min-h-[500px]">
+        <div className="mt-6">
           {items.map((item) => (
             <div
               key={item.id}
@@ -87,7 +87,6 @@ export const Tabs = ({
         </div>
       ) : (
         <div
-          className="min-h-[500px]"
           role="tabpanel"
           id={`panel-${activeTab}`}
           aria-labelledby={`tab-${activeTab}`}

@@ -4,7 +4,7 @@ import babyLogo from "@/ui/common/assets/baby.png";
 
 import { bbnBsnDevnet } from "./bbn/bsn-devnet";
 import { bbnCanary } from "./bbn/canary";
-import { bbnDevnet } from "./bbn/devnet";
+import { bbnCanonDevnet } from "./bbn/canon-devnet";
 import { bbnEdgeDevnet } from "./bbn/edge-devnet";
 import { bbnMainnet } from "./bbn/mainnet";
 import { bbnTestnet } from "./bbn/testnet";
@@ -15,7 +15,7 @@ interface ExtendedBBNConfig extends BBNConfig {
   lcdUrl: string;
 }
 
-const defaultNetwork = "devnet";
+const defaultNetwork = "canonDevnet";
 export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
 
 const config: Record<string, ExtendedBBNConfig> = {
@@ -41,16 +41,16 @@ const config: Record<string, ExtendedBBNConfig> = {
     logo: babyLogo,
     lcdUrl: bbnCanary.rest,
   },
-  devnet: {
-    chainId: bbnDevnet.chainId,
-    rpc: bbnDevnet.rpc,
-    chainData: bbnDevnet,
+  canonDevnet: {
+    chainId: bbnCanonDevnet.chainId,
+    rpc: bbnCanonDevnet.rpc,
+    chainData: bbnCanonDevnet,
     networkName: "Testnet BABY",
     networkFullName: "Testnet Babylon Genesis",
     coinSymbol: "tBABY",
     displayUSD: false,
     logo: babyLogo,
-    lcdUrl: bbnDevnet.rest,
+    lcdUrl: bbnCanonDevnet.rest,
   },
   bsnDevnet: {
     chainId: bbnBsnDevnet.chainId,
