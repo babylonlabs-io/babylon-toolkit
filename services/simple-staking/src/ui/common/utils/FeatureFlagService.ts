@@ -57,6 +57,10 @@ export default {
     return process.env.NEXT_PUBLIC_FF_ENABLE_VAULT === "true";
   },
 
+  get IsBabyStakingEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_BABY_STAKING === "true";
+  },
+
   /**
     * Co-staking feature flag
     *
