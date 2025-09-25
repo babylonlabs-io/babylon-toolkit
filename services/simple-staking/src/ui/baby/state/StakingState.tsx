@@ -115,7 +115,10 @@ function StakingState({ children }: PropsWithChildren) {
   );
 
   const isDisabled = useMemo(() => {
-    if (FeatureFlags.IsTestnetSunsetEnabled && bbnNetwork === "testnet") {
+    if (
+      FeatureFlags.IsTestnetSunsetEnabled &&
+      (bbnNetwork === "testnet" || bbnNetwork === "canonDevnet")
+    ) {
       return {
         title: "This testnet is sunsetting",
         message:
