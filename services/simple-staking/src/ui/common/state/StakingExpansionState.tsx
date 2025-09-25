@@ -21,7 +21,6 @@ import type {
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import { getExpansionsLocalStorageKey } from "@/ui/common/utils/local_storage/getExpansionsLocalStorageKey";
 import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
-import { network as bbnNetwork } from "@/ui/common/config/network/bbn";
 
 import {
   StakingExpansionStep,
@@ -45,31 +44,31 @@ const { StateProvider, useState: useStakingExpansionState } =
     formData: undefined,
     step: undefined,
     verifiedDelegation: undefined,
-    goToStep: () => {},
-    setProcessing: () => {},
-    setFormData: () => {},
-    setVerifiedDelegation: () => {},
-    reset: () => {},
+    goToStep: () => { },
+    setProcessing: () => { },
+    setFormData: () => { },
+    setVerifiedDelegation: () => { },
+    reset: () => { },
     expansionStepOptions: undefined,
-    setExpansionStepOptions: () => {},
+    setExpansionStepOptions: () => { },
     expansionHistoryModalOpen: false,
     expansionHistoryTargetDelegation: null,
-    setExpansionHistoryModalOpen: () => {},
-    openExpansionHistoryModal: () => {},
-    closeExpansionHistoryModal: () => {},
+    setExpansionHistoryModalOpen: () => { },
+    openExpansionHistoryModal: () => { },
+    closeExpansionHistoryModal: () => { },
     isExpansionModalOpen: false,
     verifiedExpansionModalOpen: false,
-    setVerifiedExpansionModalOpen: () => {},
+    setVerifiedExpansionModalOpen: () => { },
     selectedDelegationForVerifiedModal: null,
-    setSelectedDelegationForVerifiedModal: () => {},
+    setSelectedDelegationForVerifiedModal: () => { },
     maxFinalityProviders: DEFAULT_MAX_FINALITY_PROVIDERS,
     getAvailableBsnSlots: () => 0,
     canAddMoreBsns: () => false,
     canExpand: () => false,
     expansions: [],
-    addPendingExpansion: () => {},
-    updateExpansionStatus: () => {},
-    refetchExpansions: async () => {},
+    addPendingExpansion: () => { },
+    updateExpansionStatus: () => { },
+    refetchExpansions: async () => { },
   });
 
 /**
@@ -122,8 +121,7 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
   ] = useState<DelegationWithFP | null>(null);
 
   const expansionDisabled = useMemo(() => {
-    // Disable expansion on testnet when sunsetting flag is enabled
-    if (FeatureFlags.IsTestnetSunsetEnabled && bbnNetwork === "testnet") {
+    if (FeatureFlags.IsTestnetSunsetEnabled) {
       return true;
     }
     return failedBtcAddressRiskAssessment;

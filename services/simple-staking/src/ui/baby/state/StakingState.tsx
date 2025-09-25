@@ -22,7 +22,6 @@ import {
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 import { GEO_BLOCK_MESSAGE } from "@/ui/common/types/services/healthCheck";
 import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
-import { network as bbnNetwork } from "@/ui/common/config/network/bbn";
 
 import { usePendingOperationsService } from "../hooks/services/usePendingOperationsService";
 
@@ -83,10 +82,10 @@ const { StateProvider, useState: useStakingState } =
     babyPrice: 0,
     fields: [],
     calculateFee: async () => 0,
-    showPreview: () => {},
-    closePreview: () => {},
-    submitForm: async () => {},
-    resetForm: () => {},
+    showPreview: () => { },
+    closePreview: () => { },
+    submitForm: async () => { },
+    resetForm: () => { },
     disabled: undefined,
   });
 
@@ -115,10 +114,7 @@ function StakingState({ children }: PropsWithChildren) {
   );
 
   const isDisabled = useMemo(() => {
-    if (
-      FeatureFlags.IsTestnetSunsetEnabled &&
-      (bbnNetwork === "testnet" || bbnNetwork === "canonDevnet")
-    ) {
+    if (FeatureFlags.IsTestnetSunsetEnabled) {
       return {
         title: "This testnet is sunsetting",
         message:

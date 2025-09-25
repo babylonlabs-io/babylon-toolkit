@@ -3,12 +3,10 @@ import { PiWarningOctagonFill } from "react-icons/pi";
 
 import { shouldDisplayTestingMsg } from "@/ui/common/config";
 import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
-import { network as bbnNetwork } from "@/ui/common/config/network/bbn";
 
 export const Banner = () => {
   const shouldDisplayTestingMessage = shouldDisplayTestingMsg();
-  const shouldDisplaySunsettingMessage =
-    FeatureFlags.IsTestnetSunsetEnabled && bbnNetwork === "testnet";
+  const shouldDisplaySunsettingMessage = FeatureFlags.IsTestnetSunsetEnabled;
 
   if (!shouldDisplayTestingMessage && !shouldDisplaySunsettingMessage) {
     return null;
