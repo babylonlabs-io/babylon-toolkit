@@ -16,9 +16,7 @@ export function SimpleStakingApp() {
   return (
     <Routes>
       <Route path="btc" element={<BTCStaking />} />
-      {FF.IsBabyStakingEnabled && (
-        <Route path="baby" element={<BabyLayout />} />
-      )}
+      {FF.IsVaultEnabled && <Route path="baby" element={<BabyLayout />} />}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

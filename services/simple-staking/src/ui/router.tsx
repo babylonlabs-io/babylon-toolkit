@@ -12,9 +12,7 @@ export const Router = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="btc" replace />} />
         <Route path="btc" element={<BTCStaking />} />
-        {FF.IsBabyStakingEnabled && (
-          <Route path="baby" element={<BabyLayout />} />
-        )}
+        {FF.IsVaultEnabled && <Route path="baby" element={<BabyLayout />} />}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
