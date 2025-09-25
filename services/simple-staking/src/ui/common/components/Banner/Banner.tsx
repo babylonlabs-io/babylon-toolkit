@@ -38,7 +38,7 @@ export const Banner = () => {
             <PiWarningOctagonFill />
             <Text variant="body1">
               <strong>
-                Testnet-5 will be sunset on October 9 2025. It will be succeeded
+                Testnet-5 will be sunset on October 9, 2025. It will be succeeded
                 by Testnet-6.
               </strong>
               <br />
