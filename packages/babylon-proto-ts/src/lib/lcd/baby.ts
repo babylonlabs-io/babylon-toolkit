@@ -131,7 +131,9 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       const result = Number(annualProvisions);
       return result;
     } catch (error) {
-      return 0;
+      throw new Error(`Failed to fetch annual provisions`, {
+        cause: error,
+      });
     }
   },
 
