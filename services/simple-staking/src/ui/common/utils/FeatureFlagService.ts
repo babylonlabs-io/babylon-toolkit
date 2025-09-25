@@ -36,14 +36,14 @@ export default {
   },
 
   /**
-   * Baby Staking feature flag
+   * TESTNET_SUNSET feature flag
    *
-   * Purpose: Enables Baby Staking Page
-   * Why needed: To gradually roll out Baby Staking
-   * ETA for removal: TBD - Will be removed once Baby Staking is fully released
+   * Purpose: Shows a testnet sunsetting notice and disables staking/expansion on testnet
+   * Why needed: To guide users to unbond and withdraw ahead of testnet sunset
+   * ETA for removal: When testnet is fully sunset
    */
-  get IsBabyStakingEnabled() {
-    return process.env.NEXT_PUBLIC_FF_BABYSTAKING === "true";
+  get IsTestnetSunsetEnabled() {
+    return process.env.NEXT_PUBLIC_FF_TESTNET_SUNSET === "true";
   },
 
   /**

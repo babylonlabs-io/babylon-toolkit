@@ -6,7 +6,6 @@ import { Container } from "@/ui/common/components/Container/Container";
 import { MobileNavOverlay, Nav, NavItem } from "@/ui/common/components/Nav";
 import { useIsMobileView } from "@/ui/common/hooks/useBreakpoint";
 import { useAppState } from "@/ui/common/state";
-import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { MobileLogo } from "../Logo/MobileLogo";
 import { SmallLogo } from "../Logo/SmallLogo";
@@ -25,23 +24,21 @@ export const Header = () => {
           {isMobileView ? (
             <>
               <MobileLogo />
-              {FF.IsBabyStakingEnabled && (
-                <button
-                  type="button"
-                  aria-label="Open menu"
-                  className="cursor-pointer text-accent-primary"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                >
-                  <MdOutlineMenu size={32} />
-                </button>
-              )}
+              <button
+                type="button"
+                aria-label="Open menu"
+                className="cursor-pointer text-accent-primary"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <MdOutlineMenu size={32} />
+              </button>
             </>
           ) : (
             <SmallLogo />
           )}
         </div>
 
-        {FF.IsBabyStakingEnabled && !isMobileView && (
+        {!isMobileView && (
           <div className="absolute left-1/2 -translate-x-1/2 transform">
             <Nav>
               <NavItem title="BTC Staking" to="/btc" />
@@ -54,12 +51,10 @@ export const Header = () => {
           <Connect loading={loading} onConnect={open} />
         </div>
       </Container>
-      {FF.IsBabyStakingEnabled && (
-        <MobileNavOverlay
-          open={isMobileView && isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-        />
-      )}
+      <MobileNavOverlay
+        open={isMobileView && isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+      />
     </header>
   );
 };

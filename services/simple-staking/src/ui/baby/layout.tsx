@@ -56,10 +56,8 @@ function BabyLayoutContent() {
   const RewardsTab: React.FC = () => {
     return (
       <Section>
-        <div className="h-[500px]">
-          <RewardCard />
-          <RewardsPreviewModal />
-        </div>
+        <RewardCard />
+        <RewardsPreviewModal />
       </Section>
     );
   };
@@ -111,7 +109,7 @@ function BabyLayoutContent() {
   const fallbackContent = (
     <Container
       as="main"
-      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+      className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-0"
     >
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" keepMounted />
     </Container>
@@ -127,7 +125,7 @@ function BabyLayoutContent() {
                 <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
                   <Container
                     as="main"
-                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem]"
+                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-0"
                   >
                     <Tabs
                       items={tabItems}

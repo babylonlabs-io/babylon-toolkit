@@ -6,7 +6,7 @@ import { MEMPOOL_API } from "@/ui/common/constants";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { Network } from "@/ui/common/types/network";
 
-const defaultNetwork = "devnet";
+const defaultNetwork = "canonDevnet";
 export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
 
 type Config = BTCConfig & { icon: string; name: string; displayUSD: boolean };
@@ -43,7 +43,7 @@ const config: Record<string, Config> = {
     icon: signetBitcoinIcon,
     displayUSD: false,
   },
-  devnet: {
+  canonDevnet: {
     name: "Signet Bitcoin",
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
