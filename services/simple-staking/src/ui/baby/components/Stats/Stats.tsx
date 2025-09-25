@@ -23,7 +23,8 @@ export const Stats = memo(() => {
   const { data: pool, isLoading: isPoolLoading } = usePool();
   const { data: validators = [], isLoading: isValidatorsLoading } =
     useValidators();
-  const { data: annualProvisions = 0, isLoading: isAnnualProvisionsLoading } = useAnnualProvisions();
+  const { data: annualProvisions = 0, isLoading: isAnnualProvisionsLoading } =
+    useAnnualProvisions();
   const { isLoading: isSupplyLoading } = useSupply();
   const price = usePrice("BABY");
   const { data: incentiveParams } = useIncentiveParams({ enabled: true });
@@ -44,7 +45,8 @@ export const Stats = memo(() => {
       return null;
     }
 
-    const hasBasicParams = incentiveParams && incentiveParams.btcStakingPortion !== null;
+    const hasBasicParams =
+      incentiveParams && incentiveParams.btcStakingPortion !== null;
 
     if (!hasBasicParams) {
       return null;
@@ -55,21 +57,31 @@ export const Stats = memo(() => {
     const validatorsPortion = incentiveParams.validatorsPortion ?? 0;
     const costakingPortion = incentiveParams.costakingPortion ?? 0;
 
-    const totalPortions = btcStakingPortion + fpPortion + validatorsPortion + costakingPortion;
+    const totalPortions =
+      btcStakingPortion + fpPortion + validatorsPortion + costakingPortion;
     const distributionPortion = Math.max(0, 1 - totalPortions);
 
-    const totalTokens = validators.reduce((acc, v) => acc + Number(v.tokens ?? 0), 0);
-    const weightedCommissionSum = validators.reduce(
-      (acc, v) => acc + (Number(v.commission?.commissionRates?.rate ?? 0) * Number(v.tokens ?? 0)),
+    const totalTokens = validators.reduce(
+      (acc, v) => acc + Number(v.tokens ?? 0),
       0,
     );
-    const avgCommission = totalTokens > 0 ? weightedCommissionSum / totalTokens : 0;
+    const weightedCommissionSum = validators.reduce(
+      (acc, v) =>
+        acc +
+        Number(v.commission?.commissionRates?.rate ?? 0) *
+          Number(v.tokens ?? 0),
+      0,
+    );
+    const avgCommission =
+      totalTokens > 0 ? weightedCommissionSum / totalTokens : 0;
     const commissionFactor = Math.max(0, 1 - avgCommission);
 
     const totalRewards = annualProvisions;
     const annualRewardsToDistribution = totalRewards * distributionPortion;
-    const annualRewardsToDelegators = annualRewardsToDistribution * commissionFactor;
-    const annualRewardsToDelegatorsInBABY = annualRewardsToDelegators / 1_000_000;
+    const annualRewardsToDelegators =
+      annualRewardsToDistribution * commissionFactor;
+    const annualRewardsToDelegatorsInBABY =
+      annualRewardsToDelegators / 1_000_000;
     const apr = annualRewardsToDelegatorsInBABY / totalStakedBABY;
     const result = apr * 100;
 
@@ -83,18 +95,20 @@ export const Stats = memo(() => {
         loading={isPoolLoading}
         title={`Total ${coinSymbol} TVL`}
         value={`${formatter.format(tvl.amount)} ${coinSymbol}`}
-      />
+      />,
     ];
 
     if (aprPct !== null) {
       items.push(
         <StatItem
           key="apr"
-          loading={isPoolLoading || isSupplyLoading || isAnnualProvisionsLoading}
+          loading={
+            isPoolLoading || isSupplyLoading || isAnnualProvisionsLoading
+          }
           title={`${coinSymbol} Staking APR`}
           value={`${formatter.format(aprPct)}%`}
           loadingStyle={LoadingStyle.ShowSpinnerAndValue}
-        />
+        />,
       );
     }
 
@@ -104,26 +118,23 @@ export const Stats = memo(() => {
         loading={isValidatorsLoading}
         title={`Validators`}
         value={`${formatter.format(validators.length)}`}
-      />
+      />,
     );
 
     return items;
   }, [
     isPoolLoading,
-    coinSymbol,
     tvl.amount,
     aprPct,
     isSupplyLoading,
     isAnnualProvisionsLoading,
     isValidatorsLoading,
-    validators.length
+    validators.length,
   ]);
 
   return (
     <Section title="BABY Staking Stats">
-      <List orientation="adaptive">
-        {statItems}
-      </List>
+      <List orientation="adaptive">{statItems}</List>
     </Section>
   );
 });
