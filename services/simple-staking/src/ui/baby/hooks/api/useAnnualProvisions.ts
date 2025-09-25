@@ -10,22 +10,9 @@ export function useAnnualProvisions({ enabled = true }: { enabled?: boolean } = 
             const client = await babylon.client();
             try {
                 const annual = await client.baby.getAnnualProvisions();
-                if (annual && Number.isFinite(annual) && annual > 0) {
-                    return annual;
-                }
+                return annual;
             } catch (error) {
-                console.error("[useAnnualProvisions] New method failed:", error);
-            }
-
-            try {
-                const [inflation, supply] = await Promise.all([
-                    client.baby.getInflation(),
-                    client.baby.getSupply()
-                ]);
-                const derived = Number(inflation) * Number(supply);
-                return Number.isFinite(derived) ? derived : 0;
-            } catch (error) {
-                console.error("[useAnnualProvisions] Fallback failed:", error);
+                console.error("[useAnnualProvisions] Failed:", error);
                 return 0;
             }
         },

@@ -44,22 +44,19 @@ export const Stats = memo(() => {
       return null;
     }
 
-    const hasIncentiveParams = incentiveParams &&
-      incentiveParams.btcStakingPortion !== null &&
-      incentiveParams.fpPortion !== null &&
-      incentiveParams.validatorsPortion !== null &&
-      incentiveParams.costakingPortion !== null;
+    const hasBasicParams = incentiveParams && incentiveParams.btcStakingPortion !== null;
 
-    if (!hasIncentiveParams) {
+    if (!hasBasicParams) {
       return null;
     }
 
-    const btcStakingPortion = incentiveParams.btcStakingPortion!;
-    const fpPortion = incentiveParams.fpPortion!;
-    const validatorsPortion = incentiveParams.validatorsPortion!;
-    const costakingPortion = incentiveParams.costakingPortion!;
-    const portionsSum = btcStakingPortion + fpPortion + validatorsPortion + costakingPortion;
-    const distributionPortion = Math.max(0, 1 - portionsSum);
+    const btcStakingPortion = incentiveParams.btcStakingPortion ?? 0;
+    const fpPortion = incentiveParams.fpPortion ?? 0;
+    const validatorsPortion = incentiveParams.validatorsPortion ?? 0;
+    const costakingPortion = incentiveParams.costakingPortion ?? 0;
+
+    const totalPortions = btcStakingPortion + fpPortion + validatorsPortion + costakingPortion;
+    const distributionPortion = Math.max(0, 1 - totalPortions);
 
     const totalTokens = validators.reduce((acc, v) => acc + Number(v.tokens ?? 0), 0);
     const weightedCommissionSum = validators.reduce(
@@ -69,10 +66,13 @@ export const Stats = memo(() => {
     const avgCommission = totalTokens > 0 ? weightedCommissionSum / totalTokens : 0;
     const commissionFactor = Math.max(0, 1 - avgCommission);
 
-    const annualRewardsToDistribution = annualProvisions * distributionPortion;
+    const totalRewards = annualProvisions;
+    const annualRewardsToDistribution = totalRewards * distributionPortion;
     const annualRewardsToDelegators = annualRewardsToDistribution * commissionFactor;
-    const apr = annualRewardsToDelegators / (totalStakedBABY * 1_000_000);
+    const annualRewardsToDelegatorsInBABY = annualRewardsToDelegators / 1_000_000;
+    const apr = annualRewardsToDelegatorsInBABY / totalStakedBABY;
     const result = apr * 100;
+
     return result;
   }, [annualProvisions, totalStakedBABY, incentiveParams, validators]);
 
