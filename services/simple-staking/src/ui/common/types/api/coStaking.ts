@@ -25,14 +25,6 @@ export interface CoStakingCurrentRewards {
   total_score: string;
 }
 
-export interface CoStakingRequirements {
-  requiredBabyTokens: number;
-  currentBabyTokens: number;
-  additionalBabyNeeded: number;
-  btcEligibilityPercentage: number;
-  scoreRatio: number;
-}
-
 export interface CoStakingAPRData {
   apr: number | null;
   isLoading: boolean;

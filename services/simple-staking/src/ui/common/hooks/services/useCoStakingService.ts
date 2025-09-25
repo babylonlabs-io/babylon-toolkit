@@ -8,15 +8,8 @@ import { ONE_MINUTE } from "@/ui/common/constants";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
-import type {
-  CoStakingAPRData,
-  CoStakingRequirements,
-} from "@/ui/common/types/api/coStaking";
-import {
-  calculateAdditionalBabyNeeded,
-  calculateBTCEligibilityPercentage,
-  calculateRequiredBabyTokens,
-} from "@/ui/common/utils/coStakingCalculations";
+import type { CoStakingAPRData } from "@/ui/common/types/api/coStaking";
+import { calculateAdditionalBabyNeeded } from "@/ui/common/utils/coStakingCalculations";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { useDelegationsV2 } from "../client/api/useDelegationsV2";
@@ -104,17 +97,11 @@ export const useCoStakingService = () => {
   }, [coStakingParamsQuery.data]);
 
   /**
-   * Calculate required BABY tokens for full co-staking rewards
+   * Calculate additional BABY tokens needed for full co-staking rewards
    */
-  const getRequiredBabyAmount = useCallback((): CoStakingRequirements => {
+  const getAdditionalBabyNeeded = useCallback((): number => {
     const scoreRatio = getScoreRatio();
     const rewardsTracker = rewardsTrackerQuery.data;
-
-    // Calculate required BABY for full rewards
-    const requiredBaby = calculateRequiredBabyTokens(
-      totalBtcStaked,
-      scoreRatio.toString(),
-    );
 
     // Get current BABY staked (from rewards tracker)
     const currentBaby = rewardsTracker
@@ -128,22 +115,7 @@ export const useCoStakingService = () => {
       scoreRatio.toString(),
     );
 
-    // Calculate BTC eligibility percentage
-    const eligibilityPercentage = rewardsTracker
-      ? calculateBTCEligibilityPercentage(
-          rewardsTracker.active_satoshis,
-          rewardsTracker.active_baby,
-          scoreRatio.toString(),
-        )
-      : 0;
-
-    return {
-      requiredBabyTokens: requiredBaby,
-      currentBabyTokens: currentBaby,
-      additionalBabyNeeded: additionalNeeded,
-      btcEligibilityPercentage: eligibilityPercentage,
-      scoreRatio,
-    };
+    return additionalNeeded;
   }, [getScoreRatio, rewardsTrackerQuery.data, totalBtcStaked]);
 
   /**
@@ -183,7 +155,7 @@ export const useCoStakingService = () => {
    */
   const getUserCoStakingStatus = useCallback(() => {
     const rewardsTracker = rewardsTrackerQuery.data;
-    const requirements = getRequiredBabyAmount();
+    const additionalBabyNeeded = getAdditionalBabyNeeded();
 
     return {
       isCoStaking: Boolean(
@@ -192,9 +164,9 @@ export const useCoStakingService = () => {
       activeSatoshis: rewardsTracker?.active_satoshis || "0",
       activeBaby: rewardsTracker?.active_baby || "0",
       totalScore: rewardsTracker?.total_score || "0",
-      ...requirements,
+      additionalBabyNeeded,
     };
-  }, [rewardsTrackerQuery.data, getRequiredBabyAmount]);
+  }, [rewardsTrackerQuery.data, getAdditionalBabyNeeded]);
 
   /**
    * Refresh all co-staking data
@@ -230,7 +202,7 @@ export const useCoStakingService = () => {
 
     // Methods
     getScoreRatio,
-    getRequiredBabyAmount,
+    getAdditionalBabyNeeded,
     getCoStakingAPR,
     getUserCoStakingStatus,
     refreshCoStakingData,
