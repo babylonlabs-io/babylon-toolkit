@@ -142,13 +142,13 @@ const { StateProvider, useState: useStakingState } =
     },
     step: undefined,
     verifiedDelegation: undefined,
-    setVerifiedDelegation: () => { },
-    goToStep: () => { },
-    setFormData: () => { },
-    setProcessing: () => { },
-    reset: () => { },
+    setVerifiedDelegation: () => {},
+    goToStep: () => {},
+    setFormData: () => {},
+    setProcessing: () => {},
+    reset: () => {},
     stakingStepOptions: undefined,
-    setStakingStepOptions: () => { },
+    setStakingStepOptions: () => {},
   });
 
 export function StakingState({ children }: PropsWithChildren) {

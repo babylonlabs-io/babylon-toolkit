@@ -82,10 +82,10 @@ const { StateProvider, useState: useStakingState } =
     babyPrice: 0,
     fields: [],
     calculateFee: async () => 0,
-    showPreview: () => { },
-    closePreview: () => { },
-    submitForm: async () => { },
-    resetForm: () => { },
+    showPreview: () => {},
+    closePreview: () => {},
+    submitForm: async () => {},
+    resetForm: () => {},
     disabled: undefined,
   });
 
