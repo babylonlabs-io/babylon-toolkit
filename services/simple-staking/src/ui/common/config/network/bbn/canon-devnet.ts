@@ -3,7 +3,7 @@ import { getUrlFromEnv } from "./urlUtils";
 export const BBN_DEVNET_RPC_URL = getUrlFromEnv(
   process.env.NEXT_PUBLIC_BABY_RPC_URL,
   "http://localhost:3000",
-  "https://rpc.canon-devnet.babylonlabs.io",
+  "https://rpc.canon-devnet.babylonlabs.io/",
 );
 
 export const BBN_DEVNET_LCD_URL = getUrlFromEnv(
@@ -12,7 +12,7 @@ export const BBN_DEVNET_LCD_URL = getUrlFromEnv(
   "https://lcd.canon-devnet.babylonlabs.io",
 );
 
-export const bbnDevnet = {
+export const bbnCanonDevnet = {
   chainId: "devnet-12",
   chainName: "Babylon Devnet 12",
   chainSymbolImageUrl:

@@ -43,7 +43,7 @@ const config: Record<string, Config> = {
     icon: signetBitcoinIcon,
     displayUSD: false,
   },
-  "canonDevnet": {
+  canonDevnet: {
     name: "Signet Bitcoin",
     coinName: "Signet BTC",
     coinSymbol: "sBTC",
