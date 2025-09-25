@@ -1,10 +1,10 @@
-import { LuPartyPopper } from "react-icons/lu";
-
 import { Network } from "@/ui/common/types/network";
-import { SubmitModal } from "./SubmitModal";
+
 import { useSystemStats } from "../../hooks/client/api/useSystemStats";
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
+
+import { SubmitModal } from "./SubmitModal";
 
 interface FeedbackModalProps {
   open: boolean;
@@ -28,7 +28,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
         <img
           src="/mascot-head-happy.png"
           alt="Mascot head happy illustration"
-          className="w-full h-full object-cover mb-10"
+          className="mb-10 h-full w-full object-cover"
         />
       }
       iconParentClassName="h-40 w-80 bg-transparent" // Safelisted in tailwind.config.ts

@@ -40,7 +40,9 @@ export const SubmitModal = ({
 }: PropsWithChildren<SubmitModalProps>) => (
   <ResponsiveDialog className={className} open={open} onClose={onClose}>
     <DialogBody className="py-16 text-center text-accent-primary">
-      <div className={`mb-6 inline-flex items-center justify-center bg-primary-contrast ${iconParentClassName}`}>
+      <div
+        className={`mb-6 inline-flex items-center justify-center bg-primary-contrast ${iconParentClassName}`}
+      >
         {icon}
       </div>
 
