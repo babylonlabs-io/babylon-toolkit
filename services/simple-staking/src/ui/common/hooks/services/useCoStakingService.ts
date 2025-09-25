@@ -13,7 +13,6 @@ import { calculateAdditionalBabyNeeded } from "@/ui/common/utils/coStakingCalcul
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { useDelegationsV2 } from "../client/api/useDelegationsV2";
-import { satoshiToBtc } from "../../utils/btc";
 import { ubbnToBaby } from "../../utils/bbn";
 
 const CO_STAKING_PARAMS_KEY = "CO_STAKING_PARAMS";
@@ -74,16 +73,14 @@ export const useCoStakingService = () => {
   const { refetch: refetchCurrentRewards } = currentRewardsQuery;
 
   /**
-   * Calculate the total BTC staked by the user
+   * Calculate the total satoshis staked by the user
    */
-  const totalBtcStaked = useMemo(() => {
+  const totalSatoshisStaked = useMemo(() => {
     if (!delegationsData?.delegations) return 0;
 
-    const totalSats = delegationsData.delegations.reduce((sum, delegation) => {
+    return delegationsData.delegations.reduce((sum, delegation) => {
       return sum + (delegation.stakingAmount || 0);
     }, 0);
-
-    return satoshiToBtc(totalSats);
   }, [delegationsData]);
 
   /**
@@ -103,20 +100,19 @@ export const useCoStakingService = () => {
     const scoreRatio = getScoreRatio();
     const rewardsTracker = rewardsTrackerQuery.data;
 
-    // Get current BABY staked (from rewards tracker)
-    const currentBaby = rewardsTracker
-      ? ubbnToBaby(Number(rewardsTracker.active_baby))
-      : 0;
+    // Get current ubbn staked (from rewards tracker)
+    const currentUbbn = rewardsTracker ? Number(rewardsTracker.active_baby) : 0;
 
-    // Calculate additional BABY needed
-    const additionalNeeded = calculateAdditionalBabyNeeded(
-      totalBtcStaked,
-      currentBaby,
+    // Calculate additional ubbn needed
+    const additionalUbbnNeeded = calculateAdditionalBabyNeeded(
+      totalSatoshisStaked,
+      currentUbbn,
       scoreRatio.toString(),
     );
 
-    return additionalNeeded;
-  }, [getScoreRatio, rewardsTrackerQuery.data, totalBtcStaked]);
+    // Convert to BABY for display
+    return ubbnToBaby(additionalUbbnNeeded);
+  }, [getScoreRatio, rewardsTrackerQuery.data, totalSatoshisStaked]);
 
   /**
    * Get co-staking APR (placeholder until backend provides actual data)
@@ -198,7 +194,7 @@ export const useCoStakingService = () => {
     coStakingParams: coStakingParamsQuery.data,
     rewardsTracker: rewardsTrackerQuery.data,
     currentRewards: currentRewardsQuery.data,
-    totalBtcStaked,
+    totalSatoshisStaked,
 
     // Methods
     getScoreRatio,

@@ -1,6 +1,3 @@
-import { ubbnToBaby } from "./bbn";
-import { btcToSatoshi } from "./btc";
-
 /**
  * Calculates the BTC eligibility percentage for co-staking rewards
  * Formula: min(active_satoshis, active_baby/score_ratio) / active_satoshis * 100
@@ -22,31 +19,32 @@ export const calculateBTCEligibilityPercentage = (
 };
 
 /**
- * Calculates the required BABY tokens for full BTC co-staking rewards
- * Based on the formula: BTC_amount * 5000 BABY
+ * Calculates the required ubbn for full BTC co-staking rewards
+ * Based on satoshis * scoreRatio formula
  */
 export const calculateRequiredBabyTokens = (
-  btcAmount: number,
+  satoshisAmount: number,
   scoreRatio: string,
 ): number => {
   // Score ratio is in uBBN per sat
-  // We need to convert to BABY per BTC
   const ratio = parseFloat(scoreRatio);
-  const sats = btcToSatoshi(btcAmount);
-  const requiredUbbn = sats * ratio;
-  return ubbnToBaby(requiredUbbn);
+  const requiredUbbn = satoshisAmount * ratio;
+  return requiredUbbn;
 };
 
 /**
- * Calculates additional BABY tokens needed for full co-staking rewards
+ * Calculates additional ubbn needed for full co-staking rewards
  */
 export const calculateAdditionalBabyNeeded = (
-  totalBtcStaked: number,
-  currentBabyStaked: number,
+  totalSatoshisStaked: number,
+  currentUbbnStaked: number,
   scoreRatio: string,
 ): number => {
-  const requiredBaby = calculateRequiredBabyTokens(totalBtcStaked, scoreRatio);
-  const additionalNeeded = Math.max(0, requiredBaby - currentBabyStaked);
+  const requiredUbbn = calculateRequiredBabyTokens(
+    totalSatoshisStaked,
+    scoreRatio,
+  );
+  const additionalNeeded = Math.max(0, requiredUbbn - currentUbbnStaked);
   return additionalNeeded;
 };
 
