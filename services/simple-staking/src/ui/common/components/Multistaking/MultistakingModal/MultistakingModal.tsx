@@ -5,8 +5,10 @@ import {
   useWatch,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
+import { useNavigate } from "react-router";
 
 import { CancelFeedbackModal } from "@/ui/common/components/Modals/CancelFeedbackModal";
+import { CoStakingBoostModal } from "@/ui/common/components/Modals/CoStakingBoostModal";
 import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
 import { SuccessFeedbackModal } from "@/ui/common/components/Modals/SuccessFeedbackModal";
@@ -25,6 +27,7 @@ import { BsnFpDisplayItem } from "@/ui/common/types/display";
 import { getBsnLogoUrl } from "@/ui/common/utils/bsnLogo";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { calculateTokenValueInCurrency } from "@/ui/common/utils/formatCurrency";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { blocksToDisplayTime } from "@/ui/common/utils/time";
 import { trim } from "@/ui/common/utils/trim";
@@ -63,6 +66,8 @@ export function MultistakingModal() {
     trigger: revalidateForm,
     setValue: setFieldValue,
   } = useFormContext();
+
+  const navigate = useNavigate();
 
   const { coinSymbol } = getNetworkConfigBTC();
   const { data: networkInfo } = useNetworkInfo();
@@ -208,6 +213,11 @@ export function MultistakingModal() {
 
   if (!step) return null;
 
+  const handleCloseBoostModal = () => {
+    resetState();
+    navigate("/baby");
+  };
+
   const warnings = [
     `1. No third party possesses your staked ${coinSymbol}. You are the only one who can unbond and withdraw your stake.`,
     `2. Your stake will first be sent to Babylon Genesis for verification (~20 seconds), then you will be prompted to submit it to the Bitcoin ledger. It will be marked as 'Pending' until it receives ${confirmationDepth} Bitcoin confirmations.`,
@@ -272,10 +282,17 @@ export function MultistakingModal() {
         />
       )}
 
-      <SuccessFeedbackModal
-        open={step === "feedback-success"}
-        onClose={resetState}
-      />
+      {FeatureFlagService.IsCoStakingEnabled ? (
+        <CoStakingBoostModal
+          open={step === "feedback-success"}
+          onClose={handleCloseBoostModal}
+        />
+      ) : (
+        <SuccessFeedbackModal
+          open={step === "feedback-success"}
+          onClose={resetState}
+        />
+      )}
       <CancelFeedbackModal
         open={step === "feedback-cancel"}
         onClose={resetState}

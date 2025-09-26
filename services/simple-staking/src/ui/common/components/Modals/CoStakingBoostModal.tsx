@@ -22,6 +22,10 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const assumedStakingAPR = stakingAPR ? stakingAPR + 1 : 0; // TODO: Get the actual assumed APR
   const assumedBabyAmount = 100; // TODO: Get the actual assumed BABY amount
 
+  const formatAPRPercentage = (apr: number | undefined): string => {
+    return network === Network.MAINNET && apr ? (apr * 100).toFixed(2) : "0";
+  };
+
   return (
     <SubmitModal
       icon={
@@ -34,24 +38,18 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       iconParentClassName="h-40 w-80 bg-transparent" // Safelisted in tailwind.config.ts
       title="Boost your BTC staking rewards"
       open={open}
-      submitButton={`Stake ${assumedBabyAmount} ${babyCoinSymbol} to Boost to ${network === Network.MAINNET && assumedStakingAPR ? (assumedStakingAPR * 100).toFixed(2) : 0}%`}
+      submitButton={`Stake ${assumedBabyAmount} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(assumedStakingAPR)}%`}
       cancelButton=""
       onSubmit={onClose}
     >
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
         <span className="text-accent-primary">
-          {network === Network.MAINNET && stakingAPR
-            ? (stakingAPR * 100).toFixed(2)
-            : 0}
-          %
+          {formatAPRPercentage(stakingAPR)}%
         </span>
         . Stake {assumedBabyAmount} {babyCoinSymbol} to boost it up to{" "}
         <span className="text-accent-primary">
-          {network === Network.MAINNET && assumedStakingAPR
-            ? (assumedStakingAPR * 100).toFixed(2)
-            : 0}
-          %
+          {formatAPRPercentage(assumedStakingAPR)}%
         </span>
         . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
         with {babyCoinSymbol}.

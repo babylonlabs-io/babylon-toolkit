@@ -1,11 +1,9 @@
 import { Avatar, PreviewModal, useFormContext } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
-import { useNavigate } from "react-router";
 
 import { CancelFeedbackModal } from "@/ui/common/components/Modals/CancelFeedbackModal";
 import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
-import { CoStakingBoostModal } from "@/ui/common/components/Modals/CoStakingBoostModal";
 import { SuccessFeedbackModal } from "@/ui/common/components/Modals/SuccessFeedbackModal";
 import { VerificationModal } from "@/ui/common/components/Modals/VerificationModal";
 import { FinalityProviderLogo } from "@/ui/common/components/Staking/FinalityProviders/FinalityProviderLogo";
@@ -34,7 +32,6 @@ import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { blocksToDisplayTime } from "@/ui/common/utils/time";
 import { trim } from "@/ui/common/utils/trim";
 
-import FeatureFlagService from "../../utils/FeatureFlagService";
 import { SignDetailsModal } from "../Modals/SignDetailsModal";
 
 import { RenewTimelockModal } from "./RenewTimelockModal";
@@ -78,8 +75,6 @@ function StakingExpansionModalSystemInner() {
   };
   const { data: networkInfoData } = useNetworkInfo();
   const btcInUsd = usePrice(coinSymbol);
-
-  const navigate = useNavigate();
 
   const { delegationV2StepOptions, setDelegationV2StepOptions } =
     useDelegationV2State();
@@ -242,11 +237,6 @@ function StakingExpansionModalSystemInner() {
     setDelegationV2StepOptions?.(undefined);
   };
 
-  const handleCloseBoostModal = () => {
-    handleClose();
-    navigate("/baby");
-  };
-
   const handleCloseVerifiedModal = () => {
     setVerifiedExpansionModalOpen(false);
   };
@@ -306,17 +296,10 @@ function StakingExpansionModalSystemInner() {
               onClose={handleClose}
             />
           )}
-          {FeatureFlagService.IsCoStakingEnabled ? (
-            <CoStakingBoostModal
-              open={step === StakingExpansionStep.FEEDBACK_SUCCESS}
-              onClose={handleCloseBoostModal}
-            />
-          ) : (
-            <SuccessFeedbackModal
-              open={step === StakingExpansionStep.FEEDBACK_SUCCESS}
-              onClose={handleClose}
-            />
-          )}
+          <SuccessFeedbackModal
+            open={step === StakingExpansionStep.FEEDBACK_SUCCESS}
+            onClose={handleClose}
+          />
           <CancelFeedbackModal
             open={step === StakingExpansionStep.FEEDBACK_CANCEL}
             onClose={handleClose}
