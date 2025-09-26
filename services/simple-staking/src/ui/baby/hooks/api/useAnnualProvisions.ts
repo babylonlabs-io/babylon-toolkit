@@ -1,5 +1,6 @@
 import babylon from "@/infrastructure/babylon";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
+import { ONE_DAY } from "@/ui/common/constants";
 
 const BABY_ANNUAL_PROVISIONS_KEY = "BABY_ANNUAL_PROVISIONS_KEY";
 
@@ -19,5 +20,6 @@ export function useAnnualProvisions({
       }
     },
     enabled,
+    staleTime: ONE_DAY, // Annual provisions change very rarely
   });
 }
