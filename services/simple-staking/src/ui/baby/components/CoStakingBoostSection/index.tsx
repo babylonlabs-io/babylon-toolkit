@@ -10,7 +10,7 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 
 import type { TabId } from "../../layout";
 
-const CO_STAKING_REQUIRED_AMOUNT_BABY = 10; // 100k BABY
+const CO_STAKING_REQUIRED_AMOUNT_BABY = 100000; // 100k BABY
 
 export function CoStakingBoostSection({
   setActiveTab,
@@ -32,7 +32,7 @@ export function CoStakingBoostSection({
 
   const handlePrefill = () => {
     setActiveTab("stake");
-    // update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
+    // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
   };
 
   return (
