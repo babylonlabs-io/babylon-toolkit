@@ -12,6 +12,7 @@ import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
 import { durationTillNow } from "@/ui/common/utils/time";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
 import { ActivityCardData, ActivityCardDetailItem } from "../ActivityCard";
@@ -97,9 +98,12 @@ export function transformDelegationToActivityCard(
     // Check if expansion section should be shown
     // 1. Delegation is active and can expand from the api
     // 2. OR delegation is a broadcasted VERIFIED expansion (waiting for confirmations)
+    // Note: canExpand will be removed soon and not taking effect for non-phase-3
+    const canExpand = FeatureFlagService.IsTimelockRenewalEnabled
+      ? true
+      : delegation.canExpand;
     const isActiveExpandable =
-      delegation.state === DelegationV2StakingState.ACTIVE &&
-      delegation.canExpand;
+      delegation.state === DelegationV2StakingState.ACTIVE && canExpand;
 
     const showExpansionSection =
       isActiveExpandable || options.isBroadcastedExpansion;

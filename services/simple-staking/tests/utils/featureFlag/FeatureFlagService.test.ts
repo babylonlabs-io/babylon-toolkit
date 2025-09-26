@@ -61,6 +61,22 @@ describe("FeatureFlagService", () => {
     });
   });
 
+  describe("IsTimelockRenewalEnabled", () => {
+    it("should return false when NEXT_PUBLIC_FF_TIMELOCK_RENEWAL is not set", () => {
+      expect(FeatureFlagService.IsTimelockRenewalEnabled).toBe(false);
+    });
+    
+    it('should return false when NEXT_PUBLIC_FF_TIMELOCK_RENEWAL is set to "false"', () => {
+      process.env.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL = "false";
+      expect(FeatureFlagService.IsTimelockRenewalEnabled).toBe(false);
+    });
+
+    it('should return true when NEXT_PUBLIC_FF_TIMELOCK_RENEWAL is set to "true"', () => {
+      process.env.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL = "true";
+      expect(FeatureFlagService.IsTimelockRenewalEnabled).toBe(true);
+    });
+  });
+
   describe("Feature flag behavior", () => {
     it("should handle multiple feature flags independently", () => {
       process.env.NEXT_PUBLIC_FF_ENABLE_LEDGER = "false";

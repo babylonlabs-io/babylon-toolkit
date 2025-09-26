@@ -18,6 +18,7 @@ import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import { StakingExpansionStep } from "@/ui/common/state/StakingExpansionTypes";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ExpansionButton } from "./ExpansionButton";
 
@@ -179,18 +180,20 @@ export function StakeExpansionSection({
         </AccordionSummary>
         <AccordionDetails className="space-y-3 px-4 pb-4">
           <div className="flex w-full flex-col gap-4">
-            <ExpansionButton
-              Icon={iconBSNFp}
-              text="Add BSNs and Finality Providers"
-              counter={`${currentBsnCount}/${maxFinalityProviders}`}
-              onClick={handleAddBsnFp}
-              disabled={
-                !canExpandDelegation ||
-                processing ||
-                isUTXOsLoading ||
-                isPendingExpansion
-              }
-            />
+            {FeatureFlagService.IsPhase3Enabled && (
+              <ExpansionButton
+                Icon={iconBSNFp}
+                text="Add BSNs and Finality Providers"
+                counter={`${currentBsnCount}/${maxFinalityProviders}`}
+                onClick={handleAddBsnFp}
+                disabled={
+                  !canExpandDelegation ||
+                  processing ||
+                  isUTXOsLoading ||
+                  isPendingExpansion
+                }
+              />
+            )}
             {hasVerifiedRenewal ? (
               <Hint
                 tooltip="A timelock renewal is already verified. Please check 'Verified Stake Expansion' to complete it."

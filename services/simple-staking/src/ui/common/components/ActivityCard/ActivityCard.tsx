@@ -58,7 +58,8 @@ interface ActivityCardProps {
 
 export function ActivityCard({ data, className }: ActivityCardProps) {
   const shouldShowExpansion =
-    FeatureFlagService.IsPhase3Enabled && !data.hideExpansionCompletely;
+    FeatureFlagService.IsTimelockRenewalEnabled &&
+    !data.hideExpansionCompletely;
 
   return (
     <div
