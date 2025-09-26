@@ -2,6 +2,7 @@ import { ExpansionHistoryModal } from "@/ui/common/components/ExpansionHistory/E
 import { getNetworkConfig } from "@/ui/common/config/network";
 import { useActivityDelegations } from "@/ui/common/hooks/services/useActivityDelegations";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ActivityCard } from "../../ActivityCard/ActivityCard";
 import { DelegationModal } from "../../Delegations/DelegationList/components/DelegationModal";
@@ -72,14 +73,18 @@ export function ActivityList() {
         networkConfig={networkConfig}
       />
 
-      <StakingExpansionModalSystem />
-
-      <ExpansionHistoryModal
-        open={expansionHistoryModalOpen}
-        onClose={closeExpansionHistoryModal}
-        targetDelegation={expansionHistoryTargetDelegation}
-        allDelegations={delegations}
-      />
+      {/* To be removed */}
+      {FeatureFlagService.IsPhase3Enabled && (
+        <>
+          <StakingExpansionModalSystem />
+          <ExpansionHistoryModal
+            open={expansionHistoryModalOpen}
+            onClose={closeExpansionHistoryModal}
+            targetDelegation={expansionHistoryTargetDelegation}
+            allDelegations={delegations}
+          />
+        </>
+      )}
     </>
   );
 }
