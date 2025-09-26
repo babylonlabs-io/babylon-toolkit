@@ -25,7 +25,7 @@ import { useEpochPolling } from "./hooks/api/useEpochPolling";
 import { PendingOperationsProvider } from "./hooks/services/usePendingOperationsService";
 import StakingForm from "./widgets/StakingForm";
 
-type TabId = "stake" | "activity" | "rewards" | "faqs";
+export type TabId = "stake" | "activity" | "rewards" | "faqs";
 
 export default function BabyLayout() {
   return (
@@ -115,7 +115,7 @@ function BabyLayoutContent() {
       className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-0"
     >
       <Stats />
-      <CoStakingBoostSection />
+      <CoStakingBoostSection setActiveTab={setActiveTab} />
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" keepMounted />
     </Container>
   );
@@ -133,7 +133,9 @@ function BabyLayoutContent() {
                     className="mx-auto flex max-w-[760px] flex-1 flex-col gap-4 pb-0"
                   >
                     <Stats />
-                    {FF.IsCoStakingEnabled && <CoStakingBoostSection />}
+                    {FF.IsCoStakingEnabled && (
+                      <CoStakingBoostSection setActiveTab={setActiveTab} />
+                    )}
                     <Tabs
                       items={tabItems}
                       defaultActiveTab="stake"
