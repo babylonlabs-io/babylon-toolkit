@@ -5,6 +5,7 @@ import {
   DelegationWithFP,
 } from "@/ui/common/types/delegationsV2";
 import { FinalityProviderState } from "@/ui/common/types/finalityProviders";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ActivityCardActionButton } from "../ActivityCard";
 
@@ -19,7 +20,14 @@ export const getActionButton = (
   // Define action mapping
   const actionMap: Record<
     string,
-    Record<string, { action: ActionType; title: string }>
+    Record<
+      string,
+      {
+        action: ActionType;
+        title: string;
+        secondaryActions?: { action: ActionType; title: string }[];
+      }
+    >
   > = {
     [FinalityProviderState.ACTIVE]: {
       [DelegationV2StakingState.VERIFIED]: {
@@ -27,8 +35,21 @@ export const getActionButton = (
         title: "Stake",
       },
       [DelegationV2StakingState.ACTIVE]: {
-        action: ACTIONS.UNBOND,
-        title: "Unbond",
+        ...(FeatureFlagService.IsTimelockRenewalEnabled
+          ? {
+              action: ACTIONS.RENEW_TIMELOCK,
+              title: "Renew",
+              secondaryActions: [
+                {
+                  action: ACTIONS.UNBOND,
+                  title: "Unbond",
+                },
+              ],
+            }
+          : {
+              action: ACTIONS.UNBOND,
+              title: "Unbond",
+            }),
       },
       [DelegationV2StakingState.EARLY_UNBONDING_WITHDRAWABLE]: {
         action: ACTIONS.WITHDRAW_ON_EARLY_UNBONDING,
@@ -53,8 +74,21 @@ export const getActionButton = (
         title: "Stake",
       },
       [DelegationV2StakingState.ACTIVE]: {
-        action: ACTIONS.UNBOND,
-        title: "Unbond",
+        ...(FeatureFlagService.IsTimelockRenewalEnabled
+          ? {
+              action: ACTIONS.RENEW_TIMELOCK,
+              title: "Renew",
+              secondaryActions: [
+                {
+                  action: ACTIONS.UNBOND,
+                  title: "Unbond",
+                },
+              ],
+            }
+          : {
+              action: ACTIONS.UNBOND,
+              title: "Unbond",
+            }),
       },
       [DelegationV2StakingState.EARLY_UNBONDING_WITHDRAWABLE]: {
         action: ACTIONS.WITHDRAW_ON_EARLY_UNBONDING,
@@ -146,4 +180,17 @@ export const getActionButton = (
     size: "medium",
     className: isUnbondDisabled ? "opacity-50" : "",
   };
+};
+
+export const getSecondaryActions = (): ActivityCardActionButton[] => {
+  return [
+    {
+      label: "Unbond",
+      onClick: () => {},
+      variant: "outlined",
+      size: "small",
+      disabled: false,
+      className: "text-accent-primary",
+    },
+  ];
 };

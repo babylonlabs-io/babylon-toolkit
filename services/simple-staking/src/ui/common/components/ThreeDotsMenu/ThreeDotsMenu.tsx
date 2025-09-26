@@ -1,26 +1,29 @@
-import { Popover, Text, ThreeDotsMenuIcon } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { Popover, ThreeDotsMenuIcon } from "@babylonlabs-io/core-ui";
+import { ReactNode, useState } from "react";
+import { twMerge } from "tailwind-merge";
 
 interface ThreeDotsMenuProps {
-  onChange: () => void;
-  onRemove: () => void;
+  children: ReactNode;
   className?: string;
+  buttonClassName?: string;
+  popoverClassName?: string;
 }
 
 export const ThreeDotsMenu = ({
-  onChange,
-  onRemove,
+  children,
   className,
+  buttonClassName,
+  popoverClassName,
 }: ThreeDotsMenuProps) => {
   const [open, setOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   return (
-    <>
+    <div className={className}>
       <button
         ref={setAnchorEl}
         onClick={() => setOpen(!open)}
-        className={className}
+        className={buttonClassName}
         aria-label="Open options"
       >
         <ThreeDotsMenuIcon
@@ -34,33 +37,41 @@ export const ThreeDotsMenu = ({
         anchorEl={anchorEl}
         placement="bottom-end"
         onClickOutside={() => setOpen(false)}
-        className="w-60 rounded border border-secondary-strokeLight bg-surface p-4 shadow-md"
+        offset={[0, 8]}
+        className={
+          popoverClassName ||
+          "w-60 rounded border border-secondary-strokeLight bg-surface !p-0 shadow-md"
+        }
       >
-        <div className="flex flex-col gap-6">
-          <Text
-            variant="body2"
-            as="button"
-            onClick={() => {
-              onChange();
-              setOpen(false);
-            }}
-            className="flex items-center gap-1 text-accent-primary transition-all hover:brightness-125"
-          >
-            Change FP
-          </Text>
-          <Text
-            variant="body2"
-            as="button"
-            onClick={() => {
-              onRemove();
-              setOpen(false);
-            }}
-            className="flex items-center gap-1 text-accent-primary transition-all hover:brightness-125"
-          >
-            Remove BSN
-          </Text>
+        <div className="flex flex-col" onClick={() => setOpen(false)}>
+          {children}
         </div>
       </Popover>
-    </>
+    </div>
   );
 };
+
+interface ThreeDotsMenuItemProps {
+  onClick: () => void;
+  children: ReactNode;
+  disabled?: boolean;
+  className?: string;
+}
+
+export const ThreeDotsMenuItem = ({
+  onClick,
+  children,
+  disabled = false,
+  className,
+}: ThreeDotsMenuItemProps) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={twMerge(
+      "block w-full p-4 text-left text-sm text-accent-primary transition-all hover:bg-secondary-strokeLight/10 hover:brightness-125 disabled:cursor-not-allowed disabled:opacity-50",
+      className,
+    )}
+  >
+    <div className="text-left">{children}</div>
+  </button>
+);

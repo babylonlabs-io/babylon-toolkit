@@ -3,7 +3,6 @@ import { StakeExpansionSection } from "@/ui/common/components/Activity/component
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
-import { ActivityCardActionSection } from "./components/ActivityCardActionSection";
 import { ActivityCardAmountSection } from "./components/ActivityCardAmountSection";
 import { ActivityCardDetailsSection } from "./components/ActivityCardDetailsSection";
 
@@ -69,6 +68,7 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
         icon={data.icon}
         iconAlt={data.iconAlt}
         primaryAction={data.primaryAction}
+        secondaryActions={data.secondaryActions}
       />
       <ActivityCardDetailsSection
         details={data.details}
@@ -82,9 +82,6 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
           delegation={data.expansionSection}
           isPendingExpansion={data.isPendingExpansion}
         />
-      )}
-      {data.secondaryActions && data.secondaryActions.length > 0 && (
-        <ActivityCardActionSection actions={data.secondaryActions} />
       )}
     </div>
   );
