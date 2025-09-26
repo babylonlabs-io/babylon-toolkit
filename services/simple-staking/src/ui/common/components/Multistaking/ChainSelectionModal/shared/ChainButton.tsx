@@ -1,10 +1,7 @@
 import { Button, FinalityProviderItem } from "@babylonlabs-io/core-ui";
 import { twMerge } from "tailwind-merge";
 
-import {
-  ThreeDotsMenu,
-  ThreeDotsMenuItem,
-} from "@/ui/common/components/ThreeDotsMenu/ThreeDotsMenu";
+import { ThreeDotsMenu } from "@/ui/common/components/ThreeDotsMenu/ThreeDotsMenu";
 
 import { ChainButtonProps } from "./types";
 
@@ -50,42 +47,26 @@ export const ChainButton = ({
     </div>
     {provider ? (
       <ThreeDotsMenu
+        onChange={() => {
+          if (bsnId) {
+            onRemove?.(bsnId);
+          }
+          onSelectFp?.();
+        }}
+        onRemove={() => onRemove?.(bsnId || "")}
         className="rounded p-1 hover:bg-secondary-highlight"
-        buttonClassName="p-1"
-      >
-        <ThreeDotsMenuItem
-          onClick={() => {
-            if (bsnId) {
-              onRemove?.(bsnId);
-            }
-            onSelectFp?.();
-          }}
-        >
-          Change FP
-        </ThreeDotsMenuItem>
-        <ThreeDotsMenuItem onClick={() => onRemove?.(bsnId || "")}>
-          Remove BSN
-        </ThreeDotsMenuItem>
-      </ThreeDotsMenu>
+      />
     ) : isExisting ? (
       <ThreeDotsMenu
+        onChange={() => {
+          if (bsnId) {
+            onRemove?.(bsnId);
+          }
+          onSelectFp?.();
+        }}
+        onRemove={() => onRemove?.(bsnId || "")}
         className="rounded p-1 hover:bg-secondary-highlight"
-        buttonClassName="p-1"
-      >
-        <ThreeDotsMenuItem
-          onClick={() => {
-            if (bsnId) {
-              onRemove?.(bsnId);
-            }
-            onSelectFp?.();
-          }}
-        >
-          Change FP
-        </ThreeDotsMenuItem>
-        <ThreeDotsMenuItem onClick={() => onRemove?.(bsnId || "")}>
-          Remove BSN
-        </ThreeDotsMenuItem>
-      </ThreeDotsMenu>
+      />
     ) : (
       <Button
         variant="outlined"

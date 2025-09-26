@@ -1,9 +1,6 @@
 import { useMemo } from "react";
 
-import {
-  getActionButton,
-  getSecondaryActions,
-} from "@/ui/common/components/ActivityCard/utils/actionButtonUtils";
+import { getActionButton } from "@/ui/common/components/ActivityCard/utils/actionButtonUtils";
 import {
   ActivityCardTransformOptions,
   transformDelegationToActivityCard,
@@ -85,12 +82,9 @@ export function useActivityCardTransformation(
         isBroadcasted,
       );
 
-      const secondaryActions = getSecondaryActions();
-
       return {
         ...cardData,
         primaryAction,
-        secondaryActions,
       };
     });
   }, [

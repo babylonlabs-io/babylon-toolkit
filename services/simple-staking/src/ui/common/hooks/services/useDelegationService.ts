@@ -249,14 +249,6 @@ export function useDelegationService() {
           State.INTERMEDIATE_TIMELOCK_SLASHING_WITHDRAWAL_SUBMITTED,
         );
       },
-
-      [ACTIONS.RENEW_TIMELOCK]: async () => {
-        // TODO: Implement renew timelock
-      },
-
-      [ACTIONS.CONTINUE_RENEWAL]: async () => {
-        // TODO: Implement continue renewal
-      },
     }),
     [
       submitStakingTx,

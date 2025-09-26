@@ -56,15 +56,4 @@ export default {
   get IsCoStakingEnabled() {
     return process.env.NEXT_PUBLIC_FF_CO_STAKING === "true";
   },
-
-  /**
-   * Timelock Renewal feature flag
-   *
-   * Purpose: Enables timelock renewal functionality in the UI
-   * Why needed: To gradually roll out timelock renewal feature
-   * ETA for removal: TBD - Will be removed once timelock renewal is fully stable
-   */
-  get IsTimelockRenewalEnabled() {
-    return process.env.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL === "true";
-  },
 };
