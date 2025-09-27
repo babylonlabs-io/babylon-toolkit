@@ -1,9 +1,10 @@
 import { Navigate, Route, Routes } from "react-router";
 
-import BabyLayout from "./baby/layout";
+import { BabyLayout } from "./baby/layout";
+import { BTCStaking } from "./common/page";
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
-import BTCStaking from "./common/page";
+import FF from "./common/utils/FeatureFlagService";
 
 export const Router = () => {
   return (
@@ -11,7 +12,7 @@ export const Router = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="btc" replace />} />
         <Route path="btc" element={<BTCStaking />} />
-        <Route path="baby" element={<BabyLayout />} />
+        {FF.IsVaultEnabled && <Route path="baby" element={<BabyLayout />} />}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -47,6 +47,21 @@ export default {
   },
 
   /**
+   * Vault feature flag
+   *
+   * Purpose: Enables Vault Page
+   * Why needed: To gradually roll out Vault
+   * ETA for removal: TBD - Will be removed once Vault is fully released
+   */
+  get IsVaultEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_VAULT === "true";
+  },
+
+  get IsBabyStakingEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_BABY_STAKING === "true";
+  },
+
+  /**
    * Co-staking feature flag
    *
    * Purpose: Enables co-staking functionality for users to stake both BTC and BABY tokens for additional rewards

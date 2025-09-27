@@ -25,7 +25,7 @@ import StakingForm from "./widgets/StakingForm";
 
 type TabId = "stake" | "activity" | "rewards" | "faqs";
 
-export default function BabyLayout() {
+export function BabyLayout() {
   return (
     <PendingOperationsProvider>
       <BabyLayoutContent />
