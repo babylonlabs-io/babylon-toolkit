@@ -43,6 +43,7 @@ export const Header = () => {
             <Nav>
               <NavItem title="BTC Staking" to="/btc" />
               <NavItem title="BABY Staking" to="/baby" />
+              <NavItem title="Rewards" to="/rewards" />
             </Nav>
           </div>
         )}

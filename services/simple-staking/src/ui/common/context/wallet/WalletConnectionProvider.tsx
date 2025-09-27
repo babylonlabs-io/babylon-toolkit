@@ -74,9 +74,14 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [handleError, logger],
   );
 
-  const requiredChains = (
-    location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"]
-  ) as ("BTC" | "BBN")[];
+  const isCosmosOnlyRoute =
+    location.pathname.startsWith("/baby") ||
+    location.pathname.startsWith("/rewards");
+
+  const requiredChains = (isCosmosOnlyRoute ? ["BBN"] : ["BTC", "BBN"]) as (
+    | "BTC"
+    | "BBN"
+  )[];
 
   return (
     <WalletProvider
