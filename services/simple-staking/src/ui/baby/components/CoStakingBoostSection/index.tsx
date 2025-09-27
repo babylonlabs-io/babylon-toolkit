@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { MdRocketLaunch, MdClose } from "react-icons/md";
+import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
-import { SubSection, Text } from "@babylonlabs-io/core-ui";
+import { SubSection, Text, CloseIcon } from "@babylonlabs-io/core-ui";
 
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
@@ -61,12 +61,13 @@ export function CoStakingBoostSection({
             returns.
           </Text>
         </div>
-        <MdClose
-          size={24}
-          className="min-w-6 cursor-pointer text-accent-primary"
+        <div
+          className="cursor-pointer"
           aria-label="Dismiss co-staking boost section"
           onClick={() => setShowCoStakingBoostSection(false)}
-        />
+        >
+          <CloseIcon size={14} variant="accent-primary"></CloseIcon>
+        </div>
       </SubSection>
     )
   );
