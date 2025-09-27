@@ -4,7 +4,7 @@ import { screenBreakPoints } from "./src/ui/common/config/screen-breakpoints";
 
 const coreUIConfig = require("@babylonlabs-io/core-ui/tailwind");
 
-const config = {
+const config: Config = {
   presets: [coreUIConfig],
   content: [
     "./src/ui/**/*.{js,ts,jsx,tsx,mdx}",
@@ -15,6 +15,11 @@ const config = {
   theme: {
     screens: screenBreakPoints,
   },
+  safelist: [
+    // For SubmitModal iconParentClassName prop
+    "h-40",
+    "w-80",
+  ],
 };
 
 export default config;
