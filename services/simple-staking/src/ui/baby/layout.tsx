@@ -1,6 +1,6 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { Card } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
+import { Card } from "@babylonlabs-io/core-ui";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
 import { RewardState } from "@/ui/baby/state/RewardState";
@@ -14,16 +14,18 @@ import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
+import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { Stats } from "./components/Stats/Stats";
 import { BabyActivityList } from "./components/ActivityList";
 import { RewardCard } from "./components/RewardCard";
 import { RewardsPreviewModal } from "./components/RewardPreviewModal";
+import CoStakingBoostSection from "./components/CoStakingBoostSection";
 import { useEpochPolling } from "./hooks/api/useEpochPolling";
 import { PendingOperationsProvider } from "./hooks/services/usePendingOperationsService";
 import StakingForm from "./widgets/StakingForm";
 
-type TabId = "stake" | "activity" | "rewards" | "faqs";
+export type TabId = "stake" | "activity" | "rewards" | "faqs";
 
 export default function BabyLayout() {
   return (
@@ -113,6 +115,7 @@ function BabyLayoutContent() {
       className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-0"
     >
       <Stats />
+      <CoStakingBoostSection setActiveTab={setActiveTab} />
       <Tabs items={fallbackTabItems} defaultActiveTab="stake" keepMounted />
     </Container>
   );
@@ -127,9 +130,12 @@ function BabyLayoutContent() {
                 <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
                   <Container
                     as="main"
-                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] pb-0"
+                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-4 pb-0"
                   >
                     <Stats />
+                    {FF.IsCoStakingEnabled && (
+                      <CoStakingBoostSection setActiveTab={setActiveTab} />
+                    )}
                     <Tabs
                       items={tabItems}
                       defaultActiveTab="stake"
