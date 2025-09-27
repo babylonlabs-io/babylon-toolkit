@@ -54,11 +54,11 @@ export default function RewardsPage() {
       <div className="flex flex-col gap-2">
         {/* TODO: Update mascot image with the happy one (on other branch right now)*/}
         <img
-          src="/mascot.png"
-          alt="Mascot"
-          width={240}
+          src="/mascot-happy.png"
+          alt="Mascot Happy"
+          width={400}
           height={240}
-          className="mx-auto mt-8"
+          className="mx-auto mt-8 max-h-72 object-cover"
         />
         <Heading variant="h5" className="text-center text-accent-primary">
           No wallet connected
