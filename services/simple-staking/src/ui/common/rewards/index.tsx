@@ -52,7 +52,6 @@ export default function RewardsPage() {
   function NotConnected() {
     return (
       <div className="flex flex-col gap-2">
-        {/* TODO: Update mascot image with the happy one (on other branch right now)*/}
         <img
           src="/mascot-happy.png"
           alt="Mascot Happy"
@@ -147,7 +146,7 @@ export default function RewardsPage() {
                 <div className="flex gap-2">
                   <Button
                     fluid
-                    className="text-sm" // TODO: add small text to core-ui button
+                    className="text-sm"
                     variant="outlined"
                     onClick={handleClaimRewardsClick}
                   >
@@ -156,7 +155,7 @@ export default function RewardsPage() {
                   {FF.IsCoStakingEnabled && (
                     <Button
                       fluid
-                      className="text-sm" // TODO: add small text to core-ui button
+                      className="text-sm"
                       onClick={handleStakeMoreClick}
                     >
                       Stake {BABY_TO_STAKE_AMOUNT} {bbnCoinSymbol} to Unlock{" "}
