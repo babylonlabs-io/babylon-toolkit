@@ -5,6 +5,7 @@ import BabyLayout from "./baby/layout";
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
 import BTCStaking from "./common/page";
+import FeatureFlagService from "./common/utils/FeatureFlagService";
 
 export const Router = () => {
   return (
@@ -13,7 +14,9 @@ export const Router = () => {
         <Route index element={<Navigate to="btc" replace />} />
         <Route path="btc" element={<BTCStaking />} />
         <Route path="baby" element={<BabyLayout />} />
-        <Route path="vault" element={<VaultLayout />} />
+        {FeatureFlagService.IsVaultEnabled && (
+          <Route path="vault" element={<VaultLayout />} />
+        )}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
