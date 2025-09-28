@@ -12,7 +12,9 @@
     }
   },
   "scripts": {
+    "build": "echo 'Skipping build for route package. Bundling happens from the service package.'",
     "lint": "eslint",
+    "lint:fix": "eslint --fix",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
@@ -24,6 +26,7 @@
     "tailwind-merge": "2.5.4"
   },
   "devDependencies": {
+    "@internal/eslint-config": "*",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "typescript": "^5.8.3"
