@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router";
+import { VaultLayout } from "@routes/vault";
 
 import BabyLayout from "./baby/layout";
 import Layout from "./common/layout";
@@ -12,6 +13,7 @@ export const Router = () => {
         <Route index element={<Navigate to="btc" replace />} />
         <Route path="btc" element={<BTCStaking />} />
         <Route path="baby" element={<BabyLayout />} />
+        <Route path="vault" element={<VaultLayout />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

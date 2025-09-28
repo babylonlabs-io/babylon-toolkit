@@ -11,6 +11,9 @@
       "path": "../../packages/babylon-proto-ts"
     },
     {
+      "path": "../../routes/vault"
+    },
+    {
       "path": "./tsconfig.lib.json"
     },
     {
