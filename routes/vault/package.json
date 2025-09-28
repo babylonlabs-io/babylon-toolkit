@@ -18,12 +18,14 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@babylonlabs-io/core-ui": "*",
-    "@babylonlabs-io/wallet-connector": "*",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router": "7.6.3",
     "tailwind-merge": "2.5.4"
+  },
+  "dependencies": {
+    "@babylonlabs-io/core-ui": "*",
+    "@babylonlabs-io/wallet-connector": "*",
+    "react-router": "7.6.3"
   },
   "devDependencies": {
     "@internal/eslint-config": "*",
