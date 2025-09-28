@@ -2,11 +2,10 @@ import {
   Button,
   Card,
   Heading,
-  SubSection,
   Text,
-  Avatar,
+  CoStakingRewardsSubsection,
 } from "@babylonlabs-io/core-ui";
-import { useWalletConnect as useWidgetWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
@@ -21,13 +20,18 @@ import { useRewardState as useBabyRewardState } from "@/ui/baby/state/RewardStat
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 
-const BABY_TO_STAKE_AMOUNT = (5000).toLocaleString(); // TODO: if amount is 5 digits or more the content doesnt fit in the button
-const CO_STAKING_AMOUNT = (100000).toLocaleString();
+const formatter = Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 2,
+});
+
+const BABY_TO_STAKE_AMOUNT = 5324;
+const CO_STAKING_AMOUNT = 100000;
 
 const MAX_DECIMALS = 6;
 
 export default function RewardsPage() {
-  const { open: openWidget } = useWidgetWalletConnect();
+  const { open: openWidget } = useWalletConnect();
   const { loading: cosmosWalletLoading } = useCosmosWallet();
 
   const { logo, coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
@@ -98,72 +102,23 @@ export default function RewardsPage() {
             className="mx-auto flex max-w-[760px] flex-1 flex-col gap-[2rem]"
           >
             <Section title="Total Rewards">
-              <SubSection className="flex flex-col gap-4 bg-neutral-200">
-                <div className="flex items-center gap-2 text-lg text-accent-primary">
-                  <Avatar url={logo} size="large" alt={bbnCoinSymbol}></Avatar>
-                  {totalBabyRewards.toLocaleString()} {bbnCoinSymbol}
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <SubSection className="flex flex-col bg-neutral-100">
-                    <div className="flex justify-between">
-                      <Text variant="body1">{btcCoinSymbol} staking</Text>
-                      <Text variant="body1">
-                        {btcRewardBaby.toLocaleString()} {bbnCoinSymbol}
-                      </Text>
-                    </div>
-                    <Text variant="caption" className="text-accent-secondary">
-                      Rewards earned by staking {btcCoinSymbol}
-                    </Text>
-                  </SubSection>
-                  <SubSection className="flex flex-col bg-neutral-100">
-                    <div className="flex justify-between">
-                      <Text variant="body1">{bbnCoinSymbol} staking</Text>
-                      <Text variant="body1">
-                        {babyRewardBaby.toLocaleString()} {bbnCoinSymbol}
-                      </Text>
-                    </div>
-                    <Text variant="caption" className="text-accent-secondary">
-                      Rewards earned from staking {bbnCoinSymbol}
-                    </Text>
-                  </SubSection>
-                  {FF.IsCoStakingEnabled && (
-                    <SubSection className="flex flex-col bg-neutral-100">
-                      <div className="flex justify-between">
-                        <Text variant="body1">Co-staking</Text>
-                        <Text variant="body1">
-                          {CO_STAKING_AMOUNT} {bbnCoinSymbol}
-                        </Text>
-                      </div>
-                      <Text variant="caption" className="text-accent-secondary">
-                        Bonus rewards for staking both {btcCoinSymbol} and{" "}
-                        {bbnCoinSymbol} together
-                      </Text>
-                    </SubSection>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    fluid
-                    className="text-sm"
-                    variant="outlined"
-                    onClick={handleClaimRewardsClick}
-                  >
-                    Claim Rewards
-                  </Button>
-                  {FF.IsCoStakingEnabled && (
-                    <Button
-                      fluid
-                      className="text-sm"
-                      onClick={handleStakeMoreClick}
-                    >
-                      Stake {BABY_TO_STAKE_AMOUNT} {bbnCoinSymbol} to Unlock{" "}
-                      Full Rewards
-                    </Button>
-                  )}
-                </div>
-              </SubSection>
+              <CoStakingRewardsSubsection
+                totalAmount={`${totalBabyRewards.toLocaleString()}`}
+                totalSymbol={bbnCoinSymbol}
+                btcRewardAmount={`${btcRewardBaby.toLocaleString()}`}
+                btcSymbol={btcCoinSymbol}
+                babyRewardAmount={`${babyRewardBaby.toLocaleString()}`}
+                babySymbol={bbnCoinSymbol}
+                coStakingAmount={
+                  FF.IsCoStakingEnabled ? `${CO_STAKING_AMOUNT}` : undefined
+                }
+                avatarUrl={logo}
+                onClaim={handleClaimRewardsClick}
+                onStakeMore={
+                  FF.IsCoStakingEnabled ? handleStakeMoreClick : undefined
+                }
+                stakeMoreCta={`Stake ${formatter.format(BABY_TO_STAKE_AMOUNT)} ${bbnCoinSymbol} to Unlock Full Rewards`}
+              />
             </Section>
           </Container>
         </AuthGuard>
