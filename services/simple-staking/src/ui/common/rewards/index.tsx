@@ -93,6 +93,10 @@ export default function RewardsPage() {
     // TODO: which reward does this claim?
   };
 
+  const stakeMoreCta = FF.IsCoStakingEnabled
+    ? `Stake ${formatter.format(BABY_TO_STAKE_AMOUNT)} ${bbnCoinSymbol} to Unlock Full Rewards`
+    : undefined;
+
   return (
     <Content>
       <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 py-6 max-md:border-0 max-md:p-0">
@@ -117,7 +121,7 @@ export default function RewardsPage() {
                 onStakeMore={
                   FF.IsCoStakingEnabled ? handleStakeMoreClick : undefined
                 }
-                stakeMoreCta={`Stake ${formatter.format(BABY_TO_STAKE_AMOUNT)} ${bbnCoinSymbol} to Unlock Full Rewards`}
+                stakeMoreCta={stakeMoreCta}
               />
             </Section>
           </Container>

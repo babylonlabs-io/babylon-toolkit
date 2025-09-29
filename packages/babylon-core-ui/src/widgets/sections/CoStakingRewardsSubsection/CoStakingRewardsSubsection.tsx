@@ -35,7 +35,7 @@ export const CoStakingRewardsSubsection = ({
   return (
     <div className="bbn-co-staking-rewards">
       <div className="bbn-co-staking-rewards-header">
-        {avatarUrl ? <Avatar url={avatarUrl} size="large" alt={totalSymbol} /> : null}
+        {avatarUrl && <Avatar url={avatarUrl} size="large" alt={totalSymbol} />}
         {totalAmount} {totalSymbol}
       </div>
 
@@ -52,14 +52,14 @@ export const CoStakingRewardsSubsection = ({
           symbol={totalSymbol}
           caption={`Rewards earned from staking ${babySymbol}`}
         />
-        {coStakingAmount ? (
+        {coStakingAmount && (
           <CoStakingAmountItem
             title="Co-staking"
             amount={coStakingAmount}
             symbol={totalSymbol}
             caption={`Bonus rewards for staking both ${btcSymbol} and ${babySymbol} together`}
           />
-        ) : null}
+        )}
       </div>
 
       <div className="bbn-co-staking-rewards-actions">
@@ -72,11 +72,11 @@ export const CoStakingRewardsSubsection = ({
         >
           Claim Rewards
         </Button>
-        {onStakeMore ? (
+        {onStakeMore && (
           <Button fluid size="medium" onClick={onStakeMore}>
             {stakeMoreCta}
           </Button>
-        ) : null}
+        )}
       </div>
     </div>
   );
