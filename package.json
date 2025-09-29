@@ -40,7 +40,8 @@
   "workspaces": [
     "packages/*",
     "tools/*",
-    "services/*"
+    "services/*",
+    "routes/*"
   ],
   "overrides": {
     "axios": "^1.12.2",

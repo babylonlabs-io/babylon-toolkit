@@ -29,9 +29,7 @@ const createClaimRewardMsg = ({ address }: ClaimRewardParams) => {
  * @param params - The parameters for the stake expansion
  * @returns The BTC stake expansion message
  */
-const createExpandMsg = (
-  params: Partial<btcstakingtx.MsgBtcStakeExpand>,
-) => {
+const createExpandMsg = (params: Partial<btcstakingtx.MsgBtcStakeExpand>) => {
   const stakeExpandMsg = btcstakingtx.MsgBtcStakeExpand.fromPartial(params);
 
   return {

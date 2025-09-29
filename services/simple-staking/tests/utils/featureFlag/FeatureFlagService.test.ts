@@ -65,7 +65,7 @@ describe("FeatureFlagService", () => {
     it("should return false when NEXT_PUBLIC_FF_TIMELOCK_RENEWAL is not set", () => {
       expect(FeatureFlagService.IsTimelockRenewalEnabled).toBe(false);
     });
-    
+
     it('should return false when NEXT_PUBLIC_FF_TIMELOCK_RENEWAL is set to "false"', () => {
       process.env.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL = "false";
       expect(FeatureFlagService.IsTimelockRenewalEnabled).toBe(false);

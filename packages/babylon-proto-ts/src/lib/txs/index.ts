@@ -1,7 +1,7 @@
-import btc from './btc';
-import baby from './baby';
+import baby from "./baby";
+import btc from "./btc";
 
 export default {
   baby,
-  btc
-}
+  btc,
+};
