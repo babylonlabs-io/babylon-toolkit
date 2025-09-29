@@ -16,15 +16,19 @@ export interface StakeParams {
   amount: bigint;
 }
 
-const createStakeMsg = ({ delegatorAddress, validatorAddress, amount }: StakeParams) => {
+const createStakeMsg = ({
+  delegatorAddress,
+  validatorAddress,
+  amount,
+}: StakeParams) => {
   const wrappedDelegateMsg = epochingtx.MsgWrappedDelegate.fromPartial({
     msg: {
       delegatorAddress,
       validatorAddress,
       amount: {
-        denom: 'ubbn',
-        amount: amount.toString()
-      }
+        denom: "ubbn",
+        amount: amount.toString(),
+      },
     },
   });
 
@@ -47,16 +51,20 @@ export interface UnstakeParams {
   amount: bigint;
 }
 
-const createUnstakeMsg = ({ delegatorAddress, validatorAddress, amount }: UnstakeParams) => {
-  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({ 
+const createUnstakeMsg = ({
+  delegatorAddress,
+  validatorAddress,
+  amount,
+}: UnstakeParams) => {
+  const wrappedUndelegateMsg = epochingtx.MsgWrappedUndelegate.fromPartial({
     msg: {
       delegatorAddress,
       validatorAddress,
       amount: {
-        denom: 'ubbn',
-        amount: amount.toString()
-      }
-    }
+        denom: "ubbn",
+        amount: amount.toString(),
+      },
+    },
   });
 
   return {

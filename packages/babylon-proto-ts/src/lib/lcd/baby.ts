@@ -1,6 +1,4 @@
-import type {
-  DelegationDelegatorReward
-} from "cosmjs-types/cosmos/distribution/v1beta1/distribution";
+import type { DelegationDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/distribution";
 import type {
   DelegationResponse,
   Validator,
@@ -19,7 +17,7 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       return await fetchAllPages(
         request,
         `/cosmos/staking/v1beta1/delegations/${address}`,
-        "delegationResponses"
+        "delegationResponses",
       );
     } catch (error) {
       throw new Error(`Failed to fetch delegations for ${address}`, {
@@ -46,7 +44,11 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
   async getValidators(): Promise<Validator[]> {
     try {
-      return await fetchAllPages(request, "/cosmos/staking/v1beta1/validators", "validators");
+      return await fetchAllPages(
+        request,
+        "/cosmos/staking/v1beta1/validators",
+        "validators",
+      );
     } catch (error) {
       throw new Error(`Failed to fetch validators`, {
         cause: error,
@@ -92,7 +94,9 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     const btcStakingPortion = Number(params?.btcStakingPortion ?? 0);
     const fpPortion = Number(params?.fpPortion ?? 0);
     return {
-      btcStakingPortion: Number.isFinite(btcStakingPortion) ? btcStakingPortion : 0,
+      btcStakingPortion: Number.isFinite(btcStakingPortion)
+        ? btcStakingPortion
+        : 0,
       fpPortion: Number.isFinite(fpPortion) ? fpPortion : 0,
     };
   },
@@ -104,12 +108,21 @@ const createBabylonClient = ({ request }: Dependencies) => ({
   }> {
     const response = await request("/babylon/costaking/v1/params");
     const params = response?.params ?? response;
-    const costakingPortion = Number(params?.costakingPortion ?? params?.costaking_portion ?? 0);
-    const validatorsPortion = Number(params?.validatorsPortion ?? params?.validators_portion ?? 0);
-    const scoreRatioBtcByBaby = params?.scoreRatioBtcByBaby ?? params?.score_ratio_btc_by_baby ?? "50";
+    const costakingPortion = Number(
+      params?.costakingPortion ?? params?.costaking_portion ?? 0,
+    );
+    const validatorsPortion = Number(
+      params?.validatorsPortion ?? params?.validators_portion ?? 0,
+    );
+    const scoreRatioBtcByBaby =
+      params?.scoreRatioBtcByBaby ?? params?.score_ratio_btc_by_baby ?? "50";
     return {
-      costakingPortion: Number.isFinite(costakingPortion) ? costakingPortion : 0,
-      validatorsPortion: Number.isFinite(validatorsPortion) ? validatorsPortion : 0,
+      costakingPortion: Number.isFinite(costakingPortion)
+        ? costakingPortion
+        : 0,
+      validatorsPortion: Number.isFinite(validatorsPortion)
+        ? validatorsPortion
+        : 0,
       scoreRatioBtcByBaby: scoreRatioBtcByBaby,
     };
   },
@@ -126,11 +139,12 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
     try {
       const response = await request(
-        `/babylon/costaking/v1/costakers/${costakerAddress}/rewards_tracker`
+        `/babylon/costaking/v1/costakers/${costakerAddress}/rewards_tracker`,
       );
 
       return {
-        startPeriodCumulativeReward: response?.start_period_cumulative_reward ?? 0,
+        startPeriodCumulativeReward:
+          response?.start_period_cumulative_reward ?? 0,
         activeSatoshis: response?.active_satoshis ?? "0",
         activeBaby: response?.active_baby ?? "0",
         totalScore: response?.total_score ?? "0",
@@ -140,9 +154,12 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       if (error?.message?.includes("404") || error?.status === 404) {
         return null;
       }
-      throw new Error(`Failed to fetch co-staker rewards tracker for ${costakerAddress}`, {
-        cause: error,
-      });
+      throw new Error(
+        `Failed to fetch co-staker rewards tracker for ${costakerAddress}`,
+        {
+          cause: error,
+        },
+      );
     }
   },
 
@@ -168,10 +185,9 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
   async getAnnualProvisions(): Promise<number> {
     try {
-      const response = await request(
-        "/cosmos/mint/v1beta1/annual_provisions",
-      );
-      const annualProvisions = response?.annualProvisions ?? response?.annual_provisions ?? response;
+      const response = await request("/cosmos/mint/v1beta1/annual_provisions");
+      const annualProvisions =
+        response?.annualProvisions ?? response?.annual_provisions ?? response;
       const result = Number(annualProvisions);
       return result;
     } catch (error) {
@@ -181,13 +197,11 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
-
   async getSupply(denom: string = "ubbn"): Promise<bigint> {
     try {
-      const response = await request(
-        "/cosmos/bank/v1beta1/supply/by_denom",
-        { denom },
-      );
+      const response = await request("/cosmos/bank/v1beta1/supply/by_denom", {
+        denom,
+      });
       const amount = response?.amount?.amount ?? 0;
       return BigInt(amount);
     } catch (error: any) {
@@ -199,9 +213,9 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
   async getCurrentEpoch() {
     try {
-      const {
-        current_epoch, epoch_boundary
-      } = await request("/babylon/epoching/v1/current_epoch");
+      const { current_epoch, epoch_boundary } = await request(
+        "/babylon/epoching/v1/current_epoch",
+      );
 
       return {
         epochBoundary: parseInt(epoch_boundary, 10),
