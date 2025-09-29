@@ -67,7 +67,8 @@ export const useCoStakingService = () => {
 
       const client = await babylon.client();
       try {
-        const tracker = await client.baby.getCoStakerRewardsTracker(bech32Address);
+        const tracker =
+          await client.baby.getCoStakerRewardsTracker(bech32Address);
         if (!tracker) return null;
 
         // Convert to match the existing interface
