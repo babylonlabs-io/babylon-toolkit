@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
-import { getCurrentCoStakingRewards } from "@/ui/common/api/coStaking/getCurrentCoStakingRewards";
-import { getCoStakerRewardsTracker } from "@/ui/common/api/coStaking/getCoStakerRewardsTracker";
-import { getCoStakingParams } from "@/ui/common/api/coStaking/getCoStakingParams";
+import babylon from "@/infrastructure/babylon";
+import { useClientQuery } from "@/ui/common/hooks/client/useClient";
 import { ONE_MINUTE } from "@/ui/common/constants";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
@@ -35,27 +33,82 @@ export const useCoStakingService = () => {
   const isCoStakingEnabled = FeatureFlagService.IsCoStakingEnabled;
 
   // Query for co-staking parameters
-  const coStakingParamsQuery = useQuery({
+  const coStakingParamsQuery = useClientQuery({
     queryKey: [CO_STAKING_PARAMS_KEY],
-    queryFn: getCoStakingParams,
+    queryFn: async () => {
+      const client = await babylon.client();
+      try {
+        const params = await client.baby.getCostakingParams();
+        // Convert to match the existing interface
+        return {
+          params: {
+            costaking_portion: params.costakingPortion.toString(),
+            score_ratio_btc_by_baby: params.scoreRatioBtcByBaby,
+            validators_portion: params.validatorsPortion.toString(),
+          },
+        };
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getCostakingParams" },
+        });
+        return null;
+      }
+    },
     enabled: isCoStakingEnabled,
     staleTime: ONE_MINUTE * 5, // Cache for 5 minutes
     retry: 3,
   });
 
   // Query for user's co-staking rewards tracker
-  const rewardsTrackerQuery = useQuery({
+  const rewardsTrackerQuery = useClientQuery({
     queryKey: [CO_STAKING_REWARDS_TRACKER_KEY, bech32Address],
-    queryFn: () => getCoStakerRewardsTracker(bech32Address || ""),
+    queryFn: async () => {
+      if (!bech32Address) return null;
+
+      const client = await babylon.client();
+      try {
+        const tracker = await client.baby.getCoStakerRewardsTracker(bech32Address);
+        if (!tracker) return null;
+
+        // Convert to match the existing interface
+        return {
+          start_period_cumulative_reward: tracker.startPeriodCumulativeReward,
+          active_satoshis: tracker.activeSatoshis,
+          active_baby: tracker.activeBaby,
+          total_score: tracker.totalScore,
+        };
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getCoStakerRewardsTracker", bech32Address },
+        });
+        return null;
+      }
+    },
     enabled: Boolean(isCoStakingEnabled && connected && bech32Address),
     staleTime: ONE_MINUTE,
     retry: 3,
   });
 
   // Query for current co-staking rewards
-  const currentRewardsQuery = useQuery({
+  const currentRewardsQuery = useClientQuery({
     queryKey: [CO_STAKING_CURRENT_REWARDS_KEY],
-    queryFn: getCurrentCoStakingRewards,
+    queryFn: async () => {
+      const client = await babylon.client();
+      try {
+        const rewards = await client.baby.getCurrentCoStakingRewards();
+        // Convert to match the existing interface
+        return {
+          rewards: rewards.rewards,
+          period: rewards.period,
+          total_score: rewards.totalScore,
+        };
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getCurrentCoStakingRewards" },
+        });
+        throw error;
+      }
+    },
     enabled: isCoStakingEnabled,
     staleTime: ONE_MINUTE,
     retry: 3,

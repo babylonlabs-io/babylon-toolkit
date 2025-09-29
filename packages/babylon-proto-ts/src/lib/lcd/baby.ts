@@ -100,15 +100,70 @@ const createBabylonClient = ({ request }: Dependencies) => ({
   async getCostakingParams(): Promise<{
     costakingPortion: number;
     validatorsPortion: number;
+    scoreRatioBtcByBaby: string;
   }> {
     const response = await request("/babylon/costaking/v1/params");
     const params = response?.params ?? response;
-    const costakingPortion = Number(params?.costakingPortion ?? 0);
-    const validatorsPortion = Number(params?.validatorsPortion ?? 0);
+    const costakingPortion = Number(params?.costakingPortion ?? params?.costaking_portion ?? 0);
+    const validatorsPortion = Number(params?.validatorsPortion ?? params?.validators_portion ?? 0);
+    const scoreRatioBtcByBaby = params?.scoreRatioBtcByBaby ?? params?.score_ratio_btc_by_baby ?? "50";
     return {
       costakingPortion: Number.isFinite(costakingPortion) ? costakingPortion : 0,
       validatorsPortion: Number.isFinite(validatorsPortion) ? validatorsPortion : 0,
+      scoreRatioBtcByBaby: scoreRatioBtcByBaby,
     };
+  },
+
+  async getCoStakerRewardsTracker(costakerAddress: string): Promise<{
+    startPeriodCumulativeReward: number;
+    activeSatoshis: string;
+    activeBaby: string;
+    totalScore: string;
+  } | null> {
+    if (!costakerAddress) {
+      return null;
+    }
+
+    try {
+      const response = await request(
+        `/babylon/costaking/v1/costakers/${costakerAddress}/rewards_tracker`
+      );
+
+      return {
+        startPeriodCumulativeReward: response?.start_period_cumulative_reward ?? 0,
+        activeSatoshis: response?.active_satoshis ?? "0",
+        activeBaby: response?.active_baby ?? "0",
+        totalScore: response?.total_score ?? "0",
+      };
+    } catch (error: any) {
+      // Return null for 404 errors (user has not co-staked yet)
+      if (error?.message?.includes("404") || error?.status === 404) {
+        return null;
+      }
+      throw new Error(`Failed to fetch co-staker rewards tracker for ${costakerAddress}`, {
+        cause: error,
+      });
+    }
+  },
+
+  async getCurrentCoStakingRewards(): Promise<{
+    rewards: Array<{ denom: string; amount: string }>;
+    period: number;
+    totalScore: string;
+  }> {
+    try {
+      const response = await request("/babylon/costaking/v1/current_rewards");
+
+      return {
+        rewards: response?.rewards ?? [],
+        period: response?.period ?? 0,
+        totalScore: response?.total_score ?? "0",
+      };
+    } catch (error) {
+      throw new Error("Failed to fetch current co-staking rewards", {
+        cause: error,
+      });
+    }
   },
 
   async getAnnualProvisions(): Promise<number> {
