@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
-import { SubSection, Text, CloseIcon } from "@babylonlabs-io/core-ui";
+import { Text, DismissibleSubSection } from "@babylonlabs-io/core-ui";
 
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
@@ -35,19 +35,17 @@ export function CoStakingBoostSection({
     // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
   };
 
-  return (
-    hasActiveBtcDelegations &&
-    !isLoading &&
-    showCoStakingBoostSection && (
-      <SubSection className="flex gap-3">
-        <MdRocketLaunch size={24} className="min-w-6 text-info-light" />
-        <div className="flex flex-col gap-1">
-          <Text variant="subtitle1" className="text-accent-primary">
-            Boost Your BTC Staking Rewards
-          </Text>
+  const shouldShowCoStakingBoostSection =
+    hasActiveBtcDelegations && !isLoading && showCoStakingBoostSection;
 
+  return (
+    shouldShowCoStakingBoostSection && (
+      <DismissibleSubSection
+        icon={<MdRocketLaunch size={24} className="min-w-6 text-info-light" />}
+        title={`Boost Your ${btcCoinSymbol} Staking Rewards`}
+        content={
           <Text variant="body1" className="text-accent-secondary">
-            Stake {""}
+            Stake{" "}
             <button
               type="button"
               onClick={handlePrefill}
@@ -55,20 +53,14 @@ export function CoStakingBoostSection({
             >
               {CO_STAKING_REQUIRED_AMOUNT_BABY.toLocaleString()}
             </button>{" "}
-            {babyCoinSymbol} to boost your {btcCoinSymbol} rewards. The more{" "}
-            {babyCoinSymbol} you stake, the more of your {btcCoinSymbol} becomes{" "}
-            eligible for bonus rewards. Start co-staking to unlock higher{" "}
+            {babyCoinSymbol} to boost your {btcCoinSymbol} rewards. The more
+            {babyCoinSymbol} you stake, the more of your {btcCoinSymbol} becomes
+            eligible for bonus rewards. Start co-staking to unlock higher
             returns.
           </Text>
-        </div>
-        <div
-          className="cursor-pointer"
-          aria-label="Dismiss co-staking boost section"
-          onClick={() => setShowCoStakingBoostSection(false)}
-        >
-          <CloseIcon size={14} variant="accent-primary"></CloseIcon>
-        </div>
-      </SubSection>
+        }
+        onCloseClick={() => setShowCoStakingBoostSection(false)}
+      />
     )
   );
 }
