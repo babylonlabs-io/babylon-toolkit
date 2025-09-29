@@ -1,3 +1,5 @@
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
+
 import { Container } from "../Container/Container";
 import { SmallLogo } from "../Logo/SmallLogo";
 import { Nav } from "../Nav/Nav";
@@ -14,7 +16,9 @@ export const SimplifiedHeader = () => {
         <div className="absolute left-1/2 -translate-x-1/2 transform">
           <Nav>
             <NavItem title="BTC Staking" to="/btc" />
-            <NavItem title="BABY Staking" to="/baby" />
+            {FeatureFlagService.IsBabyStakingEnabled && (
+              <NavItem title="BABY Staking" to="/baby" />
+            )}
           </Nav>
         </div>
       </Container>

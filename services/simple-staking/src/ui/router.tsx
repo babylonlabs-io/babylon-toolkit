@@ -13,7 +13,9 @@ export const Router = () => {
       <Route path="/" element={<Layout />}>
         <Route index element={<Navigate to="btc" replace />} />
         <Route path="btc" element={<BTCStaking />} />
-        <Route path="baby" element={<BabyLayout />} />
+        {FeatureFlagService.IsBabyStakingEnabled && (
+          <Route path="baby" element={<BabyLayout />} />
+        )}
         {FeatureFlagService.IsVaultEnabled && (
           <Route path="vault" element={<VaultLayout />} />
         )}

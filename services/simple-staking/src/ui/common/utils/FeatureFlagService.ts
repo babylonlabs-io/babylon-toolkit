@@ -71,4 +71,15 @@ export default {
   get IsVaultEnabled() {
     return process.env.NEXT_PUBLIC_FF_VAULT === "true";
   },
+
+  /**
+   * Baby Staking feature flag
+   *
+   * Purpose: Enables baby staking functionality for users to stake BABY tokens
+   * Why needed: To gradually roll out baby staking feature
+   * ETA for removal: TBD - Will be removed once baby staking is fully released
+   */
+  get IsBabyStakingEnabled() {
+    return process.env.NEXT_PUBLIC_FF_BABY_STAKING === "true";
+  },
 };

@@ -2,6 +2,8 @@ import { MdClose } from "react-icons/md";
 import { NavLink } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
+
 import { MobileLogo } from "../Logo/MobileLogo";
 
 interface MobileNavOverlayProps {
@@ -40,18 +42,20 @@ export const MobileNavOverlay = ({ open, onClose }: MobileNavOverlayProps) => {
           BTC Staking
         </NavLink>
 
-        <NavLink
-          to="/baby"
-          onClick={onClose}
-          className={({ isActive }) =>
-            twJoin(
-              "text-2xl",
-              isActive ? "text-accent-primary" : "text-accent-secondary",
-            )
-          }
-        >
-          BABY Staking
-        </NavLink>
+        {FeatureFlagService.IsBabyStakingEnabled && (
+          <NavLink
+            to="/baby"
+            onClick={onClose}
+            className={({ isActive }) =>
+              twJoin(
+                "text-2xl",
+                isActive ? "text-accent-primary" : "text-accent-secondary",
+              )
+            }
+          >
+            BABY Staking
+          </NavLink>
+        )}
       </nav>
     </div>
   );

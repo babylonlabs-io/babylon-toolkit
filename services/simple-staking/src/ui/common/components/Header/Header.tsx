@@ -6,6 +6,7 @@ import { Container } from "@/ui/common/components/Container/Container";
 import { MobileNavOverlay, Nav, NavItem } from "@/ui/common/components/Nav";
 import { useIsMobileView } from "@/ui/common/hooks/useBreakpoint";
 import { useAppState } from "@/ui/common/state";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { MobileLogo } from "../Logo/MobileLogo";
 import { SmallLogo } from "../Logo/SmallLogo";
@@ -42,7 +43,9 @@ export const Header = () => {
           <div className="absolute left-1/2 -translate-x-1/2 transform">
             <Nav>
               <NavItem title="BTC Staking" to="/btc" />
-              <NavItem title="BABY Staking" to="/baby" />
+              {FeatureFlagService.IsBabyStakingEnabled && (
+                <NavItem title="BABY Staking" to="/baby" />
+              )}
             </Nav>
           </div>
         )}
