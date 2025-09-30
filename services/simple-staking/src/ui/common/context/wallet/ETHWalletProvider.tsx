@@ -22,11 +22,12 @@ import {
   useAccount,
 } from "wagmi";
 
+import { useError } from "@/ui/common/context/Error/ErrorProvider";
+
 interface ETHWalletContextType {
   // Connection state
   loading: boolean;
   connected: boolean;
-  isConnected: boolean; // Alias for connected for consistency
   open: () => void;
   disconnect: () => void;
 
@@ -55,16 +56,12 @@ interface ETHWalletContextType {
   // Transaction tracking
   pendingTx?: string;
   isPending: boolean;
-
-  // Error handling
-  error?: Error;
   clearError: () => void;
 }
 
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  isConnected: false,
   open: () => {},
   disconnect: () => {},
   address: "",
@@ -83,19 +80,19 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  error: undefined,
   clearError: () => {},
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
 
 export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
+  const { handleError } = useError();
+
   // Local state
   const [loading] = useState(false);
   const [publicKeyHex] = useState(""); // ETH doesn't expose public key directly
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<Error>();
   const [networkName, setNetworkName] = useState<string>();
 
   // AppKit and Wagmi hooks (must be called unconditionally)
@@ -135,12 +132,16 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
     try {
       await disconnect();
       setPendingTx(undefined);
-      setError(undefined);
     } catch (err) {
       console.error("Failed to disconnect ETH wallet:", err);
-      setError(err as Error);
+      handleError({
+        error: err as Error,
+        displayOptions: {
+          retryAction: () => ethDisconnect(),
+        },
+      });
     }
-  }, [disconnect]);
+  }, [disconnect, handleError]);
 
   const ethWalletMethods = useMemo(
     () => ({
@@ -149,11 +150,10 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       signMessage: async (message: string) => {
         try {
           setIsPending(true);
-          setError(undefined);
           const signature = await signMessageAsync({ message });
           return signature;
         } catch (err) {
-          setError(err as Error);
+          handleError({ error: err as Error });
           throw err;
         } finally {
           setIsPending(false);
@@ -162,7 +162,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       signTypedData: async (typedData: ETHTypedData) => {
         try {
           setIsPending(true);
-          setError(undefined);
           const signature = await signTypedDataAsync({
             domain: {
               ...typedData.domain,
@@ -180,7 +179,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           });
           return signature;
         } catch (err) {
-          setError(err as Error);
+          handleError({ error: err as Error });
           throw err;
         } finally {
           setIsPending(false);
@@ -189,7 +188,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       sendTransaction: async (to: string, value: string) => {
         try {
           setIsPending(true);
-          setError(undefined);
           const hash = await sendTransactionAsync({
             to: to as `0x${string}`,
             value: BigInt(value),
@@ -197,7 +195,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           if (hash) setPendingTx(hash);
           return hash;
         } catch (err) {
-          setError(err as Error);
+          handleError({ error: err as Error });
           throw err;
         } finally {
           setIsPending(false);
@@ -209,7 +207,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
         // AppKit handles chain switching through the modal
         console.log("Chain switching handled by AppKit modal");
       },
-      clearError: () => setError(undefined),
     }),
     [
       address,
@@ -225,7 +222,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
     () => ({
       loading,
       connected,
-      isConnected: connected,
       open,
       disconnect: ethDisconnect,
       address: address ?? "",
@@ -240,7 +236,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       networkName,
       pendingTx,
       isPending,
-      error,
+      clearError: () => {},
       ...ethWalletMethods,
     }),
     [
@@ -255,7 +251,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       networkName,
       pendingTx,
       isPending,
-      error,
       ethWalletMethods,
     ],
   );
@@ -275,7 +270,6 @@ export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
     () => ({
       loading: false,
       connected: false,
-      isConnected: false,
       open: () => console.warn("ETH wallet not available"),
       disconnect: () => Promise.resolve(),
       address: "",
@@ -286,7 +280,6 @@ export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
       networkName: undefined,
       pendingTx: undefined,
       isPending: false,
-      error: new Error("ETH wallet not available"),
       getAddress: async () => "",
       getPublicKeyHex: async () => "",
       signMessage: async () => {

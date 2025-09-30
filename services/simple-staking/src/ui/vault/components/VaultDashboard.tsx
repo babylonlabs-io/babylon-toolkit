@@ -13,7 +13,7 @@ export const VaultDashboard = () => {
 
   const {
     address: ethAddress,
-    isConnected: ethConnected,
+    connected: ethConnected,
     chainId,
     networkName,
   } = useETHWallet();

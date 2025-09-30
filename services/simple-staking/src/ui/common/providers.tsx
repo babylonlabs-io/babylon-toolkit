@@ -3,10 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "./components/Notification/NotificationContainer";
-import { wagmiConfig } from "./config/appkit";
 import { ErrorProvider } from "./context/Error/ErrorProvider";
 import { BbnRpcProvider } from "./context/rpc/BbnRpcProvider";
 import { BTCWalletProvider } from "./context/wallet/BTCWalletProvider";
@@ -34,19 +32,17 @@ function Providers({ children }: React.PropsWithChildren) {
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
-                <WagmiProvider config={wagmiConfig}>
-                  <ErrorProvider>
-                    <BbnRpcProvider>
-                      <WalletConnectionProvider>
-                        <BTCWalletProvider>
-                          <CosmosWalletProvider>
-                            <AppState>{children}</AppState>
-                          </CosmosWalletProvider>
-                        </BTCWalletProvider>
-                      </WalletConnectionProvider>
-                    </BbnRpcProvider>
-                  </ErrorProvider>
-                </WagmiProvider>
+                <ErrorProvider>
+                  <BbnRpcProvider>
+                    <WalletConnectionProvider>
+                      <BTCWalletProvider>
+                        <CosmosWalletProvider>
+                          <AppState>{children}</AppState>
+                        </CosmosWalletProvider>
+                      </BTCWalletProvider>
+                    </WalletConnectionProvider>
+                  </BbnRpcProvider>
+                </ErrorProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"
                   initialIsOpen={false}

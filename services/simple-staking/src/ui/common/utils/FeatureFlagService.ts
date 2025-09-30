@@ -68,10 +68,6 @@ export default {
     return process.env.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL === "true";
   },
 
-  get IsVaultEnabled() {
-    return process.env.NEXT_PUBLIC_FF_VAULT === "true";
-  },
-
   /**
    * Vault feature flag
    *
