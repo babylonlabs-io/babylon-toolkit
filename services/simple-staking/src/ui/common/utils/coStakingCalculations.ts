@@ -1,15 +1,19 @@
 /**
  * Calculates the BTC eligibility percentage for co-staking rewards
  * Formula: min(active_satoshis, active_baby/score_ratio) / active_satoshis * 100
+ *
+ * @param activeSatoshis
+ * @param activeBaby
+ * @param scoreRatio
  */
 export const calculateBTCEligibilityPercentage = (
   activeSatoshis: string,
   activeBaby: string,
   scoreRatio: string,
 ): number => {
-  const sats = parseFloat(activeSatoshis);
-  const baby = parseFloat(activeBaby);
-  const ratio = parseFloat(scoreRatio);
+  const sats = Number(activeSatoshis);
+  const baby = Number(activeBaby);
+  const ratio = Number(scoreRatio);
 
   if (sats === 0) return 0;
   if (ratio === 0) return 0;
@@ -27,7 +31,7 @@ export const calculateRequiredBabyTokens = (
   scoreRatio: string,
 ): number => {
   // Score ratio is in uBBN per sat
-  const ratio = parseFloat(scoreRatio);
+  const ratio = Number(scoreRatio);
   const requiredUbbn = satoshisAmount * ratio;
   return requiredUbbn;
 };
@@ -78,30 +82,30 @@ export const formatBabyTokens = (value: number): string => {
  *
  * Formula: currentApr = btcStakingApr + (coStakingApr × eligibility%)
  *
- * @param activeSatoshis - Total satoshis staked by the user
- * @param activeBaby - Total ubbn staked by the user
- * @param scoreRatio - Score ratio (ubbn per satoshi required for full eligibility)
+ * @param activeSatoshis - Total satoshis staked
+ * @param activeBaby - Total ubbn staked
+ * @param scoreRatio - Score ratio
  * @param btcStakingApr - Base BTC staking APR (earned on all BTC)
  * @param coStakingApr - Co-staking bonus APR (earned on eligible BTC only)
  * @returns User's current total APR (BTC APR + partial co-staking bonus)
  */
 export const calculateCurrentAPR = (
-  activeSatoshis: number,
-  activeBaby: number,
-  scoreRatio: number,
+  activeSatoshis: string,
+  activeBaby: string,
+  scoreRatio: string,
   btcStakingApr: number,
   coStakingApr: number,
 ): number => {
-  if (activeSatoshis === 0) return 0;
-  if (scoreRatio === 0) return btcStakingApr;
+  const sats = Number(activeSatoshis);
+  const ratio = Number(scoreRatio);
+
+  if (sats === 0) return 0;
+  if (ratio === 0) return btcStakingApr;
 
   // Calculate eligibility percentage (what % of BTC qualifies for co-staking bonus)
   const eligibilityPercentage =
-    calculateBTCEligibilityPercentage(
-      activeSatoshis.toString(),
-      activeBaby.toString(),
-      scoreRatio.toString(),
-    ) / 100;
+    calculateBTCEligibilityPercentage(activeSatoshis, activeBaby, scoreRatio) /
+    100;
 
   // Current APR = Base BTC APR + (Co-staking bonus APR × eligibility)
   const currentApr = btcStakingApr + coStakingApr * eligibilityPercentage;

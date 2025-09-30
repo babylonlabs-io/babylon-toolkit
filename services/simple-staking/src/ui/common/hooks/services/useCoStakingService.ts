@@ -162,11 +162,11 @@ export const useCoStakingService = () => {
   /**
    * Get the co-staking score ratio (BABY per BTC)
    */
-  const getScoreRatio = useCallback((): number => {
+  const getScoreRatio = useCallback((): string => {
     const params = coStakingParamsQuery.data?.params;
-    if (!params) return 50; // Default ratio
+    if (!params) return "50"; // Default ratio
 
-    return parseFloat(params.score_ratio_btc_by_baby);
+    return params.score_ratio_btc_by_baby;
   }, [coStakingParamsQuery.data]);
 
   /**
@@ -183,7 +183,7 @@ export const useCoStakingService = () => {
     const additionalUbbnNeeded = calculateAdditionalBabyNeeded(
       totalSatoshisStaked,
       currentUbbn,
-      scoreRatio.toString(),
+      scoreRatio,
     );
 
     // Convert to BABY for display
@@ -240,14 +240,14 @@ export const useCoStakingService = () => {
     const eligibilityPercentage = calculateBTCEligibilityPercentage(
       rewardsTracker.active_satoshis,
       rewardsTracker.active_baby,
-      scoreRatio.toString(),
+      scoreRatio,
     );
 
     // Calculate current APR (A%) = BTC APR + (co-staking bonus × eligibility)
     // User earns full BTC APR + partial co-staking bonus based on BABY staked
     const currentApr = calculateCurrentAPR(
-      Number(rewardsTracker.active_satoshis),
-      Number(rewardsTracker.active_baby),
+      rewardsTracker.active_satoshis,
+      rewardsTracker.active_baby,
       scoreRatio,
       aprData.btc_staking,
       aprData.co_staking,
