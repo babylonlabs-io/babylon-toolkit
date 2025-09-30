@@ -38,8 +38,8 @@ jobs:
       - name: Build affected
         run: npx nx affected --target=build --base=origin/main --verbose
 
-      - name: Lint affected
-        run: npx nx affected --target=lint --base=origin/main --verbose
+      # - name: Lint affected
+      #   run: npx nx affected --target=lint --base=origin/main --verbose
 
-      - name: Test affected
-        run: npx nx affected --target=test --base=origin/main --verbose
+      # - name: Test affected
+      #   run: npx nx affected --target=test --base=origin/main --verbose

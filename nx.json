@@ -29,9 +29,6 @@
     },
     "typecheck": {
       "cache": true
-    },
-    "lint": {
-      "cache": true
     }
   },
   "plugins": [

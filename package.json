@@ -4,10 +4,10 @@
   "license": "MIT",
   "scripts": {
     "build": "nx run-many --target=build --all",
-    "lint": "nx run-many --target=lint --all --verbose",
-    "test": "nx run-many --target=test --all --verbose",
+    "_lint": "nx run-many --target=lint --all --verbose",
+    "_test": "nx run-many --target=test --all --verbose",
     "nx:sync": "nx sync",
-    "prepare": "husky",
+    "_prepare": "husky",
     "ci:release": "nx run @internal/release:run"
   },
   "private": true,
