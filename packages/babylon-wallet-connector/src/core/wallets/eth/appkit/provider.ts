@@ -95,9 +95,9 @@ export class AppKitProvider implements IETHProvider {
         projectId,
         metadata: {
           name: "Babylon Vault",
-          description: "BTC and ETH Staking Platform",
-          url: "https://babylon.io",
-          icons: ["https://babylon.io/icon.png"],
+          description: "",
+          url: "",
+          icons: [""],
         },
       });
 

@@ -1,5 +1,6 @@
 import type { ETHConfig } from "@babylonlabs-io/wallet-connector";
 
+import ethereumIcon from "@/ui/common/assets/ethereum.svg";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 
 const defaultNetwork = "testnet";
@@ -19,7 +20,7 @@ const config: Record<string, Config> = {
       symbol: "ETH",
       decimals: 18,
     },
-    icon: "", // TODO: Add ETH icon
+    icon: ethereumIcon,
     displayUSD: true,
   },
   canary: {
@@ -34,7 +35,7 @@ const config: Record<string, Config> = {
       symbol: "ETH",
       decimals: 18,
     },
-    icon: "", // TODO: Add ETH icon
+    icon: ethereumIcon,
     displayUSD: false,
   },
   testnet: {
@@ -48,7 +49,7 @@ const config: Record<string, Config> = {
       symbol: "ETH",
       decimals: 18,
     },
-    icon: "", // TODO: Add ETH icon
+    icon: ethereumIcon,
     displayUSD: false,
   },
   devnet: {
@@ -62,7 +63,7 @@ const config: Record<string, Config> = {
       symbol: "ETH",
       decimals: 18,
     },
-    icon: "", // TODO: Add ETH icon
+    icon: ethereumIcon,
     displayUSD: false,
   },
 };

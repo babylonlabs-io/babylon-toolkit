@@ -21,9 +21,9 @@ export const wagmiConfig = createConfig({
       projectId,
       metadata: {
         name: "Babylon Vault",
-        description: "BTC and ETH Staking Platform",
-        url: "https://babylon.io",
-        icons: ["https://babylon.io/icon.png"],
+        description: "",
+        url: "",
+        icons: [""],
       },
     }),
   ],
@@ -35,9 +35,9 @@ export const appKitConfig = {
   networks: [mainnet, sepolia],
   metadata: {
     name: "Babylon Vault",
-    description: "BTC and ETH Staking Platform",
-    url: "https://babylon.io",
-    icons: ["https://babylon.io/icon.png"],
+    description: "",
+    url: "",
+    icons: [""],
   },
   features: {
     analytics: true,
