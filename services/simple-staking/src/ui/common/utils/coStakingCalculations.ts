@@ -40,14 +40,11 @@ export const calculateRequiredBabyTokens = (
  * Calculates additional ubbn needed for full co-staking rewards
  */
 export const calculateAdditionalBabyNeeded = (
-  totalSatoshisStaked: number,
+  activeSatoshis: number,
   currentUbbnStaked: number,
   scoreRatio: string,
 ): number => {
-  const requiredUbbn = calculateRequiredBabyTokens(
-    totalSatoshisStaked,
-    scoreRatio,
-  );
+  const requiredUbbn = calculateRequiredBabyTokens(activeSatoshis, scoreRatio);
   const additionalNeeded = Math.max(0, requiredUbbn - currentUbbnStaked);
   return additionalNeeded;
 };

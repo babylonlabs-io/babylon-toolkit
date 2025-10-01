@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import babylon from "@/infrastructure/babylon";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
@@ -14,7 +14,6 @@ import {
 } from "@/ui/common/utils/coStakingCalculations";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
-import { useDelegationsV2 } from "../client/api/useDelegationsV2";
 import { ubbnToBaby } from "../../utils/bbn";
 import { getAPR } from "../../api/getAPR";
 
@@ -136,28 +135,11 @@ export const useCoStakingService = () => {
     retry: 3,
   });
 
-  // Get user's delegations
-  const { data: delegationsData, isLoading: isDelegationsLoading } =
-    useDelegationsV2(bech32Address, {
-      enabled: Boolean(isCoStakingEnabled && connected && bech32Address),
-    });
-
   // Destructure refetch functions for stable references
   const { refetch: refetchCoStakingParams } = coStakingParamsQuery;
   const { refetch: refetchRewardsTracker } = rewardsTrackerQuery;
   const { refetch: refetchCurrentRewards } = currentRewardsQuery;
   const { refetch: refetchAPR } = aprQuery;
-
-  /**
-   * Calculate the total satoshis staked by the user
-   */
-  const totalSatoshisStaked = useMemo(() => {
-    if (!delegationsData?.delegations) return 0;
-
-    return delegationsData.delegations.reduce((sum, delegation) => {
-      return sum + (delegation.stakingAmount || 0);
-    }, 0);
-  }, [delegationsData]);
 
   /**
    * Get the co-staking score ratio (BABY per BTC)
@@ -176,19 +158,21 @@ export const useCoStakingService = () => {
     const scoreRatio = getScoreRatio();
     const rewardsTracker = rewardsTrackerQuery.data;
 
-    // Get current ubbn staked (from rewards tracker)
-    const currentUbbn = rewardsTracker ? Number(rewardsTracker.active_baby) : 0;
+    if (!rewardsTracker) return 0;
+
+    const activeSatoshis = Number(rewardsTracker.active_satoshis);
+    const currentUbbn = Number(rewardsTracker.active_baby);
 
     // Calculate additional ubbn needed
     const additionalUbbnNeeded = calculateAdditionalBabyNeeded(
-      totalSatoshisStaked,
+      activeSatoshis,
       currentUbbn,
       scoreRatio,
     );
 
     // Convert to BABY for display
     return ubbnToBaby(additionalUbbnNeeded);
-  }, [getScoreRatio, rewardsTrackerQuery.data, totalSatoshisStaked]);
+  }, [getScoreRatio, rewardsTrackerQuery.data]);
 
   /**
    * Get co-staking APR with current and boost values
@@ -326,7 +310,6 @@ export const useCoStakingService = () => {
     rewardsTracker: rewardsTrackerQuery.data,
     currentRewards: currentRewardsQuery.data,
     aprData: aprQuery.data,
-    totalSatoshisStaked,
 
     // Methods
     getScoreRatio,
@@ -340,8 +323,7 @@ export const useCoStakingService = () => {
       coStakingParamsQuery.isLoading ||
       rewardsTrackerQuery.isLoading ||
       currentRewardsQuery.isLoading ||
-      aprQuery.isLoading ||
-      isDelegationsLoading,
+      aprQuery.isLoading,
 
     // Error states
     error:
