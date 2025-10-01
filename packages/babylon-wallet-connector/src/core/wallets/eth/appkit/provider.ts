@@ -16,7 +16,8 @@ import { injected, walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
 
-import { wagmiConfig } from "./config";
+import { wagmiConfig as fallbackWagmiConfig } from "./config";
+import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
 /**
  * AppKitProvider - ETH wallet provider using AppKit/Wagmi
@@ -40,9 +41,18 @@ export class AppKitProvider implements IETHProvider {
     this.setupEventWatchers();
   }
 
+  /**
+   * Get the current wagmi config (shared if available, otherwise fallback)
+   */
+  private getWagmiConfig() {
+    return hasSharedWagmiConfig() ? getSharedWagmiConfig() : fallbackWagmiConfig;
+  }
+
   private setupEventWatchers(): void {
+    const config = this.getWagmiConfig();
+    
     // Watch for account changes
-    const unwatchAccount = watchAccount(wagmiConfig, {
+    const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
         this.address = account.address;
         this.chainId = account.chainId;
@@ -51,7 +61,7 @@ export class AppKitProvider implements IETHProvider {
     });
 
     // Watch for chain changes
-    const unwatchChain = watchChainId(wagmiConfig, {
+    const unwatchChain = watchChainId(config, {
       onChange: (chainId) => {
         this.chainId = chainId;
         this.emit("chainChanged", `0x${chainId.toString(16)}`);
@@ -70,8 +80,10 @@ export class AppKitProvider implements IETHProvider {
 
   async connectWallet(): Promise<void> {
     try {
+      const config = this.getWagmiConfig();
+      
       // First check if already connected
-      const currentAccount = getAccount(wagmiConfig);
+      const currentAccount = getAccount(config);
       if (currentAccount.address) {
         this.address = currentAccount.address;
         this.chainId = currentAccount.chainId;
@@ -80,7 +92,7 @@ export class AppKitProvider implements IETHProvider {
 
       // Try to connect using injected provider (MetaMask, etc.) first
       try {
-        const result = await connect(wagmiConfig, { connector: injected() });
+        const result = await connect(config, { connector: injected() });
         this.address = result.accounts[0];
         this.chainId = result.chainId;
         return;
@@ -101,7 +113,7 @@ export class AppKitProvider implements IETHProvider {
         },
       });
 
-      const result = await connect(wagmiConfig, { connector: wcConnector });
+      const result = await connect(config, { connector: wcConnector });
       this.address = result.accounts[0];
       this.chainId = result.chainId;
     } catch (error) {
@@ -113,7 +125,8 @@ export class AppKitProvider implements IETHProvider {
   async getAddress(): Promise<string> {
     if (!this.address) {
       // Try to get account from wagmi
-      const account = getAccount(wagmiConfig);
+      const config = this.getWagmiConfig();
+      const account = getAccount(config);
       if (account.address) {
         this.address = account.address;
         return this.address;
@@ -131,8 +144,9 @@ export class AppKitProvider implements IETHProvider {
 
   async signMessage(message: string): Promise<string> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const signature = await wagmiSignMessage(wagmiConfig, {
+      const signature = await wagmiSignMessage(config, {
         message,
         account: address as `0x${string}`,
       });
@@ -144,8 +158,9 @@ export class AppKitProvider implements IETHProvider {
 
   async signTypedData(typedData: ETHTypedData): Promise<string> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const signature = await wagmiSignTypedData(wagmiConfig, {
+      const signature = await wagmiSignTypedData(config, {
         account: address as `0x${string}`,
         domain: {
           ...typedData.domain,
@@ -164,8 +179,9 @@ export class AppKitProvider implements IETHProvider {
 
   async sendTransaction(tx: ETHTransactionRequest): Promise<string> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const hash = await wagmiSendTransaction(wagmiConfig, {
+      const hash = await wagmiSendTransaction(config, {
         account: address as `0x${string}`,
         to: tx.to as `0x${string}`,
         value: tx.value ? parseEther(tx.value) : undefined,
@@ -183,8 +199,9 @@ export class AppKitProvider implements IETHProvider {
 
   async estimateGas(tx: ETHTransactionRequest): Promise<bigint> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const gas = await wagmiEstimateGas(wagmiConfig, {
+      const gas = await wagmiEstimateGas(config, {
         account: address as `0x${string}`,
         to: tx.to as `0x${string}`,
         value: tx.value ? parseEther(tx.value) : undefined,
@@ -201,7 +218,8 @@ export class AppKitProvider implements IETHProvider {
       return this.chainId;
     }
 
-    const account = getAccount(wagmiConfig);
+    const config = this.getWagmiConfig();
+    const account = getAccount(config);
     if (account.chainId) {
       this.chainId = account.chainId;
       return this.chainId;
@@ -212,13 +230,14 @@ export class AppKitProvider implements IETHProvider {
 
   async switchChain(chainId: number): Promise<void> {
     try {
+      const config = this.getWagmiConfig();
       // Only allow switching to supported chains
       const supportedChains = [1, 11155111]; // Mainnet and Sepolia
       if (!supportedChains.includes(chainId)) {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      await wagmiSwitchChain(wagmiConfig, { chainId: chainId as 1 | 11155111 });
+      await wagmiSwitchChain(config, { chainId: chainId as 1 | 11155111 });
       this.chainId = chainId;
     } catch (error) {
       throw new Error(`Failed to switch chain: ${error}`);
@@ -227,8 +246,9 @@ export class AppKitProvider implements IETHProvider {
 
   async getBalance(): Promise<bigint> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const balance = await wagmiGetBalance(wagmiConfig, {
+      const balance = await wagmiGetBalance(config, {
         address: address as `0x${string}`,
       });
       return balance.value;
@@ -239,8 +259,9 @@ export class AppKitProvider implements IETHProvider {
 
   async getNonce(): Promise<number> {
     try {
+      const config = this.getWagmiConfig();
       const address = await this.getAddress();
-      const nonce = await getTransactionCount(wagmiConfig, {
+      const nonce = await getTransactionCount(config, {
         address: address as `0x${string}`,
       });
       return nonce;

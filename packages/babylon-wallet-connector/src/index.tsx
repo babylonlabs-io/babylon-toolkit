@@ -14,3 +14,6 @@ export * from "@/context/State.context";
 
 export { createExternalWallet } from "@/core";
 export * from "@/core/types";
+
+// Export AppKit shared config helpers
+export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from "@/core/wallets/eth/appkit/sharedConfig";
