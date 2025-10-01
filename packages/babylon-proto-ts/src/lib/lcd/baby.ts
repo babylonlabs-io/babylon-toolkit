@@ -144,10 +144,10 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
       return {
         startPeriodCumulativeReward:
-          response?.start_period_cumulative_reward ?? 0,
-        activeSatoshis: response?.active_satoshis ?? "0",
-        activeBaby: response?.active_baby ?? "0",
-        totalScore: response?.total_score ?? "0",
+          response?.startPeriodCumulativeReward ?? 0,
+        activeSatoshis: response?.activeSatoshis ?? "0",
+        activeBaby: response?.activeBaby ?? "0",
+        totalScore: response?.totalScore ?? "0",
       };
     } catch (error: any) {
       // Return null for 404 errors (user has not co-staked yet)
@@ -174,7 +174,7 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       return {
         rewards: response?.rewards ?? [],
         period: response?.period ?? 0,
-        totalScore: response?.total_score ?? "0",
+        totalScore: response?.totalScore ?? "0",
       };
     } catch (error) {
       throw new Error("Failed to fetch current co-staking rewards", {
