@@ -9,7 +9,6 @@ import { Activity } from "./components/Activity/Activity";
 import { Container } from "./components/Container/Container";
 import { FAQ } from "./components/FAQ/FAQ";
 import { MultistakingFormWrapper } from "./components/Multistaking/MultistakingForm/MultistakingFormWrapper";
-import { Rewards } from "./components/Rewards";
 import { Stats } from "./components/Stats/Stats";
 import { Tabs } from "./components/Tabs";
 
@@ -43,11 +42,6 @@ const Home = () => {
             id: "activity",
             label: "Activity",
             content: <Activity />,
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <Rewards />,
           },
         ]
       : []),

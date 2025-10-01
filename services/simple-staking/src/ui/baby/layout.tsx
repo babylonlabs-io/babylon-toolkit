@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Card } from "@babylonlabs-io/core-ui";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
-import { RewardState } from "@/ui/baby/state/RewardState";
 import { StakingState } from "@/ui/baby/state/StakingState";
 import { ValidatorState } from "@/ui/baby/state/ValidatorState";
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
@@ -18,14 +17,12 @@ import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { Stats } from "./components/Stats/Stats";
 import { BabyActivityList } from "./components/ActivityList";
-import { RewardCard } from "./components/RewardCard";
-import { RewardsPreviewModal } from "./components/RewardPreviewModal";
 import CoStakingBoostSection from "./components/CoStakingBoostSection";
 import { useEpochPolling } from "./hooks/api/useEpochPolling";
 import { PendingOperationsProvider } from "./hooks/services/usePendingOperationsService";
 import StakingForm from "./widgets/StakingForm";
 
-export type TabId = "stake" | "activity" | "rewards" | "faqs";
+export type TabId = "stake" | "activity" | "faqs";
 
 export default function BabyLayout() {
   return (
@@ -48,22 +45,13 @@ function BabyLayoutContent() {
   }, [connected]);
 
   useEffect(() => {
-    if (isGeoBlocked && (activeTab === "activity" || activeTab === "rewards")) {
+    if (isGeoBlocked && activeTab === "activity") {
       setActiveTab("stake");
     }
   }, [isGeoBlocked, activeTab]);
 
   // Enable epoch polling to refetch delegations when epoch changes
   useEpochPolling(bech32Address);
-
-  const RewardsTab: React.FC = () => {
-    return (
-      <Section>
-        <RewardCard />
-        <RewardsPreviewModal />
-      </Section>
-    );
-  };
 
   const tabItems = [
     {
@@ -81,11 +69,6 @@ function BabyLayoutContent() {
                 <BabyActivityList />
               </Section>
             ),
-          },
-          {
-            id: "rewards",
-            label: "Rewards",
-            content: <RewardsTab />,
           },
         ]
       : []),
@@ -124,29 +107,27 @@ function BabyLayoutContent() {
     <StakingState>
       <ValidatorState>
         <DelegationState>
-          <RewardState>
-            <Content>
-              <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
-                <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
-                  <Container
-                    as="main"
-                    className="mx-auto flex max-w-[760px] flex-1 flex-col gap-4 pb-0"
-                  >
-                    <Stats />
-                    {FF.IsCoStakingEnabled && (
-                      <CoStakingBoostSection setActiveTab={setActiveTab} />
-                    )}
-                    <Tabs
-                      items={tabItems}
-                      defaultActiveTab="stake"
-                      activeTab={activeTab}
-                      onTabChange={(tabId) => setActiveTab(tabId as TabId)}
-                    />
-                  </Container>
-                </AuthGuard>
-              </Card>
-            </Content>
-          </RewardState>
+          <Content>
+            <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 max-md:border-0 max-md:p-0">
+              <AuthGuard fallback={fallbackContent} geoBlocked={isGeoBlocked}>
+                <Container
+                  as="main"
+                  className="mx-auto flex max-w-[760px] flex-1 flex-col gap-4 pb-0"
+                >
+                  <Stats />
+                  {FF.IsCoStakingEnabled && (
+                    <CoStakingBoostSection setActiveTab={setActiveTab} />
+                  )}
+                  <Tabs
+                    items={tabItems}
+                    defaultActiveTab="stake"
+                    activeTab={activeTab}
+                    onTabChange={(tabId) => setActiveTab(tabId as TabId)}
+                  />
+                </Container>
+              </AuthGuard>
+            </Card>
+          </Content>
         </DelegationState>
       </ValidatorState>
     </StakingState>
