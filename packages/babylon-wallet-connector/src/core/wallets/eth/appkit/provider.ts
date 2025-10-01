@@ -232,12 +232,12 @@ export class AppKitProvider implements IETHProvider {
     try {
       const config = this.getWagmiConfig();
       // Only allow switching to supported chains
-      const supportedChains = [1, 11155111]; // Mainnet and Sepolia
+      const supportedChains = [1, 11155111, 31337]; // Mainnet, Sepolia, and Anvil
       if (!supportedChains.includes(chainId)) {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      await wagmiSwitchChain(config, { chainId: chainId as 1 | 11155111 });
+      await wagmiSwitchChain(config, { chainId: chainId as 1 | 11155111 | 31337 });
       this.chainId = chainId;
     } catch (error) {
       throw new Error(`Failed to switch chain: ${error}`);
