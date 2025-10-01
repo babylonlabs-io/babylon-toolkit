@@ -41,6 +41,7 @@ export const Header = () => {
         {!isMobileView && (
           <div className="absolute left-1/2 -translate-x-1/2 transform">
             <Nav>
+              <NavItem title="Vault" to="/vault" />
               <NavItem title="BTC Staking" to="/btc" />
               <NavItem title="BABY Staking" to="/baby" />
             </Nav>
