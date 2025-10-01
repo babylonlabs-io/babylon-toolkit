@@ -3,14 +3,14 @@ import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
 import { Text, DismissibleSubSection } from "@babylonlabs-io/core-ui";
 
+import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
+import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
 
 import type { TabId } from "../../layout";
-
-const CO_STAKING_REQUIRED_AMOUNT_BABY = 100000; // 100k BABY
 
 export function CoStakingBoostSection({
   setActiveTab,
@@ -18,6 +18,11 @@ export function CoStakingBoostSection({
   setActiveTab: (tab: TabId) => void;
 }) {
   const { delegations = [], isLoading } = useDelegationV2State();
+  const {
+    eligibility,
+    isEnabled: isCoStakingEnabled,
+    isLoading: isCoStakingLoading,
+  } = useCoStakingState();
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
   const [showCoStakingBoostSection, setShowCoStakingBoostSection] =
@@ -35,8 +40,24 @@ export function CoStakingBoostSection({
     // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
   };
 
+  const suggestedAmount = useMemo(() => {
+    if (eligibility.additionalBabyNeeded <= 0) return 0;
+
+    return eligibility.additionalBabyNeeded;
+  }, [eligibility.additionalBabyNeeded]);
+
+  const formattedSuggestedAmount = useMemo(
+    () => formatBalance(suggestedAmount, babyCoinSymbol),
+    [suggestedAmount, babyCoinSymbol],
+  );
+
   const shouldShowCoStakingBoostSection =
-    hasActiveBtcDelegations && !isLoading && showCoStakingBoostSection;
+    isCoStakingEnabled &&
+    hasActiveBtcDelegations &&
+    !isLoading &&
+    !isCoStakingLoading &&
+    showCoStakingBoostSection &&
+    eligibility.additionalBabyNeeded > 0;
 
   return (
     shouldShowCoStakingBoostSection && (
@@ -51,9 +72,9 @@ export function CoStakingBoostSection({
               onClick={handlePrefill}
               className="text-info-light hover:underline"
             >
-              {CO_STAKING_REQUIRED_AMOUNT_BABY.toLocaleString()}
+              {formattedSuggestedAmount}
             </button>{" "}
-            {babyCoinSymbol} to boost your {btcCoinSymbol} rewards. The more
+            to boost your {btcCoinSymbol} rewards. The more{" "}
             {babyCoinSymbol} you stake, the more of your {btcCoinSymbol} becomes
             eligible for bonus rewards. Start co-staking to unlock higher
             returns.

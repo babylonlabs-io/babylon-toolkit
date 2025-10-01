@@ -15,6 +15,7 @@ import { useNetworkInfo } from "../hooks/client/api/useNetworkInfo";
 import { NetworkInfo } from "../types/networkInfo";
 
 import { BalanceState } from "./BalanceState";
+import { CoStakingState } from "./CoStakingState";
 import { DelegationState } from "./DelegationState";
 import { DelegationV2State } from "./DelegationV2State";
 import { FinalityProviderState } from "./FinalityProviderState";
@@ -33,6 +34,7 @@ const STATE_LIST = [
   StakingState,
   StakingExpansionState,
   RewardsState,
+  CoStakingState,
 ];
 
 export interface AppState {
