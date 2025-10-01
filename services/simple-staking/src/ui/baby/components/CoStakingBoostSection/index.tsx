@@ -74,10 +74,9 @@ export function CoStakingBoostSection({
             >
               {formattedSuggestedAmount}
             </button>{" "}
-            to boost your {btcCoinSymbol} rewards. The more{" "}
-            {babyCoinSymbol} you stake, the more of your {btcCoinSymbol} becomes
-            eligible for bonus rewards. Start co-staking to unlock higher
-            returns.
+            to boost your {btcCoinSymbol} rewards. The more {babyCoinSymbol} you
+            stake, the more of your {btcCoinSymbol} becomes eligible for bonus
+            rewards. Start co-staking to unlock higher returns.
           </Text>
         }
         onCloseClick={() => setShowCoStakingBoostSection(false)}
