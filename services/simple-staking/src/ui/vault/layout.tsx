@@ -6,9 +6,6 @@ import { Content } from "@/ui/common/components/Content/Content";
 import { BTCWalletProvider } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { SafeETHWalletProvider } from "@/ui/common/context/wallet/ETHWalletProvider";
 
-import { VaultDashboard } from "./components/VaultDashboard";
-import { VaultDemo } from "./components/VaultDemo";
-
 /**
  * AppKit Disconnect Button Component
  */
@@ -64,9 +61,6 @@ export default function VaultLayout() {
               </p>
               <AppKitDisconnectButton />
             </div>
-
-            <VaultDashboard />
-            <VaultDemo />
           </Container>
         </Content>
       </SafeETHWalletProvider>
