@@ -7,7 +7,7 @@ import {
   RewardsPreviewModal,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Container } from "@/ui/common/components/Container/Container";
