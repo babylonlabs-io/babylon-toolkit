@@ -10,7 +10,7 @@ import type { CoStakingAPRData } from "@/ui/common/types/api/coStaking";
 import {
   calculateAdditionalBabyNeeded,
   calculateBTCEligibilityPercentage,
-  calculateCurrentAPR,
+  calculateUserCoStakingAPR,
 } from "@/ui/common/utils/coStakingCalculations";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
@@ -21,6 +21,7 @@ const CO_STAKING_PARAMS_KEY = "CO_STAKING_PARAMS";
 const CO_STAKING_REWARDS_TRACKER_KEY = "CO_STAKING_REWARDS_TRACKER";
 const CO_STAKING_CURRENT_REWARDS_KEY = "CO_STAKING_CURRENT_REWARDS";
 const CO_STAKING_APR_KEY = "CO_STAKING_APR";
+const CO_STAKING_REWARD_SUPPLY_KEY = "CO_STAKING_REWARD_SUPPLY";
 
 /**
  * Hook for managing co-staking functionality
@@ -135,6 +136,25 @@ export const useCoStakingService = () => {
     retry: 3,
   });
 
+  // Query for total co-staking reward supply
+  const rewardSupplyQuery = useClientQuery({
+    queryKey: [CO_STAKING_REWARD_SUPPLY_KEY],
+    queryFn: async () => {
+      const client = await babylon.client();
+      try {
+        return await client.baby.getAnnualCoStakingRewardSupply();
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getAnnualCoStakingRewardSupply" },
+        });
+        return null;
+      }
+    },
+    enabled: isCoStakingEnabled,
+    staleTime: ONE_MINUTE * 5, // Cache for 5 minutes
+    retry: 3,
+  });
+
   // Destructure refetch functions for stable references
   const { refetch: refetchCoStakingParams } = coStakingParamsQuery;
   const { refetch: refetchRewardsTracker } = rewardsTrackerQuery;
@@ -176,39 +196,35 @@ export const useCoStakingService = () => {
   /**
    * Get co-staking APR with current and boost values
    *
-   * Co-staking rewards are ADDITIVE bonuses on top of BTC staking rewards.
+   * Uses the formula based on user's share of the global co-staking pool:
    *
-   * A% (Current APR) = What the user earns now:
-   *   - Full BTC staking APR (15.5%)
-   *   - PLUS partial co-staking bonus based on eligibility (12.7%, for example)
-   *   - Formula: btc_staking_apr + (co_staking_apr × eligibility%)
-   *   - Example: 15.5% + (12.7% × 33.33%) = 19.73%
+   * co_staking_apr = (user_total_score / global_total_score_sum)
+   *                  × total_co_staking_reward_supply
+   *                  / user_active_baby
    *
-   * B% (Boost APR) = Maximum APR with 100% co-staking eligibility:
-   *   - Full BTC staking APR (15.5%)
-   *   - PLUS full co-staking bonus (12.7%, for example)
-   *   - Formula: btc_staking_apr + co_staking_apr
-   *   - Example: 15.5% + 12.7% = 28.2%
-   *
+   * A% (Current APR) = BTC staking APR + BABY staking APR + user's co-staking APR
+   * B% (Boost APR) = What user earns at 100% co-staking eligibility
    * X (Additional BABY needed) = BABY tokens to reach 100% eligibility
-   *   - Already calculated by getAdditionalBabyNeeded()
    *
-   * UI Message: "Your current APR is A%. Stake X BABY to boost it up to B%."
-   * Real Example: "Your current APR is 19.73%. Stake 4 BABY to boost it up to 28.2%."
+   * Example UI Message: "Your current APR is A%. Stake X BABY to boost it up to B%."
    */
   const getCoStakingAPR = useCallback((): CoStakingAPRData => {
     const rewardsTracker = rewardsTrackerQuery.data;
+    const currentRewards = currentRewardsQuery.data;
     const aprData = aprQuery.data;
+    const rewardSupply = rewardSupplyQuery.data;
     const scoreRatio = getScoreRatio();
     const additionalBabyNeeded = getAdditionalBabyNeeded();
 
     // Check if we have all required data
     const isLoading =
       rewardsTrackerQuery.isLoading ||
+      currentRewardsQuery.isLoading ||
       aprQuery.isLoading ||
+      rewardSupplyQuery.isLoading ||
       coStakingParamsQuery.isLoading;
 
-    if (!aprData || !rewardsTracker) {
+    if (!aprData || !rewardsTracker || !currentRewards || !rewardSupply) {
       return {
         currentApr: null,
         boostApr: null,
@@ -226,19 +242,33 @@ export const useCoStakingService = () => {
       scoreRatio,
     );
 
-    // Calculate current APR (A%) = BTC APR + (co-staking bonus × eligibility)
-    // User earns full BTC APR + partial co-staking bonus based on BABY staked
-    const currentApr = calculateCurrentAPR(
-      rewardsTracker.active_satoshis,
+    // Calculate user's personalized co-staking APR based on pool share
+    const userCoStakingApr = calculateUserCoStakingAPR(
+      rewardsTracker.total_score,
+      currentRewards.total_score,
+      rewardSupply,
       rewardsTracker.active_baby,
-      scoreRatio,
-      aprData.btc_staking,
-      aprData.co_staking,
     );
 
-    // Boost APR (B%) = BTC APR + full co-staking APR
-    // This is what user earns at 100% eligibility (when they stake enough BABY)
-    const boostApr = aprData.btc_staking + aprData.co_staking;
+    // Current APR = BTC staking APR + user's co-staking APR
+    const currentApr = aprData.btc_staking + userCoStakingApr;
+
+    // Calculate boost APR: what user earns at 100% eligibility
+    // Need to calculate what user_total_score would be with full eligibility
+    const activeSatoshis = Number(rewardsTracker.active_satoshis);
+    const ratio = Number(scoreRatio);
+    const requiredBaby = activeSatoshis * ratio;
+    const maxTotalScore = activeSatoshis;
+
+    // Calculate co-staking APR at 100% eligibility
+    const boostCoStakingApr = calculateUserCoStakingAPR(
+      maxTotalScore.toString(),
+      currentRewards.total_score,
+      rewardSupply,
+      requiredBaby.toString(),
+    );
+
+    const boostApr = aprData.btc_staking + boostCoStakingApr;
 
     return {
       currentApr,
@@ -251,8 +281,12 @@ export const useCoStakingService = () => {
   }, [
     rewardsTrackerQuery.data,
     rewardsTrackerQuery.isLoading,
+    currentRewardsQuery.data,
+    currentRewardsQuery.isLoading,
     aprQuery.data,
     aprQuery.isLoading,
+    rewardSupplyQuery.data,
+    rewardSupplyQuery.isLoading,
     coStakingParamsQuery.isLoading,
     getScoreRatio,
     getAdditionalBabyNeeded,
@@ -307,6 +341,7 @@ export const useCoStakingService = () => {
     rewardsTracker: rewardsTrackerQuery.data,
     currentRewards: currentRewardsQuery.data,
     aprData: aprQuery.data,
+    rewardSupply: rewardSupplyQuery.data,
 
     // Methods
     getScoreRatio,
@@ -320,14 +355,16 @@ export const useCoStakingService = () => {
       coStakingParamsQuery.isLoading ||
       rewardsTrackerQuery.isLoading ||
       currentRewardsQuery.isLoading ||
-      aprQuery.isLoading,
+      aprQuery.isLoading ||
+      rewardSupplyQuery.isLoading,
 
     // Error states
     error:
       coStakingParamsQuery.error ||
       rewardsTrackerQuery.error ||
       currentRewardsQuery.error ||
-      aprQuery.error,
+      aprQuery.error ||
+      rewardSupplyQuery.error,
 
     // Feature flag
     isCoStakingEnabled,

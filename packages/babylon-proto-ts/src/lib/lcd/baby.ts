@@ -211,6 +211,32 @@ const createBabylonClient = ({ request }: Dependencies) => ({
     }
   },
 
+  async getAnnualCoStakingRewardSupply(): Promise<number> {
+    try {
+      // Get annual provisions (total minted per year)
+      const annualProvisions = await this.getAnnualProvisions();
+
+      // Get incentive params (x/incentives takes first)
+      const incentiveParams = await this.getIncentiveParams();
+      const { btcStakingPortion, fpPortion } = incentiveParams;
+
+      // Get costaking params (x/costaking takes from remaining)
+      const costakingParams = await this.getCostakingParams();
+      const { costakingPortion } = costakingParams;
+
+      // Calculate cascade: co-staking receives a portion of what remains after incentives
+      // Formula: annual_provisions × (1 - btc - fp) × costaking
+      const afterIncentives = 1 - btcStakingPortion - fpPortion;
+      const totalCoStakingRewards = annualProvisions * afterIncentives * costakingPortion;
+
+      return totalCoStakingRewards;
+    } catch (error) {
+      throw new Error("Failed to calculate annual co-staking reward supply", {
+        cause: error,
+      });
+    }
+  },
+
   async getCurrentEpoch() {
     try {
       const { current_epoch, epoch_boundary } = await request(

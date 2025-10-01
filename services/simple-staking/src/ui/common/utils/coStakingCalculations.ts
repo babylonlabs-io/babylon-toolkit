@@ -70,42 +70,42 @@ export const formatBabyTokens = (value: number): string => {
 };
 
 /**
- * Calculates the user's current total APR based on their co-staking participation
+ * Calculates the user's personalized co-staking APR based on their share of the global pool
  *
- * Co-staking APR is ADDITIVE - it's a bonus on top of BTC staking APR.
- * Users earn:
- * 1. Full BTC staking APR on their BTC stake
- * 2. PLUS additional co-staking APR on the eligible portion of their BTC
+ * Formula from protocol design:
+ * co_staking_apr = (user_total_score / global_total_score_sum)
+ *                  × total_co_staking_reward_supply
+ *                  / user_active_baby
  *
- * Formula: currentApr = btcStakingApr + (coStakingApr × eligibility%)
- *
- * @param activeSatoshis - Total satoshis staked
- * @param activeBaby - Total ubbn staked
- * @param scoreRatio - Score ratio
- * @param btcStakingApr - Base BTC staking APR (earned on all BTC)
- * @param coStakingApr - Co-staking bonus APR (earned on eligible BTC only)
- * @returns User's current total APR (BTC APR + partial co-staking bonus)
+ * @param userTotalScore - User's total score from rewards tracker
+ * @param globalTotalScore - Total score of all co-stakers from current_rewards
+ * @param totalCoStakingRewardSupply - Annual BABY tokens allocated to co-staking, calculated dynamically using cascade formula: annual_provisions × (1 - btc_portion - fp_portion) × costaking_portion
+ * @param userActiveBaby - User's active BABY stake in ubbn
+ * @returns User's personalized co-staking APR as a percentage
  */
-export const calculateCurrentAPR = (
-  activeSatoshis: string,
-  activeBaby: string,
-  scoreRatio: string,
-  btcStakingApr: number,
-  coStakingApr: number,
+export const calculateUserCoStakingAPR = (
+  userTotalScore: string,
+  globalTotalScore: string,
+  totalCoStakingRewardSupply: number,
+  userActiveBaby: string,
 ): number => {
-  const sats = Number(activeSatoshis);
-  const ratio = Number(scoreRatio);
+  const userScore = Number(userTotalScore);
+  const globalScore = Number(globalTotalScore);
+  const activeBaby = Number(userActiveBaby);
 
-  if (sats === 0) return 0;
-  if (ratio === 0) return btcStakingApr;
+  // Edge cases
+  if (userScore === 0 || globalScore === 0 || activeBaby === 0) {
+    return 0;
+  }
 
-  // Calculate eligibility percentage (what % of BTC qualifies for co-staking bonus)
-  const eligibilityPercentage =
-    calculateBTCEligibilityPercentage(activeSatoshis, activeBaby, scoreRatio) /
-    100;
+  // Calculate user's share of the co-staking pool
+  const poolShare = userScore / globalScore;
 
-  // Current APR = Base BTC APR + (Co-staking bonus APR × eligibility)
-  const currentApr = btcStakingApr + coStakingApr * eligibilityPercentage;
+  // Calculate user's portion of annual rewards
+  const userAnnualRewards = poolShare * totalCoStakingRewardSupply;
 
-  return currentApr;
+  // Calculate APR as percentage: (annual_rewards / staked_amount) × 100
+  const apr = (userAnnualRewards / activeBaby) * 100;
+
+  return apr;
 };
