@@ -28,6 +28,7 @@ export * from "./components/Icons";
 export * from "./components/Warning";
 export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";
+export * from "./components/TopBanner";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
