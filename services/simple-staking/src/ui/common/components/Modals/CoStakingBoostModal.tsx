@@ -1,3 +1,5 @@
+import { useCallback, useMemo } from "react";
+
 import { Network } from "@/ui/common/types/network";
 
 import { useSystemStats } from "../../hooks/client/api/useSystemStats";
@@ -22,9 +24,18 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const assumedStakingAPR = stakingAPR ? stakingAPR + 1 : 0; // TODO: Get the actual assumed APR
   const assumedBabyAmount = 100; // TODO: Get the actual assumed BABY amount
 
-  const formatAPRPercentage = (apr: number | undefined): string => {
-    return network === Network.MAINNET && apr ? (apr * 100).toFixed(2) : "0";
-  };
+  const formatAPRPercentage = useCallback(
+    (apr: number | undefined): string => {
+      return network === Network.MAINNET && apr ? (apr * 100).toFixed(2) : "0";
+    },
+    [network],
+  );
+
+  const submitButtonText = useMemo(
+    () =>
+      `Stake ${assumedBabyAmount} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(assumedStakingAPR)}%`,
+    [assumedBabyAmount, babyCoinSymbol, assumedStakingAPR, formatAPRPercentage],
+  );
 
   return (
     <SubmitModal
@@ -38,7 +49,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       iconParentClassName="h-40 w-80 bg-transparent" // Safelisted in tailwind.config.ts
       title="Boost your BTC staking rewards"
       open={open}
-      submitButton={`Stake ${assumedBabyAmount} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(assumedStakingAPR)}%`}
+      submitButton={submitButtonText}
       cancelButton=""
       onSubmit={onClose}
     >
