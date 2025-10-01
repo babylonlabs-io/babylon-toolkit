@@ -4,8 +4,11 @@ import {
   Heading,
   Text,
   CoStakingRewardsSubsection,
+  RewardsPreviewModal,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useState } from "react";
+import { useNavigate } from "react-router";
 
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
@@ -15,10 +18,15 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import FF from "@/ui/common/utils/FeatureFlagService";
-import { useRewardsState } from "@/ui/common/state/RewardState";
-import { useRewardState as useBabyRewardState } from "@/ui/baby/state/RewardState";
+import { useRewardsState as useBtcRewardsState } from "@/ui/common/state/RewardState";
+import {
+  RewardState,
+  useRewardState as useBabyRewardState,
+} from "@/ui/baby/state/RewardState";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
+import { ClaimStatusModal } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
 
 const formatter = Intl.NumberFormat("en", {
   notation: "compact",
@@ -30,15 +38,32 @@ const CO_STAKING_AMOUNT = 100000;
 
 const MAX_DECIMALS = 6;
 
-export default function RewardsPage() {
+type ClaimType = "btc_staking" | "baby_staking";
+
+function RewardsPageContent() {
   const { open: openWidget } = useWalletConnect();
   const { loading: cosmosWalletLoading } = useCosmosWallet();
-
+  const navigate = useNavigate();
   const { logo, coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
 
-  const { rewardBalance: btcRewardUbbn } = useRewardsState();
-  const { totalReward: babyRewardUbbn } = useBabyRewardState();
+  const {
+    rewardBalance: btcRewardUbbn,
+    processing: btcProcessing,
+    showProcessingModal: btcShowProcessingModal,
+    closeProcessingModal: btcCloseProcessingModal,
+    transactionFee: btcTransactionFee,
+    transactionHash: btcTransactionHash,
+    setTransactionHash: btcSetTransactionHash,
+  } = useBtcRewardsState();
+  const {
+    totalReward: babyRewardUbbn,
+    claimAll: babyClaimAll,
+    loading: babyLoading,
+  } = useBabyRewardState();
+
+  const { showPreview: btcShowPreview, claimRewards: btcClaimRewards } =
+    useRewardsService();
 
   const btcRewardBaby = maxDecimals(
     ubbnToBaby(Number(btcRewardUbbn || 0)),
@@ -52,6 +77,17 @@ export default function RewardsPage() {
     btcRewardBaby + babyRewardBaby,
     MAX_DECIMALS,
   );
+
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [typeToClaim] = useState<ClaimType>("btc_staking");
+
+  const processing =
+    typeToClaim === "btc_staking" ? btcProcessing : babyLoading;
+  const showProcessingModal =
+    typeToClaim === "btc_staking" ? btcShowProcessingModal : false;
+  const transactionHash =
+    typeToClaim === "btc_staking" ? btcTransactionHash : "";
+  const transactionFee = typeToClaim === "btc_staking" ? btcTransactionFee : 0;
 
   function NotConnected() {
     return (
@@ -85,13 +121,40 @@ export default function RewardsPage() {
   }
 
   const handleStakeMoreClick = () => {
-    console.log("handleStakeMoreClick");
+    navigate("/baby");
   };
 
-  const handleClaimRewardsClick = () => {
-    console.log("handleClaimRewardsClick");
-    // TODO: which reward does this claim?
+  const handleClaimClick = async () => {
+    if (processing) return;
+
+    // Claim based on the default typeToClaim
+    if (typeToClaim === "btc_staking") {
+      if (!btcRewardUbbn || btcRewardUbbn === 0) return;
+      await btcShowPreview();
+      setPreviewOpen(true);
+    } else if (typeToClaim === "baby_staking") {
+      if (!babyRewardUbbn || babyRewardUbbn === 0n) return;
+      setPreviewOpen(true);
+    }
   };
+
+  const handleProceed = () => {
+    if (typeToClaim === "btc_staking") {
+      btcClaimRewards();
+    } else if (typeToClaim === "baby_staking") {
+      babyClaimAll();
+    }
+    setPreviewOpen(false);
+  };
+
+  const handleClose = () => {
+    setPreviewOpen(false);
+  };
+
+  const claimDisabled =
+    typeToClaim === "btc_staking"
+      ? !btcRewardUbbn || btcRewardUbbn === 0 || processing
+      : !babyRewardUbbn || babyRewardUbbn === 0n || processing;
 
   const stakeMoreCta = FF.IsCoStakingEnabled
     ? `Stake ${formatter.format(BABY_TO_STAKE_AMOUNT)} ${bbnCoinSymbol} to Unlock Full Rewards`
@@ -117,7 +180,8 @@ export default function RewardsPage() {
                   FF.IsCoStakingEnabled ? `${CO_STAKING_AMOUNT}` : undefined
                 }
                 avatarUrl={logo}
-                onClaim={handleClaimRewardsClick}
+                onClaim={handleClaimClick}
+                claimDisabled={claimDisabled}
                 onStakeMore={
                   FF.IsCoStakingEnabled ? handleStakeMoreClick : undefined
                 }
@@ -127,6 +191,53 @@ export default function RewardsPage() {
           </Container>
         </AuthGuard>
       </Card>
+
+      <RewardsPreviewModal
+        open={previewOpen}
+        processing={processing}
+        title={
+          typeToClaim === "btc_staking"
+            ? "Claim BTC Staking Rewards"
+            : "Claim BABY Staking Rewards"
+        }
+        onClose={handleClose}
+        onProceed={handleProceed}
+        tokens={[
+          {
+            name: bbnCoinSymbol,
+            amount: {
+              token: `${
+                typeToClaim === "btc_staking" ? btcRewardBaby : babyRewardBaby
+              } ${bbnCoinSymbol}`,
+              usd: "",
+            },
+          },
+        ]}
+        transactionFees={{
+          token: `${ubbnToBaby(transactionFee).toFixed(6)} ${bbnCoinSymbol}`,
+          usd: "",
+        }}
+      />
+
+      <ClaimStatusModal
+        open={showProcessingModal}
+        onClose={() => {
+          if (typeToClaim === "btc_staking") {
+            btcCloseProcessingModal();
+            btcSetTransactionHash("");
+          }
+        }}
+        loading={processing}
+        transactionHash={transactionHash}
+      />
     </Content>
+  );
+}
+
+export default function RewardsPage() {
+  return (
+    <RewardState>
+      <RewardsPageContent />
+    </RewardState>
   );
 }
