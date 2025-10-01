@@ -3,8 +3,7 @@ name: docker_publish
 on:
   push:
     branches:
-      - "main"
-      - "release/v1.x"
+      - "*"
     tags:
       - "*"
   workflow_dispatch:
@@ -22,7 +21,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [canon-devnet, testnet, mainnet, btc-mainnet-devnet, bsn-devnet, edge-devnet]
+          [phase-2-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository

@@ -43,6 +43,16 @@ const config: Record<string, Config> = {
     icon: signetBitcoinIcon,
     displayUSD: false,
   },
+  devnet: {
+    name: "Signet Bitcoin",
+    coinName: "Signet BTC",
+    coinSymbol: "sBTC",
+    networkName: "BTC signet",
+    mempoolApiUrl: `${MEMPOOL_API}/signet`,
+    network: Network.SIGNET,
+    icon: signetBitcoinIcon,
+    displayUSD: false,
+  },
   canonDevnet: {
     name: "Signet Bitcoin",
     coinName: "Signet BTC",

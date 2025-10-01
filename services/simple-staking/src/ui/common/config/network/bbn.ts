@@ -5,6 +5,7 @@ import babyLogo from "@/ui/common/assets/baby.png";
 import { bbnBsnDevnet } from "./bbn/bsn-devnet";
 import { bbnCanary } from "./bbn/canary";
 import { bbnCanonDevnet } from "./bbn/canon-devnet";
+import { bbnDevnet } from "./bbn/devnet";
 import { bbnEdgeDevnet } from "./bbn/edge-devnet";
 import { bbnMainnet } from "./bbn/mainnet";
 import { bbnTestnet } from "./bbn/testnet";
@@ -40,6 +41,17 @@ const config: Record<string, ExtendedBBNConfig> = {
     displayUSD: true,
     logo: babyLogo,
     lcdUrl: bbnCanary.rest,
+  },
+  devnet: {
+    chainId: bbnDevnet.chainId,
+    rpc: bbnDevnet.rpc,
+    chainData: bbnDevnet,
+    networkName: "Testnet BABY",
+    networkFullName: "Testnet Babylon Genesis",
+    coinSymbol: "tBABY",
+    displayUSD: false,
+    logo: babyLogo,
+    lcdUrl: bbnDevnet.rest,
   },
   canonDevnet: {
     chainId: bbnCanonDevnet.chainId,
