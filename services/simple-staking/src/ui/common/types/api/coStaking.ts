@@ -25,15 +25,18 @@ export interface CoStakingCurrentRewards {
 }
 
 /**
- * APR data from backend /v2/apr endpoint
- * These values are global and not user-specific
+ * Global unit APR data from backend /v2/apr endpoint
+ *
+ * These are unit APR values based on 1 BTC staked.
+ * They represent the global APR rates available to all users,
+ * not personalized values for a specific user.
  */
-export interface CoStakingAPRResponse {
-  /** Base APR for BTC staking */
+export interface GlobalUnitAPRData {
+  /** Base APR for BTC staking (per 1 BTC) */
   btc_staking: number;
   /** APR for BABY-only staking */
   baby_staking: number;
-  /** Bonus APR for co-staking */
+  /** Bonus APR for co-staking (per 1 BTC when fully eligible) */
   co_staking: number;
   /** Maximum APR (btc_staking + baby_staking + co_staking) */
   max_apr: number;

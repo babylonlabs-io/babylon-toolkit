@@ -131,7 +131,7 @@ export const useCoStakingService = () => {
       }
     },
     enabled: isCoStakingEnabled,
-    staleTime: ONE_MINUTE * 5, // Cache for 5 minutes
+    staleTime: Infinity, // Fetch once per page load
     retry: 3,
   });
 
@@ -139,7 +139,6 @@ export const useCoStakingService = () => {
   const { refetch: refetchCoStakingParams } = coStakingParamsQuery;
   const { refetch: refetchRewardsTracker } = rewardsTrackerQuery;
   const { refetch: refetchCurrentRewards } = currentRewardsQuery;
-  const { refetch: refetchAPR } = aprQuery;
 
   /**
    * Get the co-staking score ratio (BABY per BTC)
@@ -286,7 +285,6 @@ export const useCoStakingService = () => {
         refetchCoStakingParams(),
         refetchRewardsTracker(),
         refetchCurrentRewards(),
-        refetchAPR(),
       ]);
     } catch (error) {
       logger.error(error as Error, {
@@ -298,7 +296,6 @@ export const useCoStakingService = () => {
     refetchCoStakingParams,
     refetchRewardsTracker,
     refetchCurrentRewards,
-    refetchAPR,
     logger,
     bech32Address,
     handleError,
