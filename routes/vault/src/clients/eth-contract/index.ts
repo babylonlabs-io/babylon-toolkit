@@ -7,3 +7,5 @@ export type { TokenMetadata } from './erc20/types';
 export type { MorphoMarketSummary, MarketTokenRef } from './morpho/types';
 
 export { getMarketById as getMorphoMarketById } from './morpho/read';
+export * from './query';
+export * from './transaction';
