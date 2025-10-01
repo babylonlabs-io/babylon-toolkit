@@ -8,11 +8,11 @@ import { apiWrapper } from "./apiWrapper";
  * Returns APR values for BTC staking, BABY staking, Co-staking, and maximum APR
  */
 export const getAPR = async (): Promise<GlobalUnitAPRData> => {
-  const { data } = await apiWrapper<GlobalUnitAPRData>(
+  const { data } = await apiWrapper<{ data: GlobalUnitAPRData }>(
     "GET",
     API_ENDPOINTS.APR,
     "Error fetching APR data",
   );
 
-  return data;
+  return data.data;
 };
