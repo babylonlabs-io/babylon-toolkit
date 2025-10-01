@@ -22,7 +22,7 @@ export const DismissibleSubSection = ({
   style,
 }: DismissibleSubSectionProps) => {
   return (
-    <SubSection className={twMerge("flex gap-3 ", className)} style={style}>
+    <SubSection className={twMerge("flex gap-3", className)} style={style}>
       {icon}
       <div className="flex flex-col gap-1">
         {typeof title === "string" ? (
@@ -41,13 +41,14 @@ export const DismissibleSubSection = ({
           content
         )}
       </div>
-      <div
-        className="cursor-pointer"
+      <button
+        type="button"
+        className="cursor-pointer self-start"
         aria-label="Dismiss subsection"
         onClick={onCloseClick}
       >
         <CloseIcon size={14} variant="accent-primary" />
-      </div>
+      </button>
     </SubSection>
   );
 };
