@@ -6,82 +6,125 @@ import {
   type Address,
   type Hash,
   type TransactionReceipt,
+  type Hex,
 } from 'viem';
 
+import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 import { ethQueryClient } from './query';
 
 /**
- * Submit an ERC20 token transfer transaction
- * @param contractAddress - The ERC20 token contract address
- * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
- * @param recipientAddress - The address to send tokens to
- * @param amount - The amount to send (in token units, not wei)
- * @returns Transaction hash and receipt
+ * Morpho market parameters
  */
-export async function submitERC20Transfer(
+export interface MarketParams {
+  loanToken: Address;
+  collateralToken: Address;
+  oracle: Address;
+  irm: Address;
+  lltv: bigint;
+}
+
+/**
+ * Submit a pegin request
+ * @param contractAddress - BTCVaultController contract address
+ * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
+ * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
+ * @param vaultProvider - Vault provider address
+ * @returns Transaction hash, receipt, and pegin transaction hash
+ */
+export async function submitPeginRequest(
   contractAddress: Address,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   walletProvider: any,
-  recipientAddress: Address,
-  amount: string
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  unsignedPegInTx: Hex,
+  vaultProvider: Address
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; pegInTxHash: Hex }> {
   const config = ethQueryClient.getConfig();
   const publicClient = ethQueryClient.getPublicClient();
 
-  // Create wallet client with the provider
   const walletClient = createWalletClient({
     chain: config.chain,
     transport: custom(walletProvider),
   });
 
-  const erc20Abi = [
-    {
-      name: 'transfer',
-      type: 'function',
-      stateMutability: 'nonpayable',
-      inputs: [
-        { name: 'to', type: 'address' },
-        { name: 'amount', type: 'uint256' },
-      ],
-      outputs: [{ name: '', type: 'bool' }],
-    },
-    {
-      name: 'decimals',
-      type: 'function',
-      stateMutability: 'view',
-      inputs: [],
-      outputs: [{ name: '', type: 'uint8' }],
-    },
-  ] as const;
-
   try {
-    // Get connected account from wallet
     const [account] = await walletClient.getAddresses();
     if (!account) {
       throw new Error('No account connected');
     }
 
-    // Get decimals to format amount
-    const decimals = await publicClient.readContract({
-      address: contractAddress,
-      abi: erc20Abi,
-      functionName: 'decimals',
-    });
-
-    const amountInWei = BigInt(Math.floor(Number(amount) * 10 ** decimals));
-
-    // Submit transaction
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: erc20Abi,
-      functionName: 'transfer',
-      args: [recipientAddress, amountInWei],
+      abi: BTCVaultControllerABI,
+      functionName: 'submitPeginRequest',
+      args: [unsignedPegInTx, vaultProvider],
       account,
     });
 
-    console.log(`Transaction submitted: ${hash}`);
+    console.log(`Pegin request submitted: ${hash}`);
 
-    // Wait for confirmation
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    // Extract pegInTxHash from events (you may need to parse the logs)
+    // For now, returning a placeholder - you'll need to extract this from the event
+    const pegInTxHash = '0x' as Hex; // TODO: Extract from PegInPending event
+
+    return {
+      transactionHash: hash,
+      receipt,
+      pegInTxHash,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to submit pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Create a vault by minting vBTC and borrowing against it
+ * @param contractAddress - BTCVaultController contract address
+ * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
+ * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
+ * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
+ * @param marketParams - Morpho market parameters
+ * @param borrowAmount - Amount to borrow (in loan token units)
+ * @returns Transaction hash and receipt
+ */
+export async function mintAndBorrow(
+  contractAddress: Address,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walletProvider: any,
+  pegInTxHash: Hex,
+  depositorBtcPubkey: Hex,
+  marketParams: MarketParams,
+  borrowAmount: bigint
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const config = ethQueryClient.getConfig();
+  const publicClient = ethQueryClient.getPublicClient();
+
+  const walletClient = createWalletClient({
+    chain: config.chain,
+    transport: custom(walletProvider),
+  });
+
+  try {
+    const [account] = await walletClient.getAddresses();
+    if (!account) {
+      throw new Error('No account connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'mintAndBorrow',
+      args: [pegInTxHash, depositorBtcPubkey, marketParams, borrowAmount],
+      account,
+    });
+
+    console.log(`Vault creation (mintAndBorrow) submitted: ${hash}`);
+
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
     });
@@ -92,7 +135,60 @@ export async function submitERC20Transfer(
     };
   } catch (error) {
     throw new Error(
-      `Failed to submit ERC20 transfer: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to mint and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Repay a vault and initiate pegout
+ * NOTE: User must approve loan token spending for the exact debt amount before calling this
+ * @param contractAddress - BTCVaultController contract address
+ * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
+ * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
+ * @returns Transaction hash and receipt
+ */
+export async function repayAndPegout(
+  contractAddress: Address,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walletProvider: any,
+  pegInTxHash: Hex
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const config = ethQueryClient.getConfig();
+  const publicClient = ethQueryClient.getPublicClient();
+
+  const walletClient = createWalletClient({
+    chain: config.chain,
+    transport: custom(walletProvider),
+  });
+
+  try {
+    const [account] = await walletClient.getAddresses();
+    if (!account) {
+      throw new Error('No account connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'repayAndPegout',
+      args: [pegInTxHash],
+      account,
+    });
+
+    console.log(`Repay and pegout submitted: ${hash}`);
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    return {
+      transactionHash: hash,
+      receipt,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to repay and pegout: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
