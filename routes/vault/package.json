@@ -9,7 +9,8 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./wasm/*": "./wasm/*"
   },
   "scripts": {
     "build": "echo 'Skipping build for route package. Bundling happens from the service package.'",

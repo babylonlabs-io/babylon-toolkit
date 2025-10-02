@@ -6,6 +6,8 @@ import { defineConfig } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 import { VitePluginRadar } from "vite-plugin-radar";
+import topLevelAwait from "vite-plugin-top-level-await";
+import wasm from "vite-plugin-wasm";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,11 @@ const enableSentryPlugin =
 
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@routes/vault/wasm": resolve(__dirname, "../../routes/vault/wasm"),
+    },
+  },
   build: {
     outDir: "dist",
     sourcemap: true,
@@ -48,6 +55,8 @@ export default defineConfig({
     },
   },
   plugins: [
+    wasm(),
+    topLevelAwait(),
     react(),
     tsconfigPaths({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],

@@ -1,0 +1,21 @@
+{
+  "name": "btc-vaults",
+  "type": "module",
+  "description": "A Rust library for constructing Bitcoin transactions for BTC vaults with individual roles.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/btc-vault.git"
+  },
+  "files": [
+    "btc_vaults_bg.wasm",
+    "btc_vaults.js",
+    "btc_vaults.d.ts"
+  ],
+  "main": "btc_vaults.js",
+  "types": "btc_vaults.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
