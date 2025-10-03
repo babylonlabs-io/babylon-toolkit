@@ -1,11 +1,10 @@
-// ETH smart contract client for write operations (transactions)
+// BTC Vault Controller - Write operations (transactions)
 
 import { type Address, type Hash, type TransactionReceipt, type Hex } from 'viem';
 import { getWalletClient } from '@wagmi/core';
 import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
-
+import { ethClient } from '../client';
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
-import { ethQueryClient } from './query';
 
 /**
  * Morpho market parameters
@@ -30,7 +29,7 @@ export async function submitPeginRequest(
   unsignedPegInTx: Hex,
   vaultProvider: Address
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; pegInTxHash: Hex }> {
-  const publicClient = ethQueryClient.getPublicClient();
+  const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
 
   try {
@@ -85,7 +84,7 @@ export async function mintAndBorrow(
   marketParams: MarketParams,
   borrowAmount: bigint
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const publicClient = ethQueryClient.getPublicClient();
+  const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
 
   try {
@@ -130,7 +129,7 @@ export async function repayAndPegout(
   contractAddress: Address,
   pegInTxHash: Hex
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const publicClient = ethQueryClient.getPublicClient();
+  const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
 
   try {
