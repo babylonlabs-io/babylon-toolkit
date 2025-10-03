@@ -38,6 +38,7 @@ function BabyLayoutContent() {
   const { isGeoBlocked, isLoading } = useHealthCheck();
   const { bech32Address } = useCosmosWallet();
   const isConnected = connected && !isGeoBlocked && !isLoading;
+
   useEffect(() => {
     if (!connected) {
       setActiveTab("stake");

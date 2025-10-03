@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
+import { useNavigate } from "react-router";
 import { Text, DismissibleSubSection } from "@babylonlabs-io/core-ui";
 
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
@@ -29,6 +30,7 @@ export function CoStakingBoostSection({
     useSessionStorage<boolean>("co-staking-boost-section-visibility", true, {
       initializeWithValue: true,
     });
+  const navigate = useNavigate();
 
   const hasActiveBtcDelegations = useMemo(
     () => delegations.some((d) => d.state === DelegationV2StakingState.ACTIVE),
@@ -37,7 +39,11 @@ export function CoStakingBoostSection({
 
   const handlePrefill = () => {
     setActiveTab("stake");
-    // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
+    navigate("/baby", {
+      state: {
+        shouldPrefillCoStaking: true,
+      },
+    });
   };
 
   const formattedSuggestedAmount = useMemo(

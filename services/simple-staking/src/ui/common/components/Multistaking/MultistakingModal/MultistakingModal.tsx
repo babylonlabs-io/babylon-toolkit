@@ -215,7 +215,13 @@ export function MultistakingModal() {
 
   const handleCloseBoostModal = () => {
     resetState();
-    navigate("/baby");
+
+    // Navigate to baby page with flag to trigger prefill
+    navigate("/baby", {
+      state: {
+        shouldPrefillCoStaking: true,
+      },
+    });
   };
 
   const warnings = [
