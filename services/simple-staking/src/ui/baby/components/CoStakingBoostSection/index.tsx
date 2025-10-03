@@ -40,15 +40,9 @@ export function CoStakingBoostSection({
     // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
   };
 
-  const suggestedAmount = useMemo(() => {
-    if (eligibility.additionalBabyNeeded <= 0) return 0;
-
-    return eligibility.additionalBabyNeeded;
-  }, [eligibility.additionalBabyNeeded]);
-
   const formattedSuggestedAmount = useMemo(
-    () => formatBalance(suggestedAmount, babyCoinSymbol),
-    [suggestedAmount, babyCoinSymbol],
+    () => formatBalance(eligibility.additionalBabyNeeded || 0, babyCoinSymbol),
+    [eligibility.additionalBabyNeeded, babyCoinSymbol],
   );
 
   const shouldShowCoStakingBoostSection =
