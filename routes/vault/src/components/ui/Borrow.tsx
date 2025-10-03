@@ -8,13 +8,30 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 import { mockVaultActivities, type VaultActivity } from "../../mockData/vaultActivities";
+import { BorrowModal } from "../modals";
 
 export function Borrow() {
   const [activities] = useState<VaultActivity[]>(mockVaultActivities);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
 
   const handleNewBorrow = () => {
-    console.log("New borrow clicked");
-    // TODO: Open modal to create new borrow
+    if (activities.length > 0) {
+      // TODO: getSelectedActivity method should be implemented
+      setSelectedActivity(activities[0]);
+      setModalOpen(true);
+    }
+  };
+
+  const handleActivityBorrow = (activity: VaultActivity) => {
+    setSelectedActivity(activity);
+    setModalOpen(true);
+  };
+
+  // Handle modal close
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setSelectedActivity(null);
   };
 
   // Transform vault activities to ActivityCard data format
@@ -53,19 +70,30 @@ export function Borrow() {
       details: [statusDetail, providersDetail],
       primaryAction: {
         label: activity.action.label,
-        onClick: activity.action.onClick,
+        onClick: () => handleActivityBorrow(activity),
       },
     };
   });
 
   return (
-    <div className="container mx-auto flex max-w-[760px] flex-1 flex-col px-4 py-8">
-      <BorrowCard onNewBorrow={handleNewBorrow}>
-        {activityCardData.map((data, index) => (
-          <ActivityCard key={activities[index].id} data={data} />
-        ))}
-      </BorrowCard>
-    </div>
+    <>
+      <div className="container mx-auto flex max-w-[760px] flex-1 flex-col px-4 py-8">
+        <BorrowCard onNewBorrow={handleNewBorrow}>
+          {activityCardData.map((data, index) => (
+            <ActivityCard key={activities[index].id} data={data} />
+          ))}
+        </BorrowCard>
+      </div>
+
+      {/* Borrow Modal */}
+      {selectedActivity && (
+        <BorrowModal
+          open={modalOpen}
+          onClose={handleModalClose}
+          collateral={selectedActivity.collateral}
+        />
+      )}
+    </>
   );
 }
 
