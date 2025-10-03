@@ -61,38 +61,9 @@ function RewardsPageContent() {
   const { showPreview: btcShowPreview, claimRewards: btcClaimRewards } =
     useRewardsService();
 
-  // Get co-staking data
-  const {
-    currentRewards,
-    rewardsTracker,
-    getAdditionalBabyNeeded,
-  } = useCoStakingService();
+  const { getAdditionalBabyNeeded } = useCoStakingService();
 
-  // Calculate additional BABY needed for full co-staking rewards
   const additionalBabyNeeded = getAdditionalBabyNeeded();
-
-  // Calculate user's co-staking rewards based on their share of the global pool
-  const coStakingRewardUbbn = (() => {
-    if (!currentRewards || !rewardsTracker) return 0;
-    
-    const userTotalScore = Number(rewardsTracker.total_score);
-    const globalTotalScore = Number(currentRewards.total_score);
-    
-    // If no scores, no rewards
-    if (userTotalScore === 0 || globalTotalScore === 0) return 0;
-    
-    // Calculate user's share of the global co-staking pool
-    const userShare = userTotalScore / globalTotalScore;
-    
-    // Calculate total rewards in the pool
-    const totalRewardsUbbn = currentRewards.rewards.reduce(
-      (total, coin) => total + (coin.denom === "ubbn" ? Number(coin.amount) : 0),
-      0,
-    );
-    
-    // User's rewards = their share of the total pool
-    return totalRewardsUbbn * userShare;
-  })();
 
   const btcRewardBaby = maxDecimals(
     ubbnToBaby(Number(btcRewardUbbn || 0)),
@@ -102,12 +73,11 @@ function RewardsPageContent() {
     ubbnToBaby(Number(babyRewardUbbn || 0n)),
     MAX_DECIMALS,
   );
-  const coStakingRewardBaby = maxDecimals(
-    ubbnToBaby(coStakingRewardUbbn),
-    MAX_DECIMALS,
-  );
+  
+  // Note: Co-staking bonus is already included in BTC rewards (via MsgWithdrawRewardForBTCStaking)
+  // Total = BTC rewards (includes co-staking bonus if eligible) + BABY rewards
   const totalBabyRewards = maxDecimals(
-    btcRewardBaby + babyRewardBaby + coStakingRewardBaby,
+    btcRewardBaby + babyRewardBaby,
     MAX_DECIMALS,
   );
 
@@ -122,9 +92,8 @@ function RewardsPageContent() {
   const showProcessingModal =
     claimingBtc || claimingBaby || btcShowProcessingModal;
 
-  // Combine transaction hashes for display
-  const transactionHash =
-    [btcTxHash, babyTxHash].filter(Boolean).join(", ") || btcTransactionHash;
+  const transactionHashes =
+    [btcTxHash || btcTransactionHash, babyTxHash].filter(Boolean);
   const transactionFee = btcTransactionFee; // Primary fee shown is BTC staking fee
 
   function NotConnected() {
@@ -218,8 +187,8 @@ function RewardsPageContent() {
 
   const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
   const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
-  const hasCoStakingRewards = coStakingRewardUbbn > 0;
-  const hasAnyRewards = hasBtcRewards || hasBabyRewards || hasCoStakingRewards;
+  // Note: Co-staking bonus is included in BTC rewards, not claimed separately
+  const hasAnyRewards = hasBtcRewards || hasBabyRewards;
   const claimDisabled = !hasAnyRewards || processing;
 
   const stakeMoreCta = FF.IsCoStakingEnabled && additionalBabyNeeded > 0
@@ -242,11 +211,7 @@ function RewardsPageContent() {
                 btcSymbol={btcCoinSymbol}
                 babyRewardAmount={`${babyRewardBaby.toLocaleString()}`}
                 babySymbol={bbnCoinSymbol}
-                coStakingAmount={
-                  FF.IsCoStakingEnabled && hasCoStakingRewards
-                    ? `${coStakingRewardBaby.toLocaleString()}`
-                    : undefined
-                }
+                coStakingAmount={undefined}
                 avatarUrl={logo}
                 onClaim={handleClaimClick}
                 claimDisabled={claimDisabled}
@@ -307,7 +272,7 @@ function RewardsPageContent() {
           setBabyTxHash("");
         }}
         loading={processing}
-        transactionHash={transactionHash}
+        transactionHash={transactionHashes}
       />
     </Content>
   );

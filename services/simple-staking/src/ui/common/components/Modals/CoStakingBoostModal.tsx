@@ -1,10 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
-import { Network } from "@/ui/common/types/network";
-
-import { useSystemStats } from "../../hooks/client/api/useSystemStats";
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
+import { useCoStakingService } from "../../hooks/services/useCoStakingService";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -13,28 +11,28 @@ interface FeedbackModalProps {
   onClose: () => void;
 }
 
+const formatAPRPercentage = (apr: number | null): string => {
+  return apr ? apr.toFixed(2) : "0";
+};
+
 export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   open,
   onClose,
 }) => {
-  const { network, coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
+  const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
-  const { data: { btc_staking_apr: stakingAPR } = {} } = useSystemStats();
+  const { getCoStakingAPR } = useCoStakingService();
 
-  const assumedStakingAPR = stakingAPR ? stakingAPR + 1 : 0; // TODO: Get the actual assumed APR
-  const assumedBabyAmount = 100; // TODO: Get the actual assumed BABY amount
-
-  const formatAPRPercentage = useCallback(
-    (apr: number | undefined): string => {
-      return network === Network.MAINNET && apr ? (apr * 100).toFixed(2) : "0";
-    },
-    [network],
-  );
+  const {
+    currentApr,
+    boostApr,
+    additionalBabyNeeded,
+  } = getCoStakingAPR();
 
   const submitButtonText = useMemo(
     () =>
-      `Stake ${assumedBabyAmount} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(assumedStakingAPR)}%`,
-    [assumedBabyAmount, babyCoinSymbol, assumedStakingAPR, formatAPRPercentage],
+      `Stake ${additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(boostApr)}%`,
+    [additionalBabyNeeded, babyCoinSymbol, boostApr],
   );
 
   return (
@@ -56,11 +54,11 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
         <span className="text-accent-primary">
-          {formatAPRPercentage(stakingAPR)}%
+          {formatAPRPercentage(currentApr)}%
         </span>
-        . Stake {assumedBabyAmount} {babyCoinSymbol} to boost it up to{" "}
+        . Stake {additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost it up to{" "}
         <span className="text-accent-primary">
-          {formatAPRPercentage(assumedStakingAPR)}%
+          {formatAPRPercentage(boostApr)}%
         </span>
         . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
         with {babyCoinSymbol}.
