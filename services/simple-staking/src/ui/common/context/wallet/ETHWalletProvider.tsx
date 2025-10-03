@@ -212,9 +212,10 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       address,
       publicKeyHex,
       signMessageAsync,
+      handleError,
       signTypedDataAsync,
       sendTransactionAsync,
-      balance,
+      balance?.value,
     ],
   );
 

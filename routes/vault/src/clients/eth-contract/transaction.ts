@@ -1,16 +1,27 @@
 // ETH smart contract client for write operations (transactions)
 
-import {
-  createWalletClient,
-  custom,
-  type Address,
-  type Hash,
-  type TransactionReceipt,
-  type Hex,
-} from 'viem';
+import { type Address, type Hash, type TransactionReceipt, type Hex } from 'viem';
+import { getWalletClient, type Config } from '@wagmi/core';
 
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 import { ethQueryClient } from './query';
+
+// Helper to get wagmi config - will be provided by wallet connector
+// For now, we'll receive it as a parameter
+let wagmiConfigCache: Config | null = null;
+
+export function setWagmiConfig(config: Config) {
+  wagmiConfigCache = config;
+}
+
+function getWagmiConfig(): Config {
+  if (!wagmiConfigCache) {
+    throw new Error(
+      'Wagmi config not initialized. Call setWagmiConfig() first or ensure wallet is connected.'
+    );
+  }
+  return wagmiConfigCache;
+}
 
 /**
  * Morpho market parameters
@@ -26,30 +37,23 @@ export interface MarketParams {
 /**
  * Submit a pegin request
  * @param contractAddress - BTCVaultController contract address
- * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
  * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
  * @param vaultProvider - Vault provider address
  * @returns Transaction hash, receipt, and pegin transaction hash
  */
 export async function submitPeginRequest(
   contractAddress: Address,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  walletProvider: any,
   unsignedPegInTx: Hex,
   vaultProvider: Address
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; pegInTxHash: Hex }> {
-  const config = ethQueryClient.getConfig();
   const publicClient = ethQueryClient.getPublicClient();
-
-  const walletClient = createWalletClient({
-    chain: config.chain,
-    transport: custom(walletProvider),
-  });
+  const wagmiConfig = getWagmiConfig();
 
   try {
-    const [account] = await walletClient.getAddresses();
-    if (!account) {
-      throw new Error('No account connected');
+    // Get wallet client from wagmi (viem-compatible)
+    const walletClient = await getWalletClient(wagmiConfig);
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
     }
 
     const hash = await walletClient.writeContract({
@@ -57,7 +61,6 @@ export async function submitPeginRequest(
       abi: BTCVaultControllerABI,
       functionName: 'submitPeginRequest',
       args: [unsignedPegInTx, vaultProvider],
-      account,
     });
 
     console.log(`Pegin request submitted: ${hash}`);
@@ -85,7 +88,6 @@ export async function submitPeginRequest(
 /**
  * Create a vault by minting vBTC and borrowing against it
  * @param contractAddress - BTCVaultController contract address
- * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
  * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
@@ -94,25 +96,19 @@ export async function submitPeginRequest(
  */
 export async function mintAndBorrow(
   contractAddress: Address,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  walletProvider: any,
   pegInTxHash: Hex,
   depositorBtcPubkey: Hex,
   marketParams: MarketParams,
   borrowAmount: bigint
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const config = ethQueryClient.getConfig();
   const publicClient = ethQueryClient.getPublicClient();
-
-  const walletClient = createWalletClient({
-    chain: config.chain,
-    transport: custom(walletProvider),
-  });
+  const wagmiConfig = getWagmiConfig();
 
   try {
-    const [account] = await walletClient.getAddresses();
-    if (!account) {
-      throw new Error('No account connected');
+    // Get wallet client from wagmi (viem-compatible)
+    const walletClient = await getWalletClient(wagmiConfig);
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
     }
 
     const hash = await walletClient.writeContract({
@@ -120,7 +116,6 @@ export async function mintAndBorrow(
       abi: BTCVaultControllerABI,
       functionName: 'mintAndBorrow',
       args: [pegInTxHash, depositorBtcPubkey, marketParams, borrowAmount],
-      account,
     });
 
     console.log(`Vault creation (mintAndBorrow) submitted: ${hash}`);
@@ -144,28 +139,21 @@ export async function mintAndBorrow(
  * Repay a vault and initiate pegout
  * NOTE: User must approve loan token spending for the exact debt amount before calling this
  * @param contractAddress - BTCVaultController contract address
- * @param walletProvider - The wallet provider (e.g., window.ethereum) from ETHWalletProvider
  * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
  * @returns Transaction hash and receipt
  */
 export async function repayAndPegout(
   contractAddress: Address,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  walletProvider: any,
   pegInTxHash: Hex
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const config = ethQueryClient.getConfig();
   const publicClient = ethQueryClient.getPublicClient();
-
-  const walletClient = createWalletClient({
-    chain: config.chain,
-    transport: custom(walletProvider),
-  });
+  const wagmiConfig = getWagmiConfig();
 
   try {
-    const [account] = await walletClient.getAddresses();
-    if (!account) {
-      throw new Error('No account connected');
+    // Get wallet client from wagmi (viem-compatible)
+    const walletClient = await getWalletClient(wagmiConfig);
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
     }
 
     const hash = await walletClient.writeContract({
@@ -173,7 +161,6 @@ export async function repayAndPegout(
       abi: BTCVaultControllerABI,
       functionName: 'repayAndPegout',
       args: [pegInTxHash],
-      account,
     });
 
     console.log(`Repay and pegout submitted: ${hash}`);

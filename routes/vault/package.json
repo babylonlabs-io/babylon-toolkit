@@ -25,6 +25,7 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "*",
     "@babylonlabs-io/wallet-connector": "*",
+    "@wagmi/core": "^2.16.3",
     "react-router": "7.6.3",
     "viem": "^2.37.9"
   },

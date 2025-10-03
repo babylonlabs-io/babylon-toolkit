@@ -180,6 +180,7 @@ export interface IETHProvider extends IProvider {
    * @param eventName - The name of the event to listen for
    * @param handler - The callback function to be executed when the event occurs
    */
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   on(eventName: string, handler: Function): void;
 
   /**
@@ -187,6 +188,7 @@ export interface IETHProvider extends IProvider {
    * @param eventName - The name of the event to listen for
    * @param handler - The callback function to be executed when the event occurs
    */
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   off(eventName: string, handler: Function): void;
 }
 
