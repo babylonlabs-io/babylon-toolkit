@@ -9,6 +9,7 @@ import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
+import { useUIEventBus } from "@/ui/common/hooks/useUIEventBus";
 
 import type { TabId } from "../../layout";
 
@@ -29,6 +30,7 @@ export function CoStakingBoostSection({
     useSessionStorage<boolean>("co-staking-boost-section-visibility", true, {
       initializeWithValue: true,
     });
+  const uiEventBus = useUIEventBus();
 
   const hasActiveBtcDelegations = useMemo(
     () => delegations.some((d) => d.state === DelegationV2StakingState.ACTIVE),
@@ -37,7 +39,9 @@ export function CoStakingBoostSection({
 
   const handlePrefill = () => {
     setActiveTab("stake");
-    // TODO: update the form input value by using document.querySelector or by passing the ref to the AmountField → StakingForm → layout → CoStakingBoostSection
+    if (eligibility.additionalBabyNeeded > 0) {
+      uiEventBus.emit("form:prefillAmount", eligibility.additionalBabyNeeded);
+    }
   };
 
   const formattedSuggestedAmount = useMemo(

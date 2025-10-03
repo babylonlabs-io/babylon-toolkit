@@ -9,11 +9,11 @@ export const SuccessContent = ({
 }: {
   transactionHash?: string | string[];
 }) => {
-  const hashes = Array.isArray(transactionHash)
+  const hashArray = Array.isArray(transactionHash)
     ? transactionHash
-    : transactionHash
-      ? [transactionHash]
-      : [];
+    : [transactionHash];
+
+  const hashes = hashArray.filter((i) => i !== undefined);
 
   return (
     <div className="flex flex-col gap-4">

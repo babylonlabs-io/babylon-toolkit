@@ -19,6 +19,7 @@ import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { DEFAULT_CONFIRMATION_DEPTH } from "@/ui/common/constants";
 import { useNetworkInfo } from "@/ui/common/hooks/client/api/useNetworkInfo";
 import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
+import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
 import { useStakingService } from "@/ui/common/hooks/services/useStakingService";
 import { useFinalityProviderBsnState } from "@/ui/common/state/FinalityProviderBsnState";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
@@ -60,6 +61,7 @@ export function MultistakingModal() {
   const { getRegisteredFinalityProvider } = useFinalityProviderState();
   const { bsnList } = useFinalityProviderBsnState();
   const { createEOI, stakeDelegation } = useStakingService();
+  const { getCoStakingAPR } = useCoStakingService();
 
   const {
     reset: resetForm,
@@ -215,7 +217,16 @@ export function MultistakingModal() {
 
   const handleCloseBoostModal = () => {
     resetState();
-    navigate("/baby");
+
+    // Pass prefill amount via navigation state
+    const { additionalBabyNeeded } = getCoStakingAPR();
+
+    navigate("/baby", {
+      state: {
+        prefillAmount:
+          additionalBabyNeeded > 0 ? additionalBabyNeeded : undefined,
+      },
+    });
   };
 
   const warnings = [

@@ -1,6 +1,7 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useState } from "react";
 import { Card } from "@babylonlabs-io/core-ui";
+import { useLocation, useNavigate } from "react-router";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
 import { StakingState } from "@/ui/baby/state/StakingState";
@@ -13,6 +14,7 @@ import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
+import { useUIEventBus } from "@/ui/common/hooks/useUIEventBus";
 import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { Stats } from "./components/Stats/Stats";
@@ -37,7 +39,11 @@ function BabyLayoutContent() {
   const { connected } = useWalletConnect();
   const { isGeoBlocked, isLoading } = useHealthCheck();
   const { bech32Address } = useCosmosWallet();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const uiEventBus = useUIEventBus();
   const isConnected = connected && !isGeoBlocked && !isLoading;
+
   useEffect(() => {
     if (!connected) {
       setActiveTab("stake");
@@ -49,6 +55,18 @@ function BabyLayoutContent() {
       setActiveTab("stake");
     }
   }, [isGeoBlocked, activeTab]);
+
+  // Handle prefill amount from navigation state
+  useEffect(() => {
+    const state = location.state as { prefillAmount?: number } | null;
+
+    if (!state?.prefillAmount) return;
+
+    uiEventBus.emit("form:prefillAmount", state.prefillAmount);
+
+    // Clear the state to prevent re-triggering
+    navigate(".", { replace: true, state: null });
+  }, [location.state, uiEventBus, navigate]);
 
   // Enable epoch polling to refetch delegations when epoch changes
   useEpochPolling(bech32Address);
