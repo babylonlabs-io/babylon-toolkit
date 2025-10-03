@@ -25,7 +25,11 @@ export const CoStakingBanner = () => {
   const shouldShowBanner = hasActiveDelegations && !dismissed;
 
   const handleBannerClick = useCallback(() => {
-    navigate("/baby");
+    navigate("/baby", {
+      state: {
+        shouldPrefillCoStaking: true,
+      },
+    });
   }, [navigate]);
 
   const handleDismiss = useCallback(() => {

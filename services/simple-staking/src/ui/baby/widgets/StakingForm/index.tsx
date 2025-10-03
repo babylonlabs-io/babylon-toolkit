@@ -1,5 +1,6 @@
 import { Form, type FormRef } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { DeepPartial } from "react-hook-form";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
@@ -10,7 +11,7 @@ import { SubmitButton } from "@/ui/baby/widgets/SubmitButton";
 import { ValidatorField } from "@/ui/baby/widgets/ValidatorField";
 import { FormAlert } from "@/ui/common/components/Multistaking/MultistakingForm/FormAlert";
 import { useFormPersistenceState } from "@/ui/common/state/FormPersistenceState";
-import { useUIEventBus } from "@/ui/common/hooks/useUIEventBus";
+import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 
 interface StakingFormProps {
   isGeoBlocked?: boolean;
@@ -40,10 +41,12 @@ export default function StakingForm({
     showPreview,
     disabled,
   } = useStakingState();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { eligibility } = useCoStakingState();
 
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
-  const uiEventBus = useUIEventBus();
 
   const defaultValues = useMemo<Partial<StakingFormFields>>(() => {
     return {
@@ -80,32 +83,39 @@ export default function StakingForm({
     [setBabyStakeDraft],
   );
 
-  // Listen to UI events for prefilling the amount
+  // Handle prefill amount from navigation state
   useEffect(() => {
-    const unsubscribe = uiEventBus.on("form:prefillAmount", (amount) => {
-      if (formRef.current) {
-        // Use type assertion because validation expects string but type is number
-        formRef.current.setValue<"amount">(
-          "amount",
-          String(amount) as unknown as number,
-          {
-            shouldDirty: true,
-            shouldTouch: true,
-            shouldValidate: true,
-          },
-        );
+    const state = location.state as { shouldPrefillCoStaking?: boolean } | null;
 
-        const currentFormValues = formRef.current.getValues();
-        setBabyStakeDraft({
-          amount,
-          validatorAddresses: currentFormValues.validatorAddresses,
-          feeAmount: currentFormValues.feeAmount,
-        });
-      }
-    });
+    if (!state?.shouldPrefillCoStaking) return;
 
-    return unsubscribe;
-  }, [uiEventBus, setBabyStakeDraft]);
+    if (formRef.current) {
+      formRef.current.setValue<"amount">(
+        "amount",
+        String(eligibility.additionalBabyNeeded) as any,
+        {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        },
+      );
+
+      const currentFormValues = formRef.current.getValues();
+      setBabyStakeDraft({
+        amount: eligibility.additionalBabyNeeded,
+        validatorAddresses: currentFormValues.validatorAddresses,
+        feeAmount: currentFormValues.feeAmount,
+      });
+    }
+
+    // Clear the state to prevent re-triggering
+    navigate(".", { replace: true, state: null });
+  }, [
+    location.state,
+    navigate,
+    eligibility.additionalBabyNeeded,
+    setBabyStakeDraft,
+  ]);
 
   return (
     <Form

@@ -150,7 +150,11 @@ function RewardsPageContent() {
   }
 
   const handleStakeMoreClick = () => {
-    navigate("/baby");
+    navigate("/baby", {
+      state: {
+        shouldPrefillCoStaking: true,
+      },
+    });
   };
 
   const handleClaimClick = async () => {

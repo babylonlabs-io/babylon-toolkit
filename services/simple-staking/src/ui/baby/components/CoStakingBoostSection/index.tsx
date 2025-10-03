@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
+import { useNavigate } from "react-router";
 import { Text, DismissibleSubSection } from "@babylonlabs-io/core-ui";
 
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
@@ -9,7 +10,6 @@ import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
-import { useUIEventBus } from "@/ui/common/hooks/useUIEventBus";
 
 import type { TabId } from "../../layout";
 
@@ -30,7 +30,7 @@ export function CoStakingBoostSection({
     useSessionStorage<boolean>("co-staking-boost-section-visibility", true, {
       initializeWithValue: true,
     });
-  const uiEventBus = useUIEventBus();
+  const navigate = useNavigate();
 
   const hasActiveBtcDelegations = useMemo(
     () => delegations.some((d) => d.state === DelegationV2StakingState.ACTIVE),
@@ -39,9 +39,11 @@ export function CoStakingBoostSection({
 
   const handlePrefill = () => {
     setActiveTab("stake");
-    if (eligibility.additionalBabyNeeded > 0) {
-      uiEventBus.emit("form:prefillAmount", eligibility.additionalBabyNeeded);
-    }
+    navigate("/baby", {
+      state: {
+        shouldPrefillCoStaking: true,
+      },
+    });
   };
 
   const formattedSuggestedAmount = useMemo(
