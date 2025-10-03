@@ -1,46 +1,43 @@
 import { Card } from "../Card";
 import { IconButton } from "../Button";
 import { PlusIcon } from "../Icons";
+import type { PropsWithChildren } from "react";
 
 /**
- * BorrowCard component for initiating new borrow positions
+ * BorrowCard component - Container for vault borrow positions with add button
  * 
  * @example
  * ```tsx
- * <BorrowCard 
- *   onNewBorrow={() => handleBorrow()} 
- *   title=""
- *   description=""
- * />
+ * <BorrowCard onNewBorrow={() => handleBorrow()}>
+ *   <ActivityCard data={activityData} />
+ *   <ActivityCard data={activityData} />
+ * </BorrowCard>
  * ```
  */
 export interface BorrowCardProps {
   onNewBorrow?: () => void;
-  title?: string;
-  description?: string;
   className?: string;
 }
 
 export function BorrowCard({
   onNewBorrow,
-  title = "",
-  description = "",
-  className
-}: BorrowCardProps) {
+  className,
+  children,
+}: PropsWithChildren<BorrowCardProps>) {
   return (
     <Card className={className}>
-      <div className="flex flex-col items-center justify-center gap-4 py-8">
-        <IconButton 
-          variant="outlined" 
-          size="large" 
-          onClick={onNewBorrow}
-          aria-label="Create new borrow"
-        >
-          <PlusIcon />
-        </IconButton>
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-accent-primary">{title}</h3>
-          <p className="text-sm text-accent-secondary">{description}</p>
+      <div className="flex flex-col gap-4">
+        {children}
+        
+        <div className="flex justify-center py-4">
+          <IconButton 
+            variant="outlined" 
+            size="large" 
+            onClick={onNewBorrow}
+            aria-label="Create new borrow position"
+          >
+            <PlusIcon />
+          </IconButton>
         </div>
       </div>
     </Card>

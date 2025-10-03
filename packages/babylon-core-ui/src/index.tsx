@@ -30,6 +30,8 @@ export * from "./components/Hint";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
+export * from "./elements/StatusBadge";
+export * from "./elements/ProviderItem";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
