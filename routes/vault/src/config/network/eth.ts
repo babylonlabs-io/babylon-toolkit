@@ -29,7 +29,7 @@ const config: Record<string, ETHConfig> = {
   },
   localhost: {
     chain: localhost,
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL ?? 'http://localhost:32003',
+    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL ?? 'http://localhost:8545',
     networkName: 'Local Anvil',
     coinSymbol: 'ETH',
     displayUSD: false,

@@ -13,10 +13,6 @@ export type { VaultMetadata } from './vault-controller/query';
 export * as BTCVaultsManager from './btc-vaults-manager/query';
 export type { PeginRequest } from './btc-vaults-manager/query';
 
-// ERC20
-export * as ERC20 from './erc20/query';
-export type { TokenMetadata } from './erc20/types';
-
-// Morpho
+// Morpho (using official SDK)
 export * as Morpho from './morpho/query';
 export type { MarketTokenRef, MorphoMarketSummary } from './morpho/types';

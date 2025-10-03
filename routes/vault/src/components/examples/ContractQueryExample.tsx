@@ -13,13 +13,13 @@ export default function ContractQueryExample() {
   // Test configuration
   const VAULT_CONTRACT_ADDRESS = '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6' as Hex;
   const BTC_VAULTS_MANAGER_ADDRESS = '0x0165878A594ca255338adfa4d48449f69242Eb8F' as Hex;
-  const MORPHO_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as Hex;
   const MORPHO_MARKET_ID = '74452254177513794647796445278347016294878377877693199253750000625994101441252';
   const connectedAddress = ethConnector?.connectedWallet?.account?.address as Hex | undefined;
   // Deployment info:
   // BTCVault: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
   // Controller: 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
   // Manager: 0x0165878A594ca255338adfa4d48449f69242Eb8F
+  // Morpho: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
 
   useEffect(() => {
     console.log('ETH Connector state changed:', {
@@ -114,7 +114,7 @@ export default function ContractQueryExample() {
 
   // Morpho queries
   const testGetMarketById = () =>
-    executeQuery('getMarketById', () => Morpho.getMarketById(MORPHO_ADDRESS, MORPHO_MARKET_ID));
+    executeQuery('getMarketById', () => Morpho.getMarketById(MORPHO_MARKET_ID));
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

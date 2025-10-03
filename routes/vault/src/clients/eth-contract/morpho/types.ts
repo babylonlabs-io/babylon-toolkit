@@ -7,14 +7,18 @@ export type MarketTokenRef = {
 
 export type MorphoMarketSummary = {
   id: string;
-  address: Address;
-  tokens: {
-    loan: MarketTokenRef;
-    collateral: MarketTokenRef;
-  };
-  lltvPercent: number;
-  totalMarketSizeAssets: bigint;
-  totalLiquidityAssets: bigint;
+  loanToken: MarketTokenRef;
+  collateralToken: MarketTokenRef;
+  oracle: Address;
+  irm: Address;
+  lltv: bigint;
+  totalSupplyAssets: bigint;
+  totalSupplyShares: bigint;
+  totalBorrowAssets: bigint;
+  totalBorrowShares: bigint;
+  lastUpdate: bigint;
+  fee: bigint;
   utilizationPercent: number;
+  lltvPercent: number;
 };
 
