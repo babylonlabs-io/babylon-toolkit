@@ -1,27 +1,11 @@
 // ETH smart contract client for write operations (transactions)
 
 import { type Address, type Hash, type TransactionReceipt, type Hex } from 'viem';
-import { getWalletClient, type Config } from '@wagmi/core';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
 
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 import { ethQueryClient } from './query';
-
-// Helper to get wagmi config - will be provided by wallet connector
-// For now, we'll receive it as a parameter
-let wagmiConfigCache: Config | null = null;
-
-export function setWagmiConfig(config: Config) {
-  wagmiConfigCache = config;
-}
-
-function getWagmiConfig(): Config {
-  if (!wagmiConfigCache) {
-    throw new Error(
-      'Wagmi config not initialized. Call setWagmiConfig() first or ensure wallet is connected.'
-    );
-  }
-  return wagmiConfigCache;
-}
 
 /**
  * Morpho market parameters
@@ -47,7 +31,7 @@ export async function submitPeginRequest(
   vaultProvider: Address
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; pegInTxHash: Hex }> {
   const publicClient = ethQueryClient.getPublicClient();
-  const wagmiConfig = getWagmiConfig();
+  const wagmiConfig = getSharedWagmiConfig();
 
   try {
     // Get wallet client from wagmi (viem-compatible)
@@ -102,7 +86,7 @@ export async function mintAndBorrow(
   borrowAmount: bigint
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethQueryClient.getPublicClient();
-  const wagmiConfig = getWagmiConfig();
+  const wagmiConfig = getSharedWagmiConfig();
 
   try {
     // Get wallet client from wagmi (viem-compatible)
@@ -147,7 +131,7 @@ export async function repayAndPegout(
   pegInTxHash: Hex
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethQueryClient.getPublicClient();
-  const wagmiConfig = getWagmiConfig();
+  const wagmiConfig = getSharedWagmiConfig();
 
   try {
     // Get wallet client from wagmi (viem-compatible)

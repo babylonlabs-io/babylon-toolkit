@@ -70,13 +70,6 @@ class ETHQueryClient {
     return this.publicClient;
   }
 
-  /**
-   * Get the network config
-   */
-  getConfig() {
-    return this.config;
-  }
-
   // ===== BTC Vault Controller Query Functions =====
 
   /**

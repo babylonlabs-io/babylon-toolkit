@@ -27,9 +27,7 @@ const config: Record<string, ETHConfig> = {
     coinSymbol: 'ETH',
     displayUSD: false,
   },
-  // TODO: Below is actually localhost. We use canonDevnet because we had to get it work
-  // for btc network as well. 
-  canonDevnet: {
+  localhost: {
     chain: localhost,
     rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL ?? 'http://localhost:8545',
     networkName: 'Local Anvil',
