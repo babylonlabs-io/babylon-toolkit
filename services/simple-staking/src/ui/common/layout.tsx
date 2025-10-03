@@ -7,8 +7,10 @@ import { Network } from "@/ui/common/types/network";
 import "@/ui/globals.css";
 
 import { Banner } from "./components/Banner/Banner";
+import { CoStakingBanner } from "./components/CoStakingBanner";
 import { Footer } from "./components/Footer/Footer";
 import { Header } from "./components/Header/Header";
+import FF from "./utils/FeatureFlagService";
 
 export default function RootLayout() {
   const isMobile = useIsMobile();
@@ -25,6 +27,7 @@ export default function RootLayout() {
     >
       <div className="flex min-h-svh flex-col">
         <Banner />
+        {FF.IsCoStakingEnabled && <CoStakingBanner />}
         <Header />
 
         <Outlet />

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import babylon from "@/infrastructure/babylon";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
@@ -7,18 +7,21 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import type { CoStakingAPRData } from "@/ui/common/types/api/coStaking";
-import { calculateAdditionalBabyNeeded } from "@/ui/common/utils/coStakingCalculations";
+import {
+  calculateAdditionalBabyNeeded,
+  calculateBTCEligibilityPercentage,
+  calculateUserCoStakingAPR,
+} from "@/ui/common/utils/coStakingCalculations";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
-import { useDelegationsV2 } from "../client/api/useDelegationsV2";
 import { ubbnToBaby } from "../../utils/bbn";
+import { getAPR } from "../../api/getAPR";
 
 const CO_STAKING_PARAMS_KEY = "CO_STAKING_PARAMS";
 const CO_STAKING_REWARDS_TRACKER_KEY = "CO_STAKING_REWARDS_TRACKER";
 const CO_STAKING_CURRENT_REWARDS_KEY = "CO_STAKING_CURRENT_REWARDS";
-
-// TODO Placeholder APR until backend provides actual calculation
-const PLACEHOLDER_APR = 12.5; // placeholder APR
+const CO_STAKING_APR_KEY = "CO_STAKING_APR";
+const CO_STAKING_REWARD_SUPPLY_KEY = "CO_STAKING_REWARD_SUPPLY";
 
 /**
  * Hook for managing co-staking functionality
@@ -115,11 +118,42 @@ export const useCoStakingService = () => {
     retry: 3,
   });
 
-  // Get user's delegations
-  const { data: delegationsData, isLoading: isDelegationsLoading } =
-    useDelegationsV2(bech32Address, {
-      enabled: Boolean(isCoStakingEnabled && connected && bech32Address),
-    });
+  // Query for APR data
+  const aprQuery = useClientQuery({
+    queryKey: [CO_STAKING_APR_KEY],
+    queryFn: async () => {
+      try {
+        return await getAPR();
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getAPR" },
+        });
+        return null;
+      }
+    },
+    enabled: isCoStakingEnabled,
+    staleTime: Infinity, // Fetch once per page load
+    retry: 3,
+  });
+
+  // Query for total co-staking reward supply
+  const rewardSupplyQuery = useClientQuery({
+    queryKey: [CO_STAKING_REWARD_SUPPLY_KEY],
+    queryFn: async () => {
+      const client = await babylon.client();
+      try {
+        return await client.baby.getAnnualCoStakingRewardSupply();
+      } catch (error) {
+        logger.error(error as Error, {
+          tags: { action: "getAnnualCoStakingRewardSupply" },
+        });
+        return null;
+      }
+    },
+    enabled: isCoStakingEnabled,
+    staleTime: ONE_MINUTE * 5, // Cache for 5 minutes
+    retry: 3,
+  });
 
   // Destructure refetch functions for stable references
   const { refetch: refetchCoStakingParams } = coStakingParamsQuery;
@@ -127,24 +161,13 @@ export const useCoStakingService = () => {
   const { refetch: refetchCurrentRewards } = currentRewardsQuery;
 
   /**
-   * Calculate the total satoshis staked by the user
-   */
-  const totalSatoshisStaked = useMemo(() => {
-    if (!delegationsData?.delegations) return 0;
-
-    return delegationsData.delegations.reduce((sum, delegation) => {
-      return sum + (delegation.stakingAmount || 0);
-    }, 0);
-  }, [delegationsData]);
-
-  /**
    * Get the co-staking score ratio (BABY per BTC)
    */
-  const getScoreRatio = useCallback((): number => {
+  const getScoreRatio = useCallback((): string => {
     const params = coStakingParamsQuery.data?.params;
-    if (!params) return 50; // Default ratio
+    if (!params) return "50"; // Default ratio
 
-    return parseFloat(params.score_ratio_btc_by_baby);
+    return params.score_ratio_btc_by_baby;
   }, [coStakingParamsQuery.data]);
 
   /**
@@ -154,50 +177,119 @@ export const useCoStakingService = () => {
     const scoreRatio = getScoreRatio();
     const rewardsTracker = rewardsTrackerQuery.data;
 
-    // Get current ubbn staked (from rewards tracker)
-    const currentUbbn = rewardsTracker ? Number(rewardsTracker.active_baby) : 0;
+    if (!rewardsTracker) return 0;
+
+    const activeSatoshis = Number(rewardsTracker.active_satoshis);
+    const currentUbbn = Number(rewardsTracker.active_baby);
 
     // Calculate additional ubbn needed
     const additionalUbbnNeeded = calculateAdditionalBabyNeeded(
-      totalSatoshisStaked,
+      activeSatoshis,
       currentUbbn,
-      scoreRatio.toString(),
+      scoreRatio,
     );
 
     // Convert to BABY for display
     return ubbnToBaby(additionalUbbnNeeded);
-  }, [getScoreRatio, rewardsTrackerQuery.data, totalSatoshisStaked]);
+  }, [getScoreRatio, rewardsTrackerQuery.data]);
 
   /**
-   * Get co-staking APR (placeholder until backend provides actual data)
+   * Get co-staking APR with current and boost values
+   *
+   * Uses the formula based on user's share of the global co-staking pool:
+   *
+   * co_staking_apr = (user_total_score / global_total_score_sum)
+   *                  × total_co_staking_reward_supply
+   *                  / user_active_baby
+   *
+   * A% (Current APR) = BTC staking APR + BABY staking APR + user's co-staking APR
+   * B% (Boost APR) = What user earns at 100% co-staking eligibility
+   * X (Additional BABY needed) = BABY tokens to reach 100% eligibility
+   *
+   * Example UI Message: "Your current APR is A%. Stake X BABY to boost it up to B%."
    */
   const getCoStakingAPR = useCallback((): CoStakingAPRData => {
-    // TODO: Replace with actual APR calculation when backend endpoint is ready
-    // Formula: (total_score/total_score_sum)*(circulating_supply*co-staking_reward_ratio)/active_baby
-
-    const currentRewards = currentRewardsQuery.data;
     const rewardsTracker = rewardsTrackerQuery.data;
+    const currentRewards = currentRewardsQuery.data;
+    const aprData = aprQuery.data;
+    const rewardSupply = rewardSupplyQuery.data;
+    const scoreRatio = getScoreRatio();
+    const additionalBabyNeeded = getAdditionalBabyNeeded();
 
-    if (!currentRewards || !rewardsTracker) {
+    // Check if we have all required data
+    const isLoading =
+      rewardsTrackerQuery.isLoading ||
+      currentRewardsQuery.isLoading ||
+      aprQuery.isLoading ||
+      rewardSupplyQuery.isLoading ||
+      coStakingParamsQuery.isLoading;
+
+    if (!aprData || !rewardsTracker || !currentRewards || !rewardSupply) {
       return {
-        apr: null,
-        isLoading:
-          currentRewardsQuery.isLoading || rewardsTrackerQuery.isLoading,
-        error: "APR calculation coming soon",
+        currentApr: null,
+        boostApr: null,
+        additionalBabyNeeded: 0,
+        eligibilityPercentage: 0,
+        isLoading,
+        error: isLoading ? undefined : "APR data not available",
       };
     }
 
-    // For now, return placeholder APR
+    // Calculate eligibility percentage (what % of BTC qualifies for co-staking bonus)
+    const eligibilityPercentage = calculateBTCEligibilityPercentage(
+      rewardsTracker.active_satoshis,
+      rewardsTracker.active_baby,
+      scoreRatio,
+    );
+
+    // Calculate user's personalized co-staking APR based on pool share
+    const userCoStakingApr = calculateUserCoStakingAPR(
+      rewardsTracker.total_score,
+      currentRewards.total_score,
+      rewardSupply,
+      rewardsTracker.active_baby,
+    );
+
+    // Current APR = BTC staking APR + user's co-staking APR
+    const currentApr = aprData.btc_staking + userCoStakingApr;
+
+    // Calculate boost APR: what user earns at 100% eligibility
+    // Need to calculate what user_total_score would be with full eligibility
+    const activeSatoshis = Number(rewardsTracker.active_satoshis);
+    const ratio = Number(scoreRatio);
+    const requiredBaby = activeSatoshis * ratio;
+    const maxTotalScore = activeSatoshis;
+
+    // Calculate co-staking APR at 100% eligibility
+    const boostCoStakingApr = calculateUserCoStakingAPR(
+      maxTotalScore.toString(),
+      currentRewards.total_score,
+      rewardSupply,
+      requiredBaby.toString(),
+    );
+
+    const boostApr = aprData.btc_staking + boostCoStakingApr;
+
     return {
-      apr: PLACEHOLDER_APR,
+      currentApr,
+      boostApr,
+      additionalBabyNeeded,
+      eligibilityPercentage,
       isLoading: false,
       error: undefined,
     };
   }, [
-    currentRewardsQuery.data,
-    currentRewardsQuery.isLoading,
     rewardsTrackerQuery.data,
     rewardsTrackerQuery.isLoading,
+    currentRewardsQuery.data,
+    currentRewardsQuery.isLoading,
+    aprQuery.data,
+    aprQuery.isLoading,
+    rewardSupplyQuery.data,
+    rewardSupplyQuery.isLoading,
+    coStakingParamsQuery.isLoading,
+    getScoreRatio,
+    getAdditionalBabyNeeded,
   ]);
 
   /**
@@ -248,7 +340,8 @@ export const useCoStakingService = () => {
     coStakingParams: coStakingParamsQuery.data,
     rewardsTracker: rewardsTrackerQuery.data,
     currentRewards: currentRewardsQuery.data,
-    totalSatoshisStaked,
+    aprData: aprQuery.data,
+    rewardSupply: rewardSupplyQuery.data,
 
     // Methods
     getScoreRatio,
@@ -262,13 +355,16 @@ export const useCoStakingService = () => {
       coStakingParamsQuery.isLoading ||
       rewardsTrackerQuery.isLoading ||
       currentRewardsQuery.isLoading ||
-      isDelegationsLoading,
+      aprQuery.isLoading ||
+      rewardSupplyQuery.isLoading,
 
     // Error states
     error:
       coStakingParamsQuery.error ||
       rewardsTrackerQuery.error ||
-      currentRewardsQuery.error,
+      currentRewardsQuery.error ||
+      aprQuery.error ||
+      rewardSupplyQuery.error,
 
     // Feature flag
     isCoStakingEnabled,
