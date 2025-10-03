@@ -33,6 +33,7 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 interface BorrowModalProps {
   open: boolean;
   onClose: () => void;
+  onBorrow?: (amount: number) => void;
   collateral: {
     amount: string;
     symbol: string;
@@ -40,7 +41,7 @@ interface BorrowModalProps {
   };
 }
 
-export function BorrowModal({ open, onClose, collateral }: BorrowModalProps) {
+export function BorrowModal({ open, onClose, onBorrow, collateral }: BorrowModalProps) {
   const collateralBTC = useMemo(
     () => parseFloat(collateral.amount || "0"),
     [collateral.amount]
@@ -90,8 +91,14 @@ export function BorrowModal({ open, onClose, collateral }: BorrowModalProps) {
   const handleBorrowClick = async () => {
     setTouched(true);
     if (validation.isValid && borrowAmountNum > 0) {
-      await handleBorrow(borrowAmountNum, collateralBTC);
-      onClose();
+      // Call parent callback to trigger sign modal flow
+      if (onBorrow) {
+        onBorrow(borrowAmountNum);
+      } else {
+        // Fallback: if no onBorrow callback, use old flow
+        await handleBorrow(borrowAmountNum, collateralBTC);
+        onClose();
+      }
     }
   };
 

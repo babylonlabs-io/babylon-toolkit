@@ -8,12 +8,19 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 import { mockVaultActivities, type VaultActivity } from "../../mockData/vaultActivities";
-import { BorrowModal } from "../modals";
+import { BorrowModal, BorrowSignModal, BorrowSuccessModal } from "../modals";
 
 export function Borrow() {
   const [activities] = useState<VaultActivity[]>(mockVaultActivities);
+  
+  // Modal states
   const [modalOpen, setModalOpen] = useState(false);
+  const [signModalOpen, setSignModalOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  
+  // Selected activity and borrow amount
   const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
+  const [borrowAmount, setBorrowAmount] = useState(0);
 
   const handleNewBorrow = () => {
     if (activities.length > 0) {
@@ -32,6 +39,27 @@ export function Borrow() {
   const handleModalClose = () => {
     setModalOpen(false);
     setSelectedActivity(null);
+  };
+
+  // Handle borrow click from BorrowModal
+  const handleBorrowClick = (amount: number) => {
+    setBorrowAmount(amount);
+    setModalOpen(false);      // Close borrow modal
+    setSignModalOpen(true);   // Open sign modal
+  };
+
+  // Handle signing success
+  const handleSignSuccess = () => {
+    setSignModalOpen(false);      // Close sign modal
+    setSuccessModalOpen(true);    // Open success modal
+  };
+
+  // Handle success modal close
+  const handleSuccessClose = () => {
+    setSuccessModalOpen(false);
+    setSelectedActivity(null);
+    setBorrowAmount(0);
+    // Reset to initial state
   };
 
   // Transform vault activities to ActivityCard data format
@@ -90,9 +118,28 @@ export function Borrow() {
         <BorrowModal
           open={modalOpen}
           onClose={handleModalClose}
+          onBorrow={handleBorrowClick}
           collateral={selectedActivity.collateral}
         />
       )}
+
+      {/* Borrow Sign Modal */}
+      {selectedActivity && (
+        <BorrowSignModal
+          open={signModalOpen}
+          onClose={() => setSignModalOpen(false)}
+          onSuccess={handleSignSuccess}
+          borrowAmount={borrowAmount}
+          collateralAmount={selectedActivity.collateral.amount}
+        />
+      )}
+
+      {/* Borrow Success Modal */}
+      <BorrowSuccessModal
+        open={successModalOpen}
+        onClose={handleSuccessClose}
+        borrowAmount={borrowAmount}
+      />
     </>
   );
 }

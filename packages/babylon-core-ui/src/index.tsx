@@ -27,6 +27,7 @@ export * from "./components/Copy";
 export * from "./components/Icons";
 export * from "./components/Warning";
 export * from "./components/Hint";
+export * from "./components/Step";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
