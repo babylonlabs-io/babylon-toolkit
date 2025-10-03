@@ -38,8 +38,7 @@ interface CoStakingStateValue {
   currentRewards: CoStakingCurrentRewards | null;
   // Computed values
   eligibility: CoStakingEligibility;
-  scoreRatio: number;
-  totalSatoshisStaked: number;
+  scoreRatio: string;
   aprData: CoStakingAPRData;
   isLoading: boolean;
   isEnabled: boolean;
@@ -62,10 +61,12 @@ const defaultState: CoStakingStateValue = {
   rewardsTracker: null,
   currentRewards: null,
   eligibility: defaultEligibility,
-  scoreRatio: 50, // Default ratio
-  totalSatoshisStaked: 0,
+  scoreRatio: "50", // Default ratio
   aprData: {
-    apr: null,
+    currentApr: null,
+    boostApr: null,
+    additionalBabyNeeded: 0,
+    eligibilityPercentage: 0,
     isLoading: false,
     error: undefined,
   },
@@ -87,7 +88,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
     coStakingParams,
     rewardsTracker,
     currentRewards,
-    totalSatoshisStaked,
     getScoreRatio,
     getCoStakingAPR,
     getUserCoStakingStatus,
@@ -164,7 +164,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
       currentRewards: currentRewards || null,
       eligibility,
       scoreRatio,
-      totalSatoshisStaked,
       aprData,
       isLoading,
       isEnabled: isCoStakingEnabled,
@@ -178,7 +177,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
       currentRewards,
       eligibility,
       scoreRatio,
-      totalSatoshisStaked,
       aprData,
       isLoading,
       isCoStakingEnabled,
