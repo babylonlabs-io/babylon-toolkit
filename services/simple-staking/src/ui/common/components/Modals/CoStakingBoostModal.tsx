@@ -23,11 +23,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
   const { getCoStakingAPR } = useCoStakingService();
 
-  const {
-    currentApr,
-    boostApr,
-    additionalBabyNeeded,
-  } = getCoStakingAPR();
+  const { currentApr, boostApr, additionalBabyNeeded } = getCoStakingAPR();
 
   const submitButtonText = useMemo(
     () =>
@@ -56,7 +52,8 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
         <span className="text-accent-primary">
           {formatAPRPercentage(currentApr)}%
         </span>
-        . Stake {additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost it up to{" "}
+        . Stake {additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost it
+        up to{" "}
         <span className="text-accent-primary">
           {formatAPRPercentage(boostApr)}%
         </span>

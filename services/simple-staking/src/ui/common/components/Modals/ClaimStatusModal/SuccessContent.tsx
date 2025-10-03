@@ -9,8 +9,12 @@ export const SuccessContent = ({
 }: {
   transactionHash?: string | string[];
 }) => {
-  const hashes = Array.isArray(transactionHash) ? transactionHash : transactionHash ? [transactionHash] : [];
-  
+  const hashes = Array.isArray(transactionHash)
+    ? transactionHash
+    : transactionHash
+      ? [transactionHash]
+      : [];
+
   return (
     <div className="flex flex-col gap-4">
       <Text variant="body1" className="text-center">
@@ -19,9 +23,14 @@ export const SuccessContent = ({
       {hashes.length > 0 && (
         <div className="flex flex-col gap-2">
           {hashes.map((hash, index) => (
-            <div key={hash} className="flex flex-col items-center justify-center sm:flex-row">
+            <div
+              key={hash}
+              className="flex flex-col items-center justify-center sm:flex-row"
+            >
               <Text variant="body2" className="mb-1 sm:mb-0 sm:mr-2">
-                {hashes.length > 1 ? `Transaction Hash ${index + 1}:` : "Transaction Hash:"}
+                {hashes.length > 1
+                  ? `Transaction Hash ${index + 1}:`
+                  : "Transaction Hash:"}
               </Text>
               {BABYLON_EXPLORER ? (
                 <a
