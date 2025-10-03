@@ -7,7 +7,7 @@ import {
   RewardsPreviewModal,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { Container } from "@/ui/common/components/Container/Container";
@@ -175,31 +175,34 @@ function RewardsPageContent() {
     const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
     const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
 
-    try {
-      // Claim BTC staking rewards
-      if (hasBtcRewards) {
+    // Claim BTC staking rewards
+    if (hasBtcRewards) {
+      try {
         setClaimingBtc(true);
         const btcResult = await btcClaimRewards();
         if (btcResult?.txHash) {
           setBtcTxHash(btcResult.txHash);
         }
+      } catch (error) {
+        console.error("Error claiming BTC rewards:", error);
+      } finally {
         setClaimingBtc(false);
       }
+    }
 
-      // Claim BABY staking rewards
-      if (hasBabyRewards) {
+    // Claim BABY staking rewards
+    if (hasBabyRewards) {
+      try {
         setClaimingBaby(true);
         const babyResult = await babyClaimAll();
         if (babyResult?.txHash) {
           setBabyTxHash(babyResult.txHash);
         }
+      } catch (error) {
+        console.error("Error claiming BABY rewards:", error);
+      } finally {
         setClaimingBaby(false);
       }
-    } catch (error) {
-      // Error handling is done in the respective services
-      console.error("Error claiming rewards:", error);
-      setClaimingBtc(false);
-      setClaimingBaby(false);
     }
   };
 
@@ -218,6 +221,49 @@ function RewardsPageContent() {
   const stakeMoreCta = isStakeMoreActive
     ? `Stake ${formatter.format(additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
     : undefined;
+
+  const tokens = useMemo(() => {
+    return [
+      ...(hasBtcRewards
+        ? [
+            {
+              name: `${btcCoinSymbol} Staking`,
+              amount: {
+                token: `${btcRewardBaby} ${bbnCoinSymbol}`,
+                usd: "",
+              },
+            },
+          ]
+        : []),
+      ...(hasBabyRewards
+        ? [
+            {
+              name: `${bbnCoinSymbol} Staking`,
+              amount: {
+                token: `${babyRewardBaby} ${bbnCoinSymbol}`,
+                usd: "",
+              },
+            },
+          ]
+        : []),
+    ];
+  }, [
+    hasBtcRewards,
+    hasBabyRewards,
+    btcRewardBaby,
+    babyRewardBaby,
+    btcCoinSymbol,
+    bbnCoinSymbol,
+  ]);
+
+  const handleCloseProcessingModal = () => {
+    btcCloseProcessingModal();
+    btcSetTransactionHash("");
+    setBtcTxHash("");
+    setBabyTxHash("");
+    setClaimingBtc(false);
+    setClaimingBaby(false);
+  };
 
   return (
     <Content>
@@ -259,30 +305,7 @@ function RewardsPageContent() {
         title="Claim All Rewards"
         onClose={handleClose}
         onProceed={handleProceed}
-        tokens={[
-          ...(hasBtcRewards
-            ? [
-                {
-                  name: `${btcCoinSymbol} Staking`,
-                  amount: {
-                    token: `${btcRewardBaby} ${bbnCoinSymbol}`,
-                    usd: "",
-                  },
-                },
-              ]
-            : []),
-          ...(hasBabyRewards
-            ? [
-                {
-                  name: `${bbnCoinSymbol} Staking`,
-                  amount: {
-                    token: `${babyRewardBaby} ${bbnCoinSymbol}`,
-                    usd: "",
-                  },
-                },
-              ]
-            : []),
-        ]}
+        tokens={tokens}
         transactionFees={{
           token: `${ubbnToBaby(transactionFee).toFixed(6)} ${bbnCoinSymbol}`,
           usd: "",
@@ -291,12 +314,7 @@ function RewardsPageContent() {
 
       <ClaimStatusModal
         open={showProcessingModal}
-        onClose={() => {
-          btcCloseProcessingModal();
-          btcSetTransactionHash("");
-          setBtcTxHash("");
-          setBabyTxHash("");
-        }}
+        onClose={handleCloseProcessingModal}
         loading={processing}
         transactionHash={transactionHashes}
       />
