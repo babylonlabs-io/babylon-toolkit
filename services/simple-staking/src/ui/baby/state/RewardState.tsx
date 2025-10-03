@@ -12,7 +12,7 @@ interface RewardState {
   loading: boolean;
   rewards: Reward[];
   totalReward: bigint;
-  claimAll: () => Promise<void>;
+  claimAll: () => Promise<{ txHash?: string } | undefined>;
   showClaimModal: boolean;
   openClaimModal: () => void;
   closeClaimModal: () => void;
@@ -24,7 +24,7 @@ const { StateProvider, useState: useRewardState } =
     loading: false,
     rewards: [],
     totalReward: 0n,
-    claimAll: async () => {},
+    claimAll: async () => ({ txHash: undefined }),
     showClaimModal: false,
     openClaimModal: () => {},
     closeClaimModal: () => {},
@@ -60,6 +60,7 @@ function RewardState({ children }: PropsWithChildren) {
         txHash: result?.txHash,
       });
       setShowClaimModal(false);
+      return result;
     } catch (error: any) {
       handleError({ error });
       logger.error(error);

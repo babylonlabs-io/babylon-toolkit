@@ -90,6 +90,8 @@ export const useRewardsService = () => {
         ONE_SECOND,
         MAX_RETRY_ATTEMPTS,
       );
+
+      return result;
     } catch (error: any) {
       closeProcessingModal();
       setTransactionHash("");

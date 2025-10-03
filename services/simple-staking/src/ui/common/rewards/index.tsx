@@ -27,18 +27,14 @@ import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
 import { ClaimStatusModal } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
+import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
 
 const formatter = Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 2,
 });
 
-const BABY_TO_STAKE_AMOUNT = 5324;
-const CO_STAKING_AMOUNT = 100000;
-
 const MAX_DECIMALS = 6;
-
-type ClaimType = "btc_staking" | "baby_staking";
 
 function RewardsPageContent() {
   const { open: openWidget } = useWalletConnect();
@@ -65,6 +61,39 @@ function RewardsPageContent() {
   const { showPreview: btcShowPreview, claimRewards: btcClaimRewards } =
     useRewardsService();
 
+  // Get co-staking data
+  const {
+    currentRewards,
+    rewardsTracker,
+    getAdditionalBabyNeeded,
+  } = useCoStakingService();
+
+  // Calculate additional BABY needed for full co-staking rewards
+  const additionalBabyNeeded = getAdditionalBabyNeeded();
+
+  // Calculate user's co-staking rewards based on their share of the global pool
+  const coStakingRewardUbbn = (() => {
+    if (!currentRewards || !rewardsTracker) return 0;
+    
+    const userTotalScore = Number(rewardsTracker.total_score);
+    const globalTotalScore = Number(currentRewards.total_score);
+    
+    // If no scores, no rewards
+    if (userTotalScore === 0 || globalTotalScore === 0) return 0;
+    
+    // Calculate user's share of the global co-staking pool
+    const userShare = userTotalScore / globalTotalScore;
+    
+    // Calculate total rewards in the pool
+    const totalRewardsUbbn = currentRewards.rewards.reduce(
+      (total, coin) => total + (coin.denom === "ubbn" ? Number(coin.amount) : 0),
+      0,
+    );
+    
+    // User's rewards = their share of the total pool
+    return totalRewardsUbbn * userShare;
+  })();
+
   const btcRewardBaby = maxDecimals(
     ubbnToBaby(Number(btcRewardUbbn || 0)),
     MAX_DECIMALS,
@@ -73,21 +102,30 @@ function RewardsPageContent() {
     ubbnToBaby(Number(babyRewardUbbn || 0n)),
     MAX_DECIMALS,
   );
+  const coStakingRewardBaby = maxDecimals(
+    ubbnToBaby(coStakingRewardUbbn),
+    MAX_DECIMALS,
+  );
   const totalBabyRewards = maxDecimals(
-    btcRewardBaby + babyRewardBaby,
+    btcRewardBaby + babyRewardBaby + coStakingRewardBaby,
     MAX_DECIMALS,
   );
 
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [typeToClaim] = useState<ClaimType>("btc_staking");
+  const [claimingBtc, setClaimingBtc] = useState(false);
+  const [claimingBaby, setClaimingBaby] = useState(false);
+  const [btcTxHash, setBtcTxHash] = useState("");
+  const [babyTxHash, setBabyTxHash] = useState("");
 
   const processing =
-    typeToClaim === "btc_staking" ? btcProcessing : babyLoading;
+    btcProcessing || babyLoading || claimingBtc || claimingBaby;
   const showProcessingModal =
-    typeToClaim === "btc_staking" ? btcShowProcessingModal : false;
+    claimingBtc || claimingBaby || btcShowProcessingModal;
+
+  // Combine transaction hashes for display
   const transactionHash =
-    typeToClaim === "btc_staking" ? btcTransactionHash : "";
-  const transactionFee = typeToClaim === "btc_staking" ? btcTransactionFee : 0;
+    [btcTxHash, babyTxHash].filter(Boolean).join(", ") || btcTransactionHash;
+  const transactionFee = btcTransactionFee; // Primary fee shown is BTC staking fee
 
   function NotConnected() {
     return (
@@ -127,37 +165,65 @@ function RewardsPageContent() {
   const handleClaimClick = async () => {
     if (processing) return;
 
-    // Claim based on the default typeToClaim
-    if (typeToClaim === "btc_staking") {
-      if (!btcRewardUbbn || btcRewardUbbn === 0) return;
+    const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+    const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+
+    if (!hasBtcRewards && !hasBabyRewards) return;
+
+    // Show preview for BTC rewards to calculate fees
+    if (hasBtcRewards) {
       await btcShowPreview();
-      setPreviewOpen(true);
-    } else if (typeToClaim === "baby_staking") {
-      if (!babyRewardUbbn || babyRewardUbbn === 0n) return;
-      setPreviewOpen(true);
     }
+
+    setPreviewOpen(true);
   };
 
-  const handleProceed = () => {
-    if (typeToClaim === "btc_staking") {
-      btcClaimRewards();
-    } else if (typeToClaim === "baby_staking") {
-      babyClaimAll();
-    }
+  const handleProceed = async () => {
     setPreviewOpen(false);
+
+    const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+    const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+
+    try {
+      // Claim BTC staking rewards
+      if (hasBtcRewards) {
+        setClaimingBtc(true);
+        const btcResult = await btcClaimRewards();
+        if (btcResult?.txHash) {
+          setBtcTxHash(btcResult.txHash);
+        }
+        setClaimingBtc(false);
+      }
+
+      // Claim BABY staking rewards
+      if (hasBabyRewards) {
+        setClaimingBaby(true);
+        const babyResult = await babyClaimAll();
+        if (babyResult?.txHash) {
+          setBabyTxHash(babyResult.txHash);
+        }
+        setClaimingBaby(false);
+      }
+    } catch (error) {
+      // Error handling is done in the respective services
+      console.error("Error claiming rewards:", error);
+      setClaimingBtc(false);
+      setClaimingBaby(false);
+    }
   };
 
   const handleClose = () => {
     setPreviewOpen(false);
   };
 
-  const claimDisabled =
-    typeToClaim === "btc_staking"
-      ? !btcRewardUbbn || btcRewardUbbn === 0 || processing
-      : !babyRewardUbbn || babyRewardUbbn === 0n || processing;
+  const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+  const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+  const hasCoStakingRewards = coStakingRewardUbbn > 0;
+  const hasAnyRewards = hasBtcRewards || hasBabyRewards || hasCoStakingRewards;
+  const claimDisabled = !hasAnyRewards || processing;
 
-  const stakeMoreCta = FF.IsCoStakingEnabled
-    ? `Stake ${formatter.format(BABY_TO_STAKE_AMOUNT)} ${bbnCoinSymbol} to Unlock Full Rewards`
+  const stakeMoreCta = FF.IsCoStakingEnabled && additionalBabyNeeded > 0
+    ? `Stake ${formatter.format(additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
     : undefined;
 
   return (
@@ -177,13 +243,17 @@ function RewardsPageContent() {
                 babyRewardAmount={`${babyRewardBaby.toLocaleString()}`}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
-                  FF.IsCoStakingEnabled ? `${CO_STAKING_AMOUNT}` : undefined
+                  FF.IsCoStakingEnabled && hasCoStakingRewards
+                    ? `${coStakingRewardBaby.toLocaleString()}`
+                    : undefined
                 }
                 avatarUrl={logo}
                 onClaim={handleClaimClick}
                 claimDisabled={claimDisabled}
                 onStakeMore={
-                  FF.IsCoStakingEnabled ? handleStakeMoreClick : undefined
+                  FF.IsCoStakingEnabled && additionalBabyNeeded > 0
+                    ? handleStakeMoreClick
+                    : undefined
                 }
                 stakeMoreCta={stakeMoreCta}
               />
@@ -195,23 +265,32 @@ function RewardsPageContent() {
       <RewardsPreviewModal
         open={previewOpen}
         processing={processing}
-        title={
-          typeToClaim === "btc_staking"
-            ? "Claim BTC Staking Rewards"
-            : "Claim BABY Staking Rewards"
-        }
+        title="Claim All Rewards"
         onClose={handleClose}
         onProceed={handleProceed}
         tokens={[
-          {
-            name: bbnCoinSymbol,
-            amount: {
-              token: `${
-                typeToClaim === "btc_staking" ? btcRewardBaby : babyRewardBaby
-              } ${bbnCoinSymbol}`,
-              usd: "",
-            },
-          },
+          ...(hasBtcRewards
+            ? [
+                {
+                  name: `${btcCoinSymbol} Staking`,
+                  amount: {
+                    token: `${btcRewardBaby} ${bbnCoinSymbol}`,
+                    usd: "",
+                  },
+                },
+              ]
+            : []),
+          ...(hasBabyRewards
+            ? [
+                {
+                  name: `${bbnCoinSymbol} Staking`,
+                  amount: {
+                    token: `${babyRewardBaby} ${bbnCoinSymbol}`,
+                    usd: "",
+                  },
+                },
+              ]
+            : []),
         ]}
         transactionFees={{
           token: `${ubbnToBaby(transactionFee).toFixed(6)} ${bbnCoinSymbol}`,
@@ -222,10 +301,10 @@ function RewardsPageContent() {
       <ClaimStatusModal
         open={showProcessingModal}
         onClose={() => {
-          if (typeToClaim === "btc_staking") {
-            btcCloseProcessingModal();
-            btcSetTransactionHash("");
-          }
+          btcCloseProcessingModal();
+          btcSetTransactionHash("");
+          setBtcTxHash("");
+          setBabyTxHash("");
         }}
         loading={processing}
         transactionHash={transactionHash}
