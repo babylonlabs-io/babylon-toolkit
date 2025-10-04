@@ -1,5 +1,5 @@
 import { type Address } from 'viem';
-import { listUserRequests } from '../eth-contract/vault-manager/query';
+import * as BTCVaultsManager from '../eth-contract/btc-vaults-manager/query';
 
 function parseArgs(argv: string[]): { manager: Address; user: Address } {
   const args = new Map<string, string>();
@@ -23,6 +23,15 @@ function parseArgs(argv: string[]): { manager: Address; user: Address } {
   return { manager: manager as Address, user: user as Address };
 }
 
+async function listUserRequests(manager: Address, user: Address) {
+  const ids = await BTCVaultsManager.getDepositorPeginRequests(manager, user);
+  if (!ids.length) return [];
+  const requests = await Promise.all(
+    ids.map((id) => BTCVaultsManager.getPeginRequest(manager, id))
+  );
+  return requests;
+}
+
 async function main(): Promise<void> {
   const { manager, user } = parseArgs(process.argv.slice(2));
 
@@ -36,8 +45,6 @@ async function main(): Promise<void> {
       console.log('depositor:', r.depositor);
       console.log('amount:', r.amount.toString());
       console.log('status:', r.status);
-      if (r.vaultProvider) console.log('vaultProvider:', r.vaultProvider);
-      if (r.unsignedBtcTx) console.log('unsignedBtcTx(bytes):', r.unsignedBtcTx.length / 2 - 1);
     }
   } catch (error) {
     console.error('Failed to fetch requests:', error instanceof Error ? error.message : error);
