@@ -9,8 +9,9 @@ import BTCVaultsManagerABI from './abis/BTCVaultsManager.abi.json';
  */
 export interface PeginRequest {
   depositor: Address;
-  txHash: Hex;
+  unsignedBtcTx: Hex;
   amount: bigint;
+  vaultProvider: Address;
   status: number; // 0 = Pending, 1 = Verified, 2 = Active
 }
 
@@ -42,9 +43,10 @@ export async function getDepositorPeginRequests(
 
 /**
  * Get details of a specific pegin request
+ * Uses the `peginRequests` mapping which includes vaultProvider
  * @param contractAddress - BTCVaultsManager contract address
  * @param pegInTxHash - Pegin transaction hash
- * @returns Pegin request details
+ * @returns Pegin request details including vaultProvider
  */
 export async function getPeginRequest(
   contractAddress: Address,
@@ -55,16 +57,23 @@ export async function getPeginRequest(
     const result = await publicClient.readContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
-      functionName: 'getPeginRequest',
+      functionName: 'peginRequests',
       args: [pegInTxHash],
     });
 
-    const [depositor, txHash, amount, status] = result as [Address, Hex, bigint, number];
+    const [depositor, unsignedBtcTx, amount, vaultProvider, status] = result as [
+      Address,
+      Hex,
+      bigint,
+      Address,
+      number
+    ];
 
     return {
       depositor,
-      txHash,
+      unsignedBtcTx,
       amount,
+      vaultProvider,
       status,
     };
   } catch (error) {
