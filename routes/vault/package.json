@@ -16,7 +16,8 @@
     "build": "echo 'Skipping build for route package. Bundling happens from the service package.'",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "example:fetch-market": "tsx src/clients/examples/fetch-market.ts"
   },
   "peerDependencies": {
     "react": "18.3.1",
