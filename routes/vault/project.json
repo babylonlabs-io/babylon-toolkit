@@ -1,9 +1,9 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "name": "@babylonlabs-io/babylon-campaigns",
+  "name": "@routes/vault",
   "sourceRoot": "{projectRoot}/src",
   "projectType": "library",
-  "tags": ["type:package"],
+  "tags": ["type:route"],
   "targets": {
     "build": {
       "outputs": ["{projectRoot}/dist"],

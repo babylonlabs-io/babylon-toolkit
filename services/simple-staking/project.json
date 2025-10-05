@@ -1,4 +1,9 @@
 {
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "name": "simple-staking",
+  "sourceRoot": "{projectRoot}/src",
+  "projectType": "application",
+  "tags": ["type:service"],
   "targets": {
     "dev:watchDeps": {
       "dependsOn": ["^build"],

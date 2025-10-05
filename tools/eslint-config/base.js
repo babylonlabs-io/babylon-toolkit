@@ -21,11 +21,19 @@ export const baseConfig = defineConfig([
         {
           enforceBuildableLibDependency: true,
           banTransitiveDependencies: true,
-          allow: ['@'],
+          allow: ['@/'],
           depConstraints: [
             {
-              sourceTag: '*',
-              onlyDependOnLibsWithTags: ['*'],
+              sourceTag: 'type:package',
+              onlyDependOnLibsWithTags: ['type:package'],
+            },
+            {
+              sourceTag: 'type:route',
+              onlyDependOnLibsWithTags: ['type:package'],
+            },
+            {
+              sourceTag: 'type:service',
+              onlyDependOnLibsWithTags: ['type:package', 'type:route'],
             },
           ],
         },
