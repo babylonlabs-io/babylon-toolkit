@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "../../packages/babylon-config"
+    },
+    {
       "path": "../../packages/babylon-wallet-connector"
     },
     {

@@ -1,7 +1,7 @@
 // Shared ETH client singleton for all contract interactions
 
 import { createPublicClient, http, type PublicClient } from 'viem';
-import { getNetworkConfigETH } from '../../config/network';
+import { getNetworkConfigETH, getETHChain } from '@babylonlabs-io/config';
 
 /**
  * ETHClient - Singleton client for Ethereum interactions
@@ -15,7 +15,7 @@ class ETHClient {
   private constructor() {
     // Create public client with config from environment
     this.publicClient = createPublicClient({
-      chain: this.config.chain,
+      chain: getETHChain(),
       transport: http(this.config.rpcUrl),
     });
   }

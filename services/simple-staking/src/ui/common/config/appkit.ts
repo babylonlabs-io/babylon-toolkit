@@ -1,10 +1,14 @@
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { setSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
+import { localhost } from "@babylonlabs-io/config";
 import { mainnet, sepolia } from "viem/chains";
+import { http } from "viem";
 
 // Get project ID from environment
-const projectId = import.meta.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
+const projectId =
+  import.meta.env.NEXT_PUBLIC_REOWN_PROJECT_ID ||
+  "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
 
 // Get metadata URL dynamically
 const getMetadataUrl = () => {
@@ -23,13 +27,18 @@ const metadata = {
 };
 
 // Define networks for AppKit
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const networks: any = [mainnet, sepolia];
 
-// Create Wagmi adapter
+const networks: any = [mainnet, sepolia, localhost];
+
+// Create Wagmi adapter with explicit transports
 export const wagmiAdapter = new WagmiAdapter({
   networks,
   projectId,
+  transports: {
+    [mainnet.id]: http(),
+    [sepolia.id]: http(),
+    [localhost.id]: http("http://localhost:8545"),
+  },
   ssr: false, // We're using Vite, not Next.js SSR
 });
 
@@ -57,4 +66,3 @@ export const wagmiConfig = wagmiAdapter.wagmiConfig;
 // Set the shared wagmi config for the wallet-connector AppKitProvider
 // This prevents multiple WalletConnect initializations
 setSharedWagmiConfig(wagmiConfig);
-

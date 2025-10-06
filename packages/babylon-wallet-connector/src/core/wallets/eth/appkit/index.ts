@@ -1,5 +1,6 @@
 import type { ETHConfig, IETHProvider, WalletMetadata } from "@/core/types";
 import { Network } from "@/core/types";
+
 import { AppKitProvider } from "./provider";
 
 const WALLET_PROVIDER_NAME = "AppKit";
@@ -23,6 +24,7 @@ const metadata: WalletMetadata<IETHProvider, ETHConfig> = {
   networks: [
     Network.MAINNET, // ETH mainnet (chainId: 1)
     Network.TESTNET, // ETH testnet (chainId: 11155111 - Sepolia)
+    Network.SIGNET, // Also allow SIGNET/devnet/localhost environments
   ],
   label: "Connect ETH Wallet",
 };

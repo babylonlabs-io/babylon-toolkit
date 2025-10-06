@@ -13,6 +13,9 @@
       "path": "./packages/babylon-core-ui"
     },
     {
+      "path": "./packages/babylon-config"
+    },
+    {
       "path": "./packages/babylon-bsn-registry"
     },
     {

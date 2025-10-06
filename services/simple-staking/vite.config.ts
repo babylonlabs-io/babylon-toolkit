@@ -30,7 +30,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@routes/vault/wasm": resolve(__dirname, "../../routes/vault/wasm"),
+      "@babylonlabs-io/config": resolve(__dirname, "../../packages/babylon-config/src"),
     },
+  },
+  optimizeDeps: {
+    exclude: ["@babylonlabs-io/config"],
   },
   build: {
     outDir: "dist",

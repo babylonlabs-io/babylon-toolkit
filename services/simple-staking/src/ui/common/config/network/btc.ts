@@ -53,6 +53,16 @@ const config: Record<string, Config> = {
     icon: signetBitcoinIcon,
     displayUSD: false,
   },
+  localhost: {
+    name: "Signet Bitcoin",
+    coinName: "Signet BTC",
+    coinSymbol: "sBTC",
+    networkName: "BTC signet",
+    mempoolApiUrl: `${MEMPOOL_API}/signet`,
+    network: Network.SIGNET,
+    icon: signetBitcoinIcon,
+    displayUSD: false,
+  },
 };
 
 export function getNetworkConfigBTC(): Config {

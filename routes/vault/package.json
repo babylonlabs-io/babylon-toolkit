@@ -24,6 +24,7 @@
     "tailwind-merge": "2.5.4"
   },
   "dependencies": {
+    "@babylonlabs-io/config": "*",
     "@babylonlabs-io/core-ui": "*",
     "@babylonlabs-io/wallet-connector": "*",
     "@wagmi/core": "^2.16.3",

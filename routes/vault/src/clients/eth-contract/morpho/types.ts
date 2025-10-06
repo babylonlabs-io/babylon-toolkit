@@ -22,3 +22,11 @@ export type MorphoMarketSummary = {
   lltvPercent: number;
 };
 
+export type MorphoUserPosition = {
+  marketId: string;
+  user: Address;
+  supplyShares: bigint;
+  borrowShares: bigint;
+  collateral: bigint;
+};
+

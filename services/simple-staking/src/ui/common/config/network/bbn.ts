@@ -2,10 +2,8 @@ import type { BBNConfig } from "@babylonlabs-io/wallet-connector";
 
 import babyLogo from "@/ui/common/assets/baby.png";
 
-import { bbnBsnDevnet } from "./bbn/bsn-devnet";
 import { bbnCanary } from "./bbn/canary";
 import { bbnCanonDevnet } from "./bbn/canon-devnet";
-import { bbnEdgeDevnet } from "./bbn/edge-devnet";
 import { bbnMainnet } from "./bbn/mainnet";
 import { bbnTestnet } from "./bbn/testnet";
 
@@ -52,28 +50,6 @@ const config: Record<string, ExtendedBBNConfig> = {
     logo: babyLogo,
     lcdUrl: bbnCanonDevnet.rest,
   },
-  bsnDevnet: {
-    chainId: bbnBsnDevnet.chainId,
-    rpc: bbnBsnDevnet.rpc,
-    chainData: bbnBsnDevnet,
-    networkName: "Testnet BABY",
-    networkFullName: "Testnet Babylon Genesis",
-    coinSymbol: "tBABY",
-    displayUSD: false,
-    logo: babyLogo,
-    lcdUrl: bbnBsnDevnet.rest,
-  },
-  edgeDevnet: {
-    chainId: bbnEdgeDevnet.chainId,
-    rpc: bbnEdgeDevnet.rpc,
-    chainData: bbnEdgeDevnet,
-    networkName: "Testnet BABY",
-    networkFullName: "Testnet Babylon Genesis",
-    coinSymbol: "tBABY",
-    displayUSD: false,
-    logo: babyLogo,
-    lcdUrl: bbnEdgeDevnet.rest,
-  },
   testnet: {
     chainId: bbnTestnet.chainId,
     rpc: bbnTestnet.rpc,
@@ -84,6 +60,17 @@ const config: Record<string, ExtendedBBNConfig> = {
     displayUSD: false,
     logo: babyLogo,
     lcdUrl: bbnTestnet.rest,
+  },
+  localhost: {
+    chainId: bbnCanonDevnet.chainId,
+    rpc: bbnCanonDevnet.rpc,
+    chainData: bbnCanonDevnet,
+    networkName: "Testnet BABY",
+    networkFullName: "Testnet Babylon Genesis",
+    coinSymbol: "tBABY",
+    displayUSD: false,
+    logo: babyLogo,
+    lcdUrl: bbnCanonDevnet.rest,
   },
 };
 

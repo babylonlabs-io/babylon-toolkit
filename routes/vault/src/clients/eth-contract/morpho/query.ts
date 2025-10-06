@@ -3,11 +3,11 @@
 import type { Address, Hex } from 'viem';
 import { ethClient } from '../client';
 import { toHex } from 'viem';
-import { fetchMarket } from '@morpho-org/blue-sdk-viem';
+import { fetchMarket, fetchPosition } from '@morpho-org/blue-sdk-viem';
 import { registerCustomAddresses } from '@morpho-org/blue-sdk';
 import type { MarketId } from '@morpho-org/blue-sdk';
-import type { MorphoMarketSummary } from './types';
-import { network } from '../../../config/network/eth';
+import type { MorphoMarketSummary, MorphoUserPosition } from './types';
+import { network } from '@babylonlabs-io/config';
 
 // Localhost Morpho contract address
 export const LOCALHOST_MORPHO_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as Address;
@@ -27,10 +27,12 @@ const registeredChainIds = new Set<number>();
 
 // Helper to ensure localhost addresses are registered for the current chain
 async function ensureLocalhostAddressesRegistered() {
-  if (network !== 'localhost') return;
-
   const publicClient = ethClient.getPublicClient();
   const chainId = await publicClient.getChainId();
+
+  // Register for localhost if either network is localhost OR chain ID is 31337
+  const isLocalhost = network === 'localhost' || chainId === 31337;
+  if (!isLocalhost) return;
 
   // Only register if not already registered for this chain ID
   if (!registeredChainIds.has(chainId)) {
@@ -88,5 +90,33 @@ export async function getMarketById(
     fee: market.fee,
     utilizationPercent: utilization,
     lltvPercent,
+  };
+}
+
+/**
+ * Get a user's position in a specific Morpho market
+ * @param marketId - Market ID (string or bigint)
+ * @param userAddress - User's Ethereum address
+ * @returns User's position with supply shares, borrow shares, and collateral
+ */
+export async function getUserPosition(
+  marketId: string | bigint,
+  userAddress: Address
+): Promise<MorphoUserPosition> {
+  const publicClient = ethClient.getPublicClient();
+  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Ensure localhost addresses are registered before fetching
+  await ensureLocalhostAddressesRegistered();
+
+  // Fetch position using Morpho SDK
+  const position = await fetchPosition(userAddress, marketIdHex as MarketId, publicClient);
+
+  return {
+    marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
+    user: userAddress,
+    supplyShares: position.supplyShares,
+    borrowShares: position.borrowShares,
+    collateral: position.collateral,
   };
 }

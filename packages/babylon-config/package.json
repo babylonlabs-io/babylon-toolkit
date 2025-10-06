@@ -1,0 +1,27 @@
+{
+  "name": "@babylonlabs-io/config",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./network/*": "./src/network/*"
+  },
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@babylonlabs-io/wallet-connector": "*",
+    "viem": "^2.37.9"
+  },
+  "devDependencies": {
+    "@internal/eslint-config": "*",
+    "typescript": "^5.8.3"
+  }
+}

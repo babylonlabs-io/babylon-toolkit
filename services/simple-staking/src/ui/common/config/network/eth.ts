@@ -1,12 +1,18 @@
-import type { ETHConfig } from "@babylonlabs-io/wallet-connector";
+import {
+  getNetworkConfigETH as getBaseConfig,
+  getETHChain,
+  network,
+  validateETHAddress as baseValidateETHAddress,
+  type ExtendedETHConfig,
+} from "@babylonlabs-io/config";
 
 import ethereumIcon from "@/ui/common/assets/ethereum.svg";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 
-const defaultNetwork = "testnet";
-export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
+// Re-export for backward compatibility
+export { getETHChain, network };
 
-type Config = ETHConfig & { icon: string; name: string; displayUSD: boolean };
+type Config = ExtendedETHConfig & { icon: string };
 
 const config: Record<string, Config> = {
   mainnet: {
@@ -52,7 +58,7 @@ const config: Record<string, Config> = {
     icon: ethereumIcon,
     displayUSD: false,
   },
-  devnet: {
+  canonDevnet: {
     name: "Ethereum Sepolia",
     chainId: 11155111,
     chainName: "Sepolia Testnet",
@@ -66,29 +72,48 @@ const config: Record<string, Config> = {
     icon: ethereumIcon,
     displayUSD: false,
   },
+  localhost: {
+    name: "Local Anvil",
+    chainId: 31337,
+    chainName: "Localhost",
+    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "http://localhost:8545",
+    explorerUrl: "",
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    icon: ethereumIcon,
+    displayUSD: false,
+  },
 };
 
+/**
+ * Get network config with icon for UI
+ * Wraps the base config and adds the icon
+ */
 export function getNetworkConfigETH(): Config {
-  // Use the chain ID from environment if available
-  const chainId = parseInt(process.env.NEXT_PUBLIC_ETH_CHAIN_ID || "0");
+  const baseConfig = getBaseConfig();
+  const networkKey = network === "localhost" ? "localhost" : network;
+  const specificConfig = config[networkKey] ?? config.mainnet;
 
-  // If chain ID is set and is mainnet, use mainnet config
-  if (chainId === 1) {
-    return config.mainnet;
-  }
-
-  // Otherwise use the network-based config
-  return config[network] ?? config[defaultNetwork];
+  return {
+    ...baseConfig,
+    icon: specificConfig.icon,
+  };
 }
 
+/**
+ * Validate ETH address with ClientError wrapper
+ * Wraps base validation with application-specific error handling
+ */
 export function validateETHAddress(address: string): void {
-  // Basic ETH address validation
-  if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+  try {
+    baseValidateETHAddress(address);
+  } catch (error) {
     throw new ClientError(
       ERROR_CODES.VALIDATION_ERROR,
-      "Invalid Ethereum address format. Expected address to start with '0x' followed by 40 hexadecimal characters.",
+      error instanceof Error ? error.message : "Invalid Ethereum address",
     );
   }
-
-  // TODO: Add checksum validation when needed
 }
