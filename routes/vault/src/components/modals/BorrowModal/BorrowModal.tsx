@@ -12,8 +12,8 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
-import { useBorrowService } from "../../hooks/useBorrowService";
-import { usdcIcon } from "../../assets";
+import { useBorrowForm } from "./useBorrowForm";
+import { usdcIcon } from "../../../assets";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -39,9 +39,13 @@ interface BorrowModalProps {
     symbol: string;
     icon?: string | ReactNode;
   };
+  marketData?: {
+    btcPriceUSD: number;
+    lltvPercent: number;
+  };
 }
 
-export function BorrowModal({ open, onClose, onBorrow, collateral }: BorrowModalProps) {
+export function BorrowModal({ open, onClose, onBorrow, collateral, marketData }: BorrowModalProps) {
   const collateralBTC = useMemo(
     () => parseFloat(collateral.amount || "0"),
     [collateral.amount]
@@ -73,7 +77,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral }: BorrowModal
     setTouched,
     formatUSD,
     formatPercentage,
-  } = useBorrowService(collateralBTC);
+  } = useBorrowForm(collateralBTC, marketData);
 
   // Handle key down to prevent arrow keys
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -1,25 +1,23 @@
 import { useCallback, useMemo, useState } from "react";
 
-// TODO: Replace with actual API configuration
-const MOCK_BTC_PRICE_USD = 113000;
-const MOCK_USDC_PRICE_USD = 1.00;
-const MOCK_MAX_LTV = 0.285; // 28.5%
-const MOCK_LIQUIDATION_LTV = 0.70; // 70%
+// Fallback values if market data not provided
+const FALLBACK_BTC_PRICE_USD = 100000;
+const FALLBACK_USDC_PRICE_USD = 1.00;
+const FALLBACK_LLTV_PERCENT = 80; // 80%
 
 // Calculate max borrowable amount
-function calculateMaxBorrow(btcAmount: number): number {
-  // TODO: Fetch from API
-  const collateralValueUSD = btcAmount * MOCK_BTC_PRICE_USD;
-  const maxBorrowUSD = collateralValueUSD * MOCK_MAX_LTV;
-  return maxBorrowUSD / MOCK_USDC_PRICE_USD;
+function calculateMaxBorrow(btcAmount: number, btcPriceUSD: number, lltvPercent: number): number {
+  const collateralValueUSD = btcAmount * btcPriceUSD;
+  // LLTV is the max LTV before liquidation, so use it as the max borrow ratio
+  const maxBorrowUSD = collateralValueUSD * (lltvPercent / 100);
+  return maxBorrowUSD;
 }
 
 // Calculate current LTV
-function calculateLTV(borrowAmountUSDC: number, btcAmount: number): number {
-  // TODO: Fetch from API
+function calculateLTV(borrowAmountUSDC: number, btcAmount: number, btcPriceUSD: number): number {
   if (btcAmount === 0) return 0;
-  const collateralValueUSD = btcAmount * MOCK_BTC_PRICE_USD;
-  const loanValueUSD = borrowAmountUSDC * MOCK_USDC_PRICE_USD;
+  const collateralValueUSD = btcAmount * btcPriceUSD;
+  const loanValueUSD = borrowAmountUSDC;
   return (loanValueUSD / collateralValueUSD) * 100;
 }
 
@@ -32,31 +30,41 @@ interface BorrowValidation {
   };
 }
 
-function validateBorrowAmount(amount: number, btcAmount: number): BorrowValidation {
-  // TODO: Fetch validation rules from API
+function validateBorrowAmount(
+  amount: number,
+  btcAmount: number,
+  btcPriceUSD: number,
+  lltvPercent: number
+): BorrowValidation {
   const errors: BorrowValidation["errors"] = {};
-  
+
   if (amount <= 0) {
     errors.amount = "Amount must be greater than 0";
   }
-  
-  const maxBorrow = calculateMaxBorrow(btcAmount);
+
+  const maxBorrow = calculateMaxBorrow(btcAmount, btcPriceUSD, lltvPercent);
   if (amount > maxBorrow) {
     errors.amount = `Amount exceeds maximum borrowable ${maxBorrow.toFixed(2)} USDC`;
   }
-  
-  const currentLTV = calculateLTV(amount, btcAmount);
-  if (currentLTV > MOCK_LIQUIDATION_LTV * 100) {
-    errors.ltv = `LTV (${currentLTV.toFixed(2)}%) exceeds liquidation threshold (${(MOCK_LIQUIDATION_LTV * 100).toFixed(0)}%)`;
+
+  const currentLTV = calculateLTV(amount, btcAmount, btcPriceUSD);
+  if (currentLTV > lltvPercent) {
+    errors.ltv = `LTV (${currentLTV.toFixed(2)}%) exceeds liquidation threshold (${lltvPercent.toFixed(0)}%)`;
   }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors,
   };
 }
 
-export function useBorrowService(collateralBTC: number) {
+export function useBorrowForm(
+  collateralBTC: number,
+  marketData?: { btcPriceUSD: number; lltvPercent: number }
+) {
+  // Use market data if provided, otherwise fall back to defaults
+  const btcPriceUSD = marketData?.btcPriceUSD ?? FALLBACK_BTC_PRICE_USD;
+  const lltvPercent = marketData?.lltvPercent ?? FALLBACK_LLTV_PERCENT;
   const [borrowAmount, setBorrowAmount] = useState<string>("");
   const [touched, setTouched] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -69,26 +77,26 @@ export function useBorrowService(collateralBTC: number) {
 
   // Calculate max borrowable amount
   const maxBorrow = useMemo(
-    () => calculateMaxBorrow(collateralBTC),
-    [collateralBTC]
+    () => calculateMaxBorrow(collateralBTC, btcPriceUSD, lltvPercent),
+    [collateralBTC, btcPriceUSD, lltvPercent]
   );
 
   // Calculate collateral value in USD
   const collateralValueUSD = useMemo(
-    () => collateralBTC * MOCK_BTC_PRICE_USD,
-    [collateralBTC]
+    () => collateralBTC * btcPriceUSD,
+    [collateralBTC, btcPriceUSD]
   );
 
   // Calculate current LTV
   const currentLTV = useMemo(
-    () => calculateLTV(borrowAmountNum, collateralBTC),
-    [borrowAmountNum, collateralBTC]
+    () => calculateLTV(borrowAmountNum, collateralBTC, btcPriceUSD),
+    [borrowAmountNum, collateralBTC, btcPriceUSD]
   );
 
   // Validate borrow amount
   const validation = useMemo(
-    () => validateBorrowAmount(borrowAmountNum, collateralBTC),
-    [borrowAmountNum, collateralBTC]
+    () => validateBorrowAmount(borrowAmountNum, collateralBTC, btcPriceUSD, lltvPercent),
+    [borrowAmountNum, collateralBTC, btcPriceUSD, lltvPercent]
   );
 
   // Determine input state
@@ -121,7 +129,7 @@ export function useBorrowService(collateralBTC: number) {
         console.log("Processing borrow:", {
           amount,
           collateral,
-          ltv: calculateLTV(amount, collateral),
+          ltv: calculateLTV(amount, collateral, btcPriceUSD),
         });
 
         // Reset form
@@ -133,7 +141,7 @@ export function useBorrowService(collateralBTC: number) {
         setProcessing(false);
       }
     },
-    [validation.isValid]
+    [validation.isValid, btcPriceUSD]
   );
 
   const formatUSD = useCallback((value: number) => {
@@ -153,11 +161,11 @@ export function useBorrowService(collateralBTC: number) {
     if (!touched || borrowAmount === "") return undefined;
     if (validation.errors.amount) return validation.errors.amount;
     if (validation.errors.ltv) return validation.errors.ltv;
-    if (currentLTV > 50 && currentLTV <= MOCK_MAX_LTV * 100) {
+    if (currentLTV > 50 && currentLTV <= lltvPercent) {
       return `Warning: High LTV (${formatPercentage(currentLTV)})`;
     }
     return undefined;
-  }, [touched, borrowAmount, validation, currentLTV, formatPercentage]);
+  }, [touched, borrowAmount, validation, currentLTV, formatPercentage, lltvPercent]);
 
   return {
     borrowAmount,
@@ -170,10 +178,10 @@ export function useBorrowService(collateralBTC: number) {
     currentLTV,
     validation,
     hintText,
-    btcPriceUSD: MOCK_BTC_PRICE_USD,
-    usdcPriceUSD: MOCK_USDC_PRICE_USD,
-    maxLTV: MOCK_MAX_LTV,
-    liquidationLTV: MOCK_LIQUIDATION_LTV,
+    btcPriceUSD,
+    usdcPriceUSD: FALLBACK_USDC_PRICE_USD,
+    maxLTV: lltvPercent / 100,
+    liquidationLTV: lltvPercent / 100,
     handleInputChange,
     handleBorrow,
     setTouched,

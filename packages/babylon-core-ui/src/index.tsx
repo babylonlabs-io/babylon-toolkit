@@ -17,7 +17,7 @@ export * from "./components/Card";
 export * from "./components/Toggle";
 export * from "./components/List";
 export * from "./components/Badge";
-export * from "./components/BorrowCard";
+export * from "./components/ActivityList";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";

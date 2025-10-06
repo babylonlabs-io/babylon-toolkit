@@ -1,19 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
-import { VaultController, VaultControllerTx, BTCVaultsManager, Morpho } from '../../clients/eth-contract';
+import { VaultController, BTCVaultsManager, Morpho } from '../../clients/eth-contract';
+import { mintAndBorrowWithMarketId } from '../../services/vault/vaultTransactionService';
 import type { Hex } from 'viem';
-import type { MarketParams } from '../../clients/eth-contract';
-
-// Test configuration
-const MORPHO_MARKET_ID = '74452254177513794647796445278347016294878377877693199253750000625994101441252';
-const VAULT_CONTRACT_ADDRESS = '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6' as Hex;
-const BTC_VAULTS_MANAGER_ADDRESS = '0x0165878A594ca255338adfa4d48449f69242Eb8F' as Hex;
-// Deployment info:
-// BTCVault: 0x5FC8d32690cc91D4c39d9d3abcBD16989F875707
-// Controller: 0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6
-// Manager: 0x0165878A594ca255338adfa4d48449f69242Eb8F
-// Morpho: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+import { CONTRACTS, MORPHO_MARKET_ID } from '../../config/contracts';
 
 export default function ContractQueryExample() {
   const ethConnector = useChainConnector('ETH');
@@ -84,14 +75,14 @@ export default function ContractQueryExample() {
 
   // VaultController queries
   const testGetUserVaults = () =>
-    executeQuery('getUserVaults', () => VaultController.getUserVaults(VAULT_CONTRACT_ADDRESS, connectedAddress!), true);
+    executeQuery('getUserVaults', () => VaultController.getUserVaults(CONTRACTS.VAULT_CONTROLLER, connectedAddress!), true);
 
   const testGetVaultMetadata = () => {
     if (!txHashInput) {
       setError('Please enter a transaction hash');
       return;
     }
-    executeQuery('getVaultMetadata', () => VaultController.getVaultMetadata(VAULT_CONTRACT_ADDRESS, txHashInput as Hex));
+    executeQuery('getVaultMetadata', () => VaultController.getVaultMetadata(CONTRACTS.VAULT_CONTROLLER, txHashInput as Hex));
   };
 
   const testArePeginAssetsMinted = () => {
@@ -99,7 +90,7 @@ export default function ContractQueryExample() {
       setError('Please enter a transaction hash');
       return;
     }
-    executeQuery('arePeginAssetsMinted', () => VaultController.arePeginAssetsMinted(VAULT_CONTRACT_ADDRESS, txHashInput as Hex));
+    executeQuery('arePeginAssetsMinted', () => VaultController.arePeginAssetsMinted(CONTRACTS.VAULT_CONTROLLER, txHashInput as Hex));
   };
 
   const testIsPeginReadyToMint = () => {
@@ -107,19 +98,19 @@ export default function ContractQueryExample() {
       setError('Please enter a transaction hash');
       return;
     }
-    executeQuery('isPeginReadyToMint', () => VaultController.isPeginReadyToMint(VAULT_CONTRACT_ADDRESS, txHashInput as Hex));
+    executeQuery('isPeginReadyToMint', () => VaultController.isPeginReadyToMint(CONTRACTS.VAULT_CONTROLLER, txHashInput as Hex));
   };
 
   // BTCVaultsManager queries
   const testGetDepositorPeginRequests = () =>
-    executeQuery('getDepositorPeginRequests', () => BTCVaultsManager.getDepositorPeginRequests(BTC_VAULTS_MANAGER_ADDRESS, connectedAddress!), true);
+    executeQuery('getDepositorPeginRequests', () => BTCVaultsManager.getDepositorPeginRequests(CONTRACTS.BTC_VAULTS_MANAGER, connectedAddress!), true);
 
   const testGetPeginRequest = () => {
     if (!txHashInput) {
       setError('Please enter a transaction hash');
       return;
     }
-    executeQuery('getPeginRequest', () => BTCVaultsManager.getPeginRequest(BTC_VAULTS_MANAGER_ADDRESS, txHashInput as Hex));
+    executeQuery('getPeginRequest', () => BTCVaultsManager.getPeginRequest(CONTRACTS.BTC_VAULTS_MANAGER, txHashInput as Hex));
   };
 
   const testIsPeginVerified = () => {
@@ -127,41 +118,28 @@ export default function ContractQueryExample() {
       setError('Please enter a transaction hash');
       return;
     }
-    executeQuery('isPeginVerified', () => BTCVaultsManager.isPeginVerified(BTC_VAULTS_MANAGER_ADDRESS, txHashInput as Hex));
+    executeQuery('isPeginVerified', () => BTCVaultsManager.isPeginVerified(CONTRACTS.BTC_VAULTS_MANAGER, txHashInput as Hex));
   };
 
   const testIsLiquidator = () =>
-    executeQuery('isLiquidator', () => BTCVaultsManager.isLiquidator(BTC_VAULTS_MANAGER_ADDRESS, connectedAddress!), true);
+    executeQuery('isLiquidator', () => BTCVaultsManager.isLiquidator(CONTRACTS.BTC_VAULTS_MANAGER, connectedAddress!), true);
 
   // Morpho queries
   const testGetMarketById = () =>
     executeQuery('getMarketById', () => Morpho.getMarketById(MORPHO_MARKET_ID));
 
-  const testGetUserPosition = async () => {
+  const testGetUserPosition = () => {
     if (!txHashInput) {
       setError('Please enter a transaction hash');
       return;
     }
-
-    setLoading('getUserPosition');
-    setError('');
-    setResult(null);
-
-    try {
+    executeQuery('getUserPosition', async () => {
       // First fetch vault metadata to get proxy contract address
-      const metadata = await VaultController.getVaultMetadata(VAULT_CONTRACT_ADDRESS, txHashInput as Hex);
+      const metadata = await VaultController.getVaultMetadata(CONTRACTS.VAULT_CONTROLLER, txHashInput as Hex);
 
       // Then fetch user position using the proxy contract address
-      const position = await Morpho.getUserPosition(MORPHO_MARKET_ID, metadata.proxyContract);
-
-      setResult(position);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('getUserPosition failed:', err);
-      setError(errorMessage);
-    } finally {
-      setLoading(null);
-    }
+      return Morpho.getUserPosition(MORPHO_MARKET_ID, metadata.proxyContract);
+    });
   };
 
   // Switch to local network
@@ -229,27 +207,13 @@ export default function ContractQueryExample() {
         return;
       }
 
-      // First, fetch market parameters from Morpho
-      console.log('Fetching market parameters from Morpho...');
-      const market = await Morpho.getMarketById(marketId);
-
-      // Construct market params from fetched data
-      const marketParams: MarketParams = {
-        loanToken: market.loanToken.address,
-        collateralToken: market.collateralToken.address,
-        oracle: market.oracle,
-        irm: market.irm,
-        lltv: market.lltv,
-      };
-
-      console.log('Market params:', marketParams);
-
-      // Execute transaction
-      const txResult = await VaultControllerTx.mintAndBorrow(
-        VAULT_CONTRACT_ADDRESS,
+      // Use service layer to fetch market params and execute transaction
+      console.log('Executing mintAndBorrow via service layer...');
+      const txResult = await mintAndBorrowWithMarketId(
+        CONTRACTS.VAULT_CONTROLLER,
         txHashInput as Hex,
         depositorBtcPubkey as Hex,
-        marketParams,
+        marketId,
         BigInt(borrowAmount)
       );
 
@@ -270,7 +234,7 @@ export default function ContractQueryExample() {
 
       {/* Configuration Info */}
       <div className="mb-4 space-y-1 text-sm">
-        <p className="text-gray-600">Controller: <span className="font-mono text-xs">{VAULT_CONTRACT_ADDRESS}</span></p>
+        <p className="text-gray-600">Controller: <span className="font-mono text-xs">{CONTRACTS.VAULT_CONTROLLER}</span></p>
         <p className="text-gray-600">Connected: {connectedAddress ? <span className="font-mono text-xs">{connectedAddress}</span> : 'Not connected'}</p>
         {ethConnector?.connectedWallet && (
           <p className="text-xs text-green-600">✓ Wallet: {ethConnector.connectedWallet.name}</p>

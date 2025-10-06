@@ -1,9 +1,9 @@
 import { useAppKitBridge } from '@babylonlabs-io/wallet-connector';
-import { Borrow } from './components/ui';
-import { PegInTest } from './components/examples/PegInTest';
+import { Activities } from './components/Activities';
 
 // TODO: Uncomment this when we have a way to test the contract queries
-import ContractQueryExample from "./components/examples/ContractQueryExample";
+// import { PegInTest } from './components/examples/PegInTest';
+// import ContractQueryExample from "./components/examples/ContractQueryExample";
 
 export default function VaultLayout() {
   // Initialize AppKit bridge for ETH wallet connection
@@ -11,9 +11,9 @@ export default function VaultLayout() {
 
   return (
     <div className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-12 px-4 py-8">
-      <ContractQueryExample />
-      <PegInTest />
-      <Borrow />
+      {/* <ContractQueryExample /> */}
+      {/* <PegInTest /> */}
+      <Activities />
     </div>
   );
 }

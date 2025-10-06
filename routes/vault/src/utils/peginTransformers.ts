@@ -3,7 +3,7 @@
  */
 
 import type { Hex, Address } from 'viem';
-import type { PeginRequest } from '../clients/eth-contract';
+import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary } from '../clients/eth-contract';
 import type { VaultActivity } from '../mockData/vaultActivities';
 
 /**
@@ -66,29 +66,155 @@ export function formatProviderName(providerAddress: Address): string {
 }
 
 /**
+ * Convert borrow shares to borrowed assets amount
+ * Uses the market's totalBorrowShares and totalBorrowAssets for conversion
+ * @param borrowShares - User's borrow shares
+ * @param totalBorrowShares - Total borrow shares in market
+ * @param totalBorrowAssets - Total borrowed assets in market
+ * @returns Borrowed assets amount
+ */
+function convertBorrowSharesToAssets(
+  borrowShares: bigint,
+  totalBorrowShares: bigint,
+  totalBorrowAssets: bigint
+): bigint {
+  if (totalBorrowShares === 0n) return 0n;
+  return (borrowShares * totalBorrowAssets) / totalBorrowShares;
+}
+
+/**
+ * Format USDC amount from wei (6 decimals) to human-readable string
+ * @param amount - Amount in smallest unit (6 decimals for USDC)
+ * @returns Formatted amount as string (e.g., "1000.50")
+ */
+function formatUSDCAmount(amount: bigint): string {
+  const USDC_DECIMALS = 1_000_000n; // 10^6
+  const usdcAmount = Number(amount) / Number(USDC_DECIMALS);
+
+  // Format with up to 2 decimal places for USD
+  return usdcAmount.toFixed(2).replace(/\.?0+$/, '') || '0';
+}
+
+/**
+ * Calculate enriched borrowing data from position and market
+ * @param morphoPosition - User's morpho position
+ * @param morphoMarket - Morpho market data
+ * @param collateralBTC - Collateral amount in BTC
+ * @param btcPriceUSD - BTC price in USD from oracle
+ * @returns Enriched borrowing data with LTV calculations
+ */
+function calculateBorrowingData(
+  morphoPosition: MorphoUserPosition,
+  morphoMarket: MorphoMarketSummary,
+  collateralBTC: string,
+  btcPriceUSD: { price: bigint; decimals: number }
+) {
+  console.log('[calculateBorrowingData] Input data:', {
+    borrowShares: morphoPosition.borrowShares.toString(),
+    collateral: morphoPosition.collateral.toString(),
+    totalBorrowShares: morphoMarket.totalBorrowShares.toString(),
+    totalBorrowAssets: morphoMarket.totalBorrowAssets.toString(),
+    collateralBTC,
+    oracleAddress: morphoMarket.oracle,
+    btcPrice: btcPriceUSD.price.toString(),
+    btcPriceDecimals: btcPriceUSD.decimals,
+  });
+
+  // Convert borrow shares to actual borrowed amount
+  const borrowedAssets = convertBorrowSharesToAssets(
+    morphoPosition.borrowShares,
+    morphoMarket.totalBorrowShares,
+    morphoMarket.totalBorrowAssets
+  );
+
+  console.log('[calculateBorrowingData] Borrowed assets (raw):', borrowedAssets.toString());
+
+  const borrowedAmount = formatUSDCAmount(borrowedAssets);
+
+  console.log('[calculateBorrowingData] Borrowed amount (formatted):', borrowedAmount);
+
+  // Calculate current LTV using BTC price
+  // LTV = (borrowed USD / (collateral BTC * BTC price USD)) * 100
+  // collateral is in wei (18 decimals), btcPrice has its own decimals, borrowedAssets is in USDC wei (6 decimals)
+
+  // Convert collateral from wei to BTC (divide by 10^18)
+  const collateralBTCAmount = morphoPosition.collateral / 10n**18n;
+
+  // Convert BTC price to USD (divide by 10^decimals)
+  const btcPriceInUSD = Number(btcPriceUSD.price) / (10 ** btcPriceUSD.decimals);
+
+  // Calculate collateral value in USD
+  const collateralValueUSD = Number(collateralBTCAmount) * btcPriceInUSD;
+
+  // Convert borrowed assets from USDC wei to USD (divide by 10^6)
+  const borrowedUSD = Number(borrowedAssets) / 1_000_000;
+
+  // Calculate LTV percentage
+  const currentLTV = collateralValueUSD > 0 ? (borrowedUSD / collateralValueUSD) * 100 : 0;
+
+  console.log('[calculateBorrowingData] LTV calculation:', {
+    collateralBTC: collateralBTCAmount.toString(),
+    btcPriceUSD: btcPriceInUSD,
+    collateralValueUSD,
+    borrowedUSD,
+    currentLTV,
+  });
+
+  return {
+    borrowedAmount,
+    borrowedSymbol: 'USDC',
+    currentLTV: Number(currentLTV.toFixed(2)),
+    maxLTV: morphoMarket.lltvPercent,
+  };
+}
+
+/**
  * Transform PeginRequest data from contract to VaultActivity UI format
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
  * @param onBorrowClick - Callback function for borrow action
+ * @param morphoPosition - Optional morpho position data (undefined if vault not minted yet)
+ * @param morphoMarket - Optional morpho market data (undefined if vault not minted yet)
+ * @param btcPriceUSD - Optional BTC price in USD (undefined if vault not minted yet)
  * @returns VaultActivity object ready for UI rendering
  */
 export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
-  onBorrowClick: (activity: VaultActivity) => void
+  onBorrowClick: (activity: VaultActivity) => void,
+  morphoPosition?: MorphoUserPosition,
+  morphoMarket?: MorphoMarketSummary,
+  btcPriceUSD?: { price: bigint; decimals: number }
 ): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
-  
+
   // Get status info
   const statusInfo = getStatusInfo(peginRequest.status);
-  
+
   // Format provider
   const providerName = formatProviderName(peginRequest.vaultProvider);
-  
+
+  // Check if user has already borrowed (has borrow shares > 0)
+  const hasBorrowed = morphoPosition && morphoPosition.borrowShares > 0n;
+
+  // Calculate enriched borrowing data if we have position, market data, and BTC price
+  const borrowingData = morphoPosition && morphoMarket && btcPriceUSD && hasBorrowed
+    ? calculateBorrowingData(morphoPosition, morphoMarket, btcAmount, btcPriceUSD)
+    : undefined;
+
+  // Create market data if we have morpho market and BTC price
+  const marketData = morphoMarket && btcPriceUSD
+    ? {
+        btcPriceUSD: Number(btcPriceUSD.price) / (10 ** btcPriceUSD.decimals),
+        lltvPercent: morphoMarket.lltvPercent,
+      }
+    : undefined;
+
   // Create VaultActivity object
   const activity: VaultActivity = {
     id: txHash,
+    txHash,
     collateral: {
       amount: btcAmount,
       symbol: 'BTC',
@@ -106,11 +232,20 @@ export function transformPeginToActivity(
       },
     ],
     action: {
-      label: 'Borrow USDC',
-      onClick: () => onBorrowClick(activity),
+      label: hasBorrowed ? 'Borrowed' : 'Borrow USDC',
+      onClick: hasBorrowed ? () => {} : () => onBorrowClick(activity),
     },
+    morphoPosition: morphoPosition ? {
+      collateral: morphoPosition.collateral,
+      borrowShares: morphoPosition.borrowShares,
+      borrowed: 0n, // Not available from morpho position, calculated separately
+    } : undefined,
+    borrowingData,
+    marketData,
+    // TODO: Add position date from blockchain timestamp
+    positionDate: undefined,
   };
-  
+
   return activity;
 }
 

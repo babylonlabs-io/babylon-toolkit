@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
+
 import { useChainConnector } from "./useChainConnector";
 
 interface UseAppKitBridgeOptions {
