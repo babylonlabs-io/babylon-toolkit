@@ -15,7 +15,7 @@
           {
             "command": "./scripts/watch-deps.sh {projectName}"
           },
-          { "command": "npx vite" }
+          { "command": "pnpm exec vite" }
         ]
       }
     }

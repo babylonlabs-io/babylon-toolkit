@@ -41,7 +41,7 @@
     "test:unit:ui": "playwright test --ui --project=unit",
     "test:unit:debug": "playwright test --debug --project=unit",
     "test:all": "npm run test:unit && npm run test:e2e",
-    "visualizer": "npx vite-bundle-visualizer"
+    "visualizer": "pnpm exec vite-bundle-visualizer"
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",

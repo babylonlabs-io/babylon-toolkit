@@ -38,7 +38,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: `sh -c 'NODE_OPTIONS="--max-http-header-size=65536" PORT=${PORT} npx vite preview --host 0.0.0.0 --port ${PORT}'`,
+    command: `sh -c 'NODE_OPTIONS="--max-http-header-size=65536" PORT=${PORT} pnpm exec vite preview --host 0.0.0.0 --port ${PORT}'`,
     url: baseURL,
     timeout: 120_000,
     reuseExistingServer: true,
