@@ -39,6 +39,7 @@ export interface ActivityCardData {
     label: string;
     items: ActivityListItemData[];
   }[];
+  warning?: React.ReactNode;
   primaryAction?: ActivityCardActionButton;
   secondaryActions?: ActivityCardActionButton[];
 }
@@ -71,6 +72,12 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
 
         {data.secondaryActions && data.secondaryActions.length > 0 && (
           <ActivityCardActionSection actions={data.secondaryActions} />
+        )}
+
+        {data.warning && (
+          <div className="mt-3 sm:mt-4">
+            {data.warning}
+          </div>
         )}
       </div>
 

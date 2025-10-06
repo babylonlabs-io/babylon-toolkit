@@ -115,7 +115,7 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
       <DialogHeader
-        title="Peg-in BTC"
+        title="Deposite BTC"
         onClose={handleClose}
         className="text-accent-primary"
       />
@@ -237,7 +237,7 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
           onClick={handlePegIn}
           className="w-full text-sm sm:text-base"
         >
-          Peg-in
+         Deposit
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

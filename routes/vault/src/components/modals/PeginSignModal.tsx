@@ -71,7 +71,7 @@ export function PeginSignModal({
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
-        title="Peg-in in Progress"
+        title="Deposit in Progress"
         onClose={onClose}
         className="text-accent-primary"
       />

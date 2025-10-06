@@ -32,11 +32,11 @@ export function PeginSuccessModal({
         <img
           src="/mascot-smile-expression.png"
           alt="Success mascot"
-          className="mx-auto mb-6 size-[300px]"
+          className="mx-auto mb-6 size-auto"
         />
 
         <Heading variant="h4" className="mb-4 text-xl sm:text-2xl">
-          BTC Peg-in Successful
+          BTC Deposit Successful
         </Heading>
 
         <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
