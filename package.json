@@ -4,7 +4,7 @@
   "license": "MIT",
   "packageManager": "pnpm@10.18.0",
   "scripts": {
-    "preinstall": "node -e \"const fs = require('fs'); const path = require('path'); let dir = process.cwd(); while (dir !== path.parse(dir).root) { if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) { if (dir !== process.cwd()) { console.error('\\n\\u001b[31mError: Please run \\u001b[1mpnpm install\\u001b[22m from the workspace root, not from a workspace package.\\u001b[0m\\n'); process.exit(1); } break; } dir = path.dirname(dir); }\"",
+    "preinstall": "node scripts/preinstall.js",
     "build": "nx run-many --target=build --all",
     "lint": "nx run-many --target=lint --all --verbose",
     "test": "nx run-many --target=test --all --verbose",
