@@ -55,5 +55,8 @@
     "@morpho-org/blue-sdk": "^5.0.0",
     "@morpho-org/blue-sdk-viem": "^4.0.0",
     "@tanstack/react-query": "^5.90.2"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-darwin-arm64": "4.52.4"
   }
 }
