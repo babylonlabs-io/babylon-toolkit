@@ -47,7 +47,7 @@
     "awilix": "12.0.5",
     "bitcoinjs-lib": "6.1.5",
     "core-js": "3.41.0",
-    "cosmjs-types": "^0.9.0",
+    "cosmjs-types": "^0.10.1",
     "date-fns": "3.6.0",
     "decimal.js-light": "2.5.1",
     "idb": "8.0.3",

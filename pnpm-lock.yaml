@@ -396,8 +396,8 @@ importers:
         specifier: workspace:*
         version: link:../../tools/eslint-config
       cosmjs-types:
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.10.1
+        version: 0.10.1
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -716,8 +716,8 @@ importers:
         specifier: 3.41.0
         version: 3.41.0
       cosmjs-types:
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.10.1
+        version: 0.10.1
       date-fns:
         specifier: 3.6.0
         version: 3.6.0
