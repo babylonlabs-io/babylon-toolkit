@@ -44,7 +44,7 @@
     "visualizer": "npx vite-bundle-visualizer"
   },
   "dependencies": {
-    "@babylonlabs-io/core-ui": "*",
+    "@babylonlabs-io/core-ui": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@cosmjs/stargate": "0.36.0",
     "@keplr-wallet/provider-extension": "0.12.272",
