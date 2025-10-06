@@ -417,8 +417,8 @@ importers:
   packages/babylon-wallet-connector:
     dependencies:
       '@babylonlabs-io/core-ui':
-        specifier: '*'
-        version: 1.50.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwind-merge@2.5.4)(tailwindcss@3.4.17(ts-node@10.9.2(@swc/core@1.5.29(@swc/helpers@0.5.17))(@types/node@22.17.0)(typescript@5.9.2)))(yup@1.6.1)
+        specifier: workspace:*
+        version: link:../babylon-core-ui
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
@@ -1664,14 +1664,6 @@ packages:
   '@babylonlabs-io/btc-staking-ts@2.5.6':
     resolution: {integrity: sha512-eNALWYgx9BwK4oiKk8eh5ndSKb+8EA18sStwVgtiqhQlFVS4xQrMacUHOvhc1nFknruca/MhouKUjhSIL5oS6A==}
     engines: {node: '>=22.0.0 <25.0.0'}
-
-  '@babylonlabs-io/core-ui@1.50.1':
-    resolution: {integrity: sha512-VQClb41EJ8bfy34lrcNp5T8roZt6A3cx9XD+GoYCpcy7yS2gwBZbX/xE22fBiQIDI+ouLFbvREzin/HSv0yExw==}
-    peerDependencies:
-      react: 18.3.1
-      react-dom: 18.3.1
-      tailwind-merge: 2.5.4
-      yup: 1.6.1
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
@@ -10405,22 +10397,6 @@ snapshots:
       - bufferutil
       - debug
       - utf-8-validate
-
-  '@babylonlabs-io/core-ui@1.50.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(tailwind-merge@2.5.4)(tailwindcss@3.4.17(ts-node@10.9.2(@swc/core@1.5.29(@swc/helpers@0.5.17))(@types/node@22.17.0)(typescript@5.9.2)))(yup@1.6.1)':
-    dependencies:
-      '@hookform/resolvers': 3.9.1(react-hook-form@7.54.0(react@18.3.1))
-      '@popperjs/core': 2.11.8
-      decimal.js-light: 2.5.1
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-      react-hook-form: 7.54.0(react@18.3.1)
-      react-popper: 2.3.0(@popperjs/core@2.11.8)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react-tooltip: 5.29.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      tailwind-merge: 2.5.4
-      tw-colors: 3.3.2(tailwindcss@3.4.17(ts-node@10.9.2(@swc/core@1.5.29(@swc/helpers@0.5.17))(@types/node@22.17.0)(typescript@5.9.2)))
-      yup: 1.6.1
-    transitivePeerDependencies:
-      - tailwindcss
 
   '@bcoe/v8-coverage@0.2.3': {}
 
