@@ -715,6 +715,9 @@ importers:
       core-js:
         specifier: 3.41.0
         version: 3.41.0
+      cosmjs-types:
+        specifier: ^0.9.0
+        version: 0.9.0
       date-fns:
         specifier: 3.6.0
         version: 3.6.0
