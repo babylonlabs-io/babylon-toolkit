@@ -18,6 +18,7 @@ export function Activities() {
     handleActivityBorrow,
     handleBorrowFlowClose,
     isWalletConnected,
+    refetchActivities,
   } = useActivitiesState();
 
   console.log('[Activities] activities:', activities);
@@ -120,6 +121,7 @@ export function Activities() {
         activity={selectedActivity}
         isOpen={borrowFlowOpen}
         onClose={handleBorrowFlowClose}
+        onBorrowSuccess={refetchActivities}
       />
     </>
   );

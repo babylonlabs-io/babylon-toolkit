@@ -9,6 +9,8 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
+import type { Hex } from "viem";
+import { useMintAndBorrow } from "../../hooks/useMintAndBorrow";
 
 interface BorrowSignModalProps {
   open: boolean;
@@ -16,61 +18,77 @@ interface BorrowSignModalProps {
   onSuccess: () => void;
   borrowAmount?: number;
   collateralAmount?: string;
+  /** Pegin transaction hash (vault ID) */
+  pegInTxHash?: Hex;
 }
 
 /**
- * BorrowSignModal - Multi-step signing modal for borrow flow
- * 
- * Shows 3 steps that auto-progress with 2-second delays:
- * 1. Mint vaultBTC
- * 2. Borrow Transaction
- * 3. Confirming on Ethereum
- * 
- * After all steps complete, triggers onSuccess callback to show success modal.
- * 
- * Note: This is hardcoded for UI demonstration only.
- * Real implementation would integrate with wallet signing.
+ * BorrowSignModal - Transaction signing modal for borrow flow
+ *
+ * The mintAndBorrow transaction atomically:
+ * 1. Mints vaultBTC from the pegin
+ * 2. Deposits vaultBTC as collateral to Morpho
+ * 3. Borrows USDC against the collateral
+ *
+ * All three steps happen in a single Ethereum transaction.
  */
 export function BorrowSignModal({
   open,
   onClose,
   onSuccess,
+  borrowAmount,
+  pegInTxHash,
 }: BorrowSignModalProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [processing, setProcessing] = useState(false);
-
-  // Auto-progress through steps with 2-second delays (hardcoded for UI demo)
-  useEffect(() => {
-    if (!open || currentStep > 3) return;
-
-    setProcessing(true);
-
-    const timer = setTimeout(() => {
-      if (currentStep === 3) {
-        // Last step complete, trigger success modal
-        setProcessing(false);
-        onSuccess();
-      } else {
-        // Move to next step
-        setCurrentStep((prev) => prev + 1);
-      }
-    }, 2000); // 2 second delay per step
-
-    return () => clearTimeout(timer);
-  }, [open, currentStep, onSuccess]);
+  const [transactionStarted, setTransactionStarted] = useState(false);
+  const { executeMintAndBorrow, isLoading, error } = useMintAndBorrow();
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      setCurrentStep(1);
-      setProcessing(false);
+      setTransactionStarted(false);
     }
   }, [open]);
 
-  const handleSign = () => {
-    // In real implementation, this would trigger wallet signing
-    // For now, auto-progression handles everything
-    setProcessing(true);
+  // Show error in console if transaction fails
+  useEffect(() => {
+    if (error) {
+      console.error('[BorrowSignModal] Transaction error:', error);
+      // TODO: Show error in UI
+    }
+  }, [error]);
+
+  const handleSign = async () => {
+    if (!pegInTxHash || !borrowAmount) {
+      console.error('[BorrowSignModal] Missing required data:', { pegInTxHash, borrowAmount });
+      return;
+    }
+
+    // Convert USDC amount to bigint with 6 decimals
+    const borrowAmountBigInt = BigInt(Math.floor(borrowAmount * 1_000_000));
+
+    console.log('[BorrowSignModal] Starting transaction:', {
+      pegInTxHash,
+      borrowAmount,
+      borrowAmountBigInt: borrowAmountBigInt.toString(),
+    });
+
+    setTransactionStarted(true);
+
+    try {
+      const result = await executeMintAndBorrow({
+        pegInTxHash,
+        borrowAmount: borrowAmountBigInt,
+      });
+
+      if (result) {
+        // Success - trigger success modal
+        onSuccess();
+      }
+    } catch (err) {
+      console.error('[BorrowSignModal] Transaction failed:', err);
+      setTransactionStarted(false);
+      // Keep modal open to show error
+    }
   };
 
   return (
@@ -83,20 +101,20 @@ export function BorrowSignModal({
 
       <DialogBody className="flex flex-col gap-4 px-4 pb-8 pt-4 text-accent-primary sm:px-6">
         <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
-          Follow the steps below. Your wallet will prompt you when action is needed.
+          Sign the transaction in your wallet to mint vaultBTC and borrow USDC atomically.
         </Text>
 
         <div className="flex flex-col items-start gap-4 py-4">
-          <Step step={1} currentStep={currentStep}>
-            Mint vaultBTC
-          </Step>
-          <Step step={2} currentStep={currentStep}>
-            Borrow Transaction
-          </Step>
-          <Step step={3} currentStep={currentStep}>
-            Confirming on Ethereum
+          <Step step={1} currentStep={transactionStarted || isLoading ? 1 : 0}>
+            Mint vaultBTC & Borrow USDC
           </Step>
         </div>
+
+        {error && (
+          <Text variant="body2" className="text-error-main text-sm">
+            {error}
+          </Text>
+        )}
       </DialogBody>
 
       <DialogFooter className="flex gap-4">
@@ -105,17 +123,18 @@ export function BorrowSignModal({
           color="primary"
           onClick={onClose}
           className="flex-1 text-xs sm:text-base"
+          disabled={isLoading}
         >
           Cancel
         </Button>
 
         <Button
-          disabled={processing || currentStep > 3}
+          disabled={isLoading || !pegInTxHash || !borrowAmount}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}
         >
-          {processing ? (
+          {isLoading ? (
             <Loader size={16} className="text-accent-contrast" />
           ) : (
             "Sign"

@@ -7,9 +7,10 @@ interface BorrowFlowProps {
   activity: VaultActivity | null;
   isOpen: boolean;
   onClose: () => void;
+  onBorrowSuccess?: () => void;
 }
 
-export function BorrowFlow({ activity, isOpen, onClose }: BorrowFlowProps) {
+export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: BorrowFlowProps) {
   const {
     modalOpen,
     signModalOpen,
@@ -35,8 +36,14 @@ export function BorrowFlow({ activity, isOpen, onClose }: BorrowFlowProps) {
     onClose();
   };
 
-  const handleFinalSuccess = () => {
+  const handleFinalSuccess = async () => {
     handleSuccessClose();
+
+    // Refetch activities to show updated vault data before closing
+    if (onBorrowSuccess) {
+      await onBorrowSuccess();
+    }
+
     onClose();
   };
 
@@ -51,6 +58,7 @@ export function BorrowFlow({ activity, isOpen, onClose }: BorrowFlowProps) {
         onBorrow={handleBorrowClick}
         collateral={activity.collateral}
         marketData={activity.marketData}
+        pegInTxHash={activity.txHash}
       />
 
       {/* Borrow Sign Modal */}
@@ -60,6 +68,7 @@ export function BorrowFlow({ activity, isOpen, onClose }: BorrowFlowProps) {
         onSuccess={handleSignSuccess}
         borrowAmount={borrowAmount}
         collateralAmount={activity.collateral.amount}
+        pegInTxHash={activity.txHash}
       />
 
       {/* Borrow Success Modal */}

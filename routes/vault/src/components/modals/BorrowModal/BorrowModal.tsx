@@ -10,10 +10,13 @@ import {
   AmountItem,
   SubSection,
 } from "@babylonlabs-io/core-ui";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useEffect, useState, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 import { useBorrowForm } from "./useBorrowForm";
 import { usdcIcon } from "../../../assets";
+import type { Hex } from "viem";
+import { isPeginReadyToMint } from "../../../clients/eth-contract/vault-controller/query";
+import { CONTRACTS } from "../../../config/contracts";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -43,9 +46,14 @@ interface BorrowModalProps {
     btcPriceUSD: number;
     lltvPercent: number;
   };
+  /** Pegin transaction hash to check if ready to mint */
+  pegInTxHash?: Hex;
 }
 
-export function BorrowModal({ open, onClose, onBorrow, collateral, marketData }: BorrowModalProps) {
+export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, pegInTxHash }: BorrowModalProps) {
+  const [isReadyToMint, setIsReadyToMint] = useState<boolean | null>(null);
+  const [checkingReadiness, setCheckingReadiness] = useState(false);
+
   const collateralBTC = useMemo(
     () => parseFloat(collateral.amount || "0"),
     [collateral.amount]
@@ -57,6 +65,31 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData }:
     }
     return "";
   }, [collateral.icon]);
+
+  // Check if pegin is ready to mint when modal opens
+  useEffect(() => {
+    const checkPeginReadiness = async () => {
+      if (!open || !pegInTxHash) {
+        setIsReadyToMint(null);
+        return;
+      }
+
+      console.log('[BorrowModal] Checking pegin readiness for:', pegInTxHash);
+      setCheckingReadiness(true);
+      try {
+        const ready = await isPeginReadyToMint(CONTRACTS.VAULT_CONTROLLER, pegInTxHash);
+        console.log('[BorrowModal] Pegin readiness result:', ready);
+        setIsReadyToMint(ready);
+      } catch (error) {
+        console.error('[BorrowModal] Failed to check pegin readiness:', error);
+        setIsReadyToMint(false);
+      } finally {
+        setCheckingReadiness(false);
+      }
+    };
+
+    checkPeginReadiness();
+  }, [open, pegInTxHash]);
 
   const {
     borrowAmount,
@@ -230,14 +263,33 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData }:
         </div>
       </DialogBody>
       <DialogFooter className="flex flex-col gap-4 pb-8 pt-0">
+        {/* Warning message if pegin is not ready */}
+        {isReadyToMint === false && (
+          <Text variant="body2" className="text-warning-main text-sm text-center">
+            Vault is not ready to borrow. Please wait for the vault provider to verify your BTC deposit.
+          </Text>
+        )}
+
         <Button
           variant="contained"
           color="primary"
           onClick={handleBorrowClick}
           className="w-full"
-          disabled={!validation.isValid || borrowAmountNum === 0 || processing}
+          disabled={
+            !validation.isValid ||
+            borrowAmountNum === 0 ||
+            processing ||
+            checkingReadiness ||
+            isReadyToMint === false
+          }
         >
-          {processing ? "Processing..." : "Borrow"}
+          {checkingReadiness
+            ? "Checking..."
+            : processing
+            ? "Processing..."
+            : isReadyToMint === false
+            ? "Not Ready to Borrow"
+            : "Borrow"}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

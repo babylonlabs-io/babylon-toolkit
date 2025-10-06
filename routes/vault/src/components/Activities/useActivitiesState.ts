@@ -28,7 +28,7 @@ export function useActivitiesState() {
   }, []);
 
   // Fetch pegin requests from blockchain
-  const { activities } = usePeginRequests(
+  const { activities, refetch } = usePeginRequests(
     connectedAddress,
     handleActivityBorrow
   );
@@ -55,5 +55,6 @@ export function useActivitiesState() {
     handleActivityBorrow,
     handleBorrowFlowClose,
     isWalletConnected: !!connectedAddress,
+    refetchActivities: refetch,
   };
 }

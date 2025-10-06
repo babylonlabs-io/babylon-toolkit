@@ -189,14 +189,17 @@ export function transformPeginToActivity(
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
 
-  // Get status info
-  const statusInfo = getStatusInfo(peginRequest.status);
-
   // Format provider
   const providerName = formatProviderName(peginRequest.vaultProvider);
 
   // Check if user has already borrowed (has borrow shares > 0)
   const hasBorrowed = morphoPosition && morphoPosition.borrowShares > 0n;
+
+  // Get status info - override to "Borrowing" if vault has active borrows
+  const baseStatusInfo = getStatusInfo(peginRequest.status);
+  const statusInfo = hasBorrowed
+    ? { label: 'Borrowing', variant: 'active' as const }
+    : baseStatusInfo;
 
   // Calculate enriched borrowing data if we have position, market data, and BTC price
   const borrowingData = morphoPosition && morphoMarket && btcPriceUSD && hasBorrowed
