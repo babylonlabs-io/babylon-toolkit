@@ -2,7 +2,9 @@
   "name": "bbn-client",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@10.18.0",
   "scripts": {
+    "preinstall": "node -e \"const fs = require('fs'); const path = require('path'); let dir = process.cwd(); while (dir !== path.parse(dir).root) { if (fs.existsSync(path.join(dir, 'pnpm-workspace.yaml'))) { if (dir !== process.cwd()) { console.error('\\n\\u001b[31mError: Please run \\u001b[1mpnpm install\\u001b[22m from the workspace root, not from a workspace package.\\u001b[0m\\n'); process.exit(1); } break; } dir = path.dirname(dir); }\"",
     "build": "nx run-many --target=build --all",
     "lint": "nx run-many --target=lint --all --verbose",
     "test": "nx run-many --target=test --all --verbose",
@@ -24,10 +26,12 @@
     "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "eslint": "^9.32.0",
+    "eslint-plugin-package-json": "^0.47.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "eslint-plugin-tailwindcss": "^3.18.2",
     "husky": "^9.1.7",
+    "jsonc-eslint-parser": "^2.4.0",
     "nx": "21.3.7",
     "prettier": "^3.6.2",
     "syncpack": "^13.0.4",
@@ -36,17 +40,5 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.44.1",
     "uuid": "11.1.0"
-  },
-  "workspaces": [
-    "packages/*",
-    "tools/*",
-    "services/*",
-    "routes/*"
-  ],
-  "overrides": {
-    "axios": "^1.12.2",
-    "vite@^5.4.10": {
-      "esbuild": "^0.25.8"
-    }
   }
 }

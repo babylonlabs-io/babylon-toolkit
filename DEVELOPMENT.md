@@ -7,19 +7,35 @@ repository.
 # Getting Started
 
 ## Prerequisites
-- Node.js (version 22 or later)
-- NPM
+- Node.js (version 24.2.0 - see `.nvmrc`)
+- pnpm (managed via Corepack)
 
-```bash
-npm install
-```
+### Setup
+
+1. **Enable Corepack** (if using Node.js 24 or earlier, Corepack is bundled):
+   ```bash
+   corepack enable
+   ```
+
+2. **For Node.js 25+** (Corepack is not bundled), install it first:
+   ```bash
+   npm install -g corepack
+   corepack enable
+   ```
+
+3. **Install dependencies** (must be run from the workspace root):
+   ```bash
+   pnpm install
+   ```
+
+**Important:** Always run `pnpm install` from the workspace root, not from individual package directories. The project will automatically enforce this.
 
 ### Build
 
 To build the whole repository, run:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 ### Linting
@@ -27,26 +43,35 @@ npm run build
 To run the linter, use the following command:
 
 ```bash
-npm run lint
+pnpm run lint
+```
+
+### Testing
+
+To run tests for all packages:
+
+```bash
+pnpm run test
 ```
 
 ## Use nx command to learn the project dependency graph and available commands
 
 ```bash
-npx nx graph
+pnpm exec nx graph
 ```
 
 ## Running build of a specific package
 
 To build a specific package, use the following command:
 ```bash
-npx nx build @babylonlabs-io/core-ui
+pnpm exec nx build @babylonlabs-io/core-ui
 ```
 
-Similarly, you can run tests for a specific package:
+Similarly, you can run tests or lint for a specific package:
 
 ```bash
-npx nx lint @babylonlabs-io/core-ui
+pnpm exec nx test @babylonlabs-io/core-ui
+pnpm exec nx lint @babylonlabs-io/core-ui
 ```
 
 ## Release

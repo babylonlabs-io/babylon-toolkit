@@ -1,0 +1,23 @@
+packages:
+  - packages/*
+  - tools/*
+  - services/*
+  - routes/*
+
+ignoredBuiltDependencies:
+  - '@sentry/cli'
+
+onlyBuiltDependencies:
+  - '@bufbuild/buf'
+  - '@swc/core'
+  - core-js
+  - esbuild
+  - msw
+  - nx
+  - protobufjs
+  - secp256k1
+  - sharp
+  - unrs-resolver
+
+overrides:
+  axios: ^1.12.2

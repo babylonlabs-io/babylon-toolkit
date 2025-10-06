@@ -23,30 +23,33 @@ jobs:
         with:
           node-version: '24.2.0'
 
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Single Version Policy
         run: |-
           # Exit immediately if any command in the script fails
           set -e
 
-          if npx syncpack list-mismatches; then
+          if pnpm exec syncpack list-mismatches; then
             echo "✅ Dependency versions are aligned"
           else
             # Add an annotation to the Checks tab with a helpful hint
-            echo "::error title=Dependency mismatch::Run 'npx syncpack list-mismatches' locally (and 'npx syncpack fix-mismatches' to auto-fix)." >&2
+            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally (and 'pnpm exec syncpack fix-mismatches' to auto-fix)." >&2
             exit 1
           fi
 
       - name: Build all
-        run: npx nx run-many --target=build --all
+        run: pnpm exec nx run-many --target=build --all
 
       - name: Lint all
-        run: npx nx run-many --target=lint --all
+        run: pnpm exec nx run-many --target=lint --all
 
       - name: Test all
-        run: npx nx run-many --target=test --all
+        run: pnpm exec nx run-many --target=test --all
 
 
 
@@ -54,8 +57,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
-          npm run ci:release
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+          pnpm run ci:release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

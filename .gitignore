@@ -8,6 +8,10 @@ out-tsc
 # dependencies
 node_modules
 
+# lockfiles (pnpm only)
+package-lock.json
+yarn.lock
+
 # IDEs and editors
 /.idea
 .project
