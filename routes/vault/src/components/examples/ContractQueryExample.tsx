@@ -31,9 +31,8 @@ export default function ContractQueryExample() {
   const connectedAddress = useMemo(() => {
     return (
       ethConnector?.connectedWallet?.account?.address ||
-      ethConnector?.connectedWallet?.accounts?.[0]?.address ||
-      // @ts-expect-error - trying alternative path
-      ethConnector?.address
+      (ethConnector as any)?.connectedWallet?.accounts?.[0]?.address || // only this works now
+      (ethConnector as any)?.address
     ) as Hex | undefined;
   }, [ethConnector]);
 

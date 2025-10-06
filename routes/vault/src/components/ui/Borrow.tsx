@@ -6,12 +6,24 @@ import {
   type ActivityCardDetailItem,
   ProviderItem,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
-import { mockVaultActivities, type VaultActivity } from "../../mockData/vaultActivities";
+import { useState, useMemo, useCallback } from "react";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import type { VaultActivity } from "../../mockData/vaultActivities";
 import { BorrowModal, BorrowSignModal, BorrowSuccessModal } from "../modals";
+import { usePeginRequests } from "../../hooks/usePeginRequests";
+import type { Hex } from "viem";
 
 export function Borrow() {
-  const [activities] = useState<VaultActivity[]>(mockVaultActivities);
+  const ethConnector = useChainConnector('ETH');
+  
+  const connectedAddress = useMemo(() => {
+    const address = (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ethConnector as any)?.connectedWallet?.account?.address ||
+      (ethConnector as any)?.connectedWallet?.accounts?.[0]?.address
+    ) as Hex | undefined;
+    return address;
+  }, [ethConnector]);
   
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -22,17 +34,22 @@ export function Borrow() {
   const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
   const [borrowAmount, setBorrowAmount] = useState(0);
 
+  const handleActivityBorrow = useCallback((activity: VaultActivity) => {
+    setSelectedActivity(activity);
+    setModalOpen(true);
+  }, []);
+
+  // Fetch pegin requests from blockchain
+  const { activities } = usePeginRequests(
+    connectedAddress,
+    handleActivityBorrow
+  );
+
   const handleNewBorrow = () => {
     if (activities.length > 0) {
-      // TODO: getSelectedActivity method should be implemented
       setSelectedActivity(activities[0]);
       setModalOpen(true);
     }
-  };
-
-  const handleActivityBorrow = (activity: VaultActivity) => {
-    setSelectedActivity(activity);
-    setModalOpen(true);
   };
 
   // Handle modal close
