@@ -96,12 +96,12 @@ export async function getMarketById(
 /**
  * Get a user's position in a specific Morpho market
  * @param marketId - Market ID (string or bigint)
- * @param userAddress - User's Ethereum address
+ * @param userProxyContractAddress - User's proxy contract address for the vault
  * @returns User's position with supply shares, borrow shares, and collateral
  */
 export async function getUserPosition(
   marketId: string | bigint,
-  userAddress: Address
+  userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
   const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
@@ -110,11 +110,11 @@ export async function getUserPosition(
   await ensureLocalhostAddressesRegistered();
 
   // Fetch position using Morpho SDK
-  const position = await fetchPosition(userAddress, marketIdHex as MarketId, publicClient);
+  const position = await fetchPosition(userProxyContractAddress, marketIdHex as MarketId, publicClient);
 
   return {
     marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
-    user: userAddress,
+    user: userProxyContractAddress,
     supplyShares: position.supplyShares,
     borrowShares: position.borrowShares,
     collateral: position.collateral,

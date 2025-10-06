@@ -137,8 +137,32 @@ export default function ContractQueryExample() {
   const testGetMarketById = () =>
     executeQuery('getMarketById', () => Morpho.getMarketById(MORPHO_MARKET_ID));
 
-  const testGetUserPosition = () =>
-    executeQuery('getUserPosition', () => Morpho.getUserPosition(MORPHO_MARKET_ID, connectedAddress!), true);
+  const testGetUserPosition = async () => {
+    if (!txHashInput) {
+      setError('Please enter a transaction hash');
+      return;
+    }
+
+    setLoading('getUserPosition');
+    setError('');
+    setResult(null);
+
+    try {
+      // First fetch vault metadata to get proxy contract address
+      const metadata = await VaultController.getVaultMetadata(VAULT_CONTRACT_ADDRESS, txHashInput as Hex);
+
+      // Then fetch user position using the proxy contract address
+      const position = await Morpho.getUserPosition(MORPHO_MARKET_ID, metadata.proxyContract);
+
+      setResult(position);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('getUserPosition failed:', err);
+      setError(errorMessage);
+    } finally {
+      setLoading(null);
+    }
+  };
 
   // Switch to local network
   const switchToLocalNetwork = async () => {
@@ -329,10 +353,11 @@ export default function ContractQueryExample() {
             <button onClick={testGetMarketById} disabled={loading === 'getMarketById'} className="btn-query">
               {loading === 'getMarketById' ? 'Loading...' : 'getMarketById()'}
             </button>
-            <button onClick={testGetUserPosition} disabled={loading === 'getUserPosition' || !connectedAddress} className="btn-query">
+            <button onClick={testGetUserPosition} disabled={loading === 'getUserPosition' || !txHashInput} className="btn-query">
               {loading === 'getUserPosition' ? 'Loading...' : 'getUserPosition()'}
             </button>
           </div>
+          <p className="text-xs text-gray-500 italic mt-1">getUserPosition uses the transaction hash to fetch vault metadata, then queries the position</p>
         </div>
 
         {/* VaultController transactions */}
