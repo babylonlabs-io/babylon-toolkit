@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import type { Hex } from "viem";
-import { usePeginRequests, usePeginStorage } from "./usePeginRequests";
+import { usePeginRequests } from "./usePeginRequests";
+import { usePeginStorage } from "./usePeginStorage";
 
 /**
  * Hook to manage vault positions data fetching and wallet connection

@@ -13,6 +13,7 @@ import { useRepayFlow } from "../../hooks/useRepayFlow";
 import { usePeginFlow } from "../../hooks/usePeginFlow";
 import { EmptyState } from "./EmptyState";
 import { VaultActivityCard } from "./VaultActivityCard";
+import type { VaultActivity } from "../../mockData/vaultActivities";
 
 export function VaultDashboard() {
   // Data fetching
@@ -96,7 +97,7 @@ export function VaultDashboard() {
           isEmpty={activities.length === 0}
           isConnected={isWalletConnected}
         >
-          {activities.map((activity) => (
+          {activities.map((activity: VaultActivity) => (
             <VaultActivityCard
               key={activity.id}
               activity={activity}

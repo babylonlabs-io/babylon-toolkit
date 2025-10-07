@@ -1,5 +1,5 @@
 /**
- * Vault Provider API
+ * Vault Provider API Client
  * 
  * This module handles fetching vault provider data.
  * Currently returns mock data, but structured to support GraphQL integration.
