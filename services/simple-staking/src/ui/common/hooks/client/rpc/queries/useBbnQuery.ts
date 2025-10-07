@@ -23,6 +23,7 @@ const BBN_BALANCE_KEY = "BBN_BALANCE";
 const BBN_REWARDS_KEY = "BBN_REWARDS";
 const BBN_HEIGHT_KEY = "BBN_HEIGHT";
 const REWARD_GAUGE_KEY_BTC_DELEGATION = "BTC_STAKER";
+const REWARD_GAUGE_KEY_COSTAKER = "COSTAKER";
 
 /**
  * Query service for Babylon which contains all the queries for
@@ -35,8 +36,10 @@ export const useBbnQuery = () => {
   const { hasRpcError, reconnect } = useRpcErrorHandler();
 
   /**
-   * Gets the rewards from the user's account.
-   * @returns {Promise<number>} - The rewards from the user's account.
+   * Gets the total available BTC staking rewards from the user's account.
+   * This includes both base BTC staking rewards (BTC_STAKER gauge) and
+   * co-staking bonus rewards (COSTAKER gauge).
+   * @returns {Promise<number>} - Total available rewards in ubbn (base BTC + co-staking bonus).
    */
   const rewardsQuery = useClientQuery({
     queryKey: [BBN_REWARDS_KEY, bech32Address, connected],
@@ -73,20 +76,34 @@ export const useBbnQuery = () => {
         return 0;
       }
 
-      const coins =
+      // Calculate rewards from BTC_STAKER gauge
+      const btcStakerCoins =
         rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
-      if (!coins) {
-        return 0;
-      }
+      const btcStakerWithdrawn =
+        rewards.rewardGauges[
+          REWARD_GAUGE_KEY_BTC_DELEGATION
+        ]?.withdrawnCoins.reduce((acc, coin) => acc + Number(coin.amount), 0) ||
+        0;
+      const btcStakerTotal = btcStakerCoins
+        ? btcStakerCoins.reduce((acc, coin) => acc + Number(coin.amount), 0)
+        : 0;
+      const btcStakerAvailable = btcStakerTotal - btcStakerWithdrawn;
 
-      const withdrawnCoins = rewards.rewardGauges[
-        REWARD_GAUGE_KEY_BTC_DELEGATION
-      ]?.withdrawnCoins.reduce((acc, coin) => acc + Number(coin.amount), 0);
+      // Calculate rewards from COSTAKER gauge (co-staking bonus)
+      const costakerCoins =
+        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.coins;
+      const costakerWithdrawn =
+        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.withdrawnCoins.reduce(
+          (acc, coin) => acc + Number(coin.amount),
+          0,
+        ) || 0;
+      const costakerTotal = costakerCoins
+        ? costakerCoins.reduce((acc, coin) => acc + Number(coin.amount), 0)
+        : 0;
+      const costakerAvailable = costakerTotal - costakerWithdrawn;
 
-      return (
-        coins.reduce((acc, coin) => acc + Number(coin.amount), 0) -
-        (withdrawnCoins || 0)
-      );
+      // Total available rewards = BTC staking + co-staking bonus
+      return btcStakerAvailable + costakerAvailable;
     },
     enabled: Boolean(
       queryClient &&
