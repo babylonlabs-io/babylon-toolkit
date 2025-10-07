@@ -84,8 +84,8 @@ export function BorrowSignModal({
         // Success - trigger success modal
         onSuccess();
       }
-    } catch (err) {
-      console.error('[BorrowSignModal] Transaction failed:', err);
+    } catch (error) {
+      console.error('[BorrowSignModal] Transaction failed:', error);
       setTransactionStarted(false);
       // Keep modal open to show error
     }

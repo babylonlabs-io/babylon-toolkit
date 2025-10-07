@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { Hex } from "viem";
 import {
   Button,
@@ -10,9 +9,7 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useRepayAndPegout } from "../../hooks/useRepayAndPegout";
-import { ERC20, Morpho } from "../../clients/eth-contract";
-import { CONTRACTS, MORPHO_MARKET_ID } from "../../config/contracts";
+import { useRepayTransaction } from "../../hooks/useRepayTransaction";
 
 interface RepaySignModalProps {
   open: boolean;
@@ -30,7 +27,6 @@ interface RepaySignModalProps {
  * 1. Repays the USDC loan to Morpho
  * 2. Withdraws vaultBTC collateral from Morpho
  * 3. Burns vaultBTC and initiates pegout to release BTC
- *
  */
 export function RepaySignModal({
   open,
@@ -39,119 +35,24 @@ export function RepaySignModal({
   pegInTxHash,
   repayAmountWei,
 }: RepaySignModalProps) {
-  const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0); // 0: not started, 1: approving, 2: repaying
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [usdcTokenAddress, setUsdcTokenAddress] = useState<Hex | null>(null);
-
-  const { executeRepayAndPegout } = useRepayAndPegout();
-
-  // Fetch USDC token address when modal opens
-  useEffect(() => {
-    if (open && pegInTxHash && !usdcTokenAddress) {
-      const fetchUsdcAddress = async () => {
-        try {
-          const market = await Morpho.getMarketById(MORPHO_MARKET_ID);
-          setUsdcTokenAddress(market.loanToken.address);
-        } catch (err) {
-          console.error('[RepaySignModal] Failed to fetch USDC address:', err);
-          setError('Failed to load token information');
-        }
-      };
-      fetchUsdcAddress();
-    }
-  }, [open, pegInTxHash, usdcTokenAddress]);
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setCurrentStep(0);
-      setIsLoading(false);
-      setError(null);
-      setUsdcTokenAddress(null);
-    }
-  }, [open]);
-
-  // Show error in console if transaction fails
-  useEffect(() => {
-    if (error) {
-      console.error('[RepaySignModal] Transaction error:', error);
-    }
-  }, [error]);
+  const {
+    currentStep,
+    isLoading,
+    error,
+    usdcTokenAddress,
+    executeTransaction,
+  } = useRepayTransaction({
+    pegInTxHash,
+    repayAmountWei,
+    isOpen: open,
+  });
 
   const handleSign = async () => {
-    if (!pegInTxHash || !usdcTokenAddress || !repayAmountWei) {
-      console.error('[RepaySignModal] Missing required data:', {
-        pegInTxHash,
-        usdcTokenAddress,
-        repayAmountWei,
-      });
-      setError('Missing required transaction data');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
     try {
-      // Add 1% buffer to approval amount to account for interest accrual between approval and repay
-      const approvalAmount = (repayAmountWei * 101n) / 100n;
-
-      // Step 1: Approve USDC spending
-      console.log('[RepaySignModal] Step 1: Approving USDC spending', {
-        usdcTokenAddress,
-        spender: CONTRACTS.VAULT_CONTROLLER,
-        exactDebt: repayAmountWei.toString(),
-        exactDebtFormatted: (Number(repayAmountWei) / 1_000_000).toFixed(2) + ' USDC',
-        approvalAmount: approvalAmount.toString(),
-        approvalAmountFormatted: (Number(approvalAmount) / 1_000_000).toFixed(2) + ' USDC',
-        buffer: '1% buffer for interest accrual',
-      });
-      setCurrentStep(1);
-
-      const approvalResult = await ERC20.approveERC20(
-        usdcTokenAddress,
-        CONTRACTS.VAULT_CONTROLLER,
-        approvalAmount
-      );
-
-      console.log('[RepaySignModal] USDC approval successful:', {
-        txHash: approvalResult.transactionHash,
-      });
-
-      // Check allowance after approval
-      const allowance = await ERC20.getERC20Allowance(
-        usdcTokenAddress,
-        CONTRACTS.VAULT_CONTROLLER
-      );
-      console.log('[RepaySignModal] Allowance after approval:', {
-        allowance: allowance.toString(),
-        allowanceFormatted: (Number(allowance) / 1_000_000).toFixed(2) + ' USDC',
-      });
-
-      // Step 2: Repay and pegout
-      console.log('[RepaySignModal] Step 2: Repaying and initiating pegout', {
-        pegInTxHash,
-        vaultController: CONTRACTS.VAULT_CONTROLLER,
-      });
-      setCurrentStep(2);
-
-      const result = await executeRepayAndPegout({ pegInTxHash });
-
-      if (!result) {
-        throw new Error('Repay transaction failed');
-      }
-
-      console.log('[RepaySignModal] Repay successful:', result.transactionHash);
-
-      // Success - trigger success modal
+      await executeTransaction();
       onSuccess();
-    } catch (err) {
-      console.error('[RepaySignModal] Transaction failed:', err);
-      setError(err instanceof Error ? err.message : 'Transaction failed');
-      setCurrentStep(0);
-    } finally {
-      setIsLoading(false);
+    } catch {
+      // Error is already handled in the hook
     }
   };
 

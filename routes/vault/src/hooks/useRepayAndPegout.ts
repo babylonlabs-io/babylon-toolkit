@@ -60,9 +60,9 @@ export function useRepayAndPegout(): UseRepayAndPegoutResult {
 
         setTransactionHash(txResult.transactionHash);
         return txResult;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-        console.error('[useRepayAndPegout] Transaction failed:', err);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('[useRepayAndPegout] Transaction failed:', error);
         setError(errorMessage);
         return null;
       } finally {
