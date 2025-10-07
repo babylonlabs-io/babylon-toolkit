@@ -19,8 +19,6 @@ export const formatAPRPercentage = (apr: number | null | undefined): string => {
  * @param apr - APR value
  * @returns Formatted string with % symbol (e.g., "5.20%")
  */
-export const formatAPRWithSymbol = (
-  apr: number | null | undefined,
-): string => {
+export const formatAPRWithSymbol = (apr: number | null | undefined): string => {
   return `${formatAPRPercentage(apr)}%`;
 };
