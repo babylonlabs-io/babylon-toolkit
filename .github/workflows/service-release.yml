@@ -11,10 +11,24 @@ on:
 
 jobs:
   lint_test:
-    uses: babylonlabs-io/.github/.github/workflows/reusable_node_lint_test.yml@v0.3.0
-    with:
-      run-build: true
-      run-unit-tests: true
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
 
   s3_publish:
     needs: [lint_test]
