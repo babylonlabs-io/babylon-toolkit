@@ -7,12 +7,14 @@ import {
   ActivityCard,
   StatusBadge,
   ProviderItem,
+  Warning,
   type ActivityCardData,
   type ActivityCardDetailItem,
 } from "@babylonlabs-io/core-ui";
 import type { VaultActivity } from "../../mockData/vaultActivities";
 import { getVaultState, getActionForState } from "../../utils/vaultState";
 import { formatUSDCAmount } from "../../utils/peginTransformers";
+import { bitcoinIcon } from "../../assets";
 
 interface VaultActivityCardProps {
   activity: VaultActivity;
@@ -114,10 +116,17 @@ export function VaultActivityCard({ activity, onBorrow, onRepay }: VaultActivity
   // Transform to ActivityCardData format
   const cardData: ActivityCardData = {
     formattedAmount: `${activity.collateral.amount} ${activity.collateral.symbol}`,
-    icon: activity.collateral.icon,
+    icon: activity.collateral.icon || bitcoinIcon,
     iconAlt: activity.collateral.symbol,
     details,
     optionalDetails: optionalDetails.length > 0 ? optionalDetails : undefined,
+    // Add warning for pending peg-ins
+    warning: activity.isPending ? (
+      <Warning>
+        {activity.pendingMessage || 
+          "Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete."}
+      </Warning>
+    ) : undefined,
     primaryAction: getActionForState(vaultState, activity, onBorrow, onRepay),
   };
 

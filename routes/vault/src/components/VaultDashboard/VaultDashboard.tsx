@@ -1,15 +1,29 @@
 import { ActivityList } from "@babylonlabs-io/core-ui";
+import { useCallback } from "react";
 import { BorrowFlow } from "../BorrowFlow";
 import { RepayFlow } from "../RepayFlow";
+import {
+  PeginModal,
+  PeginSignModal,
+  PeginSuccessModal,
+} from "../modals";
 import { useVaultPositions } from "../../hooks/useVaultPositions";
 import { useBorrowFlow } from "../../hooks/useBorrowFlow";
 import { useRepayFlow } from "../../hooks/useRepayFlow";
+import { usePeginFlow } from "../../hooks/usePeginFlow";
 import { EmptyState } from "./EmptyState";
 import { VaultActivityCard } from "./VaultActivityCard";
 
 export function VaultDashboard() {
   // Data fetching
-  const { activities, isWalletConnected, refetchActivities } = useVaultPositions();
+  const {
+    activities,
+    isWalletConnected,
+    refetchActivities,
+    connectedAddress,
+    btcAddress,
+    addPendingPegin,
+  } = useVaultPositions();
 
   // Borrow flow modal state
   const {
@@ -27,12 +41,47 @@ export function VaultDashboard() {
     closeRepayFlow,
   } = useRepayFlow();
 
-  // Handle "New Item" button click - open borrow for first activity
-  const handleNewBorrow = () => {
-    if (activities.length > 0) {
-      openBorrowFlow(activities[0]);
+  // Peg-in flow modal state
+  const {
+    isOpen: peginFlowOpen,
+    signModalOpen: peginSignModalOpen,
+    successModalOpen: peginSuccessModalOpen,
+    peginAmount,
+    selectedProviders,
+    btcBalanceSat,
+    openPeginFlow,
+    closePeginFlow,
+    handlePeginClick,
+    handlePeginSignSuccess: handlePeginSignSuccessBase,
+    handlePeginSuccessClose,
+  } = usePeginFlow();
+
+  // Handle peg-in sign success with storage integration
+  const handlePeginSignSuccess = useCallback(() => {
+    // Add to local storage when peg-in is submitted
+    if (connectedAddress && btcAddress) {
+      const peginId = `pending-${Date.now()}`; // Temporary ID until we get BTC tx hash
+      
+      addPendingPegin({
+        id: peginId,
+        amount: peginAmount.toString(),
+        providers: selectedProviders,
+        ethAddress: connectedAddress,
+        btcAddress: btcAddress,
+      });
+
+      console.log('[VaultDashboard] Added pending peg-in to localStorage:', {
+        id: peginId,
+        amount: peginAmount,
+        providers: selectedProviders,
+      });
     }
-  };
+
+    // Complete the peg-in flow and refetch activities
+    handlePeginSignSuccessBase(() => {
+      refetchActivities();
+    });
+  }, [connectedAddress, btcAddress, peginAmount, selectedProviders, addPendingPegin, handlePeginSignSuccessBase, refetchActivities]);
 
   // Show message if wallet is not connected
   if (!isWalletConnected) {
@@ -42,7 +91,11 @@ export function VaultDashboard() {
   return (
     <>
       <div className="container mx-auto flex max-w-[760px] flex-1 flex-col px-4 py-8">
-        <ActivityList onNewItem={handleNewBorrow}>
+        <ActivityList
+          onNewItem={openPeginFlow}
+          isEmpty={activities.length === 0}
+          isConnected={isWalletConnected}
+        >
           {activities.map((activity) => (
             <VaultActivityCard
               key={activity.id}
@@ -53,6 +106,28 @@ export function VaultDashboard() {
           ))}
         </ActivityList>
       </div>
+
+      {/* Peg-in Modals */}
+      <PeginModal
+        open={peginFlowOpen}
+        onClose={closePeginFlow}
+        onPegIn={handlePeginClick}
+        btcBalance={btcBalanceSat}
+      />
+
+      <PeginSignModal
+        open={peginSignModalOpen}
+        onClose={() => {}}
+        onSuccess={handlePeginSignSuccess}
+        amount={peginAmount}
+        selectedProviders={selectedProviders}
+      />
+
+      <PeginSuccessModal
+        open={peginSuccessModalOpen}
+        onClose={handlePeginSuccessClose}
+        amount={peginAmount}
+      />
 
       <BorrowFlow
         activity={selectedBorrowActivity}

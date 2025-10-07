@@ -1,21 +1,27 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 
-export function usePeginFlowState() {
+/**
+ * Hook to manage peg-in flow modal state
+ */
+export function usePeginFlow() {
   // Hardcoded BTC balance (in satoshis) - TODO: Replace with real wallet balance
   const btcBalanceSat = 500000000; // 5 BTC
 
   // Modal states
-  const [peginModalOpen, setPeginModalOpen] = useState(false);
-  const [peginSignModalOpen, setPeginSignModalOpen] = useState(false);
-  const [peginSuccessModalOpen, setPeginSuccessModalOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [signModalOpen, setSignModalOpen] = useState(false);
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
 
   // Peg-in flow data
   const [peginAmount, setPeginAmount] = useState(0);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
-  // Start the peg-in flow
-  const handleNewBorrow = useCallback(() => {
-    setPeginModalOpen(true);
+  const openPeginFlow = useCallback(() => {
+    setIsOpen(true);
+  }, []);
+
+  const closePeginFlow = useCallback(() => {
+    setIsOpen(false);
   }, []);
 
   // Handle peg-in click from PeginModal
@@ -23,14 +29,14 @@ export function usePeginFlowState() {
     console.log("Peg-in clicked:", { amount, providers });
     setPeginAmount(amount);
     setSelectedProviders(providers);
-    setPeginModalOpen(false);
-    setPeginSignModalOpen(true);
+    setIsOpen(false);
+    setSignModalOpen(true);
   }, []);
 
   // Handle signing success - accepts callback for parent to handle storage
   const handlePeginSignSuccess = useCallback((onSuccess?: () => void) => {
-    setPeginSignModalOpen(false);
-    setPeginSuccessModalOpen(true);
+    setSignModalOpen(false);
+    setSuccessModalOpen(true);
     
     // Call parent callback if provided
     if (onSuccess) {
@@ -40,27 +46,25 @@ export function usePeginFlowState() {
 
   // Handle success modal close
   const handlePeginSuccessClose = useCallback(() => {
-    setPeginSuccessModalOpen(false);
+    setSuccessModalOpen(false);
     setPeginAmount(0);
     setSelectedProviders([]);
   }, []);
 
   return {
-    // Wallet data
-    btcBalanceSat,
     // Modal states
-    peginModalOpen,
-    peginSignModalOpen,
-    peginSuccessModalOpen,
+    isOpen,
+    signModalOpen,
+    successModalOpen,
     // Peg-in data
     peginAmount,
     selectedProviders,
+    btcBalanceSat,
     // Actions
-    handleNewBorrow,
+    openPeginFlow,
+    closePeginFlow,
     handlePeginClick,
     handlePeginSignSuccess,
     handlePeginSuccessClose,
-    setPeginModalOpen,
-    setPeginSignModalOpen,
   };
 }

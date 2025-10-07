@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import type { Hex } from "viem";
-import { usePeginRequests } from "./usePeginRequests";
+import { usePeginRequests, usePeginStorage } from "./usePeginRequests";
 
 /**
  * Hook to manage vault positions data fetching and wallet connection
@@ -9,6 +9,13 @@ import { usePeginRequests } from "./usePeginRequests";
  */
 export function useVaultPositions() {
   const ethConnector = useChainConnector('ETH');
+  const btcConnector = useChainConnector('BTC');
+
+  // Get BTC address from connector
+  const btcAddress = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
+  }, [btcConnector]);
 
   const connectedAddress = useMemo(() => {
     const address = (
@@ -21,15 +28,26 @@ export function useVaultPositions() {
   }, [ethConnector]);
 
   // Fetch pegin requests from blockchain
-  // Note: We pass a no-op function since we don't need borrow callback here anymore
-  const { activities, refetch } = usePeginRequests(
+  const { activities: confirmedActivities, refetch } = usePeginRequests(
     connectedAddress,
     () => {} // no-op callback
   );
 
+  // Integrate local storage for pending peg-ins
+  const {
+    allActivities,
+    addPendingPegin,
+  } = usePeginStorage({
+    ethAddress: connectedAddress || '',
+    confirmedPegins: confirmedActivities,
+  });
+
   return {
-    activities,
+    activities: allActivities,
     isWalletConnected: !!connectedAddress,
     refetchActivities: refetch,
+    connectedAddress,
+    btcAddress,
+    addPendingPegin,
   };
 }
