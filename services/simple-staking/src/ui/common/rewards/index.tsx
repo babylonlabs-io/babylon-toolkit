@@ -169,10 +169,8 @@ function RewardsPageContent() {
 
     if (!hasBtcRewards && !hasBabyRewards) return;
 
-    // Note: Fee estimation is skipped for BTC rewards because it may fail
-    // when rewards are in COSTAKER gauge only. The actual withdrawal will
-    // work correctly as the protocol handles all gauges under "btc_staker" type.
-    // Fee will be calculated during the actual transaction signing.
+    // Skip fee pre-estimation for BTC rewards. Fees are calculated
+    // during the actual transaction signing phase, which is more reliable.
 
     setPreviewOpen(true);
   };
