@@ -6,6 +6,10 @@ import { MdRocketLaunch } from "react-icons/md";
 
 import { useBalanceState } from "@/ui/common/state/BalanceState";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import {
+  NAVIGATION_STATE_KEYS,
+  type NavigationState,
+} from "@/ui/common/constants/navigation";
 
 const BANNER_DISMISSED_KEY = "bbn-costaking-banner-dismissed";
 
@@ -27,8 +31,8 @@ export const CoStakingBanner = () => {
   const handleBannerClick = useCallback(() => {
     navigate("/baby", {
       state: {
-        shouldPrefillCoStaking: true,
-      },
+        [NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]: true,
+      } satisfies NavigationState,
     });
   }, [navigate]);
 

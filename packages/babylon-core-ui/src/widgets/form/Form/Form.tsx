@@ -46,6 +46,15 @@ function FormInner<V extends object>({
     resolver: schema ? (yupResolver(schema) as unknown as Resolver<V>) : undefined,
   });
 
+  /**
+   * Expose the react-hook-form methods to parent components via ref.
+   * This allows parent components to imperatively control the form,
+   * such as programmatically setting field values (e.g., prefilling co-staking amount).
+   *
+   * Example usage in parent:
+   *   const formRef = useRef<FormRef<MyFormFields>>(null);
+   *   formRef.current?.setValue("amount", "100");
+   */
   useImperativeHandle(ref, () => methods, [methods]);
 
   useEffect(() => {

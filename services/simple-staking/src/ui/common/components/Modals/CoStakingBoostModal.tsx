@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
 import { useCoStakingService } from "../../hooks/services/useCoStakingService";
+import { formatAPRPercentage } from "../../utils/formatAPR";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -10,10 +11,6 @@ interface FeedbackModalProps {
   open: boolean;
   onClose: () => void;
 }
-
-const formatAPRPercentage = (apr: number | null): string => {
-  return apr ? apr.toFixed(2) : "0";
-};
 
 export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   open,

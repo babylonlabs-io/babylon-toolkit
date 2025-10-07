@@ -7,13 +7,9 @@ import { trim } from "@/ui/common/utils/trim";
 export const SuccessContent = ({
   transactionHash,
 }: {
-  transactionHash?: string | string[];
+  transactionHash: string[];
 }) => {
-  const hashArray = Array.isArray(transactionHash)
-    ? transactionHash
-    : [transactionHash];
-
-  const hashes = hashArray.filter((i) => i !== undefined);
+  const hashes = transactionHash.filter(Boolean);
 
   return (
     <div className="flex flex-col gap-4">

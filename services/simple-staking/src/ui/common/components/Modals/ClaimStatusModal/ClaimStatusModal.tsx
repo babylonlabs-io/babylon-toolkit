@@ -11,7 +11,7 @@ interface ClaimStatusModalProps {
   open: boolean;
   onClose?: () => void;
   loading: boolean;
-  transactionHash?: string | string[];
+  transactionHash: string[];
 }
 
 const { coinSymbol } = getNetworkConfigBBN();
@@ -29,9 +29,7 @@ const MODAL_STEP = {
     title: `Successfully Claimed ${coinSymbol}`,
     submitButton: "Done",
     cancelButton: "",
-    content: (txHash?: string | string[]) => (
-      <SuccessContent transactionHash={txHash} />
-    ),
+    content: (txHash: string[]) => <SuccessContent transactionHash={txHash} />,
   },
 };
 

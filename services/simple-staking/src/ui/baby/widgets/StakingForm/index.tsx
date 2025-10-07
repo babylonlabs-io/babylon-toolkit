@@ -12,6 +12,10 @@ import { ValidatorField } from "@/ui/baby/widgets/ValidatorField";
 import { FormAlert } from "@/ui/common/components/Multistaking/MultistakingForm/FormAlert";
 import { useFormPersistenceState } from "@/ui/common/state/FormPersistenceState";
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
+import {
+  NAVIGATION_STATE_KEYS,
+  type NavigationState,
+} from "@/ui/common/constants/navigation";
 
 interface StakingFormProps {
   isGeoBlocked?: boolean;
@@ -43,7 +47,7 @@ export default function StakingForm({
   } = useStakingState();
   const location = useLocation();
   const navigate = useNavigate();
-  const { eligibility } = useCoStakingState();
+  const { eligibility, isLoading: isCoStakingLoading } = useCoStakingState();
 
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
@@ -85,14 +89,20 @@ export default function StakingForm({
 
   // Handle prefill amount from navigation state
   useEffect(() => {
-    const state = location.state as { shouldPrefillCoStaking?: boolean } | null;
+    const state = location.state as NavigationState | null;
 
-    if (!state?.shouldPrefillCoStaking) return;
+    if (!state?.[NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]) return;
+
+    // Guard against loading state - wait for co-staking service to finish loading
+    if (isCoStakingLoading) return;
+
+    // Guard against zero or invalid values
+    if (eligibility.additionalBabyNeeded <= 0) return;
 
     if (formRef.current) {
       formRef.current.setValue<"amount">(
         "amount",
-        String(eligibility.additionalBabyNeeded) as any,
+        eligibility.additionalBabyNeeded,
         {
           shouldDirty: true,
           shouldTouch: true,
@@ -108,12 +118,23 @@ export default function StakingForm({
       });
     }
 
-    // Clear the state to prevent re-triggering
+    /**
+     * Clear navigation state to prevent re-triggering prefill.
+     *
+     * - navigate("."): Navigate to current route (relative path)
+     * - replace: true: Replace history entry instead of pushing new one
+     *   (prevents back button from re-triggering prefill)
+     * - state: null: Clear the shouldPrefillCoStaking flag
+     *
+     * Without this, refreshing the page or re-rendering would
+     * attempt to prefill the form again.
+     */
     navigate(".", { replace: true, state: null });
   }, [
     location.state,
     navigate,
     eligibility.additionalBabyNeeded,
+    isCoStakingLoading,
     setBabyStakeDraft,
   ]);
 

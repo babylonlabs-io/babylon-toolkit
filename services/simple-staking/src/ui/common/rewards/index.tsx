@@ -29,6 +29,10 @@ import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService"
 import { ClaimStatusModal } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
 import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
 import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
+import {
+  NAVIGATION_STATE_KEYS,
+  type NavigationState,
+} from "@/ui/common/constants/navigation";
 
 const formatter = Intl.NumberFormat("en", {
   notation: "compact",
@@ -152,16 +156,17 @@ function RewardsPageContent() {
   const handleStakeMoreClick = () => {
     navigate("/baby", {
       state: {
-        shouldPrefillCoStaking: true,
-      },
+        [NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]: true,
+      } satisfies NavigationState,
     });
   };
 
+  // Hoist reward checks to avoid duplicate declarations
+  const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+  const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+
   const handleClaimClick = async () => {
     if (processing) return;
-
-    const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
-    const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
 
     if (!hasBtcRewards && !hasBabyRewards) return;
 
@@ -175,9 +180,6 @@ function RewardsPageContent() {
 
   const handleProceed = async () => {
     setPreviewOpen(false);
-
-    const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
-    const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
 
     // Claim BTC staking rewards
     if (hasBtcRewards) {
@@ -213,9 +215,6 @@ function RewardsPageContent() {
   const handleClose = () => {
     setPreviewOpen(false);
   };
-
-  const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
-  const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
   // Note: Co-staking bonus is included in BTC rewards, not claimed separately
   const hasAnyRewards = hasBtcRewards || hasBabyRewards;
   const claimDisabled = !hasAnyRewards || processing;
@@ -261,10 +260,12 @@ function RewardsPageContent() {
   ]);
 
   const handleCloseProcessingModal = () => {
+    // Reset all claim-related state variables
     btcCloseProcessingModal();
     btcSetTransactionHash("");
     setBtcTxHash("");
     setBabyTxHash("");
+    // Ensure claiming flags are reset even if finally blocks didn't execute
     setClaimingBtc(false);
     setClaimingBaby(false);
   };
