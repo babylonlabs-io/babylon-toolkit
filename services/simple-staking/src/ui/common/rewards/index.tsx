@@ -63,8 +63,7 @@ function RewardsPageContent() {
     loading: babyLoading,
   } = useBabyRewardState();
 
-  const { showPreview: btcShowPreview, claimRewards: btcClaimRewards } =
-    useRewardsService();
+  const { claimRewards: btcClaimRewards } = useRewardsService();
 
   const {
     getAdditionalBabyNeeded,
@@ -170,10 +169,10 @@ function RewardsPageContent() {
 
     if (!hasBtcRewards && !hasBabyRewards) return;
 
-    // Show preview for BTC rewards to calculate fees
-    if (hasBtcRewards) {
-      await btcShowPreview();
-    }
+    // Note: Fee estimation is skipped for BTC rewards because it may fail
+    // when rewards are in COSTAKER gauge only. The actual withdrawal will
+    // work correctly as the protocol handles all gauges under "btc_staker" type.
+    // Fee will be calculated during the actual transaction signing.
 
     setPreviewOpen(true);
   };
