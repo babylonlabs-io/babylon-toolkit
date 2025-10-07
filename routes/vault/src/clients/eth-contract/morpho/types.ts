@@ -27,6 +27,7 @@ export type MorphoUserPosition = {
   user: Address;
   supplyShares: bigint;
   borrowShares: bigint;
+  borrowAssets: bigint; // Actual debt amount including accrued interest
   collateral: bigint;
 };
 

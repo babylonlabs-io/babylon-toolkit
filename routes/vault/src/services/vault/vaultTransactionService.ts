@@ -95,8 +95,13 @@ export async function submitPeginRequest(
 /**
  * Repay a vault and initiate pegout
  *
- * Direct pass-through to client - included for completeness
- * NOTE: User must approve loan token spending before calling this
+ * IMPORTANT: This performs a FULL repayment only - no partial repayments allowed.
+ * The contract automatically repays the entire debt using the user's borrowShares.
+ *
+ * Before calling:
+ * 1. Fetch the user's position using AccrualPosition.fetch() to get borrowAssets (total debt)
+ * 2. User must approve loan token spending for the borrowAssets amount
+ * 3. Call this function to repay and withdraw BTC
  *
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHash - Pegin transaction hash (vault ID)

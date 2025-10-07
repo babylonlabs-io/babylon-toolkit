@@ -64,8 +64,8 @@ export function usePeginRequests(
   // Transform pegin requests to vault activities
   const activities = useMemo(() => {
     if (!data) return [];
-    return data.map(({ peginRequest, txHash, morphoPosition, morphoMarket, btcPriceUSD }) =>
-      transformPeginToActivity(peginRequest, txHash, onBorrowClick, morphoPosition, morphoMarket, btcPriceUSD)
+    return data.map(({ peginRequest, txHash, vaultMetadata, morphoPosition, morphoMarket, btcPriceUSD }) =>
+      transformPeginToActivity(peginRequest, txHash, onBorrowClick, vaultMetadata, morphoPosition, morphoMarket, btcPriceUSD)
     );
   }, [data, onBorrowClick]);
 

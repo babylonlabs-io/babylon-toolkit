@@ -7,7 +7,7 @@
 
 import type { Address, Hex } from 'viem';
 import { BTCVaultsManager, VaultController, Morpho, Oracle } from '../../clients/eth-contract';
-import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary } from '../../clients/eth-contract';
+import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary, VaultMetadata } from '../../clients/eth-contract';
 
 /**
  * Pegin request with transaction hash
@@ -27,6 +27,8 @@ export interface PeginRequestWithMorpho {
   peginRequest: PeginRequest;
   /** Transaction hash */
   txHash: Hex;
+  /** Vault metadata (undefined if vault not yet minted) */
+  vaultMetadata?: VaultMetadata;
   /** Morpho position data (undefined if vault not yet minted) */
   morphoPosition?: MorphoUserPosition;
   /** Morpho market data (undefined if vault not yet minted) */
@@ -124,6 +126,7 @@ export async function getPeginRequestsWithMorpho(
         return {
           peginRequest,
           txHash,
+          vaultMetadata,
           morphoPosition,
           morphoMarket,
           btcPriceUSD,
@@ -134,6 +137,7 @@ export async function getPeginRequestsWithMorpho(
         return {
           peginRequest,
           txHash,
+          vaultMetadata: undefined,
           morphoPosition: undefined,
           morphoMarket: undefined,
           btcPriceUSD: undefined,

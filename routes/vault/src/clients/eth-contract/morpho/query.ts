@@ -3,7 +3,8 @@
 import type { Address, Hex } from 'viem';
 import { ethClient } from '../client';
 import { toHex } from 'viem';
-import { fetchMarket, fetchPosition } from '@morpho-org/blue-sdk-viem';
+import { fetchMarket } from '@morpho-org/blue-sdk-viem';
+import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
 import { registerCustomAddresses } from '@morpho-org/blue-sdk';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
@@ -97,7 +98,7 @@ export async function getMarketById(
  * Get a user's position in a specific Morpho market
  * @param marketId - Market ID (string or bigint)
  * @param userProxyContractAddress - User's proxy contract address for the vault
- * @returns User's position with supply shares, borrow shares, and collateral
+ * @returns User's position with supply shares, borrow shares, borrow assets (actual debt), and collateral
  */
 export async function getUserPosition(
   marketId: string | bigint,
@@ -109,14 +110,19 @@ export async function getUserPosition(
   // Ensure localhost addresses are registered before fetching
   await ensureLocalhostAddressesRegistered();
 
-  // Fetch position using Morpho SDK
-  const position = await fetchPosition(userProxyContractAddress, marketIdHex as MarketId, publicClient);
+  // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
+  const position = await AccrualPosition.fetch(
+    userProxyContractAddress,
+    marketIdHex as MarketId,
+    publicClient
+  );
 
   return {
     marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
     user: userProxyContractAddress,
     supplyShares: position.supplyShares,
     borrowShares: position.borrowShares,
+    borrowAssets: position.borrowAssets, // Actual debt including accrued interest
     collateral: position.collateral,
   };
 }

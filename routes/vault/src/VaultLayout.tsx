@@ -1,5 +1,5 @@
 import { useAppKitBridge } from '@babylonlabs-io/wallet-connector';
-import { Activities } from './components/Activities';
+import { VaultDashboard } from './components/VaultDashboard';
 
 // TODO: Uncomment this when we have a way to test the contract queries
 // import { PegInTest } from './components/examples/PegInTest';
@@ -13,7 +13,7 @@ export default function VaultLayout() {
     <div className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-12 px-4 py-8">
       {/* <ContractQueryExample /> */}
       {/* <PegInTest /> */}
-      <Activities />
+      <VaultDashboard />
     </div>
   );
 }

@@ -1,0 +1,88 @@
+/**
+ * Hook for repaying loan and initiating pegout
+ */
+
+import { useState, useCallback } from 'react';
+import type { Hex, Hash, TransactionReceipt } from 'viem';
+import { repayAndPegout } from '../services/vault/vaultTransactionService';
+import { CONTRACTS } from '../config/contracts';
+
+export interface UseRepayAndPegoutParams {
+  /** Pegin transaction hash (vault ID) */
+  pegInTxHash: Hex;
+}
+
+export interface UseRepayAndPegoutResult {
+  /** Execute the repay and pegout transaction */
+  executeRepayAndPegout: (params: UseRepayAndPegoutParams) => Promise<{ transactionHash: Hash; receipt: TransactionReceipt } | null>;
+  /** Loading state */
+  isLoading: boolean;
+  /** Error message */
+  error: string | null;
+  /** Transaction hash */
+  transactionHash: Hash | null;
+  /** Reset state */
+  reset: () => void;
+}
+
+/**
+ * Hook to repay loan and initiate pegout
+ *
+ * IMPORTANT: This performs FULL repayment only.
+ * Before calling, ensure USDC approval is done for the exact borrowAssets amount.
+ */
+export function useRepayAndPegout(): UseRepayAndPegoutResult {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [transactionHash, setTransactionHash] = useState<Hash | null>(null);
+
+  const executeRepayAndPegout = useCallback(
+    async ({ pegInTxHash }: UseRepayAndPegoutParams) => {
+      setIsLoading(true);
+      setError(null);
+      setTransactionHash(null);
+
+      try {
+        console.log('[useRepayAndPegout] Executing repay and pegout:', {
+          pegInTxHash,
+          vaultController: CONTRACTS.VAULT_CONTROLLER,
+        });
+
+        // Call service to execute transaction
+        const txResult = await repayAndPegout(
+          CONTRACTS.VAULT_CONTROLLER,
+          pegInTxHash
+        );
+
+        console.log('[useRepayAndPegout] Transaction successful:', {
+          transactionHash: txResult.transactionHash,
+        });
+
+        setTransactionHash(txResult.transactionHash);
+        return txResult;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        console.error('[useRepayAndPegout] Transaction failed:', err);
+        setError(errorMessage);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const reset = useCallback(() => {
+    setIsLoading(false);
+    setError(null);
+    setTransactionHash(null);
+  }, []);
+
+  return {
+    executeRepayAndPegout,
+    isLoading,
+    error,
+    transactionHash,
+    reset,
+  };
+}

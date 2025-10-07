@@ -87,12 +87,27 @@ function convertBorrowSharesToAssets(
  * @param amount - Amount in smallest unit (6 decimals for USDC)
  * @returns Formatted amount as string (e.g., "1000.50")
  */
-function formatUSDCAmount(amount: bigint): string {
+export function formatUSDCAmount(amount: bigint): string {
   const USDC_DECIMALS = 1_000_000n; // 10^6
   const usdcAmount = Number(amount) / Number(USDC_DECIMALS);
 
   // Format with up to 2 decimal places for USD
   return usdcAmount.toFixed(2).replace(/\.?0+$/, '') || '0';
+}
+
+/**
+ * Get formatted total repay amount from activity
+ * Returns the total amount to repay including principal and accrued interest
+ * @param activity - VaultActivity with morphoPosition and borrowingData
+ * @returns Formatted repay amount string (e.g., "1050.00 USDC") or "0 USDC" if no position
+ */
+export function getFormattedRepayAmount(activity: VaultActivity): string {
+  if (!activity.morphoPosition || !activity.borrowingData) {
+    return "0 USDC";
+  }
+
+  const totalAmount = formatUSDCAmount(activity.morphoPosition.borrowAssets);
+  return `${totalAmount} ${activity.borrowingData.borrowedSymbol}`;
 }
 
 /**
@@ -173,6 +188,7 @@ function calculateBorrowingData(
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
  * @param onBorrowClick - Callback function for borrow action
+ * @param vaultMetadata - Optional vault metadata (undefined if vault not minted yet)
  * @param morphoPosition - Optional morpho position data (undefined if vault not minted yet)
  * @param morphoMarket - Optional morpho market data (undefined if vault not minted yet)
  * @param btcPriceUSD - Optional BTC price in USD (undefined if vault not minted yet)
@@ -182,6 +198,7 @@ export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
   onBorrowClick: (activity: VaultActivity) => void,
+  vaultMetadata?: { depositor: { ethAddress: any; btcPubKey: any }; proxyContract: any; marketId: any; vBTCAmount: bigint; borrowAmount: bigint; active: boolean },
   morphoPosition?: MorphoUserPosition,
   morphoMarket?: MorphoMarketSummary,
   btcPriceUSD?: { price: bigint; decimals: number }
@@ -195,11 +212,14 @@ export function transformPeginToActivity(
   // Check if user has already borrowed (has borrow shares > 0)
   const hasBorrowed = morphoPosition && morphoPosition.borrowShares > 0n;
 
-  // Get status info - override to "Borrowing" if vault has active borrows
+  // Get status info - override if borrowing
   const baseStatusInfo = getStatusInfo(peginRequest.status);
-  const statusInfo = hasBorrowed
-    ? { label: 'Borrowing', variant: 'active' as const }
-    : baseStatusInfo;
+  let statusInfo;
+  if (hasBorrowed) {
+    statusInfo = { label: 'Borrowing', variant: 'active' as const };
+  } else {
+    statusInfo = baseStatusInfo;
+  }
 
   // Calculate enriched borrowing data if we have position, market data, and BTC price
   const borrowingData = morphoPosition && morphoMarket && btcPriceUSD && hasBorrowed
@@ -242,9 +262,11 @@ export function transformPeginToActivity(
       collateral: morphoPosition.collateral,
       borrowShares: morphoPosition.borrowShares,
       borrowed: 0n, // Not available from morpho position, calculated separately
+      borrowAssets: morphoPosition.borrowAssets, // Actual debt including accrued interest
     } : undefined,
     borrowingData,
     marketData,
+    vaultMetadata,
     // TODO: Add position date from blockchain timestamp
     positionDate: undefined,
   };

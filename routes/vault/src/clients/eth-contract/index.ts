@@ -19,3 +19,6 @@ export type { MarketTokenRef, MorphoMarketSummary, MorphoUserPosition } from './
 
 // Oracle (Chainlink)
 export * as Oracle from './oracle/chainlinkOracle';
+
+// ERC20
+export * as ERC20 from './erc20';

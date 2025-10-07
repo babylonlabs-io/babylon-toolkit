@@ -3,6 +3,7 @@ import type { VaultActivity } from "../../mockData/vaultActivities";
 import { RepaySignModal } from "../modals/RepaySignModal";
 import { RepaySuccessModal } from "../modals/RepaySuccessModal";
 import { useRepayFlowState } from "./useRepayFlowState";
+import { getFormattedRepayAmount } from "../../utils/peginTransformers";
 
 interface RepayFlowProps {
   activity: VaultActivity | null;
@@ -40,10 +41,11 @@ export function RepayFlow({ activity, isOpen, onClose, onRepaySuccess }: RepayFl
 
   if (!activity) return null;
 
-  const repayAmount = activity.borrowingData 
-    ? `${activity.borrowingData.borrowedAmount} ${activity.borrowingData.borrowedSymbol}`
-    : "0 USDC";
+  const repayAmount = getFormattedRepayAmount(activity);
   const btcAmount = activity.collateral.amount;
+
+  // Get repay amount in wei for transaction
+  const repayAmountWei = activity.morphoPosition?.borrowAssets;
 
   return (
     <>
@@ -53,6 +55,7 @@ export function RepayFlow({ activity, isOpen, onClose, onRepaySuccess }: RepayFl
         onClose={handleSignModalClose}
         onSuccess={handleSignSuccess}
         pegInTxHash={activity.txHash}
+        repayAmountWei={repayAmountWei}
       />
 
       {/* Repay Success Modal */}

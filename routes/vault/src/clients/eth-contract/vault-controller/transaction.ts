@@ -125,7 +125,14 @@ export async function mintAndBorrow(
 
 /**
  * Repay a vault and initiate pegout
- * NOTE: User must approve loan token spending for the exact debt amount before calling this
+ *
+ * IMPORTANT: This performs a FULL repayment only - no partial repayments.
+ * The smart contract uses the user's borrowShares to repay the entire debt,
+ * which ensures exact repayment without leaving dust amounts.
+ *
+ * NOTE: User must approve loan token spending for the exact debt amount before calling this.
+ * Use borrowAssets from AccrualPosition.fetch() to get the current total debt (principal + interest).
+ *
  * @param contractAddress - BTCVaultController contract address
  * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
  * @returns Transaction hash and receipt
