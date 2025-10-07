@@ -4,10 +4,42 @@ import {
   ActivityList,
   type ActivityCardData,
   type ActivityCardDetailItem,
+  type ActivityCardActionButton,
   ProviderItem,
 } from "@babylonlabs-io/core-ui";
+import { useCallback, useState } from "react";
+import type { VaultActivity } from "../../mockData/vaultActivities";
 import { BorrowFlow } from "../BorrowFlow";
+import { RepayFlow } from "../RepayFlow";
 import { useActivitiesState } from "./useActivitiesState";
+
+function getPrimaryAction(
+  activity: VaultActivity,
+  hasBorrowed: boolean,
+  isActive: boolean,
+  onBorrow: (activity: VaultActivity) => void,
+  onRepay: (activity: VaultActivity) => void
+): ActivityCardActionButton | undefined {
+  if (hasBorrowed) {
+    return {
+      label: "Repay and Withdraw BTC",
+      onClick: () => onRepay(activity),
+      variant: "outlined",
+      fullWidth: true,
+    };
+  }
+  
+  if (isActive && !hasBorrowed) {
+    return {
+      label: "Borrow USDC",
+      onClick: () => onBorrow(activity),
+      variant: "outlined",
+      fullWidth: true,
+    };
+  }
+  
+  return undefined;
+}
 
 export function Activities() {
   const {
@@ -20,6 +52,21 @@ export function Activities() {
     isWalletConnected,
     refetchActivities,
   } = useActivitiesState();
+
+  // Repay flow state
+  const [repayFlowOpen, setRepayFlowOpen] = useState(false);
+  const [selectedRepayActivity, setSelectedRepayActivity] = useState<VaultActivity | null>(null);
+
+  const handleRepayAndWithdraw = useCallback((activity: VaultActivity) => {
+    console.log('[Activities] Repay and withdraw for:', activity.id);
+    setSelectedRepayActivity(activity);
+    setRepayFlowOpen(true);
+  }, []);
+
+  const handleRepayFlowClose = useCallback(() => {
+    setRepayFlowOpen(false);
+    setSelectedRepayActivity(null);
+  }, []);
 
   console.log('[Activities] activities:', activities);
   console.log('[Activities] activities.length:', activities.length);
@@ -66,30 +113,46 @@ export function Activities() {
     };
 
     // Check if user has already borrowed (has borrow shares > 0)
-    const hasBorrowed = activity.morphoPosition && activity.morphoPosition.borrowShares > 0n;
+    const hasBorrowed = !!(activity.morphoPosition && activity.morphoPosition.borrowShares > 0n);
 
     // Only active vaults can borrow
     const isActive = activity.status.variant === 'active';
 
-    // Build details array, adding borrowing data if available
+    // Build main details array
     const details: ActivityCardDetailItem[] = [statusDetail, providersDetail];
 
-    // Add borrowing details if user has borrowed
+    // Build optional details array for loan information (shown in separate section)
+    const optionalDetails: ActivityCardDetailItem[] = [];
+    
     if (activity.borrowingData) {
-      details.push({
-        label: "Borrowed",
+      // Add loan details section header
+      optionalDetails.push({
+        label: (
+          <div className="space-y-1">
+            <div className="text-base font-semibold text-accent-primary">Loan Details</div>
+            <div className="text-xs text-accent-secondary">Your current loan</div>
+          </div>
+        ),
+        value: "",
+      });
+      
+      // Add loan amount
+      optionalDetails.push({
+        label: "Loan",
         value: `${activity.borrowingData.borrowedAmount} ${activity.borrowingData.borrowedSymbol}`,
       });
-      // Only show LTV if it's calculated (non-zero)
-      // TODO: Implement BTC price oracle to calculate accurate current LTV
+      
+      // Add LTV (only if calculated)
       if (activity.borrowingData.currentLTV > 0) {
-        details.push({
-          label: "Current LTV",
+        optionalDetails.push({
+          label: "LTV",
           value: `${activity.borrowingData.currentLTV}%`,
         });
       }
-      details.push({
-        label: "Max LTV (LLTV)",
+      
+      // Add liquidation LTV
+      optionalDetails.push({
+        label: "Liquidation LTV",
         value: `${activity.borrowingData.maxLTV}%`,
       });
     }
@@ -99,11 +162,15 @@ export function Activities() {
       icon: activity.collateral.icon,
       iconAlt: activity.collateral.symbol,
       details,
-      // Show borrow button if vault is active and user hasn't borrowed yet
-      primaryAction: (isActive && !hasBorrowed) ? {
-        label: activity.action.label,
-        onClick: () => handleActivityBorrow(activity),
-      } : undefined,
+      optionalDetails: optionalDetails.length > 0 ? optionalDetails : undefined,
+      // Use helper function for cleaner conditional button logic
+      primaryAction: getPrimaryAction(
+        activity,
+        hasBorrowed,
+        isActive,
+        handleActivityBorrow,
+        handleRepayAndWithdraw
+      ),
     };
   });
 
@@ -122,6 +189,13 @@ export function Activities() {
         isOpen={borrowFlowOpen}
         onClose={handleBorrowFlowClose}
         onBorrowSuccess={refetchActivities}
+      />
+
+      <RepayFlow
+        activity={selectedRepayActivity}
+        isOpen={repayFlowOpen}
+        onClose={handleRepayFlowClose}
+        onRepaySuccess={refetchActivities}
       />
     </>
   );
