@@ -17,7 +17,7 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 
   return <DialogComponent {...restProps} className={twMerge("w-[41.25rem] max-w-full", className)} />;
 }
-interface TokenReward {
+export interface TokenReward {
   icon?: ReactNode;
   name: string;
   amount?: {
