@@ -70,8 +70,18 @@ function ClaimStatusModalDemo() {
     setLoading(false);
     setStatus(ClaimStatus.SUCCESS);
     setResults([
-      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: true, txHash: sampleHashA },
-      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: true, txHash: sampleHashB },
+      {
+        kind: "btc",
+        label: `${demoBtcSymbol} Staking`,
+        success: true,
+        txHash: sampleHashA,
+      },
+      {
+        kind: "baby",
+        label: `${demoBbnSymbol} Staking`,
+        success: true,
+        txHash: sampleHashB,
+      },
     ]);
     setOpen(true);
   };
@@ -80,8 +90,18 @@ function ClaimStatusModalDemo() {
     setLoading(false);
     setStatus(ClaimStatus.PARTIAL);
     setResults([
-      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: true, txHash: sampleHashA },
-      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: false, error: "Insufficient funds" },
+      {
+        kind: "btc",
+        label: `${demoBtcSymbol} Staking`,
+        success: true,
+        txHash: sampleHashA,
+      },
+      {
+        kind: "baby",
+        label: `${demoBbnSymbol} Staking`,
+        success: false,
+        error: "Insufficient funds",
+      },
     ]);
     setOpen(true);
   };
@@ -90,8 +110,18 @@ function ClaimStatusModalDemo() {
     setLoading(false);
     setStatus(ClaimStatus.ERROR);
     setResults([
-      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: false, error: "User rejected" },
-      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: false, error: "RPC error" },
+      {
+        kind: "btc",
+        label: `${demoBtcSymbol} Staking`,
+        success: false,
+        error: "User rejected",
+      },
+      {
+        kind: "baby",
+        label: `${demoBbnSymbol} Staking`,
+        success: false,
+        error: "RPC error",
+      },
     ]);
     setOpen(true);
   };

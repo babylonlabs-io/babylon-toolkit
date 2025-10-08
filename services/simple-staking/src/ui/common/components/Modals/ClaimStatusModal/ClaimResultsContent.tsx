@@ -1,21 +1,19 @@
-import { Text, Button } from "@babylonlabs-io/core-ui";
+import { Text, Copy, CopyIcon } from "@babylonlabs-io/core-ui";
 
 import { BABYLON_EXPLORER } from "@/ui/common/constants";
 import { trim } from "@/ui/common/utils/trim";
 
 import type { ClaimResult } from "./ClaimStatusModal";
 
-function CopyButton({ value, label }: { value: string; label: string }) {
-  const onCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {}
-  };
-
+function CopyButton({ value }: { value: string }) {
   return (
-    <Button size="small" variant="outlined" onClick={onCopy}>
-      {label}
-    </Button>
+    <Copy
+      value={value}
+      className="text-accent-secondary hover:opacity-80"
+      copiedText="✓"
+    >
+      <CopyIcon className="text-accent-secondary" size={14} />
+    </Copy>
   );
 }
 
@@ -43,23 +41,23 @@ function Row({
                 href={`${BABYLON_EXPLORER}/transaction/${tx}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary-light underline hover:text-primary-light/80"
+                className="text-accent-secondary underline hover:text-accent-secondary/80"
               >
                 {trim(tx, 8)}
               </a>
             ) : (
-              <Text variant="body2" className="text-primary-light">
+              <Text variant="body2" className="text-accent-secondary">
                 {trim(tx, 8)}
               </Text>
             )}
-            <CopyButton value={tx} label="Copy" />
+            <CopyButton value={tx} />
           </>
         ) : (
           <>
-            <Text variant="body2" className="text-status-error">
+            <Text variant="body2" className="text-accent-secondary">
               Failed
             </Text>
-            {error && <CopyButton value={error} label="Copy error" />}
+            {error && <CopyButton value={error} />}
           </>
         )}
       </div>
@@ -67,11 +65,7 @@ function Row({
   );
 }
 
-export function ClaimResultsContent({
-  results,
-}: {
-  results?: ClaimResult[];
-}) {
+export function ClaimResultsContent({ results }: { results?: ClaimResult[] }) {
   const btc = results?.find((r) => r.kind === "btc");
   const baby = results?.find((r) => r.kind === "baby");
 

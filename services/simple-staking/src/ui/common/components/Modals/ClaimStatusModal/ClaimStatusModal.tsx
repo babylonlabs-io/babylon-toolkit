@@ -1,4 +1,4 @@
-import { Loader, Text } from "@babylonlabs-io/core-ui";
+import { Loader } from "@babylonlabs-io/core-ui";
 import { BiSolidBadgeCheck, BiErrorCircle } from "react-icons/bi";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -6,6 +6,7 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { SubmitModal } from "../SubmitModal";
 
 import { ClaimResultsContent } from "./ClaimResultsContent";
+import { ClaimErrorsContent } from "./ClaimErrorsContent";
 
 interface ClaimStatusModalProps {
   open: boolean;
@@ -45,14 +46,18 @@ const MODAL_STEP = {
     title: `Successfully Claimed ${coinSymbol}`,
     submitButton: "Done",
     cancelButton: "",
-    content: (results?: ClaimResult[]) => <ClaimResultsContent results={results} />,
+    content: (results?: ClaimResult[]) => (
+      <ClaimResultsContent results={results} />
+    ),
   },
   [ClaimStatus.PARTIAL]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: "Claim Completed With Some Failures",
     submitButton: "Done",
     cancelButton: "",
-    content: (results?: ClaimResult[]) => <ClaimResultsContent results={results} />,
+    content: (results?: ClaimResult[]) => (
+      <ClaimResultsContent results={results} />
+    ),
   },
   [ClaimStatus.ERROR]: {
     icon: <BiErrorCircle className="text-status-error text-5xl" />,
@@ -60,18 +65,7 @@ const MODAL_STEP = {
     submitButton: "Done",
     cancelButton: "",
     content: (results?: ClaimResult[]) => (
-      <div className="flex flex-col gap-3">
-        {results?.map((r) => (
-          <div key={r.label} className="flex items-center justify-between">
-            <Text variant="body1" className="text-accent-primary">
-              {r.label}
-            </Text>
-            <Text variant="body2" className="text-status-error">
-              Failed
-            </Text>
-          </div>
-        ))}
-      </div>
+      <ClaimErrorsContent results={results} />
     ),
   },
 };
