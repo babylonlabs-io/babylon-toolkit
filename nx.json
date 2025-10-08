@@ -75,5 +75,8 @@
         "skipLockFileUpdate": true
       }
     }
+  },
+  "cli": {
+    "packageManager": "pnpm"
   }
 }
