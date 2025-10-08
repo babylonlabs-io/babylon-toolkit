@@ -60,7 +60,7 @@ const MODAL_STEP = {
     ),
   },
   [ClaimStatus.ERROR]: {
-    icon: <BiErrorCircle className="text-status-error text-5xl" />,
+    icon: <BiErrorCircle className="text-5xl text-primary-light" />,
     title: "Claim Failed",
     submitButton: "Done",
     cancelButton: "",

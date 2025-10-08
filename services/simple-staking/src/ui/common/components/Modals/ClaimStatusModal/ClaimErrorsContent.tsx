@@ -15,13 +15,13 @@ export function ClaimErrorsContent({ results }: { results?: ClaimResult[] }) {
             {r.label}
           </Text>
           <div className="flex items-center gap-2">
-            <Text variant="body2" className="text-status-error">
+            <Text variant="body2" className="text-accent-secondary">
               Failed
             </Text>
             {r.error && (
               <Copy
                 value={r.error}
-                className="text-primary-light hover:opacity-80"
+                className="text-accent-secondary hover:opacity-80"
                 copiedText="✓"
               >
                 <CopyIcon size={14} />
