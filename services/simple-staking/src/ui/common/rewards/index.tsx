@@ -27,7 +27,11 @@ import {
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
-import { ClaimStatus, ClaimStatusModal } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
+import {
+  ClaimStatus,
+  ClaimStatusModal,
+  ClaimResult,
+} from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
 import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
 import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import {
@@ -42,12 +46,90 @@ const formatter = Intl.NumberFormat("en", {
 
 const MAX_DECIMALS = 6;
 
+function ClaimStatusModalDemo() {
+  const { coinSymbol: demoBbnSymbol } = getNetworkConfigBBN();
+  const { coinSymbol: demoBtcSymbol } = getNetworkConfigBTC();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<ClaimStatus | undefined>();
+  const [results, setResults] = useState<ClaimResult[] | undefined>();
+
+  const sampleHashA =
+    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd";
+  const sampleHashB =
+    "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678";
+
+  const openProcessing = () => {
+    setLoading(true);
+    setStatus(undefined);
+    setResults(undefined);
+    setOpen(true);
+  };
+
+  const openSuccess = () => {
+    setLoading(false);
+    setStatus(ClaimStatus.SUCCESS);
+    setResults([
+      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: true, txHash: sampleHashA },
+      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: true, txHash: sampleHashB },
+    ]);
+    setOpen(true);
+  };
+
+  const openPartial = () => {
+    setLoading(false);
+    setStatus(ClaimStatus.PARTIAL);
+    setResults([
+      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: true, txHash: sampleHashA },
+      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: false, error: "Insufficient funds" },
+    ]);
+    setOpen(true);
+  };
+
+  const openError = () => {
+    setLoading(false);
+    setStatus(ClaimStatus.ERROR);
+    setResults([
+      { kind: "btc", label: `${demoBtcSymbol} Staking`, success: false, error: "User rejected" },
+      { kind: "baby", label: `${demoBbnSymbol} Staking`, success: false, error: "RPC error" },
+    ]);
+    setOpen(true);
+  };
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outlined" size="small" onClick={openProcessing}>
+          Open Processing
+        </Button>
+        <Button variant="outlined" size="small" onClick={openSuccess}>
+          Open Success
+        </Button>
+        <Button variant="outlined" size="small" onClick={openPartial}>
+          Open Partial
+        </Button>
+        <Button variant="outlined" size="small" onClick={openError}>
+          Open Error
+        </Button>
+      </div>
+
+      <ClaimStatusModal
+        open={open}
+        onClose={() => setOpen(false)}
+        loading={loading}
+        status={status}
+        results={results}
+      />
+    </>
+  );
+}
+
 function RewardsPageContent() {
   const { open: openWidget } = useWalletConnect();
   const { loading: cosmosWalletLoading } = useCosmosWallet();
-  const navigate = useNavigate();
   const { logo, coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
+  const navigate = useNavigate();
 
   const {
     rewardBalance: btcRewardUbbn,
@@ -56,7 +138,6 @@ function RewardsPageContent() {
     closeProcessingModal: btcCloseProcessingModal,
     openProcessingModal: btcOpenProcessingModal,
     transactionFee: btcTransactionFee,
-    transactionHash: btcTransactionHash,
     setTransactionHash: btcSetTransactionHash,
   } = useBtcRewardsState();
   const {
@@ -109,14 +190,8 @@ function RewardsPageContent() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [claimingBtc, setClaimingBtc] = useState(false);
   const [claimingBaby, setClaimingBaby] = useState(false);
-  const [btcTxHash, setBtcTxHash] = useState("");
-  const [babyTxHash, setBabyTxHash] = useState("");
-  const [claimStatus, setClaimStatus] = useState<
-    ClaimStatus | undefined
-  >();
-  const [claimResults, setClaimResults] = useState<
-    { label: string; success: boolean; txHash?: string }[]
-  >([]);
+  const [claimStatus, setClaimStatus] = useState<ClaimStatus | undefined>();
+  const [claimResults, setClaimResults] = useState<ClaimResult[]>([]);
 
   const processing =
     btcProcessing || babyLoading || claimingBtc || claimingBaby;
@@ -126,10 +201,6 @@ function RewardsPageContent() {
     btcShowProcessingModal ||
     Boolean(claimStatus);
 
-  const transactionHashes = [
-    btcTxHash || btcTransactionHash,
-    babyTxHash,
-  ].filter(Boolean);
   const transactionFee = btcTransactionFee; // Primary fee shown is BTC staking fee
 
   function NotConnected() {
@@ -192,24 +263,28 @@ function RewardsPageContent() {
     btcOpenProcessingModal();
     setClaimStatus(ClaimStatus.PROCESSING);
     setClaimResults([]);
-    const results: { label: string; success: boolean; txHash?: string }[] = [];
+
+    const results: ClaimResult[] = [];
 
     // Claim BTC staking rewards
     if (hasBtcRewards) {
       try {
         setClaimingBtc(true);
         const btcResult = await btcClaimRewards();
-        if (btcResult?.txHash) {
-          setBtcTxHash(btcResult.txHash);
-        }
         results.push({
+          kind: "btc",
           label: `${btcCoinSymbol} Staking`,
           success: Boolean(btcResult?.txHash),
           txHash: btcResult?.txHash,
         });
       } catch (error) {
         console.error("Error claiming BTC rewards:", error);
-        results.push({ label: `${btcCoinSymbol} Staking`, success: false });
+        results.push({
+          kind: "btc",
+          label: `${btcCoinSymbol} Staking`,
+          success: false,
+          error: (error as any)?.message ?? String(error),
+        });
       } finally {
         setClaimingBtc(false);
       }
@@ -220,17 +295,20 @@ function RewardsPageContent() {
       try {
         setClaimingBaby(true);
         const babyResult = await babyClaimAll();
-        if (babyResult?.txHash) {
-          setBabyTxHash(babyResult.txHash);
-        }
         results.push({
+          kind: "baby",
           label: `${bbnCoinSymbol} Staking`,
           success: Boolean(babyResult?.txHash),
           txHash: babyResult?.txHash,
         });
       } catch (error) {
         console.error("Error claiming BABY rewards:", error);
-        results.push({ label: `${bbnCoinSymbol} Staking`, success: false });
+        results.push({
+          kind: "baby",
+          label: `${bbnCoinSymbol} Staking`,
+          success: false,
+          error: (error as any)?.message ?? String(error),
+        });
       } finally {
         setClaimingBaby(false);
       }
@@ -298,8 +376,6 @@ function RewardsPageContent() {
     // Reset all claim-related state variables
     btcCloseProcessingModal();
     btcSetTransactionHash("");
-    setBtcTxHash("");
-    setBabyTxHash("");
     // Ensure claiming flags are reset even if finally blocks didn't execute
     setClaimingBtc(false);
     setClaimingBaby(false);
@@ -309,6 +385,10 @@ function RewardsPageContent() {
 
   return (
     <Content>
+      {/* Dev-only modal preview */}
+      <div className="mx-auto mb-4 w-full max-w-[760px]">
+        <ClaimStatusModalDemo />
+      </div>
       <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 py-6 max-md:border-0 max-md:p-0">
         <AuthGuard fallback={<NotConnected />}>
           <Container
@@ -358,7 +438,6 @@ function RewardsPageContent() {
         open={showProcessingModal}
         onClose={handleCloseProcessingModal}
         loading={processing}
-        transactionHash={transactionHashes}
         status={claimStatus}
         results={claimResults}
       />

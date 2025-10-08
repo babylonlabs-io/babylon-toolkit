@@ -5,15 +5,22 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 
 import { SubmitModal } from "../SubmitModal";
 
-import { SuccessContent } from "./SuccessContent";
+import { ClaimResultsContent } from "./ClaimResultsContent";
 
 interface ClaimStatusModalProps {
   open: boolean;
   onClose?: () => void;
   loading: boolean;
-  transactionHash: string[];
   status?: ClaimStatus;
-  results?: { label: string; success: boolean; txHash?: string }[];
+  results?: ClaimResult[];
+}
+
+export interface ClaimResult {
+  kind: "btc" | "baby";
+  label: string;
+  success: boolean;
+  txHash?: string;
+  error?: string;
 }
 
 export enum ClaimStatus {
@@ -31,55 +38,28 @@ const MODAL_STEP = {
     title: "Processing Claim",
     submitButton: "",
     cancelButton: "",
-    content: null as any,
+    content: null,
   },
   [ClaimStatus.SUCCESS]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: `Successfully Claimed ${coinSymbol}`,
     submitButton: "Done",
     cancelButton: "",
-    content: (txHash: string[]) => <SuccessContent transactionHash={txHash} />,
+    content: (results?: ClaimResult[]) => <ClaimResultsContent results={results} />,
   },
   [ClaimStatus.PARTIAL]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: "Claim Completed With Some Failures",
     submitButton: "Done",
     cancelButton: "",
-    content: (
-      _txHash: string[],
-      results?: { label: string; success: boolean; txHash?: string }[],
-    ) => (
-      <div className="flex flex-col gap-3">
-        {results?.map((r) => (
-          <div key={r.label} className="flex items-center justify-between">
-            <Text variant="body1" className="text-accent-primary">
-              {r.label}
-            </Text>
-            <div className="flex items-center gap-2">
-              {r.success ? (
-                <Text variant="body2" className="text-primary-light">
-                  Success
-                </Text>
-              ) : (
-                <Text variant="body2" className="text-status-error">
-                  Failed
-                </Text>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    ),
+    content: (results?: ClaimResult[]) => <ClaimResultsContent results={results} />,
   },
   [ClaimStatus.ERROR]: {
     icon: <BiErrorCircle className="text-status-error text-5xl" />,
     title: "Claim Failed",
     submitButton: "Done",
     cancelButton: "",
-    content: (
-      _txHash: string[],
-      results?: { label: string; success: boolean }[],
-    ) => (
+    content: (results?: ClaimResult[]) => (
       <div className="flex flex-col gap-3">
         {results?.map((r) => (
           <div key={r.label} className="flex items-center justify-between">
@@ -100,7 +80,6 @@ export const ClaimStatusModal = ({
   open,
   onClose,
   loading,
-  transactionHash,
   status,
   results,
 }: ClaimStatusModalProps) => {
@@ -119,11 +98,7 @@ export const ClaimStatusModal = ({
       submitButton={config.submitButton}
       cancelButton={config.cancelButton}
     >
-      {resolvedStatus === ClaimStatus.SUCCESS &&
-        config.content?.(transactionHash)}
-      {resolvedStatus !== ClaimStatus.SUCCESS &&
-        resolvedStatus !== ClaimStatus.PROCESSING &&
-        config.content?.(transactionHash, results)}
+      {resolvedStatus !== ClaimStatus.PROCESSING && config.content?.(results)}
     </SubmitModal>
   );
 };

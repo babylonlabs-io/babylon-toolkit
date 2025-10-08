@@ -1,0 +1,84 @@
+import { Text, Button } from "@babylonlabs-io/core-ui";
+
+import { BABYLON_EXPLORER } from "@/ui/common/constants";
+import { trim } from "@/ui/common/utils/trim";
+
+import type { ClaimResult } from "./ClaimStatusModal";
+
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {}
+  };
+
+  return (
+    <Button size="small" variant="outlined" onClick={onCopy}>
+      {label}
+    </Button>
+  );
+}
+
+function Row({
+  title,
+  result,
+}: {
+  title: string;
+  result: ClaimResult | undefined;
+}) {
+  const success = Boolean(result?.success && result.txHash);
+  const tx = result?.txHash ?? "";
+  const error = result?.error ?? "";
+
+  return (
+    <div className="flex items-center justify-between">
+      <Text variant="body1" className="text-accent-primary">
+        {title}
+      </Text>
+      <div className="flex items-center gap-2">
+        {success ? (
+          <>
+            {BABYLON_EXPLORER ? (
+              <a
+                href={`${BABYLON_EXPLORER}/transaction/${tx}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-light underline hover:text-primary-light/80"
+              >
+                {trim(tx, 8)}
+              </a>
+            ) : (
+              <Text variant="body2" className="text-primary-light">
+                {trim(tx, 8)}
+              </Text>
+            )}
+            <CopyButton value={tx} label="Copy" />
+          </>
+        ) : (
+          <>
+            <Text variant="body2" className="text-status-error">
+              Failed
+            </Text>
+            {error && <CopyButton value={error} label="Copy error" />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ClaimResultsContent({
+  results,
+}: {
+  results?: ClaimResult[];
+}) {
+  const btc = results?.find((r) => r.kind === "btc");
+  const baby = results?.find((r) => r.kind === "baby");
+
+  return (
+    <div className="flex flex-col gap-3">
+      <Row title="BTC Staking Transaction" result={btc} />
+      <Row title="BABY Staking Transaction" result={baby} />
+    </div>
+  );
+}
