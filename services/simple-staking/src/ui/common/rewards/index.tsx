@@ -46,114 +46,6 @@ const formatter = Intl.NumberFormat("en", {
 
 const MAX_DECIMALS = 6;
 
-function ClaimStatusModalDemo() {
-  const { coinSymbol: demoBbnSymbol } = getNetworkConfigBBN();
-  const { coinSymbol: demoBtcSymbol } = getNetworkConfigBTC();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<ClaimStatus | undefined>();
-  const [results, setResults] = useState<ClaimResult[] | undefined>();
-
-  const sampleHashA =
-    "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcd";
-  const sampleHashB =
-    "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678";
-
-  const openProcessing = () => {
-    setLoading(true);
-    setStatus(undefined);
-    setResults(undefined);
-    setOpen(true);
-  };
-
-  const openSuccess = () => {
-    setLoading(false);
-    setStatus(ClaimStatus.SUCCESS);
-    setResults([
-      {
-        kind: "btc",
-        label: `${demoBtcSymbol} Staking`,
-        success: true,
-        txHash: sampleHashA,
-      },
-      {
-        kind: "baby",
-        label: `${demoBbnSymbol} Staking`,
-        success: true,
-        txHash: sampleHashB,
-      },
-    ]);
-    setOpen(true);
-  };
-
-  const openPartial = () => {
-    setLoading(false);
-    setStatus(ClaimStatus.PARTIAL);
-    setResults([
-      {
-        kind: "btc",
-        label: `${demoBtcSymbol} Staking`,
-        success: true,
-        txHash: sampleHashA,
-      },
-      {
-        kind: "baby",
-        label: `${demoBbnSymbol} Staking`,
-        success: false,
-        error: "Insufficient funds",
-      },
-    ]);
-    setOpen(true);
-  };
-
-  const openError = () => {
-    setLoading(false);
-    setStatus(ClaimStatus.ERROR);
-    setResults([
-      {
-        kind: "btc",
-        label: `${demoBtcSymbol} Staking`,
-        success: false,
-        error: "User rejected",
-      },
-      {
-        kind: "baby",
-        label: `${demoBbnSymbol} Staking`,
-        success: false,
-        error: "RPC error",
-      },
-    ]);
-    setOpen(true);
-  };
-
-  return (
-    <>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outlined" size="small" onClick={openProcessing}>
-          Open Processing
-        </Button>
-        <Button variant="outlined" size="small" onClick={openSuccess}>
-          Open Success
-        </Button>
-        <Button variant="outlined" size="small" onClick={openPartial}>
-          Open Partial
-        </Button>
-        <Button variant="outlined" size="small" onClick={openError}>
-          Open Error
-        </Button>
-      </div>
-
-      <ClaimStatusModal
-        open={open}
-        onClose={() => setOpen(false)}
-        loading={loading}
-        status={status}
-        results={results}
-      />
-    </>
-  );
-}
-
 function RewardsPageContent() {
   const { open: openWidget } = useWalletConnect();
   const { loading: cosmosWalletLoading } = useCosmosWallet();
@@ -415,10 +307,6 @@ function RewardsPageContent() {
 
   return (
     <Content>
-      {/* Dev-only modal preview */}
-      <div className="mx-auto mb-4 w-full max-w-[760px]">
-        <ClaimStatusModalDemo />
-      </div>
       <Card className="container mx-auto flex max-w-[760px] flex-1 flex-col gap-[3rem] bg-surface px-4 py-6 max-md:border-0 max-md:p-0">
         <AuthGuard fallback={<NotConnected />}>
           <Container
