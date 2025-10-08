@@ -26,7 +26,6 @@ function Row({
 }) {
   const success = Boolean(result?.success && result.txHash);
   const tx = result?.txHash ?? "";
-  const error = result?.error ?? "";
 
   return (
     <div className="flex items-center justify-between">
@@ -53,12 +52,9 @@ function Row({
             <CopyButton value={tx} />
           </>
         ) : (
-          <>
-            <Text variant="body2" className="text-accent-secondary">
-              Failed
-            </Text>
-            {error && <CopyButton value={error} />}
-          </>
+          <Text variant="body2" className="text-accent-secondary">
+            Failed
+          </Text>
         )}
       </div>
     </div>

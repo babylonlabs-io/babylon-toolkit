@@ -205,7 +205,6 @@ function RewardsPageContent() {
           kind: "btc",
           label: `${btcCoinSymbol} Staking`,
           success: false,
-          error: error instanceof Error ? error.message : String(error),
         });
       } finally {
         setClaimingBtc(false);
@@ -229,7 +228,6 @@ function RewardsPageContent() {
           kind: "baby",
           label: `${bbnCoinSymbol} Staking`,
           success: false,
-          error: error instanceof Error ? error.message : String(error),
         });
       } finally {
         setClaimingBaby(false);

@@ -21,7 +21,6 @@ export interface ClaimResult {
   label: string;
   success: boolean;
   txHash?: string;
-  error?: string;
 }
 
 export enum ClaimStatus {
