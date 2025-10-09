@@ -161,14 +161,16 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
             infoIcon={<InfoIcon size={14} variant="secondary" />}
           />
 
-          <WalletMenuInfoItem
-            title="Bitcoin Public Key"
-            value={publicKeyNoCoord}
-            isCopied={isCopied("publicKey")}
-            onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
-            icon={<ThemedIcon variant="primary" background rounded><BitcoinPublicKeyIcon /></ThemedIcon>}
-            className="rounded-b-lg rounded-t-none md:rounded-none"
-          />
+          {btcAddress && (
+            <WalletMenuInfoItem
+              title="Bitcoin Public Key"
+              value={publicKeyNoCoord}
+              isCopied={isCopied("publicKey")}
+              onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
+              icon={<ThemedIcon variant="primary" background rounded><BitcoinPublicKeyIcon /></ThemedIcon>}
+              className="rounded-b-lg rounded-t-none md:rounded-none"
+            />
+          )}
         </div>
 
         {/* Disconnect Button */}
