@@ -1,6 +1,6 @@
 /**
  * Hook for managing peg-in local storage
- * 
+ *
  * Similar to simple-staking's useDelegationStorage pattern:
  * - Merges pending peg-ins from localStorage with confirmed peg-ins from API
  * - Automatically removes confirmed peg-ins from localStorage
@@ -58,30 +58,36 @@ export function usePeginStorage({
 
   // Convert pending peg-ins to VaultActivity format
   const pendingActivities: VaultActivity[] = useMemo(() => {
-    return pendingPegins
-      .filter((pegin: PendingPeginRequest) => !confirmedPeginMap[pegin.id]) // Don't show if already confirmed
-      .map((pegin: PendingPeginRequest) => ({
-        id: pegin.id,
-        collateral: {
-          amount: pegin.amount,
-          symbol: 'BTC',
-          icon: bitcoinIcon,
-        },
-        status: {
-          label: 'Pending',
-          variant: 'pending' as const,
-        },
-        providers: pegin.providers.map((providerId: string) => ({
-          id: providerId,
-          name: providerId, // TODO: Map to actual provider names
-          icon: undefined,
-        })),
-        action: {
-          label: 'Borrow USDC',
-          onClick: () => console.log('Borrow from pending peg-in:', pegin.id),
-        },
-        isPending: true, // Flag to show callout message
-      }));
+    const filtered = pendingPegins.filter((pegin: PendingPeginRequest) => {
+      const isConfirmed = !!confirmedPeginMap[pegin.id];
+      console.log(
+        `[usePeginStorage] 🔍 Checking pegin ${pegin.id}: isConfirmed=${isConfirmed}`,
+      );
+      return !isConfirmed; // Don't show if already confirmed
+    });
+
+    return filtered.map((pegin: PendingPeginRequest) => ({
+      id: pegin.id,
+      collateral: {
+        amount: pegin.amount,
+        symbol: 'BTC',
+        icon: bitcoinIcon,
+      },
+      status: {
+        label: 'Pending',
+        variant: 'pending' as const,
+      },
+      providers: pegin.providers.map((providerId: string) => ({
+        id: providerId,
+        name: providerId, // TODO: Map to actual provider names
+        icon: undefined,
+      })),
+      action: {
+        label: 'Borrow USDC',
+        onClick: () => console.log('Borrow from pending peg-in:', pegin.id),
+      },
+      isPending: true, // Flag to show callout message
+    }));
   }, [pendingPegins, confirmedPeginMap]);
 
   // Merge pending and confirmed activities
@@ -108,7 +114,9 @@ export function usePeginStorage({
   // Remove a pending peg-in manually
   const removePendingPegin = useCallback(
     (peginId: string) => {
-      setPendingPegins((prev: PendingPeginRequest[]) => prev.filter((p: PendingPeginRequest) => p.id !== peginId));
+      setPendingPegins((prev: PendingPeginRequest[]) =>
+        prev.filter((p: PendingPeginRequest) => p.id !== peginId),
+      );
     },
     [setPendingPegins],
   );

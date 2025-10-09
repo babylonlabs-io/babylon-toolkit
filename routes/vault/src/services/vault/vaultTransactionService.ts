@@ -8,6 +8,8 @@
 import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
 import { VaultControllerTx, Morpho } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
+import * as btcTransactionService from '../btc/btcTransactionService';
+import { LOCAL_PEGIN_CONFIG } from '../../config/pegin';
 
 /**
  * Result of mintAndBorrow operation
@@ -40,7 +42,7 @@ export async function mintAndBorrowWithMarketId(
   pegInTxHash: Hex,
   depositorBtcPubkey: Hex,
   marketId: string | bigint,
-  borrowAmount: bigint
+  borrowAmount: bigint,
 ): Promise<MintAndBorrowResult> {
   // Step 1: Fetch market parameters from Morpho
   const market = await Morpho.getMarketById(marketId);
@@ -60,7 +62,7 @@ export async function mintAndBorrowWithMarketId(
     pegInTxHash,
     depositorBtcPubkey,
     marketParams,
-    borrowAmount
+    borrowAmount,
   );
 
   return {
@@ -73,23 +75,60 @@ export async function mintAndBorrowWithMarketId(
 /**
  * Submit a pegin request
  *
- * Direct pass-through to client - included for completeness
+ * This orchestrates the complete peg-in submission:
+ * 1. Create unsigned BTC transaction using WASM (with REAL user data + HARDCODED infrastructure)
+ * 2. Submit unsigned BTC transaction to smart contract
+ * 3. Wait for ETH transaction confirmation
+ * 4. Return transaction details
+ *
+ * Note: This function does NOT broadcast the BTC transaction to the Bitcoin network.
+ * For the POC, we only submit the unsigned transaction to the Ethereum vault contract.
  *
  * @param vaultControllerAddress - BTCVaultController contract address
- * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
- * @param vaultProvider - Vault provider address
- * @returns Transaction hash, receipt, and pegin transaction hash
+ * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes hex)
+ * @param pegInAmountSats - Amount to peg in (in satoshis)
+ * @returns Transaction hash, receipt, and pegin transaction details
  */
 export async function submitPeginRequest(
   vaultControllerAddress: Address,
-  unsignedPegInTx: Hex,
-  vaultProvider: Address
+  depositorBtcPubkey: string,
+  pegInAmountSats: bigint,
 ) {
-  return VaultControllerTx.submitPeginRequest(
+  // Step 1: Create unsigned BTC peg-in transaction
+  // This uses WASM to construct the transaction with:
+  // - REAL: depositor pubkey, peg-in amount
+  // - HARDCODED: vault provider, liquidators, network, fee
+  // - MOCKED: funding transaction (UTXO)
+  const btcTx = await btcTransactionService.createPeginTxForSubmission({
+    depositorBtcPubkey,
+    pegInAmount: pegInAmountSats,
+  });
+
+  // Step 2: Convert to Hex format for contract (ensure 0x prefix)
+  const unsignedPegInTx = btcTx.unsignedTxHex.startsWith('0x')
+    ? (btcTx.unsignedTxHex as Hex)
+    : (`0x${btcTx.unsignedTxHex}` as Hex);
+
+  // Step 3: Get vault provider address
+  // HARDCODED: Using local deployment vault provider for POC
+  // In production, this would be selected by user or fetched from backend
+  const vaultProvider = LOCAL_PEGIN_CONFIG.vaultProviderAddress;
+
+  // Step 4: Submit to smart contract
+  // This triggers the Ethereum transaction that:
+  // - Stores the peg-in request on-chain
+  // - Emits PegInRequest event for vault provider and liquidators
+  const result = await VaultControllerTx.submitPeginRequest(
     vaultControllerAddress,
     unsignedPegInTx,
-    vaultProvider
+    vaultProvider,
   );
+
+  return {
+    ...result,
+    btcTxid: btcTx.txid,
+    btcTxHex: btcTx.unsignedTxHex,
+  };
 }
 
 /**
@@ -109,7 +148,7 @@ export async function submitPeginRequest(
  */
 export async function repayAndPegout(
   vaultControllerAddress: Address,
-  pegInTxHash: Hex
+  pegInTxHash: Hex,
 ) {
   return VaultControllerTx.repayAndPegout(vaultControllerAddress, pegInTxHash);
 }

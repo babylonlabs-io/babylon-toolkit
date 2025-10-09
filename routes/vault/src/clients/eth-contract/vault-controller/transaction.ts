@@ -1,6 +1,11 @@
 // BTC Vault Controller - Write operations (transactions)
 
-import { type Address, type Hash, type TransactionReceipt, type Hex } from 'viem';
+import {
+  type Address,
+  type Hash,
+  type TransactionReceipt,
+  type Hex,
+} from 'viem';
 import { getWalletClient, switchChain } from '@wagmi/core';
 import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
 import { getETHChain } from '@babylonlabs-io/config';
@@ -28,8 +33,12 @@ export interface MarketParams {
 export async function submitPeginRequest(
   contractAddress: Address,
   unsignedPegInTx: Hex,
-  vaultProvider: Address
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; pegInTxHash: Hex }> {
+  vaultProvider: Address,
+): Promise<{
+  transactionHash: Hash;
+  receipt: TransactionReceipt;
+  pegInTxHash: Hex;
+}> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
 
@@ -40,7 +49,9 @@ export async function submitPeginRequest(
     // Switch to the correct chain if needed
     await switchChain(wagmiConfig, { chainId: chain.id });
 
-    const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
     if (!walletClient) {
       throw new Error('Wallet not connected');
     }
@@ -52,8 +63,6 @@ export async function submitPeginRequest(
       args: [unsignedPegInTx, vaultProvider],
       chain,
     });
-
-    console.log(`Pegin request submitted: ${hash}`);
 
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
@@ -70,7 +79,7 @@ export async function submitPeginRequest(
     };
   } catch (error) {
     throw new Error(
-      `Failed to submit pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to submit pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -89,7 +98,7 @@ export async function mintAndBorrow(
   pegInTxHash: Hex,
   depositorBtcPubkey: Hex,
   marketParams: MarketParams,
-  borrowAmount: bigint
+  borrowAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
@@ -101,7 +110,9 @@ export async function mintAndBorrow(
     // Switch to the correct chain if needed
     await switchChain(wagmiConfig, { chainId: chain.id });
 
-    const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
     if (!walletClient) {
       throw new Error('Wallet not connected');
     }
@@ -114,8 +125,6 @@ export async function mintAndBorrow(
       chain,
     });
 
-    console.log(`Vault creation (mintAndBorrow) submitted: ${hash}`);
-
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
     });
@@ -126,7 +135,7 @@ export async function mintAndBorrow(
     };
   } catch (error) {
     throw new Error(
-      `Failed to mint and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to mint and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -147,7 +156,7 @@ export async function mintAndBorrow(
  */
 export async function repayAndPegout(
   contractAddress: Address,
-  pegInTxHash: Hex
+  pegInTxHash: Hex,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
@@ -159,7 +168,9 @@ export async function repayAndPegout(
     // Switch to the correct chain if needed
     await switchChain(wagmiConfig, { chainId: chain.id });
 
-    const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
     if (!walletClient) {
       throw new Error('Wallet not connected');
     }
@@ -172,8 +183,6 @@ export async function repayAndPegout(
       chain,
     });
 
-    console.log(`Repay and pegout submitted: ${hash}`);
-
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
     });
@@ -184,7 +193,7 @@ export async function repayAndPegout(
     };
   } catch (error) {
     throw new Error(
-      `Failed to repay and pegout: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to repay and pegout: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
