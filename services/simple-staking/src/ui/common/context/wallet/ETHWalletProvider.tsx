@@ -13,6 +13,7 @@ import {
   useAppKitAccount,
   useDisconnect,
 } from "@reown/appkit/react";
+import { useAppKitBridge, useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { formatUnits } from "viem";
 import {
   useBalance,
@@ -62,8 +63,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => {},
-  disconnect: () => {},
+  open: () => { },
+  disconnect: () => { },
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -77,15 +78,16 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => {},
+  switchChain: async () => { },
   pendingTx: undefined,
   isPending: false,
-  clearError: () => {},
+  clearError: () => { },
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
 
 export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
+  // Debug build identifier to verify app build
   const { handleError } = useError();
 
   // Local state
@@ -94,11 +96,28 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const [networkName, setNetworkName] = useState<string>();
-
-  // AppKit and Wagmi hooks (must be called unconditionally)
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { disconnect } = useDisconnect();
+  const ethConnector = useChainConnector("ETH");
+  useAppKitBridge();
+
+  useEffect(() => {
+    if (!ethConnector) return;
+    if (isConnected && address) {
+      try {
+        const already = ethConnector.connectedWallet?.id === "appkit-eth-connector";
+        const appkitWallet = ethConnector.wallets?.find((w: any) => w.id === "appkit-eth-connector");
+        if (!already && appkitWallet) {
+          void ethConnector.connect(appkitWallet);
+        }
+      } catch (e) {
+        console.warn("[simple-staking] Local ETH bridge connect failed", e);
+      }
+    } else if (!isConnected && ethConnector?.connectedWallet) {
+      void ethConnector.disconnect();
+    }
+  }, [isConnected, address, ethConnector]);
   const { chainId } = useAccount();
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
@@ -142,6 +161,19 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       });
     }
   }, [disconnect, handleError]);
+
+  // Listen for wallet-connector asking the host app to open AppKit
+  useEffect(() => {
+    const handler = () => {
+      try {
+        open?.();
+      } catch {
+        // error
+      }
+    };
+    window.addEventListener("babylon:open-appkit", handler as EventListener);
+    return () => window.removeEventListener("babylon:open-appkit", handler as EventListener);
+  }, [open]);
 
   const ethWalletMethods = useMemo(
     () => ({
@@ -237,7 +269,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       networkName,
       pendingTx,
       isPending,
-      clearError: () => {},
+      clearError: () => { },
       ...ethWalletMethods,
     }),
     [
@@ -294,8 +326,8 @@ export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => 0n,
       getNonce: async () => 0,
-      switchChain: async () => {},
-      clearError: () => {},
+      switchChain: async () => { },
+      clearError: () => { },
     }),
     [],
   );

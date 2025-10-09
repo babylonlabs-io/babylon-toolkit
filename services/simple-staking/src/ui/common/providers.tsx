@@ -11,6 +11,7 @@ import { ErrorProvider } from "./context/Error/ErrorProvider";
 import { BbnRpcProvider } from "./context/rpc/BbnRpcProvider";
 import { BTCWalletProvider } from "./context/wallet/BTCWalletProvider";
 import { CosmosWalletProvider } from "./context/wallet/CosmosWalletProvider";
+import { SafeETHWalletProvider } from "./context/wallet/ETHWalletProvider";
 import { WalletConnectionProvider } from "./context/wallet/WalletConnectionProvider";
 import { AppState } from "./state";
 
@@ -40,7 +41,9 @@ function Providers({ children }: React.PropsWithChildren) {
                       <WalletConnectionProvider>
                         <BTCWalletProvider>
                           <CosmosWalletProvider>
-                            <AppState>{children}</AppState>
+                            <SafeETHWalletProvider>
+                              <AppState>{children}</AppState>
+                            </SafeETHWalletProvider>
                           </CosmosWalletProvider>
                         </BTCWalletProvider>
                       </WalletConnectionProvider>

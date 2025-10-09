@@ -21,7 +21,7 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
     public readonly icon: string,
     public readonly wallets: Wallet<P>[],
     public readonly config: C,
-  ) {}
+  ) { }
 
   get connectedWallet() {
     return this._connectedWallet;
@@ -52,6 +52,14 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
 
   async disconnect() {
     if (this._connectedWallet) {
+      const provider: any = this._connectedWallet.provider as any;
+      if (provider && typeof provider.disconnect === "function") {
+        try {
+          await provider.disconnect();
+        } catch {
+          // ignore provider disconnect errors
+        }
+      }
       this._ee.emit("disconnect", this._connectedWallet);
       this._connectedWallet = null;
     }

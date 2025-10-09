@@ -11,8 +11,9 @@ import {
   watchAccount,
   watchChainId,
   connect,
+  disconnect as wagmiDisconnect,
 } from "wagmi/actions";
-import { injected, walletConnect } from "wagmi/connectors";
+import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
 
@@ -50,7 +51,7 @@ export class AppKitProvider implements IETHProvider {
 
   private setupEventWatchers(): void {
     const config = this.getWagmiConfig();
-    
+
     // Watch for account changes
     const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
@@ -81,7 +82,7 @@ export class AppKitProvider implements IETHProvider {
   async connectWallet(): Promise<void> {
     try {
       const config = this.getWagmiConfig();
-      
+
       // First check if already connected
       const currentAccount = getAccount(config);
       if (currentAccount.address) {
@@ -90,18 +91,7 @@ export class AppKitProvider implements IETHProvider {
         return;
       }
 
-      // Try to connect using injected provider (MetaMask, etc.) first
-      try {
-        const result = await connect(config, { connector: injected() });
-        this.address = result.accounts[0];
-        this.chainId = result.chainId;
-        return;
-      } catch {
-        // If injected connection fails, fall back to WalletConnect
-        console.log("Injected connection failed, trying WalletConnect...");
-      }
-
-      // Fall back to WalletConnect
+      // Always require explicit user action via WalletConnect (no silent injected reuse)
       const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
       const wcConnector = walletConnect({
         projectId,
@@ -119,6 +109,16 @@ export class AppKitProvider implements IETHProvider {
     } catch (error) {
       console.error("Failed to connect wallet:", error);
       throw new Error(`Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    const config = this.getWagmiConfig();
+    try {
+      await wagmiDisconnect(config);
+    } finally {
+      this.address = undefined;
+      this.chainId = undefined;
     }
   }
 

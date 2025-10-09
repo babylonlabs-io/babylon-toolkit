@@ -54,8 +54,8 @@ const config: ChainConfigArr = [
     connectors: [
       {
         id: "appkit-eth-connector",
-        widget: ({ onError }: { onError?: (e: Error) => void }) => (
-          <AppKitConnectButton onError={onError} />
+        widget: () => (
+          <div />
         ),
       },
     ],
