@@ -1,13 +1,13 @@
 import { IconButton } from "@babylonlabs-io/core-ui";
 import { AiOutlinePlus } from "react-icons/ai";
 
-export function DepositOverview() {
-  const handleAddDeposit = () => {
-    console.log("Add deposit clicked");
-  };
+interface DepositOverviewProps {
+  onAddDeposit: () => void;
+}
 
+export function DepositOverview({ onAddDeposit }: DepositOverviewProps) {
   return (
-    <div className="flex flex-col items-center gap-8 rounded-2xl bg-primary-highlight p-6">
+    <div className="flex flex-col items-center justify-center gap-4 rounded bg-primary-highlight p-6">
       <img
         src="/mascot-bitcoin.png"
         alt="Supply collateral mascot"
@@ -26,7 +26,7 @@ export function DepositOverview() {
       <IconButton
         variant="outlined"
         size="large"
-        onClick={handleAddDeposit}
+        onClick={onAddDeposit}
         aria-label="Add deposit"
       >
         <AiOutlinePlus />
