@@ -126,7 +126,7 @@
     "name": "arePeginAssetsMinted",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -190,7 +190,7 @@
     ],
     "outputs": [
       {
-        "name": "vaultIds",
+        "name": "pegInTxHashes",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       }
@@ -244,7 +244,7 @@
     "name": "isPeginReadyToMint",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -263,7 +263,7 @@
     "name": "liquidate",
     "inputs": [
       {
-        "name": "vaultId",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -292,7 +292,7 @@
     "name": "mintAndBorrow",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -341,12 +341,32 @@
     ],
     "outputs": [
       {
-        "name": "vaultId",
+        "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "pauseAll",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "paused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -371,7 +391,7 @@
     "name": "repayAndPegout",
     "inputs": [
       {
-        "name": "vaultId",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -415,7 +435,7 @@
     "name": "submitInclusionProof",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -439,7 +459,7 @@
     "name": "submitPeginACK",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -494,6 +514,13 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "unpauseAll",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -577,6 +604,19 @@
   },
   {
     "type": "event",
+    "name": "Paused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "RoleAdminChanged",
     "inputs": [
       {
@@ -651,13 +691,26 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "Unpaused",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
-    "name": "InclusionProofVerificationFailed",
+    "name": "BTCVaultNotFound",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "InvalidPeginStatus",
+    "name": "InclusionProofVerificationFailed",
     "inputs": []
   },
   {
@@ -667,12 +720,12 @@
   },
   {
     "type": "error",
-    "name": "PeginAssetsAlreadyMinted",
+    "name": "InvalidVaultStatus",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "PeginRequestNotFound",
+    "name": "PeginAssetsAlreadyMinted",
     "inputs": []
   },
   {

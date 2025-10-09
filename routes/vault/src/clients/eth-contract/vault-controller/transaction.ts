@@ -1,7 +1,7 @@
 // BTC Vault Controller - Write operations (transactions)
 
 import { type Address, type Hash, type TransactionReceipt, type Hex } from 'viem';
-import { getWalletClient } from '@wagmi/core';
+import { getWalletClient, switchChain } from '@wagmi/core';
 import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
 import { getETHChain } from '@babylonlabs-io/config';
 import { ethClient } from '../client';
@@ -36,6 +36,10 @@ export async function submitPeginRequest(
   try {
     // Get wallet client from wagmi (viem-compatible)
     const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
     const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
     if (!walletClient) {
       throw new Error('Wallet not connected');
@@ -93,6 +97,10 @@ export async function mintAndBorrow(
   try {
     // Get wallet client from wagmi (viem-compatible)
     const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
     const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
     if (!walletClient) {
       throw new Error('Wallet not connected');
@@ -147,6 +155,10 @@ export async function repayAndPegout(
   try {
     // Get wallet client from wagmi (viem-compatible)
     const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
     const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
     if (!walletClient) {
       throw new Error('Wallet not connected');

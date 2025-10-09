@@ -104,6 +104,45 @@
   },
   {
     "type": "function",
+    "name": "btcVaults",
+    "inputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "unsignedPegInTx",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum BTCVaultsManager.BTCVaultStatus"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "depositorPegInTxIDs",
     "inputs": [
       {
@@ -144,6 +183,40 @@
       }
     ],
     "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "getBTCVault",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "txHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum BTCVaultsManager.BTCVaultStatus"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -248,40 +321,6 @@
         "name": "",
         "type": "address[]",
         "internalType": "address[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getPeginRequest",
-    "inputs": [
-      {
-        "name": "btcTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "txHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "status",
-        "type": "uint8",
-        "internalType": "enum BTCVaultsManager.PeginStatus"
       }
     ],
     "stateMutability": "view"
@@ -439,7 +478,7 @@
     "name": "isPeginVerified",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -464,6 +503,25 @@
       },
       {
         "name": "liquidator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isRegisteredProvider",
+    "inputs": [
+      {
+        "name": "",
         "type": "address",
         "internalType": "address"
       }
@@ -517,42 +575,16 @@
   },
   {
     "type": "function",
-    "name": "peginRequests",
+    "name": "markPeginAsExpired",
     "inputs": [
       {
-        "name": "",
+        "name": "btcTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
     ],
-    "outputs": [
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "unsignedBtcTx",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "vaultProvider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "status",
-        "type": "uint8",
-        "internalType": "enum BTCVaultsManager.PeginStatus"
-      }
-    ],
-    "stateMutability": "view"
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -664,7 +696,7 @@
     "name": "submitPeginACK",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -743,7 +775,7 @@
     "name": "verifyAndActivatePegin",
     "inputs": [
       {
-        "name": "btcTxHash",
+        "name": "pegInTxHash",
         "type": "bytes",
         "internalType": "bytes"
       },
@@ -844,6 +876,11 @@
   },
   {
     "type": "error",
+    "name": "BTCVaultNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidAmount",
     "inputs": []
   },
@@ -869,11 +906,6 @@
   },
   {
     "type": "error",
-    "name": "InvalidPeginStatus",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InvalidSignature",
     "inputs": []
   },
@@ -884,17 +916,17 @@
   },
   {
     "type": "error",
+    "name": "InvalidVaultStatus",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotAuthorizedToACK",
     "inputs": []
   },
   {
     "type": "error",
     "name": "OnlyVaultsController",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PeginRequestNotFound",
     "inputs": []
   },
   {
