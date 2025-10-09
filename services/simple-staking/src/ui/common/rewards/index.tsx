@@ -26,6 +26,7 @@ import {
 } from "@/ui/baby/state/RewardState";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
 import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
 import {
   ClaimStatus,
@@ -313,15 +314,15 @@ function RewardsPageContent() {
           >
             <Section title="Total Rewards">
               <CoStakingRewardsSubsection
-                totalAmount={`${totalBabyRewards.toLocaleString()}`}
+                totalAmount={formatBalance(totalBabyRewards, "")}
                 totalSymbol={bbnCoinSymbol}
-                btcRewardAmount={`${baseBtcRewardBaby.toLocaleString()}`}
+                btcRewardAmount={formatBalance(baseBtcRewardBaby, "")}
                 btcSymbol={btcCoinSymbol}
-                babyRewardAmount={`${babyRewardBaby.toLocaleString()}`}
+                babyRewardAmount={formatBalance(babyRewardBaby, "")}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
                   coStakingAmountBaby !== undefined
-                    ? `${coStakingAmountBaby.toLocaleString()}`
+                    ? formatBalance(coStakingAmountBaby, "")
                     : undefined
                 }
                 avatarUrl={logo}
