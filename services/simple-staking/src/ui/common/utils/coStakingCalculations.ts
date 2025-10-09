@@ -7,19 +7,15 @@
  * @param scoreRatio
  */
 export const calculateBTCEligibilityPercentage = (
-  activeSatoshis: string,
-  activeBaby: string,
-  scoreRatio: string,
+  activeSatoshis: number,
+  activeBaby: number,
+  scoreRatio: number,
 ): number => {
-  const sats = Number(activeSatoshis);
-  const baby = Number(activeBaby);
-  const ratio = Number(scoreRatio);
+  if (activeSatoshis === 0) return 0;
+  if (scoreRatio === 0) return 0;
 
-  if (sats === 0) return 0;
-  if (ratio === 0) return 0;
-
-  const eligibleSats = Math.min(sats, baby / ratio);
-  return (eligibleSats / sats) * 100;
+  const eligibleSats = Math.min(activeSatoshis, activeBaby / scoreRatio);
+  return (eligibleSats / activeSatoshis) * 100;
 };
 
 /**
@@ -28,11 +24,10 @@ export const calculateBTCEligibilityPercentage = (
  */
 export const calculateRequiredBabyTokens = (
   satoshisAmount: number,
-  scoreRatio: string,
+  scoreRatio: number,
 ): number => {
   // Score ratio is in uBBN per sat
-  const ratio = Number(scoreRatio);
-  const requiredUbbn = satoshisAmount * ratio;
+  const requiredUbbn = satoshisAmount * scoreRatio;
   return requiredUbbn;
 };
 
@@ -42,7 +37,7 @@ export const calculateRequiredBabyTokens = (
 export const calculateAdditionalBabyNeeded = (
   activeSatoshis: number,
   currentUbbnStaked: number,
-  scoreRatio: string,
+  scoreRatio: number,
 ): number => {
   const requiredUbbn = calculateRequiredBabyTokens(activeSatoshis, scoreRatio);
   const additionalNeeded = Math.max(0, requiredUbbn - currentUbbnStaked);
@@ -84,28 +79,24 @@ export const formatBabyTokens = (value: number): string => {
  * @returns User's personalized co-staking APR as a percentage
  */
 export const calculateUserCoStakingAPR = (
-  userTotalScore: string,
-  globalTotalScore: string,
+  userTotalScore: number,
+  globalTotalScore: number,
   totalCoStakingRewardSupply: number,
-  userActiveBaby: string,
+  userActiveBaby: number,
 ): number => {
-  const userScore = Number(userTotalScore);
-  const globalScore = Number(globalTotalScore);
-  const activeBaby = Number(userActiveBaby);
-
   // Edge cases
-  if (userScore === 0 || globalScore === 0 || activeBaby === 0) {
+  if (userTotalScore === 0 || globalTotalScore === 0 || userActiveBaby === 0) {
     return 0;
   }
 
   // Calculate user's share of the co-staking pool
-  const poolShare = userScore / globalScore;
+  const poolShare = userTotalScore / globalTotalScore;
 
   // Calculate user's portion of annual rewards
   const userAnnualRewards = poolShare * totalCoStakingRewardSupply;
 
   // Calculate APR as percentage: (annual_rewards / staked_amount) × 100
-  const apr = (userAnnualRewards / activeBaby) * 100;
+  const apr = (userAnnualRewards / userActiveBaby) * 100;
 
   return apr;
 };

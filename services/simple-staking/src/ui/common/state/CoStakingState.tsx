@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, type PropsWithChildren } from "react";
 
 import { useEventBus } from "@/ui/common/hooks/useEventBus";
-import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
+import {
+  useCoStakingService,
+  DEFAULT_COSTAKING_SCORE_RATIO,
+} from "@/ui/common/hooks/services/useCoStakingService";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import {
   calculateBTCEligibilityPercentage,
@@ -38,7 +41,7 @@ interface CoStakingStateValue {
   currentRewards: CoStakingCurrentRewards | null;
   // Computed values
   eligibility: CoStakingEligibility;
-  scoreRatio: string;
+  scoreRatio: number;
   aprData: CoStakingAPRData;
   isLoading: boolean;
   isEnabled: boolean;
@@ -61,7 +64,7 @@ const defaultState: CoStakingStateValue = {
   rewardsTracker: null,
   currentRewards: null,
   eligibility: defaultEligibility,
-  scoreRatio: "50", // Default ratio
+  scoreRatio: DEFAULT_COSTAKING_SCORE_RATIO,
   aprData: {
     currentApr: null,
     boostApr: null,
@@ -103,19 +106,19 @@ export function CoStakingState({ children }: PropsWithChildren) {
   // Calculate eligibility status
   const eligibility = useMemo((): CoStakingEligibility => {
     const status = getUserCoStakingStatus();
-    const activeSatoshis = Number(status.activeSatoshis);
-    const activeBabyUbbn = Number(status.activeBaby);
+    const activeSatoshis = status.activeSatoshis;
+    const activeBabyUbbn = status.activeBaby;
     const activeBabyTokens = ubbnToBaby(activeBabyUbbn);
 
     const eligibilityPercentage = calculateBTCEligibilityPercentage(
-      status.activeSatoshis,
-      status.activeBaby,
-      scoreRatio.toString(),
+      activeSatoshis,
+      activeBabyUbbn,
+      scoreRatio,
     );
 
     const requiredBabyUbbn = calculateRequiredBabyTokens(
       activeSatoshis,
-      scoreRatio.toString(),
+      scoreRatio,
     );
     const requiredBabyTokens = ubbnToBaby(requiredBabyUbbn);
 
@@ -133,10 +136,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
 
   const getRequiredBabyForSatoshis = useCallback(
     (satoshis: number): number => {
-      const requiredUbbn = calculateRequiredBabyTokens(
-        satoshis,
-        scoreRatio.toString(),
-      );
+      const requiredUbbn = calculateRequiredBabyTokens(satoshis, scoreRatio);
       return ubbnToBaby(requiredUbbn);
     },
     [scoreRatio],

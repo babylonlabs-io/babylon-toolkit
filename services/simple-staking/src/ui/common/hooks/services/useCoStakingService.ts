@@ -13,15 +13,16 @@ import {
   calculateUserCoStakingAPR,
 } from "@/ui/common/utils/coStakingCalculations";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
-
-import { ubbnToBaby } from "../../utils/bbn";
-import { getAPR } from "../../api/getAPR";
+import { ubbnToBaby } from "@/ui/common/utils/bbn";
+import { getAPR } from "@/ui/common/api/getAPR";
 
 const CO_STAKING_PARAMS_KEY = "CO_STAKING_PARAMS";
 const CO_STAKING_REWARDS_TRACKER_KEY = "CO_STAKING_REWARDS_TRACKER";
 const CO_STAKING_CURRENT_REWARDS_KEY = "CO_STAKING_CURRENT_REWARDS";
 const CO_STAKING_APR_KEY = "CO_STAKING_APR";
 const CO_STAKING_REWARD_SUPPLY_KEY = "CO_STAKING_REWARD_SUPPLY";
+
+export const DEFAULT_COSTAKING_SCORE_RATIO = 50;
 
 /**
  * Hook for managing co-staking functionality
@@ -163,11 +164,15 @@ export const useCoStakingService = () => {
   /**
    * Get the co-staking score ratio (BABY per BTC)
    */
-  const getScoreRatio = useCallback((): string => {
-    const params = coStakingParamsQuery.data?.params;
-    if (!params) return "50"; // Default ratio
+  const getScoreRatio = useCallback((): number => {
+    const scoreRatio = Number(
+      coStakingParamsQuery.data?.params?.score_ratio_btc_by_baby,
+    );
 
-    return params.score_ratio_btc_by_baby;
+    if (!Number.isFinite(scoreRatio) || scoreRatio <= 0)
+      return DEFAULT_COSTAKING_SCORE_RATIO;
+
+    return scoreRatio;
   }, [coStakingParamsQuery.data]);
 
   /**
@@ -235,19 +240,25 @@ export const useCoStakingService = () => {
       };
     }
 
+    // Prepare numeric values once
+    const activeSatoshis = Number(rewardsTracker.active_satoshis);
+    const activeBabyUbbn = Number(rewardsTracker.active_baby);
+    const userScore = Number(rewardsTracker.total_score);
+    const globalScore = Number(currentRewards.total_score);
+
     // Calculate eligibility percentage (what % of BTC qualifies for co-staking bonus)
     const eligibilityPercentage = calculateBTCEligibilityPercentage(
-      rewardsTracker.active_satoshis,
-      rewardsTracker.active_baby,
+      activeSatoshis,
+      activeBabyUbbn,
       scoreRatio,
     );
 
     // Calculate user's personalized co-staking APR based on pool share
     const userCoStakingApr = calculateUserCoStakingAPR(
-      rewardsTracker.total_score,
-      currentRewards.total_score,
+      userScore,
+      globalScore,
       rewardSupply,
-      rewardsTracker.active_baby,
+      activeBabyUbbn,
     );
 
     // Current APR = BTC staking APR + user's co-staking APR
@@ -255,17 +266,15 @@ export const useCoStakingService = () => {
 
     // Calculate boost APR: what user earns at 100% eligibility
     // Need to calculate what user_total_score would be with full eligibility
-    const activeSatoshis = Number(rewardsTracker.active_satoshis);
-    const ratio = Number(scoreRatio);
-    const requiredBaby = activeSatoshis * ratio;
+    const requiredBaby = activeSatoshis * scoreRatio;
     const maxTotalScore = activeSatoshis;
 
     // Calculate co-staking APR at 100% eligibility
     const boostCoStakingApr = calculateUserCoStakingAPR(
-      maxTotalScore.toString(),
-      currentRewards.total_score,
+      maxTotalScore,
+      globalScore,
       rewardSupply,
-      requiredBaby.toString(),
+      requiredBaby,
     );
 
     const boostApr = aprData.btc_staking + boostCoStakingApr;
@@ -299,13 +308,17 @@ export const useCoStakingService = () => {
     const rewardsTracker = rewardsTrackerQuery.data;
     const additionalBabyNeeded = getAdditionalBabyNeeded();
 
+    const activeSatoshis = rewardsTracker
+      ? Number(rewardsTracker.active_satoshis)
+      : 0;
+    const activeBaby = rewardsTracker ? Number(rewardsTracker.active_baby) : 0;
+    const totalScore = rewardsTracker ? Number(rewardsTracker.total_score) : 0;
+
     return {
-      isCoStaking: Boolean(
-        rewardsTracker && rewardsTracker.active_baby !== "0",
-      ),
-      activeSatoshis: rewardsTracker?.active_satoshis || "0",
-      activeBaby: rewardsTracker?.active_baby || "0",
-      totalScore: rewardsTracker?.total_score || "0",
+      isCoStaking: activeBaby > 0,
+      activeSatoshis,
+      activeBaby,
+      totalScore,
       additionalBabyNeeded,
     };
   }, [rewardsTrackerQuery.data, getAdditionalBabyNeeded]);
