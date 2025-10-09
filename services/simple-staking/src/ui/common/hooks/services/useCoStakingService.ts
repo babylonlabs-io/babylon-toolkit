@@ -169,8 +169,7 @@ export const useCoStakingService = () => {
       coStakingParamsQuery.data?.params?.score_ratio_btc_by_baby,
     );
 
-    if (!scoreRatio || scoreRatio <= 0)
-      return DEFAULT_COSTAKING_SCORE_RATIO;
+    if (!scoreRatio || scoreRatio <= 0) return DEFAULT_COSTAKING_SCORE_RATIO;
 
     return scoreRatio;
   }, [coStakingParamsQuery.data]);
