@@ -34,7 +34,6 @@ const networks: any = [mainnet, sepolia, localhost];
 export const wagmiAdapter = new WagmiAdapter({
   networks,
   projectId,
-  autoConnect: false,
   transports: {
     [mainnet.id]: http(),
     [sepolia.id]: http(),
