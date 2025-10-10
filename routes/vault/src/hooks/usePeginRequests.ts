@@ -3,7 +3,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
 import { getPeginRequestsWithMorpho } from '../services/pegin/peginService';
 import { transformPeginToActivity } from '../utils/peginTransformers';
@@ -66,7 +66,16 @@ export function usePeginRequests(
         MORPHO_MARKET_ID,
       ),
     enabled: !!connectedAddress,
+    // Refetch when wallet connects to ensure fresh data
+    refetchOnMount: true,
   });
+
+  // Trigger refetch when wallet connects (address changes from undefined to a value)
+  useEffect(() => {
+    if (connectedAddress) {
+      refetch();
+    }
+  }, [connectedAddress, refetch]);
 
   // Transform pegin requests to vault activities
   const activities = useMemo(() => {

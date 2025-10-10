@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useChainConnector, type IWallet, type IConnector, type IProvider } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector, useWalletConnect, type IWallet, type IConnector, type IProvider } from "@babylonlabs-io/wallet-connector";
 import type { Hex } from "viem";
 import { usePeginRequests } from "./usePeginRequests";
 import { usePeginStorage } from "./usePeginStorage";
@@ -26,6 +26,7 @@ function isConnectorWithWallet<P extends IProvider>(
 export function useVaultPositions() {
   const ethConnector = useChainConnector('ETH');
   const btcConnector = useChainConnector('BTC');
+  const { connected } = useWalletConnect();
 
   // Track connected wallets in state so React properly detects changes
   const [ethWallet, setEthWallet] = useState<IWallet | null>(null);
@@ -94,7 +95,7 @@ export function useVaultPositions() {
 
   return {
     activities: allActivities,
-    isWalletConnected: !!connectedAddress,
+    isWalletConnected: connected && !!connectedAddress,
     refetchActivities: refetch,
     connectedAddress,
     btcAddress,
