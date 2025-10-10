@@ -24,6 +24,16 @@ export interface MintAndBorrowResult {
 }
 
 /**
+ * UTXO parameters for peg-in transaction
+ */
+export interface PeginUTXOParams {
+  fundingTxid: string;
+  fundingVout: number;
+  fundingValue: bigint;
+  fundingScriptPubkey: string;
+}
+
+/**
  * Create a vault by minting vBTC and borrowing against it
  *
  * This composite operation:
@@ -76,7 +86,7 @@ export async function mintAndBorrowWithMarketId(
  * Submit a pegin request
  *
  * This orchestrates the complete peg-in submission:
- * 1. Create unsigned BTC transaction using WASM (with REAL user data + HARDCODED infrastructure)
+ * 1. Create unsigned BTC transaction using WASM (with REAL user data, REAL UTXOs + HARDCODED infrastructure)
  * 2. Submit unsigned BTC transaction to smart contract
  * 3. Wait for ETH transaction confirmation
  * 4. Return transaction details
@@ -87,21 +97,26 @@ export async function mintAndBorrowWithMarketId(
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes hex)
  * @param pegInAmountSats - Amount to peg in (in satoshis)
+ * @param utxoParams - Real UTXO parameters from wallet
  * @returns Transaction hash, receipt, and pegin transaction details
  */
 export async function submitPeginRequest(
   vaultControllerAddress: Address,
   depositorBtcPubkey: string,
   pegInAmountSats: bigint,
+  utxoParams: PeginUTXOParams,
 ) {
   // Step 1: Create unsigned BTC peg-in transaction
   // This uses WASM to construct the transaction with:
-  // - REAL: depositor pubkey, peg-in amount
+  // - REAL: depositor pubkey, peg-in amount, funding UTXO from wallet
   // - HARDCODED: vault provider, liquidators, network, fee
-  // - MOCKED: funding transaction (UTXO)
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
+    fundingTxid: utxoParams.fundingTxid,
+    fundingVout: utxoParams.fundingVout,
+    fundingValue: utxoParams.fundingValue,
+    fundingScriptPubkey: utxoParams.fundingScriptPubkey,
   });
 
   // Step 2: Convert to Hex format for contract (ensure 0x prefix)

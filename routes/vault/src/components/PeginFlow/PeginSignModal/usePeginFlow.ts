@@ -11,6 +11,8 @@ import { toXOnly } from 'bitcoinjs-lib/src/psbt/bip371';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
 import { CONTRACTS } from '../../../config/contracts';
+import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
+import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
 
 interface UsePeginFlowParams {
   open: boolean;
@@ -32,9 +34,10 @@ interface UsePeginFlowReturn {
  * Hook to manage peg-in flow state and execution
  *
  * Orchestrates:
- * 1. Proof of possession with BTC wallet
- * 2. Transaction submission with ETH wallet
- * 3. Success/error handling
+ * 1. Fetch available UTXOs from BTC wallet
+ * 2. Proof of possession with BTC wallet
+ * 3. Transaction submission with ETH wallet
+ * 4. Success/error handling
  */
 export function usePeginFlow({
   open,
@@ -47,6 +50,9 @@ export function usePeginFlow({
   const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch UTXOs for the connected BTC wallet
+  const { confirmedUTXOs, isLoading: isUTXOsLoading, error: utxoError } = useUTXOs(btcAddress);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -69,8 +75,41 @@ export function usePeginFlow({
     setError(null);
 
     try {
-      // Step 1: Proof of Possession
+      // Step 1: Check UTXOs availability
       setCurrentStep(1);
+
+      if (isUTXOsLoading) {
+        throw new Error('Loading wallet UTXOs. Please wait...');
+      }
+
+      if (utxoError) {
+        throw new Error(`Failed to fetch UTXOs: ${utxoError.message}`);
+      }
+
+      if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+        throw new Error(
+          'No confirmed UTXOs found in your wallet. Please ensure you have confirmed BTC in your wallet.',
+        );
+      }
+
+      // Convert BTC amount to satoshis
+      const pegInAmountSats = BigInt(Math.round(amount * 100_000_000));
+
+      // Calculate required amount: peg-in amount + transaction fee
+      const requiredAmount = pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+
+      // Select suitable UTXO
+      const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
+
+      if (!selectedUTXO) {
+        const requiredBTC = Number(requiredAmount) / 100_000_000;
+        throw new Error(
+          `No suitable UTXO found. You need at least ${requiredBTC.toFixed(8)} BTC (including fees) in a single UTXO. Please consolidate your UTXOs or add more funds.`,
+        );
+      }
+
+      // Step 2: Proof of Possession
+      setCurrentStep(2);
 
       // Extract signMessage function from BTC wallet provider
       const signMessage = btcConnector?.connectedWallet?.provider?.signMessage;
@@ -82,8 +121,8 @@ export function usePeginFlow({
         signMessage: signMessage,
       });
 
-      // Step 2: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
-      setCurrentStep(2);
+      // Step 3: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
+      setCurrentStep(3);
 
       // Extract BTC public key from wallet provider
       if (!btcConnector?.connectedWallet?.provider) {
@@ -99,18 +138,21 @@ export function usePeginFlow({
         Buffer.from(publicKeyHex, 'hex'),
       ).toString('hex');
 
-      // Convert BTC amount to satoshis
-      const pegInAmountSats = BigInt(Math.round(amount * 100_000_000));
-
       // Submit to smart contract (ETH wallet signs, broadcasts, and waits for confirmation)
       const result = await submitPeginRequest(
         CONTRACTS.VAULT_CONTROLLER,
         depositorBtcPubkey,
         pegInAmountSats,
+        {
+          fundingTxid: selectedUTXO.txid,
+          fundingVout: selectedUTXO.vout,
+          fundingValue: BigInt(selectedUTXO.value),
+          fundingScriptPubkey: selectedUTXO.scriptPubKey,
+        },
       );
 
-      // Step 3: Complete
-      setCurrentStep(3);
+      // Step 4: Complete
+      setCurrentStep(4);
       setProcessing(false);
 
       // Pass both BTC transaction ID and ETH transaction hash to parent
@@ -125,6 +167,6 @@ export function usePeginFlow({
     currentStep,
     processing,
     error,
-    isComplete: currentStep === 3,
+    isComplete: currentStep === 4,
   };
 }

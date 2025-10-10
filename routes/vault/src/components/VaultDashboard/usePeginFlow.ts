@@ -1,11 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useChainConnector } from '@babylonlabs-io/wallet-connector';
+import { useUTXOs, calculateBalance } from '../../hooks/useUTXOs';
 
 /**
  * Hook to manage peg-in flow modal state
  */
 export function usePeginFlow() {
-  // Hardcoded BTC balance (in satoshis) - TODO: Replace with real wallet balance
-  const btcBalanceSat = 500000000; // 5 BTC
+  // Get BTC wallet address for fetching UTXOs
+  const btcConnector = useChainConnector('BTC');
+  const btcAddress = (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
+
+  // Fetch UTXOs and calculate balance from confirmed UTXOs
+  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  const btcBalanceSat = useMemo(
+    () => calculateBalance(confirmedUTXOs),
+    [confirmedUTXOs],
+  );
 
   // Modal states
   const [isOpen, setIsOpen] = useState(false);

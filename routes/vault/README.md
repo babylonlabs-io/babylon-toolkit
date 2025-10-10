@@ -2,6 +2,14 @@
 
 Vault application for managing BTC staking and ETH interactions under the `/vault` URL path.
 
+## Environment Variables
+
+- `NEXT_PUBLIC_MEMPOOL_API` - Mempool API base URL (default: `https://mempool.space`)
+  - Used for fetching Bitcoin UTXOs and network data
+  - Network-specific paths are appended automatically (e.g., `/signet` for signet)
+
+- `NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL` - Vault provider RPC endpoint URL
+
 ## File Structure
 
 ```
@@ -9,6 +17,8 @@ routes/vault/src/
 ├── VaultLayout.tsx               # Main layout component with wallet connection
 ├── index.ts
 ├── clients/                      # External API and service clients
+│   ├── btc/                      # Bitcoin network clients
+│   │   └── mempool.ts            # Mempool API client for fetching UTXOs and BTC data
 │   ├── eth-contract/             # ETH smart contract client for querying data and constructing transactions
 │   │   ├── btc-vaults-manager/   # BTCVaultsManager contract interactions
 │   │   ├── vault-controller/     # VaultController contract interactions
@@ -31,6 +41,7 @@ routes/vault/src/
 │   └── index.ts
 ├── hooks/                        # Custom React hooks for vault operations
 │   ├── usePeginRequests.ts      # Hook for fetching vault data from blockchain
+│   ├── useUTXOs.ts               # Hook for fetching Bitcoin UTXOs from mempool API
 │   └── index.ts
 ├── services/                     # Business logic layer orchestrating clients and transactions
 │   └── index.ts

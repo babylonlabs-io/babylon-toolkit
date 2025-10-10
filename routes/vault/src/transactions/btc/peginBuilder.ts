@@ -11,7 +11,7 @@ import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
 
 export interface CreatePeginTxParams {
   /**
-   * Depositor's BTC public key
+   * Depositor's BTC public key (x-only, 32 bytes hex)
    */
   depositorBtcPubkey: string;
 
@@ -21,14 +21,24 @@ export interface CreatePeginTxParams {
   pegInAmount: bigint;
 
   /**
-   * MOCKED: Funding transaction details
-   * For POC, we use dummy values. In production, these would come from
-   * actual BTC wallet UTXO selection
+   * Funding transaction ID (from selected UTXO)
    */
-  fundingTxid?: string;
-  fundingVout?: number;
-  fundingValue?: bigint;
-  fundingScriptPubkey?: string;
+  fundingTxid: string;
+
+  /**
+   * Funding transaction output index (from selected UTXO)
+   */
+  fundingVout: number;
+
+  /**
+   * Funding transaction output value in satoshis (from selected UTXO)
+   */
+  fundingValue: bigint;
+
+  /**
+   * Funding transaction scriptPubKey hex (from selected UTXO)
+   */
+  fundingScriptPubkey: string;
 }
 
 export interface PeginTxResult {
@@ -43,38 +53,32 @@ export interface PeginTxResult {
  * Create a peg-in transaction for submission to the vault contract
  *
  * This function:
- * 1. Takes real user data (BTC pubkey, amount) from wallet/UI
- * 2. Uses MOCKED funding transaction for POC
+ * 1. Takes REAL user data (BTC pubkey, amount) from wallet/UI
+ * 2. Uses REAL funding UTXO from connected BTC wallet
  * 3. Uses HARDCODED vault provider and liquidator data from local deployment
  * 4. Calls WASM module to construct the unsigned BTC transaction
  *
- * @param params - Transaction parameters
+ * @param params - Transaction parameters including real UTXO data
  * @returns Unsigned BTC transaction details
  */
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
-  // MOCKED: Use dummy funding transaction for POC
-  // TODO: Replace with actual BTC wallet UTXO selection in production
-  // In production, we would:
-  // 1. Query BTC wallet for available UTXOs
-  // 2. Select appropriate UTXO(s) that cover pegInAmount + fee + change dust
-  // 3. Use the actual txid, vout, value, and scriptPubkey from selected UTXO
-  const fundingTxid = params.fundingTxid || '0'.repeat(64); // Dummy txid
-  const fundingVout = params.fundingVout ?? 0;
-  const fundingValue =
-    params.fundingValue ??
-    params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee + 50_000n; // Add buffer for change
-  const fundingScriptPubkey =
-    params.fundingScriptPubkey || '5120' + 'a'.repeat(64); // Dummy P2TR script
+  // Validate UTXO has sufficient value
+  const requiredValue = params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+  if (params.fundingValue < requiredValue) {
+    throw new Error(
+      `Insufficient UTXO value. Required: ${requiredValue} sats, Available: ${params.fundingValue} sats`,
+    );
+  }
 
   // Create BTC peg-in transaction using WASM
   const pegInTx = await createPegInTransaction({
-    // MOCKED: Funding transaction (UTXO) - dummy values for POC
-    depositTxid: fundingTxid,
-    depositVout: fundingVout,
-    depositValue: fundingValue,
-    depositScriptPubKey: fundingScriptPubkey,
+    // REAL: Funding transaction (UTXO) from connected wallet
+    depositTxid: params.fundingTxid,
+    depositVout: params.fundingVout,
+    depositValue: params.fundingValue,
+    depositScriptPubKey: params.fundingScriptPubkey,
 
     // REAL: From connected BTC wallet
     depositorPubkey: params.depositorBtcPubkey,
