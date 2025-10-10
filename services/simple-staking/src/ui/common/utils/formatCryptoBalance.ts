@@ -1,13 +1,13 @@
 /**
  * Format balance with proper handling for small amounts
  * @param amount The amount to format
- * @param coinSymbol The coin symbol (e.g., 'BTC', 'BBN')
+ * @param coinSymbol The coin symbol (e.g., 'BTC', 'BBN'). Optional - if omitted, no symbol is appended
  * @param minDisplayAmount The minimum amount below which to show "<minDisplayAmount" (default: 0.01)
  * @returns Formatted balance string
  */
 export function formatBalance(
   amount: number,
-  coinSymbol: string,
+  coinSymbol?: string,
   minDisplayAmount: number = 0.01,
 ): string {
   // If coinSymbol exists, add a space before it

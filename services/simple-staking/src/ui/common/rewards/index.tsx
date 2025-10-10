@@ -264,21 +264,30 @@ function RewardsPageContent() {
     if (hasBtcRewards) {
       items.push({
         name: `${btcCoinSymbol} Staking`,
-        amount: { token: `${baseBtcRewardBaby} ${bbnCoinSymbol}`, usd: "" },
+        amount: {
+          token: formatBalance(baseBtcRewardBaby, bbnCoinSymbol),
+          usd: "",
+        },
       });
     }
 
     if (hasBabyRewards) {
       items.push({
         name: `${bbnCoinSymbol} Staking`,
-        amount: { token: `${babyRewardBaby} ${bbnCoinSymbol}`, usd: "" },
+        amount: {
+          token: formatBalance(babyRewardBaby, bbnCoinSymbol),
+          usd: "",
+        },
       });
     }
 
     if (hasBtcRewards && coStakingAmountBaby && coStakingAmountBaby > 0) {
       items.push({
         name: `Co-staking`,
-        amount: { token: `${coStakingAmountBaby} ${bbnCoinSymbol}`, usd: "" },
+        amount: {
+          token: formatBalance(coStakingAmountBaby, bbnCoinSymbol),
+          usd: "",
+        },
       });
     }
 
@@ -314,15 +323,15 @@ function RewardsPageContent() {
           >
             <Section title="Total Rewards">
               <CoStakingRewardsSubsection
-                totalAmount={formatBalance(totalBabyRewards, "")}
+                totalAmount={formatBalance(totalBabyRewards)}
                 totalSymbol={bbnCoinSymbol}
-                btcRewardAmount={formatBalance(baseBtcRewardBaby, "")}
+                btcRewardAmount={formatBalance(baseBtcRewardBaby)}
                 btcSymbol={btcCoinSymbol}
-                babyRewardAmount={formatBalance(babyRewardBaby, "")}
+                babyRewardAmount={formatBalance(babyRewardBaby)}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
                   coStakingAmountBaby !== undefined
-                    ? formatBalance(coStakingAmountBaby, "")
+                    ? formatBalance(coStakingAmountBaby)
                     : undefined
                 }
                 avatarUrl={logo}
