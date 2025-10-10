@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useChainConnector, useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import type { Hex } from "viem";
 import { usePeginRequests } from "./usePeginRequests";
 import { usePeginStorage } from "./usePeginStorage";
@@ -11,22 +10,19 @@ import { usePeginStorage } from "./usePeginStorage";
 export function useVaultPositions() {
   const ethConnector = useChainConnector('ETH');
   const btcConnector = useChainConnector('BTC');
+  const { connected } = useWalletConnect();
 
-  // Get BTC address from connector
-  const btcAddress = useMemo(() => {
+  // Extract addresses directly without useMemo to ensure reactivity
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const btcAddress = (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const connectedAddress = (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
-  }, [btcConnector]);
-
-  const connectedAddress = useMemo(() => {
-    const address = (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ethConnector as any)?.connectedWallet?.account?.address ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ethConnector as any)?.connectedWallet?.accounts?.[0]?.address
-    ) as Hex | undefined;
-    return address;
-  }, [ethConnector]);
+    (ethConnector as any)?.connectedWallet?.account?.address ||
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (ethConnector as any)?.connectedWallet?.accounts?.[0]?.address
+  ) as Hex | undefined;
 
   // Fetch pegin requests from blockchain
   const { activities: confirmedActivities, refetch } = usePeginRequests(
@@ -45,7 +41,7 @@ export function useVaultPositions() {
 
   return {
     activities: allActivities,
-    isWalletConnected: !!connectedAddress,
+    isWalletConnected: connected && !!connectedAddress,
     refetchActivities: refetch,
     connectedAddress,
     btcAddress,
