@@ -13,6 +13,7 @@ import { createProofOfPossession } from '../../../transactions/btc/proofOfPosses
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
+import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 
 interface UsePeginFlowParams {
   open: boolean;
@@ -93,7 +94,7 @@ export function usePeginFlow({
       }
 
       // Convert BTC amount to satoshis
-      const pegInAmountSats = BigInt(Math.round(amount * 100_000_000));
+      const pegInAmountSats = BigInt(Math.round(amount * Number(SATOSHIS_PER_BTC)));
 
       // Calculate required amount: peg-in amount + transaction fee
       const requiredAmount = pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
@@ -102,7 +103,7 @@ export function usePeginFlow({
       const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
 
       if (!selectedUTXO) {
-        const requiredBTC = Number(requiredAmount) / 100_000_000;
+        const requiredBTC = Number(requiredAmount) / Number(SATOSHIS_PER_BTC);
         throw new Error(
           `No suitable UTXO found. You need at least ${requiredBTC.toFixed(8)} BTC (including fees) in a single UTXO. Please consolidate your UTXOs or add more funds.`,
         );

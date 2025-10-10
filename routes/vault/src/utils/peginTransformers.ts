@@ -13,8 +13,9 @@ const BITCOIN_ICON_DATA_URI = "data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fil
 
 /**
  * Satoshis per Bitcoin constant
+ * 1 BTC = 100,000,000 satoshis
  */
-const SATOSHIS_PER_BTC = 100_000_000n;
+export const SATOSHIS_PER_BTC = 100_000_000n;
 
 /**
  * Status mapping from contract enum to UI format

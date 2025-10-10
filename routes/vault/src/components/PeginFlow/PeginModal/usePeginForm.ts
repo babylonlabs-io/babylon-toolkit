@@ -1,9 +1,10 @@
 import { useMemo, useCallback } from 'react';
 import { object, number, array, string } from 'yup';
+import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 
 // Helper function to convert satoshis to BTC
 const satoshiToBtc = (satoshi: number): number => {
-  return satoshi / 100000000;
+  return satoshi / Number(SATOSHIS_PER_BTC);
 };
 
 // Helper function to format number

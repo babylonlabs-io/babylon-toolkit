@@ -15,6 +15,7 @@ import type { VaultActivity } from "../../mockData/vaultActivities";
 import { getVaultState, getActionForState } from "../../utils/vaultState";
 import { formatUSDCAmount } from "../../utils/peginTransformers";
 import { bitcoinIcon } from "../../assets";
+import { Hash } from "../Hash";
 
 interface VaultActivityCardProps {
   activity: VaultActivity;
@@ -53,10 +54,10 @@ export function VaultActivityCard({ activity, onBorrow, onRepay }: VaultActivity
     ),
   };
 
-  // Build pegInTxHash detail (for debugging)
+  // Build pegInTxHash detail (for debugging) - with trim and copy functionality
   const txHashDetail: ActivityCardDetailItem | null = activity.txHash ? {
     label: "PegIn Tx Hash",
-    value: activity.txHash,
+    value: <Hash value={activity.txHash} symbols={12} />,
   } : null;
 
   // Build main details array
