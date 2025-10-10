@@ -1,6 +1,7 @@
 import { BabylonBtcStakingManager } from "@babylonlabs-io/btc-staking-ts";
 import { Transaction } from "bitcoinjs-lib";
 import { useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
@@ -12,6 +13,7 @@ import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getTxInfo, getTxMerkleProof } from "@/ui/common/utils/mempool_api";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
+import { DELEGATIONS_V2_KEY } from "../client/api/useDelegationsV2";
 import { useBbnQuery } from "../client/rpc/queries/useBbnQuery";
 
 import { useStakingManagerService } from "./useStakingManagerService";
@@ -32,6 +34,7 @@ export interface BtcStakingExpansionInputs {
 }
 
 export const useTransactionService = () => {
+  const queryClient = useQueryClient();
   const {
     availableUTXOs,
     refetchUTXOs,
@@ -252,8 +255,14 @@ export const useTransactionService = () => {
         });
         throw clientError;
       }
+
       await pushTx(signedStakingTx.toHex());
+
       refetchUTXOs();
+
+      // Invalidate delegations query to trigger APR refetch with updated BTC totals
+      // This ensures co-staking APR updates immediately after staking
+      queryClient.invalidateQueries({ queryKey: [DELEGATIONS_V2_KEY] });
     },
     [
       availableUTXOs,
@@ -263,6 +272,7 @@ export const useTransactionService = () => {
       stakerInfo,
       tipHeight,
       logger,
+      queryClient,
     ],
   );
 

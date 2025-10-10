@@ -1,7 +1,11 @@
 import { useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import babylon from "@/infrastructure/babylon";
-import { useDelegations } from "@/ui/baby/hooks/api/useDelegations";
+import {
+  useDelegations,
+  BABY_DELEGATIONS_KEY,
+} from "@/ui/baby/hooks/api/useDelegations";
 import { useUnbondingDelegations } from "@/ui/baby/hooks/api/useUnbondingDelegations";
 import { usePendingOperationsService } from "@/ui/baby/hooks/services/usePendingOperationsService";
 import {
@@ -33,6 +37,7 @@ export interface Delegation {
 }
 
 export function useDelegationService() {
+  const queryClient = useQueryClient();
   const { bech32Address } = useCosmosWallet();
   const {
     pendingOperations,
@@ -241,9 +246,12 @@ export function useDelegationService() {
       // Only add pending operation after successful transaction submission
       addPendingOperation(validatorAddress, amount, operationType);
 
+      // Invalidate queries to trigger APR refetch with updated totals
+      queryClient.invalidateQueries({ queryKey: [BABY_DELEGATIONS_KEY] });
+
       return result;
     },
-    [sendBbnTx, addPendingOperation],
+    [sendBbnTx, addPendingOperation, queryClient],
   );
 
   const estimateStakingFee = useCallback(

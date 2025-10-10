@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
-import { useCoStakingService } from "../../hooks/services/useCoStakingService";
+import { useCoStakingState } from "../../state/CoStakingState";
 import { formatAPRPercentage } from "../../utils/formatAPR";
 
 import { SubmitModal } from "./SubmitModal";
@@ -18,9 +18,9 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
 }) => {
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
-  const { getCoStakingAPR } = useCoStakingService();
+  const { aprData } = useCoStakingState();
 
-  const { currentApr, boostApr, additionalBabyNeeded } = getCoStakingAPR();
+  const { currentApr, boostApr, additionalBabyNeeded } = aprData;
 
   const submitButtonText = useMemo(
     () =>
