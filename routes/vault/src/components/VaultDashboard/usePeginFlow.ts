@@ -26,7 +26,6 @@ export function usePeginFlow() {
 
   // Handle peg-in click from PeginModal
   const handlePeginClick = useCallback((amount: number, providers: string[]) => {
-    console.log("Peg-in clicked:", { amount, providers });
     setPeginAmount(amount);
     setSelectedProviders(providers);
     setIsOpen(false);

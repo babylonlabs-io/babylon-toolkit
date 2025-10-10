@@ -43,26 +43,16 @@ export function useRepayAndPegout(): UseRepayAndPegoutResult {
       setTransactionHash(null);
 
       try {
-        console.log('[useRepayAndPegout] Executing repay and pegout:', {
-          pegInTxHash,
-          vaultController: CONTRACTS.VAULT_CONTROLLER,
-        });
-
         // Call service to execute transaction
         const txResult = await repayAndPegout(
           CONTRACTS.VAULT_CONTROLLER,
           pegInTxHash
         );
 
-        console.log('[useRepayAndPegout] Transaction successful:', {
-          transactionHash: txResult.transactionHash,
-        });
-
         setTransactionHash(txResult.transactionHash);
         return txResult;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[useRepayAndPegout] Transaction failed:', error);
         setError(errorMessage);
         return null;
       } finally {

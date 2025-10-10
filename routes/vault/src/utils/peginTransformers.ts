@@ -121,20 +121,9 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
 function calculateBorrowingData(
   morphoPosition: MorphoUserPosition,
   morphoMarket: MorphoMarketSummary,
-  collateralBTC: string,
+  _collateralBTC: string,
   btcPriceUSD: { price: bigint; decimals: number }
 ) {
-  console.log('[calculateBorrowingData] Input data:', {
-    borrowShares: morphoPosition.borrowShares.toString(),
-    collateral: morphoPosition.collateral.toString(),
-    totalBorrowShares: morphoMarket.totalBorrowShares.toString(),
-    totalBorrowAssets: morphoMarket.totalBorrowAssets.toString(),
-    collateralBTC,
-    oracleAddress: morphoMarket.oracle,
-    btcPrice: btcPriceUSD.price.toString(),
-    btcPriceDecimals: btcPriceUSD.decimals,
-  });
-
   // Convert borrow shares to actual borrowed amount
   const borrowedAssets = convertBorrowSharesToAssets(
     morphoPosition.borrowShares,
@@ -142,11 +131,7 @@ function calculateBorrowingData(
     morphoMarket.totalBorrowAssets
   );
 
-  console.log('[calculateBorrowingData] Borrowed assets (raw):', borrowedAssets.toString());
-
   const borrowedAmount = formatUSDCAmount(borrowedAssets);
-
-  console.log('[calculateBorrowingData] Borrowed amount (formatted):', borrowedAmount);
 
   // Calculate current LTV using BTC price
   // LTV = (borrowed USD / (collateral BTC * BTC price USD)) * 100
@@ -166,14 +151,6 @@ function calculateBorrowingData(
 
   // Calculate LTV percentage
   const currentLTV = collateralValueUSD > 0 ? (borrowedUSD / collateralValueUSD) * 100 : 0;
-
-  console.log('[calculateBorrowingData] LTV calculation:', {
-    collateralBTC: collateralBTCAmount.toString(),
-    btcPriceUSD: btcPriceInUSD,
-    collateralValueUSD,
-    borrowedUSD,
-    currentLTV,
-  });
 
   return {
     borrowedAmount,

@@ -61,14 +61,7 @@ export function VaultDashboard() {
 
   // Handle peg-in sign success with storage integration
   const handlePeginSignSuccess = useCallback(
-    (btcTxId: string, ethTxHash: string) => {
-      console.log('[VaultDashboard] 🔍 handlePeginSignSuccess called with:', {
-        btcTxId,
-        ethTxHash,
-        connectedAddress,
-        btcAddress,
-      });
-
+    (btcTxId: string) => {
       // Add to local storage with BTC transaction ID as ID (with 0x prefix)
       // IMPORTANT: The smart contract stores BTC txids as Hex type (with 0x prefix)
       // and uses them as keys in the btcVaults mapping. We normalize to match this format

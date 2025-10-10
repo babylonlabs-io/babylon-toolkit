@@ -60,9 +60,6 @@ export function usePeginStorage({
   const pendingActivities: VaultActivity[] = useMemo(() => {
     const filtered = pendingPegins.filter((pegin: PendingPeginRequest) => {
       const isConfirmed = !!confirmedPeginMap[pegin.id];
-      console.log(
-        `[usePeginStorage] 🔍 Checking pegin ${pegin.id}: isConfirmed=${isConfirmed}`,
-      );
       return !isConfirmed; // Don't show if already confirmed
     });
 
@@ -84,7 +81,7 @@ export function usePeginStorage({
       })),
       action: {
         label: 'Borrow USDC',
-        onClick: () => console.log('Borrow from pending peg-in:', pegin.id),
+        onClick: () => {},
       },
       isPending: true, // Flag to show callout message
     }));

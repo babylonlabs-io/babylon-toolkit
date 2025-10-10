@@ -133,7 +133,6 @@ export async function getPeginRequestsWithMorpho(
         };
       } catch (error) {
         // Vault not minted yet or error fetching position, return without morpho data
-        console.log(`[peginService] No vault/position for txHash ${txHash}:`, error);
         return {
           peginRequest,
           txHash,

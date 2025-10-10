@@ -118,7 +118,7 @@ export function useBorrowForm(
   );
 
   const handleBorrow = useCallback(
-    async (amount: number, collateral: number) => {
+    async (amount: number) => {
       if (!validation.isValid || amount === 0) {
         return;
       }
@@ -126,22 +126,17 @@ export function useBorrowForm(
       setProcessing(true);
       try {
         // TODO: Call borrow API
-        console.log("Processing borrow:", {
-          amount,
-          collateral,
-          ltv: calculateLTV(amount, collateral, btcPriceUSD),
-        });
 
         // Reset form
         setBorrowAmount("");
         setTouched(false);
       } catch (error) {
-        console.error("Borrow failed:", error);
+        // Error handled by caller
       } finally {
         setProcessing(false);
       }
     },
-    [validation.isValid, btcPriceUSD]
+    [validation.isValid]
   );
 
   const formatUSD = useCallback((value: number) => {

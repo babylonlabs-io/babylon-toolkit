@@ -57,8 +57,6 @@ export async function approveERC20(
       chain,
     });
 
-    console.log(`ERC20 approval submitted: ${hash}`);
-
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
     });

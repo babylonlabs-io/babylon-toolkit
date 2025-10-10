@@ -93,7 +93,6 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
   // Handler: Peg-in button click
   const handlePegIn = () => {
     if (isValid) {
-      console.log("Peg-in:", { amount: amountNum, providers: selectedProviders });
       onPegIn(amountNum, selectedProviders);
     }
   };

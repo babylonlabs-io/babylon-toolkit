@@ -9,7 +9,6 @@ export function useRepayFlow() {
   const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
 
   const openRepayFlow = useCallback((activity: VaultActivity) => {
-    console.log('[useRepayFlow] Repay and withdraw for:', activity.id);
     setSelectedActivity(activity);
     setIsOpen(true);
   }, []);

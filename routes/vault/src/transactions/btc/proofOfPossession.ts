@@ -54,17 +54,11 @@ export async function createProofOfPossession(
   }
 
   try {
-    console.log('[PoP] Creating proof of possession signature...');
-    console.log('[PoP] BTC Address:', params.btcAddress);
-    console.log('[PoP] ETH Address:', params.ethAddress);
-
     // BIP-322 message format: sign ETH address with BTC key
     // Per spec: "Proof-of-possession signed by the depositor's BTC private key over its ETH address following BIP322"
     const message = params.ethAddress;
 
     // Request signature from BTC wallet
-    console.log('[PoP] Requesting signature from BTC wallet...');
-    console.log('[PoP] Message to sign:', message);
     const signature = await params.signMessage(message);
 
     // Validate signature is not empty
@@ -72,16 +66,8 @@ export async function createProofOfPossession(
       throw new Error('BTC wallet returned empty signature');
     }
 
-    console.log('[PoP] ✅ Proof of possession created successfully');
-    console.log('[PoP] Signature length:', signature.length);
-
     return signature;
   } catch (error) {
-    // Provide detailed error information
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[PoP] ❌ Failed to create proof of possession');
-    console.error('[PoP] Error:', errorMessage);
-
     // Re-throw all errors - PoP is required
     throw error;
   }

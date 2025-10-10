@@ -76,14 +76,11 @@ export function usePeginFlow({
       const signMessage = btcConnector?.connectedWallet?.provider?.signMessage;
 
       // Create proof of possession (REQUIRED)
-      const pop = await createProofOfPossession({
+      await createProofOfPossession({
         ethAddress: depositorEthAddress,
         btcAddress: btcAddress,
         signMessage: signMessage,
       });
-
-      console.log('[usePeginFlow] ✅ Proof of possession created');
-      console.log('[usePeginFlow] Signature:', pop);
 
       // Step 2: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
       setCurrentStep(2);
@@ -119,7 +116,6 @@ export function usePeginFlow({
       // Pass both BTC transaction ID and ETH transaction hash to parent
       onSuccess(result.btcTxid, result.transactionHash);
     } catch (err) {
-      console.error('[usePeginFlow] Peg-in failed:', err);
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       setProcessing(false);
     }
