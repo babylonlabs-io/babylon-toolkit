@@ -28,7 +28,7 @@ export interface MarketParams {
  * @param contractAddress - BTCVaultController contract address
  * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
  * @param vaultProvider - Vault provider address
- * @returns Transaction hash, receipt, and pegin transaction hash
+ * @returns Transaction hash and receipt
  */
 export async function submitPeginRequest(
   contractAddress: Address,
@@ -37,7 +37,6 @@ export async function submitPeginRequest(
 ): Promise<{
   transactionHash: Hash;
   receipt: TransactionReceipt;
-  pegInTxHash: Hex;
 }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
@@ -68,14 +67,9 @@ export async function submitPeginRequest(
       hash,
     });
 
-    // Extract pegInTxHash from events (you may need to parse the logs)
-    // For now, returning a placeholder - you'll need to extract this from the event
-    const pegInTxHash = '0x' as Hex; // TODO: Extract from PegInPending event
-
     return {
       transactionHash: hash,
       receipt,
-      pegInTxHash,
     };
   } catch (error) {
     throw new Error(

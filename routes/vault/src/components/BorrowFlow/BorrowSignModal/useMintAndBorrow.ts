@@ -5,9 +5,9 @@
 import { useState, useCallback } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { Hex } from 'viem';
-import { mintAndBorrowWithMarketId } from '../services/vault/vaultTransactionService';
-import type { MintAndBorrowResult } from '../services/vault/vaultTransactionService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
+import { mintAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
+import type { MintAndBorrowResult } from '../../../services/vault/vaultTransactionService';
+import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
 
 export interface UseMintAndBorrowParams {
   /** Pegin transaction hash (vault ID) */

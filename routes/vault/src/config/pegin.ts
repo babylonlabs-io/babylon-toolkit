@@ -6,6 +6,36 @@
  */
 
 import type { Address } from 'viem';
+import { getBTCNetwork, type BTCNetwork } from '@babylonlabs-io/config';
+
+/**
+ * WASM network format (different from standard Bitcoin network names)
+ */
+type WASMNetwork = 'bitcoin' | 'testnet' | 'regtest';
+
+/**
+ * Convert standard BTC network to WASM-friendly format
+ * WASM expects: "bitcoin" (not "mainnet"), "testnet", "regtest"
+ */
+function toWASMNetwork(network: BTCNetwork): WASMNetwork {
+  switch (network) {
+    case 'mainnet':
+      return 'bitcoin';
+    case 'signet':
+    case 'testnet':
+      return 'testnet';
+    case 'regtest':
+      return 'regtest';
+  }
+}
+
+/**
+ * Get BTC network in WASM-friendly format
+ * Convenience function for getting the network directly in WASM format
+ */
+export function getBTCNetworkForWASM(): WASMNetwork {
+  return toWASMNetwork(getBTCNetwork());
+}
 
 export const LOCAL_PEGIN_CONFIG = {
   /**
@@ -30,11 +60,6 @@ export const LOCAL_PEGIN_CONFIG = {
     '79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798', // Liquidator 1
     'c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5', // Liquidator 2
   ],
-
-  /**
-   * HARDCODED: Network for local development
-   */
-  network: 'regtest' as const,
 
   /**
    * HARDCODED: Estimated fee for BTC transaction

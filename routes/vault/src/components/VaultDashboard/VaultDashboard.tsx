@@ -3,11 +3,13 @@ import { useCallback } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import { BorrowFlow } from '../BorrowFlow';
 import { RepayFlow } from '../RepayFlow';
-import { PeginModal, PeginSignModal, PeginSuccessModal } from '../modals';
+import { PeginModal } from '../PeginFlow/PeginModal/PeginModal';
+import { PeginSignModal } from '../PeginFlow/PeginSignModal/PeginSignModal';
+import { PeginSuccessModal } from '../PeginFlow/PeginSuccessModal/PeginSuccessModal';
 import { useVaultPositions } from '../../hooks/useVaultPositions';
-import { useBorrowFlow } from '../../hooks/useBorrowFlow';
-import { useRepayFlow } from '../../hooks/useRepayFlow';
-import { usePeginFlow } from '../../hooks/usePeginFlow';
+import { useBorrowFlow } from './useBorrowFlow';
+import { useRepayFlow } from './useRepayFlow';
+import { usePeginFlow } from './usePeginFlow';
 import { EmptyState } from './EmptyState';
 import { VaultActivityCard } from './VaultActivityCard';
 import type { VaultActivity } from '../../mockData/vaultActivities';
@@ -68,7 +70,9 @@ export function VaultDashboard() {
       });
 
       // Add to local storage with BTC transaction ID as ID (with 0x prefix)
-      // The smart contract uses BTC tx ID as the key, so we must match that for deduplication
+      // IMPORTANT: The smart contract stores BTC txids as Hex type (with 0x prefix)
+      // and uses them as keys in the btcVaults mapping. We normalize to match this format
+      // for proper deduplication when confirmed pegins are fetched from the contract.
       if (connectedAddress && btcAddress) {
         const idForStorage = btcTxId.startsWith('0x')
           ? btcTxId

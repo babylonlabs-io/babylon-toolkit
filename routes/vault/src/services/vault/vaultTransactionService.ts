@@ -8,7 +8,7 @@
 import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
 import { VaultControllerTx, Morpho } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
-import * as btcTransactionService from '../btc/btcTransactionService';
+import * as btcTransactionService from '../../transactions/btc/peginBuilder';
 import { LOCAL_PEGIN_CONFIG } from '../../config/pegin';
 
 /**

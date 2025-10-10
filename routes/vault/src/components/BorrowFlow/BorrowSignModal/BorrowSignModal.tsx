@@ -10,7 +10,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import type { Hex } from "viem";
-import { useMintAndBorrow } from "../../hooks/useMintAndBorrow";
+import { useMintAndBorrow } from "./useMintAndBorrow";
 
 interface BorrowSignModalProps {
   open: boolean;

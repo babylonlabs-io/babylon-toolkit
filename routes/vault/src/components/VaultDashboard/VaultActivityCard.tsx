@@ -53,8 +53,18 @@ export function VaultActivityCard({ activity, onBorrow, onRepay }: VaultActivity
     ),
   };
 
+  // Build pegInTxHash detail (for debugging)
+  const txHashDetail: ActivityCardDetailItem | null = activity.txHash ? {
+    label: "PegIn Tx Hash",
+    value: activity.txHash,
+  } : null;
+
   // Build main details array
-  const details: ActivityCardDetailItem[] = [statusDetail, providersDetail];
+  const details: ActivityCardDetailItem[] = [
+    statusDetail,
+    providersDetail,
+    ...(txHashDetail ? [txHashDetail] : []),
+  ];
 
   // Build optional loan details if borrowing data exists
   const optionalDetails: ActivityCardDetailItem[] = [];

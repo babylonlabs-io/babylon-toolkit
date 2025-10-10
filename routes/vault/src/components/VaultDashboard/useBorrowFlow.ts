@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { VaultActivity } from '../mockData/vaultActivities';
+import type { VaultActivity } from '../../mockData/vaultActivities';
 
 /**
  * Hook to manage borrow flow modal state

@@ -7,7 +7,7 @@
  */
 
 import { createPegInTransaction } from '../../transactions/btc/pegin';
-import { LOCAL_PEGIN_CONFIG } from '../../config/pegin';
+import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
 
 export interface CreatePeginTxParams {
   /**
@@ -91,8 +91,8 @@ export async function createPeginTxForSubmission(
     // HARDCODED: Fixed fee for local development
     fee: LOCAL_PEGIN_CONFIG.btcTransactionFee,
 
-    // HARDCODED: Local network type
-    network: LOCAL_PEGIN_CONFIG.network,
+    // Network from environment (converted to WASM format)
+    network: getBTCNetworkForWASM(),
   });
 
   return {

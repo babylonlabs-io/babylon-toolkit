@@ -10,10 +10,10 @@ import {
   Loader,
 } from "@babylonlabs-io/core-ui";
 import { useState, useMemo } from "react";
-import { bitcoinIcon } from "../../assets";
-import { useVaultProviders } from "../../hooks/useVaultProviders";
-import { usePeginForm } from "../../hooks/usePeginForm";
-import type { VaultProvider } from "../../clients/vault-providers-api";
+import { bitcoinIcon } from "../../../assets";
+import { useVaultProviders } from "./useVaultProviders";
+import { usePeginForm } from "./usePeginForm";
+import type { VaultProvider } from "../../../clients/vault-providers-api";
 
 interface PeginModalProps {
   open: boolean;

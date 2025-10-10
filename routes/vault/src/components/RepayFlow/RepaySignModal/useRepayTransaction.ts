@@ -10,9 +10,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { ERC20, Morpho } from '../clients/eth-contract';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
-import { useRepayAndPegout } from './useRepayAndPegout';
+import { ERC20, Morpho } from '../../../clients/eth-contract';
+import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
+import { useRepayAndPegout } from '../../../hooks/useRepayAndPegout';
 
 interface UseRepayTransactionParams {
   pegInTxHash?: Hex;

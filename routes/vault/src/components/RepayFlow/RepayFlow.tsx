@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { VaultActivity } from "../../mockData/vaultActivities";
-import { RepaySignModal } from "../modals/RepaySignModal";
-import { RepaySuccessModal } from "../modals/RepaySuccessModal";
+import { RepaySignModal } from "./RepaySignModal/RepaySignModal";
+import { RepaySuccessModal } from "./RepaySuccessModal/RepaySuccessModal";
 import { useRepayFlowState } from "./useRepayFlowState";
 import { getFormattedRepayAmount } from "../../utils/peginTransformers";
 

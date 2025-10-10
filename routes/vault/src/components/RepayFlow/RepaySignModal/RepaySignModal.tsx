@@ -9,7 +9,7 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useRepayTransaction } from "../../hooks/useRepayTransaction";
+import { useRepayTransaction } from "./useRepayTransaction";
 
 interface RepaySignModalProps {
   open: boolean;
