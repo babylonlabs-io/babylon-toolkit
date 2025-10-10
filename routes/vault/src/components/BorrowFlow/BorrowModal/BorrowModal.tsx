@@ -74,14 +74,11 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
         return;
       }
 
-      console.log('[BorrowModal] Checking pegin readiness for:', pegInTxHash);
       setCheckingReadiness(true);
       try {
         const ready = await isPeginReadyToMint(CONTRACTS.VAULT_CONTROLLER, pegInTxHash);
-        console.log('[BorrowModal] Pegin readiness result:', ready);
         setIsReadyToMint(ready);
       } catch (error) {
-        console.error('[BorrowModal] Failed to check pegin readiness:', error);
         setIsReadyToMint(false);
       } finally {
         setCheckingReadiness(false);
@@ -133,7 +130,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
         onBorrow(borrowAmountNum);
       } else {
         // Fallback: if no onBorrow callback, use old flow
-        await handleBorrow(borrowAmountNum, collateralBTC);
+        await handleBorrow(borrowAmountNum);
         onClose();
       }
     }

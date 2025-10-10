@@ -42,7 +42,6 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
     return parsed;
   } catch (error) {
-    console.error('Error reading pending peg-ins from localStorage:', error);
     return [];
   }
 }
@@ -60,7 +59,7 @@ export function savePendingPegins(
     const key = getStorageKey(ethAddress);
     localStorage.setItem(key, JSON.stringify(pegins));
   } catch (error) {
-    console.error('Error saving pending peg-ins to localStorage:', error);
+    // Silent fail - non-critical localStorage error
   }
 }
 
@@ -146,6 +145,6 @@ export function clearPendingPegins(ethAddress: string): void {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
   } catch (error) {
-    console.error('Error clearing pending peg-ins from localStorage:', error);
+    // Silent fail - non-critical localStorage error
   }
 }

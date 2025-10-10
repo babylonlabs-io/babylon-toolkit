@@ -47,26 +47,51 @@ export interface UsePeginRequestsResult {
  */
 export function usePeginRequests(
   connectedAddress: Address | undefined,
-  onBorrowClick: (activity: VaultActivity) => void
+  onBorrowClick: (activity: VaultActivity) => void,
 ): UsePeginRequestsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['peginRequests', connectedAddress, CONTRACTS.BTC_VAULTS_MANAGER, CONTRACTS.VAULT_CONTROLLER, MORPHO_MARKET_ID],
-    queryFn: () => getPeginRequestsWithMorpho(
-      connectedAddress!,
+    queryKey: [
+      'peginRequests',
+      connectedAddress,
       CONTRACTS.BTC_VAULTS_MANAGER,
       CONTRACTS.VAULT_CONTROLLER,
-      MORPHO_MARKET_ID
-    ),
+      MORPHO_MARKET_ID,
+    ],
+    queryFn: () =>
+      getPeginRequestsWithMorpho(
+        connectedAddress!,
+        CONTRACTS.BTC_VAULTS_MANAGER,
+        CONTRACTS.VAULT_CONTROLLER,
+        MORPHO_MARKET_ID,
+      ),
     enabled: !!connectedAddress,
   });
 
   // Transform pegin requests to vault activities
   const activities = useMemo(() => {
     if (!data) return [];
-    return data.map(({ peginRequest, txHash, vaultMetadata, morphoPosition, morphoMarket, btcPriceUSD }) =>
-      transformPeginToActivity(peginRequest, txHash, onBorrowClick, vaultMetadata, morphoPosition, morphoMarket, btcPriceUSD)
+
+    const transformed = data.map(
+      ({
+        peginRequest,
+        txHash,
+        vaultMetadata,
+        morphoPosition,
+        morphoMarket,
+        btcPriceUSD,
+      }) =>
+        transformPeginToActivity(
+          peginRequest,
+          txHash,
+          onBorrowClick,
+          vaultMetadata,
+          morphoPosition,
+          morphoMarket,
+          btcPriceUSD,
+        ),
     );
+    return transformed;
   }, [data, onBorrowClick]);
 
   // Wrap refetch to return Promise<void> for backward compatibility

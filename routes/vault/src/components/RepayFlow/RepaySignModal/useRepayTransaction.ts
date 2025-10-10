@@ -10,9 +10,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { ERC20, Morpho } from '../clients/eth-contract';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
-import { useRepayAndPegout } from './useRepayAndPegout';
+import { ERC20, Morpho } from '../../../clients/eth-contract';
+import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
+import { useRepayAndPegout } from '../../../hooks/useRepayAndPegout';
 
 interface UseRepayTransactionParams {
   pegInTxHash?: Hex;
@@ -55,7 +55,6 @@ export function useRepayTransaction({
           const market = await Morpho.getMarketById(MORPHO_MARKET_ID);
           setUsdcTokenAddress(market.loanToken.address);
         } catch (error) {
-          console.error('[useRepayTransaction] Failed to fetch USDC address:', error);
           setError('Failed to load token information');
         }
       };
@@ -73,20 +72,8 @@ export function useRepayTransaction({
     }
   }, [isOpen]);
 
-  // Log errors
-  useEffect(() => {
-    if (error) {
-      console.error('[useRepayTransaction] Transaction error:', error);
-    }
-  }, [error]);
-
   const executeTransaction = useCallback(async () => {
     if (!pegInTxHash || !usdcTokenAddress || !repayAmountWei) {
-      console.error('[useRepayTransaction] Missing required data:', {
-        pegInTxHash,
-        usdcTokenAddress,
-        repayAmountWei,
-      });
       setError('Missing required transaction data');
       return;
     }
@@ -99,32 +86,15 @@ export function useRepayTransaction({
       const approvalAmount = (repayAmountWei * 101n) / 100n;
 
       // Step 1: Approve USDC spending
-      console.log('[useRepayTransaction] Step 1: Approving USDC spending', {
-        usdcTokenAddress,
-        spender: CONTRACTS.VAULT_CONTROLLER,
-        exactDebt: repayAmountWei.toString(),
-        exactDebtFormatted: (Number(repayAmountWei) / 1_000_000).toFixed(2) + ' USDC',
-        approvalAmount: approvalAmount.toString(),
-        approvalAmountFormatted: (Number(approvalAmount) / 1_000_000).toFixed(2) + ' USDC',
-        buffer: '1% buffer for interest accrual',
-      });
       setCurrentStep(1);
 
-      const approvalResult = await ERC20.approveERC20(
+      await ERC20.approveERC20(
         usdcTokenAddress,
         CONTRACTS.VAULT_CONTROLLER,
         approvalAmount
       );
 
-      console.log('[useRepayTransaction] USDC approval successful:', {
-        txHash: approvalResult.transactionHash,
-      });
-
       // Step 2: Repay and pegout
-      console.log('[useRepayTransaction] Step 2: Repaying and initiating pegout', {
-        pegInTxHash,
-        vaultController: CONTRACTS.VAULT_CONTROLLER,
-      });
       setCurrentStep(2);
 
       const result = await executeRepayAndPegout({ pegInTxHash });
@@ -132,10 +102,7 @@ export function useRepayTransaction({
       if (!result) {
         throw new Error('Repay transaction failed');
       }
-
-      console.log('[useRepayTransaction] Repay successful:', result.transactionHash);
     } catch (error) {
-      console.error('[useRepayTransaction] Transaction failed:', error);
       setError(error instanceof Error ? error.message : 'Transaction failed');
       setCurrentStep(0);
       throw error; // Re-throw so modal can handle success/failure

@@ -58,7 +58,6 @@ export async function getBTCPrice(oracleAddress: Address): Promise<{
     BigInt(oracleAddress) === 1n;
 
   if (isLocalhost || isMockOracle) {
-    console.log('[getBTCPrice] Using mock BTC price for localhost/test environment');
     return {
       price: MOCK_BTC_PRICE_USD,
       decimals: 8,
@@ -82,18 +81,11 @@ export async function getBTCPrice(oracleAddress: Address): Promise<{
 
     const [, answer] = latestRoundData;
 
-    console.log('[getBTCPrice] Fetched from oracle:', {
-      oracleAddress,
-      price: answer.toString(),
-      decimals,
-    });
-
     return {
       price: answer,
       decimals,
     };
   } catch (error) {
-    console.error('[getBTCPrice] Error fetching from oracle, using mock price:', error);
     // Fallback to mock if oracle fails
     return {
       price: MOCK_BTC_PRICE_USD,

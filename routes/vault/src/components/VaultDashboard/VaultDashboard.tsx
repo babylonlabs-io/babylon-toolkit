@@ -1,19 +1,18 @@
-import { ActivityList } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
-import { BorrowFlow } from "../BorrowFlow";
-import { RepayFlow } from "../RepayFlow";
-import {
-  PeginModal,
-  PeginSignModal,
-  PeginSuccessModal,
-} from "../modals";
-import { useVaultPositions } from "../../hooks/useVaultPositions";
-import { useBorrowFlow } from "../../hooks/useBorrowFlow";
-import { useRepayFlow } from "../../hooks/useRepayFlow";
-import { usePeginFlow } from "../../hooks/usePeginFlow";
-import { EmptyState } from "./EmptyState";
-import { VaultActivityCard } from "./VaultActivityCard";
-import type { VaultActivity } from "../../mockData/vaultActivities";
+import { ActivityList } from '@babylonlabs-io/core-ui';
+import { useCallback } from 'react';
+import { useChainConnector } from '@babylonlabs-io/wallet-connector';
+import { BorrowFlow } from '../BorrowFlow';
+import { RepayFlow } from '../RepayFlow';
+import { PeginModal } from '../PeginFlow/PeginModal/PeginModal';
+import { PeginSignModal } from '../PeginFlow/PeginSignModal/PeginSignModal';
+import { PeginSuccessModal } from '../PeginFlow/PeginSuccessModal/PeginSuccessModal';
+import { useVaultPositions } from '../../hooks/useVaultPositions';
+import { useBorrowFlow } from './useBorrowFlow';
+import { useRepayFlow } from './useRepayFlow';
+import { usePeginFlow } from './usePeginFlow';
+import { EmptyState } from './EmptyState';
+import { VaultActivityCard } from './VaultActivityCard';
+import type { VaultActivity } from '../../mockData/vaultActivities';
 
 export function VaultDashboard() {
   // Data fetching
@@ -57,32 +56,46 @@ export function VaultDashboard() {
     handlePeginSuccessClose,
   } = usePeginFlow();
 
+  // Get BTC wallet connector
+  const btcConnector = useChainConnector('BTC');
+
   // Handle peg-in sign success with storage integration
-  const handlePeginSignSuccess = useCallback(() => {
-    // Add to local storage when peg-in is submitted
-    if (connectedAddress && btcAddress) {
-      const peginId = `pending-${Date.now()}`; // Temporary ID until we get BTC tx hash
-      
-      addPendingPegin({
-        id: peginId,
-        amount: peginAmount.toString(),
-        providers: selectedProviders,
-        ethAddress: connectedAddress,
-        btcAddress: btcAddress,
-      });
+  const handlePeginSignSuccess = useCallback(
+    (btcTxId: string) => {
+      // Add to local storage with BTC transaction ID as ID (with 0x prefix)
+      // IMPORTANT: The smart contract stores BTC txids as Hex type (with 0x prefix)
+      // and uses them as keys in the btcVaults mapping. We normalize to match this format
+      // for proper deduplication when confirmed pegins are fetched from the contract.
+      if (connectedAddress && btcAddress) {
+        const idForStorage = btcTxId.startsWith('0x')
+          ? btcTxId
+          : `0x${btcTxId}`;
 
-      console.log('[VaultDashboard] Added pending peg-in to localStorage:', {
-        id: peginId,
-        amount: peginAmount,
-        providers: selectedProviders,
-      });
-    }
+        const peginData = {
+          id: idForStorage,
+          amount: peginAmount.toString(),
+          providers: selectedProviders,
+          ethAddress: connectedAddress,
+          btcAddress: btcAddress,
+        };
+        addPendingPegin(peginData);
+      }
 
-    // Complete the peg-in flow and refetch activities
-    handlePeginSignSuccessBase(() => {
-      refetchActivities();
-    });
-  }, [connectedAddress, btcAddress, peginAmount, selectedProviders, addPendingPegin, handlePeginSignSuccessBase, refetchActivities]);
+      // Complete the peg-in flow and show success modal
+      handlePeginSignSuccessBase(() => {
+        refetchActivities();
+      });
+    },
+    [
+      connectedAddress,
+      btcAddress,
+      peginAmount,
+      selectedProviders,
+      addPendingPegin,
+      handlePeginSignSuccessBase,
+      refetchActivities,
+    ],
+  );
 
   // Show message if wallet is not connected
   if (!isWalletConnected) {
@@ -122,6 +135,9 @@ export function VaultDashboard() {
         onSuccess={handlePeginSignSuccess}
         amount={peginAmount}
         selectedProviders={selectedProviders}
+        btcConnector={btcConnector}
+        btcAddress={btcAddress || ''}
+        depositorEthAddress={connectedAddress || '0x0'}
       />
 
       <PeginSuccessModal
@@ -146,4 +162,3 @@ export function VaultDashboard() {
     </>
   );
 }
-

@@ -5,9 +5,9 @@
 import { useState, useCallback } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { Hex } from 'viem';
-import { mintAndBorrowWithMarketId } from '../services/vault/vaultTransactionService';
-import type { MintAndBorrowResult } from '../services/vault/vaultTransactionService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
+import { mintAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
+import type { MintAndBorrowResult } from '../../../services/vault/vaultTransactionService';
+import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
 
 export interface UseMintAndBorrowParams {
   /** Pegin transaction hash (vault ID) */
@@ -63,13 +63,6 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         const publicKeyNoCoord = publicKeyBuffer.subarray(1, 33);
         const btcPubkey = `0x${publicKeyNoCoord.toString('hex')}` as Hex;
 
-        console.log('[useMintAndBorrow] Executing mint and borrow:', {
-          pegInTxHash,
-          btcPubkey,
-          borrowAmount: borrowAmount.toString(),
-          marketId: MORPHO_MARKET_ID,
-        });
-
         // Call service to execute transaction
         const txResult = await mintAndBorrowWithMarketId(
           CONTRACTS.VAULT_CONTROLLER,
@@ -79,15 +72,10 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
           borrowAmount
         );
 
-        console.log('[useMintAndBorrow] Transaction successful:', {
-          transactionHash: txResult.transactionHash,
-        });
-
         setResult(txResult);
         return txResult;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('[useMintAndBorrow] Transaction failed:', error);
         setError(errorMessage);
         return null;
       } finally {

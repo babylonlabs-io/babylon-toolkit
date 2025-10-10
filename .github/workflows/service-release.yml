@@ -5,6 +5,7 @@ on:
     branches:
       - "main"
       - "release/v1.x"
+      - "vault"
     tags:
       - "*"
   workflow_dispatch:
@@ -15,6 +16,7 @@ jobs:
     with:
       run-build: true
       run-unit-tests: true
+      node-version: 24.2
 
   s3_publish:
     needs: [lint_test]
@@ -22,7 +24,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [canon-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          [canon-devnet, vault-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository

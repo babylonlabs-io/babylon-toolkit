@@ -92,7 +92,7 @@ export const mockVaultActivities: VaultActivity[] = [
     ],
     action: {
       label: "Borrow USDC",
-      onClick: () => console.log("Borrow USDC for activity 1")
+      onClick: () => {}
     }
   },
   {
@@ -115,7 +115,7 @@ export const mockVaultActivities: VaultActivity[] = [
     ],
     action: {
       label: "Borrow USDC",
-      onClick: () => console.log("Borrow USDC for activity 2")
+      onClick: () => {}
     }
   },
   {
@@ -143,7 +143,7 @@ export const mockVaultActivities: VaultActivity[] = [
     ],
     action: {
       label: "Borrow USDC",
-      onClick: () => console.log("Borrow USDC for activity 3")
+      onClick: () => {}
     }
   }
 ];

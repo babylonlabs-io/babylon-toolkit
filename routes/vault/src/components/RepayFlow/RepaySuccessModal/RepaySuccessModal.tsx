@@ -7,34 +7,29 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
-import mascotSmile from "../../assets/mascot-smile-expression.png";
+import mascotSmile from "../../../assets/mascot-smile-expression.png";
 
-interface BorrowSuccessModalProps {
+interface RepaySuccessModalProps {
   open: boolean;
   onClose: () => void;
-  borrowAmount: number;
+  repayAmount: string;
+  btcAmount: string;
 }
 
 /**
- * BorrowSuccessModal - Success celebration modal after borrow completion
+ * RepaySuccessModal - Success celebration modal after repayment completion
  * 
  * Displays:
- * - Mascot image (celebrating)
- * - "Borrow Successful" heading
- * - Borrowed amount confirmation
+ * - "Repayment and Withdrawal Successful" heading
+ * - Repaid amount and BTC released confirmation
  * - "Done" button to close
  */
-export function BorrowSuccessModal({
+export function RepaySuccessModal({
   open,
   onClose,
-  borrowAmount,
-}: BorrowSuccessModalProps) {
-  // Format amount with commas for readability
-  const formattedAmount = borrowAmount.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
-
+  repayAmount,
+  btcAmount,
+}: RepaySuccessModalProps) {
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
@@ -45,11 +40,13 @@ export function BorrowSuccessModal({
         />
 
         <Heading variant="h4" className="mb-4 text-xl sm:text-2xl">
-          Borrow Successful
+          Repayment and Withdrawal Successful
         </Heading>
 
         <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
-          {formattedAmount} USDC has been borrowed and is now available in your wallet.
+          You have repaid {repayAmount} USDC and your {btcAmount} BTC
+          <br />
+          has been released back to your wallet.
         </Text>
       </DialogBody>
 
@@ -66,4 +63,3 @@ export function BorrowSuccessModal({
     </ResponsiveDialog>
   );
 }
-

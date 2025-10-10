@@ -6,6 +6,12 @@ export default defineConfig([
   {
     rules: {
       "tailwindcss/no-custom-classname": 0,
+      "@nx/enforce-module-boundaries": [
+        "error",
+        {
+          allow: ["^viem.*"],
+        },
+      ],
     },
   }
 ]);

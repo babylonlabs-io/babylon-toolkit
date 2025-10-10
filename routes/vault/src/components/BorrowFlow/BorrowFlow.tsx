@@ -1,4 +1,6 @@
-import { BorrowModal, BorrowSignModal, BorrowSuccessModal } from "../modals";
+import { BorrowModal } from "./BorrowModal";
+import { BorrowSignModal } from "./BorrowSignModal/BorrowSignModal";
+import { BorrowSuccessModal } from "./BorrowSuccessModal/BorrowSuccessModal";
 import { useBorrowFlowState } from "./useBorrowFlowState";
 import type { VaultActivity } from "../../mockData/vaultActivities";
 import { useEffect } from "react";

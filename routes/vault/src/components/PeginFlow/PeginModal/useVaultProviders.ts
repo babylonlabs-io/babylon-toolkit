@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getVaultProviders } from '../clients/vault-providers-api';
+import { getVaultProviders } from '../../../clients/vault-providers-api';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 

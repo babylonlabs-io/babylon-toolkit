@@ -10,7 +10,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import type { Hex } from "viem";
-import { useMintAndBorrow } from "../../hooks/useMintAndBorrow";
+import { useMintAndBorrow } from "./useMintAndBorrow";
 
 interface BorrowSignModalProps {
   open: boolean;
@@ -49,28 +49,13 @@ export function BorrowSignModal({
     }
   }, [open]);
 
-  // Show error in console if transaction fails
-  useEffect(() => {
-    if (error) {
-      console.error('[BorrowSignModal] Transaction error:', error);
-      // TODO: Show error in UI
-    }
-  }, [error]);
-
   const handleSign = async () => {
     if (!pegInTxHash || !borrowAmount) {
-      console.error('[BorrowSignModal] Missing required data:', { pegInTxHash, borrowAmount });
       return;
     }
 
     // Convert USDC amount to bigint with 6 decimals
     const borrowAmountBigInt = BigInt(Math.floor(borrowAmount * 1_000_000));
-
-    console.log('[BorrowSignModal] Starting transaction:', {
-      pegInTxHash,
-      borrowAmount,
-      borrowAmountBigInt: borrowAmountBigInt.toString(),
-    });
 
     setTransactionStarted(true);
 
@@ -85,7 +70,6 @@ export function BorrowSignModal({
         onSuccess();
       }
     } catch (error) {
-      console.error('[BorrowSignModal] Transaction failed:', error);
       setTransactionStarted(false);
       // Keep modal open to show error
     }

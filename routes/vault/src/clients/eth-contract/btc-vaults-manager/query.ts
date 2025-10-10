@@ -43,7 +43,7 @@ export async function getDepositorPeginRequests(
 
 /**
  * Get details of a specific pegin request
- * Uses the `peginRequests` mapping which includes vaultProvider
+ * Uses the `btcVaults` mapping which includes vaultProvider
  * @param contractAddress - BTCVaultsManager contract address
  * @param pegInTxHash - Pegin transaction hash
  * @returns Pegin request details including vaultProvider
@@ -57,7 +57,7 @@ export async function getPeginRequest(
     const result = await publicClient.readContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
-      functionName: 'peginRequests',
+      functionName: 'btcVaults',
       args: [pegInTxHash],
     });
 

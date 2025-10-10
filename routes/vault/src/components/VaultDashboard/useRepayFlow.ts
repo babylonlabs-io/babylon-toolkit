@@ -1,19 +1,19 @@
 import { useState, useCallback } from 'react';
-import type { VaultActivity } from '../mockData/vaultActivities';
+import type { VaultActivity } from '../../mockData/vaultActivities';
 
 /**
- * Hook to manage borrow flow modal state
+ * Hook to manage repay flow modal state
  */
-export function useBorrowFlow() {
+export function useRepayFlow() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
 
-  const openBorrowFlow = useCallback((activity: VaultActivity) => {
+  const openRepayFlow = useCallback((activity: VaultActivity) => {
     setSelectedActivity(activity);
     setIsOpen(true);
   }, []);
 
-  const closeBorrowFlow = useCallback(() => {
+  const closeRepayFlow = useCallback(() => {
     setIsOpen(false);
     setSelectedActivity(null);
   }, []);
@@ -21,7 +21,7 @@ export function useBorrowFlow() {
   return {
     isOpen,
     selectedActivity,
-    openBorrowFlow,
-    closeBorrowFlow,
+    openRepayFlow,
+    closeRepayFlow,
   };
 }
