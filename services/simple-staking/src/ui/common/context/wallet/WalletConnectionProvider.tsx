@@ -3,7 +3,6 @@ import {
   ExternalWallets,
   WalletProvider,
 } from "@babylonlabs-io/wallet-connector";
-import { AppKitConnectButton } from "@/ui/common/components/Wallet/AppKitConnectButton";
 import { useTheme } from "next-themes";
 import { useCallback, type PropsWithChildren } from "react";
 import { useLocation } from "react-router";
