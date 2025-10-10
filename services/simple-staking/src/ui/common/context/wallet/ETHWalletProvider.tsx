@@ -13,7 +13,7 @@ import {
   useAppKitAccount,
   useDisconnect,
 } from "@reown/appkit/react";
-import { useAppKitBridge, useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useAppKitBridge } from "@babylonlabs-io/wallet-connector";
 import { formatUnits } from "viem";
 import {
   useBalance,
@@ -24,6 +24,8 @@ import {
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
+import { useAppKitOpenListener } from "../../hooks/useAppKitOpenListener";
+import { useEthConnectorBridge } from "../../hooks/useEthConnectorBridge";
 
 interface ETHWalletContextType {
   // Connection state
@@ -99,25 +101,10 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { disconnect } = useDisconnect();
-  const ethConnector = useChainConnector("ETH");
   useAppKitBridge();
+  useAppKitOpenListener();
+  useEthConnectorBridge();
 
-  useEffect(() => {
-    if (!ethConnector) return;
-    if (isConnected && address) {
-      try {
-        const already = ethConnector.connectedWallet?.id === "appkit-eth-connector";
-        const appkitWallet = ethConnector.wallets?.find((w: any) => w.id === "appkit-eth-connector");
-        if (!already && appkitWallet) {
-          void ethConnector.connect(appkitWallet);
-        }
-      } catch (e) {
-        console.warn("[simple-staking] Local ETH bridge connect failed", e);
-      }
-    } else if (!isConnected && ethConnector?.connectedWallet) {
-      void ethConnector.disconnect();
-    }
-  }, [isConnected, address, ethConnector]);
   const { chainId } = useAccount();
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
@@ -162,18 +149,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
     }
   }, [disconnect, handleError]);
 
-  // Listen for wallet-connector asking the host app to open AppKit
-  useEffect(() => {
-    const handler = () => {
-      try {
-        open?.();
-      } catch {
-        // error
-      }
-    };
-    window.addEventListener("babylon:open-appkit", handler as EventListener);
-    return () => window.removeEventListener("babylon:open-appkit", handler as EventListener);
-  }, [open]);
 
   const ethWalletMethods = useMemo(
     () => ({

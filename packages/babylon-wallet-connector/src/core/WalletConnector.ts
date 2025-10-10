@@ -4,6 +4,8 @@ import { Wallet } from "@/core/Wallet";
 import type { IConnector, IProvider } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
+type DisconnectableProvider = IProvider & { disconnect?: () => Promise<void> };
+
 export interface ConnectorEvents<P extends IProvider> {
   connecting: (message?: string) => void;
   connect: (wallet: Wallet<P>) => void;
@@ -52,8 +54,8 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
 
   async disconnect() {
     if (this._connectedWallet) {
-      const provider: any = this._connectedWallet.provider as any;
-      if (provider && typeof provider.disconnect === "function") {
+      const provider = this._connectedWallet.provider as DisconnectableProvider | null;
+      if (provider?.disconnect && typeof provider.disconnect === "function") {
         try {
           await provider.disconnect();
         } catch {
