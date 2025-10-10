@@ -28,15 +28,12 @@ export function useVaultPositions() {
   const btcConnector = useChainConnector('BTC');
   const { connected } = useWalletConnect();
 
-  // Track connected wallets in state so React properly detects changes
   const [ethWallet, setEthWallet] = useState<IWallet | null>(null);
   const [btcWallet, setBtcWallet] = useState<IWallet | null>(null);
 
-  // Sync ETH wallet state with connector events
   useEffect(() => {
     if (!isConnectorWithWallet(ethConnector)) return;
 
-    // Initialize with current state
     setEthWallet(ethConnector.connectedWallet);
 
     const unsubscribeConnect = ethConnector.on('connect', (wallet: IWallet) => {
@@ -53,11 +50,9 @@ export function useVaultPositions() {
     };
   }, [ethConnector]);
 
-  // Sync BTC wallet state with connector events
   useEffect(() => {
     if (!isConnectorWithWallet(btcConnector)) return;
 
-    // Initialize with current state
     setBtcWallet(btcConnector.connectedWallet);
 
     const unsubscribeConnect = btcConnector.on('connect', (wallet: IWallet) => {
@@ -74,17 +69,14 @@ export function useVaultPositions() {
     };
   }, [btcConnector]);
 
-  // Extract addresses from tracked wallet state
   const btcAddress = btcWallet?.account?.address;
   const connectedAddress = ethWallet?.account?.address as Hex | undefined;
 
-  // Fetch pegin requests from blockchain
   const { activities: confirmedActivities, refetch } = usePeginRequests(
     connectedAddress,
     () => { } // no-op callback
   );
 
-  // Integrate local storage for pending peg-ins
   const {
     allActivities,
     addPendingPegin,
