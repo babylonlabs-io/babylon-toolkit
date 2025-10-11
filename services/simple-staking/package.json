@@ -26,9 +26,6 @@
     "visualizer": "pnpm exec vite-bundle-visualizer",
     "gen:api": "pnpm exec swagger-typescript-api generate -p https://staking-api.babylonlabs.io/swagger/doc.json -o ./src/shared/utils/swagger -t ./src/shared/utils/swagger/templates -n api.ts --unwrap-response-data --disable-format --silent"
   },
-  "engines": {
-    "node": "24.2.0"
-  },
   "dependencies": {
     "@babylonlabs-io/babylon-proto-ts": "workspace:*",
     "@babylonlabs-io/btc-staking-ts": "2.5.6",
