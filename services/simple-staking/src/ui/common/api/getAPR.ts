@@ -1,17 +1,27 @@
 import { API_ENDPOINTS } from "../constants/endpoints";
-import { GlobalUnitAPRData } from "../types/api/coStaking";
+import { PersonalizedAPRResponse } from "../types/api/coStaking";
 
 import { apiWrapper } from "./apiWrapper";
 
 /**
- * Fetch APR data from the backend API
- * Returns APR values for BTC staking, BABY staking, Co-staking, and maximum APR
+ * Fetch personalized APR data from backend based on user's total staked amounts
+ * @param btcStakedSat - Total BTC in satoshis (confirmed + pending)
+ * @param babyStakedUbbn - Total BABY in ubbn (confirmed + pending)
+ * @returns Personalized APR data including current, boost, and additional BABY needed
  */
-export const getAPR = async (): Promise<GlobalUnitAPRData> => {
-  const { data } = await apiWrapper<{ data: GlobalUnitAPRData }>(
+export const getPersonalizedAPR = async (
+  btcStakedSat: number,
+  babyStakedUbbn: number,
+): Promise<PersonalizedAPRResponse["data"]> => {
+  const params = new URLSearchParams({
+    btc_staked: btcStakedSat.toString(),
+    baby_staked: babyStakedUbbn.toString(),
+  });
+
+  const { data } = await apiWrapper<PersonalizedAPRResponse>(
     "GET",
-    API_ENDPOINTS.APR,
-    "Error fetching APR data",
+    `${API_ENDPOINTS.APR}?${params.toString()}`,
+    "Error fetching personalized APR data",
   );
 
   return data.data;

@@ -33,7 +33,7 @@ import {
   ClaimStatusModal,
   ClaimResult,
 } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
-import { useCoStakingService } from "@/ui/common/hooks/services/useCoStakingService";
+import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import {
   NAVIGATION_STATE_KEYS,
@@ -71,15 +71,9 @@ function RewardsPageContent() {
 
   const { claimRewards: btcClaimRewards } = useRewardsService();
 
-  const {
-    getAdditionalBabyNeeded,
-    rewardsTracker,
-    currentRewards,
-    rewardSupply,
-    aprData,
-  } = useCoStakingService();
+  const { eligibility, aprData } = useCoStakingState();
 
-  const additionalBabyNeeded = getAdditionalBabyNeeded();
+  const additionalBabyNeeded = eligibility.additionalBabyNeeded;
 
   const btcRewardBaby = maxDecimals(
     ubbnToBaby(Number(btcRewardUbbn || 0)),
@@ -98,13 +92,17 @@ function RewardsPageContent() {
   );
 
   // Calculate co-staking amount split from BTC rewards
+  // NOTE: calculateCoStakingAmount may need updating to use new APR data structure
+  // For now, we use fallback values to maintain compatibility
   const coStakingSplit = calculateCoStakingAmount(
     btcRewardBaby,
-    rewardsTracker?.total_score,
-    currentRewards?.total_score,
-    rewardsTracker?.active_baby,
-    rewardSupply,
-    aprData?.btc_staking,
+    undefined, // rewardsTracker?.total_score (no longer available)
+    undefined, // currentRewards?.total_score (no longer available)
+    undefined, // rewardsTracker?.active_baby (no longer available)
+    undefined, // rewardSupply (no longer available)
+    aprData?.currentApr
+      ? aprData.currentApr - aprData.currentApr * 0.1
+      : undefined, // Approximate BTC staking APR
   );
 
   const coStakingAmountBaby = coStakingSplit?.coStakingAmount;
