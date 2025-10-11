@@ -5,6 +5,8 @@ import BabyLayout from "./baby/layout";
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
 import BTCStaking from "./common/page";
+import RewardsPage from "./common/rewards";
+import FeatureFlagService from "./common/utils/FeatureFlagService";
 
 export const Router = () => {
   return (
@@ -14,6 +16,7 @@ export const Router = () => {
         <Route path="vault" element={<VaultLayout />} />
         <Route path="btc" element={<BTCStaking />} />
         <Route path="baby" element={<BabyLayout />} />
+        <Route path="rewards" element={<RewardsPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

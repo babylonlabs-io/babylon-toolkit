@@ -37,8 +37,8 @@ import type { StakingParams } from "@babylonlabs-io/babylon-proto-ts";
 // services/simple-staking/package.json
 {
   "dependencies": {
-    "@babylonlabs-io/core-ui": "*",
-    "@babylonlabs-io/wallet-connector": "*"
+    "@babylonlabs-io/core-ui": "workspace:*",
+    "@babylonlabs-io/wallet-connector": "workspace:*"
   }
 }
 ```

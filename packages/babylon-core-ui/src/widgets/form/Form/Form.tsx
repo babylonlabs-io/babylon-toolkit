@@ -1,4 +1,4 @@
-import { type PropsWithChildren, useEffect, HTMLProps } from "react";
+import { type PropsWithChildren, useEffect, HTMLProps, forwardRef, useImperativeHandle } from "react";
 import {
   type DefaultValues,
   type Mode,
@@ -7,6 +7,7 @@ import {
   FormProvider,
   useForm,
   Resolver,
+  UseFormReturn,
 } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { type ObjectSchema } from "yup";
@@ -24,7 +25,9 @@ export interface FormProps<V extends object> extends PropsWithChildren {
   onChange?: (data: DeepPartial<V>) => void;
 }
 
-export function Form<V extends object>({
+export type FormRef<V extends object> = UseFormReturn<V>;
+
+function FormInner<V extends object>({
   className,
   name,
   children,
@@ -35,13 +38,24 @@ export function Form<V extends object>({
   formProps,
   onSubmit = () => null,
   onChange,
-}: FormProps<V>) {
+}: FormProps<V>, ref: React.Ref<FormRef<V>>) {
   const methods = useForm({
     mode,
     reValidateMode,
     defaultValues,
     resolver: schema ? (yupResolver(schema) as unknown as Resolver<V>) : undefined,
   });
+
+  /**
+   * Expose the react-hook-form methods to parent components via ref.
+   * This allows parent components to imperatively control the form,
+   * such as programmatically setting field values (e.g., prefilling co-staking amount).
+   *
+   * Example usage in parent:
+   *   const formRef = useRef<FormRef<MyFormFields>>(null);
+   *   formRef.current?.setValue("amount", "100");
+   */
+  useImperativeHandle(ref, () => methods, [methods]);
 
   useEffect(() => {
     if (!onChange) return;
@@ -64,3 +78,7 @@ export function Form<V extends object>({
     </FormProvider>
   );
 }
+
+export const Form = forwardRef(FormInner) as <V extends object>(
+  props: FormProps<V> & { ref?: React.Ref<FormRef<V>> }
+) => ReturnType<typeof FormInner>;

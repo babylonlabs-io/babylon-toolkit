@@ -16,6 +16,7 @@ interface SubmitModalProps {
   disabled?: boolean;
   open: boolean;
   icon: JSX.Element;
+  iconParentClassName?: string;
   title: string | JSX.Element;
   cancelButton?: string | JSX.Element;
   submitButton?: string | JSX.Element;
@@ -28,6 +29,7 @@ export const SubmitModal = ({
   processing = false,
   disabled = false,
   icon,
+  iconParentClassName = "h-20 w-20",
   title,
   children,
   open,
@@ -38,7 +40,9 @@ export const SubmitModal = ({
 }: PropsWithChildren<SubmitModalProps>) => (
   <ResponsiveDialog className={className} open={open} onClose={onClose}>
     <DialogBody className="py-16 text-center text-accent-primary">
-      <div className="mb-6 inline-flex h-20 w-20 items-center justify-center bg-primary-contrast">
+      <div
+        className={`mb-6 inline-flex items-center justify-center bg-primary-contrast ${iconParentClassName}`}
+      >
         {icon}
       </div>
 

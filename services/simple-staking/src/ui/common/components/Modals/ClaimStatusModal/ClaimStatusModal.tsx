@@ -1,35 +1,71 @@
 import { Loader } from "@babylonlabs-io/core-ui";
-import { BiSolidBadgeCheck } from "react-icons/bi";
+import { BiSolidBadgeCheck, BiErrorCircle } from "react-icons/bi";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 
 import { SubmitModal } from "../SubmitModal";
 
-import { SuccessContent } from "./SuccessContent";
+import { ClaimResultsContent } from "./ClaimResultsContent";
+import { ClaimErrorsContent } from "./ClaimErrorsContent";
 
 interface ClaimStatusModalProps {
   open: boolean;
   onClose?: () => void;
   loading: boolean;
-  transactionHash?: string;
+  status?: ClaimStatus;
+  results?: ClaimResult[];
+}
+
+export interface ClaimResult {
+  kind: "btc" | "baby";
+  label: string;
+  success: boolean;
+  txHash?: string;
+}
+
+export enum ClaimStatus {
+  PROCESSING = "processing",
+  SUCCESS = "success",
+  PARTIAL = "partial",
+  ERROR = "error",
 }
 
 const { coinSymbol } = getNetworkConfigBBN();
 
 const MODAL_STEP = {
-  processing: {
+  [ClaimStatus.PROCESSING]: {
     icon: <Loader size={48} className="text-primary-light" />,
     title: "Processing Claim",
     submitButton: "",
     cancelButton: "",
     content: null,
   },
-  success: {
+  [ClaimStatus.SUCCESS]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: `Successfully Claimed ${coinSymbol}`,
     submitButton: "Done",
     cancelButton: "",
-    content: (txHash?: string) => <SuccessContent transactionHash={txHash} />,
+    content: (results?: ClaimResult[]) => (
+      <ClaimResultsContent results={results} />
+    ),
+  },
+  [ClaimStatus.PARTIAL]: {
+    icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
+    title: "Claim Completed With Some Failures",
+    submitButton: "Done",
+    cancelButton: "",
+    content: (results?: ClaimResult[]) => (
+      <ClaimResultsContent results={results} />
+    ),
+  },
+  [ClaimStatus.ERROR]: {
+    icon: <BiErrorCircle className="text-5xl text-primary-light" />,
+    title: "Claim Failed",
+    submitButton: "Done",
+    cancelButton: "",
+    content: (results?: ClaimResult[]) => (
+      <ClaimErrorsContent results={results} />
+    ),
   },
 };
 
@@ -37,9 +73,13 @@ export const ClaimStatusModal = ({
   open,
   onClose,
   loading,
-  transactionHash,
+  status,
+  results,
 }: ClaimStatusModalProps) => {
-  const config = loading ? MODAL_STEP.processing : MODAL_STEP.success;
+  const resolvedStatus = loading
+    ? ClaimStatus.PROCESSING
+    : (status ?? ClaimStatus.SUCCESS);
+  const config = MODAL_STEP[resolvedStatus];
 
   return (
     <SubmitModal
@@ -51,7 +91,7 @@ export const ClaimStatusModal = ({
       submitButton={config.submitButton}
       cancelButton={config.cancelButton}
     >
-      {config.content?.(transactionHash)}
+      {resolvedStatus !== ClaimStatus.PROCESSING && config.content?.(results)}
     </SubmitModal>
   );
 };

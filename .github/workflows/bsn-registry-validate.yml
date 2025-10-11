@@ -20,8 +20,11 @@ jobs:
         with:
           node-version: '24.2.0'
 
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
       - name: Install dependencies
-        run: npm ci --verbose
+        run: pnpm install --frozen-lockfile
 
       - name: Validate BSN registry icons and URLs
-        run: npm --prefix packages/babylon-bsn-registry run validate-images
+        run: pnpm --filter babylon-bsn-registry run validate-images

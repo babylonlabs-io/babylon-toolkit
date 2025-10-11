@@ -75,10 +75,13 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   const copyToClipboard = copy?.copyToClipboard ?? internalCopy;
   const [isOpen, setIsOpen] = useState(forceOpen);
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    setIsOpen(open);
-    onOpenChange?.(open);
-  }, [onOpenChange]);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setIsOpen(open);
+      onOpenChange?.(open);
+    },
+    [onOpenChange],
+  );
 
   const handleDisconnect = useCallback(() => {
     setIsOpen(false);
@@ -99,13 +102,10 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
       open={isOpen}
       onOpenChange={handleOpenChange}
       mobileMode={mobileMode}
-      className={twJoin(
-        "shadow-lg border border-[#38708533] bg-surface dark:border-[#404040] rounded-lg",
-        className,
-      )}
+      className={twJoin("rounded-lg border border-[#38708533] bg-surface shadow-lg dark:border-[#404040]", className)}
     >
-      <div className="p-4 space-y-6 w-full text-primary-main">
-        <div className="flex flex-row gap-2 w-full md:flex-col">
+      <div className="w-full space-y-6 p-4 text-primary-main">
+        <div className="flex w-full flex-row gap-2 md:flex-col">
           {btcAddress && (
             <WalletMenuCard
               walletType="Bitcoin"
@@ -136,24 +136,32 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
           />
         </div>
 
-        <div className="flex flex-col w-full bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
+        <div className="flex w-full flex-col rounded-lg bg-[#F9F9F9] dark:bg-[#2F2F2F] md:gap-8 md:border-none md:bg-transparent md:dark:bg-transparent">
           <WalletMenuSettingItem
-            icon={<ThemedIcon variant="primary" background rounded><UsingInscriptionIcon /></ThemedIcon>}
+            icon={
+              <ThemedIcon variant="primary" background rounded>
+                <UsingInscriptionIcon />
+              </ThemedIcon>
+            }
             title="Using Inscriptions"
             status={ordinalsExcluded ? "Off" : "On"}
             value={!ordinalsExcluded}
-            onChange={(value) =>
-              value ? onIncludeOrdinals() : onExcludeOrdinals()
-            }
+            onChange={(value) => (value ? onIncludeOrdinals() : onExcludeOrdinals())}
           />
 
           <WalletMenuSettingItem
-            icon={<ThemedIcon variant="primary" background rounded><LinkWalletIcon /></ThemedIcon>}
-            title={<>
-              Linked Wallet
-              <br className="hidden md:block" />
-              <span className="md:hidden"> </span>Stakes
-            </>}
+            icon={
+              <ThemedIcon variant="primary" background rounded>
+                <LinkWalletIcon />
+              </ThemedIcon>
+            }
+            title={
+              <>
+                Linked Wallet
+                <br className="hidden md:block" />
+                <span className="md:hidden"> </span>Stakes
+              </>
+            }
             status={linkedDelegationsVisibility ? "On" : "Off"}
             value={linkedDelegationsVisibility}
             onChange={onDisplayLinkedDelegations}
@@ -161,22 +169,25 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
             infoIcon={<InfoIcon size={14} variant="secondary" />}
           />
 
-          <WalletMenuInfoItem
-            title="Bitcoin Public Key"
-            value={publicKeyNoCoord}
-            isCopied={isCopied("publicKey")}
-            onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
-            icon={<ThemedIcon variant="primary" background rounded><BitcoinPublicKeyIcon /></ThemedIcon>}
-            className="rounded-b-lg rounded-t-none md:rounded-none"
-          />
+          {btcAddress && publicKeyNoCoord && (
+            <WalletMenuInfoItem
+              title="Bitcoin Public Key"
+              value={publicKeyNoCoord}
+              isCopied={isCopied("publicKey")}
+              onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
+              icon={
+                <ThemedIcon variant="primary" background rounded>
+                  <BitcoinPublicKeyIcon />
+                </ThemedIcon>
+              }
+              className="rounded-b-lg rounded-t-none md:rounded-none"
+            />
+          )}
         </div>
 
         {/* Disconnect Button */}
         <div className="pt-2">
-          <WalletDisconnectButton
-            onClick={handleDisconnect}
-            fluid
-          >
+          <WalletDisconnectButton onClick={handleDisconnect} fluid>
             Disconnect Wallets
           </WalletDisconnectButton>
         </div>

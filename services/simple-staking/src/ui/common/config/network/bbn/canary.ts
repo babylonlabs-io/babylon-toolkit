@@ -3,18 +3,18 @@ import { getUrlFromEnv } from "./urlUtils";
 export const BBN_CANARY_RPC_URL = getUrlFromEnv(
   process.env.NEXT_PUBLIC_BABY_RPC_URL,
   "http://localhost:3000",
-  "https://rpc.staging.babylonlabs.io",
+  "https://rpc.btc-mainnet-devnet.babylonlabs.io",
 );
 
 export const BBN_CANARY_LCD_URL = getUrlFromEnv(
   process.env.NEXT_PUBLIC_BABY_LCD_URL,
   "http://localhost:1317",
-  "https://lcd.staging.babylonlabs.io",
+  "https://lcd.btc-mainnet-devnet.babylonlabs.io",
 );
 
 export const bbnCanary = {
-  chainId: "bbn-staging-1",
-  chainName: "Babylon Staging",
+  chainId: "btc-mainnet-devnet-1",
+  chainName: "Babylon BTC Mainnet Devnet",
   chainSymbolImageUrl:
     "https://raw.githubusercontent.com/babylonlabs-io/simple-staking/main/public/chain.png",
   rpc: BBN_CANARY_RPC_URL,

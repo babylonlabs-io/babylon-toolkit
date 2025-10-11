@@ -22,7 +22,7 @@ const generateProto = async () => {
 
     // Generate TypeScript code using buf
     console.log("Generating TypeScript code...");
-    shell.exec("npx buf generate proto");
+    shell.exec("pnpm exec buf generate proto");
 
     // Clean up
     console.log("Cleaning up...");

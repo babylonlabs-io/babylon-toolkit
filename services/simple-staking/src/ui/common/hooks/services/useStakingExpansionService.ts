@@ -353,15 +353,18 @@ export function useStakingExpansionService() {
           const originalDelegation = await getDelegationV2(
             delegation.previousStakingTxHashHex,
           );
-          if (originalDelegation) {
-            previousStakingTxHex = originalDelegation.stakingTxHex;
-            previousStakingInput = {
-              finalityProviderPksNoCoordHex:
-                originalDelegation.finalityProviderBtcPksHex,
-              stakingAmountSat: originalDelegation.stakingAmount,
-              stakingTimelock: originalDelegation.stakingTimelock,
-            };
+          if (!originalDelegation) {
+            throw new Error(
+              `Failed to fetch original delegation data for ${delegation.previousStakingTxHashHex}. Cannot proceed with expansion.`,
+            );
           }
+          previousStakingTxHex = originalDelegation.stakingTxHex;
+          previousStakingInput = {
+            finalityProviderPksNoCoordHex:
+              originalDelegation.finalityProviderBtcPksHex,
+            stakingAmountSat: originalDelegation.stakingAmount,
+            stakingTimelock: originalDelegation.stakingTimelock,
+          };
         }
 
         // Create expansion input data

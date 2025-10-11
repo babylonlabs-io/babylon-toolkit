@@ -1,1 +1,1 @@
-export { RewardsPreviewModal } from "./RewardsPreviewModal"
+export * from "./RewardsPreviewModal";

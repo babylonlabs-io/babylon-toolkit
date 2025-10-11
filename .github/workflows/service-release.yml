@@ -12,11 +12,27 @@ on:
 
 jobs:
   lint_test:
-    uses: babylonlabs-io/.github/.github/workflows/reusable_node_lint_test.yml@v0.3.0
-    with:
-      run-build: true
-      run-unit-tests: true
-      node-version: 24.2
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
 
   s3_publish:
     needs: [lint_test]
@@ -24,7 +40,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [canon-devnet, vault-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          [canon-devnet, vault-devnet, testnet, mainnet, staging, btc-mainnet-devnet, bsn-devnet, edge-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -34,13 +50,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "npm"
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build project
-        run: npm run build
+        run: pnpm run build
         env:
           NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
           NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}

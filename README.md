@@ -22,16 +22,16 @@ Please follow the guidelines outlined in the [DEVELOPMENT.md](DEVELOPMENT.md) fi
 The simple-staking service is located in the `services/simple-staking` directory. To get started with development, follow these steps:
 
 ```bash
-npm run build # Build the entire monorepo. After the first run, the build result will be cached for most packages.
+pnpm run build # Build the entire monorepo. After the first run, the build result will be cached for most packages.
 ```
 
 Option 1:
 ```bash
-npx nx dev @services/simple-staking # Start the development server for the simple-staking service.
-npx nx watchDeps @services/simple-staking # Watch for changes in dependencies and rebuild as necessary.
+pnpm exec nx dev @services/simple-staking # Start the development server for the simple-staking service.
+pnpm exec nx watchDeps @services/simple-staking # Watch for changes in dependencies and rebuild as necessary.
 ```
 
 Option 2:
 ```bash
-npx nx dev:watchDeps @services/simple-staking # Start the development server and watch for changes in dependencies. The problem with this approach is that all logs are mixed together and can be hard to find out what's going on some times.
+pnpm exec nx dev:watchDeps @services/simple-staking # Start the development server and watch for changes in dependencies. The problem with this approach is that all logs are mixed together and can be hard to find out what's going on some times.
 ```

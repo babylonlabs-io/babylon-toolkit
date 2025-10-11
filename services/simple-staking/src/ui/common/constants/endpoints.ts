@@ -3,6 +3,7 @@ export const API_ENDPOINTS = {
 
   DELEGATION_V2: "/v2/delegation",
   DELEGATIONS_V2: "/v2/delegations",
+  APR: "/v2/apr",
   HEALTHCHECK: "/healthcheck",
   FINALITY_PROVIDERS: "/v1/finality-providers",
   STAKER_DELEGATIONS: "/v1/staker/delegations",

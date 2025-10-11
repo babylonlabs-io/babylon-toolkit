@@ -359,10 +359,13 @@ export function StakingState({ children }: PropsWithChildren) {
   const goToStep = useCallback(
     (stepName: StakingStep) => {
       if (stepName === StakingStep.FEEDBACK_SUCCESS) {
-        if (successModalShown) {
-          return;
-        } else {
-          setSuccessModalShown(true);
+        // Skip localStorage check when co-staking is enabled - we always want to show the boost modal
+        if (!FeatureFlags.IsCoStakingEnabled) {
+          if (successModalShown) {
+            return;
+          } else {
+            setSuccessModalShown(true);
+          }
         }
       }
 

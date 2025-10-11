@@ -144,10 +144,10 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
       return {
         startPeriodCumulativeReward:
-          response?.start_period_cumulative_reward ?? 0,
-        activeSatoshis: response?.active_satoshis ?? "0",
-        activeBaby: response?.active_baby ?? "0",
-        totalScore: response?.total_score ?? "0",
+          response?.startPeriodCumulativeReward ?? 0,
+        activeSatoshis: response?.activeSatoshis ?? "0",
+        activeBaby: response?.activeBaby ?? "0",
+        totalScore: response?.totalScore ?? "0",
       };
     } catch (error: any) {
       // Return null for 404 errors (user has not co-staked yet)
@@ -174,7 +174,7 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       return {
         rewards: response?.rewards ?? [],
         period: response?.period ?? 0,
-        totalScore: response?.total_score ?? "0",
+        totalScore: response?.totalScore ?? "0",
       };
     } catch (error) {
       throw new Error("Failed to fetch current co-staking rewards", {
@@ -206,6 +206,32 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       return BigInt(amount);
     } catch (error: any) {
       throw new Error(`Failed to fetch supply for ${denom}`, {
+        cause: error,
+      });
+    }
+  },
+
+  async getAnnualCoStakingRewardSupply(): Promise<number> {
+    try {
+      // Get annual provisions (total minted per year)
+      const annualProvisions = await this.getAnnualProvisions();
+
+      // Get incentive params (x/incentives takes first)
+      const incentiveParams = await this.getIncentiveParams();
+      const { btcStakingPortion, fpPortion } = incentiveParams;
+
+      // Get costaking params (x/costaking takes from remaining)
+      const costakingParams = await this.getCostakingParams();
+      const { costakingPortion } = costakingParams;
+
+      // Calculate cascade: co-staking receives a portion of what remains after incentives
+      // Formula: annual_provisions × (1 - btc - fp) × costaking
+      const afterIncentives = 1 - btcStakingPortion - fpPortion;
+      const totalCoStakingRewards = annualProvisions * afterIncentives * costakingPortion;
+
+      return totalCoStakingRewards;
+    } catch (error) {
+      throw new Error("Failed to calculate annual co-staking reward supply", {
         cause: error,
       });
     }

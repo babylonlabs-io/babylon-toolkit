@@ -12,7 +12,7 @@ export default defineConfig([
     plugins: {
       pkgJson,
     },
-    files: ['package.json'],
+    files: ['**/package.json'],
     languageOptions: {
       parser: jsonParser
     },

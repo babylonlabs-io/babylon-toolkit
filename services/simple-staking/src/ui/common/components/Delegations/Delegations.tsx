@@ -372,7 +372,7 @@ export const Delegations = () => {
           </Heading>
 
           <InfiniteScroll
-            className="no-scrollbar max-h-[25rem] overflow-y-auto overflow-x-hidden"
+            className="max-h-[25rem] overflow-x-auto overflow-y-auto"
             dataLength={combinedDelegationsData.length}
             next={fetchMoreDelegations}
             hasMore={hasMoreDelegations}

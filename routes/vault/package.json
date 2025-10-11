@@ -24,15 +24,14 @@
     "tailwind-merge": "2.5.4"
   },
   "dependencies": {
-    "@babylonlabs-io/config": "*",
-    "@babylonlabs-io/core-ui": "*",
-    "@babylonlabs-io/wallet-connector": "*",
+    "@babylonlabs-io/core-ui": "workspace:*",
+    "@babylonlabs-io/wallet-connector": "workspace:*",
     "@wagmi/core": "^2.16.3",
     "react-router": "7.6.3",
     "viem": "^2.37.9"
   },
   "devDependencies": {
-    "@internal/eslint-config": "*",
+    "@internal/eslint-config": "workspace:*",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "tsx": "^4.19.4",
