@@ -1,7 +1,23 @@
-import { useChainConnector, useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { useState, useEffect } from "react";
+import { useChainConnector, useWalletConnect, type IWallet, type IConnector, type IProvider } from "@babylonlabs-io/wallet-connector";
 import type { Hex } from "viem";
 import { usePeginRequests } from "./usePeginRequests";
 import { usePeginStorage } from "./usePeginStorage";
+
+/**
+ * Type guard to check if a connector has the expected shape
+ */
+function isConnectorWithWallet<P extends IProvider>(
+  connector: unknown
+): connector is IConnector<string, P> & { connectedWallet: IWallet<P> | null } {
+  return (
+    connector !== null &&
+    typeof connector === 'object' &&
+    'connectedWallet' in connector &&
+    'on' in connector &&
+    typeof (connector as Record<string, unknown>).on === 'function'
+  );
+}
 
 /**
  * Hook to manage vault positions data fetching and wallet connection
@@ -12,25 +28,55 @@ export function useVaultPositions() {
   const btcConnector = useChainConnector('BTC');
   const { connected } = useWalletConnect();
 
-  // Extract addresses directly without useMemo to ensure reactivity
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const btcAddress = (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
+  const [ethWallet, setEthWallet] = useState<IWallet | null>(null);
+  const [btcWallet, setBtcWallet] = useState<IWallet | null>(null);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const connectedAddress = (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (ethConnector as any)?.connectedWallet?.account?.address ||
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (ethConnector as any)?.connectedWallet?.accounts?.[0]?.address
-  ) as Hex | undefined;
+  useEffect(() => {
+    if (!isConnectorWithWallet(ethConnector)) return;
 
-  // Fetch pegin requests from blockchain
+    setEthWallet(ethConnector.connectedWallet);
+
+    const unsubscribeConnect = ethConnector.on('connect', (wallet: IWallet) => {
+      setEthWallet(wallet);
+    });
+
+    const unsubscribeDisconnect = ethConnector.on('disconnect', () => {
+      setEthWallet(null);
+    });
+
+    return () => {
+      unsubscribeConnect();
+      unsubscribeDisconnect();
+    };
+  }, [ethConnector]);
+
+  useEffect(() => {
+    if (!isConnectorWithWallet(btcConnector)) return;
+
+    setBtcWallet(btcConnector.connectedWallet);
+
+    const unsubscribeConnect = btcConnector.on('connect', (wallet: IWallet) => {
+      setBtcWallet(wallet);
+    });
+
+    const unsubscribeDisconnect = btcConnector.on('disconnect', () => {
+      setBtcWallet(null);
+    });
+
+    return () => {
+      unsubscribeConnect();
+      unsubscribeDisconnect();
+    };
+  }, [btcConnector]);
+
+  const btcAddress = btcWallet?.account?.address;
+  const connectedAddress = ethWallet?.account?.address as Hex | undefined;
+
   const { activities: confirmedActivities, refetch } = usePeginRequests(
     connectedAddress,
-    () => {} // no-op callback
+    () => { } // no-op callback
   );
 
-  // Integrate local storage for pending peg-ins
   const {
     allActivities,
     addPendingPegin,
