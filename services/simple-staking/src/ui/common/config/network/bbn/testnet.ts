@@ -13,7 +13,7 @@ export const BBN_TESTNET_LCD_URL = getUrlFromEnv(
 );
 
 export const bbnTestnet = {
-  chainId: "bbn-test-5",
+  chainId: "bbn-test-6",
   chainName: "Babylon Phase-2 Testnet",
   chainSymbolImageUrl:
     "https://raw.githubusercontent.com/babylonlabs-io/simple-staking/main/public/chain.png",
