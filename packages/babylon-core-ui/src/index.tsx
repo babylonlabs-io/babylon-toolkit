@@ -20,6 +20,7 @@ export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export * from "./components/Tabs";
 export * from "./components/AmountItem";
 export * from "./components/CoStakingAmountItem";
 export * from "./components/DisplayHash";
@@ -29,9 +30,11 @@ export * from "./components/Warning";
 export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";
 export * from "./components/TopBanner";
+export * from "./components/Step";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
+export * from "./elements/ProviderCard";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
