@@ -4,9 +4,6 @@ packages:
   - services/*
   - routes/*
 
-overrides:
-  '@mempool/mempool.js>axios': 1.12.2
-
 ignoredBuiltDependencies:
   - '@sentry/cli'
 
