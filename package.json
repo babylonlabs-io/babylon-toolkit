@@ -2,7 +2,10 @@
   "name": "bbn-client",
   "version": "0.0.0",
   "license": "MIT",
-  "packageManager": "pnpm@10.18.0",
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "preinstall": "node scripts/preinstall.js",
     "build": "nx run-many --target=build --all",
