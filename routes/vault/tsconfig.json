@@ -19,5 +19,13 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    {
+      "path": "../../packages/babylon-wallet-connector"
+    },
+    {
+      "path": "../../packages/babylon-core-ui"
+    }
+  ]
 }

@@ -4,7 +4,7 @@
 
 import type { Address } from 'viem';
 import { ethClient } from '../client';
-import { network } from '@babylonlabs-io/config';
+import { network } from '@/config/eth-config';
 
 /**
  * Chainlink AggregatorV3Interface ABI (minimal for price fetching)

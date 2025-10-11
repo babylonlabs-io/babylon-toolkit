@@ -8,7 +8,7 @@ import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position'
 import { registerCustomAddresses } from '@morpho-org/blue-sdk';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
-import { network } from '@babylonlabs-io/config';
+import { network } from '@/config/eth-config';
 
 // Localhost Morpho contract address
 export const LOCALHOST_MORPHO_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as Address;

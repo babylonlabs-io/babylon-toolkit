@@ -6,7 +6,7 @@
  */
 
 import type { Address } from 'viem';
-import { getBTCNetwork, type BTCNetwork } from '@babylonlabs-io/config';
+import { getBTCNetwork, type BTCNetwork } from '@/config/eth-config';
 
 /**
  * WASM network format (different from standard Bitcoin network names)

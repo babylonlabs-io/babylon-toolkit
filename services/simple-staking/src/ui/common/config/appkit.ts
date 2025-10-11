@@ -1,9 +1,25 @@
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { setSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
-import { localhost } from "@babylonlabs-io/config";
 import { mainnet, sepolia } from "viem/chains";
 import { http } from "viem";
+import { defineChain } from "viem";
+
+// Define localhost chain inline
+const localhost = defineChain({
+  id: 31337,
+  name: "Localhost",
+  network: "localhost",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: { http: ["http://localhost:8545"] },
+    public: { http: ["http://localhost:8545"] },
+  },
+});
 
 // Get project ID from environment
 const projectId =

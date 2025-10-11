@@ -8,7 +8,7 @@ import {
 } from 'viem';
 import { getWalletClient, switchChain } from '@wagmi/core';
 import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
-import { getETHChain } from '@babylonlabs-io/config';
+import { getETHChain } from '@/config/eth-config';
 import { ethClient } from '../client';
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 

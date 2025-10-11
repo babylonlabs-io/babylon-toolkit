@@ -9,7 +9,7 @@ import { ThemedIcon } from "../../../components/Icons/ThemedIcon";
 import { useCopy } from "../../../hooks/useCopy";
 import { twJoin } from "tailwind-merge";
 
-export type WalletChain = "BTC" | "BBN";
+export type WalletChain = "BTC" | "BBN" | "ETH";
 
 export interface WalletMenuProps {
   trigger: React.ReactNode;

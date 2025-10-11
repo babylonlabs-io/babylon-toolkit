@@ -5,7 +5,7 @@
  * This is a temporary location - will be migrated to when moving to main branch.
  */
 
-// import { getBTCNetwork } from '@babylonlabs-io/config';
+// import { getBTCNetwork } from '@/config/eth-config';
 
 /**
  * UTXO from mempool API with confirmation status

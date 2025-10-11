@@ -26,6 +26,10 @@ const mockWalletData = {
       name: "Binance Wallet",
       icon: "/images/wallets/binance.webp",
     },
+    ETH: {
+      name: "MetaMask",
+      icon: "/images/wallets/metamask.webp",
+    },
   },
   publicKeyNoCoord: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   btcBalances: {

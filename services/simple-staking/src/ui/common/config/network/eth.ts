@@ -1,16 +1,64 @@
-import {
-  getNetworkConfigETH as getBaseConfig,
-  getETHChain,
-  network,
-  validateETHAddress as baseValidateETHAddress,
-  type ExtendedETHConfig,
-} from "@babylonlabs-io/config";
+import { sepolia, mainnet, type Chain } from "viem/chains";
+import { defineChain } from "viem";
 
 import ethereumIcon from "@/ui/common/assets/ethereum.svg";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 
-// Re-export for backward compatibility
-export { getETHChain, network };
+// Define localhost chain
+const localhost = defineChain({
+  id: 31337,
+  name: "Localhost",
+  network: "localhost",
+  nativeCurrency: {
+    decimals: 18,
+    name: "Ether",
+    symbol: "ETH",
+  },
+  rpcUrls: {
+    default: { http: ["http://localhost:8545"] },
+    public: { http: ["http://localhost:8545"] },
+  },
+});
+
+// Network configuration
+export const network = (process.env.NEXT_PUBLIC_NETWORK as string) || "mainnet";
+
+// Get ETH chain based on network
+export function getETHChain(): Chain {
+  switch (network) {
+    case "mainnet":
+      return mainnet;
+    case "canary":
+    case "testnet":
+    case "canonDevnet":
+      return sepolia;
+    case "localhost":
+      return localhost;
+    default:
+      return mainnet;
+  }
+}
+
+// Validate ETH address
+function baseValidateETHAddress(address: string): void {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new Error("Invalid Ethereum address");
+  }
+}
+
+export interface ExtendedETHConfig {
+  name: string;
+  chainId: number;
+  chainName: string;
+  rpcUrl: string;
+  explorerUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  displayUSD?: boolean;
+}
 
 type Config = ExtendedETHConfig & { icon: string };
 
@@ -93,14 +141,8 @@ const config: Record<string, Config> = {
  * Wraps the base config and adds the icon
  */
 export function getNetworkConfigETH(): Config {
-  const baseConfig = getBaseConfig();
   const networkKey = network === "localhost" ? "localhost" : network;
-  const specificConfig = config[networkKey] ?? config.mainnet;
-
-  return {
-    ...baseConfig,
-    icon: specificConfig.icon,
-  };
+  return config[networkKey] ?? config.mainnet;
 }
 
 /**

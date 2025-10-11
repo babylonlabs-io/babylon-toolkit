@@ -5,16 +5,19 @@
       "path": "../../packages/babylon-config"
     },
     {
+      "path": "../../routes/vault"
+    },
+    {
       "path": "../../packages/babylon-wallet-connector"
     },
     {
       "path": "../../packages/babylon-core-ui"
     },
     {
-      "path": "../../packages/babylon-proto-ts"
+      "path": "../../packages/babylon-bsn-registry"
     },
     {
-      "path": "../../routes/vault"
+      "path": "../../packages/babylon-proto-ts"
     },
     {
       "path": "./tsconfig.lib.json"

@@ -6,7 +6,6 @@ import Layout from "./common/layout";
 import NotFound from "./common/not-found";
 import BTCStaking from "./common/page";
 import RewardsPage from "./common/rewards";
-import FeatureFlagService from "./common/utils/FeatureFlagService";
 
 export const Router = () => {
   return (
