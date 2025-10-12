@@ -19,6 +19,9 @@ export const Router = () => {
         {FeatureFlagService.IsVaultEnabled && (
           <Route path="vault" element={<VaultLayout />} />
         )}
+        {FeatureFlagService.IsVaultEnabled && (
+          <Route path="vault/borrow" element={<div>Borrow Page</div>} />
+        )}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
