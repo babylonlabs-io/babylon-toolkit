@@ -8,6 +8,7 @@ export * from "./components/Button";
 export * from "./components/Avatar";
 export * from "./components/Form";
 export * from "./components/Dialog";
+export * from "./components/AttributeList";
 export * from "./components/Chip";
 export * from "./components/Portal";
 export * from "./components/Loader";
