@@ -20,6 +20,7 @@ export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export * from "./components/Tabs";
 export * from "./components/AmountItem";
 export * from "./components/CoStakingAmountItem";
 export * from "./components/DisplayHash";
