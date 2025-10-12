@@ -32,7 +32,7 @@
 
 
 .bbn-list-title {
-  @apply text-accent-secondary;
+  @apply text-accent-secondary overflow-hidden text-ellipsis whitespace-nowrap;
 
   &-adaptive {
     @apply text-base md:text-sm;
@@ -40,7 +40,7 @@
 }
 
 .bbn-list-value {
-  @apply text-accent-primary;
+  @apply text-accent-primary overflow-hidden text-ellipsis;
 
   &-horizontal {
     @apply flex items-center gap-1;
