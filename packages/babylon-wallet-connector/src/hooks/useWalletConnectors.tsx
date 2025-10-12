@@ -234,7 +234,6 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     confirm,
     displayChains,
     accountStorage,
-    ...Object.values(connectors).filter(Boolean).map(c => c.connectedWallet),
   ]);
 
   const connect = useCallback(

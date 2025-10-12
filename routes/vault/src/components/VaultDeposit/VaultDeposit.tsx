@@ -14,7 +14,7 @@ import { EmptyState } from './EmptyState';
 import { VaultActivityCard } from './VaultActivityCard';
 import type { VaultActivity } from '../../mockData/vaultActivities';
 
-export function VaultDashboard() {
+export function VaultDeposit() {
   // Data fetching
   const {
     activities,
