@@ -52,6 +52,19 @@ export const MobileNavOverlay = ({ open, onClose }: MobileNavOverlayProps) => {
         >
           BABY Staking
         </NavLink>
+
+        <NavLink
+          to="/rewards"
+          onClick={onClose}
+          className={({ isActive }) =>
+            twJoin(
+              "text-2xl",
+              isActive ? "text-accent-primary" : "text-accent-secondary",
+            )
+          }
+        >
+          Rewards
+        </NavLink>
       </nav>
     </div>
   );

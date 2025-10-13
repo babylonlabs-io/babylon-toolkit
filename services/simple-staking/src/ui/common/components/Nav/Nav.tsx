@@ -6,6 +6,8 @@ interface NavProps {
 
 export const Nav = ({ children }: NavProps) => {
   return (
-    <nav className="flex items-center justify-center gap-6">{children}</nav>
+    <nav className="flex items-center justify-center gap-5 lg:gap-14">
+      {children}
+    </nav>
   );
 };
