@@ -39,7 +39,6 @@ export function RepaySignModal({
     currentStep,
     isLoading,
     error,
-    usdcTokenAddress,
     executeTransaction,
   } = useRepayTransaction({
     pegInTxHash,
@@ -71,7 +70,7 @@ export function RepaySignModal({
 
         <div className="flex flex-col items-start gap-4 py-4">
           <Step step={1} currentStep={currentStep}>
-            Approve USDC Spending
+            Approve Loan Token Spending
           </Step>
           <Step step={2} currentStep={currentStep}>
             Repay Full Loan & Withdraw BTC
@@ -97,7 +96,7 @@ export function RepaySignModal({
         </Button>
 
         <Button
-          disabled={isLoading || !pegInTxHash || !usdcTokenAddress || !repayAmountWei}
+          disabled={isLoading || !pegInTxHash || !repayAmountWei}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}

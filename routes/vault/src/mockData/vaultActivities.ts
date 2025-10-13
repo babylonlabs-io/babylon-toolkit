@@ -19,7 +19,7 @@ export interface VaultActivity {
     name: string;
     icon?: string;
   }>;
-  action: {
+  action?: {
     label: string;
     onClick: () => void;
   };
@@ -58,6 +58,8 @@ export interface VaultActivity {
     borrowAmount: bigint;
     active: boolean;
   };
+  // Flag to indicate if vault is being used by an active position
+  isInUse?: boolean;
   // Pending peg-in flags
   isPending?: boolean; // Flag to show pending callout message
   pendingMessage?: string; // Custom pending message

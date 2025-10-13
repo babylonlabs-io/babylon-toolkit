@@ -2,17 +2,15 @@
  * Hook to manage the full repay transaction flow
  *
  * Handles:
- * 1. Fetching USDC token address from Morpho market
- * 2. Approving USDC spending with 1% buffer
- * 3. Executing repayAndPegout transaction
- * 4. Managing multi-step state and errors
+ * 1. Managing multi-step state (approving → repaying)
+ * 2. Calling service layer for separate approve and repay transactions
+ * 3. Error handling and state management
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { ERC20, Morpho } from '../../../clients/eth-contract';
+import { approveLoanTokenForRepay, repayAndPegout } from '../../../services/vault/vaultTransactionService';
 import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
-import { useRepayAndPegout } from '../../../hooks/useRepayAndPegout';
 
 interface UseRepayTransactionParams {
   pegInTxHash?: Hex;
@@ -27,8 +25,6 @@ interface UseRepayTransactionResult {
   isLoading: boolean;
   /** Error message if transaction failed */
   error: string | null;
-  /** USDC token address (loaded from Morpho market) */
-  usdcTokenAddress: Hex | null;
   /** Execute the full repay transaction flow */
   executeTransaction: () => Promise<void>;
   /** Reset state (called when modal closes) */
@@ -43,24 +39,6 @@ export function useRepayTransaction({
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [usdcTokenAddress, setUsdcTokenAddress] = useState<Hex | null>(null);
-
-  const { executeRepayAndPegout } = useRepayAndPegout();
-
-  // Fetch USDC token address when modal opens
-  useEffect(() => {
-    if (isOpen && pegInTxHash && !usdcTokenAddress) {
-      const fetchUsdcAddress = async () => {
-        try {
-          const market = await Morpho.getMarketById(MORPHO_MARKET_ID);
-          setUsdcTokenAddress(market.loanToken.address);
-        } catch (error) {
-          setError('Failed to load token information');
-        }
-      };
-      fetchUsdcAddress();
-    }
-  }, [isOpen, pegInTxHash, usdcTokenAddress]);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -68,12 +46,11 @@ export function useRepayTransaction({
       setCurrentStep(0);
       setIsLoading(false);
       setError(null);
-      setUsdcTokenAddress(null);
     }
   }, [isOpen]);
 
   const executeTransaction = useCallback(async () => {
-    if (!pegInTxHash || !usdcTokenAddress || !repayAmountWei) {
+    if (!pegInTxHash || !repayAmountWei) {
       setError('Missing required transaction data');
       return;
     }
@@ -82,26 +59,20 @@ export function useRepayTransaction({
     setError(null);
 
     try {
-      // Add 1% buffer to approval amount to account for interest accrual between approval and repay
-      const approvalAmount = (repayAmountWei * 101n) / 100n;
-
-      // Step 1: Approve USDC spending
+      // Step 1: Approve loan token spending
       setCurrentStep(1);
-
-      await ERC20.approveERC20(
-        usdcTokenAddress,
+      await approveLoanTokenForRepay(
         CONTRACTS.VAULT_CONTROLLER,
-        approvalAmount
+        repayAmountWei,
+        MORPHO_MARKET_ID
       );
 
       // Step 2: Repay and pegout
       setCurrentStep(2);
-
-      const result = await executeRepayAndPegout({ pegInTxHash });
-
-      if (!result) {
-        throw new Error('Repay transaction failed');
-      }
+      await repayAndPegout(
+        CONTRACTS.VAULT_CONTROLLER,
+        pegInTxHash
+      );
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Transaction failed');
       setCurrentStep(0);
@@ -109,20 +80,18 @@ export function useRepayTransaction({
     } finally {
       setIsLoading(false);
     }
-  }, [pegInTxHash, usdcTokenAddress, repayAmountWei, executeRepayAndPegout]);
+  }, [pegInTxHash, repayAmountWei]);
 
   const reset = useCallback(() => {
     setCurrentStep(0);
     setIsLoading(false);
     setError(null);
-    setUsdcTokenAddress(null);
   }, []);
 
   return {
     currentStep,
     isLoading,
     error,
-    usdcTokenAddress,
     executeTransaction,
     reset,
   };

@@ -1,21 +1,34 @@
 import { ActivityList } from '@babylonlabs-io/core-ui';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
-import { BorrowFlow } from '../BorrowFlow';
-import { RepayFlow } from '../RepayFlow';
 import { PeginModal } from '../PeginFlow/PeginModal/PeginModal';
 import { PeginSignModal } from '../PeginFlow/PeginSignModal/PeginSignModal';
 import { PeginSuccessModal } from '../PeginFlow/PeginSuccessModal/PeginSuccessModal';
+import { RepayFlow } from '../RepayFlow';
 import { useVaultPositions } from '../../hooks/useVaultPositions';
-import { useBorrowFlow } from './useBorrowFlow';
-import { useRepayFlow } from './useRepayFlow';
 import { usePeginFlow } from './usePeginFlow';
 import { EmptyState } from './EmptyState';
 import { VaultActivityCard } from './VaultActivityCard';
 import type { VaultActivity } from '../../mockData/vaultActivities';
 
 export function VaultDeposit() {
-  // Data fetching
+  // Peg out flow state
+  const [pegoutActivity, setPegoutActivity] = useState<VaultActivity | null>(null);
+  const [pegoutFlowOpen, setPegoutFlowOpen] = useState(false);
+
+  // Handle peg out button click
+  const handlePegOut = useCallback((activity: VaultActivity) => {
+    setPegoutActivity(activity);
+    setPegoutFlowOpen(true);
+  }, []);
+
+  // Handle peg out flow close
+  const handlePegoutClose = useCallback(() => {
+    setPegoutFlowOpen(false);
+    setPegoutActivity(null);
+  }, []);
+
+  // Data fetching with peg out handler
   const {
     activities,
     isWalletConnected,
@@ -23,25 +36,10 @@ export function VaultDeposit() {
     connectedAddress,
     btcAddress,
     addPendingPegin,
-  } = useVaultPositions();
-
-  // Borrow flow modal state
-  const {
-    isOpen: borrowFlowOpen,
-    selectedActivity: selectedBorrowActivity,
-    openBorrowFlow,
-    closeBorrowFlow,
-  } = useBorrowFlow();
-
-  // Repay flow modal state
-  const {
-    isOpen: repayFlowOpen,
-    selectedActivity: selectedRepayActivity,
-    openRepayFlow,
-    closeRepayFlow,
-  } = useRepayFlow();
+  } = useVaultPositions(handlePegOut);
 
   // Peg-in flow modal state
+  // Note: Borrow/Repay flows are now in VaultPositions tab
   const {
     isOpen: peginFlowOpen,
     signModalOpen: peginSignModalOpen,
@@ -114,8 +112,6 @@ export function VaultDeposit() {
             <VaultActivityCard
               key={activity.id}
               activity={activity}
-              onBorrow={openBorrowFlow}
-              onRepay={openRepayFlow}
             />
           ))}
         </ActivityList>
@@ -146,17 +142,13 @@ export function VaultDeposit() {
         amount={peginAmount}
       />
 
-      <BorrowFlow
-        activity={selectedBorrowActivity}
-        isOpen={borrowFlowOpen}
-        onClose={closeBorrowFlow}
-        onBorrowSuccess={refetchActivities}
-      />
-
+      {/* Peg Out Flow (uses RepayFlow which calls repayAndPegout) */}
+      {/* Note: Currently uses repayAndPegout which repays Morpho and pegs out atomically. */}
+      {/* Future: Will be split into separate repay and pegout transactions. */}
       <RepayFlow
-        activity={selectedRepayActivity}
-        isOpen={repayFlowOpen}
-        onClose={closeRepayFlow}
+        activity={pegoutActivity}
+        isOpen={pegoutFlowOpen}
+        onClose={handlePegoutClose}
         onRepaySuccess={refetchActivities}
       />
     </>

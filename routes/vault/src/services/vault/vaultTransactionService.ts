@@ -6,7 +6,7 @@
  */
 
 import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
-import { VaultControllerTx, Morpho } from '../../clients/eth-contract';
+import { VaultControllerTx, Morpho, ERC20 } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
 import * as btcTransactionService from '../../transactions/btc/peginBuilder';
 import { LOCAL_PEGIN_CONFIG } from '../../config/pegin';
@@ -147,15 +147,45 @@ export async function submitPeginRequest(
 }
 
 /**
+ * Approve loan token spending for vault repayment
+ *
+ * Fetches the loan token address from Morpho market and approves spending
+ * with a 0.1% buffer to account for interest accrual.
+ *
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param repayAmountWei - Amount to repay (in loan token's smallest unit)
+ * @param marketId - Morpho market ID
+ * @returns Transaction hash and receipt from approval
+ */
+export async function approveLoanTokenForRepay(
+  vaultControllerAddress: Address,
+  repayAmountWei: bigint,
+  marketId: string | bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  // Step 1: Fetch loan token address from Morpho market
+  const market = await Morpho.getMarketById(marketId);
+  const loanTokenAddress = market.loanToken.address;
+
+  // Step 2: Approve loan token spending
+  // Add small 0.1% buffer to account for interest accrual between approval and repay execution
+  // This prevents the transaction from failing if interest accrues during the process
+  const approvalAmount = (repayAmountWei * 1001n) / 1000n;
+
+  return ERC20.approveERC20(
+    loanTokenAddress,
+    vaultControllerAddress,
+    approvalAmount
+  );
+}
+
+/**
  * Repay a vault and initiate pegout
  *
  * IMPORTANT: This performs a FULL repayment only - no partial repayments allowed.
  * The contract automatically repays the entire debt using the user's borrowShares.
  *
  * Before calling:
- * 1. Fetch the user's position using AccrualPosition.fetch() to get borrowAssets (total debt)
- * 2. User must approve loan token spending for the borrowAssets amount
- * 3. Call this function to repay and withdraw BTC
+ * - User must have approved loan token spending (call approveLoanTokenForRepay first)
  *
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHash - Pegin transaction hash (vault ID)
@@ -164,6 +194,6 @@ export async function submitPeginRequest(
 export async function repayAndPegout(
   vaultControllerAddress: Address,
   pegInTxHash: Hex,
-) {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   return VaultControllerTx.repayAndPegout(vaultControllerAddress, pegInTxHash);
 }

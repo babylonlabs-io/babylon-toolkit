@@ -20,6 +20,19 @@ export interface PeginRequestWithTxHash {
 }
 
 /**
+ * Pegin request with vault metadata (for deposit tab)
+ * Shows vault status without full Morpho position details
+ */
+export interface PeginRequestWithVaultMetadata {
+  /** The pegin request data */
+  peginRequest: PeginRequest;
+  /** Transaction hash */
+  txHash: Hex;
+  /** Vault metadata (undefined if vault not yet minted) */
+  vaultMetadata?: VaultMetadata;
+}
+
+/**
  * Pegin request with morpho position data
  */
 export interface PeginRequestWithMorpho {
@@ -78,6 +91,57 @@ export async function getPeginRequestsWithDetails(
   );
 
   return peginRequestsWithDetails;
+}
+
+/**
+ * Get all pegin requests with vault metadata
+ *
+ * Composite operation that:
+ * 1. Fetches all pegin requests with details
+ * 2. For each pegin, attempts to fetch vault metadata to show "in use" status
+ * 3. Does NOT fetch full Morpho position data (for performance)
+ *
+ * @param depositorAddress - Depositor's Ethereum address
+ * @param btcVaultsManagerAddress - BTCVaultsManager contract address
+ * @param vaultControllerAddress - VaultController contract address
+ * @returns Array of pegin requests with vault metadata
+ */
+export async function getPeginRequestsWithVaultMetadata(
+  depositorAddress: Address,
+  btcVaultsManagerAddress: Address,
+  vaultControllerAddress: Address
+): Promise<PeginRequestWithVaultMetadata[]> {
+  // Step 1: Get basic pegin request data
+  const peginRequests = await getPeginRequestsWithDetails(depositorAddress, btcVaultsManagerAddress);
+
+  if (peginRequests.length === 0) {
+    return [];
+  }
+
+  // Step 2: For each pegin, try to fetch vault metadata (to show "in use" status)
+  const peginRequestsWithMetadata = await Promise.all(
+    peginRequests.map(async ({ peginRequest, txHash }) => {
+      try {
+        // Try to get vault metadata (will fail if vault not minted yet)
+        const vaultMetadata = await VaultController.getVaultMetadata(vaultControllerAddress, txHash);
+
+        return {
+          peginRequest,
+          txHash,
+          vaultMetadata,
+        };
+      } catch (error) {
+        // Vault not minted yet or error fetching metadata, return without vault metadata
+        return {
+          peginRequest,
+          txHash,
+          vaultMetadata: undefined,
+        };
+      }
+    })
+  );
+
+  return peginRequestsWithMetadata;
 }
 
 /**

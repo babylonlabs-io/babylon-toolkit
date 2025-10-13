@@ -3,7 +3,7 @@
  */
 
 import type { Hex, Address } from 'viem';
-import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary } from '../clients/eth-contract';
+import type { PeginRequest } from '../clients/eth-contract';
 import type { VaultActivity } from '../mockData/vaultActivities';
 
 /**
@@ -23,7 +23,7 @@ export const SATOSHIS_PER_BTC = 100_000_000n;
 const STATUS_MAP = {
   0: { label: 'Pending', variant: 'pending' as const },
   1: { label: 'Verified', variant: 'pending' as const },
-  2: { label: 'Active', variant: 'active' as const },
+  2: { label: 'Available', variant: 'active' as const },
 } as const;
 
 /**
@@ -41,7 +41,7 @@ export function formatBTCAmount(satoshis: bigint): string {
 
 /**
  * Get status label and variant from contract status number
- * @param status - Status number from contract (0=Pending, 1=Verified, 2=Active)
+ * @param status - Status number from contract (0=Pending, 1=Verified, 2=Available)
  * @returns Status object with label and variant for UI
  */
 export function getStatusInfo(status: number): { label: string; variant: 'active' | 'inactive' | 'pending' | 'default' } {
@@ -64,23 +64,6 @@ export function formatProviderName(providerAddress: Address): string {
   // TODO: Look up provider name from registry or API
   const shortened = `${providerAddress.slice(0, 6)}...${providerAddress.slice(-4)}`;
   return `Provider ${shortened}`;
-}
-
-/**
- * Convert borrow shares to borrowed assets amount
- * Uses the market's totalBorrowShares and totalBorrowAssets for conversion
- * @param borrowShares - User's borrow shares
- * @param totalBorrowShares - Total borrow shares in market
- * @param totalBorrowAssets - Total borrowed assets in market
- * @returns Borrowed assets amount
- */
-function convertBorrowSharesToAssets(
-  borrowShares: bigint,
-  totalBorrowShares: bigint,
-  totalBorrowAssets: bigint
-): bigint {
-  if (totalBorrowShares === 0n) return 0n;
-  return (borrowShares * totalBorrowAssets) / totalBorrowShares;
 }
 
 /**
@@ -112,74 +95,19 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
 }
 
 /**
- * Calculate enriched borrowing data from position and market
- * @param morphoPosition - User's morpho position
- * @param morphoMarket - Morpho market data
- * @param collateralBTC - Collateral amount in BTC
- * @param btcPriceUSD - BTC price in USD from oracle
- * @returns Enriched borrowing data with LTV calculations
- */
-function calculateBorrowingData(
-  morphoPosition: MorphoUserPosition,
-  morphoMarket: MorphoMarketSummary,
-  _collateralBTC: string,
-  btcPriceUSD: { price: bigint; decimals: number }
-) {
-  // Convert borrow shares to actual borrowed amount
-  const borrowedAssets = convertBorrowSharesToAssets(
-    morphoPosition.borrowShares,
-    morphoMarket.totalBorrowShares,
-    morphoMarket.totalBorrowAssets
-  );
-
-  const borrowedAmount = formatUSDCAmount(borrowedAssets);
-
-  // Calculate current LTV using BTC price
-  // LTV = (borrowed USD / (collateral BTC * BTC price USD)) * 100
-  // collateral is in wei (18 decimals), btcPrice has its own decimals, borrowedAssets is in USDC wei (6 decimals)
-
-  // Convert collateral from wei to BTC (divide by 10^18)
-  const collateralBTCAmount = morphoPosition.collateral / 10n**18n;
-
-  // Convert BTC price to USD (divide by 10^decimals)
-  const btcPriceInUSD = Number(btcPriceUSD.price) / (10 ** btcPriceUSD.decimals);
-
-  // Calculate collateral value in USD
-  const collateralValueUSD = Number(collateralBTCAmount) * btcPriceInUSD;
-
-  // Convert borrowed assets from USDC wei to USD (divide by 10^6)
-  const borrowedUSD = Number(borrowedAssets) / 1_000_000;
-
-  // Calculate LTV percentage
-  const currentLTV = collateralValueUSD > 0 ? (borrowedUSD / collateralValueUSD) * 100 : 0;
-
-  return {
-    borrowedAmount,
-    borrowedSymbol: 'USDC',
-    currentLTV: Number(currentLTV.toFixed(2)),
-    maxLTV: morphoMarket.lltvPercent,
-  };
-}
-
-/**
  * Transform PeginRequest data from contract to VaultActivity UI format
+ * For Deposit tab - shows vault status but not full Morpho loan details
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
- * @param onBorrowClick - Callback function for borrow action
- * @param vaultMetadata - Optional vault metadata (undefined if vault not minted yet)
- * @param morphoPosition - Optional morpho position data (undefined if vault not minted yet)
- * @param morphoMarket - Optional morpho market data (undefined if vault not minted yet)
- * @param btcPriceUSD - Optional BTC price in USD (undefined if vault not minted yet)
+ * @param vaultMetadata - Optional vault metadata to show if vault is in use
+ * @param onPegOut - Optional callback for peg out action
  * @returns VaultActivity object ready for UI rendering
  */
 export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
-  onBorrowClick: (activity: VaultActivity) => void,
-  vaultMetadata?: { depositor: { ethAddress: any; btcPubKey: any }; proxyContract: any; marketId: any; vBTCAmount: bigint; borrowAmount: bigint; active: boolean },
-  morphoPosition?: MorphoUserPosition,
-  morphoMarket?: MorphoMarketSummary,
-  btcPriceUSD?: { price: bigint; decimals: number }
+  vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean },
+  onPegOut?: (activity: VaultActivity) => void,
 ): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
@@ -187,32 +115,16 @@ export function transformPeginToActivity(
   // Format provider
   const providerName = formatProviderName(peginRequest.vaultProvider);
 
-  // Check if user has already borrowed (has borrow shares > 0)
-  const hasBorrowed = morphoPosition && morphoPosition.borrowShares > 0n;
+  // Get status info from pegin request
+  const statusInfo = getStatusInfo(peginRequest.status);
 
-  // Get status info - override if borrowing
-  const baseStatusInfo = getStatusInfo(peginRequest.status);
-  let statusInfo;
-  if (hasBorrowed) {
-    statusInfo = { label: 'Borrowing', variant: 'active' as const };
-  } else {
-    statusInfo = baseStatusInfo;
-  }
+  // Check if vault is in use (has active position)
+  const isInUse = vaultMetadata?.active === true;
 
-  // Calculate enriched borrowing data if we have position, market data, and BTC price
-  const borrowingData = morphoPosition && morphoMarket && btcPriceUSD && hasBorrowed
-    ? calculateBorrowingData(morphoPosition, morphoMarket, btcAmount, btcPriceUSD)
-    : undefined;
+  // Check if vault is available (status 2 = Available)
+  const isAvailable = peginRequest.status === 2;
 
-  // Create market data if we have morpho market and BTC price
-  const marketData = morphoMarket && btcPriceUSD
-    ? {
-        btcPriceUSD: Number(btcPriceUSD.price) / (10 ** btcPriceUSD.decimals),
-        lltvPercent: morphoMarket.lltvPercent,
-      }
-    : undefined;
-
-  // Create VaultActivity object
+  // Create VaultActivity object (deposit/collateral info + "in use" status)
   const activity: VaultActivity = {
     id: txHash,
     txHash,
@@ -232,20 +144,29 @@ export function transformPeginToActivity(
         icon: undefined, // TODO: Add provider icon support
       },
     ],
-    action: {
-      label: hasBorrowed ? 'Borrowed' : 'Borrow USDC',
-      onClick: hasBorrowed ? () => {} : () => onBorrowClick(activity),
-    },
-    morphoPosition: morphoPosition ? {
-      collateral: morphoPosition.collateral,
-      borrowShares: morphoPosition.borrowShares,
-      borrowed: 0n, // Not available from morpho position, calculated separately
-      borrowAssets: morphoPosition.borrowAssets, // Actual debt including accrued interest
+    // Store vault metadata to show "in use" status
+    vaultMetadata: vaultMetadata ? {
+      depositor: vaultMetadata.depositor,
+      proxyContract: vaultMetadata.proxyContract,
+      marketId: vaultMetadata.marketId,
+      vBTCAmount: vaultMetadata.vBTCAmount,
+      borrowAmount: vaultMetadata.borrowAmount,
+      active: vaultMetadata.active,
     } : undefined,
-    borrowingData,
-    marketData,
-    vaultMetadata,
-    // TODO: Add position date from blockchain timestamp
+    // Flag to indicate vault is being used by a position
+    isInUse,
+    // Show "Peg Out" action only for Available vaults
+    // Note: Currently uses repayAndPegout which repays Morpho and pegs out atomically.
+    // Future: Will be split into separate repay and pegout so users can repay without pegging out
+    // to make vault available for borrowing other markets.
+    action: isAvailable && onPegOut ? {
+      label: 'Peg Out',
+      onClick: () => onPegOut(activity),
+    } : undefined,
+    // No Morpho position details in deposit tab
+    morphoPosition: undefined,
+    borrowingData: undefined,
+    marketData: undefined,
     positionDate: undefined,
   };
 
@@ -254,15 +175,15 @@ export function transformPeginToActivity(
 
 /**
  * Transform multiple PeginRequests to VaultActivities
- * @param peginRequestsWithHashes - Array of tuples containing pegin request data and transaction hash
- * @param onBorrowClick - Callback function for borrow action
+ * @param peginRequestsWithHashes - Array of tuples containing pegin request data, transaction hash, and optional vault metadata
+ * @param onPegOut - Optional callback for peg out action
  * @returns Array of VaultActivity objects
  */
 export function transformPeginRequestsToActivities(
-  peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex }>,
-  onBorrowClick: (activity: VaultActivity) => void
+  peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex; vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean } }>,
+  onPegOut?: (activity: VaultActivity) => void,
 ): VaultActivity[] {
-  return peginRequestsWithHashes.map(({ peginRequest, txHash }) =>
-    transformPeginToActivity(peginRequest, txHash, onBorrowClick)
+  return peginRequestsWithHashes.map(({ peginRequest, txHash, vaultMetadata }) =>
+    transformPeginToActivity(peginRequest, txHash, vaultMetadata, onPegOut)
   );
 }

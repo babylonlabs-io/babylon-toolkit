@@ -12,20 +12,16 @@ import {
   type ActivityCardDetailItem,
 } from "@babylonlabs-io/core-ui";
 import type { VaultActivity } from "../../mockData/vaultActivities";
-import { getVaultState, getActionForState } from "../../utils/vaultState";
-import { formatUSDCAmount } from "../../utils/peginTransformers";
 import { bitcoinIcon } from "../../assets";
 import { Hash } from "../Hash";
 
 interface VaultActivityCardProps {
   activity: VaultActivity;
-  onBorrow: (activity: VaultActivity) => void;
-  onRepay: (activity: VaultActivity) => void;
 }
 
-export function VaultActivityCard({ activity, onBorrow, onRepay }: VaultActivityCardProps) {
-  // Get vault state for action determination
-  const vaultState = getVaultState(activity);
+export function VaultActivityCard({ activity }: VaultActivityCardProps) {
+  // Note: Actions (Borrow/Repay) are now handled in VaultPositions tab
+  // This component only displays vault deposit information
 
   // Build status detail with StatusBadge
   const statusDetail: ActivityCardDetailItem = {
@@ -60,85 +56,45 @@ export function VaultActivityCard({ activity, onBorrow, onRepay }: VaultActivity
     value: <Hash value={activity.txHash} symbols={12} />,
   } : null;
 
+  // Build "In Use" detail - shows if vault is being used by an active position
+  const inUseDetail: ActivityCardDetailItem | null = activity.isInUse ? {
+    label: "Usage Status",
+    value: (
+      <StatusBadge
+        status="active"
+        label="In Use"
+      />
+    ),
+  } : null;
+
   // Build main details array
   const details: ActivityCardDetailItem[] = [
     statusDetail,
     providersDetail,
+    ...(inUseDetail ? [inUseDetail] : []),
     ...(txHashDetail ? [txHashDetail] : []),
   ];
 
-  // Build optional loan details if borrowing data exists
-  const optionalDetails: ActivityCardDetailItem[] = [];
-
-  if (activity.borrowingData && activity.morphoPosition) {
-    // Loan details section header
-    optionalDetails.push({
-      label: (
-        <div className="space-y-1">
-          <div className="text-base font-semibold text-accent-primary">Loan Details</div>
-          <div className="text-xs text-accent-secondary">Your current loan</div>
-        </div>
-      ),
-      value: "",
-    });
-
-    // Original borrowed amount (from borrowingData.borrowedAmount)
-    optionalDetails.push({
-      label: "Borrowed",
-      value: `${activity.borrowingData.borrowedAmount} ${activity.borrowingData.borrowedSymbol}`,
-    });
-
-    // Total amount to repay (borrowAssets - includes principal + interest)
-    const borrowAssets = activity.morphoPosition.borrowAssets;
-    const totalRepayAmount = formatUSDCAmount(borrowAssets);
-
-    // Calculate interest accrued
-    const borrowedAmountRaw = BigInt(Math.round(parseFloat(activity.borrowingData.borrowedAmount) * 1_000_000));
-    const interestAccrued = formatUSDCAmount(borrowAssets - borrowedAmountRaw);
-
-    optionalDetails.push({
-      label: "Total to Repay",
-      value: `${totalRepayAmount} ${activity.borrowingData.borrowedSymbol}`,
-    });
-
-    // Interest accrued
-    if (parseFloat(interestAccrued) > 0) {
-      optionalDetails.push({
-        label: "Interest Accrued",
-        value: `${interestAccrued} ${activity.borrowingData.borrowedSymbol}`,
-      });
-    }
-
-    // Current LTV (only if calculated)
-    if (activity.borrowingData.currentLTV > 0) {
-      optionalDetails.push({
-        label: "LTV",
-        value: `${activity.borrowingData.currentLTV}%`,
-      });
-    }
-
-    // Liquidation LTV
-    optionalDetails.push({
-      label: "Liquidation LTV",
-      value: `${activity.borrowingData.maxLTV}%`,
-    });
-  }
-
   // Transform to ActivityCardData format
+  // NOTE: optionalDetails (loan details) are now only shown in VaultPositions tab
+  // This card only shows vault deposit/collateral information
   const cardData: ActivityCardData = {
     formattedAmount: `${activity.collateral.amount} ${activity.collateral.symbol}`,
     icon: activity.collateral.icon || bitcoinIcon,
     iconAlt: activity.collateral.symbol,
     details,
-    optionalDetails: optionalDetails.length > 0 ? optionalDetails : undefined,
     // Add warning for pending peg-ins
     warning: activity.isPending ? (
       <Warning>
-        {activity.pendingMessage || 
+        {activity.pendingMessage ||
           "Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete."}
       </Warning>
     ) : undefined,
-    primaryAction: getActionForState(vaultState, activity, onBorrow, onRepay),
+    // Show action button for Available vaults (Peg Out)
+    primaryAction: activity.action ? {
+      label: activity.action.label,
+      onClick: activity.action.onClick,
+    } : undefined,
   };
 
   return <ActivityCard data={cardData} />;

@@ -3,6 +3,7 @@ import { useChainConnector, useWalletConnect, type IWallet, type IConnector, typ
 import type { Hex } from "viem";
 import { usePeginRequests } from "./usePeginRequests";
 import { usePeginStorage } from "./usePeginStorage";
+import type { VaultActivity } from "../mockData/vaultActivities";
 
 /**
  * Type guard to check if a connector has the expected shape
@@ -23,7 +24,7 @@ function isConnectorWithWallet<P extends IProvider>(
  * Hook to manage vault positions data fetching and wallet connection
  * Only responsible for data - UI modal states are managed by separate hooks
  */
-export function useVaultPositions() {
+export function useVaultPositions(onPegOut?: (activity: VaultActivity) => void) {
   const ethConnector = useChainConnector('ETH');
   const btcConnector = useChainConnector('BTC');
   const { connected } = useWalletConnect();
@@ -72,10 +73,10 @@ export function useVaultPositions() {
   const btcAddress = btcWallet?.account?.address;
   const connectedAddress = ethWallet?.account?.address as Hex | undefined;
 
-  const { activities: confirmedActivities, refetch } = usePeginRequests(
+  const { activities: confirmedActivities, refetch } = usePeginRequests({
     connectedAddress,
-    () => { } // no-op callback
-  );
+    onPegOut,
+  });
 
   const {
     allActivities,
