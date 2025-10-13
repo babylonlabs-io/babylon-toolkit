@@ -94,7 +94,7 @@ export class AppKitProvider implements IETHProvider {
       // Dispatch event to open AppKit modal if available
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
-        
+
         // Wait for connection with timeout
         const waitForConnection = new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {

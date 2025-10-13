@@ -8,20 +8,20 @@ import { openAppKitModal, hasAppKitModal } from "@/core/wallets/eth/appkit/appKi
  * without direct coupling to the AppKit implementation.
  */
 export const useAppKitOpenListener = () => {
-  useEffect(() => {
-    const handleOpenRequest = () => {
-      if (hasAppKitModal()) {
-        try {
-          openAppKitModal();
-        } catch (error) {
-          console.error("Failed to open AppKit modal:", error);
-        }
-      } else {
-        console.warn("AppKit modal not initialized. Cannot open modal.");
-      }
-    };
+    useEffect(() => {
+        const handleOpenRequest = () => {
+            if (hasAppKitModal()) {
+                try {
+                    openAppKitModal();
+                } catch (error) {
+                    console.error("Failed to open AppKit modal:", error);
+                }
+            } else {
+                console.warn("AppKit modal not initialized. Cannot open modal.");
+            }
+        };
 
-    window.addEventListener("babylon:open-appkit", handleOpenRequest);
-    return () => window.removeEventListener("babylon:open-appkit", handleOpenRequest);
-  }, []);
+        window.addEventListener("babylon:open-appkit", handleOpenRequest);
+        return () => window.removeEventListener("babylon:open-appkit", handleOpenRequest);
+    }, []);
 };

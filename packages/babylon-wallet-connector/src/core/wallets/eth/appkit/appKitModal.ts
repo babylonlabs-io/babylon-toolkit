@@ -4,19 +4,19 @@ import type { Config } from "wagmi";
 import { setSharedWagmiConfig } from "./sharedConfig";
 
 interface AppKitModalConfig {
-  projectId?: string;
-  metadata?: {
-    name?: string;
-    description?: string;
-    url?: string;
-    icons?: string[];
-  };
-  themeMode?: "light" | "dark";
-  themeVariables?: {
-    "--w3m-accent"?: string;
-  };
-  featuredWalletIds?: string[];
-  networks?: any[];
+    projectId?: string;
+    metadata?: {
+        name?: string;
+        description?: string;
+        url?: string;
+        icons?: string[];
+    };
+    themeMode?: "light" | "dark";
+    themeVariables?: {
+        "--w3m-accent"?: string;
+    };
+    featuredWalletIds?: string[];
+    networks?: any[];
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
@@ -27,95 +27,95 @@ let wagmiAdapter: WagmiAdapter | null = null;
  * This should be called once at the application level
  */
 export function initializeAppKitModal(config?: AppKitModalConfig) {
-  // Don't reinitialize if already initialized
-  if (appKitModal && wagmiAdapter) {
-    return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig };
-  }
-
-  // Get project ID from config or environment
-  const projectId = config?.projectId || 
-    (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined) ||
-    "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
-
-  // Get metadata URL dynamically
-  const getMetadataUrl = () => {
-    if (typeof window !== "undefined") {
-      return window.location.origin;
+    // Don't reinitialize if already initialized
+    if (appKitModal && wagmiAdapter) {
+        return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig };
     }
-    return config?.metadata?.url || "https://btcstaking.babylonlabs.io";
-  };
 
-  // AppKit metadata configuration - ensure all required fields
-  const metadata = {
-    name: config?.metadata?.name || "Babylon Staking",
-    description: config?.metadata?.description || "Babylon Staking - Secure Bitcoin Staking Platform",
-    url: config?.metadata?.url || getMetadataUrl(),
-    icons: config?.metadata?.icons || ["https://btcstaking.babylonlabs.io/favicon.ico"],
-  };
+    // Get project ID from config or environment
+    const projectId = config?.projectId ||
+        (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined) ||
+        "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
 
-  // Define networks for AppKit - use minimal network configuration
-  const networks = config?.networks || [
-    {
-      id: 1,
-      name: "Ethereum",
-      nativeCurrency: {
-        name: "Ether",
-        symbol: "ETH",
-        decimals: 18,
-      },
-      rpcUrls: {
-        default: { http: ["https://cloudflare-eth.com"] },
-      },
-      blockExplorers: {
-        default: { name: "Etherscan", url: "https://etherscan.io" },
-      },
-    },
-    {
-      id: 11155111,
-      name: "Sepolia",
-      nativeCurrency: {
-        name: "Sepolia Ether",
-        symbol: "ETH",
-        decimals: 18,
-      },
-      rpcUrls: {
-        default: { http: ["https://rpc.sepolia.org"] },
-      },
-      blockExplorers: {
-        default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
-      },
-    },
-  ] as any;
+    // Get metadata URL dynamically
+    const getMetadataUrl = () => {
+        if (typeof window !== "undefined") {
+            return window.location.origin;
+        }
+        return config?.metadata?.url || "https://btcstaking.babylonlabs.io";
+    };
 
-  // Create Wagmi adapter with minimal configuration
-  wagmiAdapter = new WagmiAdapter({
-    networks,
-    projectId,
-  } as any);
+    // AppKit metadata configuration - ensure all required fields
+    const metadata = {
+        name: config?.metadata?.name || "Babylon Staking",
+        description: config?.metadata?.description || "Babylon Staking - Secure Bitcoin Staking Platform",
+        url: config?.metadata?.url || getMetadataUrl(),
+        icons: config?.metadata?.icons || ["https://btcstaking.babylonlabs.io/favicon.ico"],
+    };
 
-  // Create and store the AppKit modal instance
-  appKitModal = createAppKit({
-    adapters: [wagmiAdapter],
-    networks,
-    projectId,
-    metadata,
-    features: {
-      analytics: true,
-    },
-    themeMode: config?.themeMode || "light",
-    themeVariables: config?.themeVariables || {
-      "--w3m-accent": "#FF7C2A",
-    },
-    featuredWalletIds: config?.featuredWalletIds || [
-      "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
-    ],
-  });
+    // Define networks for AppKit - use minimal network configuration
+    const networks = config?.networks || [
+        {
+            id: 1,
+            name: "Ethereum",
+            nativeCurrency: {
+                name: "Ether",
+                symbol: "ETH",
+                decimals: 18,
+            },
+            rpcUrls: {
+                default: { http: ["https://cloudflare-eth.com"] },
+            },
+            blockExplorers: {
+                default: { name: "Etherscan", url: "https://etherscan.io" },
+            },
+        },
+        {
+            id: 11155111,
+            name: "Sepolia",
+            nativeCurrency: {
+                name: "Sepolia Ether",
+                symbol: "ETH",
+                decimals: 18,
+            },
+            rpcUrls: {
+                default: { http: ["https://rpc.sepolia.org"] },
+            },
+            blockExplorers: {
+                default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
+            },
+        },
+    ] as any;
 
-  // Set the shared wagmi config for the wallet-connector AppKitProvider
-  // This prevents multiple WalletConnect initializations
-  setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
+    // Create Wagmi adapter with minimal configuration
+    wagmiAdapter = new WagmiAdapter({
+        networks,
+        projectId,
+    } as any);
 
-  return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig };
+    // Create and store the AppKit modal instance
+    appKitModal = createAppKit({
+        adapters: [wagmiAdapter],
+        networks,
+        projectId,
+        metadata,
+        features: {
+            analytics: true,
+        },
+        themeMode: config?.themeMode || "light",
+        themeVariables: config?.themeVariables || {
+            "--w3m-accent": "#FF7C2A",
+        },
+        featuredWalletIds: config?.featuredWalletIds || [
+            "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
+        ],
+    });
+
+    // Set the shared wagmi config for the wallet-connector AppKitProvider
+    // This prevents multiple WalletConnect initializations
+    setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
+
+    return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig };
 }
 
 /**
@@ -123,12 +123,12 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
  * Throws if not initialized
  */
 export function getAppKitModal() {
-  if (!appKitModal) {
-    throw new Error(
-      "AppKit modal not initialized. Call initializeAppKitModal() first."
-    );
-  }
-  return appKitModal;
+    if (!appKitModal) {
+        throw new Error(
+            "AppKit modal not initialized. Call initializeAppKitModal() first."
+        );
+    }
+    return appKitModal;
 }
 
 /**
@@ -136,33 +136,33 @@ export function getAppKitModal() {
  * Throws if not initialized
  */
 export function getAppKitWagmiConfig(): Config {
-  if (!wagmiAdapter) {
-    throw new Error(
-      "AppKit wagmi adapter not initialized. Call initializeAppKitModal() first."
-    );
-  }
-  return (wagmiAdapter as any).wagmiConfig;
+    if (!wagmiAdapter) {
+        throw new Error(
+            "AppKit wagmi adapter not initialized. Call initializeAppKitModal() first."
+        );
+    }
+    return (wagmiAdapter as any).wagmiConfig;
 }
 
 /**
  * Check if AppKit modal has been initialized
  */
 export function hasAppKitModal(): boolean {
-  return appKitModal !== null && wagmiAdapter !== null;
+    return appKitModal !== null && wagmiAdapter !== null;
 }
 
 /**
  * Open the AppKit modal programmatically
  */
 export function openAppKitModal() {
-  const modal = getAppKitModal();
-  modal.open();
+    const modal = getAppKitModal();
+    modal.open();
 }
 
 /**
  * Close the AppKit modal programmatically
  */
 export function closeAppKitModal() {
-  const modal = getAppKitModal();
-  modal.close();
+    const modal = getAppKitModal();
+    modal.close();
 }

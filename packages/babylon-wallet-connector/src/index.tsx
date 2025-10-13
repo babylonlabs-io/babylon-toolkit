@@ -22,10 +22,10 @@ export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from
 
 // Export AppKit modal utilities
 export {
-  initializeAppKitModal,
-  getAppKitModal,
-  getAppKitWagmiConfig,
-  hasAppKitModal,
-  openAppKitModal,
-  closeAppKitModal,
+    initializeAppKitModal,
+    getAppKitModal,
+    getAppKitWagmiConfig,
+    hasAppKitModal,
+    openAppKitModal,
+    closeAppKitModal,
 } from "@/core/wallets/eth/appkit/appKitModal";
