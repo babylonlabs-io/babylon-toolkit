@@ -28,8 +28,8 @@ export const getPersonalizedAPR = async (
   }
 
   const params = new URLSearchParams({
-    btc_staked: btcStakedSat.toString(),
-    baby_staked: babyStakedUbbn.toString(),
+    satoshis_staked: btcStakedSat.toString(),
+    ubbn_staked: babyStakedUbbn.toString(),
   });
 
   const { data } = await apiWrapper<PersonalizedAPRResponse>(
