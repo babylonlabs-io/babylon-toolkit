@@ -6,7 +6,7 @@
  */
 
 import type { Address, Hex } from 'viem';
-import { BTCVaultsManager, VaultController, Morpho, Oracle } from '../../clients/eth-contract';
+import { BTCVaultsManager, VaultController, Morpho, MorphoOracle } from '../../clients/eth-contract';
 import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary, VaultMetadata } from '../../clients/eth-contract';
 
 /**
@@ -44,13 +44,10 @@ export interface PeginRequestWithMorpho {
   vaultMetadata?: VaultMetadata;
   /** Morpho position data (undefined if vault not yet minted) */
   morphoPosition?: MorphoUserPosition;
-  /** Morpho market data (undefined if vault not yet minted) */
-  morphoMarket?: MorphoMarketSummary;
-  /** BTC price in USD (undefined if vault not yet minted) */
-  btcPriceUSD?: {
-    price: bigint;
-    decimals: number;
-  };
+  /** Morpho market data */
+  morphoMarket: MorphoMarketSummary;
+  /** BTC price in USD as a number from Morpho oracle */
+  btcPriceUSD: number;
 }
 
 /**
@@ -149,8 +146,10 @@ export async function getPeginRequestsWithVaultMetadata(
  *
  * Composite operation that:
  * 1. Fetches all pegin requests with details
- * 2. For each pegin, attempts to fetch vault metadata and morpho position
- * 3. Returns pegin data with morpho position (undefined if vault not minted yet)
+ * 2. Fetches Morpho market data and BTC price (once, shared across all pegins)
+ * 3. For each pegin, attempts to fetch vault metadata and morpho position
+ * 4. Returns pegin data with morpho position (undefined if vault not minted yet)
+ *    but always includes market data and BTC price
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @param btcVaultsManagerAddress - BTCVaultsManager contract address
@@ -171,21 +170,20 @@ export async function getPeginRequestsWithMorpho(
     return [];
   }
 
-  // Step 2: For each pegin, try to fetch morpho position, market data, and BTC price
+  // Step 2: Fetch market data and BTC price (independent of vault status)
+  const morphoMarket = await Morpho.getMarketById(marketId);
+  const oraclePrice = await MorphoOracle.getOraclePrice(morphoMarket.oracle);
+  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+
+  // Step 3: For each pegin, try to fetch morpho position
   const peginRequestsWithMorpho = await Promise.all(
     peginRequests.map(async ({ peginRequest, txHash }) => {
       try {
         // Try to get vault metadata (will fail if vault not minted yet)
         const vaultMetadata = await VaultController.getVaultMetadata(vaultControllerAddress, txHash);
 
-        // If we have vault metadata, fetch morpho position and market data in parallel
-        const [morphoPosition, morphoMarket] = await Promise.all([
-          Morpho.getUserPosition(marketId, vaultMetadata.proxyContract),
-          Morpho.getMarketById(marketId),
-        ]);
-
-        // Fetch BTC price from oracle
-        const btcPriceUSD = await Oracle.getBTCPrice(morphoMarket.oracle);
+        // If we have vault metadata, fetch morpho position
+        const morphoPosition = await Morpho.getUserPosition(marketId, vaultMetadata.proxyContract);
 
         return {
           peginRequest,
@@ -196,14 +194,14 @@ export async function getPeginRequestsWithMorpho(
           btcPriceUSD,
         };
       } catch (error) {
-        // Vault not minted yet or error fetching position, return without morpho data
+        // Vault not minted yet or error fetching position, return without morpho position but with price
         return {
           peginRequest,
           txHash,
           vaultMetadata: undefined,
           morphoPosition: undefined,
-          morphoMarket: undefined,
-          btcPriceUSD: undefined,
+          morphoMarket,
+          btcPriceUSD,
         };
       }
     })

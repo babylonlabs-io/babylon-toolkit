@@ -17,9 +17,6 @@ export type { PeginRequest } from './btc-vaults-manager/query';
 export * as Morpho from './morpho/query';
 export type { MarketTokenRef, MorphoMarketSummary, MorphoUserPosition } from './morpho/types';
 
-// Oracle (Chainlink)
-export * as Oracle from './oracle/chainlinkOracle';
-
 // Morpho Oracle (for price feeds in Morpho markets)
 export * as MorphoOracle from './oracle/query';
 

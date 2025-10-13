@@ -19,11 +19,17 @@ export const SATOSHIS_PER_BTC = 100_000_000n;
 
 /**
  * Status mapping from contract enum to UI format
+ * Enum BTCVaultStatus:
+ * 0 = Pending - Request submitted, waiting for ACKs
+ * 1 = Verified - All ACKs collected, ready for inclusion proof
+ * 2 = Active - Inclusion proof verified, pegin executed
+ * 3 = Expired - Pegged-in BTC has been liquidated/repaid
  */
 const STATUS_MAP = {
   0: { label: 'Pending', variant: 'pending' as const },
   1: { label: 'Verified', variant: 'pending' as const },
   2: { label: 'Available', variant: 'active' as const },
+  3: { label: 'Expired', variant: 'inactive' as const },
 } as const;
 
 /**
@@ -41,7 +47,7 @@ export function formatBTCAmount(satoshis: bigint): string {
 
 /**
  * Get status label and variant from contract status number
- * @param status - Status number from contract (0=Pending, 1=Verified, 2=Available)
+ * @param status - Status number from contract (0=Pending, 1=Verified, 2=Active/Available, 3=Expired)
  * @returns Status object with label and variant for UI
  */
 export function getStatusInfo(status: number): { label: string; variant: 'active' | 'inactive' | 'pending' | 'default' } {
@@ -49,7 +55,9 @@ export function getStatusInfo(status: number): { label: string; variant: 'active
   if (status in STATUS_MAP) {
     return STATUS_MAP[status as keyof typeof STATUS_MAP];
   }
-  
+
+  // Log unknown status for debugging
+  console.warn(`[peginTransformers] Unknown pegin status: ${status}. Expected 0 (Pending), 1 (Verified), 2 (Active), or 3 (Expired)`);
   return { label: 'Unknown', variant: 'default' };
 }
 

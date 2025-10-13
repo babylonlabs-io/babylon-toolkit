@@ -23,13 +23,20 @@ export function VaultActivityCard({ activity }: VaultActivityCardProps) {
   // Note: Actions (Borrow/Repay) are now handled in VaultPositions tab
   // This component only displays vault deposit information
 
+  // Determine status to display:
+  // - If vault is in use (vaultMetadata.active=true), show "In Position"
+  // - Otherwise show the actual pegin status (Available, Pending, etc.)
+  const displayStatus = activity.vaultMetadata?.active
+    ? { label: "In Position", variant: "active" as const }
+    : activity.status;
+
   // Build status detail with StatusBadge
   const statusDetail: ActivityCardDetailItem = {
     label: "Status",
     value: (
       <StatusBadge
-        status={activity.status.variant as "active" | "inactive" | "pending"}
-        label={activity.status.label}
+        status={displayStatus.variant as "active" | "inactive" | "pending"}
+        label={displayStatus.label}
       />
     ),
   };
@@ -56,22 +63,10 @@ export function VaultActivityCard({ activity }: VaultActivityCardProps) {
     value: <Hash value={activity.txHash} symbols={12} />,
   } : null;
 
-  // Build "In Use" detail - shows if vault is being used by an active position
-  const inUseDetail: ActivityCardDetailItem | null = activity.isInUse ? {
-    label: "Usage Status",
-    value: (
-      <StatusBadge
-        status="active"
-        label="In Use"
-      />
-    ),
-  } : null;
-
-  // Build main details array
+  // Build main details array (removed separate "Usage Status" field)
   const details: ActivityCardDetailItem[] = [
     statusDetail,
     providersDetail,
-    ...(inUseDetail ? [inUseDetail] : []),
     ...(txHashDetail ? [txHashDetail] : []),
   ];
 
