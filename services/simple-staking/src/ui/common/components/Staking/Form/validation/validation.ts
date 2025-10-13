@@ -3,8 +3,9 @@
  * @param value The value as a string to validate.
  * @returns `true` if the value does not have any decimal points, otherwise `false`.
  */
-export const validateNoDecimalPoints = (value: string): boolean => {
-  return !value.includes(".") && !value.includes(",");
+export const validateNoDecimalPoints = (value: string | number): boolean => {
+  const valueString = String(value);
+  return !valueString.includes(".") && !valueString.includes(",");
 };
 
 /**
@@ -13,9 +14,9 @@ export const validateNoDecimalPoints = (value: string): boolean => {
  * @returns `true` if the value has no more than 8 decimal points, otherwise `false`.
  */
 export const validateDecimalPoints = (
-  value: string,
+  value: string | number,
   decimals: number = 8,
 ): boolean => {
-  const decimalPoints = value.split(".")[1]?.length || 0;
+  const decimalPoints = String(value).split(".")[1]?.length || 0;
   return decimalPoints <= decimals;
 };
