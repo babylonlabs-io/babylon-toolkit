@@ -117,9 +117,6 @@ function usePendingOperationsServiceInternal() {
     );
 
     localStorage.setItem(storageKey, JSON.stringify(storageFormat));
-
-    // Emit custom event for same-tab updates (storage event only fires for other tabs)
-    window.dispatchEvent(new Event("baby-pending-operations-updated"));
   }, [pendingOperations, bech32Address]);
 
   const addPendingOperation = useCallback(

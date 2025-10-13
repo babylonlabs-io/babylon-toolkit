@@ -11,6 +11,7 @@ import { BTCWalletProvider } from "./context/wallet/BTCWalletProvider";
 import { CosmosWalletProvider } from "./context/wallet/CosmosWalletProvider";
 import { WalletConnectionProvider } from "./context/wallet/WalletConnectionProvider";
 import { AppState } from "./state";
+import { PendingOperationsProvider } from "@/ui/baby/hooks/services/usePendingOperationsService";
 
 function Providers({ children }: React.PropsWithChildren) {
   const [client] = useState(new QueryClient());
@@ -37,7 +38,9 @@ function Providers({ children }: React.PropsWithChildren) {
                     <WalletConnectionProvider>
                       <BTCWalletProvider>
                         <CosmosWalletProvider>
-                          <AppState>{children}</AppState>
+                          <PendingOperationsProvider>
+                            <AppState>{children}</AppState>
+                          </PendingOperationsProvider>
                         </CosmosWalletProvider>
                       </BTCWalletProvider>
                     </WalletConnectionProvider>

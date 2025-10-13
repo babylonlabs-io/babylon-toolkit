@@ -19,17 +19,12 @@ import { Stats } from "./components/Stats/Stats";
 import { BabyActivityList } from "./components/ActivityList";
 import CoStakingBoostSection from "./components/CoStakingBoostSection";
 import { useEpochPolling } from "./hooks/api/useEpochPolling";
-import { PendingOperationsProvider } from "./hooks/services/usePendingOperationsService";
 import StakingForm from "./widgets/StakingForm";
 
 export type TabId = "stake" | "activity" | "faqs";
 
 export default function BabyLayout() {
-  return (
-    <PendingOperationsProvider>
-      <BabyLayoutContent />
-    </PendingOperationsProvider>
-  );
+  return <BabyLayoutContent />;
 }
 
 function BabyLayoutContent() {

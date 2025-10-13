@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { useEffect, useMemo, type PropsWithChildren } from "react";
 
 import { useEventBus } from "@/ui/common/hooks/useEventBus";
 import {
@@ -10,7 +10,6 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import { calculateRequiredBabyTokens } from "@/ui/common/utils/coStakingCalculations";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
-import { network } from "@/ui/common/config/network/bbn";
 import {
   DelegationV2StakingState,
   type DelegationV2,
@@ -20,10 +19,7 @@ import type {
   CoStakingAPRData,
   PersonalizedAPRResponse,
 } from "@/ui/common/types/api/coStaking";
-import type {
-  PendingOperation,
-  PendingOperationStorage,
-} from "@/ui/baby/hooks/services/usePendingOperationsService";
+import { usePendingOperationsService } from "@/ui/baby/hooks/services/usePendingOperationsService";
 
 import { useDelegationV2State } from "./DelegationV2State";
 
@@ -40,43 +36,6 @@ interface BabyDelegationData {
     shares: string;
   };
 }
-
-/**
- * Helper to read pending BABY operations from localStorage.
- * This avoids needing the PendingOperationsProvider context.
- *
- * Note: Deserializes PendingOperationStorage (string amounts) → PendingOperation (bigint amounts)
- * because JSON.parse doesn't support BigInt natively.
- */
-const getPendingBabyOperations = (
-  bech32Address: string | undefined,
-): PendingOperation[] => {
-  if (!bech32Address) return [];
-
-  try {
-    const storageKey = `baby-pending-operations-${network}-${bech32Address}`;
-    const stored = localStorage.getItem(storageKey);
-    if (!stored) return [];
-
-    const parsed = JSON.parse(stored) as PendingOperationStorage[];
-    return parsed.map((item) => ({
-      validatorAddress: item.validatorAddress,
-      amount: BigInt(item.amount),
-      operationType: item.operationType,
-      timestamp: item.timestamp,
-      walletAddress: item.walletAddress,
-      epoch: item.epoch,
-    }));
-  } catch (error) {
-    // Log parse failures for debugging but don't throw
-    // This ensures the app continues to function even with corrupted localStorage
-    console.warn(
-      `Failed to parse pending BABY operations from localStorage for ${bech32Address}:`,
-      error,
-    );
-    return [];
-  }
-};
 
 // Event channels that should trigger co-staking data refresh
 const CO_STAKING_REFRESH_CHANNELS = [
@@ -142,42 +101,12 @@ export function CoStakingState({ children }: PropsWithChildren) {
   const { delegations: btcDelegations } = useDelegationV2State();
   const { bech32Address } = useCosmosWallet();
   const { data: babyDelegationsRaw = [] } = useDelegations(bech32Address);
+  const { pendingOperations } = usePendingOperationsService();
 
-  // Track localStorage version to force re-computation of pending operations
-  const [, setStorageVersion] = useState(0);
-
-  // Listen for localStorage changes (both from other tabs and same tab)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes("baby-pending-operations")) {
-        setStorageVersion((v) => v + 1);
-      }
-    };
-
-    const handleCustomStorage = () => {
-      setStorageVersion((v) => v + 1);
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener(
-      "baby-pending-operations-updated",
-      handleCustomStorage,
-    );
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener(
-        "baby-pending-operations-updated",
-        handleCustomStorage,
-      );
-    };
-  }, []);
-
-  // Get pending BABY operations from localStorage - now reactive to storage changes
+  // Get pending BABY stake operations from context (reactive to context changes)
   const pendingBabyOps = useMemo(() => {
-    const ops = getPendingBabyOperations(bech32Address);
-    return ops;
-  }, [bech32Address]);
+    return pendingOperations.filter((op) => op.operationType === "stake");
+  }, [pendingOperations]);
 
   /**
    * Calculate total BTC staked (only broadcasted delegations)
