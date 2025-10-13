@@ -20,14 +20,37 @@ import type {
   CoStakingAPRData,
   PersonalizedAPRResponse,
 } from "@/ui/common/types/api/coStaking";
+import type {
+  PendingOperation,
+  PendingOperationStorage,
+} from "@/ui/baby/hooks/services/usePendingOperationsService";
 
 import { useDelegationV2State } from "./DelegationV2State";
 
+interface BabyDelegationBalance {
+  amount: string;
+  denom: string;
+}
+
+interface BabyDelegationData {
+  balance: BabyDelegationBalance | undefined;
+  delegation: {
+    delegator_address: string;
+    validator_address: string;
+    shares: string;
+  };
+}
+
 /**
- * Helper to read pending BABY operations from localStorage
- * This avoids needing the PendingOperationsProvider context
+ * Helper to read pending BABY operations from localStorage.
+ * This avoids needing the PendingOperationsProvider context.
+ *
+ * Note: Deserializes PendingOperationStorage (string amounts) → PendingOperation (bigint amounts)
+ * because JSON.parse doesn't support BigInt natively.
  */
-const getPendingBabyOperations = (bech32Address: string | undefined) => {
+const getPendingBabyOperations = (
+  bech32Address: string | undefined,
+): PendingOperation[] => {
   if (!bech32Address) return [];
 
   try {
@@ -35,14 +58,22 @@ const getPendingBabyOperations = (bech32Address: string | undefined) => {
     const stored = localStorage.getItem(storageKey);
     if (!stored) return [];
 
-    const parsed = JSON.parse(stored);
-    return parsed.map((item: any) => ({
+    const parsed = JSON.parse(stored) as PendingOperationStorage[];
+    return parsed.map((item) => ({
       validatorAddress: item.validatorAddress,
       amount: BigInt(item.amount),
-      operationType: item.operationType as "stake" | "unstake",
+      operationType: item.operationType,
       timestamp: item.timestamp,
+      walletAddress: item.walletAddress,
+      epoch: item.epoch,
     }));
-  } catch {
+  } catch (error) {
+    // Log parse failures for debugging but don't throw
+    // This ensures the app continues to function even with corrupted localStorage
+    console.warn(
+      `Failed to parse pending BABY operations from localStorage for ${bech32Address}:`,
+      error,
+    );
     return [];
   }
 };
@@ -177,14 +208,17 @@ export function CoStakingState({ children }: PropsWithChildren) {
   const totalBabyStakedUbbn = useMemo(() => {
     // Confirmed delegations from API
     const confirmedUbbn = babyDelegationsRaw.reduce(
-      (sum: number, d: any) => sum + Number(d.balance?.amount || 0),
+      (sum: number, d: unknown) => {
+        const delegation = d as BabyDelegationData;
+        return sum + Number(delegation.balance?.amount || 0);
+      },
       0,
     );
 
     // Pending stake operations from localStorage
     const pendingStakeUbbn = pendingBabyOps
-      .filter((op: any) => op.operationType === "stake")
-      .reduce((sum: number, op: any) => sum + Number(op.amount), 0);
+      .filter((op) => op.operationType === "stake")
+      .reduce((sum: number, op) => sum + Number(op.amount), 0);
 
     const total = confirmedUbbn + pendingStakeUbbn;
 

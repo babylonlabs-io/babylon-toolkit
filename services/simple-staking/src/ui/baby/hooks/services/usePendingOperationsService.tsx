@@ -12,6 +12,10 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { getCurrentEpoch } from "@/ui/common/utils/local_storage/epochStorage";
 
+/**
+ * Runtime representation of a pending BABY staking operation.
+ * Uses bigint for amount to support arbitrary precision arithmetic.
+ */
 export interface PendingOperation {
   validatorAddress: string;
   amount: bigint;
@@ -21,9 +25,14 @@ export interface PendingOperation {
   epoch?: number;
 }
 
-interface PendingOperationStorage {
+/**
+ * localStorage-serializable format of PendingOperation.
+ * Converts bigint → string because JSON doesn't support BigInt.
+ * Use this type when reading/writing to localStorage.
+ */
+export interface PendingOperationStorage {
   validatorAddress: string;
-  amount: string;
+  amount: string; // Serialized bigint
   operationType: "stake" | "unstake";
   timestamp: number;
   walletAddress: string;

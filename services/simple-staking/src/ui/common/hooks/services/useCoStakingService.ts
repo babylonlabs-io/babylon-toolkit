@@ -73,7 +73,6 @@ export const useCoStakingService = (
 
         return result;
       } catch (error) {
-        console.error("[APR Query] Error:", error);
         logger.error(error as Error, {
           tags: {
             action: "getPersonalizedAPR",

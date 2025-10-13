@@ -103,7 +103,13 @@ function RewardsPageContent() {
     const { co_staking_apr, btc_staking_apr, total_apr } = rawAprData.current;
 
     // If no co-staking APR, all BTC rewards are base BTC rewards
-    if (co_staking_apr === 0 || total_apr === 0) {
+    // Guard against division by zero and invalid numbers
+    if (
+      co_staking_apr === 0 ||
+      total_apr === 0 ||
+      !isFinite(total_apr) ||
+      total_apr < 0
+    ) {
       return {
         coStakingAmountBaby: 0,
         baseBtcRewardBaby: btcRewardBaby,
