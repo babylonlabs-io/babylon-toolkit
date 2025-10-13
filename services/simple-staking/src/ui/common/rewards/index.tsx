@@ -34,7 +34,6 @@ import {
   ClaimResult,
 } from "@/ui/common/components/Modals/ClaimStatusModal/ClaimStatusModal";
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
-import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import {
   NAVIGATION_STATE_KEYS,
   type NavigationState,
@@ -71,7 +70,7 @@ function RewardsPageContent() {
 
   const { claimRewards: btcClaimRewards } = useRewardsService();
 
-  const { eligibility, aprData } = useCoStakingState();
+  const { eligibility, rawAprData } = useCoStakingState();
 
   const additionalBabyNeeded = eligibility.additionalBabyNeeded;
 
@@ -91,22 +90,44 @@ function RewardsPageContent() {
     MAX_DECIMALS,
   );
 
-  // Calculate co-staking amount split from BTC rewards
-  // NOTE: calculateCoStakingAmount may need updating to use new APR data structure
-  // For now, we use fallback values to maintain compatibility
-  const coStakingSplit = calculateCoStakingAmount(
-    btcRewardBaby,
-    undefined, // rewardsTracker?.total_score (no longer available)
-    undefined, // currentRewards?.total_score (no longer available)
-    undefined, // rewardsTracker?.active_baby (no longer available)
-    undefined, // rewardSupply (no longer available)
-    aprData?.currentApr
-      ? aprData.currentApr - aprData.currentApr * 0.1
-      : undefined, // Approximate BTC staking APR
-  );
+  // Calculate co-staking amount split from BTC rewards using API APR ratios
+  const { coStakingAmountBaby, baseBtcRewardBaby } = useMemo(() => {
+    // If co-staking APR data not available, return base values
+    if (!rawAprData || !rawAprData.current) {
+      return {
+        coStakingAmountBaby: 0,
+        baseBtcRewardBaby: btcRewardBaby,
+      };
+    }
 
-  const coStakingAmountBaby = coStakingSplit?.coStakingAmount;
-  const baseBtcRewardBaby = coStakingSplit?.baseBtcAmount ?? btcRewardBaby;
+    const { co_staking_apr, btc_staking_apr, total_apr } = rawAprData.current;
+
+    // If no co-staking APR, all BTC rewards are base BTC rewards
+    if (co_staking_apr === 0 || total_apr === 0) {
+      return {
+        coStakingAmountBaby: 0,
+        baseBtcRewardBaby: btcRewardBaby,
+      };
+    }
+
+    // Calculate split based on APR ratios from API
+    const coStakingRatio = co_staking_apr / total_apr;
+    const btcStakingRatio = btc_staking_apr / total_apr;
+
+    const coStakingAmount = maxDecimals(
+      btcRewardBaby * coStakingRatio,
+      MAX_DECIMALS,
+    );
+    const baseBtcAmount = maxDecimals(
+      btcRewardBaby * btcStakingRatio,
+      MAX_DECIMALS,
+    );
+
+    return {
+      coStakingAmountBaby: coStakingAmount,
+      baseBtcRewardBaby: baseBtcAmount,
+    };
+  }, [btcRewardBaby, rawAprData]);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [claimingBtc, setClaimingBtc] = useState(false);

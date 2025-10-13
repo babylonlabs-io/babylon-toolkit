@@ -215,7 +215,7 @@ export const useCoStakingService = (
   return {
     // Data
     coStakingParams: coStakingParamsQuery.data,
-    aprData: aprQuery.data,
+    rawAprData: aprQuery.data,
 
     // Methods
     getScoreRatio,

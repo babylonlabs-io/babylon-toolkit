@@ -18,6 +18,7 @@ import {
 import type {
   CoStakingParams,
   CoStakingAPRData,
+  PersonalizedAPRResponse,
 } from "@/ui/common/types/api/coStaking";
 
 import { useDelegationV2State } from "./DelegationV2State";
@@ -66,6 +67,7 @@ interface CoStakingStateValue {
   eligibility: CoStakingEligibility;
   scoreRatio: number;
   aprData: CoStakingAPRData;
+  rawAprData: PersonalizedAPRResponse["data"] | null;
   isLoading: boolean;
   isEnabled: boolean;
   hasError: boolean;
@@ -92,6 +94,7 @@ const defaultState: CoStakingStateValue = {
     isLoading: false,
     error: undefined,
   },
+  rawAprData: null,
   isLoading: false,
   isEnabled: false,
   hasError: false,
@@ -190,6 +193,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
 
   const {
     coStakingParams,
+    rawAprData,
     getScoreRatio,
     getCoStakingAPR,
     getUserCoStakingStatus,
@@ -242,6 +246,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
       eligibility,
       scoreRatio,
       aprData,
+      rawAprData: rawAprData ?? null,
       isLoading,
       isEnabled: isCoStakingEnabled,
       hasError: Boolean(error),
@@ -253,6 +258,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
       eligibility,
       scoreRatio,
       aprData,
+      rawAprData,
       isLoading,
       isCoStakingEnabled,
       error,
