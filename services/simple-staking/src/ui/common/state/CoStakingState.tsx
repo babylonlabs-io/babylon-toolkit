@@ -99,6 +99,7 @@ interface CoStakingStateValue {
   scoreRatio: number;
   aprData: CoStakingAPRData;
   rawAprData: PersonalizedAPRResponse["data"] | null;
+  hasValidBoostData: boolean;
   isLoading: boolean;
   isEnabled: boolean;
   hasError: boolean;
@@ -121,11 +122,11 @@ const defaultState: CoStakingStateValue = {
   aprData: {
     currentApr: null,
     boostApr: null,
-    additionalBabyNeeded: 0,
     isLoading: false,
     error: undefined,
   },
   rawAprData: null,
+  hasValidBoostData: false,
   isLoading: false,
   isEnabled: false,
   hasError: false,
@@ -274,6 +275,19 @@ export function CoStakingState({ children }: PropsWithChildren) {
       void unsubscribeFns.forEach((unsubscribe) => void unsubscribe());
   }, [eventBus, refreshCoStakingData]);
 
+  // Computed: Check if all boost data is valid and available
+  const hasValidBoostData = useMemo(
+    () =>
+      Boolean(
+        aprData.currentApr &&
+          aprData.currentApr > 0 &&
+          aprData.boostApr &&
+          aprData.boostApr > 0 &&
+          eligibility.additionalBabyNeeded > 0,
+      ),
+    [aprData.currentApr, aprData.boostApr, eligibility.additionalBabyNeeded],
+  );
+
   const state = useMemo(
     () => ({
       params: coStakingParams?.params || null,
@@ -281,6 +295,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
       scoreRatio,
       aprData,
       rawAprData: rawAprData ?? null,
+      hasValidBoostData,
       isLoading,
       isEnabled: isCoStakingEnabled,
       hasError: Boolean(error),
@@ -293,6 +308,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
       scoreRatio,
       aprData,
       rawAprData,
+      hasValidBoostData,
       isLoading,
       isCoStakingEnabled,
       error,

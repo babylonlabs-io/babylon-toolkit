@@ -70,9 +70,7 @@ function RewardsPageContent() {
 
   const { claimRewards: btcClaimRewards } = useRewardsService();
 
-  const { eligibility, rawAprData } = useCoStakingState();
-
-  const additionalBabyNeeded = eligibility.additionalBabyNeeded;
+  const { eligibility, rawAprData, hasValidBoostData } = useCoStakingState();
 
   const btcRewardBaby = maxDecimals(
     ubbnToBaby(Number(btcRewardUbbn || 0)),
@@ -277,10 +275,10 @@ function RewardsPageContent() {
   const hasAnyRewards = hasBtcRewards || hasBabyRewards;
   const claimDisabled = !hasAnyRewards || processing;
 
-  const isStakeMoreActive = FF.IsCoStakingEnabled && additionalBabyNeeded > 0;
+  const isStakeMoreActive = FF.IsCoStakingEnabled && hasValidBoostData;
 
   const stakeMoreCta = isStakeMoreActive
-    ? `Stake ${formatter.format(additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
+    ? `Stake ${formatter.format(eligibility.additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
     : undefined;
 
   const tokens = useMemo(() => {

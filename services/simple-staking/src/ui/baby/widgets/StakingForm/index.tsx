@@ -48,6 +48,7 @@ export default function StakingForm({
   const location = useLocation();
   const navigate = useNavigate();
   const { eligibility, isLoading: isCoStakingLoading } = useCoStakingState();
+  const { additionalBabyNeeded } = eligibility;
 
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
@@ -97,22 +98,18 @@ export default function StakingForm({
     if (isCoStakingLoading) return;
 
     // Guard against zero or invalid values
-    if (eligibility.additionalBabyNeeded <= 0) return;
+    if (additionalBabyNeeded <= 0) return;
 
     if (formRef.current) {
-      formRef.current.setValue<"amount">(
-        "amount",
-        eligibility.additionalBabyNeeded,
-        {
-          shouldDirty: true,
-          shouldTouch: true,
-          shouldValidate: true,
-        },
-      );
+      formRef.current.setValue<"amount">("amount", additionalBabyNeeded, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
 
       const currentFormValues = formRef.current.getValues();
       setBabyStakeDraft({
-        amount: eligibility.additionalBabyNeeded,
+        amount: additionalBabyNeeded,
         validatorAddresses: currentFormValues.validatorAddresses,
         feeAmount: currentFormValues.feeAmount,
       });
@@ -133,7 +130,7 @@ export default function StakingForm({
   }, [
     location.state,
     navigate,
-    eligibility.additionalBabyNeeded,
+    additionalBabyNeeded,
     isCoStakingLoading,
     setBabyStakeDraft,
   ]);

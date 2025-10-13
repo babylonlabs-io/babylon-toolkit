@@ -18,15 +18,18 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
 }) => {
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
-  const { aprData } = useCoStakingState();
-
-  const { currentApr, boostApr, additionalBabyNeeded } = aprData;
+  const { aprData, eligibility, hasValidBoostData } = useCoStakingState();
 
   const submitButtonText = useMemo(
     () =>
-      `Stake ${additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(boostApr)}%`,
-    [additionalBabyNeeded, babyCoinSymbol, boostApr],
+      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(aprData.boostApr)}%`,
+    [eligibility.additionalBabyNeeded, babyCoinSymbol, aprData.boostApr],
   );
+
+  // Don't render modal if boost data is not available
+  if (!hasValidBoostData) {
+    return null;
+  }
 
   return (
     <SubmitModal
@@ -47,12 +50,12 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
         <span className="text-accent-primary">
-          {formatAPRPercentage(currentApr)}%
+          {formatAPRPercentage(aprData.currentApr)}%
         </span>
-        . Stake {additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost it
-        up to{" "}
+        . Stake {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol}{" "}
+        to boost it up to{" "}
         <span className="text-accent-primary">
-          {formatAPRPercentage(boostApr)}%
+          {formatAPRPercentage(aprData.boostApr)}%
         </span>
         . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
         with {babyCoinSymbol}.

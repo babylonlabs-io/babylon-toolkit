@@ -146,7 +146,6 @@ export const useCoStakingService = (
       return {
         currentApr: null,
         boostApr: null,
-        additionalBabyNeeded: 0,
         isLoading,
         error: isLoading ? undefined : "APR data not available",
       };
@@ -155,7 +154,6 @@ export const useCoStakingService = (
     return {
       currentApr: aprData.current.total_apr,
       boostApr: aprData.boost.total_apr,
-      additionalBabyNeeded: aprData.additional_baby_needed_for_boost,
       isLoading: false,
       error: undefined,
     };

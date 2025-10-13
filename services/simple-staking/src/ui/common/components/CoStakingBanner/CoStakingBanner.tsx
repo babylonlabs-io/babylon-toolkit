@@ -10,12 +10,14 @@ import {
   NAVIGATION_STATE_KEYS,
   type NavigationState,
 } from "@/ui/common/constants/navigation";
+import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 
 const BANNER_DISMISSED_KEY = "bbn-costaking-banner-dismissed";
 
 export const CoStakingBanner = () => {
   const navigate = useNavigate();
   const { stakedBtcBalance } = useBalanceState();
+  const { hasValidBoostData } = useCoStakingState();
   const [dismissed, setDismissed] = useSessionStorage(
     BANNER_DISMISSED_KEY,
     false,
@@ -25,8 +27,10 @@ export const CoStakingBanner = () => {
   // Only show banner if:
   // 1. User has active BTC delegations (stakedBtcBalance > 0)
   // 2. User hasn't dismissed the banner
+  // 3. Boost data is available (APR values are valid and additionalBabyNeeded > 0)
   const hasActiveDelegations = stakedBtcBalance > 0;
-  const shouldShowBanner = hasActiveDelegations && !dismissed;
+  const shouldShowBanner =
+    hasActiveDelegations && !dismissed && hasValidBoostData;
 
   const handleBannerClick = useCallback(() => {
     navigate("/baby", {

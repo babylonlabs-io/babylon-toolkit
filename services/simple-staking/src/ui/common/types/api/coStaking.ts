@@ -55,8 +55,6 @@ export interface CoStakingAPRData {
   currentApr: number | null;
   /** B% - Maximum APR user can earn at 100% eligibility (BTC APR + BABY APR + full co-staking bonus) */
   boostApr: number | null;
-  /** X - Additional BABY tokens needed to reach 100% eligibility and boost APR */
-  additionalBabyNeeded: number;
   isLoading: boolean;
   error?: string;
 }

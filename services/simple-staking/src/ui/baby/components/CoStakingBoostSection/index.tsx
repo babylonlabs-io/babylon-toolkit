@@ -21,6 +21,7 @@ export function CoStakingBoostSection({
   const { delegations = [], isLoading } = useDelegationV2State();
   const {
     eligibility,
+    hasValidBoostData,
     isEnabled: isCoStakingEnabled,
     isLoading: isCoStakingLoading,
   } = useCoStakingState();
@@ -57,7 +58,7 @@ export function CoStakingBoostSection({
     !isLoading &&
     !isCoStakingLoading &&
     showCoStakingBoostSection &&
-    eligibility.additionalBabyNeeded > 0;
+    hasValidBoostData;
 
   return (
     shouldShowCoStakingBoostSection && (
