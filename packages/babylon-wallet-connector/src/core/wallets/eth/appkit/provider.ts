@@ -91,7 +91,33 @@ export class AppKitProvider implements IETHProvider {
         return;
       }
 
-      // Always require explicit user action via WalletConnect (no silent injected reuse)
+      // Dispatch event to open AppKit modal if available
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
+        
+        // Wait for connection with timeout
+        const waitForConnection = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Connection timeout"));
+          }, 60000); // 60 second timeout
+
+          const checkConnection = setInterval(() => {
+            const account = getAccount(config);
+            if (account.address) {
+              clearInterval(checkConnection);
+              clearTimeout(timeout);
+              this.address = account.address;
+              this.chainId = account.chainId;
+              resolve();
+            }
+          }, 500);
+        });
+
+        await waitForConnection;
+        return;
+      }
+
+      // Fallback to direct WalletConnect connection if event system not available
       const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
       const wcConnector = walletConnect({
         projectId,

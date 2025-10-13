@@ -1,56 +1,19 @@
-import { createAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { setSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
+import { initializeAppKitModal } from "@babylonlabs-io/wallet-connector";
 import { localhost } from "@babylonlabs-io/config";
 import { mainnet, sepolia } from "viem/chains";
-import { http } from "viem";
 
-// Get project ID from environment
-const projectId =
-  import.meta.env.NEXT_PUBLIC_REOWN_PROJECT_ID ||
-  "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
-
-// Get metadata URL dynamically
-const getMetadataUrl = () => {
-  if (typeof window !== "undefined") {
-    return window.location.origin;
-  }
-  return "https://btcstaking.babylonlabs.io";
-};
-
-// AppKit metadata configuration
-const metadata = {
-  name: "Babylon Staking",
-  description: "Babylon Staking - Secure Bitcoin Staking Platform",
-  url: getMetadataUrl(),
-  icons: ["https://btcstaking.babylonlabs.io/favicon.ico"],
-};
-
-// Define networks for AppKit
-
-const networks: any = [mainnet, sepolia, localhost];
-
-// Create Wagmi adapter with explicit transports
-export const wagmiAdapter = new WagmiAdapter({
-  networks,
-  projectId,
-  transports: {
-    [mainnet.id]: http(),
-    [sepolia.id]: http(),
-    [localhost.id]: http("http://localhost:8545"),
+// Initialize AppKit modal with configuration
+const { modal, wagmiConfig } = initializeAppKitModal({
+  projectId:
+    import.meta.env.NEXT_PUBLIC_REOWN_PROJECT_ID ||
+    "e3a2b903ffa3e74e8d1ce1c2a16e4e27",
+  metadata: {
+    name: "Babylon Staking",
+    description: "Babylon Staking - Secure Bitcoin Staking Platform",
+    url: typeof window !== "undefined" ? window.location.origin : "https://btcstaking.babylonlabs.io",
+    icons: ["https://btcstaking.babylonlabs.io/favicon.ico"],
   },
-  ssr: false, // We're using Vite, not Next.js SSR
-});
-
-// Create and export the AppKit modal instance
-export const modal = createAppKit({
-  adapters: [wagmiAdapter],
-  networks,
-  projectId,
-  metadata,
-  features: {
-    analytics: true,
-  },
+  networks: [mainnet, sepolia, localhost],
   themeMode: "light",
   themeVariables: {
     "--w3m-accent": "#FF7C2A",
@@ -60,9 +23,5 @@ export const modal = createAppKit({
   ],
 });
 
-// Export the wagmi config for use in WagmiProvider
-export const wagmiConfig = wagmiAdapter.wagmiConfig;
-
-// Set the shared wagmi config for the wallet-connector AppKitProvider
-// This prevents multiple WalletConnect initializations
-setSharedWagmiConfig(wagmiConfig);
+// Export for use in WagmiProvider
+export { modal, wagmiConfig };

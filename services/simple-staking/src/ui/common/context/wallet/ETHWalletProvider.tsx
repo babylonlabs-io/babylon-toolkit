@@ -7,13 +7,13 @@ import {
   useMemo,
   useEffect,
 } from "react";
-import type { ETHTypedData } from "@babylonlabs-io/wallet-connector";
 import {
-  useAppKit,
-  useAppKitAccount,
-  useDisconnect,
-} from "@reown/appkit/react";
-import { useAppKitBridge } from "@babylonlabs-io/wallet-connector";
+  type ETHTypedData,
+  useAppKitBridge,
+  useAppKitOpenListener,
+  openAppKitModal,
+} from "@babylonlabs-io/wallet-connector";
+import { useAppKitAccount, useDisconnect } from "@reown/appkit/react";
 import { formatUnits } from "viem";
 import {
   useBalance,
@@ -24,7 +24,6 @@ import {
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
-import { useAppKitOpenListener } from "../../hooks/useAppKitOpenListener";
 import { useEthConnectorBridge } from "../../hooks/useEthConnectorBridge";
 
 interface ETHWalletContextType {
@@ -98,11 +97,14 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const [networkName, setNetworkName] = useState<string>();
-  const { open } = useAppKit();
   const { address, isConnected } = useAppKitAccount();
   const { disconnect } = useDisconnect();
   useAppKitBridge();
   useAppKitOpenListener();
+  
+  const open = useCallback(() => {
+    openAppKitModal();
+  }, []);
   useEthConnectorBridge();
 
   const { chainId } = useAccount();
