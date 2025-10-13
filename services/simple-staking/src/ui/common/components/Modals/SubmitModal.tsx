@@ -2,6 +2,7 @@ import {
   Button,
   DialogBody,
   DialogFooter,
+  DialogHeader,
   Heading,
   Loader,
   Text,
@@ -22,6 +23,7 @@ interface SubmitModalProps {
   submitButton?: string | JSX.Element;
   onClose?: () => void;
   onSubmit?: () => void;
+  showCloseButton?: boolean;
 }
 
 export const SubmitModal = ({
@@ -37,8 +39,16 @@ export const SubmitModal = ({
   submitButton = "Submit",
   onClose,
   onSubmit,
+  showCloseButton = false,
 }: PropsWithChildren<SubmitModalProps>) => (
   <ResponsiveDialog className={className} open={open} onClose={onClose}>
+    {showCloseButton && onClose && (
+      <DialogHeader
+        title="" // intentionally empty string to hide the title
+        onClose={onClose}
+        className="text-accent-primary"
+      />
+    )}
     <DialogBody className="py-16 text-center text-accent-primary">
       <div
         className={`mb-6 inline-flex items-center justify-center bg-primary-contrast ${iconParentClassName}`}

@@ -213,7 +213,7 @@ export function MultistakingModal() {
 
   if (!step) return null;
 
-  const handleCloseBoostModal = () => {
+  const handleSubmitBoostModal = () => {
     resetState();
 
     // Navigate to baby page with flag to trigger prefill
@@ -291,7 +291,8 @@ export function MultistakingModal() {
       {FeatureFlagService.IsCoStakingEnabled ? (
         <CoStakingBoostModal
           open={step === "feedback-success"}
-          onClose={handleCloseBoostModal}
+          onClose={resetState}
+          onSubmit={handleSubmitBoostModal}
         />
       ) : (
         <SuccessFeedbackModal
