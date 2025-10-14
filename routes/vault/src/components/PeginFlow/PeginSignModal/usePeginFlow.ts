@@ -10,6 +10,7 @@ import type { Address } from 'viem';
 import { toXOnly } from 'bitcoinjs-lib/src/psbt/bip371';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
+import { broadcastPeginTransaction } from '../../../services/btc/broadcastService';
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
@@ -29,16 +30,20 @@ interface UsePeginFlowReturn {
   processing: boolean;
   error: string | null;
   isComplete: boolean;
+  unsignedTxHex?: string;
+  btcTxid?: string;
 }
 
 /**
  * Hook to manage peg-in flow state and execution
  *
  * Orchestrates:
- * 1. Fetch available UTXOs from BTC wallet
- * 2. Proof of possession with BTC wallet
- * 3. Transaction submission with ETH wallet
+ * 1. Proof of possession with BTC wallet
+ * 2. Submit unsigned transaction to ETH vault contract
+ * 3. Sign and broadcast BTC transaction to Bitcoin network
  * 4. Success/error handling
+ *
+ * Note: UTXO fetching and validation happens before step 1
  */
 export function usePeginFlow({
   open,
@@ -51,6 +56,8 @@ export function usePeginFlow({
   const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unsignedTxHex, setUnsignedTxHex] = useState<string | undefined>(undefined);
+  const [btcTxid, setBtcTxid] = useState<string | undefined>(undefined);
 
   // Fetch UTXOs for the connected BTC wallet
   const { confirmedUTXOs, isLoading: isUTXOsLoading, error: utxoError } = useUTXOs(btcAddress);
@@ -61,6 +68,8 @@ export function usePeginFlow({
       setCurrentStep(1);
       setProcessing(false);
       setError(null);
+      setUnsignedTxHex(undefined);
+      setBtcTxid(undefined);
     }
   }, [open]);
 
@@ -76,9 +85,7 @@ export function usePeginFlow({
     setError(null);
 
     try {
-      // Step 1: Check UTXOs availability
-      setCurrentStep(1);
-
+      // Validate UTXOs availability (happens before step 1)
       if (isUTXOsLoading) {
         throw new Error('Loading wallet UTXOs. Please wait...');
       }
@@ -109,8 +116,8 @@ export function usePeginFlow({
         );
       }
 
-      // Step 2: Proof of Possession
-      setCurrentStep(2);
+      // Step 1: Proof of Possession
+      setCurrentStep(1);
 
       // Extract signMessage function from BTC wallet provider
       const signMessage = btcConnector?.connectedWallet?.provider?.signMessage;
@@ -122,8 +129,8 @@ export function usePeginFlow({
         signMessage: signMessage,
       });
 
-      // Step 3: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
-      setCurrentStep(3);
+      // Step 2: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
+      setCurrentStep(2);
 
       // Extract BTC public key from wallet provider
       if (!btcConnector?.connectedWallet?.provider) {
@@ -152,12 +159,40 @@ export function usePeginFlow({
         },
       );
 
+      // Store unsigned transaction hex for broadcasting
+      setUnsignedTxHex(result.btcTxHex);
+
+      // Step 3: Sign and broadcast BTC transaction to Bitcoin network
+      setCurrentStep(3);
+
+      // Get BTC wallet provider for signing
+      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+      if (!btcWalletProvider) {
+        throw new Error('BTC wallet not connected');
+      }
+
+      // Broadcast the PegIn transaction to Bitcoin network
+      const broadcastedTxId = await broadcastPeginTransaction({
+        unsignedTxHex: result.btcTxHex,
+        utxo: {
+          txid: selectedUTXO.txid,
+          vout: selectedUTXO.vout,
+          value: BigInt(selectedUTXO.value),
+          scriptPubKey: selectedUTXO.scriptPubKey,
+        },
+        btcWalletProvider: {
+          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+        },
+      });
+
+      setBtcTxid(broadcastedTxId);
+
       // Step 4: Complete
       setCurrentStep(4);
       setProcessing(false);
 
-      // Pass both BTC transaction ID and ETH transaction hash to parent
-      onSuccess(result.btcTxid, result.transactionHash);
+      // Pass broadcasted BTC transaction ID and ETH transaction hash to parent
+      onSuccess(broadcastedTxId, result.transactionHash);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       setProcessing(false);
@@ -169,5 +204,7 @@ export function usePeginFlow({
     processing,
     error,
     isComplete: currentStep === 4,
+    unsignedTxHex,
+    btcTxid,
   };
 }

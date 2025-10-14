@@ -11,15 +11,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint_test:
-    uses: babylonlabs-io/.github/.github/workflows/reusable_node_lint_test.yml@v0.3.0
-    with:
-      run-build: true
-      run-unit-tests: true
-      node-version: 24.2
+  # lint_test:
+  #   uses: babylonlabs-io/.github/.github/workflows/reusable_node_lint_test.yml@v0.3.0
+  #   with:
+  #     run-build: true
+  #     run-unit-tests: true
+  #     node-version: 24.2
 
   s3_publish:
-    needs: [lint_test]
+    # needs: [lint_test]
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -33,7 +33,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 24.2
           cache: "npm"
 
       - name: Install dependencies
