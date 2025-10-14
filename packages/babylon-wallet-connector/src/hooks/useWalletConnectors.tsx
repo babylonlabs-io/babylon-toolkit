@@ -58,7 +58,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           selectWallet?.("BTC", connectedWallet);
 
-          if (persistent) {
+          if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
 
@@ -131,7 +131,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
         if (connectedWallet) {
           selectWallet?.(connector.id, connectedWallet);
 
-          if (persistent) {
+          if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
         }
@@ -142,7 +142,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
         if (connectedWallet) {
           selectWallet?.(connector.id, connectedWallet);
 
-          if (persistent) {
+          if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
         }

@@ -55,17 +55,24 @@ export class AppKitProvider implements IETHProvider {
     // Watch for account changes
     const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
+        const previousAddress = this.address;
         this.address = account.address;
         this.chainId = account.chainId;
-        this.emit("accountsChanged", account.address ? [account.address] : []);
+
+        if (previousAddress !== account.address) {
+          this.emit("accountsChanged", account.address ? [account.address] : []);
+        }
       },
     });
 
-    // Watch for chain changes
     const unwatchChain = watchChainId(config, {
       onChange: (chainId) => {
+        const previousChainId = this.chainId;
         this.chainId = chainId;
-        this.emit("chainChanged", `0x${chainId.toString(16)}`);
+
+        if (previousChainId !== chainId) {
+          this.emit("chainChanged", `0x${chainId.toString(16)}`);
+        }
       },
     });
 
@@ -83,7 +90,7 @@ export class AppKitProvider implements IETHProvider {
     try {
       const config = this.getWagmiConfig();
 
-      // First check if already connected
+      // First check if already connected (from previous session)
       const currentAccount = getAccount(config);
       if (currentAccount.address) {
         this.address = currentAccount.address;
@@ -91,7 +98,7 @@ export class AppKitProvider implements IETHProvider {
         return;
       }
 
-      // Dispatch event to open AppKit modal if available
+      // Open AppKit modal for manual connection
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
 
@@ -149,17 +156,19 @@ export class AppKitProvider implements IETHProvider {
   }
 
   async getAddress(): Promise<string> {
-    if (!this.address) {
-      // Try to get account from wagmi
-      const config = this.getWagmiConfig();
-      const account = getAccount(config);
-      if (account.address) {
-        this.address = account.address;
-        return this.address;
-      }
-      throw new Error("Wallet not connected");
+    const config = this.getWagmiConfig();
+    const account = getAccount(config);
+    if (account.address) {
+      this.address = account.address;
+      this.chainId = account.chainId;
+      return this.address;
     }
-    return this.address;
+
+    if (this.address) {
+      return this.address;
+    }
+
+    throw new Error("Wallet not connected");
   }
 
   async getPublicKeyHex(): Promise<string> {

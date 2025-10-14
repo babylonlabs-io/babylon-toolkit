@@ -95,7 +95,11 @@ export const createWalletConnector = async <N extends string, P extends IProvide
   const shouldAutoReconnect = metadata.chain !== "ETH" && connectedWalletId && wallets.some((wallet) => wallet.id === connectedWalletId);
 
   if (shouldAutoReconnect) {
-    await connector.connect(connectedWalletId);
+    try {
+      await connector.connect(connectedWalletId);
+    } catch {
+      // emtpy catch
+    }
   }
 
   return connector;

@@ -91,9 +91,7 @@ export const useETHWallet = () => useContext(ETHWalletContext);
 export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   // Debug build identifier to verify app build
   const { handleError } = useError();
-
   // Local state
-  const [loading] = useState(false);
   const [publicKeyHex] = useState(""); // ETH doesn't expose public key directly
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
@@ -102,7 +100,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   // Get ETH connector from wallet-connector
   const ethConnector = useChainConnector("ETH");
 
-  // Get address from ETH connector's provider if connected
+  // Track connection state from ethConnector
   const [ethAddress, setEthAddress] = useState<string>("");
   const [ethConnected, setEthConnected] = useState(false);
 
@@ -157,25 +155,20 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   }, []);
   useEthConnectorBridge();
 
-  const { chainId } = useAccount();
+  const { chainId, status } = useAccount();
 
-  // Use the address from ETH connector if available, otherwise from AppKit
-  const address = ethAddress || appKitAddress || "";
-  const connected = ethConnected || (appKitConnected && !!appKitAddress);
+  // Track if wagmi is still loading/reconnecting
+  // We consider it loading if:
+  // 1. Status is 'connecting' or 'reconnecting' 
+  // 2. Status is 'connected' but we don't have an address yet (still loading from AppKit)
+  const isStillLoadingAddress = status === 'connected' && !appKitAddress && !ethAddress;
+  const isWagmiLoading = status === 'reconnecting' || status === 'connecting' || isStillLoadingAddress;
+  const isInitialized = !isWagmiLoading;
 
-  // Debug logging to track connection state
-  useEffect(() => {
-    console.log("ETH Wallet State Debug:", {
-      ethConnector: !!ethConnector,
-      ethConnectorConnected: !!ethConnector?.connectedWallet,
-      ethAddress,
-      ethConnected,
-      appKitAddress,
-      appKitConnected,
-      finalAddress: address,
-      finalConnected: connected,
-    });
-  }, [ethConnector, ethAddress, ethConnected, appKitAddress, appKitConnected, address, connected]);
+  // Use AppKit's persistent connection state as primary source
+  // AppKit/wagmi handles its own persistence through cookies/localStorage
+  const address = isInitialized ? (appKitAddress || ethAddress || "") : "";
+  const connected = isInitialized ? ((appKitConnected && !!appKitAddress) || ethConnected) : false;
 
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
@@ -305,7 +298,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
 
   const ethContextValue = useMemo(
     () => ({
-      loading,
+      loading: isWagmiLoading,
       connected,
       open,
       disconnect: ethDisconnect,
@@ -323,9 +316,10 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       isPending,
       clearError: () => { },
       ...ethWalletMethods,
-    }),
+    }
+    ),
     [
-      loading,
+      isWagmiLoading,
       connected,
       open,
       ethDisconnect,

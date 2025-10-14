@@ -1,6 +1,7 @@
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { Config } from "wagmi";
+import { createStorage } from "wagmi";
 import { setSharedWagmiConfig } from "./sharedConfig";
 
 interface AppKitModalConfig {
@@ -87,10 +88,18 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         },
     ] as any;
 
-    // Create Wagmi adapter with minimal configuration
+    const storageConfig = createStorage({
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        key: 'wagmi.store',
+    });
+
     wagmiAdapter = new WagmiAdapter({
         networks,
         projectId,
+        storage: storageConfig,
+        ssr: false,
+        syncConnectedChain: true,
+        reconnect: true,
     } as any);
 
     // Create and store the AppKit modal instance
@@ -101,7 +110,10 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         metadata,
         features: {
             analytics: true,
+            swaps: false,
+            onramp: false,
         },
+        enableWalletConnect: true,
         themeMode: config?.themeMode || "light",
         themeVariables: config?.themeVariables || {
             "--w3m-accent": "#FF7C2A",
@@ -109,7 +121,7 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         featuredWalletIds: config?.featuredWalletIds || [
             "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
         ],
-    });
+    } as any);
 
     // Set the shared wagmi config for the wallet-connector AppKitProvider
     // This prevents multiple WalletConnect initializations
