@@ -12,6 +12,7 @@ import {
   useAppKitBridge,
   useAppKitOpenListener,
   openAppKitModal,
+  useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useAppKitAccount, useDisconnect } from "@reown/appkit/react";
 import { formatUnits } from "viem";
@@ -97,26 +98,91 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const [networkName, setNetworkName] = useState<string>();
-  const { address, isConnected } = useAppKitAccount();
+
+  // Get ETH connector from wallet-connector
+  const ethConnector = useChainConnector("ETH");
+
+  // Get address from ETH connector's provider if connected
+  const [ethAddress, setEthAddress] = useState<string>("");
+  const [ethConnected, setEthConnected] = useState(false);
+
+  useEffect(() => {
+    const updateEthState = async () => {
+      if (ethConnector?.connectedWallet?.provider) {
+        const provider = ethConnector.connectedWallet.provider as any;
+        if (provider.getAddress) {
+          try {
+            const addr = await provider.getAddress();
+            setEthAddress(addr);
+            setEthConnected(true);
+          } catch {
+            setEthAddress("");
+            setEthConnected(false);
+          }
+        }
+      } else {
+        setEthAddress("");
+        setEthConnected(false);
+      }
+    };
+
+    updateEthState();
+
+    // Listen for connection events from ETH connector
+    if (ethConnector) {
+      const unsubConnect = ethConnector.on("connect", () => {
+        updateEthState();
+      });
+
+      const unsubDisconnect = ethConnector.on("disconnect", () => {
+        setEthAddress("");
+        setEthConnected(false);
+      });
+
+      return () => {
+        unsubConnect();
+        unsubDisconnect();
+      };
+    }
+  }, [ethConnector, ethConnector?.connectedWallet]);
+
+  // For AppKit operations, still use these but don't rely on them for connection state
+  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
   const { disconnect } = useDisconnect();
   useAppKitBridge();
   useAppKitOpenListener();
-  
+
   const open = useCallback(() => {
     openAppKitModal();
   }, []);
   useEthConnectorBridge();
 
   const { chainId } = useAccount();
+
+  // Use the address from ETH connector if available, otherwise from AppKit
+  const address = ethAddress || appKitAddress || "";
+  const connected = ethConnected || (appKitConnected && !!appKitAddress);
+
+  // Debug logging to track connection state
+  useEffect(() => {
+    console.log("ETH Wallet State Debug:", {
+      ethConnector: !!ethConnector,
+      ethConnectorConnected: !!ethConnector?.connectedWallet,
+      ethAddress,
+      ethConnected,
+      appKitAddress,
+      appKitConnected,
+      finalAddress: address,
+      finalConnected: connected,
+    });
+  }, [ethConnector, ethAddress, ethConnected, appKitAddress, appKitConnected, address, connected]);
+
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
   });
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
   const { sendTransactionAsync } = useSendTransaction();
-
-  // Connection state
-  const connected = isConnected && !!address;
 
   // Update network name based on chain ID
   useEffect(() => {
@@ -138,8 +204,17 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
 
   const ethDisconnect = useCallback(async () => {
     try {
-      await disconnect();
+      // Disconnect from ETH connector
+      if (ethConnector) {
+        await ethConnector.disconnect();
+      }
+      // Also disconnect from AppKit if connected
+      if (appKitConnected) {
+        await disconnect();
+      }
       setPendingTx(undefined);
+      setEthAddress("");
+      setEthConnected(false);
     } catch (err) {
       console.error("Failed to disconnect ETH wallet:", err);
       handleError({
@@ -149,7 +224,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
         },
       });
     }
-  }, [disconnect, handleError]);
+  }, [disconnect, ethConnector, appKitConnected, handleError]);
 
 
   const ethWalletMethods = useMemo(
