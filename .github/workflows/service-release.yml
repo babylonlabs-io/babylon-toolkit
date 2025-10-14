@@ -25,7 +25,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [canon-devnet, vault-devnet, testnet, mainnet, staging, bsn-devnet, edge-devnet]
+          [vault-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
