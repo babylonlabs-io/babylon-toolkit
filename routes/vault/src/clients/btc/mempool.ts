@@ -24,7 +24,8 @@ export interface MempoolUTXO {
 function getMempoolApiUrl(): string {
   // HARDCODED: Using `signet` for vault development
   // TODO: Use wallet's actual network or add separate env var in production
-  const baseUrl = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space';
 
   // Always use signet for now
   return `${baseUrl}/signet/api`;
@@ -104,8 +105,52 @@ export async function getUTXOs(address: string): Promise<MempoolUTXO[]> {
     }));
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get UTXOs for address ${address}: ${error.message}`);
+      throw new Error(
+        `Failed to get UTXOs for address ${address}: ${error.message}`,
+      );
     }
-    throw new Error(`Failed to get UTXOs for address ${address}: Unknown error`);
+    throw new Error(
+      `Failed to get UTXOs for address ${address}: Unknown error`,
+    );
+  }
+}
+
+/**
+ * Pushes a transaction to the Bitcoin network.
+ *
+ * TODO: Refactor to share common BTC utilities across routes in production
+ *
+ * @param txHex - The hex string corresponding to the full transaction.
+ * @returns A promise that resolves to the transaction ID.
+ */
+export async function pushTx(txHex: string): Promise<string> {
+  const apiUrl = getMempoolApiUrl();
+
+  try {
+    const response = await fetch(`${apiUrl}/tx`, {
+      method: 'POST',
+      body: txHex,
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      // Try to extract error message from response
+      const message = errorText.split('"message":"')[1]?.split('"}')[0];
+      throw new Error(
+        message || `Failed to broadcast transaction: ${response.statusText}`,
+      );
+    }
+
+    // Response is the transaction ID (plain text)
+    const txId = await response.text();
+    return txId;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to broadcast BTC transaction: ${error.message}`);
+    }
+    throw new Error('Failed to broadcast BTC transaction: Unknown error');
   }
 }

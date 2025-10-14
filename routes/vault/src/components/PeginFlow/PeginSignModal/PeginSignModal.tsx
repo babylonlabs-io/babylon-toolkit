@@ -36,8 +36,9 @@ interface PeginSignModalProps {
  *
  * Displays the progress of the peg-in submission process:
  * 1. Sign proof of possession with BTC wallet
- * 2. Sign with ETH wallet and wait for confirmation
- * 3. Complete
+ * 2. Sign with ETH wallet and submit to vault contract
+ * 3. Sign and broadcast BTC transaction to Bitcoin network
+ * 4. Complete
  *
  * Note: The selectedProviders prop is for UI display only.
  * The actual vault provider used is HARDCODED from local deployment config.
@@ -78,12 +79,15 @@ export function PeginSignModal({
 
         <div className="flex flex-col items-start gap-4 py-4">
           <Step step={1} currentStep={currentStep}>
-            Sign with BTC wallet
+            Sign proof of possession (BTC wallet)
           </Step>
           <Step step={2} currentStep={currentStep}>
-            Sign with ETH wallet
+            Submit to vault contract (ETH wallet)
           </Step>
           <Step step={3} currentStep={currentStep}>
+            Broadcast to Bitcoin network (BTC wallet)
+          </Step>
+          <Step step={4} currentStep={currentStep}>
             Complete
           </Step>
         </div>
@@ -103,7 +107,7 @@ export function PeginSignModal({
           disabled={processing && !error}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={error || currentStep === 3 ? onClose : () => {}}
+          onClick={error || currentStep === 4 ? onClose : () => {}}
         >
           {processing && !error ? (
             <Loader size={16} className="text-accent-contrast" />
