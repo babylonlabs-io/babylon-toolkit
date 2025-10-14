@@ -38,7 +38,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --verbose
         env:
           NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
 
