@@ -101,12 +101,9 @@ export function CoStakingState({ children }: PropsWithChildren) {
   const { delegations: btcDelegations } = useDelegationV2State();
   const { bech32Address } = useCosmosWallet();
   const { data: babyDelegationsRaw = [] } = useDelegations(bech32Address);
-  const { pendingOperations } = usePendingOperationsService();
 
-  // Get pending BABY stake operations from context (reactive to context changes)
-  const pendingBabyOps = useMemo(() => {
-    return pendingOperations.filter((op) => op.operationType === "stake");
-  }, [pendingOperations]);
+  // Get pending BABY operations from context
+  const { pendingOperations: pendingBabyOps } = usePendingOperationsService();
 
   /**
    * Calculate total BTC staked (only broadcasted delegations)
