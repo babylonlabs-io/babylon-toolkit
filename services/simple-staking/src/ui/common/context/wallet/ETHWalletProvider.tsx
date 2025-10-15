@@ -208,7 +208,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       setEthAddress("");
       setEthConnected(false);
     } catch (err) {
-      console.error("[ETHWalletProvider] ethDisconnect: Failed to disconnect ETH wallet:", err);
+      console.error("Failed to disconnect ETH wallet:", err);
       handleError({
         error: err as Error,
         displayOptions: {
