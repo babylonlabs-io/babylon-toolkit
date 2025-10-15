@@ -305,14 +305,15 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
   // Log the connection state for debugging
   useEffect(() => {
-    console.log("[BTCWalletProvider] Connection state:", {
+    console.log("[BTCWalletProvider] Connection state:", JSON.stringify({
       actuallyConnected,
       loading,
       hasProvider: !!btcWalletProvider,
       hasAddress: !!address,
+      addressValue: address ? `${address.substring(0, 6)}...` : null,
       hasPublicKey: !!publicKeyNoCoord,
       legacyConnected: connected,
-    });
+    }));
   }, [actuallyConnected, loading, btcWalletProvider, address, publicKeyNoCoord, connected]);
 
   const btcContextValue = useMemo(
