@@ -110,8 +110,6 @@ export const Connect: React.FC<ConnectProps> = ({
 
   const isConnected = useMemo(() => {
     const result = (() => {
-      // Don't show as disconnected just because health check is loading
-      // Only block connection if we're explicitly geo-blocked
       if (isBabyRoute) {
         return bbnConnected && !isGeoBlocked;
       } else if (isVaultRoute) {
@@ -137,7 +135,6 @@ export const Connect: React.FC<ConnectProps> = ({
 
   const isLoading = useMemo(() => {
     // Only disable the button if we're already connected, API is down, or there's an active connection process
-    // For vault routes, also check if ETH wallet is loading (reconnecting)
     return isConnected || !isApiNormal || loading || (isVaultRoute && ethLoading);
   }, [isConnected, isApiNormal, loading, isVaultRoute, ethLoading]);
 
@@ -160,11 +157,6 @@ export const Connect: React.FC<ConnectProps> = ({
       buttonContent = 'Connect Wallet'
     } else {
       buttonContent = 'Connect Wallets'
-    }
-
-    if (!isConnected && ethConnected && btcConnected && isVaultRoute) {
-      console.error("[Connect Component] 🚨 BUG DETECTED! Showing Connect button when wallets are connected!");
-      console.error("  ETH Connected:", ethConnected, "| BTC Connected:", btcConnected, "| isConnected result:", isConnected);
     }
 
     return (

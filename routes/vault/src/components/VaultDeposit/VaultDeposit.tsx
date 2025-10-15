@@ -41,9 +41,9 @@ export function VaultDeposit({
   // Data fetching with peg out handler
   const {
     activities,
-    isWalletConnected: _isWalletConnected, // Not used - we use prop instead
+    isWalletConnected: _isWalletConnected,
     refetchActivities,
-    connectedAddress: _connectedAddress, // Not used - we use prop instead
+    connectedAddress: _connectedAddress,
     btcAddress,
     addPendingPegin,
   } = useVaultPositions(handlePegOut);
