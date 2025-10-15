@@ -75,12 +75,19 @@ export function useValidatorService() {
     () =>
       validatorList
         .map((validator) => {
-          const tokens = parseFloat(validator.tokens);
+          // Handle edge cases for tokens and commission, if they are not finite numbers, set them to 0
+          const parsedTokens = parseFloat(validator.tokens);
+          const tokens = isFinite(parsedTokens) ? parsedTokens : 0;
           const bondedTokens = pool?.bondedTokens ?? 0;
-          const votingPower = bondedTokens > 0 ? tokens / bondedTokens : 0;
-          const commission = parseFloat(
+          const calculatedVotingPower = tokens / bondedTokens;
+          const votingPower = isFinite(calculatedVotingPower)
+            ? calculatedVotingPower
+            : 0;
+          const parsedCommission = parseFloat(
             validator.commission.commissionRates.rate,
           );
+          const commission = isFinite(parsedCommission) ? parsedCommission : 0;
+
           const unbondingTime = Number(validator.unbondingTime.seconds) * 1000;
 
           const consPubKey = (validator as any)?.consensusPubkey?.key as
