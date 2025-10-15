@@ -17,7 +17,13 @@ export const typescriptConfig = defineConfig([
     extends: [
       js.configs.recommended,
       ...tseslint.configs.recommended
-    ]
+    ],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
   },
   prettier,
 ]);

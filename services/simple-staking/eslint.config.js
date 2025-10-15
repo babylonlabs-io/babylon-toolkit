@@ -35,6 +35,10 @@ export default tseslint.config(
       parser: tsParser,
       ecmaVersion: 2020,
       globals: globals.browser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       "react-hooks": reactHooks,
@@ -81,8 +85,11 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
   {
     settings: {
-      "import/resolver": {
-        typescript: true,
+      "import-x/resolver": {
+        typescript: {
+          alwaysTryTypes: true,
+          project: "./tsconfig.lib.json",
+        },
       },
     },
   },

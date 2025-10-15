@@ -1,5 +1,5 @@
-import { Route, Routes } from "react-router";
 import { VaultLayout } from "@routes/vault";
+import { Route, Routes } from "react-router";
 
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
