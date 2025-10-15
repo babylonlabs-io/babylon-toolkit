@@ -1,5 +1,6 @@
 import babylon from "@/infrastructure/babylon";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 const INCENTIVE_PARAMS_KEY = "INCENTIVE_PARAMS_KEY";
 
@@ -13,8 +14,10 @@ export interface IncentiveParamsResult {
 export function useIncentiveParams({
   enabled = true,
 }: { enabled?: boolean } = {}) {
+  const isCoStakingEnabled = FeatureFlagService.IsCoStakingEnabled;
+
   return useClientQuery<IncentiveParamsResult>({
-    queryKey: [INCENTIVE_PARAMS_KEY],
+    queryKey: [INCENTIVE_PARAMS_KEY, isCoStakingEnabled],
     queryFn: async () => {
       const client = await babylon.client();
       let incentive, costaking;
@@ -25,9 +28,14 @@ export function useIncentiveParams({
         incentive = null;
       }
 
-      try {
-        costaking = await client.baby.getCostakingParams();
-      } catch {
+      // Only fetch co-staking params if feature flag is enabled
+      if (isCoStakingEnabled) {
+        try {
+          costaking = await client.baby.getCostakingParams();
+        } catch {
+          costaking = null;
+        }
+      } else {
         costaking = null;
       }
 
