@@ -17,7 +17,7 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
-import { useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
+import { useETHWallet } from "@routes/vault";
 import { useUTXOs } from "@/ui/common/hooks/client/api/useUTXOs";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 import { useAppState } from "@/ui/common/state";
@@ -133,8 +133,10 @@ export const Connect: React.FC<ConnectProps> = ({
 
   const isLoading = useMemo(() => {
     // Only disable the button if we're already connected, API is down, or there's an active connection process
-    return isConnected || !isApiNormal || loading;
-  }, [isConnected, isApiNormal, loading]);
+    // For vault route, we don't need the staking API, so skip the API health check
+    const requiresApiCheck = !isVaultRoute;
+    return isConnected || (requiresApiCheck && !isApiNormal) || loading;
+  }, [isConnected, isApiNormal, loading, isVaultRoute]);
 
   const transformedWallets = useMemo(() => {
     const result: Record<string, { name: string; icon: string }> = {};

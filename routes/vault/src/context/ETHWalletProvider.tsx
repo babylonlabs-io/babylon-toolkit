@@ -1,19 +1,8 @@
 /**
- * ETH Wallet Provider
+ * ETH Wallet Provider for Vault
  *
  * Provides ETH wallet functionality via wagmi hooks and AppKit integration.
- *
- * Architecture Note:
- * - This provider requires a WagmiProvider parent (provided by vault's VaultLayout)
- * - Currently used by:
- *   1. Vault components (main use case)
- *   2. Connect.tsx for displaying wallet connection status
- * - Uses AppKit (Reown) for wallet connection UI
- * - Bridges AppKit state with wallet-connector library
- *
- * Provider Hierarchy:
- * - App Root: Has ErrorProvider, BTC/Cosmos providers (NOT ETH)
- * - Vault Route: WagmiProvider → This gets consumed by components needing ETH wallet
+ * This provider requires a WagmiProvider parent (provided by VaultLayout).
  */
 
 import {
@@ -26,12 +15,6 @@ import {
   useEffect,
 } from "react";
 import type { ETHTypedData } from "@babylonlabs-io/wallet-connector";
-import {
-  useAppKit,
-  useAppKitAccount,
-  useDisconnect,
-} from "@reown/appkit/react";
-import { useAppKitBridge } from "@babylonlabs-io/wallet-connector";
 import { formatUnits } from "viem";
 import {
   useBalance,
@@ -39,25 +22,25 @@ import {
   useSignTypedData,
   useSendTransaction,
   useAccount,
+  useDisconnect,
+  useConnect,
+  useConnectors,
 } from "wagmi";
-
-import { useError } from "@/ui/common/context/Error/ErrorProvider";
-import { useAppKitOpenListener } from "../../hooks/useAppKitOpenListener";
-import { useEthConnectorBridge } from "../../hooks/useEthConnectorBridge";
 
 interface ETHWalletContextType {
   // Connection state
   loading: boolean;
   connected: boolean;
-  open: () => void;
+  open: (connectorId?: string) => void;
   disconnect: () => void;
+  availableConnectors: { id: string; name: string }[];
 
   // Account info
   address: string;
   publicKeyHex: string;
 
   // Balance
-  balance: number; // Keep consistent with BTC (will store in ETH, not wei)
+  balance: number; // In ETH, not wei
   formattedBalance: string;
 
   // Network info
@@ -77,14 +60,14 @@ interface ETHWalletContextType {
   // Transaction tracking
   pendingTx?: string;
   isPending: boolean;
-  clearError: () => void;
 }
 
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => { },
-  disconnect: () => { },
+  open: () => {},
+  disconnect: () => {},
+  availableConnectors: [],
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -98,32 +81,27 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => { },
+  switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  clearError: () => { },
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
 
 export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
-  // Debug build identifier to verify app build
-  const { handleError } = useError();
-
   // Local state
   const [loading] = useState(false);
   const [publicKeyHex] = useState(""); // ETH doesn't expose public key directly
   const [pendingTx, setPendingTx] = useState<string>();
   const [isPending, setIsPending] = useState(false);
   const [networkName, setNetworkName] = useState<string>();
-  const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
-  const { disconnect } = useDisconnect();
-  useAppKitBridge();
-  useAppKitOpenListener();
-  useEthConnectorBridge();
 
-  const { chainId } = useAccount();
+  // Use wagmi hooks directly
+  const { address, chainId, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { connect } = useConnect();
+  const connectors = useConnectors();
+
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
   });
@@ -134,6 +112,32 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   // Connection state
   const connected = isConnected && !!address;
 
+  // Available connectors mapped to simple format
+  const availableConnectors = useMemo(
+    () =>
+      connectors.map((connector) => ({
+        id: connector.id,
+        name: connector.name,
+      })),
+    [connectors]
+  );
+
+  // Open wallet connection with specific connector or default to first available
+  const open = useCallback(
+    (connectorId?: string) => {
+      const connector = connectorId
+        ? connectors.find((c) => c.id === connectorId)
+        : connectors[0];
+
+      if (connector) {
+        connect({ connector });
+      } else {
+        console.error("No connector found");
+      }
+    },
+    [connect, connectors]
+  );
+
   // Update network name based on chain ID
   useEffect(() => {
     if (chainId) {
@@ -143,6 +147,9 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           break;
         case 11155111:
           setNetworkName("Sepolia Testnet");
+          break;
+        case 31337:
+          setNetworkName("Localhost");
           break;
         default:
           setNetworkName(`Chain ID ${chainId}`);
@@ -158,15 +165,9 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       setPendingTx(undefined);
     } catch (err) {
       console.error("Failed to disconnect ETH wallet:", err);
-      handleError({
-        error: err as Error,
-        displayOptions: {
-          retryAction: () => ethDisconnect(),
-        },
-      });
+      alert(`Failed to disconnect: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [disconnect, handleError]);
-
+  }, [disconnect]);
 
   const ethWalletMethods = useMemo(
     () => ({
@@ -178,7 +179,8 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           const signature = await signMessageAsync({ message });
           return signature;
         } catch (err) {
-          handleError({ error: err as Error });
+          console.error("Failed to sign message:", err);
+          alert(`Failed to sign message: ${err instanceof Error ? err.message : String(err)}`);
           throw err;
         } finally {
           setIsPending(false);
@@ -204,7 +206,8 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           });
           return signature;
         } catch (err) {
-          handleError({ error: err as Error });
+          console.error("Failed to sign typed data:", err);
+          alert(`Failed to sign typed data: ${err instanceof Error ? err.message : String(err)}`);
           throw err;
         } finally {
           setIsPending(false);
@@ -220,7 +223,8 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           if (hash) setPendingTx(hash);
           return hash;
         } catch (err) {
-          handleError({ error: err as Error });
+          console.error("Failed to send transaction:", err);
+          alert(`Failed to send transaction: ${err instanceof Error ? err.message : String(err)}`);
           throw err;
         } finally {
           setIsPending(false);
@@ -237,7 +241,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       address,
       publicKeyHex,
       signMessageAsync,
-      handleError,
       signTypedDataAsync,
       sendTransactionAsync,
       balance?.value,
@@ -250,19 +253,19 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       connected,
       open,
       disconnect: ethDisconnect,
+      availableConnectors,
       address: address ?? "",
       publicKeyHex,
       balance: balance
         ? parseFloat(formatUnits(balance.value, balance.decimals))
         : 0,
       formattedBalance: balance
-        ? formatUnits(balance.value, balance.decimals)
-        : "0",
+        ? `${formatUnits(balance.value, balance.decimals)} ETH`
+        : "0 ETH",
       chainId,
       networkName,
       pendingTx,
       isPending,
-      clearError: () => { },
       ...ethWalletMethods,
     }),
     [
@@ -270,6 +273,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       connected,
       open,
       ethDisconnect,
+      availableConnectors,
       address,
       publicKeyHex,
       balance,
@@ -286,62 +290,4 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       {children}
     </ETHWalletContext.Provider>
   );
-};
-
-// Safe wrapper for ETHWalletProvider that handles AppKit initialization errors
-export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
-  const [hasError, setHasError] = useState(false);
-
-  const fallbackContextValue = useMemo(
-    () => ({
-      loading: false,
-      connected: false,
-      open: () => console.warn("ETH wallet not available"),
-      disconnect: () => Promise.resolve(),
-      address: "",
-      publicKeyHex: "",
-      balance: 0,
-      formattedBalance: "0",
-      chainId: undefined,
-      networkName: undefined,
-      pendingTx: undefined,
-      isPending: false,
-      getAddress: async () => "",
-      getPublicKeyHex: async () => "",
-      signMessage: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      signTypedData: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      sendTransaction: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      getBalance: async () => 0n,
-      getNonce: async () => 0,
-      switchChain: async () => { },
-      clearError: () => { },
-    }),
-    [],
-  );
-
-  if (hasError) {
-    return (
-      <ETHWalletContext.Provider value={fallbackContextValue}>
-        {children}
-      </ETHWalletContext.Provider>
-    );
-  }
-
-  try {
-    return <ETHWalletProvider>{children}</ETHWalletProvider>;
-  } catch (error) {
-    console.warn("ETH wallet provider failed to initialize:", error);
-    setHasError(true);
-    return (
-      <ETHWalletContext.Provider value={fallbackContextValue}>
-        {children}
-      </ETHWalletContext.Provider>
-    );
-  }
 };

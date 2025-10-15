@@ -10,7 +10,7 @@ import { useLocation } from "react-router";
 import { logTermsAcceptance } from "@/ui/common/api/logTermAcceptance";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
-import { getNetworkConfigETH } from "@/ui/common/config/network/eth";
+import { getNetworkConfigETH } from "@babylonlabs-io/config";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";

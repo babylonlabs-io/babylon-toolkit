@@ -6,14 +6,14 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "./components/Notification/NotificationContainer";
-import { wagmiConfig } from "./config/appkit";
 import { ErrorProvider } from "./context/Error/ErrorProvider";
 import { BbnRpcProvider } from "./context/rpc/BbnRpcProvider";
 import { BTCWalletProvider } from "./context/wallet/BTCWalletProvider";
 import { CosmosWalletProvider } from "./context/wallet/CosmosWalletProvider";
-import { SafeETHWalletProvider } from "./context/wallet/ETHWalletProvider";
+// Removed SafeETHWalletProvider - vault provides its own ETH wallet provider
 import { WalletConnectionProvider } from "./context/wallet/WalletConnectionProvider";
 import { AppState } from "./state";
+import { wagmiConfig } from "@routes/vault";
 
 function Providers({ children }: React.PropsWithChildren) {
   const [client] = useState(new QueryClient());
@@ -41,9 +41,7 @@ function Providers({ children }: React.PropsWithChildren) {
                       <WalletConnectionProvider>
                         <BTCWalletProvider>
                           <CosmosWalletProvider>
-                            <SafeETHWalletProvider>
-                              <AppState>{children}</AppState>
-                            </SafeETHWalletProvider>
+                            <AppState>{children}</AppState>
                           </CosmosWalletProvider>
                         </BTCWalletProvider>
                       </WalletConnectionProvider>

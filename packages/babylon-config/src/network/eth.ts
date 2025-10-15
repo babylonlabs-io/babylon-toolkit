@@ -1,5 +1,5 @@
 import type { ETHConfig } from "@babylonlabs-io/wallet-connector";
-import { mainnet, sepolia } from "viem/chains";
+import { sepolia } from "viem/chains";
 import type { Chain } from "viem";
 import { defineChain } from "viem";
 
@@ -19,7 +19,7 @@ export const localhost = defineChain({
   },
 });
 
-const defaultNetwork = "testnet";
+const defaultNetwork = "devnet";
 // Export network for modules that need to know which network is active
 export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
 
@@ -32,51 +32,12 @@ export type ExtendedETHConfig = ETHConfig & {
 type Config = ExtendedETHConfig;
 
 const config: Record<string, Config> = {
-  mainnet: {
-    name: "Ethereum",
-    chainId: 1,
-    chainName: "Ethereum Mainnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://eth.llamarpc.com",
-    explorerUrl: "https://etherscan.io",
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: true,
-  },
-  canary: {
-    // Using Sepolia for canary
-    name: "Ethereum Sepolia",
-    chainId: 11155111,
-    chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
-    explorerUrl: "https://sepolia.etherscan.io",
-    nativeCurrency: {
-      name: "Sepolia ETH",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: false,
-  },
-  testnet: {
-    name: "Ethereum Sepolia",
-    chainId: 11155111,
-    chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
-    explorerUrl: "https://sepolia.etherscan.io",
-    nativeCurrency: {
-      name: "Sepolia ETH",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: false,
-  },
+  // Devnet - uses Sepolia testnet
   devnet: {
     name: "Ethereum Sepolia",
     chainId: 11155111,
     chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
+    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     explorerUrl: "https://sepolia.etherscan.io",
     nativeCurrency: {
       name: "Sepolia ETH",
@@ -85,6 +46,7 @@ const config: Record<string, Config> = {
     },
     displayUSD: false,
   },
+  // Local development - uses Anvil
   localhost: {
     name: "Local Anvil",
     chainId: 31337,
@@ -100,46 +62,52 @@ const config: Record<string, Config> = {
   },
 };
 
+/**
+ * Map chainId to viem Chain object
+ * Internal helper function
+ */
+function getChainFromConfig(ethConfig: Config): Chain {
+  switch (ethConfig.chainId) {
+    case 11155111:
+      return sepolia; // Devnet uses Sepolia
+    case 31337:
+      return localhost; // Local development uses Anvil
+    default:
+      // Default to Sepolia for devnet
+      return sepolia;
+  }
+}
+
 export function getNetworkConfigETH(): Config {
-  // Use the chain ID from environment if available
-  const chainId = parseInt(process.env.NEXT_PUBLIC_ETH_CHAIN_ID || "0");
-
-  // If chain ID is set, use chain ID-based config
-  if (chainId === 1) {
-    return config.mainnet;
-  } else if (chainId === 31337) {
-    return config.localhost;
-  } else if (chainId === 11155111) {
-    return config.testnet;
-  }
-
-  // Otherwise use the network-based config
-  if (network === "localhost") {
-    return config.localhost;
-  }
-
+  // Use NEXT_PUBLIC_NETWORK to determine ETH configuration
+  // This ensures consistency across BTC, BBN, and ETH networks
   return config[network] ?? config[defaultNetwork];
 }
 
 /**
  * Get viem Chain object for the current network configuration
- * Used by contract clients that need Chain object
+ * Used by contract clients and AppKit that need Chain object
+ *
+ * This function maps the current NEXT_PUBLIC_NETWORK to the corresponding viem chain
  */
 export function getETHChain(): Chain {
-  const config = getNetworkConfigETH();
+  const ethConfig = getNetworkConfigETH();
+  return getChainFromConfig(ethConfig);
+}
 
-  // Map chainId to viem chain object
-  switch (config.chainId) {
-    case 1:
-      return mainnet;
-    case 11155111:
-      return sepolia;
-    case 31337:
-      return localhost;
-    default:
-      // Default to testnet (Sepolia)
-      return sepolia;
-  }
+/**
+ * Get both ETH network config and viem Chain object together
+ * This is more efficient than calling getNetworkConfigETH() and getETHChain() separately
+ * since it only reads the config once
+ *
+ * @returns Object containing both config and chain
+ */
+export function getETHNetworkConfig(): { config: Config; chain: Chain } {
+  const ethConfig = getNetworkConfigETH();
+  return {
+    config: ethConfig,
+    chain: getChainFromConfig(ethConfig),
+  };
 }
 
 /**

@@ -1,12 +1,12 @@
 import { useState, useMemo } from "react";
 import { VaultLayout as VaultDeposit, VaultPositions } from "@routes/vault";
+import { ETHWalletProvider } from "@routes/vault";
 
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
 import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
 import { BTCWalletProvider } from "@/ui/common/context/wallet/BTCWalletProvider";
-import { SafeETHWalletProvider } from "@/ui/common/context/wallet/ETHWalletProvider";
 
 type TabId = "deposit" | "positions";
 
@@ -45,7 +45,7 @@ export default function VaultLayout() {
 
   return (
     <BTCWalletProvider>
-      <SafeETHWalletProvider>
+      <ETHWalletProvider>
         <Content>
           <Container className="mx-auto flex max-w-[1200px] flex-1 flex-col gap-8 py-8">
             <Tabs
@@ -57,7 +57,7 @@ export default function VaultLayout() {
             />
           </Container>
         </Content>
-      </SafeETHWalletProvider>
+      </ETHWalletProvider>
     </BTCWalletProvider>
   );
 }
