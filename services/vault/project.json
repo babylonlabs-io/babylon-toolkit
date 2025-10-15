@@ -1,6 +1,6 @@
 {
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "name": "@services/simple-staking",
+  "name": "@services/vault",
   "sourceRoot": "{projectRoot}/src",
   "projectType": "application",
   "tags": ["type:service"],
@@ -9,7 +9,7 @@
       "dependsOn": ["^build"],
       "executor": "nx:run-commands",
       "options": {
-        "cwd": "services/simple-staking",
+        "cwd": "services/vault",
         "parallel": true,
         "commands": [
           {

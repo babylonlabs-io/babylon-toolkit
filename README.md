@@ -17,9 +17,10 @@ This repository is a monorepo for Babylon Labs TypeScript applications and libra
 # Development
 Please follow the guidelines outlined in the [DEVELOPMENT.md](DEVELOPMENT.md) file.
 
-# Working with simple-staking
+# Working with services
 
-The simple-staking service is located in the `services/simple-staking` directory. To get started with development, follow these steps:
+The services are located in the `services` directory. To get started with development, follow these steps:
+Note: Replace `{service-name}` with the actual name of the service you want to work on. For example, `@services/simple-staking` and `@services/vault`.
 
 ```bash
 pnpm run build # Build the entire monorepo. After the first run, the build result will be cached for most packages.
@@ -27,11 +28,11 @@ pnpm run build # Build the entire monorepo. After the first run, the build resul
 
 Option 1:
 ```bash
-pnpm exec nx dev @services/simple-staking # Start the development server for the simple-staking service.
-pnpm exec nx watchDeps @services/simple-staking # Watch for changes in dependencies and rebuild as necessary.
+pnpm exec nx dev @services/{service-name} # Start the development server for the {service-name} service.
+pnpm exec nx watchDeps @services/{service-name} # Watch for changes in dependencies and rebuild as necessary.
 ```
 
 Option 2:
 ```bash
-pnpm exec nx dev:watchDeps @services/simple-staking # Start the development server and watch for changes in dependencies. The problem with this approach is that all logs are mixed together and can be hard to find out what's going on some times.
+pnpm exec nx dev:watchDeps @services/{service-name} # Start the development server and watch for changes in dependencies. The problem with this approach is that all logs are mixed together and can be hard to find out what's going on some times.
 ```
