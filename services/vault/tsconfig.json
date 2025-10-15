@@ -2,9 +2,6 @@
   "files": [],
   "references": [
     {
-      "path": "../../packages/babylon-wallet-connector"
-    },
-    {
       "path": "../../packages/babylon-core-ui"
     },
     {

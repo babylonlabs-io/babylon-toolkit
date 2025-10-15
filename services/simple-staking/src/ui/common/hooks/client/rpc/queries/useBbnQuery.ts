@@ -45,7 +45,7 @@ export const useBbnQuery = () => {
     queryKey: [BBN_REWARDS_KEY, bech32Address, connected],
     queryFn: async () => {
       if (!connected || !queryClient || !bech32Address) {
-        return undefined;
+        return undefined as any;
       }
       const { incentive } = setupIncentiveExtension(queryClient);
       const req: incentivequery.QueryRewardGaugesRequest =
@@ -149,7 +149,7 @@ export const useBbnQuery = () => {
     queryKey: [BBN_BTCLIGHTCLIENT_TIP_KEY],
     queryFn: async () => {
       if (!queryClient) {
-        return undefined;
+        return undefined as any;
       }
       const { btclightQueryClient } = setupBtclightClientExtension(queryClient);
       const req = btclightclientquery.QueryTipRequest.fromPartial({});

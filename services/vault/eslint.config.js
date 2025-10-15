@@ -20,6 +20,8 @@ export default tseslint.config(
       "playwright/.cache",
       "out",
       "*.{js,ts}",
+      "postcss.config.cjs",
+      "prettier.config.cjs",
     ],
   },
   importPlugin.flatConfigs.recommended,
@@ -80,11 +82,8 @@ export default tseslint.config(
   eslintPluginPrettierRecommended,
   {
     settings: {
-      "import-x/resolver": {
-        typescript: {
-          alwaysTryTypes: true,
-          project: "./tsconfig.lib.json",
-        },
+      "import/resolver": {
+        typescript: true,
       },
     },
   },

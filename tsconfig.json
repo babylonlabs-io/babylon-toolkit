@@ -20,6 +20,9 @@
     },
     {
       "path": "./services/simple-staking/tsconfig.json"
-    }
+    },
+    {
+      "path": "./services/vault/tsconfig.json"
+    },
   ]
 }
