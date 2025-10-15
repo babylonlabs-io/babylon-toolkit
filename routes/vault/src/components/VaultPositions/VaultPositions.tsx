@@ -14,18 +14,10 @@ export interface VaultPositionsProps {
   isWalletConnected?: boolean;
 }
 
-export default function VaultPositions({ 
-  ethAddress, 
-  btcAddress,
-  isWalletConnected = false 
+export default function VaultPositions({
+  ethAddress,
+  isWalletConnected = false
 }: VaultPositionsProps) {
-  // Log wallet connection state from props
-  console.log("[VaultPositions] Props received:", JSON.stringify({
-    ethAddress: ethAddress ? `${ethAddress.substring(0, 6)}...` : null,
-    btcAddress: btcAddress ? `${btcAddress.substring(0, 6)}...` : null,
-    isWalletConnected
-  }));
-
   // Repay flow state
   const [repayActivity, setRepayActivity] = useState<VaultActivity | null>(null);
   const [repayFlowOpen, setRepayFlowOpen] = useState(false);
@@ -154,7 +146,7 @@ export default function VaultPositions({
         <div className="text-center">
           <h2 className="mb-4 text-2xl font-semibold">Connect Your Wallet</h2>
           <p className="text-gray-600">
-            Please connect your wallet to view your vault activities
+            Please connect your wallet to view your positions
           </p>
         </div>
       </div>

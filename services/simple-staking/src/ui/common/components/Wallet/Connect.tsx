@@ -99,18 +99,6 @@ export const Connect: React.FC<ConnectProps> = ({
   const { bech32Address, connected: bbnConnected } = useCosmosWallet();
   const { connected: ethConnected, loading: ethLoading } = useETHWallet();
 
-  console.log("[Connect Component] Wallet states:", JSON.stringify({
-    btcConnected,
-    btcAddress: btcAddress ? `${btcAddress.substring(0, 6)}...` : null,
-    ethConnected,
-    ethLoading,
-    bbnConnected,
-    bech32Address: bech32Address ? `${bech32Address.substring(0, 10)}...` : null,
-    isVaultRoute,
-    isBabyRoute,
-    pathname: location.pathname
-  }));
-
   // Widget states
   const { selectedWallets } = useWidgetState();
   const { disconnect } = useWalletConnect();
@@ -118,14 +106,7 @@ export const Connect: React.FC<ConnectProps> = ({
   const {
     isApiNormal,
     isGeoBlocked,
-    isLoading: isHealthcheckLoading,
   } = useHealthCheck();
-
-  console.log("[Connect Component] Health check:", JSON.stringify({
-    isApiNormal,
-    isGeoBlocked,
-    isHealthcheckLoading
-  }));
 
   const isConnected = useMemo(() => {
     const result = (() => {
@@ -143,21 +124,6 @@ export const Connect: React.FC<ConnectProps> = ({
         );
       }
     })();
-
-    console.log("[Connect Component] isConnected calculation:", JSON.stringify({
-      result,
-      route: isVaultRoute ? "vault" : isBabyRoute ? "baby" : "default",
-      btcConnected,
-      ethConnected,
-      bbnConnected,
-      isGeoBlocked,
-      isHealthcheckLoading,
-      conditions: {
-        walletsOK: isVaultRoute ? (btcConnected && ethConnected) : isBabyRoute ? bbnConnected : (btcConnected && bbnConnected),
-        geoOK: !isGeoBlocked,
-        healthCheckLoadingIgnored: true
-      }
-    }));
 
     return result;
   }, [

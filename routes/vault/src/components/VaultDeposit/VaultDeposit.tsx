@@ -17,17 +17,11 @@ export interface VaultDepositProps {
   isWalletConnected?: boolean;
 }
 
-export function VaultDeposit({ 
-  ethAddress, 
-  btcAddress: btcAddressProp, 
-  isWalletConnected: isWalletConnectedProp = false 
+export function VaultDeposit({
+  ethAddress,
+  btcAddress: btcAddressProp,
+  isWalletConnected: isWalletConnectedProp = false
 }: VaultDepositProps) {
-  // Log wallet connection state from props
-  console.log("[VaultDeposit] Props received:", JSON.stringify({
-    ethAddress: ethAddress ? `${ethAddress.substring(0, 6)}...` : null,
-    btcAddress: btcAddressProp ? `${btcAddressProp.substring(0, 6)}...` : null,
-    isWalletConnected: isWalletConnectedProp
-  }));
   // Peg out flow state
   const [pegoutActivity, setPegoutActivity] = useState<VaultActivity | null>(null);
   const [pegoutFlowOpen, setPegoutFlowOpen] = useState(false);
@@ -148,7 +142,7 @@ export function VaultDeposit({
 
       <PeginSignModal
         open={peginSignModalOpen}
-        onClose={() => {}}
+        onClose={() => { }}
         onSuccess={handlePeginSignSuccess}
         amount={peginAmount}
         selectedProviders={selectedProviders}

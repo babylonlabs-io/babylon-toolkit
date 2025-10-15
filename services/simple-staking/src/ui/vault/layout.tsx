@@ -17,15 +17,6 @@ function VaultContent() {
   const [activeTab, setActiveTab] = useState<TabId>("deposit");
   const { address: ethAddress, connected: ethConnected } = useETHWallet();
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
-  
-  // Log wallet states to debug the connection issue
-  console.log("[VaultLayout] Wallet states from providers:", JSON.stringify({
-    ethAddress: ethAddress ? `${ethAddress.substring(0, 6)}...` : null,
-    ethConnected,
-    btcAddress: btcAddress ? `${btcAddress.substring(0, 6)}...` : null,
-    btcConnected,
-    isWalletConnected: ethConnected && btcConnected
-  }));
 
   const tabItems = useMemo(
     () => [
@@ -34,7 +25,7 @@ function VaultContent() {
         label: "Deposit",
         content: (
           <Section>
-            <VaultDeposit 
+            <VaultDeposit
               ethAddress={ethAddress}
               btcAddress={btcAddress}
               isWalletConnected={ethConnected && btcConnected}
@@ -47,9 +38,8 @@ function VaultContent() {
         label: "Positions",
         content: (
           <Section>
-            <VaultPositions 
+            <VaultPositions
               ethAddress={ethAddress}
-              btcAddress={btcAddress}
               isWalletConnected={ethConnected && btcConnected}
             />
           </Section>

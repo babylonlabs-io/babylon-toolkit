@@ -97,8 +97,8 @@ export const createWalletConnector = async <N extends string, P extends IProvide
   if (shouldAutoReconnect) {
     try {
       await connector.connect(connectedWalletId);
-    } catch {
-      // emtpy catch
+    } catch (error) {
+      console.error({ error })
     }
   }
 
