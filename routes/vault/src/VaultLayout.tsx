@@ -5,13 +5,27 @@ import { VaultDeposit } from './components/VaultDeposit';
 // import { PegInTest } from './components/examples/PegInTest';
 // import ContractQueryExample from "./components/examples/ContractQueryExample";
 
-export default function VaultLayout() {
+interface VaultLayoutProps {
+  ethAddress?: string;
+  btcAddress?: string;
+  isWalletConnected?: boolean;
+}
+
+export default function VaultLayout({ 
+  ethAddress, 
+  btcAddress, 
+  isWalletConnected = false 
+}: VaultLayoutProps) {
   // Initialize AppKit bridge for ETH wallet connection
   useAppKitBridge();
 
   return (
     <div>
-      <VaultDeposit />
+      <VaultDeposit 
+        ethAddress={ethAddress}
+        btcAddress={btcAddress}
+        isWalletConnected={isWalletConnected}
+      />
     </div>
   );
 }

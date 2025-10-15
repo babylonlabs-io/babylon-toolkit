@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useChainConnector, type IWallet, type IConnector, type IProvider } from '@babylonlabs-io/wallet-connector';
+import { useState, useCallback } from 'react';
 import { ActivityList } from '@babylonlabs-io/core-ui';
 import { PositionCard } from './PositionCard';
 import { useVaultPositionsData } from './useVaultPositionsData';
@@ -9,25 +8,23 @@ import { BorrowFlow } from '../BorrowFlow';
 import type { Address } from 'viem';
 import type { VaultActivity } from '../../mockData/vaultActivities';
 
-/**
- * Type guard to check if a connector has the expected shape
- */
-function isConnectorWithWallet<P extends IProvider>(
-  connector: unknown
-): connector is IConnector<string, P> & { connectedWallet: IWallet<P> | null } {
-  return (
-    connector !== null &&
-    typeof connector === 'object' &&
-    'connectedWallet' in connector &&
-    'on' in connector &&
-    typeof (connector as Record<string, unknown>).on === 'function'
-  );
+export interface VaultPositionsProps {
+  ethAddress?: string;
+  btcAddress?: string;
+  isWalletConnected?: boolean;
 }
 
-export default function VaultPositions() {
-  // Get ETH wallet connector and set up listeners
-  const ethConnector = useChainConnector('ETH');
-  const [ethWallet, setEthWallet] = useState<IWallet | null>(null);
+export default function VaultPositions({ 
+  ethAddress, 
+  btcAddress,
+  isWalletConnected = false 
+}: VaultPositionsProps) {
+  // Log wallet connection state from props
+  console.log("[VaultPositions] Props received:", JSON.stringify({
+    ethAddress: ethAddress ? `${ethAddress.substring(0, 6)}...` : null,
+    btcAddress: btcAddress ? `${btcAddress.substring(0, 6)}...` : null,
+    isWalletConnected
+  }));
 
   // Repay flow state
   const [repayActivity, setRepayActivity] = useState<VaultActivity | null>(null);
@@ -37,26 +34,8 @@ export default function VaultPositions() {
   const [borrowActivity, setBorrowActivity] = useState<VaultActivity | null>(null);
   const [borrowFlowOpen, setBorrowFlowOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isConnectorWithWallet(ethConnector)) return;
-
-    setEthWallet(ethConnector.connectedWallet);
-
-    const unsubscribeConnect = ethConnector.on('connect', (wallet: IWallet) => {
-      setEthWallet(wallet);
-    });
-
-    const unsubscribeDisconnect = ethConnector.on('disconnect', () => {
-      setEthWallet(null);
-    });
-
-    return () => {
-      unsubscribeConnect();
-      unsubscribeDisconnect();
-    };
-  }, [ethConnector]);
-
-  const connectedAddress = ethWallet?.account?.address as Address | undefined;
+  // Use the address from props instead of local wallet state
+  const connectedAddress = ethAddress as Address | undefined;
 
   // Fetch and transform vault positions data
   const { positions, rawPositions, loading, refetch } = useVaultPositionsData(connectedAddress);
@@ -168,13 +147,14 @@ export default function VaultPositions() {
   }, [refetch, refetchActivities]);
 
   // Show message if wallet is not connected
-  if (!connectedAddress) {
+  // Use the isWalletConnected prop to check both BTC and ETH wallets
+  if (!isWalletConnected) {
     return (
       <div className="container mx-auto flex max-w-[760px] flex-1 flex-col items-center justify-center px-4 py-8">
         <div className="text-center">
           <h2 className="mb-4 text-2xl font-semibold">Connect Your Wallet</h2>
           <p className="text-gray-600">
-            Please connect your wallet to view your positions
+            Please connect your wallet to view your vault activities
           </p>
         </div>
       </div>
