@@ -169,11 +169,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const address = walletState.isReady ? (walletState.address || ethAddress || "") : "";
   const connected = walletState.isReady && walletState.isConnected;
 
-  // Log only when connection state changes
-  useEffect(() => {
-    console.log("[ETHWalletProvider] State:", walletState.state, "| Connected:", connected, "| Ready:", walletState.isReady);
-  }, [walletState.state, connected, walletState.isReady]);
-
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
   });
