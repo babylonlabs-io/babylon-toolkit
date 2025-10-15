@@ -102,22 +102,23 @@ export class AppKitProvider implements IETHProvider {
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
 
-        // Wait for connection with timeout
         const waitForConnection = new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
+            unwatch();
             reject(new Error("Connection timeout"));
-          }, 60000); // 60 second timeout
+          }, 60000);
 
-          const checkConnection = setInterval(() => {
-            const account = getAccount(config);
-            if (account.address) {
-              clearInterval(checkConnection);
-              clearTimeout(timeout);
-              this.address = account.address;
-              this.chainId = account.chainId;
-              resolve();
-            }
-          }, 500);
+          const unwatch = watchAccount(config, {
+            onChange: (account) => {
+              if (account.address) {
+                clearTimeout(timeout);
+                unwatch();
+                this.address = account.address;
+                this.chainId = account.chainId;
+                resolve();
+              }
+            },
+          });
         });
 
         await waitForConnection;
