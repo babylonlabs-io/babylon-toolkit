@@ -13,7 +13,10 @@ import {
   getBabyEpochData,
   getCurrentEpoch,
   setBabyEpochData,
-} from "@/ui/common/utils/local_storage/epochStorage";
+  type PendingOperationStorage,
+  BABY_EPOCH_UPDATED_EVENT,
+  BABY_PENDING_OPERATIONS_UPDATED_EVENT,
+} from "@/ui/baby/utils/epochStorage";
 
 /**
  * Runtime representation of a pending BABY staking operation.
@@ -25,21 +28,7 @@ export interface PendingOperation {
   operationType: "stake" | "unstake";
   timestamp: number;
   walletAddress: string;
-  epoch?: number;
-}
-
-/**
- * localStorage-serializable format of PendingOperation.
- * Converts bigint → string because JSON doesn't support BigInt.
- * Use this type when reading/writing to localStorage.
- */
-export interface PendingOperationStorage {
-  validatorAddress: string;
-  amount: string; // Serialized bigint
-  operationType: "stake" | "unstake";
-  timestamp: number;
-  walletAddress: string;
-  epoch?: number;
+  epoch: number;
 }
 
 /**
@@ -118,11 +107,11 @@ function usePendingOperationsServiceInternal() {
 
     // Listen for epoch updates from useEpochPolling
     window.addEventListener("storage", syncEpoch);
-    window.addEventListener("baby-epoch-updated", syncEpoch);
+    window.addEventListener(BABY_EPOCH_UPDATED_EVENT, syncEpoch);
 
     return () => {
       window.removeEventListener("storage", syncEpoch);
-      window.removeEventListener("baby-epoch-updated", syncEpoch);
+      window.removeEventListener(BABY_EPOCH_UPDATED_EVENT, syncEpoch);
     };
   }, []);
 
@@ -192,7 +181,7 @@ function usePendingOperationsServiceInternal() {
     }
 
     // Emit custom event for same-tab updates (storage event only fires for other tabs)
-    window.dispatchEvent(new Event("baby-pending-operations-updated"));
+    window.dispatchEvent(new Event(BABY_PENDING_OPERATIONS_UPDATED_EVENT));
   }, [pendingOperations, bech32Address]);
 
   const addPendingOperation = useCallback(

@@ -10,7 +10,6 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import { calculateRequiredBabyTokens } from "@/ui/common/utils/coStakingCalculations";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
-import { network } from "@/ui/common/config/network/bbn";
 import {
   DelegationV2StakingState,
   type DelegationV2,
@@ -20,10 +19,13 @@ import type {
   CoStakingAPRData,
   PersonalizedAPRResponse,
 } from "@/ui/common/types/api/coStaking";
-import type {
-  PendingOperation,
-  PendingOperationStorage,
-} from "@/ui/baby/hooks/services/usePendingOperationsService";
+import type { PendingOperation } from "@/ui/baby/hooks/services/usePendingOperationsService";
+import type { PendingOperationStorage } from "@/ui/baby/utils/epochStorage";
+import {
+  getBabyEpochData,
+  BABY_EPOCH_UPDATED_EVENT,
+  BABY_PENDING_OPERATIONS_UPDATED_EVENT,
+} from "@/ui/baby/utils/epochStorage";
 
 import { useDelegationV2State } from "./DelegationV2State";
 
@@ -54,11 +56,13 @@ const getPendingBabyOperations = (
   if (!bech32Address) return [];
 
   try {
-    const storageKey = `baby-pending-operations-${network}-${bech32Address}`;
-    const stored = localStorage.getItem(storageKey);
-    if (!stored) return [];
+    const epochData = getBabyEpochData();
+    if (!epochData) return [];
 
-    const parsed = JSON.parse(stored) as PendingOperationStorage[];
+    const walletOperations = epochData.pendingOperations[bech32Address];
+    if (!walletOperations) return [];
+
+    const parsed = walletOperations as PendingOperationStorage[];
     return parsed.map((item) => ({
       validatorAddress: item.validatorAddress,
       amount: BigInt(item.amount),
@@ -149,7 +153,7 @@ export function CoStakingState({ children }: PropsWithChildren) {
   // Listen for localStorage changes (both from other tabs and same tab)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes("baby-pending-operations")) {
+      if (e.key?.includes("baby-epoch-data")) {
         setStorageVersion((v) => v + 1);
       }
     };
@@ -160,16 +164,18 @@ export function CoStakingState({ children }: PropsWithChildren) {
 
     window.addEventListener("storage", handleStorageChange);
     window.addEventListener(
-      "baby-pending-operations-updated",
+      BABY_PENDING_OPERATIONS_UPDATED_EVENT,
       handleCustomStorage,
     );
+    window.addEventListener(BABY_EPOCH_UPDATED_EVENT, handleCustomStorage);
 
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener(
-        "baby-pending-operations-updated",
+        BABY_PENDING_OPERATIONS_UPDATED_EVENT,
         handleCustomStorage,
       );
+      window.removeEventListener(BABY_EPOCH_UPDATED_EVENT, handleCustomStorage);
     };
   }, []);
 
