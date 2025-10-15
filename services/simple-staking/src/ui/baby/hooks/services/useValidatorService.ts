@@ -86,7 +86,7 @@ export function useValidatorService() {
           const parsedCommission = parseFloat(
             validator.commission.commissionRates.rate,
           );
-          const commission = isFinite(parsedCommission) ? parsedCommission : 0;
+          const commission = Number.isFinite(parsedCommission) ? parsedCommission : 0;
 
           const unbondingTime = Number(validator.unbondingTime.seconds) * 1000;
 
