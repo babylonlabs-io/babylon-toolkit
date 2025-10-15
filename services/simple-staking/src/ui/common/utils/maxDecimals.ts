@@ -20,7 +20,7 @@ export const maxDecimals = (
   maxDecimals: number,
   rm?: number,
 ): number => {
-  if (!isFinite(value) || isNaN(value)) return 0;
+  if (!Number.isFinite(value)) return 0;
 
   return new Decimal(value).toDecimalPlaces(maxDecimals, rm).toNumber();
 };
