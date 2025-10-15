@@ -8,6 +8,7 @@ export * from "./components/Button";
 export * from "./components/Avatar";
 export * from "./components/Form";
 export * from "./components/Dialog";
+export * from "./components/ResponsiveDialog";
 export * from "./components/AttributeList";
 export * from "./components/Chip";
 export * from "./components/Portal";
@@ -15,12 +16,15 @@ export * from "./components/Loader";
 export * from "./components/Table";
 export * from "./components/Popover";
 export * from "./components/Card";
+export * from "./components/KeyValueList";
 export * from "./components/Toggle";
+export * from "./components/Slider";
 export * from "./components/List";
 export * from "./components/Badge";
 export * from "./components/SubSection";
 export * from "./components/CounterButton";
 export * from "./components/Menu";
+export { MenuDrawer } from "./components/Menu/MenuDrawer";
 export * from "./components/Tabs";
 export * from "./components/AmountItem";
 export * from "./components/CoStakingAmountItem";
@@ -34,6 +38,9 @@ export * from "./components/TopBanner";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
+export * from "./elements/StatusBadge";
+export * from "./elements/VaultDetailCard";
+export * from "./elements/MarketStatCard";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
@@ -54,9 +61,11 @@ export * from "./widgets/sections/RewardsPreviewModal";
 export * from "./widgets/sections/RewardsSubsection";
 export * from "./widgets/sections/CoStakingRewardsSubsection";
 export * from "./widgets/sections/SettingMenu";
+export * from "./widgets/sections/AmountSliderWidget";
 export * from "./widgets/sections/WalletMenu";
 export * from "./widgets/sections/UnbondingModal";
 
+export * from "./utils";
 export * from "./hooks";
 
 export { ScrollLocker } from "./context/Dialog.context";

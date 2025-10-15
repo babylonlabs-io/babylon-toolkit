@@ -10,6 +10,7 @@ const config: Config = {
     "./src/ui/**/*.{js,ts,jsx,tsx,mdx}",
     "../../packages/babylon-core-ui/src/**/*.{js,ts,jsx,tsx}",
     "../../packages/babylon-wallet-connector/src/**/*.{js,ts,jsx,tsx}",
+    "../../routes/vault/src/**/*.{js,ts,jsx,tsx}",
   ],
   darkMode: "class",
   theme: {

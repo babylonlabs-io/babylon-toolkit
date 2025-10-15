@@ -12,6 +12,7 @@ export interface TableContextType<T = unknown> {
   };
   onColumnSort?: (columnKey: string, sorter?: (a: T, b: T) => number) => void;
   onRowSelect?: (row: T) => void;
+  onRowClick?: (row: T) => void;
 }
 
 export const TableContext = createContext<TableContextType<unknown>>({
@@ -20,4 +21,5 @@ export const TableContext = createContext<TableContextType<unknown>>({
   sortStates: {},
   onColumnSort: undefined,
   onRowSelect: undefined,
+  onRowClick: undefined,
 });

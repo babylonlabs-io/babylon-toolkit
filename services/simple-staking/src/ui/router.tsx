@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from "react-router";
-import { VaultLayout } from "@routes/vault";
+import { VaultLayout, MarketDetailPage } from "@routes/vault";
 
 import BabyLayout from "./baby/layout";
 import Layout from "./common/layout";
@@ -16,12 +16,12 @@ export const Router = () => {
         <Route path="btc" element={<BTCStaking />} />
         <Route path="baby" element={<BabyLayout />} />
         <Route path="rewards" element={<RewardsPage />} />
-        {FeatureFlagService.IsVaultEnabled && (
-          <Route path="vault" element={<VaultLayout />} />
-        )}
-        {FeatureFlagService.IsVaultEnabled && (
-          <Route path="vault/borrow" element={<div>Borrow Page</div>} />
-        )}
+            {FeatureFlagService.IsVaultEnabled && (
+              <Route path="vault" element={<VaultLayout />} />
+            )}
+            {FeatureFlagService.IsVaultEnabled && (
+              <Route path="vault/market/:marketId" element={<MarketDetailPage />} />
+            )}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
