@@ -51,7 +51,9 @@ const UnbondingModalContent = ({
   const { isEpochReady } = usePendingOperationsService();
 
   // Use unbondableAmount - excludes pending unbonds that are already being processed
-  const availableBalance = babylon.utils.ubbnToBaby(delegation.unbondableAmount);
+  const availableBalance = babylon.utils.ubbnToBaby(
+    delegation.unbondableAmount,
+  );
   const validatorName =
     delegation.validator.name || delegation.validator.address;
 
