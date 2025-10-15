@@ -151,16 +151,24 @@ export function useETHWalletState() {
             switch (status) {
                 case "disconnected":
                     // CRITICAL FIX: Don't immediately go to disconnected on mount
-                    // Give wagmi time to reconnect from localStorage
+                    // Give wagmi MORE time to reconnect from localStorage
                     const timeSinceMount = Date.now() - mountTimeRef.current;
-                    const isInitialMount = timeSinceMount < 1500; // 1.5 second grace period
+                    const GRACE_PERIOD = 3000; // Increase to 3 seconds for slower reconnections
+                    const isWithinGracePeriod = timeSinceMount < GRACE_PERIOD;
 
-                    if (isInitialMount && !hasSeenConnectedRef.current) {
+                    if (isWithinGracePeriod && !hasSeenConnectedRef.current && !initCompleteRef.current) {
                         // During initial mount grace period, stay in INITIALIZING
                         // This prevents the race condition on page refresh
-                        console.log("[ETH Wallet State Hook] 🟡 Initial mount - ignoring disconnected status for", (1500 - timeSinceMount), "ms");
+                        console.log("[ETH Wallet State Hook] 🟡 Grace period active - ignoring disconnected for", (GRACE_PERIOD - timeSinceMount), "ms more");
+                        // Don't dispatch anything - stay in INITIALIZING
+                    } else if (!hasSeenConnectedRef.current) {
+                        // Grace period ended and we never saw a connection
+                        console.log("[ETH Wallet State Hook] 🔴 Grace period ended - no wallet to reconnect");
+                        dispatch({ type: "DISCONNECTED" });
+                        initCompleteRef.current = true;
                     } else {
-                        console.log("[ETH Wallet State Hook] 🔴 Wagmi reports DISCONNECTED (after grace period or reconnect failed)");
+                        // We've seen a connection before, so this is a real disconnect
+                        console.log("[ETH Wallet State Hook] 🔴 Wallet disconnected after being connected");
                         dispatch({ type: "DISCONNECTED" });
                         initCompleteRef.current = true;
                     }
@@ -209,23 +217,27 @@ export function useETHWalletState() {
         }
     }, [walletState.state, address, chainId]);
 
-    // Grace period effect - after mount grace period, force a status check
+    // Backup grace period timer - ensures we eventually resolve the state
     // This only runs ONCE on mount to avoid timer reset issues
     useEffect(() => {
+        const GRACE_PERIOD = 3000; // Match the grace period in the main effect
         const timer = setTimeout(() => {
             // Check currentStatusRef for the latest status value
             const latestStatus = currentStatusRef.current;
             if (!initCompleteRef.current && !hasSeenConnectedRef.current) {
-                console.log("[ETH Wallet State Hook] ⏱️ Grace period ended - checking status:", latestStatus);
-                // If we're still disconnected after grace period and never saw a connection,
-                // it means there's no wallet to reconnect
+                console.log("[ETH Wallet State Hook] ⏱️ Backup timer fired - status:", latestStatus);
+                // If we're still not initialized after grace period,
+                // force a state resolution based on current status
                 if (latestStatus === "disconnected") {
-                    console.log("[ETH Wallet State Hook] 🔴 No wallet to reconnect - transitioning to DISCONNECTED");
+                    console.log("[ETH Wallet State Hook] 🔴 Backup: No wallet found - forcing DISCONNECTED");
                     dispatch({ type: "DISCONNECTED" });
                     initCompleteRef.current = true;
+                } else if (latestStatus === "connecting" || latestStatus === "reconnecting") {
+                    // Still trying to connect - give it more time via the failsafe
+                    console.log("[ETH Wallet State Hook] 🟡 Backup: Still connecting, will rely on failsafe timeout");
                 }
             }
-        }, 1500);
+        }, GRACE_PERIOD);
 
         return () => clearTimeout(timer);
     }, []); // Empty deps - only run once on mount
