@@ -30,7 +30,8 @@ export interface Delegation {
   validator: Validator;
   delegatorAddress: string;
   shares: number;
-  amount: bigint;
+  amount: bigint; // Effective amount including pending operations (for display)
+  unbondableAmount: bigint; // Amount available for unbonding (excludes pending unbonds)
   coin: "ubbn";
   status?: DelegationStatus;
   unbondingInfo?: UnbondingInfo;
@@ -97,6 +98,7 @@ export function useDelegationService() {
           const pendingUnstake = getPendingUnstake(validatorAddress);
 
           let effectiveAmount = apiAmount;
+          let unbondableAmount = apiAmount;
           let status: DelegationStatus = "active";
 
           if (pendingStake) {
@@ -109,6 +111,11 @@ export function useDelegationService() {
               effectiveAmount > pendingUnstake.amount
                 ? effectiveAmount - pendingUnstake.amount
                 : 0n;
+            // Subtract pending unstakes from unbondableAmount - these are already being unbonded
+            unbondableAmount =
+              unbondableAmount > pendingUnstake.amount
+                ? unbondableAmount - pendingUnstake.amount
+                : 0n;
             status = "unbonding";
           } else if (unbondingInfoByValidator[validatorAddress]) {
             const unbondingAmount =
@@ -117,12 +124,14 @@ export function useDelegationService() {
               effectiveAmount >= unbondingAmount
                 ? effectiveAmount - unbondingAmount
                 : 0n;
+            // Don't subtract confirmed unbonding from unbondableAmount - LCD already excludes it
             status = "unbonding";
           }
 
           if (acc[validatorAddress]) {
             acc[validatorAddress].shares += parseFloat(item.delegation.shares);
             acc[validatorAddress].amount += effectiveAmount;
+            acc[validatorAddress].unbondableAmount += unbondableAmount;
             if (status !== "active") {
               acc[validatorAddress].status = status;
               acc[validatorAddress].unbondingInfo =
@@ -136,6 +145,7 @@ export function useDelegationService() {
               delegatorAddress: item.delegation.delegatorAddress,
               shares: parseFloat(item.delegation.shares),
               amount: effectiveAmount,
+              unbondableAmount: unbondableAmount,
               coin: "ubbn",
               status,
               unbondingInfo:
@@ -163,6 +173,7 @@ export function useDelegationService() {
               delegatorAddress: bech32Address || "",
               shares: 0,
               amount: operation.amount,
+              unbondableAmount: 0n, // Pending stakes cannot be unbonded yet
               coin: "ubbn",
               status: "pending",
             });
