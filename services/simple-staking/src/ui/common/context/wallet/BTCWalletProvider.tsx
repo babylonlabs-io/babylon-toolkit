@@ -298,13 +298,30 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
   );
 
 
+  // Derive connected state from actual wallet data
+  const actuallyConnected = useMemo(() => {
+    return !loading && !!btcWalletProvider && !!address && !!publicKeyNoCoord;
+  }, [loading, btcWalletProvider, address, publicKeyNoCoord]);
+
+  // Log the connection state for debugging
+  useEffect(() => {
+    console.log("[BTCWalletProvider] Connection state:", {
+      actuallyConnected,
+      loading,
+      hasProvider: !!btcWalletProvider,
+      hasAddress: !!address,
+      hasPublicKey: !!publicKeyNoCoord,
+      legacyConnected: connected,
+    });
+  }, [actuallyConnected, loading, btcWalletProvider, address, publicKeyNoCoord, connected]);
+
   const btcContextValue = useMemo(
     () => ({
       loading,
       network,
       publicKeyNoCoord,
       address,
-      connected,
+      connected: actuallyConnected, // Use our derived connected state
       open,
       disconnect: btcDisconnect,
       failedBtcAddressRiskAssessment,
@@ -312,7 +329,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     }),
     [
       loading,
-      connected,
+      actuallyConnected, // Changed from connected to actuallyConnected
       network,
       publicKeyNoCoord,
       address,
