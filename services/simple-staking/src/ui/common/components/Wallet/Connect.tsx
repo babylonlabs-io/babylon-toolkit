@@ -120,7 +120,7 @@ export const Connect: React.FC<ConnectProps> = ({
     isGeoBlocked,
     isLoading: isHealthcheckLoading,
   } = useHealthCheck();
-  
+
   console.log("[Connect Component] Health check:", JSON.stringify({
     isApiNormal,
     isGeoBlocked,
