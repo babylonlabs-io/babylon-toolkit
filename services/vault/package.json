@@ -12,8 +12,7 @@
     "format": "prettier --check .",
     "format:fix": "prettier --write .",
     "clean": "rm -r node_modules",
-    "sort-imports": "eslint --fix .",
-    "test": "jest"
+    "sort-imports": "eslint --fix ."
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
