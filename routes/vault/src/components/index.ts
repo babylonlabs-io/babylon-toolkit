@@ -1,4 +1,5 @@
 export { VaultStats } from "./VaultStats";
+export { VaultMarket } from "./VaultMarket";
 export { DepositOverview } from "./DepositOverview";
 export { MarketOverview } from "./MarketOverview";
 export { PositionOverview } from "./PositionOverview";

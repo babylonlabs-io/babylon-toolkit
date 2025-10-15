@@ -11,7 +11,7 @@ export function MarketStatCard({ title, amount, subtitle }: MarketStatCardProps)
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-[12px] font-normal" style={{ color: "#999999" }}>
+      <p className="text-[12px] font-normal text-accent-secondary">
         {title}
       </p>
       <div className="flex items-baseline gap-0.5">
@@ -25,7 +25,7 @@ export function MarketStatCard({ title, amount, subtitle }: MarketStatCardProps)
         )}
       </div>
       {subtitle && (
-        <p className="text-[14px] font-normal" style={{ color: "#f0f0f0" }}>
+        <p className="text-[14px] font-normal text-accent-secondary">
           {subtitle}
         </p>
       )}
