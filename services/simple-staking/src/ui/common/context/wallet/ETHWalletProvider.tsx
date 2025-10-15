@@ -103,9 +103,14 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   // Track connection state from ethConnector
   const [ethAddress, setEthAddress] = useState<string>("");
   const [ethConnected, setEthConnected] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
+
+
     const updateEthState = async () => {
+
+
       if (ethConnector?.connectedWallet?.provider) {
         const provider = ethConnector.connectedWallet.provider as any;
         if (provider.getAddress) {
@@ -113,7 +118,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
             const addr = await provider.getAddress();
             setEthAddress(addr);
             setEthConnected(true);
-          } catch {
+          } catch (error) {
             setEthAddress("");
             setEthConnected(false);
           }
@@ -145,7 +150,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   }, [ethConnector, ethConnector?.connectedWallet]);
 
   // For AppKit operations, still use these but don't rely on them for connection state
-  const { address: appKitAddress, isConnected: appKitConnected } = useAppKitAccount();
+  const { isConnected: appKitConnected } = useAppKitAccount();
   const { disconnect } = useDisconnect();
   useAppKitBridge();
   useAppKitOpenListener();
@@ -155,20 +160,41 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   }, []);
   useEthConnectorBridge();
 
-  const { chainId, status } = useAccount();
+  const { chainId, status, address: wagmiAddress } = useAccount();
+
+  console.log({ status, chainId, hasInitialized, wagmiAddress })
+
+  // Wait for wagmi to complete its initial reconnection attempt
+  // Use wagmi's own address as source of truth (not AppKit hooks which can lag)
+  useEffect(() => {
+    // Only mark as initialized if wagmi has finished its reconnection attempt
+    if (!hasInitialized && status !== 'reconnecting' && status !== 'connecting') {
+      // If wagmi has an address OR we're in disconnected state, initialize immediately
+      if (wagmiAddress || status === 'disconnected') {
+        setHasInitialized(true);
+        return;
+      }
+
+      // Wagmi is 'connected' but no address yet - wait briefly for state to propagate
+      const timer = setTimeout(() => {
+        setHasInitialized(true);
+      }, 200); // Shorter delay since wagmi status is already settled
+
+      return () => clearTimeout(timer);
+    }
+  }, [hasInitialized, status, wagmiAddress]);
 
   // Track if wagmi is still loading/reconnecting
   // We consider it loading if:
   // 1. Status is 'connecting' or 'reconnecting' 
-  // 2. Status is 'connected' but we don't have an address yet (still loading from AppKit)
-  const isStillLoadingAddress = status === 'connected' && !appKitAddress && !ethAddress;
-  const isWagmiLoading = status === 'reconnecting' || status === 'connecting' || isStillLoadingAddress;
+  // 2. We haven't completed the initial mount/reconnection cycle
+  const isWagmiLoading = status === 'reconnecting' || status === 'connecting' || !hasInitialized;
   const isInitialized = !isWagmiLoading;
 
-  // Use AppKit's persistent connection state as primary source
-  // AppKit/wagmi handles its own persistence through cookies/localStorage
-  const address = isInitialized ? (appKitAddress || ethAddress || "") : "";
-  const connected = isInitialized ? ((appKitConnected && !!appKitAddress) || ethConnected) : false;
+  // Use wagmi's address as the primary source of truth since AppKit's hooks can lag
+  // Fallback to ethAddress if wagmi doesn't have it yet (during bridge sync)
+  const address = isInitialized ? (wagmiAddress || ethAddress || "") : "";
+  const connected = isInitialized ? (!!wagmiAddress || ethConnected) : false;
 
   const { data: balance } = useBalance({
     address: address as `0x${string}` | undefined,
@@ -209,7 +235,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       setEthAddress("");
       setEthConnected(false);
     } catch (err) {
-      console.error("Failed to disconnect ETH wallet:", err);
+      console.error("[ETHWalletProvider] ethDisconnect: Failed to disconnect ETH wallet:", err);
       handleError({
         error: err as Error,
         displayOptions: {
@@ -297,27 +323,29 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   );
 
   const ethContextValue = useMemo(
-    () => ({
-      loading: isWagmiLoading,
-      connected,
-      open,
-      disconnect: ethDisconnect,
-      address: address ?? "",
-      publicKeyHex,
-      balance: balance
-        ? parseFloat(formatUnits(balance.value, balance.decimals))
-        : 0,
-      formattedBalance: balance
-        ? formatUnits(balance.value, balance.decimals)
-        : "0",
-      chainId,
-      networkName,
-      pendingTx,
-      isPending,
-      clearError: () => { },
-      ...ethWalletMethods,
-    }
-    ),
+    () => {
+      const value = {
+        loading: isWagmiLoading,
+        connected,
+        open,
+        disconnect: ethDisconnect,
+        address: address ?? "",
+        publicKeyHex,
+        balance: balance
+          ? parseFloat(formatUnits(balance.value, balance.decimals))
+          : 0,
+        formattedBalance: balance
+          ? formatUnits(balance.value, balance.decimals)
+          : "0",
+        chainId,
+        networkName,
+        pendingTx,
+        isPending,
+        clearError: () => { },
+        ...ethWalletMethods,
+      };
+      return value;
+    },
     [
       isWagmiLoading,
       connected,
