@@ -36,6 +36,15 @@ export default defineConfig({
         // Issues linking with Next.js
         // "@keystonehq/keystone-sdk",
         "@keystonehq/sdk",
+        // Wagmi and AppKit - prevent duplicate bundling
+        "wagmi",
+        "wagmi/actions",
+        "wagmi/connectors",
+        "wagmi/chains",
+        "viem",
+        "@reown/appkit",
+        "@reown/appkit/react",
+        "@reown/appkit-adapter-wagmi",
       ],
       output: {
         sourcemapExcludeSources: false,
