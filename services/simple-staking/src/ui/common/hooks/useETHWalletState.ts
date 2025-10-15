@@ -118,7 +118,13 @@ export function useETHWalletState() {
     const initCompleteRef = useRef(false);
     const mountTimeRef = useRef(Date.now());
     const hasSeenConnectedRef = useRef(false);
+    const currentStatusRef = useRef(status);
 
+
+    // Keep currentStatusRef up to date
+    useEffect(() => {
+        currentStatusRef.current = status;
+    }, [status]);
 
     // Main effect to manage state transitions based on wagmi account changes
     useEffect(() => {
@@ -204,13 +210,16 @@ export function useETHWalletState() {
     }, [walletState.state, address, chainId]);
 
     // Grace period effect - after mount grace period, force a status check
+    // This only runs ONCE on mount to avoid timer reset issues
     useEffect(() => {
         const timer = setTimeout(() => {
+            // Check currentStatusRef for the latest status value
+            const latestStatus = currentStatusRef.current;
             if (!initCompleteRef.current && !hasSeenConnectedRef.current) {
-                console.log("[ETH Wallet State Hook] ⏱️ Grace period ended - checking status:", status);
+                console.log("[ETH Wallet State Hook] ⏱️ Grace period ended - checking status:", latestStatus);
                 // If we're still disconnected after grace period and never saw a connection,
                 // it means there's no wallet to reconnect
-                if (status === "disconnected") {
+                if (latestStatus === "disconnected") {
                     console.log("[ETH Wallet State Hook] 🔴 No wallet to reconnect - transitioning to DISCONNECTED");
                     dispatch({ type: "DISCONNECTED" });
                     initCompleteRef.current = true;
@@ -219,7 +228,7 @@ export function useETHWalletState() {
         }, 1500);
 
         return () => clearTimeout(timer);
-    }, [status]); // Include status in dependencies to get current value
+    }, []); // Empty deps - only run once on mount
 
     // Failsafe mechanism - but with better handling
     useEffect(() => {
