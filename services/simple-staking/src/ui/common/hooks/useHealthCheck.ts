@@ -31,6 +31,15 @@ export const useHealthCheck = () => {
     : false;
   const apiMessage = data?.message;
 
+  console.log("[useHealthCheck]", JSON.stringify({
+    isLoading,
+    isApiNormal,
+    isGeoBlocked,
+    isError,
+    dataStatus: data?.status,
+    errorCode: error ? (error as ClientError).errorCode : null
+  }));
+
   useEffect(() => {
     if (isError) {
       if (isGeoBlocked) {

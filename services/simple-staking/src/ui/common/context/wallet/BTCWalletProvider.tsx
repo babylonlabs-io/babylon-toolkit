@@ -74,8 +74,8 @@ const BTCWalletContext = createContext<BTCWalletContextProps>({
   publicKeyNoCoord: "",
   address: "",
   failedBtcAddressRiskAssessment: false,
-  disconnect: () => {},
-  open: () => {},
+  disconnect: () => { },
+  open: () => { },
   getAddress: async () => "",
   getPublicKeyHex: async () => "",
   signPsbt: async () => "",
@@ -100,7 +100,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
   const { handleError } = useError();
   const btcConnector = useChainConnector("BTC");
-  const { open = () => {}, connected } = useWalletConnect();
+  const { open = () => { }, connected } = useWalletConnect();
   const logger = useLogger();
   const { updateUser } = useSentryUser();
   const { screenAddress, clearAddressScreeningResult } =
@@ -183,6 +183,8 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
         setLoading(false);
 
         updateUser({ btcAddress: address });
+
+        console.log("[BTCWalletProvider] ✅ BTC wallet connected! Address:", address.substring(0, 6) + "...");
 
         logger.info("BTC wallet connected", {
           network,
@@ -294,6 +296,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     }),
     [btcWalletProvider, logger],
   );
+
 
   const btcContextValue = useMemo(
     () => ({

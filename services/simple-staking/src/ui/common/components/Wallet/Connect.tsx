@@ -99,6 +99,18 @@ export const Connect: React.FC<ConnectProps> = ({
   const { bech32Address, connected: bbnConnected } = useCosmosWallet();
   const { connected: ethConnected, loading: ethLoading } = useETHWallet();
 
+  console.log("[Connect Component] Wallet states:", JSON.stringify({
+    btcConnected,
+    btcAddress: btcAddress ? `${btcAddress.substring(0, 6)}...` : null,
+    ethConnected,
+    ethLoading,
+    bbnConnected,
+    bech32Address: bech32Address ? `${bech32Address.substring(0, 10)}...` : null,
+    isVaultRoute,
+    isBabyRoute,
+    pathname: location.pathname
+  }));
+
   // Widget states
   const { selectedWallets } = useWidgetState();
   const { disconnect } = useWalletConnect();
@@ -108,19 +120,46 @@ export const Connect: React.FC<ConnectProps> = ({
     isGeoBlocked,
     isLoading: isHealthcheckLoading,
   } = useHealthCheck();
+  
+  console.log("[Connect Component] Health check:", JSON.stringify({
+    isApiNormal,
+    isGeoBlocked,
+    isHealthcheckLoading
+  }));
 
   const isConnected = useMemo(() => {
-    if (isBabyRoute) {
-      return bbnConnected && !isGeoBlocked && !isHealthcheckLoading;
-    } else if (isVaultRoute) {
-      return (
-        btcConnected && ethConnected && !isGeoBlocked && !isHealthcheckLoading
-      );
-    } else {
-      return (
-        btcConnected && bbnConnected && !isGeoBlocked && !isHealthcheckLoading
-      );
-    }
+    const result = (() => {
+      // Don't show as disconnected just because health check is loading
+      // Only block connection if we're explicitly geo-blocked
+      if (isBabyRoute) {
+        return bbnConnected && !isGeoBlocked;
+      } else if (isVaultRoute) {
+        return (
+          btcConnected && ethConnected && !isGeoBlocked
+        );
+      } else {
+        return (
+          btcConnected && bbnConnected && !isGeoBlocked
+        );
+      }
+    })();
+
+    console.log("[Connect Component] isConnected calculation:", JSON.stringify({
+      result,
+      route: isVaultRoute ? "vault" : isBabyRoute ? "baby" : "default",
+      btcConnected,
+      ethConnected,
+      bbnConnected,
+      isGeoBlocked,
+      isHealthcheckLoading,
+      conditions: {
+        walletsOK: isVaultRoute ? (btcConnected && ethConnected) : isBabyRoute ? bbnConnected : (btcConnected && bbnConnected),
+        geoOK: !isGeoBlocked,
+        healthCheckLoadingIgnored: true
+      }
+    }));
+
+    return result;
   }, [
     isBabyRoute,
     isVaultRoute,
@@ -128,7 +167,6 @@ export const Connect: React.FC<ConnectProps> = ({
     bbnConnected,
     ethConnected,
     isGeoBlocked,
-    isHealthcheckLoading,
   ]);
 
   const isLoading = useMemo(() => {
@@ -156,6 +194,11 @@ export const Connect: React.FC<ConnectProps> = ({
       buttonContent = 'Connect Wallet'
     } else {
       buttonContent = 'Connect Wallets'
+    }
+
+    if (!isConnected && ethConnected && btcConnected && isVaultRoute) {
+      console.error("[Connect Component] 🚨 BUG DETECTED! Showing Connect button when wallets are connected!");
+      console.error("  ETH Connected:", ethConnected, "| BTC Connected:", btcConnected, "| isConnected result:", isConnected);
     }
 
     return (
