@@ -8,8 +8,7 @@
   /* Thumb */
   &::-webkit-slider-thumb {
     @apply appearance-none w-5 h-5 rounded-full bg-white shadow-md cursor-pointer;
-    margin-top: 0; /* Remove margin, browser handles centering */
-    transform: translateY(0); /* Ensure no transform offset */
+    margin-top: -0.375rem; /* Center thumb: -(20px - 8px) / 2 */
   }
   &::-moz-range-thumb {
     @apply w-5 h-5 rounded-full bg-white shadow-md cursor-pointer border-0;
