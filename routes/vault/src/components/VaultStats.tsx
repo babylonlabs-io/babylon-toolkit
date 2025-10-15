@@ -7,7 +7,7 @@ export const VaultStats = memo(() => {
   const protocolLTV = 321;
 
   return (
-    <Card className="max-md:border-0">
+    <Card className="max-md:border-0 max-md:p-0">
       <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         Stats
       </h3>
@@ -16,7 +16,6 @@ export const VaultStats = memo(() => {
           <StatItem title="Supply TVL" value={`$${supplyTVL}m`} />
           <StatItem title="Borrow TVL" value={`$${borrowTVL}m`} />
           <StatItem title="Protocol LTV" value={`${protocolLTV}%`} />
-          <StatItem title="Stat" value="-" />
         </List>
       </div>
     </Card>

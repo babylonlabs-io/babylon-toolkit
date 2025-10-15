@@ -25,6 +25,16 @@
     }
   }
 
+  &-ghost {
+    &.bbn-btn-primary {
+      @apply text-accent-primary hover:bg-secondary-strokeDark/5 disabled:text-accent-primary/30 disabled:bg-transparent;
+    }
+
+    &.bbn-btn-secondary {
+      @apply text-secondary-main hover:bg-secondary-main/5 disabled:bg-transparent disabled:text-secondary-main/30;
+    }
+  }
+
   &-large {
     @apply h-10 px-6 text-base tracking-0.5;
   }

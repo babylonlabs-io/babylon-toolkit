@@ -1,7 +1,8 @@
 export interface Market {
   id: string;
+  curator: string;
   loan: string;
-  ltv: string;
+  lltv: string;
   marketSize: string;
   totalLiquidity: string;
   rate: string;

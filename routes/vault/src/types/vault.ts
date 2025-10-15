@@ -12,7 +12,6 @@ export interface Deposit {
     name: string;
     icon: string;
   };
-  status: "Available" | "Borrowed";
-  totalLiquidity: string;
+  status: "Available" | "Pending" | "In Use";
 }
 

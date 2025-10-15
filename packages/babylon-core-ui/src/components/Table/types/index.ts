@@ -22,6 +22,7 @@ export type TableProps<T extends TableData> = ControlledTableProps & {
   loading?: boolean;
   onLoadMore?: () => void;
   onRowSelect?: (row: T | null) => void;
+  onRowClick?: (row: T) => void;
   isRowSelectable?: (row: T) => boolean;
 };
 
