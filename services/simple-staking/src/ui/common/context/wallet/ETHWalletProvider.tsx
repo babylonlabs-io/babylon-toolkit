@@ -46,8 +46,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => { },
-  disconnect: () => { },
+  open: () => {},
+  disconnect: () => {},
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -60,10 +60,10 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => { },
+  switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  clearError: () => { },
+  clearError: () => {},
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
@@ -93,7 +93,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
     () => ({
       getAddress: async () => address,
       getPublicKeyHex: async () => publicKeyHex,
-      signMessage: async (_message: string) => {
+      signMessage: async () => {
         try {
           setIsPending(true);
           // Placeholder implementation
@@ -105,7 +105,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
           setIsPending(false);
         }
       },
-      sendTransaction: async (_to: string, _value: string) => {
+      sendTransaction: async () => {
         try {
           setIsPending(true);
           // Placeholder implementation
@@ -140,7 +140,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       networkName,
       pendingTx,
       isPending,
-      clearError: () => { },
+      clearError: () => {},
       ...ethWalletMethods,
     }),
     [
