@@ -148,7 +148,7 @@ export function useETHWalletState() {
                     // Give wagmi time to reconnect from localStorage
                     const timeSinceMount = Date.now() - mountTimeRef.current;
                     const isInitialMount = timeSinceMount < 1500; // 1.5 second grace period
-                    
+
                     if (isInitialMount && !hasSeenConnectedRef.current) {
                         // During initial mount grace period, stay in INITIALIZING
                         // This prevents the race condition on page refresh
@@ -206,15 +206,20 @@ export function useETHWalletState() {
     // Grace period effect - after mount grace period, force a status check
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (!initCompleteRef.current && status === "disconnected" && !hasSeenConnectedRef.current) {
-                console.log("[ETH Wallet State Hook] ⏱️ Grace period ended - confirming disconnected state");
-                dispatch({ type: "DISCONNECTED" });
-                initCompleteRef.current = true;
+            if (!initCompleteRef.current && !hasSeenConnectedRef.current) {
+                console.log("[ETH Wallet State Hook] ⏱️ Grace period ended - checking status:", status);
+                // If we're still disconnected after grace period and never saw a connection,
+                // it means there's no wallet to reconnect
+                if (status === "disconnected") {
+                    console.log("[ETH Wallet State Hook] 🔴 No wallet to reconnect - transitioning to DISCONNECTED");
+                    dispatch({ type: "DISCONNECTED" });
+                    initCompleteRef.current = true;
+                }
             }
         }, 1500);
 
         return () => clearTimeout(timer);
-    }, []); // Only run once on mount
+    }, [status]); // Include status in dependencies to get current value
 
     // Failsafe mechanism - but with better handling
     useEffect(() => {
@@ -229,6 +234,14 @@ export function useETHWalletState() {
                     if (status === "connected" && !address) {
                         // This shouldn't happen, but if it does, treat as disconnected
                         console.warn("[ETH Wallet State Hook] Connected without address after timeout - forcing disconnect");
+                        dispatch({ type: "DISCONNECTED" });
+                    } else if (status === "disconnected") {
+                        // Still disconnected after 5 seconds - no wallet to reconnect
+                        console.warn("[ETH Wallet State Hook] Still disconnected after 5s - forcing DISCONNECTED state");
+                        dispatch({ type: "DISCONNECTED" });
+                    } else if (walletState.state === "INITIALIZING") {
+                        // Stuck in INITIALIZING for too long
+                        console.warn("[ETH Wallet State Hook] Stuck in INITIALIZING after 5s - forcing DISCONNECTED");
                         dispatch({ type: "DISCONNECTED" });
                     }
                     initCompleteRef.current = true;
