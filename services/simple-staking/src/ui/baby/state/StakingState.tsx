@@ -105,7 +105,7 @@ function StakingState({ children }: PropsWithChildren) {
     [],
   );
   // Subtract the pending stake amount from the balance
-  const { getTotalPendingStake } = usePendingOperationsService();
+  const { getTotalPendingStake, isEpochReady } = usePendingOperationsService();
   const availableBalance = balance - getTotalPendingStake();
 
   const balanceValidator = useMemo(
@@ -127,7 +127,14 @@ function StakingState({ children }: PropsWithChildren) {
         message: GEO_BLOCK_MESSAGE,
       };
     }
-  }, [isGeoBlocked]);
+    if (!isEpochReady) {
+      return {
+        title: "Loading",
+        message:
+          "Loading epoch data from the network. This will only take a moment.",
+      };
+    }
+  }, [isGeoBlocked, isEpochReady]);
 
   const fieldSchemas = useMemo(
     () =>

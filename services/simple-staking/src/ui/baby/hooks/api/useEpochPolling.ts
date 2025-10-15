@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 
 import babylon from "@/infrastructure/babylon";
 import { ONE_MINUTE } from "@/ui/common/constants";
-import { setCurrentEpoch } from "@/ui/common/utils/local_storage/epochStorage";
+import { setCurrentEpoch } from "@/ui/baby/utils/epochStorage";
 
 import { usePendingOperationsService } from "../services/usePendingOperationsService";
 

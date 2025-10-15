@@ -14,6 +14,7 @@ import type { FieldValues } from "react-hook-form";
 
 import babylon from "@/infrastructure/babylon";
 import { AmountField } from "@/ui/baby/components/AmountField";
+import { usePendingOperationsService } from "@/ui/baby/hooks/services/usePendingOperationsService";
 import {
   useDelegationState,
   type Delegation,
@@ -47,6 +48,7 @@ const UnbondingModalContent = ({
 }) => {
   const { handleSubmit } = useFormContext();
   const { isValid } = useFormState();
+  const { isEpochReady } = usePendingOperationsService();
 
   const availableBalance = babylon.utils.ubbnToBaby(delegation.amount);
   const validatorName =
@@ -82,6 +84,12 @@ const UnbondingModalContent = ({
 
         <AmountField balance={availableBalance} price={1} />
 
+        {!isEpochReady && (
+          <Warning>
+            Epoch data is loading. Please wait a moment before unbonding.
+          </Warning>
+        )}
+
         <Warning>
           Once the unbonding period begins:
           <br />• You will not receive staking rewards for the unbonding tokens.
@@ -90,7 +98,10 @@ const UnbondingModalContent = ({
       </DialogBody>
 
       <DialogFooter className="mt-[80px] flex justify-end">
-        <Button onClick={handleSubmit(handleFormSubmit)} disabled={!isValid}>
+        <Button
+          onClick={handleSubmit(handleFormSubmit)}
+          disabled={!isValid || !isEpochReady}
+        >
           Unbond
         </Button>
       </DialogFooter>

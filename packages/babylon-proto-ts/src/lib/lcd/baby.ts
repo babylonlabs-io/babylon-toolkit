@@ -239,13 +239,14 @@ const createBabylonClient = ({ request }: Dependencies) => ({
 
   async getCurrentEpoch() {
     try {
-      const { current_epoch, epoch_boundary } = await request(
+      // Note: convertKeysDeep in http.ts already converts snake_case to camelCase
+      const { currentEpoch, epochBoundary } = await request(
         "/babylon/epoching/v1/current_epoch",
       );
 
       return {
-        epochBoundary: parseInt(epoch_boundary, 10),
-        currentEpoch: parseInt(current_epoch, 10),
+        epochBoundary: parseInt(epochBoundary, 10),
+        currentEpoch: parseInt(currentEpoch, 10),
       };
     } catch (error: unknown) {
       throw new Error(`Failed to fetch current epoch`, {

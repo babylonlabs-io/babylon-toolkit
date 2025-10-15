@@ -76,7 +76,7 @@ export function useValidatorService() {
       validatorList
         .map((validator) => {
           const tokens = parseFloat(validator.tokens);
-          const bondedTokens = Number(pool?.bondedTokens);
+          const bondedTokens = pool?.bondedTokens ?? 0;
           const votingPower = bondedTokens > 0 ? tokens / bondedTokens : 0;
           const commission = parseFloat(
             validator.commission.commissionRates.rate,
