@@ -82,7 +82,7 @@ export const getNetworkInfo = async (): Promise<NetworkInfo> => {
       delegationCreationBaseGasFee: v.delegation_creation_base_gas_fee,
       slashing: {
         slashingPkScriptHex: v.slashing_pk_script,
-        slashingRate: parseFloat(v.slashing_rate),
+        slashingRate: Number.parseFloat(v.slashing_rate),
         minSlashingTxFeeSat: v.min_slashing_tx_fee_sat,
       },
       maxStakingAmountSat: v.max_staking_value_sat,

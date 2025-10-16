@@ -7,7 +7,7 @@ export interface ButtonProps
   className?: string;
   disabled?: boolean;
   fluid?: boolean;
-  variant?: "outlined" | "contained";
+  variant?: "outlined" | "contained" | "ghost";
   color?: "primary" | "secondary";
   size?: "small" | "medium" | "large";
 }

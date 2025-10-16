@@ -1,13 +1,13 @@
 import { ReactNode, useEffect, useState } from "react";
 import { twMerge } from "tailwind-merge";
 
-interface TabItem {
+export interface TabItem {
   id: string;
   label: string;
   content: ReactNode;
 }
 
-interface TabsProps {
+export interface TabsProps {
   items: TabItem[];
   defaultActiveTab?: string;
   activeTab?: string;
@@ -97,3 +97,4 @@ export const Tabs = ({
     </div>
   );
 };
+

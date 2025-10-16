@@ -95,7 +95,7 @@ function StakingState({ children }: PropsWithChildren) {
   const { stake, sendTx, estimateStakingFee } = useDelegationService();
   const { validatorMap, loading } = useValidatorService();
   const { isGeoBlocked } = useHealthCheck();
-  const { balance } = useWalletService();
+  const { balance, bech32Address } = useWalletService();
   const { handleError } = useError();
   const logger = useLogger();
   const babyPrice = usePrice("BABY");
@@ -127,14 +127,15 @@ function StakingState({ children }: PropsWithChildren) {
         message: GEO_BLOCK_MESSAGE,
       };
     }
-    if (!isEpochReady) {
+    // Only show epoch loading message if wallet is connected
+    if (bech32Address && !isEpochReady) {
       return {
         title: "Loading",
         message:
           "Loading epoch data from the network. This will only take a moment.",
       };
     }
-  }, [isGeoBlocked, isEpochReady]);
+  }, [isGeoBlocked, isEpochReady, bech32Address]);
 
   const fieldSchemas = useMemo(
     () =>

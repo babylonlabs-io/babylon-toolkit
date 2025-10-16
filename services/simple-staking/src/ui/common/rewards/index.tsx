@@ -105,7 +105,7 @@ function RewardsPageContent() {
     if (
       co_staking_apr === 0 ||
       total_apr === 0 ||
-      !isFinite(total_apr) ||
+      !Number.isFinite(total_apr) ||
       total_apr < 0
     ) {
       return {

@@ -40,14 +40,14 @@ const columns: ColumnProps<ValidatorRow>[] = [
         key: "votingPower",
         header: "Voting Power",
         sorter: (a, b) => {
-            const parse = (str: string) => parseFloat(str.split(" ")[0]);
+            const parse = (str: string) => Number.parseFloat(str.split(" ")[0]);
             return parse(a.votingPower) - parse(b.votingPower);
         },
     },
     {
         key: "commission",
         header: "Commission",
-        sorter: (a, b) => parseFloat(a.commission) - parseFloat(b.commission),
+        sorter: (a, b) => Number.parseFloat(a.commission) - Number.parseFloat(b.commission),
     },
 ];
 

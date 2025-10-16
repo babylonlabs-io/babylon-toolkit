@@ -14,8 +14,6 @@ import {
   getCurrentEpoch,
   setBabyEpochData,
   type PendingOperationStorage,
-  BABY_EPOCH_UPDATED_EVENT,
-  BABY_PENDING_OPERATIONS_UPDATED_EVENT,
 } from "@/ui/baby/utils/epochStorage";
 
 /**
@@ -98,23 +96,6 @@ function usePendingOperationsServiceInternal() {
     }
   });
 
-  // Sync epoch state with localStorage (updated by useEpochPolling)
-  useEffect(() => {
-    const syncEpoch = () => {
-      const currentEpoch = getCurrentEpoch();
-      setEpoch(currentEpoch);
-    };
-
-    // Listen for epoch updates from useEpochPolling
-    window.addEventListener("storage", syncEpoch);
-    window.addEventListener(BABY_EPOCH_UPDATED_EVENT, syncEpoch);
-
-    return () => {
-      window.removeEventListener("storage", syncEpoch);
-      window.removeEventListener(BABY_EPOCH_UPDATED_EVENT, syncEpoch);
-    };
-  }, []);
-
   // Reset pending operations when wallet address changes
   useEffect(() => {
     if (!bech32Address) {
@@ -180,8 +161,7 @@ function usePendingOperationsServiceInternal() {
       }
     }
 
-    // Emit custom event for same-tab updates (storage event only fires for other tabs)
-    window.dispatchEvent(new Event(BABY_PENDING_OPERATIONS_UPDATED_EVENT));
+    // Note: No need to dispatch events - React Context automatically notifies consumers
   }, [pendingOperations, bech32Address]);
 
   const addPendingOperation = useCallback(
@@ -314,10 +294,41 @@ function usePendingOperationsServiceInternal() {
     return getTotalPendingStake() + getTotalPendingUnstake();
   }, [getTotalPendingStake, getTotalPendingUnstake]);
 
+  // Update epoch and persist to localStorage
+  const updateEpoch = useCallback((newEpoch: number) => {
+    if (!Number.isFinite(newEpoch)) return;
+
+    const currentData = getBabyEpochData();
+
+    // If epoch changed, clear all pending operations
+    if (currentData && currentData.epoch !== newEpoch) {
+      setBabyEpochData({
+        epoch: newEpoch,
+        pendingOperations: {}, // Clear all pending operations on epoch change
+      });
+      setPendingOperations([]); // Clear in-memory state
+    } else if (currentData) {
+      // Same epoch, keep existing pending operations
+      setBabyEpochData({
+        ...currentData,
+        epoch: newEpoch,
+      });
+    } else {
+      // First time setting epoch
+      setBabyEpochData({
+        epoch: newEpoch,
+        pendingOperations: {},
+      });
+    }
+
+    setEpoch(newEpoch);
+  }, []);
+
   // Check if epoch is ready for staking operations
   const isEpochReady = epoch !== undefined;
 
   return {
+    epoch,
     pendingOperations,
     addPendingOperation,
     removePendingOperation,
@@ -330,6 +341,7 @@ function usePendingOperationsServiceInternal() {
     getTotalPendingStake,
     getTotalPendingUnstake,
     getTotalPendingOperations,
+    updateEpoch,
     isEpochReady,
   };
 }

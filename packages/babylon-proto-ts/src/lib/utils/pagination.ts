@@ -86,7 +86,7 @@ export async function fetchPage<T>(
     data: data || [],
     pagination: {
       nextKey: response.pagination?.nextKey || null,
-      total: parseInt(response.pagination?.total || "0", 10),
+      total: Number.parseInt(response.pagination?.total || "0", 10),
     },
   };
 }

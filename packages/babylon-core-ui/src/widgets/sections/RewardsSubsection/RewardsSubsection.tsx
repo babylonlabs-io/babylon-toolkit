@@ -33,7 +33,7 @@ export const RewardsSubsection = ({ rewards, onClick, disabled }: Props) => {
     return (
         <SubSection className="flex w-full flex-col content-center justify-between gap-4">
             {rewards.map((reward, index) => {
-                const amountValue = parseFloat(String(reward.amount));
+                const amountValue = Number.parseFloat(String(reward.amount));
                 const amountUsd = calculateTokenValueInCurrency(
                     amountValue,
                     reward.balanceDetails?.price ?? 0,

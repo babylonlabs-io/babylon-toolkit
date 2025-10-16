@@ -60,6 +60,25 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/no-unused-expressions": "error",
       "import-x/no-unused-modules": "error",
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "isNaN",
+          message: "Use Number.isNaN instead.",
+        },
+        {
+          name: "isFinite",
+          message: "Use Number.isFinite instead.",
+        },
+        {
+          name: "parseFloat",
+          message: "Use Number.parseFloat instead.",
+        },
+        {
+          name: "parseInt",
+          message: "Use Number.parseInt instead.",
+        },
+      ],
       "import-x/order": [
         "error",
         {

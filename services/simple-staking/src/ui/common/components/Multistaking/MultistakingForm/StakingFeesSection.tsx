@@ -105,7 +105,7 @@ export function StakingFeesSection() {
     : undefined;
 
   const totalBTC = useMemo(
-    () => maxDecimals(parseFloat(amount || "0") + feeAmountBTC, 8),
+    () => maxDecimals(Number.parseFloat(amount || "0") + feeAmountBTC, 8),
     [amount, feeAmountBTC],
   );
   const totalHint = displayUSD

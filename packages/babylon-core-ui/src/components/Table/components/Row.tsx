@@ -8,6 +8,7 @@ export function Row<T extends { id: string | number }>({
   isSelected,
   isSelectable,
   onSelect,
+  onRowClick,
   isLeftScrolled,
   isRightScrolled,
 }: {
@@ -16,17 +17,26 @@ export function Row<T extends { id: string | number }>({
   isSelected: boolean;
   isSelectable: boolean;
   onSelect: (row: T) => void;
+  onRowClick?: (row: T) => void;
   isLeftScrolled?: boolean;
   isRightScrolled?: boolean;
 }) {
+  const handleClick = () => {
+    if (onRowClick) {
+      onRowClick(row);
+    } else if (onSelect) {
+      onSelect(row);
+    }
+  };
+
   return (
     <tr
       className={twJoin(
         isSelected && "selected",
-        !!onSelect && isSelectable && "cursor-pointer",
+        (!!onSelect || !!onRowClick) && isSelectable && "cursor-pointer",
         !isSelectable && "opacity-50",
       )}
-      onClick={() => onSelect(row)}
+      onClick={handleClick}
     >
       {columns.map((column) => (
         <Cell

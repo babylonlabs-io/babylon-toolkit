@@ -21,6 +21,7 @@ function TableBase<T extends TableData>(
     loading = false,
     onLoadMore,
     onRowSelect,
+    onRowClick,
     isRowSelectable,
 
     selectedRow: selectedRowProp,
@@ -61,8 +62,9 @@ function TableBase<T extends TableData>(
       sortStates,
       onColumnSort: handleColumnSort,
       onRowSelect: handleRowSelect,
+      onRowClick,
     }),
-    [sortedData, columns, sortStates, handleColumnSort, handleRowSelect],
+    [sortedData, columns, sortStates, handleColumnSort, handleRowSelect, onRowClick],
   );
 
   const isHeadVisible = useMemo(() => {
@@ -101,6 +103,7 @@ function TableBase<T extends TableData>(
                 isSelected={selectedRow === row.id}
                 isSelectable={isRowSelectable ? isRowSelectable(row) : true}
                 onSelect={handleRowSelect}
+                onRowClick={onRowClick}
                 isLeftScrolled={isLeftScrolled}
                 isRightScrolled={isRightScrolled}
               />

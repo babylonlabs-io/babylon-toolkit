@@ -4,6 +4,8 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
 
+import { PendingOperationsProvider } from "@/ui/baby/hooks/services/usePendingOperationsService";
+
 import { NotificationContainer } from "./components/Notification/NotificationContainer";
 import { ErrorProvider } from "./context/Error/ErrorProvider";
 import { BbnRpcProvider } from "./context/rpc/BbnRpcProvider";
@@ -37,7 +39,9 @@ function Providers({ children }: React.PropsWithChildren) {
                     <WalletConnectionProvider>
                       <BTCWalletProvider>
                         <CosmosWalletProvider>
-                          <AppState>{children}</AppState>
+                          <PendingOperationsProvider>
+                            <AppState>{children}</AppState>
+                          </PendingOperationsProvider>
                         </CosmosWalletProvider>
                       </BTCWalletProvider>
                     </WalletConnectionProvider>

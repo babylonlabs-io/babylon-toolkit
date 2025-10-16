@@ -27,4 +27,13 @@ describe("maxDecimals", () => {
     expect(maxDecimals(0, 2)).toBe(0);
     expect(maxDecimals(0.0, 2)).toBe(0);
   });
+
+  it("should handle infinity correctly", () => {
+    expect(maxDecimals(Infinity, 2)).toBe(0);
+    expect(maxDecimals(-Infinity, 2)).toBe(0);
+  });
+
+  it("should handle NaN correctly", () => {
+    expect(maxDecimals(NaN, 2)).toBe(0);
+  });
 });

@@ -50,7 +50,10 @@ const UnbondingModalContent = ({
   const { isValid } = useFormState();
   const { isEpochReady } = usePendingOperationsService();
 
-  const availableBalance = babylon.utils.ubbnToBaby(delegation.amount);
+  // Use unbondableAmount - excludes pending unbonds that are already being processed
+  const availableBalance = babylon.utils.ubbnToBaby(
+    delegation.unbondableAmount,
+  );
   const validatorName =
     delegation.validator.name || delegation.validator.address;
 
@@ -117,9 +120,10 @@ export const UnbondingModal = ({
 }: UnbondingModalProps) => {
   const { step } = useDelegationState();
 
-  const availableBalance = delegation ? delegation.amount : 0n;
+  // Use unbondableAmount for validation - excludes pending unbonds
+  const availableBalance = delegation ? delegation.unbondableAmount : 0n;
   const availableBalanceInBaby = delegation
-    ? babylon.utils.ubbnToBaby(delegation.amount)
+    ? babylon.utils.ubbnToBaby(delegation.unbondableAmount)
     : 0;
 
   const validationSchema = useMemo(

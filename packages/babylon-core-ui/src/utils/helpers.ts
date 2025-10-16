@@ -123,3 +123,32 @@ export function createBalanceFormatter(coinSymbol: string, decimals: number = 8)
     })} ${coinSymbol}`;
   };
 }
+
+/**
+ * Formats a number with comma separators
+ * @param value The number to format
+ * @param decimals Maximum number of decimal places to display (default: 8)
+ * @returns Formatted string with commas
+ * @example
+ * formatAmount(1234.5678, 2) // "1,234.57"
+ * formatAmount(1000000, 8) // "1,000,000"
+ */
+export function formatAmount(value: number, decimals: number = 8): string {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  });
+}
+
+/**
+ * Parses a formatted number string (with commas) to a number
+ * @param value The formatted string to parse
+ * @returns The parsed number, or 0 if invalid
+ * @example
+ * parseAmount("1,234.56") // 1234.56
+ * parseAmount("1,000,000") // 1000000
+ * parseAmount("") // 0
+ */
+export function parseAmount(value: string): number {
+  return parseFloat(value.replace(/,/g, '')) || 0;
+}

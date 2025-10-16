@@ -136,7 +136,7 @@ export const FinalityProviderModal = ({
         </span>
       ),
       sorter: (a: { commission: string }, b: { commission: string }) =>
-        parseFloat(a.commission) - parseFloat(b.commission),
+        Number.parseFloat(a.commission) - Number.parseFloat(b.commission),
     },
     {
       key: "action",

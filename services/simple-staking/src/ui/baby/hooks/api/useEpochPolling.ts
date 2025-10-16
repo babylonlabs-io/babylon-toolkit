@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 
 import babylon from "@/infrastructure/babylon";
 import { ONE_MINUTE } from "@/ui/common/constants";
-import { setCurrentEpoch } from "@/ui/baby/utils/epochStorage";
 
 import { usePendingOperationsService } from "../services/usePendingOperationsService";
 
@@ -13,8 +12,7 @@ import { BABY_UNBONDING_DELEGATIONS_KEY } from "./useUnbondingDelegations";
 export function useEpochPolling(address?: string) {
   const queryClient = useQueryClient();
   const previousEpochRef = useRef<number | undefined>(undefined);
-  const { cleanupAllPendingOperationsFromStorage } =
-    usePendingOperationsService();
+  const { updateEpoch } = usePendingOperationsService();
 
   useEffect(() => {
     if (!address) return;
@@ -31,7 +29,8 @@ export function useEpochPolling(address?: string) {
           return;
         }
 
-        setCurrentEpoch(epochNumber);
+        // Update epoch through context (will also persist to localStorage)
+        updateEpoch(epochNumber);
 
         if (previousEpochRef.current === undefined) {
           previousEpochRef.current = epochNumber;
@@ -39,8 +38,8 @@ export function useEpochPolling(address?: string) {
         }
 
         if (!cancelled && epochNumber !== previousEpochRef.current) {
-          // Epoch advanced, prune stale pending operations first
-          cleanupAllPendingOperationsFromStorage();
+          // Epoch advanced, invalidate queries
+          // Note: updateEpoch already cleared pending operations
           queryClient.invalidateQueries({
             queryKey: [BABY_DELEGATIONS_KEY],
             refetchType: "active",
@@ -62,5 +61,5 @@ export function useEpochPolling(address?: string) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [address, queryClient, cleanupAllPendingOperationsFromStorage]);
+  }, [address, queryClient, updateEpoch]);
 }

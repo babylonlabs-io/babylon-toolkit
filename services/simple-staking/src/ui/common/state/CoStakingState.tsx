@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type PropsWithChildren } from "react";
+import { useEffect, useMemo, type PropsWithChildren } from "react";
 
 import { useEventBus } from "@/ui/common/hooks/useEventBus";
 import {
@@ -19,13 +19,7 @@ import type {
   CoStakingAPRData,
   PersonalizedAPRResponse,
 } from "@/ui/common/types/api/coStaking";
-import type { PendingOperation } from "@/ui/baby/hooks/services/usePendingOperationsService";
-import type { PendingOperationStorage } from "@/ui/baby/utils/epochStorage";
-import {
-  getBabyEpochData,
-  BABY_EPOCH_UPDATED_EVENT,
-  BABY_PENDING_OPERATIONS_UPDATED_EVENT,
-} from "@/ui/baby/utils/epochStorage";
+import { usePendingOperationsService } from "@/ui/baby/hooks/services/usePendingOperationsService";
 
 import { useDelegationV2State } from "./DelegationV2State";
 
@@ -42,45 +36,6 @@ interface BabyDelegationData {
     shares: string;
   };
 }
-
-/**
- * Helper to read pending BABY operations from localStorage.
- * This avoids needing the PendingOperationsProvider context.
- *
- * Note: Deserializes PendingOperationStorage (string amounts) → PendingOperation (bigint amounts)
- * because JSON.parse doesn't support BigInt natively.
- */
-const getPendingBabyOperations = (
-  bech32Address: string | undefined,
-): PendingOperation[] => {
-  if (!bech32Address) return [];
-
-  try {
-    const epochData = getBabyEpochData();
-    if (!epochData) return [];
-
-    const walletOperations = epochData.pendingOperations[bech32Address];
-    if (!walletOperations) return [];
-
-    const parsed = walletOperations as PendingOperationStorage[];
-    return parsed.map((item) => ({
-      validatorAddress: item.validatorAddress,
-      amount: BigInt(item.amount),
-      operationType: item.operationType,
-      timestamp: item.timestamp,
-      walletAddress: item.walletAddress,
-      epoch: item.epoch,
-    }));
-  } catch (error) {
-    // Log parse failures for debugging but don't throw
-    // This ensures the app continues to function even with corrupted localStorage
-    console.warn(
-      `Failed to parse pending BABY operations from localStorage for ${bech32Address}:`,
-      error,
-    );
-    return [];
-  }
-};
 
 // Event channels that should trigger co-staking data refresh
 const CO_STAKING_REFRESH_CHANNELS = [
@@ -147,43 +102,8 @@ export function CoStakingState({ children }: PropsWithChildren) {
   const { bech32Address } = useCosmosWallet();
   const { data: babyDelegationsRaw = [] } = useDelegations(bech32Address);
 
-  // Track localStorage version to force re-computation of pending operations
-  const [, setStorageVersion] = useState(0);
-
-  // Listen for localStorage changes (both from other tabs and same tab)
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key?.includes("baby-epoch-data")) {
-        setStorageVersion((v) => v + 1);
-      }
-    };
-
-    const handleCustomStorage = () => {
-      setStorageVersion((v) => v + 1);
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener(
-      BABY_PENDING_OPERATIONS_UPDATED_EVENT,
-      handleCustomStorage,
-    );
-    window.addEventListener(BABY_EPOCH_UPDATED_EVENT, handleCustomStorage);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener(
-        BABY_PENDING_OPERATIONS_UPDATED_EVENT,
-        handleCustomStorage,
-      );
-      window.removeEventListener(BABY_EPOCH_UPDATED_EVENT, handleCustomStorage);
-    };
-  }, []);
-
-  // Get pending BABY operations from localStorage - now reactive to storage changes
-  const pendingBabyOps = useMemo(() => {
-    const ops = getPendingBabyOperations(bech32Address);
-    return ops;
-  }, [bech32Address]);
+  // Get pending BABY operations from context
+  const { pendingOperations: pendingBabyOps } = usePendingOperationsService();
 
   /**
    * Calculate total BTC staked (only broadcasted delegations)
@@ -284,13 +204,9 @@ export function CoStakingState({ children }: PropsWithChildren) {
   // Computed: Check if all boost data is valid and available
   const hasValidBoostData = useMemo(
     () =>
-      Boolean(
-        aprData.currentApr &&
-          aprData.currentApr > 0 &&
-          aprData.boostApr &&
-          aprData.boostApr > 0 &&
-          eligibility.additionalBabyNeeded > 0,
-      ),
+      (aprData.currentApr ?? 0) > 0 &&
+      (aprData.boostApr ?? 0) > 0 &&
+      (eligibility.additionalBabyNeeded ?? 0) > 0,
     [aprData.currentApr, aprData.boostApr, eligibility.additionalBabyNeeded],
   );
 
