@@ -72,12 +72,13 @@ export function usePeginRequests({
       CONTRACTS.BTC_VAULTS_MANAGER,
       CONTRACTS.VAULT_CONTROLLER,
     ],
-    queryFn: () =>
-      getPeginRequestsWithVaultMetadata(
+    queryFn: () => {
+      return getPeginRequestsWithVaultMetadata(
         connectedAddress!,
         CONTRACTS.BTC_VAULTS_MANAGER,
         CONTRACTS.VAULT_CONTROLLER,
-      ),
+      );
+    },
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
@@ -94,14 +95,8 @@ export function usePeginRequests({
   const activities = useMemo(() => {
     if (!data) return [];
 
-    const transformed = data.map(
-      ({ peginRequest, txHash, vaultMetadata }) =>
-        transformPeginToActivity(
-          peginRequest,
-          txHash,
-          vaultMetadata,
-          onPegOut,
-        ),
+    const transformed = data.map(({ peginRequest, txHash, vaultMetadata }) =>
+      transformPeginToActivity(peginRequest, txHash, vaultMetadata, onPegOut),
     );
     return transformed;
   }, [data, onPegOut]);

@@ -23,7 +23,7 @@ export interface PeginRequest {
  */
 export async function getDepositorPeginRequests(
   contractAddress: Address,
-  depositorAddress: Address
+  depositorAddress: Address,
 ): Promise<Hex[]> {
   try {
     const publicClient = ethClient.getPublicClient();
@@ -36,7 +36,7 @@ export async function getDepositorPeginRequests(
     return result as Hex[];
   } catch (error) {
     throw new Error(
-      `Failed to get depositor pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to get depositor pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -50,7 +50,7 @@ export async function getDepositorPeginRequests(
  */
 export async function getPeginRequest(
   contractAddress: Address,
-  pegInTxHash: Hex
+  pegInTxHash: Hex,
 ): Promise<PeginRequest> {
   try {
     const publicClient = ethClient.getPublicClient();
@@ -61,12 +61,25 @@ export async function getPeginRequest(
       args: [pegInTxHash],
     });
 
-    const [depositor, unsignedBtcTx, amount, vaultProvider, status] = result as [
-      Address,
-      Hex,
-      bigint,
-      Address,
-      number
+    // Contract returns 7 fields from BTCVault struct (excluding mapping):
+    // 1. depositor, 2. depositorBtcPubKey, 3. unsignedPegInTx, 4. amount,
+    // 5. vaultProvider, 6. status, 7. positionId
+    const [
+      depositor,
+      _depositorBtcPubKey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+      _positionId,
+    ] = result as [
+      Address, // depositor
+      Hex, // depositorBtcPubKey (32 bytes)
+      Hex, // unsignedPegInTx
+      bigint, // amount
+      Address, // vaultProvider
+      number, // status
+      Hex, // positionId
     ];
 
     return {
@@ -75,10 +88,12 @@ export async function getPeginRequest(
       amount,
       vaultProvider,
       status,
+      // Note: depositorBtcPubKey and positionId are read but not included in return
+      // since PeginRequest interface doesn't need them for now
     };
   } catch (error) {
     throw new Error(
-      `Failed to get pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to get pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -91,7 +106,7 @@ export async function getPeginRequest(
  */
 export async function isPeginVerified(
   contractAddress: Address,
-  pegInTxHash: Hex
+  pegInTxHash: Hex,
 ): Promise<boolean> {
   try {
     const publicClient = ethClient.getPublicClient();
@@ -104,7 +119,7 @@ export async function isPeginVerified(
     return result as boolean;
   } catch (error) {
     throw new Error(
-      `Failed to check if pegin is verified: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to check if pegin is verified: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -117,7 +132,7 @@ export async function isPeginVerified(
  */
 export async function isLiquidator(
   contractAddress: Address,
-  liquidatorAddress: Address
+  liquidatorAddress: Address,
 ): Promise<boolean> {
   try {
     const publicClient = ethClient.getPublicClient();
@@ -130,7 +145,7 @@ export async function isLiquidator(
     return result as boolean;
   } catch (error) {
     throw new Error(
-      `Failed to check if liquidator: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to check if liquidator: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }

@@ -77,15 +77,15 @@ export async function getPeginRequestsWithDetails(
   }
 
   // Step 2: Fetch detailed pegin request data for each transaction hash in parallel
-  const peginRequestsWithDetails = await Promise.all(
+  // Use Promise.allSettled to handle partial failures gracefully
+  const peginRequestsWithDetails = (await Promise.allSettled(
     txHashes.map(async (txHash) => {
       const peginRequest = await BTCVaultsManager.getPeginRequest(btcVaultsManagerAddress, txHash);
-      return {
-        peginRequest,
-        txHash,
-      };
+      return { peginRequest, txHash };
     })
-  );
+  )).filter((result): result is PromiseFulfilledResult<PeginRequestWithTxHash> =>
+    result.status === 'fulfilled'
+  ).map(result => result.value);
 
   return peginRequestsWithDetails;
 }

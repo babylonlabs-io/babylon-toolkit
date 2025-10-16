@@ -124,18 +124,24 @@ export async function submitPeginRequest(
     ? (btcTx.unsignedTxHex as Hex)
     : (`0x${btcTx.unsignedTxHex}` as Hex);
 
-  // Step 3: Get vault provider address
+  // Step 3: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
+  const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith('0x')
+    ? (depositorBtcPubkey as Hex)
+    : (`0x${depositorBtcPubkey}` as Hex);
+
+  // Step 4: Get vault provider address
   // HARDCODED: Using local deployment vault provider for POC
   // In production, this would be selected by user or fetched from backend
   const vaultProvider = LOCAL_PEGIN_CONFIG.vaultProviderAddress;
 
-  // Step 4: Submit to smart contract
+  // Step 5: Submit to smart contract
   // This triggers the Ethereum transaction that:
   // - Stores the peg-in request on-chain
   // - Emits PegInRequest event for vault provider and liquidators
   const result = await VaultControllerTx.submitPeginRequest(
     vaultControllerAddress,
     unsignedPegInTx,
+    depositorBtcPubkeyHex,
     vaultProvider,
   );
 

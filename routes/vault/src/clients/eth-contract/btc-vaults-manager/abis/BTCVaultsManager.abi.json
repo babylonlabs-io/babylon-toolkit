@@ -119,6 +119,11 @@
         "internalType": "address"
       },
       {
+        "name": "depositorBtcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
         "name": "unsignedPegInTx",
         "type": "bytes",
         "internalType": "bytes"
@@ -137,6 +142,11 @@
         "name": "status",
         "type": "uint8",
         "internalType": "enum BTCVaultsManager.BTCVaultStatus"
+      },
+      {
+        "name": "positionId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -201,9 +211,14 @@
         "internalType": "address"
       },
       {
-        "name": "txHash",
+        "name": "depositorBtcPubKey",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "unsignedPegInTx",
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
         "name": "amount",
@@ -211,9 +226,19 @@
         "internalType": "uint256"
       },
       {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "status",
         "type": "uint8",
         "internalType": "enum BTCVaultsManager.BTCVaultStatus"
+      },
+      {
+        "name": "positionId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -384,6 +409,25 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getVaultProvider",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -575,10 +619,54 @@
   },
   {
     "type": "function",
-    "name": "markPeginAsExpired",
+    "name": "markVaultAsAvailable",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "markVaultAsExpired",
     "inputs": [
       {
         "name": "btcTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "markVaultAsExpiredFromPosition",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "markVaultAsInPosition",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "positionId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -623,6 +711,19 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "releaseVaultFromPosition",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -717,6 +818,11 @@
         "name": "depositor",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "depositorBtcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "unsignedPegInTx",

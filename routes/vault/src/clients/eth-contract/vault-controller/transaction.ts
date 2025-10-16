@@ -27,12 +27,14 @@ export interface MarketParams {
  * Submit a pegin request
  * @param contractAddress - BTCVaultController contract address
  * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
+ * @param depositorBtcPubKey - Depositor's BTC public key (x-only, 32 bytes hex)
  * @param vaultProvider - Vault provider address
  * @returns Transaction hash and receipt
  */
 export async function submitPeginRequest(
   contractAddress: Address,
   unsignedPegInTx: Hex,
+  depositorBtcPubKey: Hex,
   vaultProvider: Address,
 ): Promise<{
   transactionHash: Hash;
@@ -59,7 +61,7 @@ export async function submitPeginRequest(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: 'submitPeginRequest',
-      args: [unsignedPegInTx, vaultProvider],
+      args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
       chain,
     });
 
