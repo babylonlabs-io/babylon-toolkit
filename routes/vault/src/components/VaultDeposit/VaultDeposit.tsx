@@ -148,7 +148,7 @@ export function VaultDeposit({
         selectedProviders={selectedProviders}
         btcConnector={btcConnector}
         btcAddress={btcAddress || ''}
-        depositorEthAddress={connectedAddress || '0x0'}
+        depositorEthAddress={(connectedAddress || '0x0') as `0x${string}`}
       />
 
       <PeginSuccessModal
