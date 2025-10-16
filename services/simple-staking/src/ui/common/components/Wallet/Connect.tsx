@@ -97,7 +97,7 @@ export const Connect: React.FC<ConnectProps> = ({
     publicKeyNoCoord,
   } = useBTCWallet();
   const { bech32Address, connected: bbnConnected } = useCosmosWallet();
-  const { connected: ethConnected, loading: ethLoading } = useETHWallet();
+  const { address: ethAddress, connected: ethConnected, loading: ethLoading } = useETHWallet();
 
   // Widget states
   const { selectedWallets } = useWidgetState();
@@ -227,6 +227,7 @@ export const Connect: React.FC<ConnectProps> = ({
         }
         btcAddress={btcAddress}
         bbnAddress={bech32Address}
+        ethAddress={ethAddress}
         selectedWallets={transformedWallets}
         ordinalsExcluded={ordinalsExcluded}
         linkedDelegationsVisibility={linkedDelegationsVisibility}

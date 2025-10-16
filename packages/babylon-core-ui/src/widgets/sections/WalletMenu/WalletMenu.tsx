@@ -9,13 +9,14 @@ import { ThemedIcon } from "../../../components/Icons/ThemedIcon";
 import { useCopy } from "../../../hooks/useCopy";
 import { twJoin } from "tailwind-merge";
 
-export type WalletChain = "BTC" | "BBN";
+export type WalletChain = "BTC" | "BBN" | "ETH";
 
 export interface WalletMenuProps {
   trigger: React.ReactNode;
   btcAddress: string;
   bbnAddress: string;
-  selectedWallets: Record<WalletChain, { name: string; icon: string }>;
+  ethAddress?: string;
+  selectedWallets: Partial<Record<WalletChain, { name: string; icon: string }>>;
   ordinalsExcluded: boolean;
   linkedDelegationsVisibility: boolean;
   onIncludeOrdinals: () => void;
@@ -29,8 +30,10 @@ export interface WalletMenuProps {
   // Balance-related props
   btcBalances?: WalletBalanceData;
   bbnBalances?: WalletBalanceData;
+  ethBalances?: WalletBalanceData;
   btcCoinSymbol?: string;
   bbnCoinSymbol?: string;
+  ethCoinSymbol?: string;
   balancesLoading?: boolean;
   hasUnconfirmedTransactions?: boolean;
   formatBalance?: (amount: number, coinSymbol: string) => string;
@@ -39,8 +42,8 @@ export interface WalletMenuProps {
   className?: string;
   mobileMode?: "drawer" | "dialog";
   copy?: {
-    isCopied?: (key: "btc" | "bbn" | "publicKey") => boolean;
-    copyToClipboard?: (key: "btc" | "bbn" | "publicKey", value: string) => void;
+    isCopied?: (key: "btc" | "bbn" | "eth" | "publicKey") => boolean;
+    copyToClipboard?: (key: "btc" | "bbn" | "eth" | "publicKey", value: string) => void;
     timeout?: number;
   };
 }
@@ -49,6 +52,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   trigger,
   btcAddress,
   bbnAddress,
+  ethAddress,
   selectedWallets,
   ordinalsExcluded,
   linkedDelegationsVisibility,
@@ -61,8 +65,10 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   onOpenChange,
   btcBalances,
   bbnBalances,
+  ethBalances,
   btcCoinSymbol,
   bbnCoinSymbol,
+  ethCoinSymbol,
   balancesLoading = false,
   hasUnconfirmedTransactions = false,
   formatBalance,
@@ -92,6 +98,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
 
   const btcSymbol = btcCoinSymbol || "BTC";
   const bbnSymbol = bbnCoinSymbol || "BABY";
+  const ethSymbol = ethCoinSymbol || "ETH";
 
   return (
     <Menu
@@ -122,18 +129,20 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
             />
           )}
 
-          <WalletMenuCard
-            walletType="Babylon"
-            walletName={selectedWallets["BBN"]?.name}
-            walletIcon={selectedWallets["BBN"]?.icon}
-            address={bbnAddress}
-            isCopied={isCopied("bbn")}
-            onCopy={() => copyToClipboard("bbn", bbnAddress)}
-            balances={bbnBalances}
-            coinSymbol={bbnSymbol}
-            isBalanceLoading={balancesLoading}
-            formatBalance={createFormatBalance(bbnSymbol)}
-          />
+          {bbnAddress && (
+            <WalletMenuCard
+              walletType="Babylon"
+              walletName={selectedWallets["BBN"]?.name}
+              walletIcon={selectedWallets["BBN"]?.icon}
+              address={bbnAddress}
+              isCopied={isCopied("bbn")}
+              onCopy={() => copyToClipboard("bbn", bbnAddress)}
+              balances={bbnBalances}
+              coinSymbol={bbnSymbol}
+              isBalanceLoading={balancesLoading}
+              formatBalance={createFormatBalance(bbnSymbol)}
+            />
+          )}
         </div>
 
         <div className="flex flex-col w-full bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
