@@ -464,12 +464,18 @@ importers:
       '@reown/appkit-adapter-wagmi':
         specifier: 1.8.6
         version: 1.8.6(@tanstack/react-query@5.28.14(react@18.3.1))(@types/react@18.3.23)(@wagmi/core@2.22.1(@tanstack/query-core@5.28.13)(@types/react@18.3.23)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)))(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))(wagmi@2.18.1(@tanstack/query-core@5.28.13)(@tanstack/react-query@5.28.14(react@18.3.1))(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))(zod@4.1.12))(zod@4.1.12)
+      '@scure/bip32':
+        specifier: 1.4.0
+        version: 1.4.0
+      '@scure/btc-signer':
+        specifier: 1.8.1
+        version: 1.8.1
       '@tomo-inc/ledger-bitcoin-babylon':
         specifier: 0.3.5-alpha.0
         version: 0.3.5-alpha.0(@ledgerhq/hw-transport-webhid@6.30.6)(@ledgerhq/hw-transport-webusb@6.29.10)(@ledgerhq/hw-transport@6.31.10)(bitcoinjs-lib@6.1.5)
       '@tomo-inc/wallet-connect-sdk':
         specifier: 0.3.24
-        version: 0.3.24(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.7.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 0.3.24(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       bip174:
         specifier: 2.1.1
         version: 2.1.1
@@ -15344,7 +15350,7 @@ snapshots:
       ledger-bitcoin: 0.2.3
       process: 0.11.10
 
-  '@tomo-inc/tomo-wallet-provider@1.1.19(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.7.0)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
+  '@tomo-inc/tomo-wallet-provider@1.1.19(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)':
     dependencies:
       '@bitcoinerlab/secp256k1': 1.2.0
       '@cosmjs/stargate': 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -15354,7 +15360,7 @@ snapshots:
       '@keystonehq/animated-qr': 0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@keystonehq/keystone-sdk': 0.9.0
       '@keystonehq/sdk': 0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@scure/bip32': 1.7.0
+      '@scure/bip32': 1.4.0
       bitcoinjs-lib: 6.1.5
       buffer: 6.0.3
       events: 3.3.0
@@ -15365,9 +15371,9 @@ snapshots:
     transitivePeerDependencies:
       - starknet
 
-  '@tomo-inc/wallet-connect-sdk@0.3.24(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.7.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@tomo-inc/wallet-connect-sdk@0.3.24(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(@types/react@18.3.23)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@tomo-inc/tomo-wallet-provider': 1.1.19(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.7.0)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
+      '@tomo-inc/tomo-wallet-provider': 1.1.19(@bitcoinerlab/secp256k1@1.2.0)(@cosmjs/stargate@0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(@keplr-wallet/types@0.12.272(starknet@6.24.1))(@keystonehq/animated-qr@0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@keystonehq/keystone-sdk@0.9.0)(@keystonehq/sdk@0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@scure/bip32@1.4.0)(bitcoinjs-lib@6.1.5)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(starknet@6.24.1)
       animate.css: 4.1.1
       buffer: 6.0.3
       classnames: 2.5.1
