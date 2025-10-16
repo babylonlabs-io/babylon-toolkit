@@ -65,8 +65,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => { },
-  disconnect: () => { },
+  open: () => {},
+  disconnect: () => {},
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -80,10 +80,10 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => { },
+  switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  clearError: () => { },
+  clearError: () => {},
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
@@ -158,7 +158,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       });
     }
   }, [disconnect, ethConnector, handleError]);
-
 
   const ethWalletMethods = useMemo(
     () => ({
@@ -235,45 +234,44 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
     ],
   );
 
-  const ethContextValue = useMemo(
-    () => {
-      const value = {
-        loading: walletState.isLoading,
-        connected,
-        open,
-        disconnect: ethDisconnect,
-        address: address ?? "",
-        publicKeyHex,
-        balance: balance
-          ? parseFloat(formatUnits(balance.value, balance.decimals))
-          : 0,
-        formattedBalance: balance
-          ? formatUnits(balance.value, balance.decimals)
-          : "0",
-        chainId,
-        networkName,
-        pendingTx,
-        isPending,
-        clearError: () => { /* No-op for compatibility */ },
-        ...ethWalletMethods,
-      };
-      return value;
-    },
-    [
-      walletState.isLoading,
+  const ethContextValue = useMemo(() => {
+    const value = {
+      loading: walletState.isLoading,
       connected,
       open,
-      ethDisconnect,
-      address,
+      disconnect: ethDisconnect,
+      address: address ?? "",
       publicKeyHex,
-      balance,
+      balance: balance
+        ? Number.parseFloat(formatUnits(balance.value, balance.decimals))
+        : 0,
+      formattedBalance: balance
+        ? formatUnits(balance.value, balance.decimals)
+        : "0",
       chainId,
       networkName,
       pendingTx,
       isPending,
-      ethWalletMethods,
-    ],
-  );
+      clearError: () => {
+        /* No-op for compatibility */
+      },
+      ...ethWalletMethods,
+    };
+    return value;
+  }, [
+    walletState.isLoading,
+    connected,
+    open,
+    ethDisconnect,
+    address,
+    publicKeyHex,
+    balance,
+    chainId,
+    networkName,
+    pendingTx,
+    isPending,
+    ethWalletMethods,
+  ]);
 
   return (
     <ETHWalletContext.Provider value={ethContextValue}>
@@ -313,8 +311,8 @@ export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => 0n,
       getNonce: async () => 0,
-      switchChain: async () => { },
-      clearError: () => { },
+      switchChain: async () => {},
+      clearError: () => {},
     }),
     [],
   );

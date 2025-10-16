@@ -74,9 +74,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [handleError, logger],
   );
 
-  const requiredChains: ("BBN" | "BTC" | "ETH")[] = location.pathname.startsWith("/baby")
-    ? ["BBN"]
-    : ["BTC", "BBN"];
+  const requiredChains: ("BBN" | "BTC" | "ETH")[] =
+    location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"];
 
   return (
     <WalletProvider
