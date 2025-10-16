@@ -43,53 +43,103 @@ export function usePeginStorage({
     );
   }, [confirmedPegins]);
 
-  // Sync: Remove pending peg-ins that are now confirmed
+  // Sync: Remove pending peg-ins that reached Available status (2+)
+  // Keep localStorage data for Pending (0) and Verified (1) status
   useEffect(() => {
     if (!ethAddress) return;
 
-    const confirmedIds = Object.keys(confirmedPeginMap);
-    const filteredPegins = filterPendingPegins(pendingPegins, confirmedIds);
+    // Map confirmed pegins to {id, status} for the filter function
+    const confirmedPeginsWithStatus = confirmedPegins.map((p) => ({
+      id: p.id,
+      status: p.contractStatus ?? 0, // Default to 0 if missing
+    }));
+    const filteredPegins = filterPendingPegins(
+      pendingPegins,
+      confirmedPeginsWithStatus,
+    );
 
     // Only update if something changed
     if (filteredPegins.length !== pendingPegins.length) {
       setPendingPegins(filteredPegins);
     }
-  }, [ethAddress, confirmedPeginMap, pendingPegins, setPendingPegins]);
+  }, [ethAddress, confirmedPegins, pendingPegins, setPendingPegins]);
 
   // Convert pending peg-ins to VaultActivity format
+  // localStorage is the source of truth for display until blockchain status >= 2 (Available)
   const pendingActivities: VaultActivity[] = useMemo(() => {
     const filtered = pendingPegins.filter((pegin: PendingPeginRequest) => {
-      const isConfirmed = !!confirmedPeginMap[pegin.id];
-      return !isConfirmed; // Don't show if already confirmed
+      const confirmedPegin = confirmedPeginMap[pegin.id];
+
+      // Show pending pegin if:
+      // 1. Not yet on blockchain
+      // 2. On blockchain but status < 2 (Pending or Verified - not yet Available)
+      if (!confirmedPegin) return true;
+      return (confirmedPegin.contractStatus ?? 0) < 2;
     });
 
-    return filtered.map((pegin: PendingPeginRequest) => ({
-      id: pegin.id,
-      collateral: {
-        amount: pegin.amount,
-        symbol: 'BTC',
-        icon: bitcoinIcon,
-      },
-      status: {
-        label: 'Pending',
-        variant: 'pending' as const,
-      },
-      providers: pegin.providers.map((providerId: string) => ({
-        id: providerId,
-        name: providerId, // TODO: Map to actual provider names
-        icon: undefined,
-      })),
-      action: {
-        label: 'Borrow USDC',
-        onClick: () => {},
-      },
-      isPending: true, // Flag to show callout message
-    }));
+    return filtered.map((pegin: PendingPeginRequest) => {
+      const confirmedPegin = confirmedPeginMap[pegin.id];
+
+      // Determine display label based on localStorage + blockchain status
+      let statusLabel = 'Pending';
+      let pendingMessage =
+        'Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete.';
+
+      if (pegin.status === 'confirming') {
+        statusLabel = 'Pending BTC Confirmations';
+        pendingMessage =
+          'BTC transaction broadcast. Waiting for Bitcoin network confirmations (~5 hours).';
+      } else if (confirmedPegin?.contractStatus === 1) {
+        statusLabel = 'Verified';
+        pendingMessage = '';
+      }
+
+      return {
+        id: pegin.id,
+        txHash: confirmedPegin?.txHash, // Use blockchain tx hash if available
+        collateral: {
+          amount: pegin.amount,
+          symbol: 'BTC',
+          icon: bitcoinIcon,
+        },
+        status: {
+          label: statusLabel,
+          variant: 'pending' as const,
+        },
+        contractStatus: confirmedPegin?.contractStatus,
+        providers:
+          confirmedPegin?.providers ||
+          pegin.providers.map((id: string) => ({
+            id,
+            name: id,
+            icon: undefined,
+          })),
+        action: undefined,
+        isPending: statusLabel !== 'Verified', // Don't show warning for Verified status
+        pendingMessage: pendingMessage || undefined,
+        morphoPosition: undefined,
+        borrowingData: undefined,
+        marketData: undefined,
+        positionDate: undefined,
+        vaultMetadata: undefined,
+        isInUse: undefined,
+      };
+    });
   }, [pendingPegins, confirmedPeginMap]);
 
-  // Merge pending and confirmed activities
+  // Merge pending and confirmed activities (remove duplicates)
+  // localStorage entries are shown until blockchain status >= 2
   const allActivities: VaultActivity[] = useMemo(() => {
-    return [...pendingActivities, ...confirmedPegins];
+    // Build set of pending pegin IDs (these are shown from localStorage)
+    const pendingIds = new Set(pendingActivities.map((p) => p.id));
+
+    // Only show confirmed pegins if NOT in localStorage
+    // (localStorage is source of truth until status >= 2)
+    const filteredConfirmed = confirmedPegins.filter(
+      (p) => !pendingIds.has(p.id),
+    );
+
+    return [...pendingActivities, ...filteredConfirmed];
   }, [pendingActivities, confirmedPegins]);
 
   // Add a new pending peg-in
@@ -123,6 +173,24 @@ export function usePeginStorage({
     setPendingPegins([]);
   }, [setPendingPegins]);
 
+  // Update pending pegin status (for BTC broadcast confirmation)
+  const updatePendingPeginStatus = useCallback(
+    (
+      peginId: string,
+      status: PendingPeginRequest['status'],
+      btcTxHash?: string,
+    ) => {
+      setPendingPegins((prev: PendingPeginRequest[]) =>
+        prev.map((p: PendingPeginRequest) =>
+          p.id === peginId
+            ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
+            : p,
+        ),
+      );
+    },
+    [setPendingPegins],
+  );
+
   return {
     allActivities,
     pendingPegins,
@@ -130,5 +198,6 @@ export function usePeginStorage({
     addPendingPegin,
     removePendingPegin,
     clearPendingPegins,
+    updatePendingPeginStatus,
   };
 }

@@ -6,7 +6,7 @@
  */
 
 import { Psbt, Transaction } from 'bitcoinjs-lib';
-import { pushTx } from '../../clients/btc/mempool';
+// import { pushTx } from '../../clients/btc/mempool'; // TODO: Re-enable when ready to broadcast
 
 /**
  * UTXO information needed for PSBT construction
@@ -125,7 +125,17 @@ export async function broadcastPeginTransaction(
     const signedTxHex = signedPsbt.extractTransaction().toHex();
 
     // Step 4: Broadcast to Bitcoin network
-    const txId = await pushTx(signedTxHex);
+    // TODO: TEMPORARILY DISABLED FOR TESTING
+    // const txId = await pushTx(signedTxHex);
+    const transaction = Transaction.fromHex(signedTxHex);
+    const txId = transaction.getId();
+    console.log(
+      '[ACTUAL BROADCAST DISABLED] Would have broadcast tx:',
+      signedTxHex,
+    );
+    console.log('Signed transaction ID:', txId);
+    const txHash = transaction.getHash().toString('hex');
+    console.log('Signed transaction hash:', txHash);
 
     return txId;
   } catch (error) {

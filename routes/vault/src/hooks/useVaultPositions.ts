@@ -80,7 +80,9 @@ export function useVaultPositions(onPegOut?: (activity: VaultActivity) => void) 
 
   const {
     allActivities,
+    pendingPegins,
     addPendingPegin,
+    updatePendingPeginStatus,
   } = usePeginStorage({
     ethAddress: connectedAddress || '',
     confirmedPegins: confirmedActivities,
@@ -88,10 +90,12 @@ export function useVaultPositions(onPegOut?: (activity: VaultActivity) => void) 
 
   return {
     activities: allActivities,
+    pendingPegins,
     isWalletConnected: connected && !!connectedAddress,
     refetchActivities: refetch,
     connectedAddress,
     btcAddress,
     addPendingPegin,
+    updatePendingPeginStatus,
   };
 }

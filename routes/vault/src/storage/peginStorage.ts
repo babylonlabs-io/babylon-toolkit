@@ -16,6 +16,14 @@ export interface PendingPeginRequest {
   btcAddress: string; // BTC address used
   timestamp: number; // When the peg-in was initiated
   status: 'pending' | 'confirming' | 'confirmed';
+  // New fields for deferred BTC broadcasting
+  unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting after verification)
+  utxo?: {
+    txid: string;
+    vout: number;
+    value: string; // Store as string to avoid BigInt serialization
+    scriptPubKey: string;
+  };
 }
 
 const STORAGE_KEY_PREFIX = 'vault-pending-pegins';
@@ -111,18 +119,37 @@ export function updatePeginStatus(
 
 /**
  * Filter and clean up old pending peg-ins
- * Removes peg-ins that have exceeded the max duration
+ * Removes peg-ins that have exceeded the max duration OR reached Available status (2+)
+ *
+ * IMPORTANT: For vault flow, we must keep localStorage data until BTC is broadcast:
+ * - Status 0 (Pending): Keep in localStorage (waiting for provider ACK)
+ * - Status 1 (Verified): Keep in localStorage (need unsignedTxHex/utxo for BTC broadcast)
+ * - Status 2+ (Available/Expired): Remove from localStorage (BTC broadcast complete or expired)
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
-  confirmedPeginIds: string[],
+  confirmedPegins: Array<{ id: string; status: number }>,
 ): PendingPeginRequest[] {
   const now = Date.now();
 
+  // Create a map of confirmed pegin IDs to their status for quick lookup
+  const confirmedPeginMap = new Map(
+    confirmedPegins.map((p) => [p.id, p.status])
+  );
+
   return pendingPegins.filter((pegin) => {
-    // Remove if already confirmed
-    if (confirmedPeginIds.includes(pegin.id)) {
-      return false;
+    // Check if this pegin exists in confirmed pegins
+    const confirmedStatus = confirmedPeginMap.get(pegin.id);
+
+    if (confirmedStatus !== undefined) {
+      // If status is Available (2) or higher, remove from localStorage
+      // (BTC broadcast is complete or pegin expired)
+      if (confirmedStatus >= 2) {
+        return false;
+      }
+      // If status is Pending (0) or Verified (1), keep in localStorage
+      // (still need unsignedTxHex and utxo for BTC broadcast)
+      return true;
     }
 
     // Remove if exceeded max duration

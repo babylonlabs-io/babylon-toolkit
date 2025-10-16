@@ -41,11 +41,13 @@ export function VaultDeposit({
   // Data fetching with peg out handler
   const {
     activities,
+    pendingPegins,
     isWalletConnected: _isWalletConnected,
     refetchActivities,
     connectedAddress: _connectedAddress,
     btcAddress,
     addPendingPegin,
+    updatePendingPeginStatus,
   } = useVaultPositions(handlePegOut);
 
   // Use props with fallback to hook values
@@ -64,6 +66,7 @@ export function VaultDeposit({
     btcBalanceSat,
     openPeginFlow,
     closePeginFlow,
+    closeSignModal,
     handlePeginClick,
     handlePeginSignSuccess: handlePeginSignSuccessBase,
     handlePeginSuccessClose,
@@ -74,15 +77,25 @@ export function VaultDeposit({
 
   // Handle peg-in sign success with storage integration
   const handlePeginSignSuccess = useCallback(
-    (btcTxId: string) => {
+    (data: {
+      btcTxId: string;
+      ethTxHash: string;
+      unsignedTxHex: string;
+      utxo: {
+        txid: string;
+        vout: number;
+        value: bigint;
+        scriptPubKey: string;
+      };
+    }) => {
       // Add to local storage with BTC transaction ID as ID (with 0x prefix)
       // IMPORTANT: The smart contract stores BTC txids as Hex type (with 0x prefix)
       // and uses them as keys in the btcVaults mapping. We normalize to match this format
       // for proper deduplication when confirmed pegins are fetched from the contract.
       if (connectedAddress && effectiveBtcAddress) {
-        const idForStorage = btcTxId.startsWith('0x')
-          ? btcTxId
-          : `0x${btcTxId}`;
+        const idForStorage = data.btcTxId.startsWith('0x')
+          ? data.btcTxId
+          : `0x${data.btcTxId}`;
 
         const peginData = {
           id: idForStorage,
@@ -90,14 +103,29 @@ export function VaultDeposit({
           providers: selectedProviders,
           ethAddress: connectedAddress,
           btcAddress: effectiveBtcAddress,
+          unsignedTxHex: data.unsignedTxHex,
+          utxo: {
+            txid: data.utxo.txid,
+            vout: data.utxo.vout,
+            value: data.utxo.value.toString(),
+            scriptPubKey: data.utxo.scriptPubKey,
+          },
         };
+        console.log('[VaultDeposit] Saving pegin to localStorage:', {
+          storageKey: `vault-pending-pegins-${connectedAddress}`,
+          id: idForStorage,
+          hasUnsignedTxHex: !!data.unsignedTxHex,
+          hasUtxo: !!data.utxo,
+          connectedAddress,
+          fullPeginData: peginData,
+        });
         addPendingPegin(peginData);
       }
 
-      // Complete the peg-in flow and show success modal
-      handlePeginSignSuccessBase(() => {
-        refetchActivities();
-      });
+      // Close sign modal and refetch (NO success modal shown yet)
+      // Success modal will be shown after BTC broadcast (from BroadcastBtcButton)
+      closePeginFlow();
+      refetchActivities();
     },
     [
       connectedAddress,
@@ -105,10 +133,15 @@ export function VaultDeposit({
       peginAmount,
       selectedProviders,
       addPendingPegin,
-      handlePeginSignSuccessBase,
+      closePeginFlow,
       refetchActivities,
     ],
   );
+
+  // Handle showing success modal from BroadcastBtcButton
+  const handleShowSuccessModal = useCallback(() => {
+    handlePeginSignSuccessBase(() => {});
+  }, [handlePeginSignSuccessBase]);
 
   // Show message if wallet is not connected
   if (!isWalletConnected) {
@@ -127,6 +160,11 @@ export function VaultDeposit({
             <VaultActivityCard
               key={activity.id}
               activity={activity}
+              connectedAddress={connectedAddress}
+              pendingPegins={pendingPegins}
+              updatePendingPeginStatus={updatePendingPeginStatus}
+              onRefetchActivities={refetchActivities}
+              onShowSuccessModal={handleShowSuccessModal}
             />
           ))}
         </ActivityList>
@@ -142,7 +180,7 @@ export function VaultDeposit({
 
       <PeginSignModal
         open={peginSignModalOpen}
-        onClose={() => { }}
+        onClose={closeSignModal}
         onSuccess={handlePeginSignSuccess}
         amount={peginAmount}
         selectedProviders={selectedProviders}
@@ -151,6 +189,7 @@ export function VaultDeposit({
         depositorEthAddress={(connectedAddress || '0x0') as `0x${string}`}
       />
 
+      {/* Success modal now shown by BroadcastBtcButton after BTC broadcast */}
       <PeginSuccessModal
         open={peginSuccessModalOpen}
         onClose={handlePeginSuccessClose}

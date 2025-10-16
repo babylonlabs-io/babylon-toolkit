@@ -20,13 +20,16 @@ export const SATOSHIS_PER_BTC = 100_000_000n;
 /**
  * Status mapping from contract enum to UI format
  * Enum BTCVaultStatus:
- * 0 = Pending - Request submitted, waiting for ACKs
- * 1 = Verified - All ACKs collected, ready for inclusion proof
- * 2 = Active - Inclusion proof verified, pegin executed
- * 3 = Expired - Pegged-in BTC has been liquidated/repaid
+ * 0 = Pending - Request submitted, waiting for vault provider ACKs
+ * 1 = Verified - All ACKs collected, ready for BTC broadcast
+ * 2 = Available - BTC broadcast + inclusion proof verified, ready to mint vBTC
+ * 3 = Expired - Pegged-in BTC has been liquidated/repaid and burned
+ *
+ * Note: "Pending BTC Confirmations" is a client-side status (not from contract)
+ * shown after user broadcasts BTC but before status moves to Available (2)
  */
 const STATUS_MAP = {
-  0: { label: 'Pending', variant: 'pending' as const },
+  0: { label: 'Pending Verification', variant: 'pending' as const },
   1: { label: 'Verified', variant: 'pending' as const },
   2: { label: 'Available', variant: 'active' as const },
   3: { label: 'Expired', variant: 'inactive' as const },
@@ -145,6 +148,8 @@ export function transformPeginToActivity(
       label: statusInfo.label,
       variant: statusInfo.variant,
     },
+    // Store numeric contract status for localStorage cleanup logic
+    contractStatus: peginRequest.status,
     providers: [
       {
         id: peginRequest.vaultProvider,

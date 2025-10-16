@@ -10,7 +10,6 @@ import type { Address } from 'viem';
 import { toXOnly } from 'bitcoinjs-lib/src/psbt/bip371';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
-import { broadcastPeginTransaction } from '../../../services/btc/broadcastService';
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
@@ -22,7 +21,17 @@ interface UsePeginFlowParams {
   btcConnector: any;
   btcAddress: string;
   depositorEthAddress: Address;
-  onSuccess: (btcTxId: string, ethTxHash: string) => void;
+  onSuccess: (data: {
+    btcTxId: string;
+    ethTxHash: string;
+    unsignedTxHex: string;
+    utxo: {
+      txid: string;
+      vout: number;
+      value: bigint;
+      scriptPubKey: string;
+    };
+  }) => void;
 }
 
 interface UsePeginFlowReturn {
@@ -32,6 +41,7 @@ interface UsePeginFlowReturn {
   isComplete: boolean;
   unsignedTxHex?: string;
   btcTxid?: string;
+  ethTxHash?: string;
 }
 
 /**
@@ -40,9 +50,8 @@ interface UsePeginFlowReturn {
  * Orchestrates:
  * 1. Proof of possession with BTC wallet
  * 2. Submit unsigned transaction to ETH vault contract
- * 3. Sign and broadcast BTC transaction to Bitcoin network
- * 4. Success/error handling
  *
+ * Note: BTC broadcasting moved to separate button (after vault verification)
  * Note: UTXO fetching and validation happens before step 1
  */
 export function usePeginFlow({
@@ -58,6 +67,7 @@ export function usePeginFlow({
   const [error, setError] = useState<string | null>(null);
   const [unsignedTxHex, setUnsignedTxHex] = useState<string | undefined>(undefined);
   const [btcTxid, setBtcTxid] = useState<string | undefined>(undefined);
+  const [ethTxHash, setEthTxHash] = useState<string | undefined>(undefined);
 
   // Fetch UTXOs for the connected BTC wallet
   const { confirmedUTXOs, isLoading: isUTXOsLoading, error: utxoError } = useUTXOs(btcAddress);
@@ -70,6 +80,7 @@ export function usePeginFlow({
       setError(null);
       setUnsignedTxHex(undefined);
       setBtcTxid(undefined);
+      setEthTxHash(undefined);
     }
   }, [open]);
 
@@ -159,20 +170,23 @@ export function usePeginFlow({
         },
       );
 
-      // Store unsigned transaction hex for broadcasting
+      // Store unsigned transaction hex and ETH tx hash for later BTC broadcasting
       setUnsignedTxHex(result.btcTxHex);
+      setEthTxHash(result.transactionHash);
 
-      // Step 3: Sign and broadcast BTC transaction to Bitcoin network
-      setCurrentStep(3);
+      // Store BTC txid (calculated from unsigned tx, not yet broadcast)
+      setBtcTxid(result.btcTxid);
 
-      // Get BTC wallet provider for signing
-      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-      if (!btcWalletProvider) {
-        throw new Error('BTC wallet not connected');
-      }
+      // Step 2 Complete - stop here, BTC broadcast happens later
+      // (after vault provider verification via separate button)
+      setCurrentStep(3); // Set to 3 to show step 2 as complete (checkmark, not spinner)
+      setProcessing(false);
 
-      // Broadcast the PegIn transaction to Bitcoin network
-      const broadcastedTxId = await broadcastPeginTransaction({
+      // Pass all data to parent including unsigned TX and UTXO for storage
+      // Note: btcTxid is the EXPECTED transaction ID, BTC tx not yet broadcast
+      onSuccess({
+        btcTxId: result.btcTxid,
+        ethTxHash: result.transactionHash,
         unsignedTxHex: result.btcTxHex,
         utxo: {
           txid: selectedUTXO.txid,
@@ -180,19 +194,7 @@ export function usePeginFlow({
           value: BigInt(selectedUTXO.value),
           scriptPubKey: selectedUTXO.scriptPubKey,
         },
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
       });
-
-      setBtcTxid(broadcastedTxId);
-
-      // Step 4: Complete
-      setCurrentStep(4);
-      setProcessing(false);
-
-      // Pass broadcasted BTC transaction ID and ETH transaction hash to parent
-      onSuccess(broadcastedTxId, result.transactionHash);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred');
       setProcessing(false);
@@ -203,8 +205,9 @@ export function usePeginFlow({
     currentStep,
     processing,
     error,
-    isComplete: currentStep === 4,
+    isComplete: currentStep === 3,
     unsignedTxHex,
     btcTxid,
+    ethTxHash,
   };
 }

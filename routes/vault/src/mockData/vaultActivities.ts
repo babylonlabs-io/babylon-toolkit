@@ -14,6 +14,9 @@ export interface VaultActivity {
     label: string;
     variant: "active" | "inactive" | "pending" | "default";
   };
+  // Contract status (numeric): 0 = Pending, 1 = Verified, 2 = Available, 3 = Expired
+  // Used for localStorage cleanup logic
+  contractStatus?: number;
   providers: Array<{
     id: string;
     name: string;

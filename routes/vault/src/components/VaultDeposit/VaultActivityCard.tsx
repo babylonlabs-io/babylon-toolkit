@@ -3,6 +3,7 @@
  * into ActivityCard format and handles vault-specific UI logic
  */
 
+import { useState } from 'react';
 import {
   ActivityCard,
   StatusBadge,
@@ -11,21 +12,105 @@ import {
   type ActivityCardData,
   type ActivityCardDetailItem,
 } from "@babylonlabs-io/core-ui";
+import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { VaultActivity } from "../../mockData/vaultActivities";
 import { bitcoinIcon } from "../../assets";
 import { Hash } from "../Hash";
+import { broadcastPeginTransaction } from '../../services/btc/broadcastService';
+import { type PendingPeginRequest } from '../../storage/peginStorage';
 
 interface VaultActivityCardProps {
   activity: VaultActivity;
+  connectedAddress?: string;
+  pendingPegins?: PendingPeginRequest[];
+  updatePendingPeginStatus?: (peginId: string, status: PendingPeginRequest['status'], btcTxHash?: string) => void;
+  onRefetchActivities?: () => void;
+  onShowSuccessModal?: () => void;
 }
 
-export function VaultActivityCard({ activity }: VaultActivityCardProps) {
+export function VaultActivityCard({
+  activity,
+  connectedAddress,
+  pendingPegins = [],
+  updatePendingPeginStatus,
+  onRefetchActivities,
+  onShowSuccessModal,
+}: VaultActivityCardProps) {
   // Note: Actions (Borrow/Repay) are now handled in VaultPositions tab
   // This component only displays vault deposit information
 
+  // Broadcast state
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const btcConnector = useChainConnector('BTC');
+
+  // Broadcast handler
+  const handleBroadcast = async () => {
+    if (!connectedAddress || !onRefetchActivities || !onShowSuccessModal) return;
+
+    setBroadcasting(true);
+    setBroadcastError(null);
+
+    try {
+      // Get pending pegin from passed data (no longer fetching from localStorage directly)
+      console.log('[VaultActivityCard] Searching for pegin data:', {
+        connectedAddress,
+        activityId: activity.id,
+        totalPegins: pendingPegins.length,
+        peginIds: pendingPegins.map(p => p.id),
+      });
+      const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+      console.log('[VaultActivityCard] Found matching pegin:', {
+        found: !!pendingPegin,
+        hasUnsignedTxHex: !!pendingPegin?.unsignedTxHex,
+        hasUtxo: !!pendingPegin?.utxo,
+        peginData: pendingPegin,
+      });
+
+      if (!pendingPegin?.unsignedTxHex || !pendingPegin?.utxo) {
+        throw new Error('Missing transaction data. Please try depositing again.');
+      }
+
+      // Get BTC wallet provider
+      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+      if (!btcWalletProvider) {
+        throw new Error('BTC wallet not connected. Please reconnect your wallet.');
+      }
+
+      // Broadcast the transaction
+      const txId = await broadcastPeginTransaction({
+        unsignedTxHex: pendingPegin.unsignedTxHex,
+        utxo: {
+          txid: pendingPegin.utxo.txid,
+          vout: pendingPegin.utxo.vout,
+          value: BigInt(pendingPegin.utxo.value),
+          scriptPubKey: pendingPegin.utxo.scriptPubKey,
+        },
+        btcWalletProvider: {
+          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+        },
+      });
+
+      // Update localStorage status using hook (triggers re-render)
+      if (updatePendingPeginStatus) {
+        updatePendingPeginStatus(activity.id, 'confirming', txId);
+      }
+
+      // Show success modal & refetch blockchain data
+      onShowSuccessModal();
+      onRefetchActivities();
+
+      setBroadcasting(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to broadcast transaction';
+      setBroadcastError(errorMessage);
+      setBroadcasting(false);
+    }
+  };
+
   // Determine status to display:
   // - If vault is in use (vaultMetadata.active=true), show "In Position"
-  // - Otherwise show the actual pegin status (Available, Pending, etc.)
+  // - Otherwise show the actual pegin status (from localStorage or blockchain)
   const displayStatus = activity.vaultMetadata?.active
     ? { label: "In Position", variant: "active" as const }
     : activity.status;
@@ -70,6 +155,10 @@ export function VaultActivityCard({ activity }: VaultActivityCardProps) {
     ...(txHashDetail ? [txHashDetail] : []),
   ];
 
+  // Check if this is a verified vault (ready for BTC broadcast)
+  const isVerified = activity.status.label === 'Verified';
+  const canBroadcast = isVerified && connectedAddress && onRefetchActivities && onShowSuccessModal;
+
   // Transform to ActivityCardData format
   // NOTE: optionalDetails (loan details) are now only shown in VaultPositions tab
   // This card only shows vault deposit/collateral information
@@ -78,15 +167,23 @@ export function VaultActivityCard({ activity }: VaultActivityCardProps) {
     icon: activity.collateral.icon || bitcoinIcon,
     iconAlt: activity.collateral.symbol,
     details,
-    // Add warning for pending peg-ins
-    warning: activity.isPending ? (
+    // Add warning for pending peg-ins or broadcast errors
+    warning: activity.isPending && activity.pendingMessage ? (
       <Warning>
-        {activity.pendingMessage ||
-          "Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete."}
+        {activity.pendingMessage}
+      </Warning>
+    ) : broadcastError ? (
+      <Warning>
+        {broadcastError}
       </Warning>
     ) : undefined,
-    // Show action button for Available vaults (Peg Out)
-    primaryAction: activity.action ? {
+    // Show broadcast button for verified vaults, otherwise show action button
+    primaryAction: canBroadcast ? {
+      label: broadcasting ? 'Broadcasting...' : broadcastError ? 'Retry Broadcast' : 'Broadcast to Bitcoin',
+      onClick: handleBroadcast,
+      variant: 'contained' as const,
+      fullWidth: true,
+    } : activity.action ? {
       label: activity.action.label,
       onClick: activity.action.onClick,
     } : undefined,
