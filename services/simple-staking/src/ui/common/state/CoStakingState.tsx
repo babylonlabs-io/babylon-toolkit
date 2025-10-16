@@ -284,13 +284,9 @@ export function CoStakingState({ children }: PropsWithChildren) {
   // Computed: Check if all boost data is valid and available
   const hasValidBoostData = useMemo(
     () =>
-      Boolean(
-        aprData.currentApr &&
-          aprData.currentApr > 0 &&
-          aprData.boostApr &&
-          aprData.boostApr > 0 &&
-          eligibility.additionalBabyNeeded > 0,
-      ),
+      (aprData.currentApr ?? 0) > 0 &&
+      (aprData.boostApr ?? 0) > 0 &&
+      (eligibility.additionalBabyNeeded ?? 0) > 0,
     [aprData.currentApr, aprData.boostApr, eligibility.additionalBabyNeeded],
   );
 
