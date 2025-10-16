@@ -63,8 +63,18 @@ export const useCoStakingService = (
 
   // Query for personalized APR data from backend
   const aprQuery = useClientQuery({
-    queryKey: [CO_STAKING_APR_KEY, totalBtcStakedSat, totalBabyStakedUbbn],
+    queryKey: [
+      CO_STAKING_APR_KEY,
+      totalBtcStakedSat,
+      totalBabyStakedUbbn,
+      isCoStakingEnabled,
+    ],
     queryFn: async () => {
+      // Double-check feature flag inside queryFn to prevent any race conditions
+      if (!isCoStakingEnabled) {
+        return null;
+      }
+
       try {
         const result = await getPersonalizedAPR(
           totalBtcStakedSat,
