@@ -68,8 +68,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => { },
-  disconnect: () => { },
+  open: () => {},
+  disconnect: () => {},
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -83,10 +83,10 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => { },
+  switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  clearError: () => { },
+  clearError: () => {},
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
@@ -333,8 +333,8 @@ class ETHWalletErrorBoundary extends Component<
         },
         getBalance: async () => 0n,
         getNonce: async () => 0,
-        switchChain: async () => { },
-        clearError: () => { },
+        switchChain: async () => {},
+        clearError: () => {},
       };
 
       return (
