@@ -15,6 +15,7 @@ export interface SliderProps {
   steps?: SliderStep[];
   onChange: (value: number) => void;
   variant?: "primary" | "success" | "warning" | "error" | "rainbow";
+  activeColor?: string;
   className?: string;
   disabled?: boolean;
   showFill?: boolean;
@@ -28,6 +29,7 @@ export function Slider({
   steps,
   onChange,
   variant = "primary",
+  activeColor,
   className,
   disabled = false,
   showFill = true,
@@ -69,6 +71,7 @@ export function Slider({
         )}
         style={{
           "--slider-fill": `${fillPercentage}%`,
+          "--slider-active-color": activeColor,
         } as React.CSSProperties}
       />
       

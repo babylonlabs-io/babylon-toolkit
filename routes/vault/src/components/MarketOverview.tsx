@@ -163,7 +163,7 @@ export function MarketOverview() {
             data={markets} 
             columns={columns} 
             fluid 
-            {...({ onRowClick: (market: Market) => navigate(`/vault/market/${market.id}`) } as any)}
+            onRowClick={(market: Market) => navigate(`/vault/market/${market.id}`)}
           />
         </div>
       )}

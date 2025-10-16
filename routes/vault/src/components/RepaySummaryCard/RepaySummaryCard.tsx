@@ -1,30 +1,28 @@
 import { KeyValueList, SubSection, type KeyValueItem } from "@babylonlabs-io/core-ui";
 
-interface LoanSummaryCardProps {
-  collateralAmount: number;
-  loanAmount: number;
+interface RepaySummaryCardProps {
+  currentLoanAmount: number;
+  repayAmount: number;
   ltv: number;
   liquidationLtv: number;
 }
 
-export function LoanSummaryCard({
-  collateralAmount,
-  loanAmount,
+export function RepaySummaryCard({
+  currentLoanAmount,
+  repayAmount,
   ltv,
   liquidationLtv,
-}: LoanSummaryCardProps) {
+}: RepaySummaryCardProps) {
+  const remainingLoanAmount = currentLoanAmount - repayAmount;
+
   const items: KeyValueItem[] = [
     {
-      label: "Collateral (BTC)",
-      value: `${collateralAmount.toFixed(4)} BTC`,
-    },
-    {
       label: "Loan (USDC)",
-      value: `${loanAmount.toLocaleString()} USDC`,
+      value: `${remainingLoanAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC`,
     },
     {
       label: "LTV",
-      value: `${ltv.toFixed(1)}%`,
+      value: `${ltv.toFixed(1)} %`,
     },
     {
       label: "Liquidation LTV",
@@ -38,3 +36,4 @@ export function LoanSummaryCard({
     </SubSection>
   );
 }
+

@@ -4,6 +4,7 @@
   /* CSS variables for inactive color based on theme */
   --slider-inactive-color: #d1d5db; /* Light mode */
   --unfilled-color: #525459; /* Light mode - secondary-strokeDark */
+  --slider-active-color: #ff7c2a; /* Default orange color */
   
   /* Thumb */
   &::-webkit-slider-thumb {
@@ -27,16 +28,16 @@
 
     &.bbn-slider-filled::-webkit-slider-runnable-track {
       background: linear-gradient(to right,
-        #ff7c2a 0%,
-        #ff7c2a var(--slider-fill, 0%),
+        var(--slider-active-color, #ff7c2a) 0%,
+        var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
         var(--slider-inactive-color) var(--slider-fill, 0%),
         var(--slider-inactive-color) 100%
       );
     }
     &.bbn-slider-filled::-moz-range-track {
       background: linear-gradient(to right,
-        #ff7c2a 0%,
-        #ff7c2a var(--slider-fill, 0%),
+        var(--slider-active-color, #ff7c2a) 0%,
+        var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
         var(--slider-inactive-color) var(--slider-fill, 0%),
         var(--slider-inactive-color) 100%
       );

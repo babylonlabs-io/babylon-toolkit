@@ -32,10 +32,12 @@ export interface AmountSliderWidgetProps {
   sliderSteps?: SliderStep[];
   onSliderChange: (value: number) => void;
   sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
+  sliderActiveColor?: string;
   
   // Bottom fields (optional)
   leftField?: BottomField;
   rightField?: BottomField;
+  onMaxClick?: () => void; // When provided, renders Max as clickable button
   
   // General
   disabled?: boolean;
@@ -55,8 +57,10 @@ export function AmountSliderWidget({
   sliderSteps,
   onSliderChange,
   sliderVariant = "primary",
+  sliderActiveColor,
   leftField,
   rightField,
+  onMaxClick,
   disabled = false,
   className,
 }: AmountSliderWidgetProps) {
@@ -104,6 +108,7 @@ export function AmountSliderWidget({
         steps={sliderSteps}
         onChange={onSliderChange}
         variant={sliderVariant}
+        activeColor={sliderActiveColor}
         disabled={disabled}
       />
 
@@ -111,10 +116,23 @@ export function AmountSliderWidget({
       {(leftField || rightField) && (
         <div className="flex items-center justify-between text-sm">
           {leftField && (
-            <span className="text-accent-secondary">
-              {leftField.label && `${leftField.label}: `}
-              {leftField.value}
-            </span>
+            <>
+              {onMaxClick && leftField.label?.toLowerCase() === "max" ? (
+                <button
+                  type="button"
+                  onClick={onMaxClick}
+                  disabled={disabled}
+                  className="text-accent-secondary hover:text-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="underline">Max</span>: {leftField.value}
+                </button>
+              ) : (
+                <span className="text-accent-secondary">
+                  {leftField.label && `${leftField.label}: `}
+                  {leftField.value}
+                </span>
+              )}
+            </>
           )}
           {rightField && (
             <span className="text-accent-secondary">{rightField.value}</span>

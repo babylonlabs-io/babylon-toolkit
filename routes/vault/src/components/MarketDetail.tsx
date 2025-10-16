@@ -1,17 +1,33 @@
 import { Card, Avatar, AvatarGroup, Tabs, Button, MarketStatCard, AmountSliderWidget, formatAmount, parseAmount } from "@babylonlabs-io/core-ui";
 import { KeyValueList } from "@babylonlabs-io/core-ui";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useState, useMemo } from "react";
 import { LoanSummaryCard } from "./LoanSummaryCard";
 import { BorrowReviewModal } from "./BorrowReviewModal";
+import { RepayReviewModal } from "./RepayReviewModal";
+import { RepaySummaryCard } from "./RepaySummaryCard";
+import { BorrowSuccessModal } from "./BorrowSuccessModal";
+import { RepaySuccessModal } from "./RepaySuccessModal";
 
 export function MarketDetail() {
   const navigate = useNavigate();
   const { marketId } = useParams<{ marketId: string }>();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') || 'borrow';
+  
   const [collateralAmount, setCollateralAmount] = useState(0);
   const [borrowAmount, setBorrowAmount] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
+  
+  // Repay flow state
+  const [repayAmount, setRepayAmount] = useState(0);
+  const [withdrawCollateralAmount, setWithdrawCollateralAmount] = useState(0);
+  const [showRepayReviewModal, setShowRepayReviewModal] = useState(false);
+  
+  // Success modal state
+  const [showBorrowSuccessModal, setShowBorrowSuccessModal] = useState(false);
+  const [showRepaySuccessModal, setShowRepaySuccessModal] = useState(false);
 
   const handleBack = () => {
     navigate("/vault");
@@ -31,12 +47,39 @@ export function MarketDetail() {
       // Simulate async operation
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Close modal on success
+      // Close review modal
       setShowReviewModal(false);
       
-      // TODO: Show success message or navigate to position
+      // Show success modal
+      setShowBorrowSuccessModal(true);
     } catch (error) {
       console.error("Borrow failed:", error);
+      // TODO: Show error message
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleRepay = () => {
+    setShowRepayReviewModal(true);
+  };
+
+  const handleConfirmRepay = async () => {
+    setProcessing(true);
+    try {
+      // TODO: Implement actual repay transaction
+      console.log("Confirming repay:", { marketId, repayAmount, withdrawCollateralAmount });
+      
+      // Simulate async operation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Close review modal
+      setShowRepayReviewModal(false);
+      
+      // Show success modal
+      setShowRepaySuccessModal(true);
+    } catch (error) {
+      console.error("Repay failed:", error);
       // TODO: Show error message
     } finally {
       setProcessing(false);
@@ -48,13 +91,26 @@ export function MarketDetail() {
   const maxBorrow = 100000;
   const btcPrice = 112694.16;
   const liquidationLtv = 70;
+  
+  // Hardcoded position data for repay flow
+  const currentLoanAmount = 788859; // USDC
+  const currentCollateralAmount = 10.0; // BTC
 
-  // Calculate LTV
+  // Calculate LTV for borrow flow
   const ltv = useMemo(() => {
     if (collateralAmount === 0) return 0;
     const collateralValueUSD = collateralAmount * btcPrice;
     return (borrowAmount / collateralValueUSD) * 100;
   }, [collateralAmount, borrowAmount, btcPrice]);
+
+  // REPLACE IT WITH SERVICE FUNCTION:Calculate LTV for repay flow
+  const repayLtv = useMemo(() => {
+    const remainingCollateral = currentCollateralAmount - withdrawCollateralAmount;
+    if (remainingCollateral === 0) return 0;
+    const remainingCollateralValueUSD = remainingCollateral * btcPrice;
+    const remainingLoan = currentLoanAmount - repayAmount;
+    return (remainingLoan / remainingCollateralValueUSD) * 100;
+  }, [currentCollateralAmount, withdrawCollateralAmount, currentLoanAmount, repayAmount, btcPrice]);
 
   const marketAttributes = [
     { label: "Collateral", value: "BTC" },
@@ -107,8 +163,8 @@ export function MarketDetail() {
             amount="6.25%"
           />
         </div>
-
-          <KeyValueList items={marketAttributes} title="Market Attributes" />
+          <h2 className="mb-4 text-2xl font-normal text-accent-primary">Market Attributes</h2>
+          <KeyValueList items={marketAttributes} />
         </div>
 
         <div className="top-24">
@@ -170,6 +226,7 @@ export function MarketDetail() {
                             label: "Max",
                             value: `${maxBorrow.toLocaleString()} USDC`,
                           }}
+                          onMaxClick={() => setBorrowAmount(maxBorrow)}
                           rightField={{
                             value: `$${borrowAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
                           }}
@@ -200,12 +257,88 @@ export function MarketDetail() {
                   id: "repay",
                   label: "Repay",
                   content: (
-                    <div className="py-8 text-center text-accent-secondary">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <h3 className="text-[24px] font-normal text-accent-primary">Repay</h3>
+                        <AmountSliderWidget
+                          amount={formatAmount(repayAmount, 2)}
+                          currencyIcon="/usdc.png"
+                          currencyName="USDC"
+                          onAmountChange={(e) => setRepayAmount(parseAmount(e.target.value))}
+                          balanceDetails={{
+                            balance: currentLoanAmount.toLocaleString(),
+                            symbol: "USDC", // TODO: Get symbol and details from market
+                            displayUSD: false,
+                          }}
+                          sliderValue={repayAmount}
+                          sliderMin={0}
+                          sliderMax={currentLoanAmount}
+                          sliderStep={currentLoanAmount / 1000}
+                          onSliderChange={setRepayAmount}
+                          sliderVariant="primary"
+                          sliderActiveColor="#0B53BF"
+                          leftField={{
+                            label: "Max",
+                            value: `${currentLoanAmount.toLocaleString()} USDC`,
+                          }}
+                          onMaxClick={() => setRepayAmount(currentLoanAmount)}
+                          rightField={{
+                            value: `$${repayAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+                          }}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="text-[24px] font-normal text-accent-primary">Withdraw Collateral</h3>
+                        <AmountSliderWidget
+                          amount={formatAmount(withdrawCollateralAmount, 8)}
+                          currencyIcon="/btc.png"
+                          currencyName="Bitcoin"
+                          onAmountChange={(e) => setWithdrawCollateralAmount(parseAmount(e.target.value))}
+                          balanceDetails={{
+                            balance: currentCollateralAmount.toFixed(4),
+                            symbol: "BTC",
+                            displayUSD: false,
+                          }}
+                          sliderValue={withdrawCollateralAmount}
+                          sliderMin={0}
+                          sliderMax={currentCollateralAmount}
+                          sliderStep={currentCollateralAmount / 1000}
+                          onSliderChange={setWithdrawCollateralAmount}
+                          sliderVariant="primary"
+                          leftField={{
+                            label: "Max",
+                            value: `${currentCollateralAmount.toFixed(4)} BTC`,
+                          }}
+                          onMaxClick={() => setWithdrawCollateralAmount(currentCollateralAmount)}
+                          rightField={{
+                            value: `$${(withdrawCollateralAmount * btcPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`,
+                          }}
+                        />
+                      </div>
+
+                      <RepaySummaryCard
+                        currentLoanAmount={currentLoanAmount}
+                        repayAmount={repayAmount}
+                        ltv={repayLtv}
+                        liquidationLtv={liquidationLtv}
+                      />
+
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        size="large"
+                        fluid
+                        disabled={repayAmount === 0 && withdrawCollateralAmount === 0}
+                        onClick={handleRepay}
+                      >
+                        {repayAmount === 0 && withdrawCollateralAmount === 0 ? "Enter an amount" : "Repay and Withdraw"}
+                      </Button>
                     </div>
                   ),
                 },
               ]}
-              defaultActiveTab="borrow"
+              defaultActiveTab={defaultTab}
             />
           </Card>
         </div>
@@ -226,6 +359,40 @@ export function MarketDetail() {
         ltv={ltv}
         liquidationLtv={liquidationLtv}
         processing={processing}
+      />
+
+      {/* Repay Review Modal */}
+      <RepayReviewModal
+        open={showRepayReviewModal}
+        onClose={() => setShowRepayReviewModal(false)}
+        onConfirm={handleConfirmRepay}
+        repayAmount={repayAmount}
+        repaySymbol="USDC"
+        repayUsdValue={`$${repayAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`}
+        withdrawAmount={withdrawCollateralAmount}
+        withdrawSymbol="BTC"
+        withdrawUsdValue={`$${(withdrawCollateralAmount * btcPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`}
+        ltv={repayLtv}
+        liquidationLtv={liquidationLtv}
+        processing={processing}
+      />
+
+      {/* Borrow Success Modal */}
+      <BorrowSuccessModal
+        open={showBorrowSuccessModal}
+        onClose={() => setShowBorrowSuccessModal(false)}
+        borrowAmount={borrowAmount}
+        borrowSymbol="USDC"
+      />
+
+      {/* Repay Success Modal */}
+      <RepaySuccessModal
+        open={showRepaySuccessModal}
+        onClose={() => setShowRepaySuccessModal(false)}
+        repayAmount={repayAmount}
+        withdrawAmount={withdrawCollateralAmount}
+        repaySymbol="USDC"
+        withdrawSymbol="BTC"
       />
     </div>
   );

@@ -9,37 +9,35 @@ import {
   Heading,
 } from "@babylonlabs-io/core-ui";
 
-interface BorrowReviewModalProps {
+interface RepayReviewModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  collateralAmount: number;
-  collateralSymbol: string;
-  collateralUsdValue: string;
-  borrowAmount: number;
-  borrowSymbol: string;
-  borrowUsdValue: string;
-  borrowApy: number;
+  repayAmount: number;
+  repaySymbol: string;
+  repayUsdValue: string;
+  withdrawAmount: number;
+  withdrawSymbol: string;
+  withdrawUsdValue: string;
   ltv: number;
   liquidationLtv: number;
   processing?: boolean;
 }
 
-export function BorrowReviewModal({
+export function RepayReviewModal({
   open,
   onClose,
   onConfirm,
-  collateralAmount,
-  collateralSymbol,
-  collateralUsdValue,
-  borrowAmount,
-  borrowSymbol,
-  borrowUsdValue,
-  borrowApy,
+  repayAmount,
+  repaySymbol,
+  repayUsdValue,
+  withdrawAmount,
+  withdrawSymbol,
+  withdrawUsdValue,
   ltv,
   liquidationLtv,
   processing = false,
-}: BorrowReviewModalProps) {
+}: RepayReviewModalProps) {
   const [acknowledged, setAcknowledged] = useState(false);
 
   const handleClose = () => {
@@ -54,16 +52,12 @@ export function BorrowReviewModal({
 
   const reviewFields = [
     {
-      label: "Collateral",
-      value: `${collateralAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} ${collateralSymbol} (${collateralUsdValue})`,
+      label: "Repayment Amount",
+      value: `${repayAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${repaySymbol} (${repayUsdValue})`,
     },
     {
-      label: "Borrow",
-      value: `${borrowAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${borrowSymbol} (${borrowUsdValue})`,
-    },
-    {
-      label: "Borrow APY",
-      value: `${borrowApy.toFixed(2)}%`,
+      label: "Withdraw Collateral",
+      value: `${withdrawAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} ${withdrawSymbol} (${withdrawUsdValue})`,
     },
     {
       label: "LTV",
@@ -84,6 +78,10 @@ export function BorrowReviewModal({
       />
 
       <DialogBody className="mb-8 mt-4 flex flex-col gap-4 text-accent-primary">
+        <Text variant="body2" className="text-accent-secondary">
+          Review the details before confirming your deposit
+        </Text>
+
         {/* Review Fields */}
         <div className="flex flex-col">
           {reviewFields.map((field) => (
@@ -96,7 +94,6 @@ export function BorrowReviewModal({
                   {field.value}
                 </Text>
               </div>
-              
             </div>
           ))}
         </div>
@@ -118,14 +115,23 @@ export function BorrowReviewModal({
               className="mt-0.5 h-5 w-5 cursor-pointer accent-primary-light"
             />
             <Text variant="body2" className="text-accent-primary">
-              I understand the risks, including liquidation if my LTV reaches {liquidationLtv}%.
+              Your BTC remains secure and cannot be accessed by third parties. Only you can withdraw your funds. After submission, your deposit will be verified. This may take up to 5 hours, during which your deposit will appear as Pending until confirmed on the Bitcoin network.
             </Text>
           </label>
         </div>
       </DialogBody>
 
       <DialogFooter className="flex gap-4 pb-8 pt-0">
-      <Button
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={handleClose}
+          className="flex-1"
+          disabled={processing}
+        >
+          Cancel
+        </Button>
+        <Button
           variant="contained"
           color="primary"
           onClick={handleConfirm}

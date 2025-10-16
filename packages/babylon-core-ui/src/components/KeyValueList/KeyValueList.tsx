@@ -1,4 +1,4 @@
-import { Card } from "../Card";
+import { twMerge } from "tailwind-merge";
 
 export interface KeyValueItem {
   label: string;
@@ -7,33 +7,28 @@ export interface KeyValueItem {
 
 export interface KeyValueListProps {
   items: KeyValueItem[];
-  title?: string;
+  showDivider?: boolean;
   className?: string;
 }
 
 export function KeyValueList({
   items,
-  title,
+  showDivider = true,
   className,
 }: KeyValueListProps) {
   return (
-    <Card className={className}>
-      {title && (
-        <h2 className="mb-4 text-[24px] font-normal text-accent-primary">{title}</h2>
-      )}
-      <div className="divide-y divide-surface-secondary">
-        {items.map((item, index) => (
-          <div key={index} className="flex items-center justify-between py-3">
-            <span className="text-[16px] font-normal text-accent-secondary">
-              {item.label}
-            </span>
-            <span className="text-[16px] font-normal text-accent-primary">
-              {item.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </Card>
+    <div className={twMerge(showDivider && "divide-y divide-surface-secondary", className)}>
+      {items.map((item, index) => (
+        <div key={index} className="flex items-center justify-between py-4">
+          <span className="text-base font-normal text-accent-secondary">
+            {item.label}
+          </span>
+          <span className="text-base font-normal text-accent-primary">
+            {item.value}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 

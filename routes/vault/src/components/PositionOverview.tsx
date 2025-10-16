@@ -1,14 +1,12 @@
 import {
   Table,
-  Menu,
-  MenuItem,
-  ThreeDotsMenuIcon,
   useIsMobile,
   VaultDetailCard,
   Avatar,
   AvatarGroup,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
+import { useNavigate } from "react-router";
 import type { Position } from "../types/position";
 
 // Hardcoded position data
@@ -25,7 +23,13 @@ const HARDCODED_POSITIONS: Position[] = [
 
 export function PositionOverview() {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const positions = HARDCODED_POSITIONS;
+
+  const handlePositionClick = (position: Position) => {
+    // Navigate to market detail with repay tab
+    navigate(`/vault/market/${position.id}?tab=repay`);
+  };
 
   if (positions.length === 0) {
     return (
@@ -89,30 +93,6 @@ export function PositionOverview() {
         <span className="text-sm text-accent-primary">{row.health}</span>
       ),
     },
-    {
-      key: "actions",
-      header: "",
-      render: (_value: unknown, row: Position) => (
-        <div className="flex justify-end">
-          <Menu
-            trigger={
-              <button
-                className="rounded p-1 hover:bg-surface-secondary"
-                aria-label="Actions"
-              >
-                <ThreeDotsMenuIcon size={20} variant="accent-primary" />
-              </button>
-            }
-            placement="bottom-end"
-          >
-            <MenuItem
-              name="Withdraw Deposit"
-              onClick={() => console.log("Withdraw", row.id)}
-            />
-          </Menu>
-        </div>
-      ),
-    },
   ];
 
   return (
@@ -124,42 +104,46 @@ export function PositionOverview() {
             const mainText = parts.slice(0, 2).join(" ");
             const subText = parts.slice(2).join(" ");
             return (
-              <VaultDetailCard
+              <div 
                 key={position.id}
-                id={position.id}
-                title={{
-                  icons: ["/btc.png", "/usdc.png"],
-                  text: position.loan,
-                }}
-                details={[
-                  { label: "LLTV", value: position.lltv },
-                  {
-                    label: "Liquidation LTV",
-                    value: (
-                      <div className="flex flex-col items-end">
-                        <span className="text-sm text-accent-primary">{mainText}</span>
-                        {subText && (
-                          <span className="text-sm text-accent-secondary">{subText}</span>
-                        )}
-                      </div>
-                    ),
-                  },
-                  { label: "Borrow Rate", value: position.borrowRate },
-                  { label: "Health", value: position.health },
-                ]}
-                actions={[
-                  { name: "Withdraw Deposit", action: "withdraw" },
-                ]}
-                onAction={(positionId, action) =>
-                  console.log(`Action ${action} on position ${positionId}`)
-                }
-              />
+                onClick={() => handlePositionClick(position)}
+                className="cursor-pointer"
+              >
+                <VaultDetailCard
+                  id={position.id}
+                  title={{
+                    icons: ["/btc.png", "/usdc.png"],
+                    text: position.loan,
+                  }}
+                  details={[
+                    { label: "LLTV", value: position.lltv },
+                    {
+                      label: "Liquidation LTV",
+                      value: (
+                        <div className="flex flex-col items-end">
+                          <span className="text-sm text-accent-primary">{mainText}</span>
+                          {subText && (
+                            <span className="text-sm text-accent-secondary">{subText}</span>
+                          )}
+                        </div>
+                      ),
+                    },
+                    { label: "Borrow Rate", value: position.borrowRate },
+                    { label: "Health", value: position.health },
+                  ]}
+                />
+              </div>
             );
           })}
         </div>
       ) : (
         <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
-          <Table data={positions} columns={columns} fluid />
+          <Table 
+            data={positions} 
+            columns={columns} 
+            fluid 
+            onRowClick={handlePositionClick}
+          />
         </div>
       )}
     </>
