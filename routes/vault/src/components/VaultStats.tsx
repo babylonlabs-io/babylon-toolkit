@@ -8,7 +8,7 @@ export const VaultStats = memo(() => {
 
   return (
     <Card className="max-md:border-0 max-md:p-0">
-      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
+      <h3 className="text-accent-primary mb-4 text-2xl font-normal capitalize md:mb-6">
         Stats
       </h3>
       <div className="overflow-x-auto md:overflow-visible">

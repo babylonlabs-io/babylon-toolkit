@@ -40,14 +40,14 @@ export function ActivityOverview() {
       key: "date",
       header: "Date",
       render: (_value: unknown, row: Activity) => (
-        <span className="text-sm text-accent-primary">{row.date}</span>
+        <span className="text-accent-primary text-sm">{row.date}</span>
       ),
     },
     {
       key: "type",
       header: "Type",
       render: (_value: unknown, row: Activity) => (
-        <span className="text-sm text-accent-primary">{row.type}</span>
+        <span className="text-accent-primary text-sm">{row.type}</span>
       ),
     },
     {
@@ -56,7 +56,7 @@ export function ActivityOverview() {
       render: (_value: unknown, row: Activity) => (
         <div className="flex items-center gap-2">
           <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
-          <span className="text-sm text-accent-primary">{row.amount}</span>
+          <span className="text-accent-primary text-sm">{row.amount}</span>
         </div>
       ),
     },
@@ -69,7 +69,7 @@ export function ActivityOverview() {
             e.stopPropagation();
             handleCopyHash(row.transactionHash);
           }}
-          className="text-sm text-accent-secondary hover:text-accent-primary transition-colors cursor-pointer"
+          className="text-accent-secondary hover:text-accent-primary cursor-pointer text-sm transition-colors"
           title="Click to copy"
         >
           {copiedHash === row.transactionHash ? "Copied!" : truncateHash(row.transactionHash)}
@@ -81,9 +81,9 @@ export function ActivityOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {activities.length === 0 ? (
-            <div className="py-8 text-center text-sm text-accent-secondary">
+            <div className="text-accent-secondary py-8 text-center text-sm">
               Your activity will appear here.
             </div>
           ) : (
@@ -106,7 +106,7 @@ export function ActivityOverview() {
                           e.stopPropagation();
                           handleCopyHash(activity.transactionHash);
                         }}
-                        className="text-sm text-accent-secondary hover:text-accent-primary transition-colors"
+                        className="text-accent-secondary hover:text-accent-primary text-sm transition-colors"
                       >
                         {copiedHash === activity.transactionHash
                           ? "Copied!"
@@ -121,7 +121,7 @@ export function ActivityOverview() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="bg-primary-contrast max-h-[500px] overflow-auto">
           <Table data={activities} columns={columns} fluid />
         </div>
       )}

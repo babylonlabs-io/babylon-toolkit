@@ -16,12 +16,12 @@ export const Router = () => {
         <Route path="btc" element={<BTCStaking />} />
         <Route path="baby" element={<BabyLayout />} />
         <Route path="rewards" element={<RewardsPage />} />
-            {FeatureFlagService.IsVaultEnabled && (
-              <Route path="vault" element={<VaultLayout />} />
-            )}
-            {FeatureFlagService.IsVaultEnabled && (
-              <Route path="vault/market/:marketId" element={<MarketDetailPage />} />
-            )}
+        {FeatureFlagService.IsVaultEnabled && (
+          <Route path="vault" element={<VaultLayout />} />
+        )}
+        {FeatureFlagService.IsVaultEnabled && (
+          <Route path="vault/market/:marketId" element={<MarketDetailPage />} />
+        )}
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

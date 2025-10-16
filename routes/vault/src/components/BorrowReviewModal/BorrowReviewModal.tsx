@@ -88,7 +88,7 @@ export function BorrowReviewModal({
         className="text-accent-primary"
       />
 
-      <DialogBody className="mb-8 mt-4 flex flex-col gap-4 text-accent-primary">
+      <DialogBody className="text-accent-primary mb-8 mt-4 flex flex-col gap-4">
         {/* Review Fields */}
         <div className="flex flex-col">
           {reviewFields.map((field, index) => (
@@ -117,12 +117,12 @@ export function BorrowReviewModal({
           </Heading>
           
           {/* Risk Acknowledgment Checkbox */}
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
+          <label className="border-secondary-strokeDark bg-surface-secondary hover:border-accent-primary/30 flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors">
             <input
               type="checkbox"
               checked={acknowledged}
               onChange={(e) => setAcknowledged(e.target.checked)}
-              className="mt-0.5 h-5 w-5 cursor-pointer accent-primary-light"
+              className="accent-primary-light mt-0.5 size-5 cursor-pointer"
             />
             <Text variant="body2" className="text-accent-primary">
               I understand the risks, including liquidation if my LTV reaches {liquidationLtv}%.

@@ -67,7 +67,7 @@ export function MarketDetail() {
 
   return (
       <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
-        <div className="grid grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-2 items-start gap-6">
           <div className="space-y-6">
         <Button 
           variant="ghost" 
@@ -88,7 +88,7 @@ export function MarketDetail() {
             <Avatar url="/btc.png" alt="BTC" size="large" variant="circular" />
             <Avatar url="/usdc.png" alt="USDC" size="large" variant="circular" />
           </AvatarGroup>
-          <span className="text-[48px] font-normal text-accent-primary">BTC / USDC</span>
+          <span className="text-accent-primary text-[48px] font-normal">BTC / USDC</span>
         </div>
 
         <div className="grid grid-cols-3 gap-6 max-md:grid-cols-1">
@@ -121,7 +121,7 @@ export function MarketDetail() {
                   content: (
                     <div className="space-y-4">
                       <div className="space-y-2">
-                        <h3 className="text-[24px] font-normal text-accent-primary">Collateral</h3>
+                        <h3 className="text-accent-primary text-[24px] font-normal">Collateral</h3>
                         <AmountSliderWidget
                           amount={formatAmount(collateralAmount, 8)}
                           currencyIcon="/btc.png"
@@ -149,7 +149,7 @@ export function MarketDetail() {
                       </div>
 
                       <div className="space-y-2">
-                        <h3 className="text-[24px] font-normal text-accent-primary">Borrow</h3>
+                        <h3 className="text-accent-primary text-[24px] font-normal">Borrow</h3>
                         <AmountSliderWidget
                           amount={formatAmount(borrowAmount, 2)}
                           currencyIcon="/usdc.png"
@@ -200,7 +200,7 @@ export function MarketDetail() {
                   id: "repay",
                   label: "Repay",
                   content: (
-                    <div className="py-8 text-center text-accent-secondary">
+                    <div className="text-accent-secondary py-8 text-center">
                     </div>
                   ),
                 },

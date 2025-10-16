@@ -55,7 +55,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
   const borrowForm = (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-4 text-base font-medium text-accent-primary">Collateral</h3>
+        <h3 className="text-accent-primary mb-4 text-base font-medium">Collateral</h3>
         <AmountSliderWidget
           amount={collateralAmount}
           currencyIcon="/btc.png"
@@ -84,7 +84,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
       </div>
 
       <div>
-        <h3 className="mb-4 text-base font-medium text-accent-primary">Borrow</h3>
+        <h3 className="text-accent-primary mb-4 text-base font-medium">Borrow</h3>
         <AmountSliderWidget
           amount={borrowAmount}
           currencyIcon="/usdc.png"
@@ -112,7 +112,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
         />
       </div>
 
-      <div className="space-y-3 rounded-lg bg-surface-tertiary p-4">
+      <div className="bg-surface-tertiary space-y-3 rounded-lg p-4">
         <div className="flex items-center justify-between text-sm">
           <span className="text-accent-secondary">Collateral (BTC)</span>
           <span className="text-accent-primary font-medium">
@@ -152,12 +152,12 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
   // Mobile layout
   if (isMobile) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex h-full flex-col">
         {/* Back button header */}
         <div className="mb-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-base text-accent-secondary hover:text-accent-primary transition-colors"
+            className="text-accent-secondary hover:text-accent-primary flex items-center gap-2 text-base transition-colors"
           >
             <ChevronLeftIcon size={16} variant="accent-secondary" />
             Dashboard
@@ -172,7 +172,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
               id: "repay",
               label: "Repay",
               content: (
-                <div className="text-center text-accent-secondary py-8">
+                <div className="text-accent-secondary py-8 text-center">
                   Repay
                 </div>
               ),
@@ -187,13 +187,13 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
 
   // Desktop layout - two column grid
   return (
-    <div className="grid grid-cols-[2fr_1px_1fr] gap-0 h-full">
+    <div className="grid h-full grid-cols-[2fr_1px_1fr] gap-0">
       {/* Left side - Market info (scrollable) */}
       <div className="overflow-y-auto pr-8">
         {/* Back to Dashboard Button */}
         <button
           onClick={onBack}
-          className="mb-6 flex items-center gap-2 text-base text-accent-secondary hover:text-accent-primary transition-colors"
+          className="text-accent-secondary hover:text-accent-primary mb-6 flex items-center gap-2 text-base transition-colors"
         >
           <ChevronLeftIcon size={16} variant="accent-secondary" />
           Dashboard
@@ -206,7 +206,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
               <Avatar url="/btc.png" alt="BTC" size="large" variant="circular" />
               <Avatar url="/usdc.png" alt="USDC" size="large" variant="circular" />
             </AvatarGroup>
-            <h1 className="text-5xl font-normal text-accent-primary">
+            <h1 className="text-accent-primary text-5xl font-normal">
               {MARKET_DATA.pair}
             </h1>
           </div>
@@ -217,10 +217,10 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
               <p className="text-sm" style={{ color: "#999999" }}>
                 Total Market Size
               </p>
-              <p className="text-2xl font-semibold text-accent-primary">
+              <p className="text-accent-primary text-2xl font-semibold">
                 {MARKET_DATA.totalMarketSize}
               </p>
-              <p className="text-sm text-accent-primary">
+              <p className="text-accent-primary text-sm">
                 {MARKET_DATA.totalMarketSizeSubtext}
               </p>
             </div>
@@ -228,10 +228,10 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
               <p className="text-sm" style={{ color: "#999999" }}>
                 Total Liquidity
               </p>
-              <p className="text-2xl font-semibold text-accent-primary">
+              <p className="text-accent-primary text-2xl font-semibold">
                 {MARKET_DATA.totalLiquidity}
               </p>
-              <p className="text-sm text-accent-primary">
+              <p className="text-accent-primary text-sm">
                 {MARKET_DATA.totalLiquiditySubtext}
               </p>
             </div>
@@ -239,7 +239,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
               <p className="text-sm" style={{ color: "#999999" }}>
                 Borrow Rate
               </p>
-              <p className="text-2xl font-semibold text-accent-primary">
+              <p className="text-accent-primary text-2xl font-semibold">
                 {MARKET_DATA.borrowRate}
               </p>
             </div>
@@ -248,7 +248,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
 
         {/* Market Attributes Card */}
         <Card>
-          <h2 className="mb-4 text-xl font-semibold text-accent-primary">
+          <h2 className="text-accent-primary mb-4 text-xl font-semibold">
             Market Attributes
           </h2>
           <AttributeList attributes={marketAttributes} />
@@ -268,7 +268,7 @@ export function VaultMarket({ onBack }: VaultMarketProps) {
                 id: "repay",
                 label: "Repay",
                 content: (
-                  <div className="text-center text-accent-secondary py-8">
+                  <div className="text-accent-secondary py-8 text-center">
                     Repay
                   </div>
                 ),

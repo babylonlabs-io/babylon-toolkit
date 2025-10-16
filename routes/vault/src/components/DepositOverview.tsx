@@ -43,7 +43,7 @@ const HARDCODED_DEPOSITS: Deposit[] = [
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl bg-primary-contrast p-6">
+    <div className="bg-primary-contrast rounded-2xl p-6">
       <div className="flex flex-col items-center">
         <img
           src="/mascot-bitcoin.png"
@@ -51,10 +51,10 @@ function EmptyState() {
           className="h-auto max-w-[240px]"
         />
         <div className="flex flex-col gap-1 text-center">
-          <h4 className="text-lg font-semibold text-accent-primary">
+          <h4 className="text-accent-primary text-lg font-semibold">
             Supply Collateral BTC Trustlessly
           </h4>
-          <p className="text-sm text-accent-secondary">
+          <p className="text-accent-secondary text-sm">
             Enter the amount of BTC you want to deposit and select a provider to
             secure it.
             <br />
@@ -83,7 +83,7 @@ export function DepositOverview() {
           <AvatarGroup size="small">
             <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
           </AvatarGroup>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-primary text-sm font-medium">
             {row.amount} BTC
           </span>
         </div>
@@ -95,7 +95,7 @@ export function DepositOverview() {
       render: (_value: unknown, row: Deposit) => (
         <div className="flex items-center gap-2">
           <span className="text-base">{row.vaultProvider.icon}</span>
-          <span className="text-sm text-accent-primary">
+          <span className="text-accent-primary text-sm">
             {row.vaultProvider.name}
           </span>
         </div>
@@ -129,7 +129,7 @@ export function DepositOverview() {
 
       {/* Desktop: Deposits Table, Mobile: Deposit Cards */}
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {deposits.map((deposit) => {
             const statusMap = {
               "Available": "inactive" as const,
@@ -150,7 +150,7 @@ export function DepositOverview() {
                     value: (
                       <div className="flex items-center gap-2">
                         <span className="text-base">{deposit.vaultProvider.icon}</span>
-                        <span className="text-sm text-accent-primary">
+                        <span className="text-accent-primary text-sm">
                           {deposit.vaultProvider.name}
                         </span>
                       </div>
@@ -177,7 +177,7 @@ export function DepositOverview() {
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="bg-primary-contrast max-h-[500px] overflow-auto">
           <Table data={deposits} columns={columns} fluid />
         </div>
       )}

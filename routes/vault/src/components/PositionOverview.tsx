@@ -29,7 +29,7 @@ export function PositionOverview() {
 
   if (positions.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-accent-secondary">
+      <div className="text-accent-secondary py-8 text-center text-sm">
         No positions available
       </div>
     );
@@ -45,7 +45,7 @@ export function PositionOverview() {
             <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
             <Avatar url="/usdc.png" alt="USDC" size="small" variant="circular" />
           </AvatarGroup>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-primary text-sm font-medium">
             {row.loan}
           </span>
         </div>
@@ -55,7 +55,7 @@ export function PositionOverview() {
       key: "ltv",
       header: "LTV",
       render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.lltv}</span>
+        <span className="text-accent-primary text-sm">{row.lltv}</span>
       ),
     },
     {
@@ -67,9 +67,9 @@ export function PositionOverview() {
         const subText = parts.slice(2).join(" ");
         return (
           <div className="flex items-center gap-1">
-            <span className="text-sm text-accent-primary">{mainText}</span>
+            <span className="text-accent-primary text-sm">{mainText}</span>
             {subText && (
-              <span className="text-sm text-accent-secondary">{subText}</span>
+              <span className="text-accent-secondary text-sm">{subText}</span>
             )}
           </div>
         );
@@ -79,14 +79,14 @@ export function PositionOverview() {
       key: "borrowRate",
       header: "Borrow Rate",
       render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.borrowRate}</span>
+        <span className="text-accent-primary text-sm">{row.borrowRate}</span>
       ),
     },
     {
       key: "health",
       header: "Health",
       render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.health}</span>
+        <span className="text-accent-primary text-sm">{row.health}</span>
       ),
     },
     {
@@ -97,7 +97,7 @@ export function PositionOverview() {
           <Menu
             trigger={
               <button
-                className="rounded p-1 hover:bg-surface-secondary"
+                className="hover:bg-surface-secondary rounded p-1"
                 aria-label="Actions"
               >
                 <ThreeDotsMenuIcon size={20} variant="accent-primary" />
@@ -118,7 +118,7 @@ export function PositionOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {positions.map((position) => {
             const parts = position.liquidationLtv.split(" ");
             const mainText = parts.slice(0, 2).join(" ");
@@ -137,9 +137,9 @@ export function PositionOverview() {
                     label: "Liquidation LTV",
                     value: (
                       <div className="flex flex-col items-end">
-                        <span className="text-sm text-accent-primary">{mainText}</span>
+                        <span className="text-accent-primary text-sm">{mainText}</span>
                         {subText && (
-                          <span className="text-sm text-accent-secondary">{subText}</span>
+                          <span className="text-accent-secondary text-sm">{subText}</span>
                         )}
                       </div>
                     ),
@@ -158,7 +158,7 @@ export function PositionOverview() {
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="bg-primary-contrast max-h-[500px] overflow-auto">
           <Table data={positions} columns={columns} fluid />
         </div>
       )}

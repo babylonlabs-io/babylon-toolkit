@@ -17,26 +17,26 @@ export function LoanSummaryCard({
     <Card>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">Collateral (BTC)</span>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-secondary text-sm">Collateral (BTC)</span>
+          <span className="text-accent-primary text-sm font-medium">
             {collateralAmount.toFixed(4)} BTC
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">Loan (USDC)</span>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-secondary text-sm">Loan (USDC)</span>
+          <span className="text-accent-primary text-sm font-medium">
             {loanAmount.toLocaleString()} USDC
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">LTV</span>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-secondary text-sm">LTV</span>
+          <span className="text-accent-primary text-sm font-medium">
             {ltv.toFixed(1)}%
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-accent-secondary">Liquidation LTV</span>
-          <span className="text-sm font-medium text-accent-primary">
+          <span className="text-accent-secondary text-sm">Liquidation LTV</span>
+          <span className="text-accent-primary text-sm font-medium">
             {liquidationLtv}%
           </span>
         </div>

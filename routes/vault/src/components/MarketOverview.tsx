@@ -32,7 +32,7 @@ export function MarketOverview() {
       key: "curator",
       header: "Curator",
       render: (_value: unknown, row: Market) => (
-        <span className="text-sm text-accent-primary">{row.curator}</span>
+        <span className="text-accent-primary text-sm">{row.curator}</span>
       ),
     },
     {
@@ -44,7 +44,7 @@ export function MarketOverview() {
             <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
             <Avatar url="/usdc.png" alt="USDC" size="small" variant="circular" />
           </AvatarGroup>
-          <span className="text-sm text-accent-primary">{row.loan}</span>
+          <span className="text-accent-primary text-sm">{row.loan}</span>
         </div>
       ),
     },
@@ -52,7 +52,7 @@ export function MarketOverview() {
       key: "lltv",
       header: "LLTV",
       render: (_value: unknown, row: Market) => (
-        <span className="text-sm text-accent-primary">{row.lltv}</span>
+        <span className="text-accent-primary text-sm">{row.lltv}</span>
       ),
     },
     {
@@ -64,9 +64,9 @@ export function MarketOverview() {
         const subText = parts.slice(2).join(" ");
         return (
           <div className="flex items-center gap-1">
-            <span className="text-sm text-accent-primary">{mainText}</span>
+            <span className="text-accent-primary text-sm">{mainText}</span>
             {subText && (
-              <span className="text-sm text-accent-secondary">{subText}</span>
+              <span className="text-accent-secondary text-sm">{subText}</span>
             )}
           </div>
         );
@@ -81,9 +81,9 @@ export function MarketOverview() {
         const subText = parts.slice(2).join(" ");
         return (
           <div className="flex items-center gap-1">
-            <span className="text-sm text-accent-primary">{mainText}</span>
+            <span className="text-accent-primary text-sm">{mainText}</span>
             {subText && (
-              <span className="text-sm text-accent-secondary">{subText}</span>
+              <span className="text-accent-secondary text-sm">{subText}</span>
             )}
           </div>
         );
@@ -93,7 +93,7 @@ export function MarketOverview() {
       key: "rate",
       header: "Borrow Rate",
       render: (_value: unknown, row: Market) => (
-        <span className="text-sm text-accent-primary">{row.rate}</span>
+        <span className="text-accent-primary text-sm">{row.rate}</span>
       ),
     },
   ];
@@ -101,9 +101,9 @@ export function MarketOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {markets.length === 0 ? (
-            <div className="py-8 text-center text-sm text-accent-secondary">
+            <div className="text-accent-secondary py-8 text-center text-sm">
               No markets available
             </div>
           ) : (
@@ -131,9 +131,9 @@ export function MarketOverview() {
                       label: "Total Market Size",
                       value: (
                         <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">{marketSizeMain}</span>
+                          <span className="text-accent-primary text-sm">{marketSizeMain}</span>
                           {marketSizeSub && (
-                            <span className="text-sm text-accent-secondary">{marketSizeSub}</span>
+                            <span className="text-accent-secondary text-sm">{marketSizeSub}</span>
                           )}
                         </div>
                       ),
@@ -142,9 +142,9 @@ export function MarketOverview() {
                       label: "Total Liquidity",
                       value: (
                         <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">{liquidityMain}</span>
+                          <span className="text-accent-primary text-sm">{liquidityMain}</span>
                           {liquiditySub && (
-                            <span className="text-sm text-accent-secondary">{liquiditySub}</span>
+                            <span className="text-accent-secondary text-sm">{liquiditySub}</span>
                           )}
                         </div>
                       ),
@@ -158,12 +158,12 @@ export function MarketOverview() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="bg-primary-contrast max-h-[500px] overflow-auto">
           <Table 
             data={markets} 
             columns={columns} 
             fluid 
-            {...({ onRowClick: (market: Market) => navigate(`/vault/market/${market.id}`) } as any)}
+            onRowClick={(market: Market) => navigate(`/vault/market/${market.id}`)}
           />
         </div>
       )}

@@ -11,25 +11,25 @@ export function VaultOverviewPanel() {
     return (
       <>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="text-accent-primary mb-4 text-xl font-normal md:mb-6">
             Deposits
           </h3>
           <DepositOverview />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="text-accent-primary mb-4 text-xl font-normal md:mb-6">
             Your Positions
           </h3>
           <PositionOverview />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="text-accent-primary mb-4 text-xl font-normal md:mb-6">
             Markets
           </h3>
           <MarketOverview />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="text-accent-primary mb-4 text-xl font-normal md:mb-6">
             Activity
           </h3>
           <ActivityOverview />
