@@ -11,22 +11,22 @@ export const CONTRACTS = {
   /**
    * BTCVaultsManager contract - Manages vault providers and pegin requests
    */
-  BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_VAULT_BTC_VAULTS_MANAGER || '0x0165878A594ca255338adfa4d48449f69242Eb8F' as Address,
-  
+  BTC_VAULTS_MANAGER: (process.env.NEXT_PUBLIC_VAULT_BTC_VAULTS_MANAGER || '0x0165878A594ca255338adfa4d48449f69242Eb8F') as Address,
+
   /**
    * VaultController contract - Controls vault operations and borrowing
    */
-  VAULT_CONTROLLER: process.env.NEXT_PUBLIC_VAULT_VAULT_CONTROLLER || '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6' as Address,
-  
+  VAULT_CONTROLLER: (process.env.NEXT_PUBLIC_VAULT_VAULT_CONTROLLER || '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6') as Address,
+
   /**
    * Morpho lending protocol contract
    */
-  MORPHO: process.env.NEXT_PUBLIC_VAULT_MORPHO || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as Address,
-  
+  MORPHO: (process.env.NEXT_PUBLIC_VAULT_MORPHO || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512') as Address,
+
   /**
    * BTCVault base contract
    */
-  BTC_VAULT: process.env.NEXT_PUBLIC_VAULT_BTC_VAULT || '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as Address,
+  BTC_VAULT: (process.env.NEXT_PUBLIC_VAULT_BTC_VAULT || '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707') as Address,
 } as const;
 
 /**
