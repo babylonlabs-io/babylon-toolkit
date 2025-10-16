@@ -89,8 +89,8 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
     ] as any;
 
     const storageConfig = createStorage({
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        key: 'wagmi.store',
+        storage: typeof window !== "undefined" ? window.localStorage : undefined,
+        key: "wagmi.store",
     });
 
     wagmiAdapter = new WagmiAdapter({
