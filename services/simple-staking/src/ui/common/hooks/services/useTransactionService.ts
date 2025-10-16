@@ -44,7 +44,7 @@ export const useTransactionService = () => {
   const { data: networkFees } = useNetworkFees();
   const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const {
-    btcTipQuery: { data: tipHeader },
+    btcTipQuery: { data: tipHeader, refetch: refetchBtcTip },
   } = useBbnQuery();
 
   const { bech32Address } = useCosmosWallet();
@@ -72,12 +72,16 @@ export const useTransactionService = () => {
    */
   const createDelegationEoi = useCallback(
     async (stakingInput: BtcStakingInputs, feeRate: number) => {
+      // Refetch the latest BTC tip height to prevent using stale data
+      const { data: latestTipHeader } = await refetchBtcTip();
+      const latestTipHeight = latestTipHeader?.height ?? 0;
+
       const btcStakingManager = createBtcStakingManager();
 
       validateCommonInputs(
         btcStakingManager,
         stakingInput,
-        tipHeight,
+        latestTipHeight,
         stakerInfo,
       );
 
@@ -94,7 +98,7 @@ export const useTransactionService = () => {
         await btcStakingManager!.preStakeRegistrationBabylonTransaction(
           stakerInfo,
           stakingInput,
-          tipHeight,
+          latestTipHeight,
           availableUTXOs,
           feeRate,
           bech32Address,
@@ -109,7 +113,7 @@ export const useTransactionService = () => {
       bech32Address,
       createBtcStakingManager,
       stakerInfo,
-      tipHeight,
+      refetchBtcTip,
       logger,
     ],
   );
@@ -166,11 +170,15 @@ export const useTransactionService = () => {
       stakingHeight: number,
       stakingInput: BtcStakingInputs,
     ) => {
+      // Refetch the latest BTC tip height to prevent using stale data
+      const { data: latestTipHeader } = await refetchBtcTip();
+      const latestTipHeight = latestTipHeader?.height ?? 0;
+
       const btcStakingManager = createBtcStakingManager();
       validateCommonInputs(
         btcStakingManager,
         stakingInput,
-        tipHeight,
+        latestTipHeight,
         stakerInfo,
       );
 
@@ -197,7 +205,7 @@ export const useTransactionService = () => {
         signedBabylonTx,
       };
     },
-    [bech32Address, createBtcStakingManager, stakerInfo, tipHeight, logger],
+    [bech32Address, createBtcStakingManager, stakerInfo, refetchBtcTip, logger],
   );
 
   /**
@@ -457,6 +465,10 @@ export const useTransactionService = () => {
       stakingExpansionInput: BtcStakingExpansionInputs,
       feeRate: number,
     ) => {
+      // Refetch the latest BTC tip height to prevent using stale data
+      const { data: latestTipHeader } = await refetchBtcTip();
+      const latestTipHeight = latestTipHeader?.height ?? 0;
+
       const btcStakingManager = createBtcStakingManager();
 
       validateCommonInputs(
@@ -467,7 +479,7 @@ export const useTransactionService = () => {
           stakingAmountSat: stakingExpansionInput.stakingAmountSat,
           stakingTimelock: stakingExpansionInput.stakingTimelock,
         },
-        tipHeight,
+        latestTipHeight,
         stakerInfo,
       );
 
@@ -498,7 +510,7 @@ export const useTransactionService = () => {
         await btcStakingManager!.stakingExpansionRegistrationBabylonTransaction(
           stakerInfo,
           stakingExpansionInput,
-          tipHeight,
+          latestTipHeight,
           availableUTXOs,
           feeRate,
           bech32Address,
@@ -519,7 +531,7 @@ export const useTransactionService = () => {
       bech32Address,
       createBtcStakingManager,
       stakerInfo,
-      tipHeight,
+      refetchBtcTip,
       logger,
       isUTXOsLoading,
     ],
