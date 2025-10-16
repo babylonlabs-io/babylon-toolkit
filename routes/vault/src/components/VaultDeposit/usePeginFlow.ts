@@ -46,11 +46,16 @@ export function usePeginFlow() {
   const handlePeginSignSuccess = useCallback((onSuccess?: () => void) => {
     setSignModalOpen(false);
     setSuccessModalOpen(true);
-    
+
     // Call parent callback if provided
     if (onSuccess) {
       onSuccess();
     }
+  }, []);
+
+  // Close sign modal
+  const closeSignModal = useCallback(() => {
+    setSignModalOpen(false);
   }, []);
 
   // Handle success modal close
@@ -72,6 +77,7 @@ export function usePeginFlow() {
     // Actions
     openPeginFlow,
     closePeginFlow,
+    closeSignModal,
     handlePeginClick,
     handlePeginSignSuccess,
     handlePeginSuccessClose,

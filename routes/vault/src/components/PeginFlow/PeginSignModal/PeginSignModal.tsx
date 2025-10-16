@@ -14,7 +14,17 @@ import { usePeginFlow } from './usePeginFlow';
 interface PeginSignModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (btcTxId: string, ethTxHash: string) => void;
+  onSuccess: (data: {
+    btcTxId: string;
+    ethTxHash: string;
+    unsignedTxHex: string;
+    utxo: {
+      txid: string;
+      vout: number;
+      value: bigint;
+      scriptPubKey: string;
+    };
+  }) => void;
   amount: number;
   /**
    * IMPORTANT: selectedProviders is for UI display only.
@@ -37,8 +47,6 @@ interface PeginSignModalProps {
  * Displays the progress of the peg-in submission process:
  * 1. Sign proof of possession with BTC wallet
  * 2. Sign with ETH wallet and submit to vault contract
- * 3. Sign and broadcast BTC transaction to Bitcoin network
- * 4. Complete
  *
  * Note: The selectedProviders prop is for UI display only.
  * The actual vault provider used is HARDCODED from local deployment config.
@@ -84,12 +92,6 @@ export function PeginSignModal({
           <Step step={2} currentStep={currentStep}>
             Submit to vault contract (ETH wallet)
           </Step>
-          <Step step={3} currentStep={currentStep}>
-            Broadcast to Bitcoin network (BTC wallet)
-          </Step>
-          <Step step={4} currentStep={currentStep}>
-            Complete
-          </Step>
         </div>
 
         {/* Error Display */}
@@ -107,14 +109,14 @@ export function PeginSignModal({
           disabled={processing && !error}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={error || currentStep === 4 ? onClose : () => {}}
+          onClick={error || isComplete ? onClose : () => {}}
         >
           {processing && !error ? (
             <Loader size={16} className="text-accent-contrast" />
           ) : error ? (
             'Close'
           ) : isComplete ? (
-            'View Position'
+            'Done'
           ) : (
             'Close'
           )}

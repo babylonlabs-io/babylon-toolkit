@@ -75,13 +75,15 @@ export function getVaultState(activity: VaultActivity): VaultState {
  * @param activity - VaultActivity for callback context
  * @param onBorrow - Callback for borrow action
  * @param onRepay - Callback for repay action
+ * @param onBroadcast - Callback for BTC broadcast action (verified vaults)
  * @returns ActivityCardActionButton config or undefined if no action available
  */
 export function getActionForState(
   state: VaultState,
   activity: VaultActivity,
   onBorrow: (activity: VaultActivity) => void,
-  onRepay: (activity: VaultActivity) => void
+  onRepay: (activity: VaultActivity) => void,
+  onBroadcast?: (activity: VaultActivity) => void
 ): ActivityCardActionButton | undefined {
   switch (state) {
     case VaultState.BORROWING:
@@ -102,13 +104,24 @@ export function getActionForState(
         fullWidth: true,
       };
 
+    case VaultState.VERIFIED:
+      // Vault provider has ACKed, ready for BTC broadcast
+      if (onBroadcast) {
+        return {
+          label: 'Broadcast to Bitcoin',
+          onClick: () => onBroadcast(activity),
+          variant: 'contained',
+          fullWidth: true,
+        };
+      }
+      return undefined;
+
     case VaultState.CLOSED:
       // Vault is closed - no action available
       return undefined;
 
     case VaultState.PENDING:
-    case VaultState.VERIFIED:
-      // No action available for pending/verified vaults
+      // No action available for pending vaults
       return undefined;
 
     default:
