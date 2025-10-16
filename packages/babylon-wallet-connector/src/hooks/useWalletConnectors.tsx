@@ -27,6 +27,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     confirm,
     close,
     reset,
+    chains: chainMap,
   } = useWidgetState();
   const { showAgain } = useInscriptionProvider();
   const { verifyBTCAddress, acceptTermsOfService } = useLifeCycleHooks();
@@ -57,7 +58,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           selectWallet?.("BTC", connectedWallet);
 
-          if (persistent) {
+          if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
 
@@ -130,7 +131,18 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
         if (connectedWallet) {
           selectWallet?.(connector.id, connectedWallet);
 
-          if (persistent) {
+          if (persistent && connectedWallet.account?.address) {
+            accountStorage.set(connector.id, connectedWallet.id);
+          }
+        }
+
+        displayChains?.();
+      },
+      ETH: (connector) => (connectedWallet) => {
+        if (connectedWallet) {
+          selectWallet?.(connector.id, connectedWallet);
+
+          if (persistent && connectedWallet.account?.address) {
             accountStorage.set(connector.id, connectedWallet.id);
           }
         }
@@ -197,13 +209,32 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
   }, [onError, displayChains, connectors]);
 
   useEffect(() => {
-    const connectorArr = Object.values(connectors).filter(Boolean);
+    const requiredChainIds = Object.values(chainMap).filter(Boolean).map(chain => chain.id);
+    const allConnectors = Object.values(connectors).filter(Boolean);
+    const requiredConnectors = allConnectors.filter(connector =>
+      requiredChainIds.includes(connector.id)
+    );
 
-    if (persistent && connectorArr.length && connectorArr.every((connector) => accountStorage.has(connector.id))) {
+    const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
+    const allConnected = requiredConnectors.every((connector) => connector.connectedWallet !== null);
+
+    if (
+      persistent &&
+      requiredConnectors.length &&
+      hasStorage &&
+      allConnected
+    ) {
       confirm?.();
       displayChains?.();
     }
-  }, [persistent, connectors, confirm, displayChains]);
+  }, [
+    persistent,
+    connectors,
+    chainMap,
+    confirm,
+    displayChains,
+    accountStorage,
+  ]);
 
   const connect = useCallback(
     async (chain: IChain, wallet: IWallet) => {
