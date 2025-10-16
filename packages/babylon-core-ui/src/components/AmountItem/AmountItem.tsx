@@ -1,6 +1,6 @@
 import React from "react";
 
-interface BalanceDetails {
+export interface BalanceDetails {
     balance: number | string;
     symbol: string;
     price?: number;
@@ -8,7 +8,7 @@ interface BalanceDetails {
     decimals?: number;
 }
 
-interface AmountItemProps {
+export interface AmountItemProps {
     amount: string | number | undefined;
     currencyIcon: string;
     currencyName: string;
@@ -23,6 +23,7 @@ interface AmountItemProps {
     disabled?: boolean;
     onChange: React.ChangeEventHandler<HTMLInputElement>;
     onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
+    onMaxClick?: () => void; // NEW - handler for max button click
 }
 
 export const AmountItem = ({
@@ -30,7 +31,6 @@ export const AmountItem = ({
     currencyIcon,
     currencyName,
     placeholder = "Enter Amount",
-    subtitle,
     displayBalance,
     balanceDetails,
     min,
@@ -40,6 +40,7 @@ export const AmountItem = ({
     onKeyDown,
     amountUsd,
     disabled = false,
+    onMaxClick,
 }: AmountItemProps) => {
     return (
         <>
@@ -63,11 +64,28 @@ export const AmountItem = ({
             </div>
 
             {balanceDetails && displayBalance ? (
-                <div className="flex w-full flex-row content-center justify-between text-sm">
-                    <span className="cursor-default">
-                        {subtitle}
-                    </span>
-                    {balanceDetails.displayUSD && balanceDetails.price !== undefined && <div>{amountUsd} USD</div>}
+                <div className="flex w-full flex-row content-center items-center justify-between text-sm text-accent-secondary">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onMaxClick}
+                            disabled={disabled}
+                            className="cursor-pointer rounded bg-secondary-strokeLight px-2 py-0.5 text-xs text-accent-secondary transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Max
+                        </button>
+                        <span>
+                            {typeof balanceDetails.balance === 'number' 
+                                ? balanceDetails.balance.toLocaleString('en-US', { 
+                                    minimumFractionDigits: balanceDetails.decimals ?? 8,
+                                    maximumFractionDigits: balanceDetails.decimals ?? 8 
+                                  })
+                                : balanceDetails.balance} {balanceDetails.symbol}
+                        </span>
+                    </div>
+                    {balanceDetails.displayUSD && balanceDetails.price !== undefined && (
+                        <div>{amountUsd} USD</div>
+                    )}
                 </div>
             ) : null}
         </>

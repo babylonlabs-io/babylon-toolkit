@@ -1,15 +1,16 @@
 import { AiOutlinePlus } from "react-icons/ai";
 import { twJoin } from "tailwind-merge";
 
-interface CounterButtonProps {
+export interface CounterButtonProps {
   counter: number;
   max: number;
   alwaysShowCounter?: boolean;
   onAdd: () => void;
+  hidePlusButton?: boolean;
 }
 
-export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }: CounterButtonProps) {
-  const isClickable = counter < max;
+export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false, hidePlusButton = false }: CounterButtonProps) {
+  const isClickable = counter < max && !hidePlusButton;
   const showsCounter = (0 < counter) || (alwaysShowCounter && counter === 0);
 
   return (
@@ -22,14 +23,14 @@ export function CounterButton({ counter, max, onAdd, alwaysShowCounter = false }
       )}
       onClick={isClickable ? onAdd : undefined}
     >
-      {isClickable && (
+      {isClickable && !hidePlusButton && (
         <div className="flex h-10 w-10 items-center justify-center">
           <AiOutlinePlus size={20} />
         </div>
       )}
       {showsCounter && (
         <div className={twJoin(
-          "flex h-10 items-center px-2 text-sm sm:px-4 sm:text-base",
+          "flex h-10 items-center px-4 text-base",
           isClickable && "border-l border-accent-primary"
         )}>
           {counter}/{max}

@@ -7,7 +7,7 @@ export const VaultStats = memo(() => {
   const protocolLTV = 321;
 
   return (
-    <Card className="max-md:border-0 max-md:p-0">
+    <Card className="max-md:border-0 max-md:px-0">
       <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         Stats
       </h3>

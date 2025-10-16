@@ -8,7 +8,6 @@ export * from "./components/Button";
 export * from "./components/Avatar";
 export * from "./components/Form";
 export * from "./components/Dialog";
-export * from "./components/ResponsiveDialog";
 export * from "./components/AttributeList";
 export * from "./components/Chip";
 export * from "./components/Portal";
@@ -35,12 +34,14 @@ export * from "./components/Warning";
 export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";
 export * from "./components/TopBanner";
+export * from "./components/Step";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
 export * from "./elements/StatusBadge";
 export * from "./elements/VaultDetailCard";
 export * from "./elements/MarketStatCard";
+export * from "./elements/ProviderCard";
 
 export * from "./widgets/form/Form";
 export * from "./widgets/form/NumberField";
@@ -61,7 +62,7 @@ export * from "./widgets/sections/RewardsPreviewModal";
 export * from "./widgets/sections/RewardsSubsection";
 export * from "./widgets/sections/CoStakingRewardsSubsection";
 export * from "./widgets/sections/SettingMenu";
-export * from "./widgets/sections/AmountSliderWidget";
+export * from "./widgets/sections/AmountSlider";
 export * from "./widgets/sections/WalletMenu";
 export * from "./widgets/sections/UnbondingModal";
 

@@ -1,0 +1,136 @@
+import type React from "react";
+import { twJoin } from "tailwind-merge";
+import { Slider, type SliderStep } from "../../../components/Slider";
+
+interface BalanceDetails {
+  balance: number | string;
+  symbol: string;
+  price?: number;
+  displayUSD?: boolean;
+}
+
+interface BottomField {
+  label?: string;
+  value: string | React.ReactNode;
+}
+
+export interface AmountSliderProps {
+  // Amount input
+  amount: string | number;
+  currencyIcon: string;
+  currencyName: string;
+  onAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  
+  // Balance details
+  balanceDetails?: BalanceDetails;
+  
+  // Slider
+  sliderValue: number;
+  sliderMin: number;
+  sliderMax: number;
+  sliderStep?: number;
+  sliderSteps?: SliderStep[];
+  onSliderChange: (value: number) => void;
+  sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
+  sliderActiveColor?: string;
+  
+  // Bottom fields
+  leftField?: BottomField;
+  rightField?: BottomField;
+  onMaxClick?: () => void;
+  
+  // General
+  disabled?: boolean;
+  className?: string;
+}
+
+export function AmountSlider({
+  amount,
+  currencyIcon,
+  currencyName,
+  onAmountChange,
+  sliderValue,
+  sliderMin,
+  sliderMax,
+  sliderStep = 1,
+  sliderSteps,
+  onSliderChange,
+  sliderVariant = "primary",
+  sliderActiveColor,
+  leftField,
+  rightField,
+  onMaxClick,
+  disabled = false,
+  className,
+}: AmountSliderProps) {
+  // Prevent arrow key increments
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+    }
+  };
+
+  return (
+    <div className={twJoin("flex w-full flex-col gap-4", className)}>
+      {/* Row 1: Icon + Name + Input */}
+      <div className="flex w-full items-center justify-between">
+        <div className="flex items-center gap-2">
+          <img src={currencyIcon} alt={currencyName} className="h-10 w-10" />
+          <span className="text-lg text-accent-primary">{currencyName}</span>
+        </div>
+        <input
+          type="number"
+          value={amount}
+          onChange={onAmountChange}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          placeholder="0"
+          className="w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary"
+        />
+      </div>
+
+      {/* Row 2: Slider */}
+      <Slider
+        value={sliderValue}
+        min={sliderMin}
+        max={sliderMax}
+        step={sliderStep}
+        steps={sliderSteps}
+        onChange={onSliderChange}
+        variant={sliderVariant}
+        activeColor={sliderActiveColor}
+        disabled={disabled}
+      />
+
+      {/* Row 3: Max button + Balance | USD Value */}
+      <div className="flex items-center justify-between text-sm">
+        {/* Left: Max button + available amount */}
+        {leftField && onMaxClick && leftField.label?.toLowerCase() === "max" ? (
+          <button
+            type="button"
+            onClick={onMaxClick}
+            disabled={disabled}
+            className="flex items-center gap-2 text-accent-secondary hover:text-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="cursor-pointer rounded bg-secondary-strokeLight px-2 py-0.5 text-xs hover:opacity-90">
+              Max
+            </span>
+            <span>{leftField.value}</span>
+          </button>
+        ) : (
+          leftField && (
+            <span className="text-accent-secondary">
+              {leftField.label && `${leftField.label}: `}
+              {leftField.value}
+            </span>
+          )
+        )}
+        
+        {/* Right: USD value */}
+        {rightField && (
+          <span className="text-accent-secondary">{rightField.value}</span>
+        )}
+      </div>
+    </div>
+  );
+}
