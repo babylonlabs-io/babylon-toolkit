@@ -1,7 +1,4 @@
-import {
-  btclightclientquery,
-  incentivequery,
-} from "@babylonlabs-io/babylon-proto-ts";
+import { incentivequery } from "@babylonlabs-io/babylon-proto-ts";
 import {
   QueryClient,
   createProtobufRpcClient,
@@ -32,7 +29,7 @@ const REWARD_GAUGE_KEY_COSTAKER = "COSTAKER";
 export const useBbnQuery = () => {
   const { isGeoBlocked, isLoading: isHealthcheckLoading } = useHealthCheck();
   const { bech32Address, connected } = useCosmosWallet();
-  const { queryClient, tmClient } = useBbnRpc();
+  const { queryClient, rpcClient } = useBbnRpc();
   const { hasRpcError, reconnect } = useRpcErrorHandler();
 
   /**
@@ -143,20 +140,17 @@ export const useBbnQuery = () => {
 
   /**
    * Gets the tip of the Bitcoin blockchain.
-   * @returns {Promise<Object>} - The tip of the Bitcoin blockchain.
+   * @returns {Promise<number>} - The height of the Bitcoin blockchain tip.
    */
   const btcTipQuery = useClientQuery({
     queryKey: [BBN_BTCLIGHTCLIENT_TIP_KEY],
     queryFn: async () => {
-      if (!queryClient) {
-        return undefined as any;
+      if (!rpcClient) {
+        return 0;
       }
-      const { btclightQueryClient } = setupBtclightClientExtension(queryClient);
-      const req = btclightclientquery.QueryTipRequest.fromPartial({});
-      const { header } = await btclightQueryClient.Tip(req);
-      return header;
+      return await rpcClient.btc.getBTCTipHeight();
     },
-    enabled: Boolean(queryClient && !isGeoBlocked && !isHealthcheckLoading),
+    enabled: Boolean(rpcClient && !isGeoBlocked && !isHealthcheckLoading),
     staleTime: ONE_MINUTE,
     refetchInterval: false, // Disable automatic periodic refetching
   });
@@ -168,12 +162,11 @@ export const useBbnQuery = () => {
   const babyTipQuery = useClientQuery({
     queryKey: [BBN_HEIGHT_KEY],
     queryFn: async () => {
-      if (!tmClient) {
+      if (!rpcClient) {
         return 0;
       }
       try {
-        const status = await tmClient.status();
-        return status.syncInfo.latestBlockHeight;
+        return await rpcClient.baby.getBlockHeight();
       } catch (error) {
         throw new ClientError(
           ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
@@ -182,7 +175,7 @@ export const useBbnQuery = () => {
         );
       }
     },
-    enabled: Boolean(tmClient && connected),
+    enabled: Boolean(rpcClient && connected),
     staleTime: ONE_SECOND * 10,
     refetchInterval: false, // Disable automatic periodic refetching
   });
@@ -207,14 +200,4 @@ const setupIncentiveExtension = (
   const rpc = createProtobufRpcClient(base);
   const incentiveQueryClient = new incentivequery.QueryClientImpl(rpc);
   return { incentive: incentiveQueryClient };
-};
-
-const setupBtclightClientExtension = (
-  base: QueryClient,
-): {
-  btclightQueryClient: btclightclientquery.QueryClientImpl;
-} => {
-  const rpc = createProtobufRpcClient(base);
-  const btclightQueryClient = new btclightclientquery.QueryClientImpl(rpc);
-  return { btclightQueryClient };
 };
