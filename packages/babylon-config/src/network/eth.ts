@@ -19,7 +19,7 @@ export const localhost = defineChain({
   },
 });
 
-const defaultNetwork = "testnet";
+const defaultNetwork = "devnet";
 // Export network for modules that need to know which network is active
 export const network = process.env.NEXT_PUBLIC_NETWORK ?? defaultNetwork;
 
@@ -32,51 +32,11 @@ export type ExtendedETHConfig = ETHConfig & {
 type Config = ExtendedETHConfig;
 
 const config: Record<string, Config> = {
-  mainnet: {
-    name: "Ethereum",
-    chainId: 1,
-    chainName: "Ethereum Mainnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://eth.llamarpc.com",
-    explorerUrl: "https://etherscan.io",
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: true,
-  },
-  canary: {
-    // Using Sepolia for canary
-    name: "Ethereum Sepolia",
-    chainId: 11155111,
-    chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
-    explorerUrl: "https://sepolia.etherscan.io",
-    nativeCurrency: {
-      name: "Sepolia ETH",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: false,
-  },
-  testnet: {
-    name: "Ethereum Sepolia",
-    chainId: 11155111,
-    chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
-    explorerUrl: "https://sepolia.etherscan.io",
-    nativeCurrency: {
-      name: "Sepolia ETH",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: false,
-  },
   devnet: {
     name: "Ethereum Sepolia",
     chainId: 11155111,
     chainName: "Sepolia Testnet",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://rpc.sepolia.org",
+    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     explorerUrl: "https://sepolia.etherscan.io",
     nativeCurrency: {
       name: "Sepolia ETH",
@@ -101,23 +61,6 @@ const config: Record<string, Config> = {
 };
 
 export function getNetworkConfigETH(): Config {
-  // Use the chain ID from environment if available
-  const chainId = parseInt(process.env.NEXT_PUBLIC_ETH_CHAIN_ID || "0");
-
-  // If chain ID is set, use chain ID-based config
-  if (chainId === 1) {
-    return config.mainnet;
-  } else if (chainId === 31337) {
-    return config.localhost;
-  } else if (chainId === 11155111) {
-    return config.testnet;
-  }
-
-  // Otherwise use the network-based config
-  if (network === "localhost") {
-    return config.localhost;
-  }
-
   return config[network] ?? config[defaultNetwork];
 }
 

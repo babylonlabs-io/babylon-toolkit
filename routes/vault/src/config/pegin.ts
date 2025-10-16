@@ -37,6 +37,7 @@ export function getBTCNetworkForWASM(): WASMNetwork {
   return toWASMNetwork(getBTCNetwork());
 }
 
+// TODO: To be replaced by calling the backend API to get the vault provider address and liquidators
 export const LOCAL_PEGIN_CONFIG = {
   /**
    * HARDCODED: Local vault provider from btc-vault-deployment
