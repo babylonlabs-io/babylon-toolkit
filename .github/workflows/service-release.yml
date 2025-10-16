@@ -6,7 +6,6 @@ on:
       - "main"
       - "release/v1.x"
       - "vault"
-      - "vault-liam"
     tags:
       - "*"
   workflow_dispatch:
@@ -38,9 +37,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci --verbose --ignore-scripts
-        env:
-          NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
+        run: npm ci
 
       - name: Build project
         run: npm run build
