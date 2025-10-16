@@ -2,7 +2,7 @@ name: Verify PR
 
 on:
   pull_request:
-    branches: [main] # or your default branch
+    branches: [main, vault] # or your default branch
 
 jobs:
   verify:
