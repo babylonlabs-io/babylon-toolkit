@@ -24,6 +24,7 @@ import {
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
+
 import { useEthConnectorBridge } from "../../hooks/useETHConnectorBridge";
 import { useETHWalletState } from "../../hooks/useETHWalletState";
 
