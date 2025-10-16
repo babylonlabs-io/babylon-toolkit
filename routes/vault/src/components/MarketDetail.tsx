@@ -354,7 +354,7 @@ export function MarketDetail() {
         collateralUsdValue={`$${(collateralAmount * btcPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`}
         borrowAmount={borrowAmount}
         borrowSymbol="USDC"
-        borrowUsdValue={`$${borrowAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`}
+        borrowUsdValue={`$${borrowAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`}
         borrowApy={6.25}
         ltv={ltv}
         liquidationLtv={liquidationLtv}

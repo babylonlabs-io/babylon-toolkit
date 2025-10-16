@@ -5,10 +5,10 @@ interface StatusBadgeProps {
 }
 
 const STATUS_DOT_COLORS: Record<StatusBadgeProps["status"], string> = {
-  active: "bg-green-500",
-  pending: "bg-amber-600",
-  inactive: "bg-gray-400",
-  default: "bg-blue-500",
+  active: "bg-success-main",
+  pending: "bg-warning-main",
+  inactive: "bg-accent-disabled",
+  default: "bg-info-main",
 };
 
 export function StatusBadge({
