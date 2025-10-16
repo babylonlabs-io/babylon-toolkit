@@ -5,10 +5,12 @@ import { WalletConnector } from "@/core/WalletConnector";
 import type {
   BBNConfig,
   BTCConfig,
+  ETHConfig,
   ExternalConnector,
   HashMap,
   IBBNProvider,
   IBTCProvider,
+  IETHProvider,
   IProvider,
 } from "@/core/types";
 import metadata from "@/core/wallets";
@@ -27,6 +29,7 @@ interface ChainConfig<K extends string = string, P extends IProvider = IProvider
 export type ChainConfigArr = (
   | ChainConfig<"BTC", IBTCProvider, BTCConfig>
   | ChainConfig<"BBN", IBBNProvider, BBNConfig>
+  | ChainConfig<"ETH", IETHProvider, ETHConfig>
 )[];
 
 interface ProviderProps {
@@ -36,17 +39,19 @@ interface ProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
-  requiredChains?: ("BTC" | "BBN")[];
+  requiredChains?: ("BTC" | "BBN" | "ETH")[];
 }
 
 export interface Connectors {
   BTC: WalletConnector<"BTC", IBTCProvider, BTCConfig> | null;
   BBN: WalletConnector<"BBN", IBBNProvider, BBNConfig> | null;
+  ETH: WalletConnector<"ETH", IETHProvider, ETHConfig> | null;
 }
 
 const defaultState: Connectors = {
   BTC: null,
   BBN: null,
+  ETH: null,
 };
 
 export const Context = createContext<Connectors>(defaultState);
@@ -93,7 +98,7 @@ export function ChainProvider({
   const visibleChains = useMemo(
     () =>
       requiredChains && requiredChains.length
-        ? supportedChains.filter((chain) => requiredChains.includes(chain!.id as "BTC" | "BBN"))
+        ? supportedChains.filter((chain) => requiredChains.includes(chain!.id as "BTC" | "BBN" | "ETH"))
         : supportedChains,
     [supportedChains, requiredChains],
   );

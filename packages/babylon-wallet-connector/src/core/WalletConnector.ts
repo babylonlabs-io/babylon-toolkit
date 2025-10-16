@@ -4,6 +4,8 @@ import { Wallet } from "@/core/Wallet";
 import type { IConnector, IProvider } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
+type DisconnectableProvider = IProvider & { disconnect?: () => Promise<void> };
+
 export interface ConnectorEvents<P extends IProvider> {
   connecting: (message?: string) => void;
   connect: (wallet: Wallet<P>) => void;
@@ -21,7 +23,7 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
     public readonly icon: string,
     public readonly wallets: Wallet<P>[],
     public readonly config: C,
-  ) {}
+  ) { }
 
   get connectedWallet() {
     return this._connectedWallet;
@@ -52,6 +54,14 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
 
   async disconnect() {
     if (this._connectedWallet) {
+      const provider = this._connectedWallet.provider as DisconnectableProvider | null;
+      if (provider?.disconnect && typeof provider.disconnect === "function") {
+        try {
+          await provider.disconnect();
+        } catch {
+          // ignore provider disconnect errors
+        }
+      }
       this._ee.emit("disconnect", this._connectedWallet);
       this._connectedWallet = null;
     }

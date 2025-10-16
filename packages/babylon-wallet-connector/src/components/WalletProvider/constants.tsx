@@ -40,4 +40,18 @@ export const config: ChainConfigArr = [
       chainData: bbnTestnet,
     },
   },
+  {
+    chain: "ETH",
+    config: {
+      chainId: 31337, // Anvil local node
+      chainName: "Anvil Local",
+      rpcUrl: "http://127.0.0.1:8545",
+      explorerUrl: "http://localhost:8545",
+      nativeCurrency: {
+        name: "Ether",
+        symbol: "ETH",
+        decimals: 18,
+      },
+    },
+  },
 ];
