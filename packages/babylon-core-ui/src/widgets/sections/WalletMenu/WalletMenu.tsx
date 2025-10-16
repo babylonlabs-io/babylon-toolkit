@@ -143,6 +143,21 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
               formatBalance={createFormatBalance(bbnSymbol)}
             />
           )}
+
+          {ethAddress && (
+            <WalletMenuCard
+              walletType="Ethereum"
+              walletName={selectedWallets["ETH"]?.name}
+              walletIcon={selectedWallets["ETH"]?.icon}
+              address={ethAddress}
+              isCopied={isCopied("eth")}
+              onCopy={() => copyToClipboard("eth", ethAddress)}
+              balances={ethBalances}
+              coinSymbol={ethSymbol}
+              isBalanceLoading={balancesLoading}
+              formatBalance={createFormatBalance(ethSymbol)}
+            />
+          )}
         </div>
 
         <div className="flex flex-col w-full bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
