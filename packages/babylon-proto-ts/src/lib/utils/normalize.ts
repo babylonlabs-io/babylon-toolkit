@@ -7,7 +7,7 @@ import { QueryDelegationTotalRewardsResponse } from "cosmjs-types/cosmos/distrib
  * @returns The normalized amount as a string in standard ubbn format.
  */
 export function normalizeCosmjsAmount(amount: string): string {
-  const numAmount = parseFloat(amount);
+  const numAmount = Number.parseFloat(amount);
   return (numAmount / 1e18).toString();
 }
 

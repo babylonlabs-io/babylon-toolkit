@@ -71,7 +71,7 @@ const msgCreateBTCDelegationConverter = {
           Buffer.from(pk, "base64"),
         ),
         stakingTime: json.staking_time,
-        stakingValue: parseInt(json.staking_value, 10),
+        stakingValue: Number.parseInt(json.staking_value, 10),
         stakingTx: Buffer.from(json.staking_tx, "base64"),
         stakingTxInclusionProof: hasInclusionProof
           ? {
@@ -95,7 +95,7 @@ const msgCreateBTCDelegationConverter = {
         ),
         unbondingTime: json.unbonding_time,
         unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
-        unbondingValue: parseInt(json.unbonding_value, 10),
+        unbondingValue: Number.parseInt(json.unbonding_value, 10),
         unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
         delegatorUnbondingSlashingSig: Buffer.from(
           json.delegator_unbonding_slashing_sig,
@@ -157,7 +157,7 @@ const msgBtcStakeExpandConverter = {
           Buffer.from(pk, "base64"),
         ),
         stakingTime: json.staking_time,
-        stakingValue: parseInt(json.staking_value, 10),
+        stakingValue: Number.parseInt(json.staking_value, 10),
         stakingTx: Buffer.from(json.staking_tx, "base64"),
         slashingTx: Buffer.from(json.slashing_tx, "base64"),
         delegatorSlashingSig: Buffer.from(
@@ -166,7 +166,7 @@ const msgBtcStakeExpandConverter = {
         ),
         unbondingTime: json.unbonding_time,
         unbondingTx: Buffer.from(json.unbonding_tx, "base64"),
-        unbondingValue: parseInt(json.unbonding_value, 10),
+        unbondingValue: Number.parseInt(json.unbonding_value, 10),
         unbondingSlashingTx: Buffer.from(json.unbonding_slashing_tx, "base64"),
         delegatorUnbondingSlashingSig: Buffer.from(
           json.delegator_unbonding_slashing_sig,

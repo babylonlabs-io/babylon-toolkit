@@ -15,13 +15,13 @@ export const getPersonalizedAPR = async (
   babyStakedUbbn: number,
 ): Promise<PersonalizedAPRResponse["data"]> => {
   // Validate input parameters
-  if (btcStakedSat < 0 || !isFinite(btcStakedSat)) {
+  if (btcStakedSat < 0 || !Number.isFinite(btcStakedSat)) {
     throw new Error(
       `Invalid BTC stake amount: ${btcStakedSat}. Must be non-negative and finite.`,
     );
   }
 
-  if (babyStakedUbbn < 0 || !isFinite(babyStakedUbbn)) {
+  if (babyStakedUbbn < 0 || !Number.isFinite(babyStakedUbbn)) {
     throw new Error(
       `Invalid BABY stake amount: ${babyStakedUbbn}. Must be non-negative and finite.`,
     );

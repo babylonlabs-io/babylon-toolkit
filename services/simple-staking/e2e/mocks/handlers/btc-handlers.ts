@@ -9,7 +9,7 @@ export const btcHandlers = [
       {
         txid: "txid1",
         vout: 0,
-        value: parseInt(MOCK_VALUES.STAKABLE_BTC),
+        value: Number.parseInt(MOCK_VALUES.STAKABLE_BTC),
         status: {
           confirmed: true,
         },
@@ -31,7 +31,7 @@ export const btcHandlers = [
     return res(
       ctx.json({
         chain_stats: {
-          funded_txo_sum: parseInt(MOCK_VALUES.STAKABLE_BTC),
+          funded_txo_sum: Number.parseInt(MOCK_VALUES.STAKABLE_BTC),
           spent_txo_sum: 0,
         },
       }),

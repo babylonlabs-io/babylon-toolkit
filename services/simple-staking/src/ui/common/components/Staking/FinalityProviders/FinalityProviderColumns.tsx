@@ -67,7 +67,7 @@ export const finalityProviderColumns = [
     cellClassName: "text-left",
     render: (value: unknown) => {
       const amount = Number(value);
-      if (isNaN(amount)) return "-";
+      if (Number.isNaN(amount)) return "-";
       return `${maxDecimals(satoshiToBtc(amount), 8)} ${coinSymbol}`;
     },
     sorter: (a?: FinalityProvider, b?: FinalityProvider) => {
@@ -82,7 +82,7 @@ export const finalityProviderColumns = [
     cellClassName: "text-left",
     render: (value: unknown) => {
       const commission = Number(value);
-      if (isNaN(commission)) return "-";
+      if (Number.isNaN(commission)) return "-";
       return formatCommissionPercentage(commission);
     },
     sorter: (a?: FinalityProvider, b?: FinalityProvider) => {

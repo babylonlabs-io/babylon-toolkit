@@ -75,8 +75,8 @@ const createBabylonClient = ({
       const { pool } = await staking.pool();
 
       return {
-        notBondedTokens: parseInt(pool.notBondedTokens, 10),
-        bondedTokens: parseInt(pool.bondedTokens, 10),
+        notBondedTokens: Number.parseInt(pool.notBondedTokens, 10),
+        bondedTokens: Number.parseInt(pool.bondedTokens, 10),
       };
     } catch (error: any) {
       throw new Error(`Failed to fetch pool`, {

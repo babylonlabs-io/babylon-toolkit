@@ -68,7 +68,7 @@ export function ValidatorField() {
       headerClassName: "max-w-[160px]",
       cellClassName: "max-w-[160px]",
       sorter: (a: ValidatorRow, b: ValidatorRow) =>
-        parseFloat(a.votingPower) - parseFloat(b.votingPower),
+        Number.parseFloat(a.votingPower) - Number.parseFloat(b.votingPower),
     },
     {
       key: "commission",
@@ -76,7 +76,7 @@ export function ValidatorField() {
       headerClassName: "max-w-[140px]",
       cellClassName: "max-w-[140px]",
       sorter: (a: ValidatorRow, b: ValidatorRow) =>
-        parseFloat(a.commission) - parseFloat(b.commission),
+        Number.parseFloat(a.commission) - Number.parseFloat(b.commission),
     },
     {
       key: "totalStaked",
@@ -86,10 +86,10 @@ export function ValidatorField() {
       sorter: (a: ValidatorRow, b: ValidatorRow) => {
         // Remove non-numeric characters from the totalStaked values
         const aValue = a.totalStaked
-          ? parseFloat(a.totalStaked.replace(/[^\d.-]/g, ""))
+          ? Number.parseFloat(a.totalStaked.replace(/[^\d.-]/g, ""))
           : 0;
         const bValue = b.totalStaked
-          ? parseFloat(b.totalStaked.replace(/[^\d.-]/g, ""))
+          ? Number.parseFloat(b.totalStaked.replace(/[^\d.-]/g, ""))
           : 0;
         return aValue - bValue;
       },

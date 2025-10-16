@@ -75,8 +75,8 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       const { pool } = await request("/cosmos/staking/v1beta1/pool");
 
       return {
-        notBondedTokens: parseInt(pool.notBondedTokens, 10),
-        bondedTokens: parseInt(pool.bondedTokens, 10),
+        notBondedTokens: Number.parseInt(pool.notBondedTokens, 10),
+        bondedTokens: Number.parseInt(pool.bondedTokens, 10),
       };
     } catch (error: any) {
       throw new Error(`Failed to fetch pool`, {
@@ -245,8 +245,8 @@ const createBabylonClient = ({ request }: Dependencies) => ({
       );
 
       return {
-        epochBoundary: parseInt(epochBoundary, 10),
-        currentEpoch: parseInt(currentEpoch, 10),
+        epochBoundary: Number.parseInt(epochBoundary, 10),
+        currentEpoch: Number.parseInt(currentEpoch, 10),
       };
     } catch (error: unknown) {
       throw new Error(`Failed to fetch current epoch`, {

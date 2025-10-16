@@ -124,7 +124,7 @@ export function FeeModal({
           label="Custom"
           amount={customFee}
           disabled={selectedValue !== "custom"}
-          warning={parseFloat(customFee) < defaultFeeRate}
+          warning={Number.parseFloat(customFee) < defaultFeeRate}
           onChange={(e) => void setCustomFee(e.currentTarget?.value)}
         />
       ),
@@ -140,7 +140,7 @@ export function FeeModal({
     );
 
     if (selectedOption && selectedOption.value) {
-      onSubmit?.(parseFloat(selectedOption.value));
+      onSubmit?.(Number.parseFloat(selectedOption.value));
       onClose?.();
     }
   }

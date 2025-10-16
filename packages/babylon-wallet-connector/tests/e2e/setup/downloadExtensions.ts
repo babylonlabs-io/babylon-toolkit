@@ -143,7 +143,7 @@ export const downloadExtension = async (extension: ExtensionConfig): Promise<str
 
             // Download CRX file
             const file = createWriteStream(extensionPath);
-            const totalSize = parseInt(finalResponse.headers["content-length"] || "0", 10);
+            const totalSize = Number.parseInt(finalResponse.headers["content-length"] || "0", 10);
             let downloadedSize = 0;
 
             console.log(`\nDownloading ${name} extension v${version}...`);

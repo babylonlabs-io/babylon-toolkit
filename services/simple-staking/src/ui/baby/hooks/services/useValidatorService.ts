@@ -76,14 +76,14 @@ export function useValidatorService() {
       validatorList
         .map((validator) => {
           // Handle edge cases for tokens and commission, if they are not finite numbers, set them to 0
-          const parsedTokens = parseFloat(validator.tokens);
-          const tokens = isFinite(parsedTokens) ? parsedTokens : 0;
+          const parsedTokens = Number.parseFloat(validator.tokens);
+          const tokens = Number.isFinite(parsedTokens) ? parsedTokens : 0;
           const bondedTokens = pool?.bondedTokens ?? 0;
           const calculatedVotingPower = tokens / bondedTokens;
-          const votingPower = isFinite(calculatedVotingPower)
+          const votingPower = Number.isFinite(calculatedVotingPower)
             ? calculatedVotingPower
             : 0;
-          const parsedCommission = parseFloat(
+          const parsedCommission = Number.parseFloat(
             validator.commission.commissionRates.rate,
           );
           const commission = Number.isFinite(parsedCommission)
