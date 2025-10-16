@@ -6,6 +6,8 @@ import {
   useCallback,
   useMemo,
   useEffect,
+  Component,
+  type ReactNode,
 } from "react";
 import {
   type ETHTypedData,
@@ -66,8 +68,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => {},
-  disconnect: () => {},
+  open: () => { },
+  disconnect: () => { },
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -81,10 +83,10 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => {},
+  switchChain: async () => { },
   pendingTx: undefined,
   isPending: false,
-  clearError: () => {},
+  clearError: () => { },
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
@@ -281,60 +283,76 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
+// Error boundary for ETHWalletProvider
+interface ETHWalletErrorBoundaryState {
+  hasError: boolean;
+}
+
+class ETHWalletErrorBoundary extends Component<
+  PropsWithChildren,
+  ETHWalletErrorBoundaryState
+> {
+  constructor(props: PropsWithChildren) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(): ETHWalletErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn("ETH wallet provider failed to initialize:", error);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      const fallbackContextValue: ETHWalletContextType = {
+        loading: false,
+        connected: false,
+        open: () => console.warn("ETH wallet not available"),
+        disconnect: () => Promise.resolve(),
+        address: "",
+        publicKeyHex: "",
+        balance: 0,
+        formattedBalance: "0",
+        chainId: undefined,
+        networkName: undefined,
+        pendingTx: undefined,
+        isPending: false,
+        getAddress: async () => "",
+        getPublicKeyHex: async () => "",
+        signMessage: async () => {
+          throw new Error("ETH wallet not available");
+        },
+        signTypedData: async () => {
+          throw new Error("ETH wallet not available");
+        },
+        sendTransaction: async () => {
+          throw new Error("ETH wallet not available");
+        },
+        getBalance: async () => 0n,
+        getNonce: async () => 0,
+        switchChain: async () => { },
+        clearError: () => { },
+      };
+
+      return (
+        <ETHWalletContext.Provider value={fallbackContextValue}>
+          {this.props.children}
+        </ETHWalletContext.Provider>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 // Safe wrapper for ETHWalletProvider that handles AppKit initialization errors
 export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
-  const [hasError, setHasError] = useState(false);
-
-  const fallbackContextValue = useMemo(
-    () => ({
-      loading: false,
-      connected: false,
-      open: () => console.warn("ETH wallet not available"),
-      disconnect: () => Promise.resolve(),
-      address: "",
-      publicKeyHex: "",
-      balance: 0,
-      formattedBalance: "0",
-      chainId: undefined,
-      networkName: undefined,
-      pendingTx: undefined,
-      isPending: false,
-      getAddress: async () => "",
-      getPublicKeyHex: async () => "",
-      signMessage: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      signTypedData: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      sendTransaction: async () => {
-        throw new Error("ETH wallet not available");
-      },
-      getBalance: async () => 0n,
-      getNonce: async () => 0,
-      switchChain: async () => {},
-      clearError: () => {},
-    }),
-    [],
+  return (
+    <ETHWalletErrorBoundary>
+      <ETHWalletProvider>{children}</ETHWalletProvider>
+    </ETHWalletErrorBoundary>
   );
-
-  if (hasError) {
-    return (
-      <ETHWalletContext.Provider value={fallbackContextValue}>
-        {children}
-      </ETHWalletContext.Provider>
-    );
-  }
-
-  try {
-    return <ETHWalletProvider>{children}</ETHWalletProvider>;
-  } catch (error) {
-    console.warn("ETH wallet provider failed to initialize:", error);
-    setHasError(true);
-    return (
-      <ETHWalletContext.Provider value={fallbackContextValue}>
-        {children}
-      </ETHWalletContext.Provider>
-    );
-  }
 };
