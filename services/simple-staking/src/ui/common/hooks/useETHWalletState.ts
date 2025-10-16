@@ -122,13 +122,8 @@ export function useETHWalletState() {
                     const isWithinGracePeriod = timeSinceMount < GRACE_PERIOD;
 
                     if (!isWithinGracePeriod || hasSeenConnectedRef.current || initCompleteRef.current) {
-                        if (!hasSeenConnectedRef.current) {
-                            dispatch({ type: "DISCONNECTED" });
-                            initCompleteRef.current = true;
-                        } else {
-                            dispatch({ type: "DISCONNECTED" });
-                            initCompleteRef.current = true;
-                        }
+                        dispatch({ type: "DISCONNECTED" });
+                        initCompleteRef.current = true;
                     }
                     break;
 
