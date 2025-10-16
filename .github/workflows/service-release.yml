@@ -49,6 +49,7 @@ jobs:
           NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
           NEXT_PUBLIC_VAULT_PROVIDER_URL: ${{ vars.NEXT_PUBLIC_VAULT_PROVIDER_URL }}
           NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
+          NEXT_PUBLIC_VAULT_API_URL: ${{ vars.NEXT_PUBLIC_VAULT_API_URL }}
           S3_PUBLIC_BUCKET: ${{ vars.S3_PUBLIC_BUCKET }}
 
       - name: Generate sha256sum checksum

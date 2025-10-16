@@ -69,8 +69,8 @@ export class VaultProviderRpcApi {
    *   pegin_tx_id: 'abc123...',
    *   depositor_pk: '02ab...',
    *   signatures: {
-   *     'claim_tx_hash': 'signature1...',
-   *     'payout_tx_hash': 'signature2...'
+   *     '02claimer_pk_vp...': 'signature_for_vp_payout...',
+   *     '03claimer_pk_liquidator...': 'signature_for_liquidator_payout...'
    *   }
    * });
    * ```

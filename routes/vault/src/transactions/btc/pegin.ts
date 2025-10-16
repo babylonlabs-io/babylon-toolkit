@@ -1,4 +1,3 @@
-// @ts-ignore - WASM files don't have perfect types
 import init, { WasmPeginTx } from "@routes/vault/wasm/btc_vaults.js";
 
 let wasmInitialized = false;
