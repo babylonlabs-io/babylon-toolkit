@@ -6,6 +6,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useLocation } from "react-router";
 import { useLocalStorage } from "usehooks-ts";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -62,6 +63,8 @@ const { StateProvider, useState: useDelegationV2State } =
   });
 
 export function DelegationV2State({ children }: PropsWithChildren) {
+  const location = useLocation();
+  const isVaultRoute = location.pathname.startsWith("/vault");
   const [showLinkedDelegations, setLinkedDelegations] = useLocalStorage(
     "baby-linked-wallet-stakes-visibility",
     false,
@@ -79,7 +82,9 @@ export function DelegationV2State({ children }: PropsWithChildren) {
     isLoading,
     hasNextPage,
     refetch,
-  } = useDelegationsV2(!showLinkedDelegations ? bech32Address : undefined);
+  } = useDelegationsV2(!showLinkedDelegations ? bech32Address : undefined, {
+    enabled: !isVaultRoute,
+  });
   // States
   const { delegations, addPendingDelegation, updateDelegationStatus } =
     useDelegationStorage(

@@ -5,6 +5,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
+import { useLocation } from "react-router";
 
 import { useOrdinals } from "@/ui/common/hooks/client/api/useOrdinals";
 import { useUTXOs } from "@/ui/common/hooks/client/api/useUTXOs";
@@ -64,6 +65,8 @@ const { StateProvider, useState: useApplicationState } =
 
 export function AppState({ children }: PropsWithChildren) {
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
+  const isVaultRoute = location.pathname.startsWith("/vault");
 
   const { lockInscriptions: ordinalsExcluded, toggleLockInscriptions } =
     useInscriptionProvider();
@@ -81,13 +84,13 @@ export function AppState({ children }: PropsWithChildren) {
     isLoading: isOrdinalLoading,
     isError: isOrdinalError,
   } = useOrdinals(confirmedUTXOs, {
-    enabled: !isUTXOLoading,
+    enabled: !isVaultRoute && !isUTXOLoading,
   });
   const {
     data: networkInfo,
     isLoading: isNetworkInfoLoading,
     isError: isNetworkInfoError,
-  } = useNetworkInfo();
+  } = useNetworkInfo({ enabled: !isVaultRoute });
 
   // Computed
   const isLoading = isUTXOLoading || isOrdinalLoading || isNetworkInfoLoading;

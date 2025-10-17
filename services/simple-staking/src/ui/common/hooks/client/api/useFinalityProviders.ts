@@ -21,9 +21,10 @@ interface Params {
   name?: string;
   sortBy?: string;
   order?: "asc" | "desc";
+  enabled?: boolean;
 }
 
-export function useFinalityProviders({ pk, sortBy, order, name }: Params = {}) {
+export function useFinalityProviders({ pk, sortBy, order, name, enabled }: Params = {}) {
   const { isOpen, handleError } = useError();
   const logger = useLogger();
 
@@ -51,6 +52,7 @@ export function useFinalityProviders({ pk, sortBy, order, name }: Params = {}) {
     },
     retry: (failureCount) => !isOpen && failureCount < API_DEFAULT_RETRY_COUNT,
     retryDelay: (count) => API_DEFAULT_RETRY_DELAY ** (count + 1) * ONE_SECOND,
+    enabled,
   });
 
   useEffect(() => {
