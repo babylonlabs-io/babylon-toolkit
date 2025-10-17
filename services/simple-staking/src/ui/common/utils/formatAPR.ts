@@ -28,7 +28,7 @@ const DEFAULT_APR_FORMAT_OPTIONS: APRFormatOptions = {
 // Determine the exact number of fractional digits for a finite decimal.
 // Caps at 12 to avoid pathological loops with floating point noise.
 const countDecimals = (value: number): number => {
-  if (!isFinite(value)) return 0;
+  if (!Number.isFinite(value)) return 0;
   let decimals = 0;
   let scaled = value;
   while (Math.round(scaled) !== scaled && decimals < 12) {
@@ -49,7 +49,10 @@ export const formatAPRPercentage = (
   apr: number | null | undefined,
   options?: Partial<APRFormatOptions>,
 ): string => {
-  const opts: APRFormatOptions = { ...DEFAULT_APR_FORMAT_OPTIONS, ...(options ?? {}) };
+  const opts: APRFormatOptions = {
+    ...DEFAULT_APR_FORMAT_OPTIONS,
+    ...(options ?? {}),
+  };
   const value = apr ?? 0;
 
   if (value <= 0) {
@@ -93,12 +96,16 @@ export const formatAPRPairAdaptive = (
   aprB: number | null | undefined,
   options?: Partial<APRFormatOptions>,
 ): { a: string; b: string; decimalsUsed: number } => {
-  const opts: APRFormatOptions = { ...DEFAULT_APR_FORMAT_OPTIONS, ...(options ?? {}) };
+  const opts: APRFormatOptions = {
+    ...DEFAULT_APR_FORMAT_OPTIONS,
+    ...(options ?? {}),
+  };
   const a = aprA ?? 0;
   const b = aprB ?? 0;
 
   // Start decimals based on whether values are in the "small" range
-  let startDecimals = a < 0.01 || b < 0.01 ? opts.smallValueDecimals : opts.minDecimals;
+  const startDecimals =
+    a < 0.01 || b < 0.01 ? opts.smallValueDecimals : opts.minDecimals;
 
   const toStringWith = (val: number, d: number): string => {
     if (val <= 0) {

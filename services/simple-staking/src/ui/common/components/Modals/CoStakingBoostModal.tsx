@@ -58,10 +58,9 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     >
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
-        <span className="text-accent-primary">{currentAPRDisplay}%</span>
-        . Stake {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol}{" "}
-        to boost it up to{" "}
-        <span className="text-accent-primary">{boostAPRDisplay}%</span>
+        <span className="text-accent-primary">{currentAPRDisplay}%</span>. Stake{" "}
+        {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost
+        it up to <span className="text-accent-primary">{boostAPRDisplay}%</span>
         . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
         with {babyCoinSymbol}.
       </p>
