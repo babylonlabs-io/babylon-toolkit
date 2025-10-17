@@ -4,7 +4,6 @@ import { useNavigate } from "react-router";
 import { useSessionStorage } from "usehooks-ts";
 import { MdRocketLaunch } from "react-icons/md";
 
-import { useBalanceState } from "@/ui/common/state/BalanceState";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import {
   NAVIGATION_STATE_KEYS,
@@ -16,7 +15,6 @@ const BANNER_DISMISSED_KEY = "bbn-costaking-banner-dismissed";
 
 export const CoStakingBanner = () => {
   const navigate = useNavigate();
-  const { stakedBtcBalance } = useBalanceState();
   const { hasValidBoostData } = useCoStakingState();
   const [dismissed, setDismissed] = useSessionStorage(
     BANNER_DISMISSED_KEY,
@@ -25,12 +23,9 @@ export const CoStakingBanner = () => {
   const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
 
   // Only show banner if:
-  // 1. User has active BTC delegations (stakedBtcBalance > 0)
-  // 2. User hasn't dismissed the banner
-  // 3. Boost data is available (APR values are valid and additionalBabyNeeded > 0)
-  const hasActiveDelegations = stakedBtcBalance > 0;
-  const shouldShowBanner =
-    hasActiveDelegations && !dismissed && hasValidBoostData;
+  // 1. User hasn't dismissed the banner
+  // 2. Boost data is available (APR values are valid and additionalBabyNeeded > 0)
+  const shouldShowBanner = !dismissed && hasValidBoostData;
 
   const handleBannerClick = useCallback(() => {
     navigate("/baby", {
