@@ -19,6 +19,7 @@ const HARDCODED_MARKETS: Market[] = [
     marketSize: "500M USDC ($500m)",
     totalLiquidity: "180M USDC ($180m)",
     rate: "4.2%",
+    trustedBy: ["/lombard.png", "/karak.png", "/symbiotic.png"],
   },
 ];
 
@@ -96,6 +97,17 @@ export function MarketOverview() {
         <span className="text-sm text-accent-primary">{row.rate}</span>
       ),
     },
+    {
+      key: "trustedBy",
+      header: "Trusted by",
+      render: (_value: unknown, row: Market) => (
+        <AvatarGroup size="small" max={3}>
+          {row.trustedBy.map((url, idx) => (
+            <Avatar key={idx} url={url} alt="" size="small" variant="circular" />
+          ))}
+        </AvatarGroup>
+      ),
+    },
   ];
 
   return (
@@ -149,10 +161,20 @@ export function MarketOverview() {
                         </div>
                       ),
                     },
-                  { label: "Borrow Rate", value: market.rate },
-                ]}
-                actions={[]}
-              />
+                    { label: "Borrow Rate", value: market.rate },
+                    {
+                      label: "Trusted by",
+                      value: (
+                        <AvatarGroup size="small" max={3}>
+                          {market.trustedBy.map((url, idx) => (
+                            <Avatar key={idx} url={url} alt="" size="small" variant="circular" />
+                          ))}
+                        </AvatarGroup>
+                      ),
+                    },
+                  ]}
+                  actions={[]}
+                />
               );
             })
           )}
