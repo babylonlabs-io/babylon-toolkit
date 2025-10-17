@@ -7,7 +7,6 @@
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
-import { toXOnly } from 'bitcoinjs-lib/src/psbt/bip371';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
 import { CONTRACTS } from '../../../config/contracts';
@@ -15,11 +14,21 @@ import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 import type { VaultProvider } from '../../../clients/vault-api/types';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
+import { processPublicKeyToXOnly } from '../../../utils/btcUtils';
+
+/**
+ * BTC wallet provider interface
+ * Defines the minimal interface needed from BTC wallet for peg-in flow
+ */
+interface BtcWalletProvider {
+  signMessage: (message: string, type: 'ecdsa' | 'bip322-simple') => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+}
 
 interface UsePeginFlowParams {
   open: boolean;
   amount: number;
-  btcConnector: any;
+  btcWalletProvider?: BtcWalletProvider;
   btcAddress: string;
   depositorEthAddress: Address;
   selectedProviders: VaultProvider[];
@@ -59,7 +68,7 @@ interface UsePeginFlowReturn {
 export function usePeginFlow({
   open,
   amount,
-  btcConnector,
+  btcWalletProvider,
   btcAddress,
   depositorEthAddress,
   selectedProviders,
@@ -142,32 +151,28 @@ export function usePeginFlow({
       // Step 1: Proof of Possession
       setCurrentStep(1);
 
-      // Extract signMessage function from BTC wallet provider
-      const signMessage = btcConnector?.connectedWallet?.provider?.signMessage;
+      // Validate BTC wallet provider
+      if (!btcWalletProvider) {
+        throw new Error('BTC wallet not connected');
+      }
 
       // Create proof of possession (REQUIRED)
+      // Wrap signMessage to handle the type parameter (use BIP-322 for proof of possession)
       await createProofOfPossession({
         ethAddress: depositorEthAddress,
         btcAddress: btcAddress,
-        signMessage: signMessage,
+        signMessage: (message: string) => btcWalletProvider.signMessage(message, 'bip322-simple'),
       });
 
       // Step 2: Prepare and submit transaction (ETH wallet signs and waits for confirmation)
       setCurrentStep(2);
 
-      // Extract BTC public key from wallet provider
-      if (!btcConnector?.connectedWallet?.provider) {
-        throw new Error('BTC wallet not connected');
-      }
+      // Get depositor's BTC public key and convert to x-only format
+      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
-      // Get public key from provider
-      const publicKeyHex =
-        await btcConnector.connectedWallet.provider.getPublicKeyHex();
-
-      // Convert to x-only pubkey
-      const depositorBtcPubkey = toXOnly(
-        Buffer.from(publicKeyHex, 'hex'),
-      ).toString('hex');
+      // Process vault provider's BTC public key (convert to x-only format)
+      const vaultProviderBtcPubkey = processPublicKeyToXOnly(selectedProvider.btc_pub_key);
 
       // Submit to smart contract (ETH wallet signs, broadcasts, and waits for confirmation)
       const result = await submitPeginRequest(
@@ -181,7 +186,7 @@ export function usePeginFlow({
           fundingScriptPubkey: selectedUTXO.scriptPubKey,
         },
         selectedProvider.id as Address,
-        selectedProvider.btc_pub_key,
+        vaultProviderBtcPubkey,
       );
 
       // Store unsigned transaction hex and ETH tx hash for later BTC broadcasting
@@ -210,7 +215,26 @@ export function usePeginFlow({
         },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      // Log full error for debugging
+      console.error('Peg-in flow error:', err);
+
+      // Extract error message
+      let errorMessage = 'Unknown error occurred';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err && typeof err === 'object') {
+        // Try to extract useful error info from object
+        const errorObj = err as Record<string, unknown>;
+        errorMessage =
+          (typeof errorObj.message === 'string' ? errorObj.message : undefined) ||
+          (typeof errorObj.reason === 'string' ? errorObj.reason : undefined) ||
+          (typeof errorObj.shortMessage === 'string' ? errorObj.shortMessage : undefined) ||
+          JSON.stringify(err);
+      }
+
+      setError(errorMessage);
       setProcessing(false);
     }
   };

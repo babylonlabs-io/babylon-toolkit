@@ -21,9 +21,11 @@ import {
   useSignMessage,
   useSignTypedData,
   useSendTransaction,
+  useSwitchChain,
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
+
 import { useEthConnectorBridge } from "../../hooks/useEthConnectorBridge";
 import { useETHWalletState } from "../../hooks/useETHWalletState";
 
@@ -65,8 +67,8 @@ interface ETHWalletContextType {
 const ETHWalletContext = createContext<ETHWalletContextType>({
   loading: true,
   connected: false,
-  open: () => { },
-  disconnect: () => { },
+  open: () => {},
+  disconnect: () => {},
   address: "",
   publicKeyHex: "",
   balance: 0,
@@ -80,10 +82,10 @@ const ETHWalletContext = createContext<ETHWalletContextType>({
   sendTransaction: async () => "",
   getBalance: async () => 0n,
   getNonce: async () => 0,
-  switchChain: async () => { },
+  switchChain: async () => {},
   pendingTx: undefined,
   isPending: false,
-  clearError: () => { },
+  clearError: () => {},
 });
 
 export const useETHWallet = () => useContext(ETHWalletContext);
@@ -120,6 +122,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
   const { sendTransactionAsync } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
 
   // Update network name based on chain ID
   useEffect(() => {
@@ -158,7 +161,6 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       });
     }
   }, [disconnect, ethConnector, handleError]);
-
 
   const ethWalletMethods = useMemo(
     () => ({
@@ -220,8 +222,16 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => balance?.value ?? 0n,
       getNonce: async () => 0, // Would need additional hook for nonce
-      switchChain: async () => {
-        // AppKit handles chain switching through the modal
+      switchChain: async (chainId: number) => {
+        try {
+          setIsPending(true);
+          await switchChainAsync({ chainId });
+        } catch (err) {
+          handleError({ error: err as Error });
+          throw err;
+        } finally {
+          setIsPending(false);
+        }
       },
     }),
     [
@@ -231,49 +241,49 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       handleError,
       signTypedDataAsync,
       sendTransactionAsync,
+      switchChainAsync,
       balance?.value,
     ],
   );
 
-  const ethContextValue = useMemo(
-    () => {
-      const value = {
-        loading: walletState.isLoading,
-        connected,
-        open,
-        disconnect: ethDisconnect,
-        address: address ?? "",
-        publicKeyHex,
-        balance: balance
-          ? parseFloat(formatUnits(balance.value, balance.decimals))
-          : 0,
-        formattedBalance: balance
-          ? formatUnits(balance.value, balance.decimals)
-          : "0",
-        chainId,
-        networkName,
-        pendingTx,
-        isPending,
-        clearError: () => { /* No-op for compatibility */ },
-        ...ethWalletMethods,
-      };
-      return value;
-    },
-    [
-      walletState.isLoading,
+  const ethContextValue = useMemo(() => {
+    const value = {
+      loading: walletState.isLoading,
       connected,
       open,
-      ethDisconnect,
-      address,
+      disconnect: ethDisconnect,
+      address: address ?? "",
       publicKeyHex,
-      balance,
+      balance: balance
+        ? parseFloat(formatUnits(balance.value, balance.decimals))
+        : 0,
+      formattedBalance: balance
+        ? formatUnits(balance.value, balance.decimals)
+        : "0",
       chainId,
       networkName,
       pendingTx,
       isPending,
-      ethWalletMethods,
-    ],
-  );
+      clearError: () => {
+        /* No-op for compatibility */
+      },
+      ...ethWalletMethods,
+    };
+    return value;
+  }, [
+    walletState.isLoading,
+    connected,
+    open,
+    ethDisconnect,
+    address,
+    publicKeyHex,
+    balance,
+    chainId,
+    networkName,
+    pendingTx,
+    isPending,
+    ethWalletMethods,
+  ]);
 
   return (
     <ETHWalletContext.Provider value={ethContextValue}>
@@ -313,8 +323,8 @@ export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => 0n,
       getNonce: async () => 0,
-      switchChain: async () => { },
-      clearError: () => { },
+      switchChain: async () => {},
+      clearError: () => {},
     }),
     [],
   );

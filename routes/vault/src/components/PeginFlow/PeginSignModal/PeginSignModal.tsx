@@ -12,6 +12,15 @@ import type { Address } from 'viem';
 import { usePeginFlow } from './usePeginFlow';
 import type { VaultProvider } from '../../../clients/vault-api/types';
 
+/**
+ * BTC wallet provider interface
+ * Defines the minimal interface needed from BTC wallet for peg-in flow
+ */
+interface BtcWalletProvider {
+  signMessage: (message: string, type: 'ecdsa' | 'bip322-simple') => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+}
+
 interface PeginSignModalProps {
   open: boolean;
   onClose: () => void;
@@ -32,7 +41,7 @@ interface PeginSignModalProps {
    * The first provider in the array will be used for the peg-in transaction
    */
   selectedProviders: VaultProvider[];
-  btcConnector: any;
+  btcWalletProvider?: BtcWalletProvider;
   btcAddress: string;
   depositorEthAddress: Address;
 }
@@ -50,14 +59,14 @@ export function PeginSignModal({
   onSuccess,
   amount,
   selectedProviders,
-  btcConnector,
+  btcWalletProvider,
   btcAddress,
   depositorEthAddress,
 }: PeginSignModalProps) {
   const { currentStep, processing, error, isComplete } = usePeginFlow({
     open,
     amount,
-    btcConnector,
+    btcWalletProvider,
     btcAddress,
     depositorEthAddress,
     selectedProviders,

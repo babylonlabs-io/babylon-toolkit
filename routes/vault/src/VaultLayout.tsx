@@ -11,17 +11,17 @@ interface VaultLayoutProps {
   isWalletConnected?: boolean;
 }
 
-export default function VaultLayout({ 
-  ethAddress, 
-  btcAddress, 
-  isWalletConnected = false 
+export default function VaultLayout({
+  ethAddress,
+  btcAddress,
+  isWalletConnected = false
 }: VaultLayoutProps) {
   // Initialize AppKit bridge for ETH wallet connection
   useAppKitBridge();
 
   return (
     <div>
-      <VaultDeposit 
+      <VaultDeposit
         ethAddress={ethAddress}
         btcAddress={btcAddress}
         isWalletConnected={isWalletConnected}

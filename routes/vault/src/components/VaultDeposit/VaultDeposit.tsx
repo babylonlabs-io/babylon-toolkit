@@ -74,8 +74,9 @@ export function VaultDeposit({
     handlePeginSuccessClose,
   } = usePeginFlow();
 
-  // Get BTC wallet connector
+  // Get BTC wallet connector and extract provider
   const btcConnector = useChainConnector('BTC');
+  const btcWalletProvider = btcConnector?.connectedWallet?.provider || undefined;
 
   // Handle peg-in sign success with storage integration
   const handlePeginSignSuccess = useCallback(
@@ -178,7 +179,7 @@ export function VaultDeposit({
         onSuccess={handlePeginSignSuccess}
         amount={peginAmount}
         selectedProviders={selectedProviders}
-        btcConnector={btcConnector}
+        btcWalletProvider={btcWalletProvider}
         btcAddress={btcAddress || ''}
         depositorEthAddress={(connectedAddress || '0x0') as `0x${string}`}
       />
