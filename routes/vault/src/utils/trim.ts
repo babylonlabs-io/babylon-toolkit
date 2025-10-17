@@ -7,11 +7,6 @@
  * trimmed string, excluding the ellipsis. Defaults to 8 if not provided.
  * @returns {string | undefined} - The trimmed string with ellipsis in the middle if the
  * original string length exceeds the specified symbol count. Returns "-" if input is undefined.
- *
- * @example
- * trim("abcdefghijk", 4) // returns "ab...jk"
- * trim("abc", 4) // returns "abc"
- * trim(undefined) // returns "-"
  */
 export const trim = (str?: string, symbols: number = 8): string => {
   if (!str) return '-';

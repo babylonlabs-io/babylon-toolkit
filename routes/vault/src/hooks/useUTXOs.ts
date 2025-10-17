@@ -14,18 +14,6 @@ import { getUTXOs, type MempoolUTXO } from '../clients/btc/mempool';
  * @param btcAddress - Bitcoin address to fetch UTXOs for (undefined if not connected)
  * @param options - Additional options for the query
  * @returns Object containing UTXOs, loading state, error state, and refetch function
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const { address } = useBTCWallet();
- *   const { allUTXOs, confirmedUTXOs, isLoading, error, refetch } = useUTXOs(address);
- *
- *   if (isLoading) return <Spinner />;
- *   if (error) return <Error message={error.message} />;
- *   return <UTXOList utxos={confirmedUTXOs} />;
- * }
- * ```
  */
 export function useUTXOs(
   btcAddress: string | undefined,
@@ -68,12 +56,6 @@ export function useUTXOs(
  *
  * @param utxos - Array of UTXOs
  * @returns Total balance in satoshis
- *
- * @example
- * ```tsx
- * const { confirmedUTXOs } = useUTXOs(address);
- * const balanceSat = calculateBalance(confirmedUTXOs);
- * ```
  */
 export function calculateBalance(utxos: MempoolUTXO[]): number {
   // TODO: Filter out ordinals/inscriptions in production

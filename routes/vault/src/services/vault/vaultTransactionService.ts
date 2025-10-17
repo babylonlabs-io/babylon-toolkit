@@ -111,8 +111,8 @@ export async function submitPeginRequest(
 ) {
   // Step 1: Create unsigned BTC peg-in transaction
   // This uses WASM to construct the transaction with:
-  // - REAL: depositor pubkey, peg-in amount, funding UTXO from wallet, selected vault provider
-  // - HARDCODED: liquidators, network, fee (TODO: fetch from backend)
+  // - depositor pubkey, peg-in amount, funding UTXO from wallet, selected vault provider
+  // - HARDCODED: liquidators, network, fee (TODO: calculate dynamically based on tx size and fee rate)
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,

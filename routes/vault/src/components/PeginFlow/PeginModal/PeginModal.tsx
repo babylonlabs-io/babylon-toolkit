@@ -18,7 +18,7 @@ import type { VaultProvider } from "../../../clients/vault-api/types";
 interface PeginModalProps {
   open: boolean;
   onClose: () => void;
-  onPegIn: (amount: number, providers: string[]) => void;
+  onPegIn: (amount: number, providers: VaultProvider[]) => void;
   btcBalance?: number; // BTC balance in satoshis
 }
 
@@ -93,7 +93,11 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
   // Handler: Peg-in button click
   const handlePegIn = () => {
     if (isValid) {
-      onPegIn(amountNum, selectedProviders);
+      // Find the full provider objects for selected IDs
+      const selectedProviderObjects = vaultProviders.filter((p: VaultProvider) =>
+        selectedProviders.includes(p.id)
+      );
+      onPegIn(amountNum, selectedProviderObjects);
     }
   };
 

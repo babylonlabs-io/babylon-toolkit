@@ -102,7 +102,7 @@ export function VaultDeposit({
         const peginData = {
           id: idForStorage,
           amount: peginAmount.toString(),
-          providers: selectedProviders,
+          providers: selectedProviders.map(p => p.id), // Store only IDs for localStorage
           ethAddress: connectedAddress,
           btcAddress: effectiveBtcAddress,
           unsignedTxHex: data.unsignedTxHex,

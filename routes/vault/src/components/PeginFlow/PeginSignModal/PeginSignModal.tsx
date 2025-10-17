@@ -10,6 +10,7 @@ import {
 } from '@babylonlabs-io/core-ui';
 import type { Address } from 'viem';
 import { usePeginFlow } from './usePeginFlow';
+import type { VaultProvider } from '../../../clients/vault-api/types';
 
 interface PeginSignModalProps {
   open: boolean;
@@ -27,10 +28,10 @@ interface PeginSignModalProps {
   }) => void;
   amount: number;
   /**
-   * Array of selected vault provider IDs
+   * Array of selected vault providers
    * The first provider in the array will be used for the peg-in transaction
    */
-  selectedProviders: string[];
+  selectedProviders: VaultProvider[];
   btcConnector: any;
   btcAddress: string;
   depositorEthAddress: Address;

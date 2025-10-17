@@ -80,7 +80,6 @@ export async function createPeginTxForSubmission(
 
   // Create BTC peg-in transaction using WASM
   const pegInTx = await createPegInTransaction({
-    // REAL: Funding transaction (UTXO) from connected wallet
     depositTxid: params.fundingTxid,
     depositVout: params.fundingVout,
     depositValue: params.fundingValue,

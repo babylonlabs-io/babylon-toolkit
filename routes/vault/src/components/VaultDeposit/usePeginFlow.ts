@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import { useUTXOs, calculateBalance } from '../../hooks/useUTXOs';
+import type { VaultProvider } from '../../clients/vault-api/types';
 
 /**
  * Hook to manage peg-in flow modal state
@@ -24,7 +25,7 @@ export function usePeginFlow() {
 
   // Peg-in flow data
   const [peginAmount, setPeginAmount] = useState(0);
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [selectedProviders, setSelectedProviders] = useState<VaultProvider[]>([]);
 
   const openPeginFlow = useCallback(() => {
     setIsOpen(true);
@@ -35,7 +36,7 @@ export function usePeginFlow() {
   }, []);
 
   // Handle peg-in click from PeginModal
-  const handlePeginClick = useCallback((amount: number, providers: string[]) => {
+  const handlePeginClick = useCallback((amount: number, providers: VaultProvider[]) => {
     setPeginAmount(amount);
     setSelectedProviders(providers);
     setIsOpen(false);

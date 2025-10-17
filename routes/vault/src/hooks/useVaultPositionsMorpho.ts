@@ -33,18 +33,6 @@ export interface UseVaultPositionsMorphoResult {
  *
  * @param connectedAddress - Ethereum address of connected wallet (undefined if not connected)
  * @returns Object containing positions array, loading state, error state, and refetch function
- *
- * @example
- * ```tsx
- * function PositionsTab() {
- *   const { address } = useETHWallet();
- *   const { positions, loading, error, refetch } = useVaultPositionsMorpho(address);
- *
- *   if (loading) return <Spinner />;
- *   if (error) return <Error message={error.message} onRetry={refetch} />;
- *   return <PositionList positions={positions} />;
- * }
- * ```
  */
 export function useVaultPositionsMorpho(
   connectedAddress: Address | undefined,

@@ -13,8 +13,8 @@ import { createProofOfPossession } from '../../../transactions/btc/proofOfPosses
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
-import { VaultApiClient } from '../../../clients/vault-api';
-import { getVaultApiUrl, DEFAULT_TIMEOUT } from '../../../clients/vault-api/config';
+import type { VaultProvider } from '../../../clients/vault-api/types';
+import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
 
 interface UsePeginFlowParams {
   open: boolean;
@@ -22,7 +22,7 @@ interface UsePeginFlowParams {
   btcConnector: any;
   btcAddress: string;
   depositorEthAddress: Address;
-  selectedProviders: string[];
+  selectedProviders: VaultProvider[];
   onSuccess: (data: {
     btcTxId: string;
     ethTxHash: string;
@@ -104,18 +104,9 @@ export function usePeginFlow({
         throw new Error('No vault provider selected. Please select at least one provider.');
       }
 
-      // Fetch provider data from API
-      const vaultApiClient = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
-      const allProviders = await vaultApiClient.getProviders();
-
-      // Find the selected provider (using first one for now)
+      // Use the first selected provider (already have full object from parent)
       // TODO: Support multiple providers in the future
-      const selectedProviderId = selectedProviders[0];
-      const selectedProvider = allProviders.find((p) => p.id === selectedProviderId);
-
-      if (!selectedProvider) {
-        throw new Error(`Selected vault provider not found: ${selectedProviderId}`);
-      }
+      const selectedProvider = selectedProviders[0];
 
       // Validate UTXOs availability (happens before step 1)
       if (isUTXOsLoading) {
@@ -135,11 +126,8 @@ export function usePeginFlow({
       // Convert BTC amount to satoshis
       const pegInAmountSats = BigInt(Math.round(amount * Number(SATOSHIS_PER_BTC)));
 
-      // Hardcoded transaction fee (TODO: fetch from config or calculate dynamically)
-      const btcTransactionFee = 10000n; // 10,000 sats
-
       // Calculate required amount: peg-in amount + transaction fee
-      const requiredAmount = pegInAmountSats + btcTransactionFee;
+      const requiredAmount = pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
 
       // Select suitable UTXO
       const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
