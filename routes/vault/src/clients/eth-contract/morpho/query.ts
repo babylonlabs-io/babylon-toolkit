@@ -5,44 +5,8 @@ import { ethClient } from '../client';
 import { toHex } from 'viem';
 import { fetchMarket } from '@morpho-org/blue-sdk-viem';
 import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
-import { registerCustomAddresses } from '@morpho-org/blue-sdk';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
-import { network } from '@babylonlabs-io/config';
-import { CONTRACTS } from '../../../config/contracts';
-
-// Helper to create localhost chain addresses for Morpho SDK
-const createLocalhostAddresses = () => ({
-  morpho: CONTRACTS.MORPHO,
-  adaptiveCurveIrm: '0x0000000000000000000000000000000000000000' as Address,
-  bundler3: {
-    bundler3: '0x0000000000000000000000000000000000000000' as Address,
-    generalAdapter1: '0x0000000000000000000000000000000000000000' as Address,
-  },
-});
-
-// Track if we've already registered addresses for a given chain ID
-const registeredChainIds = new Set<number>();
-
-// Helper to ensure localhost addresses are registered for the current chain
-async function ensureLocalhostAddressesRegistered() {
-  const publicClient = ethClient.getPublicClient();
-  const chainId = await publicClient.getChainId();
-
-  // Register for localhost if either network is localhost OR chain ID is 31337
-  const isLocalhost = network === 'localhost' || chainId === 31337;
-  if (!isLocalhost) return;
-
-  // Only register if not already registered for this chain ID
-  if (!registeredChainIds.has(chainId)) {
-    registerCustomAddresses({
-      addresses: {
-        [chainId]: createLocalhostAddresses(),
-      },
-    });
-    registeredChainIds.add(chainId);
-  }
-}
 
 /**
  * Get Morpho market information by ID using the official Morpho SDK
@@ -55,9 +19,6 @@ export async function getMarketById(
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
   const marketId: Hex = toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
-
-  // Ensure localhost addresses are registered before fetching
-  await ensureLocalhostAddressesRegistered();
 
   // Use Morpho SDK for all networks (including localhost)
   const market = await fetchMarket(marketId as MarketId, publicClient);
@@ -104,9 +65,6 @@ export async function getUserPosition(
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
   const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
-
-  // Ensure localhost addresses are registered before fetching
-  await ensureLocalhostAddressesRegistered();
 
   // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
   const position = await AccrualPosition.fetch(

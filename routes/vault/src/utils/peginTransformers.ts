@@ -111,14 +111,12 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
  * @param vaultMetadata - Optional vault metadata to show if vault is in use
- * @param onPegOut - Optional callback for peg out action
- * @returns VaultActivity object ready for UI rendering
+ * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
 export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
   vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean },
-  onPegOut?: (activity: VaultActivity) => void,
 ): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
@@ -131,9 +129,6 @@ export function transformPeginToActivity(
 
   // Check if vault is in use (has active position)
   const isInUse = vaultMetadata?.active === true;
-
-  // Check if vault is available (status 2 = Available)
-  const isAvailable = peginRequest.status === 2;
 
   // Create VaultActivity object (deposit/collateral info + "in use" status)
   const activity: VaultActivity = {
@@ -168,14 +163,8 @@ export function transformPeginToActivity(
     } : undefined,
     // Flag to indicate vault is being used by a position
     isInUse,
-    // Show "Peg Out" action only for Available vaults
-    // Note: Currently uses repayAndPegout which repays Morpho and pegs out atomically.
-    // Future: Will be split into separate repay and pegout so users can repay without pegging out
-    // to make vault available for borrowing other markets.
-    action: isAvailable && onPegOut ? {
-      label: 'Peg Out',
-      onClick: () => onPegOut(activity),
-    } : undefined,
+    // No action handlers - these are attached at the component level
+    action: undefined,
     // No Morpho position details in deposit tab
     morphoPosition: undefined,
     borrowingData: undefined,
@@ -189,14 +178,12 @@ export function transformPeginToActivity(
 /**
  * Transform multiple PeginRequests to VaultActivities
  * @param peginRequestsWithHashes - Array of tuples containing pegin request data, transaction hash, and optional vault metadata
- * @param onPegOut - Optional callback for peg out action
- * @returns Array of VaultActivity objects
+ * @returns Array of VaultActivity objects (without action handlers)
  */
 export function transformPeginRequestsToActivities(
   peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex; vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean } }>,
-  onPegOut?: (activity: VaultActivity) => void,
 ): VaultActivity[] {
   return peginRequestsWithHashes.map(({ peginRequest, txHash, vaultMetadata }) =>
-    transformPeginToActivity(peginRequest, txHash, vaultMetadata, onPegOut)
+    transformPeginToActivity(peginRequest, txHash, vaultMetadata)
   );
 }

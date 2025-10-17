@@ -152,7 +152,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader title="Collateral" onClose={onClose} className="text-accent-primary" />
-      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto text-accent-primary px-4 sm:px-6">
+      <DialogBody className="no-scrollbar text-accent-primary mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 sm:px-6">
         {/* Subtitle */}
         <Text variant="body2" className="text-accent-secondary -mt-2 text-sm sm:text-base">
           Your locked BTC collateral
@@ -186,10 +186,10 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
         {/* Market Selection Section */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <Text variant="subtitle1" className="text-base font-semibold text-accent-primary sm:text-lg">
+            <Text variant="subtitle1" className="text-accent-primary text-base font-semibold sm:text-lg">
               Select Market
             </Text>
-            <Text variant="body2" className="text-sm text-accent-secondary sm:text-base">
+            <Text variant="body2" className="text-accent-secondary text-sm sm:text-base">
               Choose a lending market for your loan
             </Text>
           </div>
@@ -199,8 +199,8 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
               <Loader size={32} className="text-primary-main" />
             </div>
           ) : marketsError ? (
-            <div className="rounded-lg bg-error/10 p-4">
-              <Text variant="body2" className="text-sm text-error">
+            <div className="bg-error/10 rounded-lg p-4">
+              <Text variant="body2" className="text-error text-sm">
                 Failed to load markets. Please try again.
               </Text>
             </div>
@@ -217,13 +217,13 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
                 return (
                   <div
                     key={market.id}
-                    className="flex items-center justify-between rounded-lg bg-secondary-highlight p-4"
+                    className="bg-secondary-highlight flex items-center justify-between rounded-lg p-4"
                   >
                     <div className="flex flex-col gap-1">
-                      <Text variant="body1" className="text-sm font-medium text-accent-primary sm:text-base">
+                      <Text variant="body1" className="text-accent-primary text-sm font-medium sm:text-base">
                         Collateral: {collateralToken}
                       </Text>
-                      <Text variant="body2" className="text-xs text-accent-secondary sm:text-sm">
+                      <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm">
                         Loan: {loanToken} • LLTV: {lltvPercent}%
                       </Text>
                     </div>
@@ -245,7 +245,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
 
         {/* Borrow Section */}
         <div className="flex flex-col gap-2">
-          <h3 className="text-base sm:text-lg font-semibold text-accent-primary">
+          <h3 className="text-accent-primary text-base font-semibold sm:text-lg">
             Borrow
           </h3>
           <Text variant="body2" className="text-accent-secondary text-sm sm:text-base">
@@ -290,25 +290,25 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
         </SubSection>
 
         {/* Metrics Card */}
-        <div className="flex flex-col gap-3 p-3 sm:p-4 bg-secondary-highlight rounded">
+        <div className="bg-secondary-highlight flex flex-col gap-3 rounded p-3 sm:p-4">
           <div className="flex items-center justify-between gap-2">
-            <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm shrink-0">
+            <Text variant="body2" className="text-accent-secondary shrink-0 text-xs sm:text-sm">
               Collateral
             </Text>
-            <Text variant="body1" className="font-medium text-xs sm:text-sm text-right truncate">
+            <Text variant="body1" className="truncate text-right text-xs font-medium sm:text-sm">
               {collateral.amount} BTC ({formatUSD(collateralValueUSD)})
             </Text>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm shrink-0">
+            <Text variant="body2" className="text-accent-secondary shrink-0 text-xs sm:text-sm">
               Loan
             </Text>
-            <Text variant="body1" className="font-medium text-xs sm:text-sm text-right truncate">
+            <Text variant="body1" className="truncate text-right text-xs font-medium sm:text-sm">
               {borrowAmount || "0"} USDC ({formatUSD(borrowAmountNum)})
             </Text>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm shrink-0">
+            <Text variant="body2" className="text-accent-secondary shrink-0 text-xs sm:text-sm">
               LTV
             </Text>
             <Text
@@ -323,10 +323,10 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
             </Text>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm shrink-0">
+            <Text variant="body2" className="text-accent-secondary shrink-0 text-xs sm:text-sm">
               Liquidation LTV
             </Text>
-            <Text variant="body1" className="font-medium text-xs sm:text-sm">
+            <Text variant="body1" className="text-xs font-medium sm:text-sm">
               {formatPercentage(liquidationLTV * 100)}
             </Text>
           </div>
@@ -335,7 +335,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
       <DialogFooter className="flex flex-col gap-4 pb-8 pt-0">
         {/* Warning message if pegin is not ready */}
         {isReadyToMint === false && (
-          <Text variant="body2" className="text-warning-main text-sm text-center">
+          <Text variant="body2" className="text-warning-main text-center text-sm">
             Vault is not ready to borrow. Please wait for the vault provider to verify your BTC deposit.
           </Text>
         )}

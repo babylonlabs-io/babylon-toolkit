@@ -28,10 +28,15 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
     ? publicKeyHex.slice(2)
     : publicKeyHex;
 
+  // If already 64 chars (32 bytes), it's already x-only format
+  if (cleanHex.length === 64) {
+    return cleanHex;
+  }
+
   // Validate public key length (should be 66 chars for compressed key or 130 for uncompressed)
   if (cleanHex.length !== 66 && cleanHex.length !== 130) {
     throw new Error(
-      `Invalid public key length: ${cleanHex.length} (expected 66 or 130 hex chars)`
+      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`
     );
   }
 

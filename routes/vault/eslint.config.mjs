@@ -6,6 +6,14 @@ export default defineConfig([
   {
     rules: {
       "tailwindcss/no-custom-classname": 0,
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_|^error$"
+        }
+      ]
     },
   }
 ]);

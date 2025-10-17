@@ -39,10 +39,6 @@ const config: Record<string, BTCNetworkConfig> = {
     network: 'signet',
     name: 'Bitcoin Signet',
   },
-  localhost: {
-    network: 'regtest',
-    name: 'Bitcoin Regtest',
-  },
 };
 
 /**

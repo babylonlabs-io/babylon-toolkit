@@ -28,22 +28,22 @@ interface PositionCardProps {
 
 export function PositionCard({ position, onRepay }: PositionCardProps) {
   return (
-    <div className="w-full space-y-4 rounded bg-secondary-highlight p-4">
+    <div className="bg-secondary-highlight w-full space-y-4 rounded p-4">
       {/* Collateral Section */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <img
             src={position.collateral.icon || bitcoinIcon}
             alt={position.collateral.symbol}
-            className="h-10 w-10"
+            className="size-10"
           />
           <div>
-            <div className="text-sm text-accent-secondary">Collateral</div>
+            <div className="text-accent-secondary text-sm">Collateral</div>
             <div className="text-xl font-semibold">
               {position.collateral.amount} {position.collateral.symbol}
             </div>
             {position.collateral.valueUSD && (
-              <div className="text-xs text-accent-secondary">
+              <div className="text-accent-secondary text-xs">
                 ≈ {position.collateral.valueUSD}
               </div>
             )}
@@ -58,12 +58,12 @@ export function PositionCard({ position, onRepay }: PositionCardProps) {
       </div>
 
       {/* Loan Details Section */}
-      <div className="space-y-3 border-t border-accent-tertiary pt-4">
-        <div className="text-base font-semibold text-accent-primary">Loan Details</div>
+      <div className="border-accent-tertiary space-y-3 border-t pt-4">
+        <div className="text-accent-primary text-base font-semibold">Loan Details</div>
 
         {/* Borrowed Amount */}
         <div className="flex justify-between">
-          <span className="text-sm text-accent-secondary">Borrowed</span>
+          <span className="text-accent-secondary text-sm">Borrowed</span>
           <span className="text-sm font-medium">
             {position.borrowedAmount} {position.borrowedSymbol}
           </span>
@@ -71,7 +71,7 @@ export function PositionCard({ position, onRepay }: PositionCardProps) {
 
         {/* Total to Repay */}
         <div className="flex justify-between">
-          <span className="text-sm text-accent-secondary">Total to Repay</span>
+          <span className="text-accent-secondary text-sm">Total to Repay</span>
           <span className="text-sm font-medium">
             {position.totalToRepay} {position.borrowedSymbol}
           </span>
@@ -80,7 +80,7 @@ export function PositionCard({ position, onRepay }: PositionCardProps) {
         {/* Interest Accrued */}
         {parseFloat(position.interestAccrued) > 0 && (
           <div className="flex justify-between">
-            <span className="text-sm text-accent-secondary">Interest Accrued</span>
+            <span className="text-accent-secondary text-sm">Interest Accrued</span>
             <span className="text-sm font-medium">
               {position.interestAccrued} {position.borrowedSymbol}
             </span>
@@ -90,14 +90,14 @@ export function PositionCard({ position, onRepay }: PositionCardProps) {
         {/* Current LTV */}
         {position.currentLTV > 0 && (
           <div className="flex justify-between">
-            <span className="text-sm text-accent-secondary">LTV</span>
+            <span className="text-accent-secondary text-sm">LTV</span>
             <span className="text-sm font-medium">{position.currentLTV}%</span>
           </div>
         )}
 
         {/* Liquidation LTV */}
         <div className="flex justify-between">
-          <span className="text-sm text-accent-secondary">Liquidation LTV</span>
+          <span className="text-accent-secondary text-sm">Liquidation LTV</span>
           <span className="text-sm font-medium">{position.liquidationLTV}%</span>
         </div>
       </div>

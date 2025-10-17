@@ -1,16 +1,12 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import { useUTXOs, calculateBalance } from '../../hooks/useUTXOs';
 import type { VaultProvider } from '../../clients/vault-api/types';
 
 /**
  * Hook to manage peg-in flow modal state
+ * Only responsible for peg-in flow UI state - wallet connections are managed by parent components
  */
-export function usePeginFlow() {
-  // Get BTC wallet address for fetching UTXOs
-  const btcConnector = useChainConnector('BTC');
-  const btcAddress = (btcConnector as any)?.connectedWallet?.account?.address as string | undefined;
-
+export function usePeginFlow(btcAddress: string | undefined) {
   // Fetch UTXOs and calculate balance from confirmed UTXOs
   const { confirmedUTXOs } = useUTXOs(btcAddress);
   const btcBalanceSat = useMemo(
