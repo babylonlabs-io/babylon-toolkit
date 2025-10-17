@@ -224,20 +224,11 @@ export function useStakingExpansionService() {
         const { stakingTxHash, signedBabylonTx } =
           await createStakingExpansionEoi(expansionInput, formData.feeRate);
         await sendBbnTx(signedBabylonTx);
-        const stakingTxHashHex = stakingTxHash; // Use the hash from the expansion result
         // BBN transaction sent successfully
-
-        if (stakingTxHashHex !== stakingTxHash) {
-          const clientError = new ClientError(
-            ERROR_CODES.VALIDATION_ERROR,
-            `Staking expansion transaction hash mismatch, expected ${stakingTxHash} but got ${stakingTxHashHex}`,
-          );
-          throw clientError;
-        }
 
         // Create pending delegation object and add to state
         const pendingDelegation: DelegationV2 = {
-          stakingTxHashHex: stakingTxHashHex,
+          stakingTxHashHex: stakingTxHash,
           stakerBtcPkHex: publicKeyNoCoord,
           finalityProviderBtcPksHex: allProviders,
           stakingAmount: formData.originalDelegation.stakingAmount,
@@ -264,7 +255,7 @@ export function useStakingExpansionService() {
 
         // Poll for verification - same as regular staking flow
         const delegation = await retry(
-          () => getDelegationV2(stakingTxHashHex),
+          () => getDelegationV2(stakingTxHash),
           (delegation) => delegation?.state === DelegationState.VERIFIED,
           5 * ONE_SECOND,
         );
