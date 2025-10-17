@@ -1,5 +1,4 @@
 import { initializeAppKitModal } from "@babylonlabs-io/wallet-connector";
-import { localhost } from "@babylonlabs-io/config";
 import { mainnet, sepolia } from "viem/chains";
 
 // Initialize AppKit modal with configuration
@@ -13,7 +12,7 @@ const { modal, wagmiConfig } = initializeAppKitModal({
     url: typeof window !== "undefined" ? window.location.origin : "https://btcstaking.babylonlabs.io",
     icons: ["https://btcstaking.babylonlabs.io/favicon.ico"],
   },
-  networks: [mainnet, sepolia, localhost],
+  networks: [mainnet, sepolia],
   themeMode: "light",
   themeVariables: {
     "--w3m-accent": "#FF7C2A",
