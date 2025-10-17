@@ -46,6 +46,8 @@ export function RepayFlow({ activity, isOpen, onClose, onRepaySuccess }: RepayFl
 
   // Get repay amount in wei for transaction
   const repayAmountWei = activity.morphoPosition?.borrowAssets;
+  // Get market ID from vault metadata
+  const marketId = activity.vaultMetadata?.marketId;
 
   return (
     <>
@@ -56,6 +58,7 @@ export function RepayFlow({ activity, isOpen, onClose, onRepaySuccess }: RepayFl
         onSuccess={handleSignSuccess}
         pegInTxHash={activity.txHash}
         repayAmountWei={repayAmountWei}
+        marketId={marketId}
       />
 
       {/* Repay Success Modal */}

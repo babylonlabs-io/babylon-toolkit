@@ -12,8 +12,9 @@ import { submitPeginRequest } from '../../../services/vault/vaultTransactionServ
 import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
-import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
+import { VaultApiClient } from '../../../clients/vault-api';
+import { getVaultApiUrl, DEFAULT_TIMEOUT } from '../../../clients/vault-api/config';
 
 interface UsePeginFlowParams {
   open: boolean;
@@ -21,6 +22,7 @@ interface UsePeginFlowParams {
   btcConnector: any;
   btcAddress: string;
   depositorEthAddress: Address;
+  selectedProviders: string[];
   onSuccess: (data: {
     btcTxId: string;
     ethTxHash: string;
@@ -60,6 +62,7 @@ export function usePeginFlow({
   btcConnector,
   btcAddress,
   depositorEthAddress,
+  selectedProviders,
   onSuccess,
 }: UsePeginFlowParams): UsePeginFlowReturn {
   const [currentStep, setCurrentStep] = useState(1);
@@ -96,6 +99,24 @@ export function usePeginFlow({
     setError(null);
 
     try {
+      // Validate selected providers
+      if (!selectedProviders || selectedProviders.length === 0) {
+        throw new Error('No vault provider selected. Please select at least one provider.');
+      }
+
+      // Fetch provider data from API
+      const vaultApiClient = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
+      const allProviders = await vaultApiClient.getProviders();
+
+      // Find the selected provider (using first one for now)
+      // TODO: Support multiple providers in the future
+      const selectedProviderId = selectedProviders[0];
+      const selectedProvider = allProviders.find((p) => p.id === selectedProviderId);
+
+      if (!selectedProvider) {
+        throw new Error(`Selected vault provider not found: ${selectedProviderId}`);
+      }
+
       // Validate UTXOs availability (happens before step 1)
       if (isUTXOsLoading) {
         throw new Error('Loading wallet UTXOs. Please wait...');
@@ -114,8 +135,11 @@ export function usePeginFlow({
       // Convert BTC amount to satoshis
       const pegInAmountSats = BigInt(Math.round(amount * Number(SATOSHIS_PER_BTC)));
 
+      // Hardcoded transaction fee (TODO: fetch from config or calculate dynamically)
+      const btcTransactionFee = 10000n; // 10,000 sats
+
       // Calculate required amount: peg-in amount + transaction fee
-      const requiredAmount = pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+      const requiredAmount = pegInAmountSats + btcTransactionFee;
 
       // Select suitable UTXO
       const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
@@ -168,6 +192,8 @@ export function usePeginFlow({
           fundingValue: BigInt(selectedUTXO.value),
           fundingScriptPubkey: selectedUTXO.scriptPubKey,
         },
+        selectedProvider.id as Address,
+        selectedProvider.btc_pub_key,
       );
 
       // Store unsigned transaction hex and ETH tx hash for later BTC broadcasting

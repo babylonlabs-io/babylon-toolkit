@@ -18,6 +18,7 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
     signModalOpen,
     successModalOpen,
     borrowAmount,
+    marketId,
     startBorrowFlow,
     handleModalClose,
     handleBorrowClick,
@@ -71,6 +72,7 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
         borrowAmount={borrowAmount}
         collateralAmount={activity.collateral.amount}
         pegInTxHash={activity.txHash}
+        marketId={marketId}
       />
 
       {/* Borrow Success Modal */}

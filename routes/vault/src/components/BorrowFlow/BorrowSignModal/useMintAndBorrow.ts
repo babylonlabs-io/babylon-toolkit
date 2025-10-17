@@ -7,13 +7,15 @@ import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { Hex } from 'viem';
 import { mintAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
 import type { MintAndBorrowResult } from '../../../services/vault/vaultTransactionService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
+import { CONTRACTS } from '../../../config/contracts';
 
 export interface UseMintAndBorrowParams {
   /** Pegin transaction hash (vault ID) */
   pegInTxHash: Hex;
   /** Amount to borrow in USDC (with 6 decimals) */
   borrowAmount: bigint;
+  /** Market ID for the Morpho market (hex string without 0x prefix) */
+  marketId: string;
 }
 
 export interface UseMintAndBorrowResult {
@@ -41,7 +43,7 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
   const [result, setResult] = useState<MintAndBorrowResult | null>(null);
 
   const executeMintAndBorrow = useCallback(
-    async ({ pegInTxHash, borrowAmount }: UseMintAndBorrowParams) => {
+    async ({ pegInTxHash, borrowAmount, marketId }: UseMintAndBorrowParams) => {
       setIsLoading(true);
       setError(null);
       setResult(null);
@@ -63,12 +65,15 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         const publicKeyNoCoord = publicKeyBuffer.subarray(1, 33);
         const btcPubkey = `0x${publicKeyNoCoord.toString('hex')}` as Hex;
 
+        // Convert market ID from hex string (without 0x) to proper format with 0x prefix
+        const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
+
         // Call service to execute transaction
         const txResult = await mintAndBorrowWithMarketId(
           CONTRACTS.VAULT_CONTROLLER,
           pegInTxHash,
           btcPubkey,
-          MORPHO_MARKET_ID,
+          marketIdWithPrefix,
           borrowAmount
         );
 

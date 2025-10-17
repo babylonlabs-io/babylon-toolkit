@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
 import { getUserVaultPositionsWithMorpho } from '../services/vault/vaultService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
+import { CONTRACTS } from '../config/contracts';
 import type { VaultPositionWithMorpho } from '../services/vault/vaultService';
 
 /**
@@ -55,13 +55,11 @@ export function useVaultPositionsMorpho(
       'vaultPositionsMorpho',
       connectedAddress,
       CONTRACTS.VAULT_CONTROLLER,
-      MORPHO_MARKET_ID,
     ],
     queryFn: () =>
       getUserVaultPositionsWithMorpho(
         connectedAddress!,
-        CONTRACTS.VAULT_CONTROLLER,
-        MORPHO_MARKET_ID,
+        CONTRACTS.VAULT_CONTROLLER
       ),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data

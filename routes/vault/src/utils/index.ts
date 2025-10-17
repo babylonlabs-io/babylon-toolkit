@@ -9,3 +9,9 @@ export {
   transformPeginToActivity,
   transformPeginRequestsToActivities,
 } from './peginTransformers';
+
+export {
+  RestClient,
+  RestClientError,
+  type RestClientConfig,
+} from './rest-client';

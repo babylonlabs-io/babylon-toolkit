@@ -9,14 +9,17 @@ import {
   useIsMobile,
   AmountItem,
   SubSection,
+  Loader,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useEffect, useState, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 import { useBorrowForm } from "./useBorrowForm";
+import { useMarkets } from "./useMarkets";
 import { usdcIcon } from "../../../assets";
 import type { Hex } from "viem";
 import { isPeginReadyToMint } from "../../../clients/eth-contract/vault-controller/query";
 import { CONTRACTS } from "../../../config/contracts";
+import type { MorphoMarket } from "../../../clients/vault-api/types";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -36,7 +39,7 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 interface BorrowModalProps {
   open: boolean;
   onClose: () => void;
-  onBorrow?: (amount: number) => void;
+  onBorrow?: (amount: number, marketId: string) => void;
   collateral: {
     amount: string;
     symbol: string;
@@ -53,6 +56,11 @@ interface BorrowModalProps {
 export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, pegInTxHash }: BorrowModalProps) {
   const [isReadyToMint, setIsReadyToMint] = useState<boolean | null>(null);
   const [checkingReadiness, setCheckingReadiness] = useState(false);
+  const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+
+  // Fetch markets from API
+  const { data: marketsData, isLoading: isLoadingMarkets, error: marketsError } = useMarkets();
+  const markets = marketsData?.markets || [];
 
   const collateralBTC = useMemo(
     () => parseFloat(collateral.amount || "0"),
@@ -121,13 +129,18 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
     // No-op, collateral is read-only
   };
 
+  // Handle market selection toggle
+  const handleToggleMarket = (marketId: string) => {
+    setSelectedMarketId(marketId === selectedMarketId ? null : marketId);
+  };
+
   // Handle borrow button click
   const handleBorrowClick = async () => {
     setTouched(true);
-    if (validation.isValid && borrowAmountNum > 0) {
+    if (validation.isValid && borrowAmountNum > 0 && selectedMarketId) {
       // Call parent callback to trigger sign modal flow
       if (onBorrow) {
-        onBorrow(borrowAmountNum);
+        onBorrow(borrowAmountNum, selectedMarketId);
       } else {
         // Fallback: if no onBorrow callback, use old flow
         await handleBorrow(borrowAmountNum);
@@ -169,6 +182,66 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
             disabled={true}
           />
         </SubSection>
+
+        {/* Market Selection Section */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <Text variant="subtitle1" className="text-base font-semibold text-accent-primary sm:text-lg">
+              Select Market
+            </Text>
+            <Text variant="body2" className="text-sm text-accent-secondary sm:text-base">
+              Choose a lending market for your loan
+            </Text>
+          </div>
+
+          {isLoadingMarkets ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader size={32} className="text-primary-main" />
+            </div>
+          ) : marketsError ? (
+            <div className="rounded-lg bg-error/10 p-4">
+              <Text variant="body2" className="text-sm text-error">
+                Failed to load markets. Please try again.
+              </Text>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {markets.map((market: MorphoMarket) => {
+                const isSelected = selectedMarketId === market.id;
+                // Calculate LLTV percentage (lltv has 18 decimals)
+                const lltvPercent = (Number(market.lltv) / 1e18 * 100).toFixed(2);
+                // Format market display: show last 6 chars of addresses for brevity
+                const loanToken = market.loan_token.slice(0, 6) + '...' + market.loan_token.slice(-4);
+                const collateralToken = market.collateral_token.slice(0, 6) + '...' + market.collateral_token.slice(-4);
+
+                return (
+                  <div
+                    key={market.id}
+                    className="flex items-center justify-between rounded-lg bg-secondary-highlight p-4"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <Text variant="body1" className="text-sm font-medium text-accent-primary sm:text-base">
+                        Collateral: {collateralToken}
+                      </Text>
+                      <Text variant="body2" className="text-xs text-accent-secondary sm:text-sm">
+                        Loan: {loanToken} • LLTV: {lltvPercent}%
+                      </Text>
+                    </div>
+                    <Button
+                      size="small"
+                      variant={isSelected ? "contained" : "outlined"}
+                      color="primary"
+                      onClick={() => handleToggleMarket(market.id)}
+                      className="min-w-[80px] text-xs sm:text-sm"
+                    >
+                      {isSelected ? "Selected" : "Select"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Borrow Section */}
         <div className="flex flex-col gap-2">
@@ -275,6 +348,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
           disabled={
             !validation.isValid ||
             borrowAmountNum === 0 ||
+            !selectedMarketId ||
             processing ||
             checkingReadiness ||
             isReadyToMint === false
@@ -286,6 +360,8 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
             ? "Processing..."
             : isReadyToMint === false
             ? "Not Ready to Borrow"
+            : !selectedMarketId
+            ? "Select Market"
             : "Borrow"}
         </Button>
       </DialogFooter>

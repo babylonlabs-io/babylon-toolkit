@@ -39,6 +39,12 @@ export interface CreatePeginTxParams {
    * Funding transaction scriptPubKey hex (from selected UTXO)
    */
   fundingScriptPubkey: string;
+
+  /**
+   * Selected vault provider's BTC public key (x-only, 32 bytes hex)
+   * This is the provider chosen by the user in the UI
+   */
+  vaultProviderBtcPubkey: string;
 }
 
 export interface PeginTxResult {
@@ -53,12 +59,12 @@ export interface PeginTxResult {
  * Create a peg-in transaction for submission to the vault contract
  *
  * This function:
- * 1. Takes REAL user data (BTC pubkey, amount) from wallet/UI
+ * 1. Takes REAL user data (BTC pubkey, amount, selected provider) from wallet/UI
  * 2. Uses REAL funding UTXO from connected BTC wallet
- * 3. Uses HARDCODED vault provider and liquidator data from local deployment
+ * 3. Uses HARDCODED liquidator data from local deployment (TODO: fetch from backend)
  * 4. Calls WASM module to construct the unsigned BTC transaction
  *
- * @param params - Transaction parameters including real UTXO data
+ * @param params - Transaction parameters including real UTXO data and selected provider
  * @returns Unsigned BTC transaction details
  */
 export async function createPeginTxForSubmission(
@@ -83,10 +89,11 @@ export async function createPeginTxForSubmission(
     // REAL: From connected BTC wallet
     depositorPubkey: params.depositorBtcPubkey,
 
-    // HARDCODED: Local vault provider (claimer) from deployment
-    claimerPubkey: LOCAL_PEGIN_CONFIG.vaultProviderBtcPubkey,
+    // REAL: Selected vault provider (claimer) chosen by user
+    claimerPubkey: params.vaultProviderBtcPubkey,
 
     // HARDCODED: Local liquidators (challengers) from deployment
+    // TODO: Fetch liquidators from backend API
     challengerPubkeys: LOCAL_PEGIN_CONFIG.liquidatorBtcPubkeys,
 
     // REAL: From user input

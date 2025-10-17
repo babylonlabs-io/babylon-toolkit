@@ -27,13 +27,8 @@ interface PeginSignModalProps {
   }) => void;
   amount: number;
   /**
-   * IMPORTANT: selectedProviders is for UI display only.
-   * The actual vault provider submitted to the smart contract is HARDCODED
-   * from LOCAL_PEGIN_CONFIG for the POC. User selection is currently ignored.
-   *
-   * In production, this would be used to select the actual vault provider,
-   * but for local development we use the fixed Anvil account configured in
-   * btc-vault-deployment.
+   * Array of selected vault provider IDs
+   * The first provider in the array will be used for the peg-in transaction
    */
   selectedProviders: string[];
   btcConnector: any;
@@ -47,15 +42,13 @@ interface PeginSignModalProps {
  * Displays the progress of the peg-in submission process:
  * 1. Sign proof of possession with BTC wallet
  * 2. Sign with ETH wallet and submit to vault contract
- *
- * Note: The selectedProviders prop is for UI display only.
- * The actual vault provider used is HARDCODED from local deployment config.
  */
 export function PeginSignModal({
   open,
   onClose,
   onSuccess,
   amount,
+  selectedProviders,
   btcConnector,
   btcAddress,
   depositorEthAddress,
@@ -66,6 +59,7 @@ export function PeginSignModal({
     btcConnector,
     btcAddress,
     depositorEthAddress,
+    selectedProviders,
     onSuccess,
   });
 

@@ -13,7 +13,7 @@ import { useState, useMemo } from "react";
 import { bitcoinIcon } from "../../../assets";
 import { useVaultProviders } from "./useVaultProviders";
 import { usePeginForm } from "./usePeginForm";
-import type { VaultProvider } from "../../../clients/vault-providers-api";
+import type { VaultProvider } from "../../../clients/vault-api/types";
 
 interface PeginModalProps {
   open: boolean;
@@ -189,6 +189,10 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
             <div className="flex flex-col gap-3">
               {vaultProviders.map((provider: VaultProvider) => {
                 const isSelected = selectedProviders.includes(provider.id);
+                // Extract first 8 and last 6 characters for shortened display
+                const shortId = provider.id.length > 14
+                  ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
+                  : provider.id;
                 return (
                   <div
                     key={provider.id}
@@ -197,18 +201,13 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-primary-main">
                         <Text variant="body2" className="text-sm font-medium text-accent-contrast">
-                          {provider.name.charAt(0)}
+                          {provider.id.slice(0, 2).toUpperCase()}
                         </Text>
                       </div>
                       <div className="flex flex-col">
                         <Text variant="body1" className="text-sm font-medium text-accent-primary sm:text-base">
-                          {provider.name}
+                          {shortId}
                         </Text>
-                        {provider.apy && (
-                          <Text variant="caption" className="text-xs text-accent-secondary">
-                            APY: {provider.apy}%
-                          </Text>
-                        )}
                       </div>
                     </div>
                     <Button

@@ -118,16 +118,15 @@ export async function getUserVaultsWithDetails(
  * Get all user vault positions with Morpho data
  *
  * Composite operation that combines getUserVaultsWithDetails + Morpho positions + market data + BTC price
+ * Each vault uses its own market ID from metadata, allowing different vaults to use different markets.
  *
  * @param userAddress - User's Ethereum address
  * @param vaultControllerAddress - BTCVaultController contract address
- * @param marketId - Morpho market ID
  * @returns Array of vault positions with Morpho data, market data, and BTC price
  */
 export async function getUserVaultPositionsWithMorpho(
   userAddress: Address,
-  vaultControllerAddress: Address,
-  marketId: string | bigint
+  vaultControllerAddress: Address
 ): Promise<VaultPositionWithMorpho[]> {
   // Get all vaults with details
   const vaults = await getUserVaultsWithDetails(userAddress, vaultControllerAddress);
@@ -137,17 +136,23 @@ export async function getUserVaultPositionsWithMorpho(
     return [];
   }
 
-  // Fetch market data once (same for all positions)
-  const marketData = await Morpho.getMarketById(marketId);
-
-  // Fetch BTC price from oracle once (same for all positions)
-  const oraclePrice = await MorphoOracle.getOraclePrice(marketData.oracle);
-  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
-
   // Fetch Morpho positions for each vault in parallel
+  // Each vault uses its own market ID from metadata
   const vaultPositions = await Promise.all(
     vaults.map(async ({ txHash, metadata }) => {
-      const morphoPosition = await Morpho.getUserPosition(marketId, metadata.proxyContract);
+      // Use market ID from vault metadata
+      const marketId = metadata.marketId;
+
+      // Fetch market data and position in parallel
+      const [marketData, morphoPosition] = await Promise.all([
+        Morpho.getMarketById(marketId),
+        Morpho.getUserPosition(marketId, metadata.proxyContract),
+      ]);
+
+      // Fetch BTC price from oracle
+      const oraclePrice = await MorphoOracle.getOraclePrice(marketData.oracle);
+      const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+
       return {
         txHash,
         metadata,
