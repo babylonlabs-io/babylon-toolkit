@@ -290,7 +290,7 @@ export function MultistakingModal() {
 
       {FeatureFlagService.IsCoStakingEnabled ? (
         <CoStakingBoostModal
-          open={step === "feedback-success"}
+          open={step === "feedback-success" || true}
           onClose={resetState}
           onSubmit={handleSubmitBoostModal}
         />
