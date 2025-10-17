@@ -49,7 +49,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       }
       iconParentClassName="h-40 w-80 bg-transparent" // Safelisted in tailwind.config.ts
       title="Boost your BTC staking rewards"
-      open={open || true}
+      open={open}
       submitButton={submitButtonText}
       cancelButton=""
       onSubmit={onSubmit}
