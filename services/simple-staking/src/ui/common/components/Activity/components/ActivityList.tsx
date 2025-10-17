@@ -8,6 +8,8 @@ import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionStat
 import { StakingSuccessModal } from "@/ui/common/components/Modals/StakingSuccessModal";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
 import { DELEGATION_ACTIONS } from "@/ui/common/constants";
+import { useError } from "@/ui/common/context/Error/ErrorProvider";
+import { useLogger } from "@/ui/common/hooks/useLogger";
 
 import { ActivityCard } from "../../ActivityCard/ActivityCard";
 import { DelegationModal } from "../../Delegations/DelegationList/components/DelegationModal";
@@ -35,15 +37,25 @@ export function ActivityList() {
     closeExpansionHistoryModal,
   } = useStakingExpansionState();
 
+  const { handleError } = useError();
+  const logger = useLogger();
+
   const handleSubmit = useCallback(
     async (action: ActionType, delegation: DelegationWithFP) => {
-      await executeDelegationAction(action, delegation);
+      try {
+        await executeDelegationAction(action, delegation);
 
-      if (action === DELEGATION_ACTIONS.STAKE) {
-        setShowSuccessModal(true);
+        if (action === DELEGATION_ACTIONS.STAKE) {
+          setShowSuccessModal(true);
+        }
+      } catch (error) {
+        logger.error(error as Error);
+        handleError({
+          error: error as Error,
+        });
       }
     },
-    [executeDelegationAction],
+    [executeDelegationAction, logger, handleError],
   );
 
   const handleCloseSuccessModal = useCallback(() => {
