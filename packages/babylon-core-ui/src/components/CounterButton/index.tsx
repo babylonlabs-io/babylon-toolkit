@@ -1,1 +1,1 @@
-export { CounterButton } from "./CounterButton";
+export { CounterButton, type CounterButtonProps } from "./CounterButton";

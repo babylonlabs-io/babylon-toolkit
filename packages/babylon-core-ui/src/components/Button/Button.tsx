@@ -10,11 +10,12 @@ export interface ButtonProps
   variant?: "outlined" | "contained" | "ghost";
   color?: "primary" | "secondary";
   size?: "small" | "medium" | "large";
+  rounded?: boolean;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = "contained", size = "large", color = "primary", fluid = false, className, disabled, ...restProps },
+    { variant = "contained", size = "large", color = "primary", fluid = false, rounded = false, className, disabled, ...restProps },
     ref,
   ) => {
     return (
@@ -28,6 +29,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           `bbn-btn-${color}`,
           `bbn-btn-${size}`,
           fluid && "bbn-btn-fluid",
+          rounded && "bbn-btn-rounded",
           className,
         )}
       />

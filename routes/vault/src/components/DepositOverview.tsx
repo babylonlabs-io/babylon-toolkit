@@ -2,13 +2,17 @@ import {
   Table,
   useIsMobile,
   StatusBadge,
-  Hint,
   VaultDetailCard,
   Avatar,
   AvatarGroup,
+  Button,
+  OrangeCheckbox,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 import type { Deposit } from "../types/vault";
+import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
+import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
 
 // Hardcoded deposit data
 const HARDCODED_DEPOSITS: Deposit[] = [
@@ -41,7 +45,7 @@ const HARDCODED_DEPOSITS: Deposit[] = [
   },
 ];
 
-function EmptyState() {
+function EmptyState({ onDeposit }: { onDeposit: () => void }) {
   return (
     <div className="rounded-2xl bg-primary-contrast p-6">
       <div className="flex flex-col items-center">
@@ -61,6 +65,17 @@ function EmptyState() {
             Your deposit will appear here once confirmed.
           </p>
         </div>
+        <div className="mt-8">
+          <Button
+            variant="outlined"
+            size="large"
+            rounded
+            onClick={onDeposit}
+            aria-label="Add deposit"
+          >
+            Deposit
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -69,9 +84,23 @@ function EmptyState() {
 export function DepositOverview() {
   const isMobile = useIsMobile();
   const deposits = HARDCODED_DEPOSITS;
+  const [selectedDepositIds, setSelectedDepositIds] = useState<Array<string | number>>([]);
+  const { goToStep: goToDepositStep } = useVaultDepositState();
+  const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
+
+  const handleDeposit = () => {
+    goToDepositStep(VaultDepositStep.FORM);
+  };
+
+  const handleRedeem = () => {
+    if (selectedDepositIds.length > 0) {
+      setRedeemData(selectedDepositIds as string[]);
+      goToRedeemStep(VaultRedeemStep.FORM);
+    }
+  };
 
   if (deposits.length === 0) {
-    return <EmptyState />;
+    return <EmptyState onDeposit={handleDeposit} />;
   }
 
   const columns: ColumnProps<Deposit>[] = [
@@ -112,13 +141,10 @@ export function DepositOverview() {
           "In Use": "active" as const,
         };
         return (
-          <div className="flex items-center gap-2">
-            <StatusBadge
-              status={statusMap[row.status]}
-              label={row.status}
-            />
-            <Hint tooltip={statusMap[row.status]} placement="top" />
-          </div>
+          <StatusBadge
+            status={statusMap[row.status]}
+            label={row.status}
+          />
         );
       },
     },
@@ -126,6 +152,28 @@ export function DepositOverview() {
 
   return (
     <div className="relative">
+      {/* Header with Deposit and Redeem buttons */}
+      <div className="flex items-center justify-end mb-4 gap-2">
+        <Button
+          variant="outlined"
+          size="medium"
+          rounded
+          onClick={handleDeposit}
+          aria-label="Deposit BTC"
+        >
+          Deposit
+        </Button>
+        <Button
+          variant="outlined"
+          size="medium"
+          rounded
+          disabled={selectedDepositIds.length === 0}
+          onClick={handleRedeem}
+          aria-label="Redeem selected deposits"
+        >
+          Redeem
+        </Button>
+      </div>
 
       {/* Desktop: Deposits Table, Mobile: Deposit Cards */}
       {isMobile ? (
@@ -166,19 +214,25 @@ export function DepositOverview() {
                     ),
                   },
                 ]}
-                actions={[
-                  { name: "Withdraw Deposit", action: "withdraw" },
-                ]}
-                onAction={(depositId, action) =>
-                  console.log(`Action ${action} on deposit ${depositId}`)
-                }
               />
             );
           })}
         </div>
       ) : (
         <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
-          <Table data={deposits} columns={columns} fluid />
+          <Table
+            data={deposits}
+            columns={columns}
+            fluid
+            selectable
+            selectedRows={selectedDepositIds}
+            onSelectedRowsChange={setSelectedDepositIds}
+            checkboxPosition="right"
+            showSelectAll={false}
+            renderCheckbox={(checked) => (
+              <OrangeCheckbox checked={checked} />
+            )}
+          />
         </div>
       )}
     </div>

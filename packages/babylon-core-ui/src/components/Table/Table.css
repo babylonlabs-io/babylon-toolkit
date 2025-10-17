@@ -155,6 +155,10 @@
     &-left {
       @apply text-left;
     }
+
+    &-checkbox {
+      @apply w-12 px-4 py-3 text-center;
+    }
   }
 
   /* Frozen column styles */

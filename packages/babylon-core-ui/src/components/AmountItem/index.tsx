@@ -1,1 +1,1 @@
-export { AmountItem } from "./AmountItem";
+export { AmountItem, type AmountItemProps, type BalanceDetails } from "./AmountItem";

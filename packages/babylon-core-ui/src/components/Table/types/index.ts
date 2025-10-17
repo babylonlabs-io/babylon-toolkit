@@ -24,6 +24,14 @@ export type TableProps<T extends TableData> = ControlledTableProps & {
   onRowSelect?: (row: T | null) => void;
   onRowClick?: (row: T) => void;
   isRowSelectable?: (row: T) => boolean;
+  
+  // Multi-select support
+  selectable?: boolean;
+  selectedRows?: Array<string | number>;
+  onSelectedRowsChange?: (rowIds: Array<string | number>) => void;
+  renderCheckbox?: (checked: boolean, row: T) => ReactNode;
+  checkboxPosition?: "left" | "right";
+  showSelectAll?: boolean;
 };
 
 export interface ControlledTableProps {

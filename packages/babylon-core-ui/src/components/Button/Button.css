@@ -46,4 +46,9 @@
   &-small {
     @apply h-8 px-2.5 text-xs tracking-0.5;
   }
+
+  /* Full rounded variant */
+  &-rounded {
+    @apply rounded-full;
+  }
 }

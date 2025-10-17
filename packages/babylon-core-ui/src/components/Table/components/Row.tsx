@@ -11,6 +11,9 @@ export function Row<T extends { id: string | number }>({
   onRowClick,
   isLeftScrolled,
   isRightScrolled,
+  selectable = false,
+  renderCheckbox,
+  checkboxPosition = "left",
 }: {
   row: T;
   columns: ColumnProps<T>[];
@@ -20,14 +23,42 @@ export function Row<T extends { id: string | number }>({
   onRowClick?: (row: T) => void;
   isLeftScrolled?: boolean;
   isRightScrolled?: boolean;
+  selectable?: boolean;
+  renderCheckbox?: (checked: boolean, row: T) => React.ReactNode;
+  checkboxPosition?: "left" | "right";
 }) {
   const handleClick = () => {
     if (onRowClick) {
       onRowClick(row);
-    } else if (onSelect) {
+    } else if (onSelect && !selectable) {
       onSelect(row);
     }
   };
+
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isSelectable && onSelect) {
+      onSelect(row);
+    }
+  };
+
+  const checkboxCell = selectable ? (
+    <td className="bbn-table-cell-checkbox">
+      <div className="flex items-center justify-center" onClick={handleCheckboxClick}>
+        {renderCheckbox ? (
+          renderCheckbox(isSelected, row)
+        ) : (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => {}}
+            disabled={!isSelectable}
+            aria-label={`Select row ${row.id}`}
+          />
+        )}
+      </div>
+    </td>
+  ) : null;
 
   return (
     <tr
@@ -38,6 +69,7 @@ export function Row<T extends { id: string | number }>({
       )}
       onClick={handleClick}
     >
+      {checkboxPosition === "left" && checkboxCell}
       {columns.map((column) => (
         <Cell
           key={column.key}
@@ -52,6 +84,7 @@ export function Row<T extends { id: string | number }>({
           render={column.render ? (value) => column.render!(value, row) : undefined}
         />
       ))}
+      {checkboxPosition === "right" && checkboxCell}
     </tr>
   );
 }
