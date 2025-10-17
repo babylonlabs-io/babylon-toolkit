@@ -10,6 +10,16 @@ import {
 } from '@babylonlabs-io/core-ui';
 import type { Address } from 'viem';
 import { usePeginFlow } from './usePeginFlow';
+import type { VaultProvider } from '../../../clients/vault-api/types';
+
+/**
+ * BTC wallet provider interface
+ * Defines the minimal interface needed from BTC wallet for peg-in flow
+ */
+interface BtcWalletProvider {
+  signMessage: (message: string, type: 'ecdsa' | 'bip322-simple') => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+}
 
 interface PeginSignModalProps {
   open: boolean;
@@ -27,16 +37,11 @@ interface PeginSignModalProps {
   }) => void;
   amount: number;
   /**
-   * IMPORTANT: selectedProviders is for UI display only.
-   * The actual vault provider submitted to the smart contract is HARDCODED
-   * from LOCAL_PEGIN_CONFIG for the POC. User selection is currently ignored.
-   *
-   * In production, this would be used to select the actual vault provider,
-   * but for local development we use the fixed Anvil account configured in
-   * btc-vault-deployment.
+   * Array of selected vault providers
+   * The first provider in the array will be used for the peg-in transaction
    */
-  selectedProviders: string[];
-  btcConnector: any;
+  selectedProviders: VaultProvider[];
+  btcWalletProvider?: BtcWalletProvider;
   btcAddress: string;
   depositorEthAddress: Address;
 }
@@ -47,25 +52,24 @@ interface PeginSignModalProps {
  * Displays the progress of the peg-in submission process:
  * 1. Sign proof of possession with BTC wallet
  * 2. Sign with ETH wallet and submit to vault contract
- *
- * Note: The selectedProviders prop is for UI display only.
- * The actual vault provider used is HARDCODED from local deployment config.
  */
 export function PeginSignModal({
   open,
   onClose,
   onSuccess,
   amount,
-  btcConnector,
+  selectedProviders,
+  btcWalletProvider,
   btcAddress,
   depositorEthAddress,
 }: PeginSignModalProps) {
   const { currentStep, processing, error, isComplete } = usePeginFlow({
     open,
     amount,
-    btcConnector,
+    btcWalletProvider,
     btcAddress,
     depositorEthAddress,
+    selectedProviders,
     onSuccess,
   });
 

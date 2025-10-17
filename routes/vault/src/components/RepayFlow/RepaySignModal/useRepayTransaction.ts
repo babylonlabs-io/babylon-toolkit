@@ -10,11 +10,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
 import { approveLoanTokenForRepay, repayAndPegout } from '../../../services/vault/vaultTransactionService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../../../config/contracts';
+import { CONTRACTS } from '../../../config/contracts';
 
 interface UseRepayTransactionParams {
   pegInTxHash?: Hex;
   repayAmountWei?: bigint;
+  marketId?: string;
   isOpen: boolean;
 }
 
@@ -34,6 +35,7 @@ interface UseRepayTransactionResult {
 export function useRepayTransaction({
   pegInTxHash,
   repayAmountWei,
+  marketId,
   isOpen,
 }: UseRepayTransactionParams): UseRepayTransactionResult {
   const [currentStep, setCurrentStep] = useState<0 | 1 | 2>(0);
@@ -50,7 +52,7 @@ export function useRepayTransaction({
   }, [isOpen]);
 
   const executeTransaction = useCallback(async () => {
-    if (!pegInTxHash || !repayAmountWei) {
+    if (!pegInTxHash || !repayAmountWei || !marketId) {
       setError('Missing required transaction data');
       return;
     }
@@ -64,7 +66,7 @@ export function useRepayTransaction({
       await approveLoanTokenForRepay(
         CONTRACTS.VAULT_CONTROLLER,
         repayAmountWei,
-        MORPHO_MARKET_ID
+        marketId
       );
 
       // Step 2: Repay and pegout
@@ -80,7 +82,7 @@ export function useRepayTransaction({
     } finally {
       setIsLoading(false);
     }
-  }, [pegInTxHash, repayAmountWei]);
+  }, [pegInTxHash, repayAmountWei, marketId]);
 
   const reset = useCallback(() => {
     setCurrentStep(0);

@@ -9,13 +9,11 @@ import { registerCustomAddresses } from '@morpho-org/blue-sdk';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
 import { network } from '@babylonlabs-io/config';
-
-// Localhost Morpho contract address
-export const LOCALHOST_MORPHO_ADDRESS = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as Address;
+import { CONTRACTS } from '../../../config/contracts';
 
 // Helper to create localhost chain addresses for Morpho SDK
 const createLocalhostAddresses = () => ({
-  morpho: LOCALHOST_MORPHO_ADDRESS,
+  morpho: CONTRACTS.MORPHO,
   adaptiveCurveIrm: '0x0000000000000000000000000000000000000000' as Address,
   bundler3: {
     bundler3: '0x0000000000000000000000000000000000000000' as Address,

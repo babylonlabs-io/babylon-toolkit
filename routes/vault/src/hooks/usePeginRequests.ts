@@ -44,21 +44,6 @@ export interface UsePeginRequestsParams {
  *
  * @param params - Hook parameters
  * @returns Object containing activities array, loading state, error state, and refetch function
- *
- * @example
- * ```tsx
- * function DepositTab() {
- *   const { address } = useETHWallet();
- *   const { activities, loading, error, refetch } = usePeginRequests({
- *     connectedAddress: address,
- *     onPegOut: (activity) => console.log('Peg out', activity)
- *   });
- *
- *   if (loading) return <Spinner />;
- *   if (error) return <Error message={error.message} onRetry={refetch} />;
- *   return <ActivityList activities={activities} />;
- * }
- * ```
  */
 export function usePeginRequests({
   connectedAddress,

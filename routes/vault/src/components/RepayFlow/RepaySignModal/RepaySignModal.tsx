@@ -18,6 +18,8 @@ interface RepaySignModalProps {
   pegInTxHash?: Hex;
   /** Total amount to repay in USDC wei (6 decimals) */
   repayAmountWei?: bigint;
+  /** Market ID from vault metadata */
+  marketId?: string;
 }
 
 /**
@@ -34,6 +36,7 @@ export function RepaySignModal({
   onSuccess,
   pegInTxHash,
   repayAmountWei,
+  marketId,
 }: RepaySignModalProps) {
   const {
     currentStep,
@@ -43,6 +46,7 @@ export function RepaySignModal({
   } = useRepayTransaction({
     pegInTxHash,
     repayAmountWei,
+    marketId,
     isOpen: open,
   });
 
@@ -96,7 +100,7 @@ export function RepaySignModal({
         </Button>
 
         <Button
-          disabled={isLoading || !pegInTxHash || !repayAmountWei}
+          disabled={isLoading || !pegInTxHash || !repayAmountWei || !marketId}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}

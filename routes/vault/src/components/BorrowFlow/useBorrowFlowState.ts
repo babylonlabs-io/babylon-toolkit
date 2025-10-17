@@ -7,9 +7,10 @@ export function useBorrowFlowState() {
   const [signModalOpen, setSignModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
 
-  // Selected activity and borrow amount
+  // Selected activity, borrow amount, and market ID
   const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
   const [borrowAmount, setBorrowAmount] = useState(0);
+  const [marketId, setMarketId] = useState<string>("");
 
   // Start the borrow flow with an activity
   const startBorrowFlow = useCallback((activity: VaultActivity) => {
@@ -24,8 +25,9 @@ export function useBorrowFlowState() {
   }, []);
 
   // Handle borrow click from BorrowModal
-  const handleBorrowClick = useCallback((amount: number) => {
+  const handleBorrowClick = useCallback((amount: number, selectedMarketId: string) => {
     setBorrowAmount(amount);
+    setMarketId(selectedMarketId);
     setModalOpen(false);      // Close borrow modal
     setSignModalOpen(true);   // Open sign modal
   }, []);
@@ -46,6 +48,7 @@ export function useBorrowFlowState() {
     setSuccessModalOpen(false);
     setSelectedActivity(null);
     setBorrowAmount(0);
+    setMarketId("");
   }, []);
 
   return {
@@ -54,6 +57,7 @@ export function useBorrowFlowState() {
     successModalOpen,
     selectedActivity,
     borrowAmount,
+    marketId,
     startBorrowFlow,
     handleModalClose,
     handleBorrowClick,

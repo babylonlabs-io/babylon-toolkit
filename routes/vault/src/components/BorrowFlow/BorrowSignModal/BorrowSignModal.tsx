@@ -20,6 +20,8 @@ interface BorrowSignModalProps {
   collateralAmount?: string;
   /** Pegin transaction hash (vault ID) */
   pegInTxHash?: Hex;
+  /** Market ID for the Morpho market */
+  marketId?: string;
 }
 
 /**
@@ -38,6 +40,7 @@ export function BorrowSignModal({
   onSuccess,
   borrowAmount,
   pegInTxHash,
+  marketId,
 }: BorrowSignModalProps) {
   const [transactionStarted, setTransactionStarted] = useState(false);
   const { executeMintAndBorrow, isLoading, error } = useMintAndBorrow();
@@ -50,7 +53,7 @@ export function BorrowSignModal({
   }, [open]);
 
   const handleSign = async () => {
-    if (!pegInTxHash || !borrowAmount) {
+    if (!pegInTxHash || !borrowAmount || !marketId) {
       return;
     }
 
@@ -63,6 +66,7 @@ export function BorrowSignModal({
       const result = await executeMintAndBorrow({
         pegInTxHash,
         borrowAmount: borrowAmountBigInt,
+        marketId,
       });
 
       if (result) {
@@ -113,7 +117,7 @@ export function BorrowSignModal({
         </Button>
 
         <Button
-          disabled={isLoading || !pegInTxHash || !borrowAmount}
+          disabled={isLoading || !pegInTxHash || !borrowAmount || !marketId}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}

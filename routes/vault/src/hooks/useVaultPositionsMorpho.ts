@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
 import { getUserVaultPositionsWithMorpho } from '../services/vault/vaultService';
-import { CONTRACTS, MORPHO_MARKET_ID } from '../config/contracts';
+import { CONTRACTS } from '../config/contracts';
 import type { VaultPositionWithMorpho } from '../services/vault/vaultService';
 
 /**
@@ -33,18 +33,6 @@ export interface UseVaultPositionsMorphoResult {
  *
  * @param connectedAddress - Ethereum address of connected wallet (undefined if not connected)
  * @returns Object containing positions array, loading state, error state, and refetch function
- *
- * @example
- * ```tsx
- * function PositionsTab() {
- *   const { address } = useETHWallet();
- *   const { positions, loading, error, refetch } = useVaultPositionsMorpho(address);
- *
- *   if (loading) return <Spinner />;
- *   if (error) return <Error message={error.message} onRetry={refetch} />;
- *   return <PositionList positions={positions} />;
- * }
- * ```
  */
 export function useVaultPositionsMorpho(
   connectedAddress: Address | undefined,
@@ -55,13 +43,11 @@ export function useVaultPositionsMorpho(
       'vaultPositionsMorpho',
       connectedAddress,
       CONTRACTS.VAULT_CONTROLLER,
-      MORPHO_MARKET_ID,
     ],
     queryFn: () =>
       getUserVaultPositionsWithMorpho(
         connectedAddress!,
-        CONTRACTS.VAULT_CONTROLLER,
-        MORPHO_MARKET_ID,
+        CONTRACTS.VAULT_CONTROLLER
       ),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
