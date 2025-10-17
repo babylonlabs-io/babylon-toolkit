@@ -81,10 +81,10 @@ export function PeginSignModal({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col gap-4 px-4 pb-8 pt-4 text-accent-primary sm:px-6">
+      <DialogBody className="text-accent-primary flex flex-col gap-4 px-4 pb-8 pt-4 sm:px-6">
         <Text
           variant="body2"
-          className="text-sm text-accent-secondary sm:text-base"
+          className="text-accent-secondary text-sm sm:text-base"
         >
           Please wait while we process your deposit
         </Text>
@@ -100,8 +100,8 @@ export function PeginSignModal({
 
         {/* Error Display */}
         {error && (
-          <div className="rounded-lg bg-error/10 p-4">
-            <Text variant="body2" className="text-sm text-error">
+          <div className="bg-error/10 rounded-lg p-4">
+            <Text variant="body2" className="text-error text-sm">
               Error: {error}
             </Text>
           </div>

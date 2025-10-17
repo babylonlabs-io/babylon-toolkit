@@ -87,8 +87,8 @@ export function BorrowSignModal({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col gap-4 px-4 pb-8 pt-4 text-accent-primary sm:px-6">
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
+      <DialogBody className="text-accent-primary flex flex-col gap-4 px-4 pb-8 pt-4 sm:px-6">
+        <Text variant="body1" className="text-accent-secondary text-sm sm:text-base">
           Sign the transaction in your wallet to mint vaultBTC and borrow USDC atomically.
         </Text>
 

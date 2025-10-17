@@ -31,8 +31,6 @@ export interface UsePeginRequestsResult {
 export interface UsePeginRequestsParams {
   /** Ethereum address of connected wallet (undefined if not connected) */
   connectedAddress: Address | undefined;
-  /** Optional callback for peg out action */
-  onPegOut?: (activity: VaultActivity) => void;
 }
 
 /**
@@ -47,7 +45,6 @@ export interface UsePeginRequestsParams {
  */
 export function usePeginRequests({
   connectedAddress,
-  onPegOut,
 }: UsePeginRequestsParams): UsePeginRequestsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
@@ -67,6 +64,8 @@ export function usePeginRequests({
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
+    // Poll every 30 seconds to track peg-in status updates
+    refetchInterval: 30000,
   });
 
   // Trigger refetch when wallet connects (address changes from undefined to a value)
@@ -81,10 +80,10 @@ export function usePeginRequests({
     if (!data) return [];
 
     const transformed = data.map(({ peginRequest, txHash, vaultMetadata }) =>
-      transformPeginToActivity(peginRequest, txHash, vaultMetadata, onPegOut),
+      transformPeginToActivity(peginRequest, txHash, vaultMetadata),
     );
     return transformed;
-  }, [data, onPegOut]);
+  }, [data]);
 
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {

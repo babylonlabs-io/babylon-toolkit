@@ -1,5 +1,5 @@
 import { ActivityList } from '@babylonlabs-io/core-ui';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import { PeginModal } from '../PeginFlow/PeginModal/PeginModal';
 import { PeginSignModal } from '../PeginFlow/PeginSignModal/PeginSignModal';
@@ -40,22 +40,35 @@ export function VaultDeposit({
     setPegoutActivity(null);
   }, []);
 
-  // Data fetching with peg out handler
+  // Use wallet addresses from props
+  const connectedAddress = ethAddress as `0x${string}` | undefined;
+  const effectiveBtcAddress = btcAddressProp;
+  const isWalletConnected = isWalletConnectedProp;
+
+  // Data fetching (without action handlers)
   const {
-    activities,
+    activities: rawActivities,
     pendingPegins,
-    isWalletConnected: _isWalletConnected,
     refetchActivities,
-    connectedAddress: _connectedAddress,
-    btcAddress,
     addPendingPegin,
     updatePendingPeginStatus,
-  } = useVaultPositions(handlePegOut);
+  } = useVaultPositions(connectedAddress);
 
-  // Use props with fallback to hook values
-  const connectedAddress = ethAddress || _connectedAddress;
-  const effectiveBtcAddress = btcAddressProp || btcAddress;
-  const isWalletConnected = isWalletConnectedProp;
+  // Attach action handlers to activities at component level
+  // Show "Redeem" action only for Available vaults (status 2)
+  const activities = useMemo(() => {
+    return rawActivities.map(activity => {
+      const isAvailable = activity.contractStatus === 2;
+
+      return {
+        ...activity,
+        action: isAvailable ? {
+          label: 'Redeem',
+          onClick: () => handlePegOut(activity),
+        } : undefined,
+      };
+    });
+  }, [rawActivities, handlePegOut]);
 
   // Peg-in flow modal state
   // Note: Borrow/Repay flows are now in VaultPositions tab
@@ -72,7 +85,7 @@ export function VaultDeposit({
     handlePeginClick,
     handlePeginSignSuccess: handlePeginSignSuccessBase,
     handlePeginSuccessClose,
-  } = usePeginFlow();
+  } = usePeginFlow(effectiveBtcAddress);
 
   // Get BTC wallet connector and extract provider
   const btcConnector = useChainConnector('BTC');
@@ -115,12 +128,17 @@ export function VaultDeposit({
           },
         };
         addPendingPegin(peginData);
+
+        // Refetch activities after adding to localStorage
+        // Use setTimeout to ensure localStorage update propagates
+        setTimeout(() => {
+          refetchActivities();
+        }, 100);
       }
 
-      // Close sign modal and refetch (NO success modal shown yet)
+      // Close sign modal (NO success modal shown yet)
       // Success modal will be shown after BTC broadcast (from BroadcastBtcButton)
       closePeginFlow();
-      refetchActivities();
     },
     [
       connectedAddress,
@@ -180,7 +198,7 @@ export function VaultDeposit({
         amount={peginAmount}
         selectedProviders={selectedProviders}
         btcWalletProvider={btcWalletProvider}
-        btcAddress={btcAddress || ''}
+        btcAddress={effectiveBtcAddress || ''}
         depositorEthAddress={(connectedAddress || '0x0') as `0x${string}`}
       />
 

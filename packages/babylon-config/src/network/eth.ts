@@ -1,23 +1,6 @@
 import type { ETHConfig } from "@babylonlabs-io/wallet-connector";
 import { mainnet, sepolia } from "viem/chains";
 import type { Chain } from "viem";
-import { defineChain } from "viem";
-
-// Define localhost/Anvil chain (31337) since viem's localhost is 1337
-export const localhost = defineChain({
-  id: 31337,
-  name: 'Localhost',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'Ether',
-    symbol: 'ETH',
-  },
-  rpcUrls: {
-    default: {
-      http: ['http://127.0.0.1:8545'],
-    },
-  },
-});
 
 const defaultNetwork = "devnet";
 // Export network for modules that need to know which network is active
@@ -45,19 +28,6 @@ const config: Record<string, Config> = {
     },
     displayUSD: false,
   },
-  localhost: {
-    name: "Local Anvil",
-    chainId: 31337,
-    chainName: "Localhost",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "http://localhost:8545",
-    explorerUrl: "",
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    displayUSD: false,
-  },
 };
 
 export function getNetworkConfigETH(): Config {
@@ -77,8 +47,6 @@ export function getETHChain(): Chain {
       return mainnet;
     case 11155111:
       return sepolia;
-    case 31337:
-      return localhost;
     default:
       // Default to testnet (Sepolia)
       return sepolia;

@@ -72,20 +72,6 @@ const config: Record<string, Config> = {
     icon: ethereumIcon,
     displayUSD: false,
   },
-  localhost: {
-    name: "Local Anvil",
-    chainId: 31337,
-    chainName: "Localhost",
-    rpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL || "http://localhost:8545",
-    explorerUrl: "",
-    nativeCurrency: {
-      name: "Ether",
-      symbol: "ETH",
-      decimals: 18,
-    },
-    icon: ethereumIcon,
-    displayUSD: false,
-  },
 };
 
 /**
@@ -94,8 +80,7 @@ const config: Record<string, Config> = {
  */
 export function getNetworkConfigETH(): Config {
   const baseConfig = getBaseConfig();
-  const networkKey = network === "localhost" ? "localhost" : network;
-  const specificConfig = config[networkKey] ?? config.mainnet;
+  const specificConfig = config[network] ?? config.mainnet;
 
   return {
     ...baseConfig,

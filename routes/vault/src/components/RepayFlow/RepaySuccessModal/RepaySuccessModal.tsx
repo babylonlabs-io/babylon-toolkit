@@ -32,7 +32,7 @@ export function RepaySuccessModal({
 }: RepaySuccessModalProps) {
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
-      <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
+      <DialogBody className="text-accent-primary px-4 py-16 text-center sm:px-6">
         <img
           src={mascotSmile}
           alt="Success mascot"
@@ -43,7 +43,7 @@ export function RepaySuccessModal({
           Repayment and Withdrawal Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
+        <Text variant="body1" className="text-accent-secondary text-sm sm:text-base">
           You have repaid {repayAmount} USDC and your {btcAmount} BTC
           <br />
           has been released back to your wallet.

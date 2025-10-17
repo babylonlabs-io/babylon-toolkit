@@ -119,12 +119,12 @@ export function updatePeginStatus(
 
 /**
  * Filter and clean up old pending peg-ins
- * Removes peg-ins that have exceeded the max duration OR reached Available status (2+)
+ * Removes peg-ins that have been confirmed on blockchain OR exceeded max duration
  *
- * IMPORTANT: For vault flow, we must keep localStorage data until BTC is broadcast:
- * - Status 0 (Pending): Keep in localStorage (waiting for provider ACK)
- * - Status 1 (Verified): Keep in localStorage (need unsignedTxHex/utxo for BTC broadcast)
- * - Status 2+ (Available/Expired): Remove from localStorage (BTC broadcast complete or expired)
+ * IMPORTANT: localStorage is a temporary placeholder until blockchain confirms the transaction
+ * - NOT on blockchain yet: Keep in localStorage (show pending state to user)
+ * - ON blockchain (any status): Remove from localStorage (blockchain is source of truth)
+ * - Older than 24 hours: Remove from localStorage (cleanup stale data)
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
@@ -132,24 +132,16 @@ export function filterPendingPegins(
 ): PendingPeginRequest[] {
   const now = Date.now();
 
-  // Create a map of confirmed pegin IDs to their status for quick lookup
-  const confirmedPeginMap = new Map(
-    confirmedPegins.map((p) => [p.id, p.status])
+  // Create a set of confirmed pegin IDs for quick lookup
+  const confirmedPeginIds = new Set(
+    confirmedPegins.map((p) => p.id)
   );
 
   return pendingPegins.filter((pegin) => {
-    // Check if this pegin exists in confirmed pegins
-    const confirmedStatus = confirmedPeginMap.get(pegin.id);
-
-    if (confirmedStatus !== undefined) {
-      // If status is Available (2) or higher, remove from localStorage
-      // (BTC broadcast is complete or pegin expired)
-      if (confirmedStatus >= 2) {
-        return false;
-      }
-      // If status is Pending (0) or Verified (1), keep in localStorage
-      // (still need unsignedTxHex and utxo for BTC broadcast)
-      return true;
+    // If this pegin exists on blockchain (any status), remove from localStorage
+    // Blockchain data is now the source of truth
+    if (confirmedPeginIds.has(pegin.id)) {
+      return false;
     }
 
     // Remove if exceeded max duration
@@ -158,6 +150,7 @@ export function filterPendingPegins(
       return false;
     }
 
+    // Keep in localStorage (not yet on blockchain)
     return true;
   });
 }

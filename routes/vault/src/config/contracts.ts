@@ -1,30 +1,43 @@
 /**
  * Smart Contract Addresses Configuration
- * 
- * These addresses are for the local Anvil testnet.
- * TODO: Add environment-based configuration for mainnet/testnet
+ *
+ * Environment variables must be set for the service to function properly.
+ * No fallback values are provided to ensure explicit configuration.
  */
 
 import type { Address } from 'viem';
+
+// Validate required environment variables
+const requiredEnvVars = {
+  BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
+  VAULT_CONTROLLER: process.env.NEXT_PUBLIC_TBV_VAULT_CONTROLLER,
+  BTC_VAULT: process.env.NEXT_PUBLIC_TBV_BTC_VAULT,
+} as const;
+
+// Check for missing environment variables
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([_, value]) => !value)
+  .map(([key]) => `NEXT_PUBLIC_TBV_${key}`);
+
+if (missingVars.length > 0) {
+  throw new Error(
+    `Missing required environment variables: ${missingVars.join(', ')}`
+  );
+}
 
 export const CONTRACTS = {
   /**
    * BTCVaultsManager contract - Manages vault providers and pegin requests
    */
-  BTC_VAULTS_MANAGER: (process.env.NEXT_PUBLIC_VAULT_BTC_VAULTS_MANAGER || '0x0165878A594ca255338adfa4d48449f69242Eb8F') as Address,
+  BTC_VAULTS_MANAGER: requiredEnvVars.BTC_VAULTS_MANAGER as Address,
 
   /**
    * VaultController contract - Controls vault operations and borrowing
    */
-  VAULT_CONTROLLER: (process.env.NEXT_PUBLIC_VAULT_VAULT_CONTROLLER || '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6') as Address,
-
-  /**
-   * Morpho lending protocol contract
-   */
-  MORPHO: (process.env.NEXT_PUBLIC_VAULT_MORPHO || '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512') as Address,
+  VAULT_CONTROLLER: requiredEnvVars.VAULT_CONTROLLER as Address,
 
   /**
    * BTCVault base contract
    */
-  BTC_VAULT: (process.env.NEXT_PUBLIC_VAULT_BTC_VAULT || '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707') as Address,
+  BTC_VAULT: requiredEnvVars.BTC_VAULT as Address,
 } as const;

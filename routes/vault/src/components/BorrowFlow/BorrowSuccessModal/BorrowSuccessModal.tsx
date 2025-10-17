@@ -37,7 +37,7 @@ export function BorrowSuccessModal({
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
-      <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
+      <DialogBody className="text-accent-primary px-4 py-16 text-center sm:px-6">
         <img
           src={mascotSmile}
           alt="Success mascot"
@@ -48,7 +48,7 @@ export function BorrowSuccessModal({
           Borrow Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
+        <Text variant="body1" className="text-accent-secondary text-sm sm:text-base">
           {formattedAmount} USDC has been borrowed and is now available in your wallet.
         </Text>
       </DialogBody>

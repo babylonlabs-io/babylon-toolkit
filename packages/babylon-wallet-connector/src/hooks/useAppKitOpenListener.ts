@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+
 import { openAppKitModal, hasAppKitModal } from "@/core/wallets/eth/appkit/appKitModal";
 
 /**

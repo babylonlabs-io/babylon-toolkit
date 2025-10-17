@@ -34,7 +34,7 @@ export function Hash({ value, symbols = 8 }: { value: string; symbols?: number }
 
   return (
     <div
-      className="inline-flex min-h-[25px] cursor-pointer items-center text-accent-primary opacity-50 hover:opacity-100"
+      className="text-accent-primary inline-flex min-h-[25px] cursor-pointer items-center opacity-50 hover:opacity-100"
       onClick={handleCopy}
     >
       <span className="font-mono">

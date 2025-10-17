@@ -33,7 +33,7 @@ export default function VaultPositions({
   const { positions, rawPositions, loading, refetch } = useVaultPositionsData(connectedAddress);
 
   // Fetch available vault deposits (for borrowing against)
-  const { activities: availableVaults, refetchActivities } = useVaultPositions();
+  const { activities: availableVaults, refetchActivities } = useVaultPositions(connectedAddress);
 
   // Handle repay button click
   const handleRepay = useCallback((index: number) => {

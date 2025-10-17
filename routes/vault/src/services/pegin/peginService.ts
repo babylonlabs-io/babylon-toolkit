@@ -127,6 +127,7 @@ export async function getPeginRequestsWithVaultMetadata(
           txHash,
           vaultMetadata,
         };
+       
       } catch (error) {
         // Vault not minted yet or error fetching metadata, return without vault metadata
         return {

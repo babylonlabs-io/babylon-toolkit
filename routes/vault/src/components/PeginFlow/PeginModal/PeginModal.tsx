@@ -123,10 +123,10 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
         className="text-accent-primary"
       />
 
-      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 text-accent-primary sm:px-6">
+      <DialogBody className="no-scrollbar text-accent-primary mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 sm:px-6">
         {/* Bitcoin Amount Section */}
         <div className="flex flex-col gap-2">
-          <Text variant="subtitle1" className="text-base font-semibold text-accent-primary sm:text-lg">
+          <Text variant="subtitle1" className="text-accent-primary text-base font-semibold sm:text-lg">
             Bitcoin
           </Text>
           <SubSection className="flex w-full flex-col gap-2">
@@ -149,19 +149,19 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
             <button
               type="button"
               onClick={handleBalanceClick}
-              className="cursor-pointer text-left text-xs text-accent-secondary transition-colors hover:text-primary-main sm:text-sm"
+              className="text-accent-secondary hover:text-primary-main cursor-pointer text-left text-xs transition-colors sm:text-sm"
             >
               Balance: {btcBalanceFormatted.toLocaleString("en-US", { minimumFractionDigits: 4, maximumFractionDigits: 8 })} {coinName}
             </button>
 
             {/* Error Messages */}
             {showAmountError && amountValidation.error && (
-              <Text variant="caption" className="text-xs text-error sm:text-sm">
+              <Text variant="caption" className="text-error text-xs sm:text-sm">
                 {amountValidation.error}
               </Text>
             )}
             {showProvidersError && providersValidation.error && (
-              <Text variant="caption" className="text-xs text-error sm:text-sm">
+              <Text variant="caption" className="text-error text-xs sm:text-sm">
                 {providersValidation.error}
               </Text>
             )}
@@ -171,10 +171,10 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
         {/* Vault Provider Selection Section */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <Text variant="subtitle1" className="text-base font-semibold text-accent-primary sm:text-lg">
+            <Text variant="subtitle1" className="text-accent-primary text-base font-semibold sm:text-lg">
               Select Vault Providers
             </Text>
-            <Text variant="body2" className="text-sm text-accent-secondary sm:text-base">
+            <Text variant="body2" className="text-accent-secondary text-sm sm:text-base">
               Choose one or more providers to secure your BTC
             </Text>
           </div>
@@ -184,8 +184,8 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
               <Loader size={32} className="text-primary-main" />
             </div>
           ) : providersError ? (
-            <div className="rounded-lg bg-error/10 p-4">
-              <Text variant="body2" className="text-sm text-error">
+            <div className="bg-error/10 rounded-lg p-4">
+              <Text variant="body2" className="text-error text-sm">
                 Failed to load vault providers. Please try again.
               </Text>
             </div>
@@ -200,16 +200,16 @@ export function PeginModal({ open, onClose, onPegIn, btcBalance = 0 }: PeginModa
                 return (
                   <div
                     key={provider.id}
-                    className="flex items-center justify-between rounded-lg bg-secondary-highlight p-4"
+                    className="bg-secondary-highlight flex items-center justify-between rounded-lg p-4"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-primary-main">
-                        <Text variant="body2" className="text-sm font-medium text-accent-contrast">
+                      <div className="bg-primary-main flex size-8 items-center justify-center overflow-hidden rounded-full">
+                        <Text variant="body2" className="text-accent-contrast text-sm font-medium">
                           {provider.id.slice(0, 2).toUpperCase()}
                         </Text>
                       </div>
                       <div className="flex flex-col">
-                        <Text variant="body1" className="text-sm font-medium text-accent-primary sm:text-base">
+                        <Text variant="body1" className="text-accent-primary text-sm font-medium sm:text-base">
                           {shortId}
                         </Text>
                       </div>

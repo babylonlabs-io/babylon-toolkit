@@ -28,7 +28,7 @@ export function PeginSuccessModal({
 }: PeginSuccessModalProps) {
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
-      <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
+      <DialogBody className="text-accent-primary px-4 py-16 text-center sm:px-6">
         <img
           src="/mascot-smile-expression.png"
           alt="Success mascot"
@@ -39,7 +39,7 @@ export function PeginSuccessModal({
           BTC Deposit Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
+        <Text variant="body1" className="text-accent-secondary text-sm sm:text-base">
           Your deposit has been recorded and is now awaiting confirmation on
           the Bitcoin network. This usually takes up to 5 hours.
         </Text>
