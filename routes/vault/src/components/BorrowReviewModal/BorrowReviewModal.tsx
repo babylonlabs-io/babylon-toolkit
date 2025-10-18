@@ -7,6 +7,7 @@ import {
   Button, 
   Text,
   Heading,
+  Checkbox,
 } from "@babylonlabs-io/core-ui";
 
 interface BorrowReviewModalProps {
@@ -110,17 +111,15 @@ export function BorrowReviewModal({
           </Heading>
           
           {/* Risk Acknowledgment Checkbox */}
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
-            <input
-              type="checkbox"
+          <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
+            <Checkbox
               checked={acknowledged}
-              onChange={(e) => setAcknowledged(e.target.checked)}
-              className="mt-0.5 h-5 w-5 cursor-pointer accent-primary-light"
+              onChange={(checked) => setAcknowledged(checked || false)}
+              variant="default"
+              label={`I understand the risks, including liquidation if my LTV reaches ${liquidationLtv}%.`}
+              labelClassName="text-accent-primary"
             />
-            <Text variant="body2" className="text-accent-primary">
-              I understand the risks, including liquidation if my LTV reaches {liquidationLtv}%.
-            </Text>
-          </label>
+          </div>
         </div>
       </DialogBody>
 

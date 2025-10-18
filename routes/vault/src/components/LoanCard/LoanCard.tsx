@@ -34,6 +34,31 @@ export function LoanCard({
   const [borrowAmount, setBorrowAmount] = useState(0);
   const [repayAmount, setRepayAmount] = useState(0);
   const [withdrawCollateralAmount, setWithdrawCollateralAmount] = useState(0);
+  
+  // Hardcoded collateral step arrays
+  const borrowCollateralSteps = useMemo(() => {
+    const maxBtc = maxCollateral;
+    return [
+      { value: 0 },
+      { value: maxBtc * 0.2 },
+      { value: maxBtc * 0.4 },
+      { value: maxBtc * 0.6 },
+      { value: maxBtc * 0.8 },
+      { value: maxBtc },
+    ];
+  }, [maxCollateral]);
+  
+  const withdrawCollateralSteps = useMemo(() => {
+    const currentBtc = currentCollateralAmount;
+    return [
+      { value: 0 },
+      { value: currentBtc * 0.2 },
+      { value: currentBtc * 0.4 },
+      { value: currentBtc * 0.6 },
+      { value: currentBtc * 0.8 },
+      { value: currentBtc },
+    ];
+  }, [currentCollateralAmount]);
 
   // Calculate LTV for borrow flow
   const ltv = useMemo(() => {
@@ -66,7 +91,6 @@ export function LoanCard({
                     amount={collateralAmount}
                     currencyIcon="/btc.png"
                     currencyName="Bitcoin"
-                    onAmountChange={(e) => setCollateralAmount(parseFloat(e.target.value) || 0)}
                     balanceDetails={{
                       balance: maxCollateral.toFixed(4),
                       symbol: "BTC",
@@ -76,12 +100,18 @@ export function LoanCard({
                     sliderMin={0}
                     sliderMax={maxCollateral}
                     sliderStep={maxCollateral / 1000}
+                    sliderSteps={borrowCollateralSteps}
                     onSliderChange={setCollateralAmount}
+                    onSliderStepsChange={(selectedSteps) => {
+                      console.log('Borrow Collateral - Selected steps:', selectedSteps);
+                      // Handle cumulative step selection here
+                    }}
                     sliderVariant="primary"
                     leftField={{
-                      label: "Available",
+                      label: "Max",
                       value: `${maxCollateral.toFixed(4)} BTC`,
                     }}
+                    onMaxClick={() => setCollateralAmount(maxCollateral)}
                     rightField={{
                       value: `$${(collateralAmount * btcPrice).toLocaleString(undefined, { 
                         minimumFractionDigits: 2, 
@@ -187,7 +217,6 @@ export function LoanCard({
                     amount={withdrawCollateralAmount}
                     currencyIcon="/btc.png"
                     currencyName="Bitcoin"
-                    onAmountChange={(e) => setWithdrawCollateralAmount(parseFloat(e.target.value) || 0)}
                     balanceDetails={{
                       balance: currentCollateralAmount.toFixed(4),
                       symbol: "BTC",
@@ -197,7 +226,12 @@ export function LoanCard({
                     sliderMin={0}
                     sliderMax={currentCollateralAmount}
                     sliderStep={currentCollateralAmount / 1000}
+                    sliderSteps={withdrawCollateralSteps}
                     onSliderChange={setWithdrawCollateralAmount}
+                    onSliderStepsChange={(selectedSteps: number[]) => {
+                      console.log('Withdraw Collateral - Selected steps:', selectedSteps);
+                      // Handle cumulative step selection here
+                    }}
                     sliderVariant="primary"
                     leftField={{
                       label: "Max",

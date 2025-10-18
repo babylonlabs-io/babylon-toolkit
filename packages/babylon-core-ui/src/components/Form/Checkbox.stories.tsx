@@ -16,6 +16,33 @@ export const Default: Story = {
   args: {
     name: "group",
     value: "test",
-    label: "Label",
+    label: "Default Checkbox",
+  },
+};
+
+export const Primary: Story = {
+  args: {
+    name: "primary-group",
+    value: "primary-test",
+    label: "Primary Checkbox",
+    variant: "primary",
+  },
+};
+
+export const Secondary: Story = {
+  args: {
+    name: "secondary-group",
+    value: "secondary-test",
+    label: "Secondary Checkbox",
+    variant: "secondary",
+  },
+};
+
+export const WithoutLabel: Story = {
+  args: {
+    name: "no-label",
+    value: "no-label-test",
+    variant: "secondary",
+    showLabel: false,
   },
 };

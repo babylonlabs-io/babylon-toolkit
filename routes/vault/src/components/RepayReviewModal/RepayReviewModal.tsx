@@ -7,6 +7,7 @@ import {
   Button, 
   Text,
   Heading,
+  Checkbox,
 } from "@babylonlabs-io/core-ui";
 
 interface RepayReviewModalProps {
@@ -107,17 +108,15 @@ export function RepayReviewModal({
           </Heading>
           
           {/* Risk Acknowledgment Checkbox */}
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
-            <input
-              type="checkbox"
+          <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
+            <Checkbox
               checked={acknowledged}
-              onChange={(e) => setAcknowledged(e.target.checked)}
-              className="mt-0.5 h-5 w-5 cursor-pointer accent-primary-light"
+              onChange={(checked) => setAcknowledged(checked || false)}
+              variant="default"
+              label="Your BTC remains secure and cannot be accessed by third parties. Only you can withdraw your funds. After submission, your deposit will be verified. This may take up to 5 hours, during which your deposit will appear as Pending until confirmed on the Bitcoin network."
+              labelClassName="text-accent-primary"
             />
-            <Text variant="body2" className="text-accent-primary">
-              Your BTC remains secure and cannot be accessed by third parties. Only you can withdraw your funds. After submission, your deposit will be verified. This may take up to 5 hours, during which your deposit will appear as Pending until confirmed on the Bitcoin network.
-            </Text>
-          </label>
+          </div>
         </div>
       </DialogBody>
 

@@ -19,7 +19,7 @@ export interface AmountSliderProps {
   amount: string | number;
   currencyIcon: string;
   currencyName: string;
-  onAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onAmountChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional - if not provided, input is read-only
   
   // Balance details
   balanceDetails?: BalanceDetails;
@@ -29,8 +29,9 @@ export interface AmountSliderProps {
   sliderMin: number;
   sliderMax: number;
   sliderStep?: number;
-  sliderSteps?: SliderStep[];
+  sliderSteps?: SliderStep[] | number;
   onSliderChange: (value: number) => void;
+  onSliderStepsChange?: (selectedSteps: number[]) => void; // Called when sliderSteps is array
   sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
   sliderActiveColor?: string;
   
@@ -41,6 +42,7 @@ export interface AmountSliderProps {
   
   // General
   disabled?: boolean;
+  readOnly?: boolean;
   className?: string;
 }
 
@@ -55,12 +57,14 @@ export function AmountSlider({
   sliderStep = 1,
   sliderSteps,
   onSliderChange,
+  onSliderStepsChange,
   sliderVariant = "primary",
   sliderActiveColor,
   leftField,
   rightField,
   onMaxClick,
   disabled = false,
+  readOnly = false,
   className,
 }: AmountSliderProps) {
   // Prevent arrow key increments
@@ -84,6 +88,7 @@ export function AmountSlider({
           onChange={onAmountChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
+          readOnly={readOnly || !onAmountChange}
           placeholder="0"
           className="w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary"
         />
@@ -97,6 +102,7 @@ export function AmountSlider({
         step={sliderStep}
         steps={sliderSteps}
         onChange={onSliderChange}
+        onStepsChange={onSliderStepsChange}
         variant={sliderVariant}
         activeColor={sliderActiveColor}
         disabled={disabled}

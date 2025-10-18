@@ -21,6 +21,7 @@ export interface AmountItemProps {
     amountUsd: string;
     subtitle?: string;
     disabled?: boolean;
+    readOnly?: boolean;
     onChange: React.ChangeEventHandler<HTMLInputElement>;
     onKeyDown: React.KeyboardEventHandler<HTMLInputElement>;
     onMaxClick?: () => void; // NEW - handler for max button click
@@ -40,6 +41,7 @@ export const AmountItem = ({
     onKeyDown,
     amountUsd,
     disabled = false,
+    readOnly = false,
     onMaxClick,
 }: AmountItemProps) => {
     return (
@@ -57,6 +59,7 @@ export const AmountItem = ({
                     onChange={onChange}
                     onKeyDown={onKeyDown}
                     disabled={disabled}
+                    readOnly={readOnly}
                     placeholder={placeholder}
                     autoFocus={autoFocus}
                     className="w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

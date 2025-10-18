@@ -6,5 +6,6 @@ export interface Market {
   marketSize: string;
   totalLiquidity: string;
   rate: string;
+  trustedBy: string[];
 }
 

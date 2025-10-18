@@ -7,7 +7,7 @@ import {
   Text,
   AmountSlider,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 interface RedeemCollateralModalProps {
   open: boolean;
@@ -25,6 +25,20 @@ export function RedeemCollateralModal({
   btcPrice = 112694.16,
 }: RedeemCollateralModalProps) {
   const [redeemAmount, setRedeemAmount] = useState(0);
+
+  // Hardcoded redeem step array for demonstration
+  // Values represent BTC amounts
+  const redeemSteps = useMemo(() => {
+    const availableBtc = availableBalance;
+    return [
+      { value: 0 },
+      { value: availableBtc * 0.2 },
+      { value: availableBtc * 0.4 },
+      { value: availableBtc * 0.6 },
+      { value: availableBtc * 0.8 },
+      { value: availableBtc },
+    ];
+  }, [availableBalance]);
 
   const handleRedeem = () => {
     if (redeemAmount > 0) {
@@ -54,7 +68,6 @@ export function RedeemCollateralModal({
           amount={redeemAmount}
           currencyIcon="/btc.png"
           currencyName="Bitcoin"
-          onAmountChange={(e) => setRedeemAmount(parseFloat(e.target.value) || 0)}
           balanceDetails={{
             balance: availableBalance,
             symbol: "BTC",
@@ -65,7 +78,12 @@ export function RedeemCollateralModal({
           sliderMin={0}
           sliderMax={availableBalance}
           sliderStep={availableBalance / 1000}
+          sliderSteps={redeemSteps}
           onSliderChange={setRedeemAmount}
+          onSliderStepsChange={(selectedSteps) => {
+            console.log('Redeem Collateral - Selected steps:', selectedSteps);
+            // Handle cumulative step selection here
+          }}
           sliderVariant="primary"
           leftField={{
             label: "Max",
