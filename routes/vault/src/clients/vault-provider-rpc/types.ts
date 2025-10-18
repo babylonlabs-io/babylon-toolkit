@@ -11,28 +11,28 @@
 
 /**
  * Parameters for requesting claim and payout transactions
- * Corresponds to: RequestClaimAndPayoutTransactionsParams (types.rs:214-220)
+ * Corresponds to: RequestClaimAndPayoutTransactionsParams (types.rs:251-258)
  */
 export interface RequestClaimAndPayoutTransactionsParams {
-  /** Hash of the PegIn transaction in BTC hex format */
-  pegin_tx_hash: string;
-  /** Hex encoded 33 byte BTC public key of the depositor */
+  /** The PegIn transaction ID (hex encoded txid) */
+  pegin_tx_id: string;
+  /** Hex encoded 32-byte x-only BTC public key of the depositor (no prefix) */
   depositor_pk: string;
 }
 
 /**
  * Parameters for submitting payout signatures
- * Corresponds to: SubmitPayoutSignaturesParams (types.rs:225-235)
+ * Corresponds to: SubmitPayoutSignaturesParams (types.rs:260-273)
  */
 export interface SubmitPayoutSignaturesParams {
   /** The PegIn transaction ID (hex encoded txid) */
   pegin_tx_id: string;
-  /** Depositor's public key (hex encoded 33 bytes) */
+  /** Depositor's 32-byte x-only BTC public key (hex encoded, no prefix) */
   depositor_pk: string;
   /**
    * Map of claimer public key to depositor's payout signature
-   * - Key: Claimer public key (VP, hex encoded)
-   * - Value: Depositor's signature for that claimer's payout tx (hex encoded)
+   * - Key: Claimer 32-byte x-only public key (VP, hex encoded, no prefix)
+   * - Value: Depositor's 64-byte Schnorr signature for that claimer's payout tx (hex encoded)
    */
   signatures: Record<string, string>;
 }
@@ -52,10 +52,10 @@ export interface TransactionData {
 
 /**
  * Single claimer's transactions
- * Corresponds to: ClaimerTransactions (types.rs:284-292)
+ * Corresponds to: ClaimerTransactions (types.rs:326-335)
  */
 export interface ClaimerTransactions {
-  /** Claimer's public key (hex encoded 33 bytes) */
+  /** Claimer's public key (hex encoded) */
   claimer_pubkey: string;
   /** Claim transaction */
   claim_tx: TransactionData;
@@ -65,7 +65,7 @@ export interface ClaimerTransactions {
 
 /**
  * Response for requesting claim and payout transactions
- * Corresponds to: RequestClaimAndPayoutTransactionsResponse (types.rs:295-299)
+ * Corresponds to: RequestClaimAndPayoutTransactionsResponse (types.rs:337-342)
  */
 export interface RequestClaimAndPayoutTransactionsResponse {
   /** List of transactions for each claimer (VP and L) */
