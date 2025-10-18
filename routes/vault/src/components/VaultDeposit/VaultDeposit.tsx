@@ -126,6 +126,7 @@ export function VaultDeposit({
             value: data.utxo.value.toString(),
             scriptPubKey: data.utxo.scriptPubKey,
           },
+          status: 'pending' as const,  // Initial status when creating pegin
         };
         addPendingPegin(peginData);
 
@@ -176,6 +177,7 @@ export function VaultDeposit({
               connectedAddress={connectedAddress}
               pendingPegins={pendingPegins}
               updatePendingPeginStatus={updatePendingPeginStatus}
+              addPendingPegin={addPendingPegin}
               onRefetchActivities={refetchActivities}
               onShowSuccessModal={handleShowSuccessModal}
             />

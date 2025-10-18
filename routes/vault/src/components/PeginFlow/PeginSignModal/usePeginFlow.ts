@@ -77,12 +77,18 @@ export function usePeginFlow({
   const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unsignedTxHex, setUnsignedTxHex] = useState<string | undefined>(undefined);
+  const [unsignedTxHex, setUnsignedTxHex] = useState<string | undefined>(
+    undefined,
+  );
   const [btcTxid, setBtcTxid] = useState<string | undefined>(undefined);
   const [ethTxHash, setEthTxHash] = useState<string | undefined>(undefined);
 
   // Fetch UTXOs for the connected BTC wallet
-  const { confirmedUTXOs, isLoading: isUTXOsLoading, error: utxoError } = useUTXOs(btcAddress);
+  const {
+    confirmedUTXOs,
+    isLoading: isUTXOsLoading,
+    error: utxoError,
+  } = useUTXOs(btcAddress);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -133,10 +139,13 @@ export function usePeginFlow({
       }
 
       // Convert BTC amount to satoshis
-      const pegInAmountSats = BigInt(Math.round(amount * Number(SATOSHIS_PER_BTC)));
+      const pegInAmountSats = BigInt(
+        Math.round(amount * Number(SATOSHIS_PER_BTC)),
+      );
 
       // Calculate required amount: peg-in amount + transaction fee
-      const requiredAmount = pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+      const requiredAmount =
+        pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
 
       // Select suitable UTXO
       const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
@@ -201,11 +210,18 @@ export function usePeginFlow({
       setCurrentStep(3); // Set to 3 to show step 2 as complete (checkmark, not spinner)
       setProcessing(false);
 
-      // Pass all data to parent including unsigned TX and UTXO for storage
+      // Pass all data to parent including unsigned TX and UTXO for localStorage caching
       // Note: btcTxid is the EXPECTED transaction ID, BTC tx not yet broadcast
+      //
+      // CACHING STRATEGY:
+      // - Store unsignedTxHex & UTXO in localStorage as OPTIONAL cache (faster broadcasting)
+      // - Cross-device broadcasting works WITHOUT these cached values by:
+      //   1. Fetching unsignedTxHex from ETH contract
+      //   2. Deriving UTXO from unsignedTxHex + mempool API queries
       onSuccess({
         btcTxId: result.btcTxid,
         ethTxHash: result.transactionHash,
+        // unsignedTxHex + utxo -> Cache for performance (optional)
         unsignedTxHex: result.btcTxHex,
         utxo: {
           txid: selectedUTXO.txid,

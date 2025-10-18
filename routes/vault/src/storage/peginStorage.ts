@@ -16,8 +16,23 @@ export interface PendingPeginRequest {
   btcAddress: string; // BTC address used
   timestamp: number; // When the peg-in was initiated
   status: 'pending' | 'confirming' | 'confirmed';
-  // New fields for deferred BTC broadcasting
-  unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting after verification)
+
+  // OPTIONAL CACHE FIELDS (for performance optimization)
+  // These fields enable faster broadcasting but are NOT required for cross-device support.
+  // If missing, the system will:
+  // - Fetch unsignedTxHex from ETH contract
+  // - Derive UTXO from unsignedTxHex + mempool API queries
+
+  /**
+   * Unsigned BTC transaction hex (OPTIONAL cache)
+   * If missing, will be fetched from ETH contract
+   */
+  unsignedTxHex?: string;
+
+  /**
+   * UTXO data (OPTIONAL cache)
+   * If missing, will be derived from unsignedTxHex + mempool API
+   */
   utxo?: {
     txid: string;
     vout: number;

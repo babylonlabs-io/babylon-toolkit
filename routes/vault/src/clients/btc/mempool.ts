@@ -154,3 +154,86 @@ export async function pushTx(txHex: string): Promise<string> {
     throw new Error('Failed to broadcast BTC transaction: Unknown error');
   }
 }
+
+/**
+ * Transaction info response from mempool API
+ *
+ * NOTE: Copied from simple-staking for vault POC.
+ * TODO: Deduplicate when merging vault to main branch.
+ */
+interface TxInfoResponse {
+  txid: string;
+  version: number;
+  locktime: number;
+  vin: {
+    txid: string;
+    vout: number;
+    prevout: {
+      scriptpubkey: string;
+      scriptpubkey_asm: string;
+      scriptpubkey_type: string;
+      scriptpubkey_address: string;
+      value: number;
+    };
+    scriptsig: string;
+    scriptsig_asm: string;
+    witness: string[];
+    is_coinbase: boolean;
+    sequence: number;
+  }[];
+  vout: {
+    scriptpubkey: string;
+    scriptpubkey_asm: string;
+    scriptpubkey_type: string;
+    scriptpubkey_address: string;
+    value: number;
+  }[];
+  size: number;
+  weight: number;
+  fee: number;
+  status: {
+    confirmed: boolean;
+    block_height: number;
+    block_hash: string;
+    block_time: number;
+  };
+}
+
+/**
+ * Retrieve information about a transaction from mempool API
+ *
+ * NOTE: Copied from simple-staking for vault POC.
+ * TODO: Deduplicate when merging vault to main branch.
+ *
+ * @param txId - The transaction ID in string format
+ * @returns Promise resolving to transaction information
+ */
+export async function getTxInfo(txId: string): Promise<TxInfoResponse> {
+  const apiUrl = getMempoolApiUrl();
+
+  return fetchApi<TxInfoResponse>(`${apiUrl}/tx/${txId}`);
+}
+
+/**
+ * Retrieve the hex representation of a transaction from mempool API
+ *
+ * NOTE: Copied from simple-staking for vault POC.
+ * TODO: Deduplicate when merging vault to main branch.
+ *
+ * @param txId - The transaction ID in string format
+ * @returns Promise resolving to the transaction hex string
+ */
+export async function getTxHex(txId: string): Promise<string> {
+  const apiUrl = getMempoolApiUrl();
+
+  const response = await fetch(`${apiUrl}/tx/${txId}/hex`);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `Mempool API error (${response.status}): ${errorText || response.statusText}`,
+    );
+  }
+
+  return await response.text();
+}
