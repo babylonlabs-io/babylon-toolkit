@@ -25,17 +25,6 @@ export default {
   },
 
   /**
-   * PHASE_3 feature flag
-   *
-   * Purpose: Enables phase 3 functionality
-   * Why needed: To gradually roll out phase 3
-   * ETA for removal: TBD - Will be removed once phase 3 is fully released
-   */
-  get IsPhase3Enabled() {
-    return process.env.NEXT_PUBLIC_FF_PHASE_3 === "true";
-  },
-
-  /**
    * TESTNET_SUNSET feature flag
    *
    * Purpose: Shows a testnet sunsetting notice and disables staking/expansion on testnet

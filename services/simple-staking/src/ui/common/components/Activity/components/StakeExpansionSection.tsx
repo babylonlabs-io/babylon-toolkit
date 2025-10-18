@@ -7,7 +7,6 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai";
 
-import iconBSNFp from "@/ui/common/assets/expansion-bsn-fp.svg";
 import iconHistory from "@/ui/common/assets/expansion-history.svg";
 import iconRenew from "@/ui/common/assets/expansion-renew.svg";
 import iconVerified from "@/ui/common/assets/expansion-verified.svg";
@@ -18,7 +17,6 @@ import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import { StakingExpansionStep } from "@/ui/common/state/StakingExpansionTypes";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ExpansionButton } from "./ExpansionButton";
 
@@ -35,8 +33,6 @@ export function StakeExpansionSection({
     goToStep,
     setFormData,
     processing,
-    maxFinalityProviders,
-    canExpand,
     openExpansionHistoryModal,
     expansionDisabled,
   } = useStakingExpansionState();
@@ -48,38 +44,6 @@ export function StakeExpansionSection({
     hasVerifiedTimelockRenewal,
   } = useVerifiedStakingExpansionService();
   const { isLoading: isUTXOsLoading } = useAppState();
-
-  const currentBsnCount = delegation.finalityProviderBtcPksHex.length;
-  const canExpandDelegation = canExpand(delegation);
-
-  const handleAddBsnFp = () => {
-    if (!canExpandDelegation) {
-      console.warn("Cannot expand: maximum BSN count reached");
-      return;
-    }
-
-    if (processing) {
-      console.warn("Cannot start expansion: another operation in progress");
-      return;
-    }
-
-    if (isUTXOsLoading) {
-      console.warn("Cannot start expansion: UTXOs are still loading");
-      return;
-    }
-
-    // Initialize expansion form data with current delegation
-    const initialFormData = {
-      originalDelegation: delegation,
-      selectedBsnFps: {},
-      feeRate: 0,
-      feeAmount: 0,
-      stakingTimelock: 0,
-    };
-
-    setFormData(initialFormData);
-    goToStep(StakingExpansionStep.BSN_FP_SELECTION);
-  };
 
   /**
    * Handle renew staking term button click.
@@ -180,20 +144,6 @@ export function StakeExpansionSection({
         </AccordionSummary>
         <AccordionDetails className="space-y-3 px-4 pb-4">
           <div className="flex w-full flex-col gap-4">
-            {FeatureFlagService.IsPhase3Enabled && (
-              <ExpansionButton
-                Icon={iconBSNFp}
-                text="Add BSNs and Finality Providers"
-                counter={`${currentBsnCount}/${maxFinalityProviders}`}
-                onClick={handleAddBsnFp}
-                disabled={
-                  !canExpandDelegation ||
-                  processing ||
-                  isUTXOsLoading ||
-                  isPendingExpansion
-                }
-              />
-            )}
             {hasVerifiedRenewal ? (
               <Hint
                 tooltip="A timelock renewal is already verified. Please check 'Verified Stake Expansion' to complete it."
