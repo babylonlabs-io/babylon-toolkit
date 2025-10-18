@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
 import { useCoStakingState } from "../../state/CoStakingState";
-import { formatAPRPercentage } from "../../utils/formatAPR";
+import { formatAPRPairAdaptive } from "../../utils/formatAPR";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -22,10 +22,15 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
   const { aprData, eligibility, hasValidBoostData } = useCoStakingState();
 
+  const { a: currentAPRDisplay, b: boostAPRDisplay } = useMemo(
+    () => formatAPRPairAdaptive(aprData.currentApr, aprData.boostApr),
+    [aprData.currentApr, aprData.boostApr],
+  );
+
   const submitButtonText = useMemo(
     () =>
-      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${formatAPRPercentage(aprData.boostApr)}%`,
-    [eligibility.additionalBabyNeeded, babyCoinSymbol, aprData.boostApr],
+      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${boostAPRDisplay}%`,
+    [eligibility.additionalBabyNeeded, babyCoinSymbol, boostAPRDisplay],
   );
 
   // Don't render modal if boost data is not available
@@ -53,14 +58,9 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     >
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
-        <span className="text-accent-primary">
-          {formatAPRPercentage(aprData.currentApr)}%
-        </span>
-        . Stake {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol}{" "}
-        to boost it up to{" "}
-        <span className="text-accent-primary">
-          {formatAPRPercentage(aprData.boostApr)}%
-        </span>
+        <span className="text-accent-primary">{currentAPRDisplay}%</span>. Stake{" "}
+        {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost
+        it up to <span className="text-accent-primary">{boostAPRDisplay}%</span>
         . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
         with {babyCoinSymbol}.
       </p>
