@@ -10,6 +10,7 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { useLocation } from "react-router";
 import { useLocalStorage } from "usehooks-ts";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -78,9 +79,11 @@ const { StateProvider, useState: useDelegationState } =
   });
 
 export function DelegationState({ children }: PropsWithChildren) {
+  const location = useLocation();
+  const isVaultRoute = location.pathname.startsWith("/vault");
   const { publicKeyNoCoord } = useBTCWallet();
   const { data, fetchNextPage, isFetchingNextPage, hasNextPage, refetch } =
-    useDelegations();
+    useDelegations({ enabled: !isVaultRoute });
   const eventBus = useEventBus();
 
   // States

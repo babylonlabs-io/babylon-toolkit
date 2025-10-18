@@ -1,6 +1,6 @@
 import { useDebounce } from "@uidotdev/usehooks";
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
-import { useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 
 import { useFinalityProviders } from "@/ui/common/hooks/client/api/useFinalityProviders";
 import { useFinalityProvidersV2 } from "@/ui/common/hooks/client/api/useFinalityProvidersV2";
@@ -83,6 +83,8 @@ const { StateProvider, useState: useFpState } =
   createStateUtils<FinalityProviderState>(defaultState);
 
 export function FinalityProviderState({ children }: PropsWithChildren) {
+  const location = useLocation();
+  const isVaultRoute = location.pathname.startsWith("/vault");
   const [params] = useSearchParams();
   const fpParam = params.get("fp");
 
@@ -100,9 +102,10 @@ export function FinalityProviderState({ children }: PropsWithChildren) {
       name: debouncedSearch,
       // By default, if no bsn is passed, the FP endpoint will return babylon
       bsnId: "all",
+      enabled: !isVaultRoute,
     });
 
-  const { data: dataV1 } = useFinalityProviders();
+  const { data: dataV1 } = useFinalityProviders({ enabled: !isVaultRoute });
 
   const finalityProviders = useMemo(() => {
     if (!data?.finalityProviders) {
