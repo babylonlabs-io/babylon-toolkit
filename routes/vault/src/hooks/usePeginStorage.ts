@@ -143,14 +143,17 @@ export function usePeginStorage({
   }, [pendingActivities, confirmedPegins]);
 
   // Add a new pending peg-in
+  // Accepts optional status parameter to support creating entries with 'confirming' status
+  // (used when broadcasting BTC from cross-device without localStorage)
   const addPendingPegin = useCallback(
-    (pegin: Omit<PendingPeginRequest, 'timestamp' | 'status'>) => {
+    (pegin: Omit<PendingPeginRequest, 'timestamp'>) => {
       if (!ethAddress) return;
 
       const newPegin: PendingPeginRequest = {
         ...pegin,
         timestamp: Date.now(),
-        status: 'pending',
+        // Use provided status or default to 'pending' if not specified
+        status: pegin.status || 'pending',
       };
 
       setPendingPegins((prev: PendingPeginRequest[]) => [...prev, newPegin]);

@@ -6,6 +6,7 @@
  */
 
 import { Psbt, Transaction } from 'bitcoinjs-lib';
+import { deriveUTXOFromUnsignedTx } from './utxoDerivationService';
 import { pushTx } from '../../clients/btc/mempool';
 
 /**
@@ -40,10 +41,14 @@ export interface BroadcastPeginParams {
   unsignedTxHex: string;
 
   /**
-   * UTXO being spent in the transaction
-   * Required to construct witness UTXO data for PSBT signing
+   * UTXO being spent in the transaction (OPTIONAL)
+   *
+   * If not provided, will be derived from unsignedTxHex + mempool API queries.
+   * This enables cross-device broadcasting without localStorage dependency.
+   *
+   * Providing UTXO is faster (avoids mempool API call) but not required.
    */
-  utxo: UTXOInfo;
+  utxo?: UTXOInfo;
 
   /**
    * BTC wallet provider with signing capability
@@ -70,13 +75,18 @@ export interface BroadcastPeginParams {
 export async function broadcastPeginTransaction(
   params: BroadcastPeginParams,
 ): Promise<string> {
-  const { unsignedTxHex, utxo, btcWalletProvider } = params;
+  const { unsignedTxHex, btcWalletProvider } = params;
 
   const cleanHex = unsignedTxHex.startsWith('0x')
     ? unsignedTxHex.slice(2)
     : unsignedTxHex;
 
   try {
+    // Step 0: Derive UTXO if not provided (enables cross-device broadcasting)
+    let utxo = params.utxo;
+    if (!utxo) {
+      utxo = await deriveUTXOFromUnsignedTx(unsignedTxHex);
+    }
     // Step 1: Convert raw transaction hex to PSBT with witness UTXO data
     // Parse the raw transaction
     const tx = Transaction.fromHex(cleanHex);
