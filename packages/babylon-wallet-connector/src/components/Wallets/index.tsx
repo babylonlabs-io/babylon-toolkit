@@ -1,5 +1,5 @@
 import { Button, DialogBody, DialogFooter, DialogHeader, Text } from "@babylonlabs-io/core-ui";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useCallback } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { WalletButton } from "@/components/WalletButton";
@@ -20,6 +20,22 @@ export const Wallets = memo(({ chain, className, append, onClose, onBack, onSele
     [chain],
   );
 
+  const handleWalletClick = useCallback(
+    async (wallet: IWallet) => {
+      if (wallet?.id === "appkit-eth-connector") {
+        try {
+          window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
+        } catch {
+          onSelectWallet?.(chain, wallet);
+        }
+        return;
+      }
+
+      onSelectWallet?.(chain, wallet);
+    },
+    [chain, onSelectWallet],
+  );
+
   return (
     <div className={twMerge("flex flex-1 flex-col", className)}>
       <DialogHeader className="mb-10 text-accent-primary" title="Select Wallet" onClose={onClose}>
@@ -36,7 +52,7 @@ export const Wallets = memo(({ chain, className, append, onClose, onBack, onSele
               logo={wallet.icon}
               label={wallet.label}
               fallbackLink={wallet.docs}
-              onClick={() => onSelectWallet?.(chain, wallet)}
+              onClick={() => handleWalletClick(wallet)}
             />
           ))}
         </div>

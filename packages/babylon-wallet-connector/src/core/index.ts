@@ -92,8 +92,14 @@ export const createWalletConnector = async <N extends string, P extends IProvide
   );
   const connector = new WalletConnector(metadata.chain, metadata.name, metadata.icon, filteredWallets, config);
 
-  if (connectedWalletId && wallets.some((wallet) => wallet.id === connectedWalletId)) {
-    await connector.connect(connectedWalletId);
+  const shouldAutoReconnect = metadata.chain !== "ETH" && connectedWalletId && wallets.some((wallet) => wallet.id === connectedWalletId);
+
+  if (shouldAutoReconnect) {
+    try {
+      await connector.connect(connectedWalletId);
+    } catch (error) {
+      console.error({ error })
+    }
   }
 
   return connector;

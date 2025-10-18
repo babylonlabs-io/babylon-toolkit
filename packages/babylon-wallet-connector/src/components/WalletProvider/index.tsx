@@ -19,7 +19,7 @@ interface WalletProviderProps {
   config: Readonly<ChainConfigArr>;
   onError?: (e: Error) => void;
   disabledWallets?: string[];
-  requiredChains?: ("BTC" | "BBN")[];
+  requiredChains?: ("BTC" | "BBN" | "ETH")[];
 }
 
 export function WalletProvider({
