@@ -293,8 +293,14 @@ export function shouldRemoveFromLocalStorage(
     return true; // On-chain ACK received, no longer need local flag
   }
 
-  if (contractStatus >= ContractStatus.AVAILABLE) {
-    return true; // Fully confirmed (Available/InPosition/Expired), remove from localStorage
+  // Remove for terminal/confirmed states
+  // Use explicit checks instead of >= to avoid fragility if enum values change
+  if (
+    contractStatus === ContractStatus.AVAILABLE ||
+    contractStatus === ContractStatus.IN_POSITION ||
+    contractStatus === ContractStatus.EXPIRED
+  ) {
+    return true; // Fully confirmed, blockchain is source of truth
   }
 
   return false;

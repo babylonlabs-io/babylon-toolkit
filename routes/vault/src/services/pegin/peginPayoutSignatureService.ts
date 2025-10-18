@@ -73,6 +73,34 @@ export async function signAndSubmitPayoutSignatures(
     btcWalletProvider,
   } = params;
 
+  // Validate inputs
+  if (!peginTxId || typeof peginTxId !== 'string') {
+    throw new Error('Invalid peginTxId: must be a non-empty string');
+  }
+
+  if (!depositorBtcPubkey || typeof depositorBtcPubkey !== 'string') {
+    throw new Error('Invalid depositorBtcPubkey: must be a non-empty string');
+  }
+
+  // Validate BTC public key format (should be 64 hex chars = 32 bytes, no 0x prefix)
+  if (!/^[0-9a-fA-F]{64}$/.test(depositorBtcPubkey)) {
+    throw new Error(
+      'Invalid depositorBtcPubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)',
+    );
+  }
+
+  if (!claimerTransactions || claimerTransactions.length === 0) {
+    throw new Error(
+      'Invalid claimerTransactions: must be a non-empty array',
+    );
+  }
+
+  if (!vaultProvider?.address || !vaultProvider?.url) {
+    throw new Error(
+      'Invalid vaultProvider: must have address and url properties',
+    );
+  }
+
   // Step 1: Sign payout transactions for each claimer
   // Each payout transaction needs a Schnorr signature (64 bytes) from the depositor
   const signatures: Record<string, string> = {};

@@ -109,7 +109,7 @@ export function VaultActivityCard({
     setBroadcastError(null);
 
     try {
-      // Fetch pegin request from BTCVaultsManager contract (enables cross-device broadcasting)
+      // Fetch pegin request from BTCVaultsManager contract (source of truth)
       const peginRequest = await getPeginRequest(
         CONTRACTS.BTC_VAULTS_MANAGER,
         activity.id as Hex,
@@ -123,17 +123,6 @@ export function VaultActivityCard({
         );
       }
 
-      // Try to get UTXO from localStorage (optional cache for performance)
-      const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
-      const cachedUtxo = pendingPegin?.utxo
-        ? {
-            txid: pendingPegin.utxo.txid,
-            vout: pendingPegin.utxo.vout,
-            value: BigInt(pendingPegin.utxo.value),
-            scriptPubKey: pendingPegin.utxo.scriptPubKey,
-          }
-        : undefined;
-
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
@@ -142,38 +131,25 @@ export function VaultActivityCard({
         );
       }
 
-      // Broadcast the transaction
-      // If cachedUtxo is undefined, broadcastService will derive it from mempool
+      // Broadcast the transaction (UTXO will be derived from mempool API)
       const txId = await broadcastPeginTransaction({
         unsignedTxHex,
-        utxo: cachedUtxo, // Optional: uses cache if available, derives if not
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
         },
       });
 
-      // Update or create localStorage entry to show "Pending BTC Confirmations" status
+      // Update or create localStorage entry for status tracking only
       // Use state machine to determine next status
       const nextStatus = getNextLocalStatus(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN);
-      let localStorageCreated = false; // Track if we created new entry
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update it
+        // Case 1: localStorage entry EXISTS - update status
         updatePendingPeginStatus(activity.id, nextStatus, txId);
       } else if (addPendingPegin && connectedAddress && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create one
-        // This ensures UI shows "Pending BTC Confirmations" status after broadcast
+        // Case 2: NO localStorage entry (cross-device) - create one for status tracking
+        // This ensures UI shows "Confirming" status after broadcast
         const btcAddress = btcConnector?.connectedWallet?.account?.address;
-
-        // Prepare UTXO data if it was derived (might be undefined)
-        const utxoForStorage = cachedUtxo
-          ? {
-              txid: cachedUtxo.txid,
-              vout: cachedUtxo.vout,
-              value: cachedUtxo.value.toString(),
-              scriptPubKey: cachedUtxo.scriptPubKey,
-            }
-          : undefined;
 
         addPendingPegin({
           id: activity.id,
@@ -181,23 +157,16 @@ export function VaultActivityCard({
           providers: activity.providers.map((p) => p.id),
           ethAddress: connectedAddress,
           btcAddress: btcAddress || '',
-          unsignedTxHex: unsignedTxHex,
-          utxo: utxoForStorage,
           btcTxHash: txId,
           status: nextStatus,
         });
-
-        localStorageCreated = true; // Mark that we created entry
       }
 
       // Show success modal
       onShowSuccessModal();
 
-      // Only refetch if we UPDATED existing entry (not created new one)
-      // Creating new entry triggers re-render automatically via localStorage state change
-      if (!localStorageCreated) {
-        onRefetchActivities();
-      }
+      // Refetch activities to ensure UI is in sync
+      onRefetchActivities();
 
       setBroadcasting(false);
     } catch (err) {

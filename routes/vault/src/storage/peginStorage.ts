@@ -16,29 +16,6 @@ export interface PendingPeginRequest {
   btcAddress: string; // BTC address used
   timestamp: number; // When the peg-in was initiated
   status: 'pending' | 'payout_signed' | 'confirming' | 'confirmed';
-
-  // OPTIONAL CACHE FIELDS (for performance optimization)
-  // These fields enable faster broadcasting but are NOT required for cross-device support.
-  // If missing, the system will:
-  // - Fetch unsignedTxHex from ETH contract
-  // - Derive UTXO from unsignedTxHex + mempool API queries
-
-  /**
-   * Unsigned BTC transaction hex (OPTIONAL cache)
-   * If missing, will be fetched from ETH contract
-   */
-  unsignedTxHex?: string;
-
-  /**
-   * UTXO data (OPTIONAL cache)
-   * If missing, will be derived from unsignedTxHex + mempool API
-   */
-  utxo?: {
-    txid: string;
-    vout: number;
-    value: string; // Store as string to avoid BigInt serialization
-    scriptPubKey: string;
-  };
 }
 
 const STORAGE_KEY_PREFIX = 'vault-pending-pegins';
@@ -65,6 +42,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
     return parsed;
   } catch (error) {
+    console.error('[peginStorage] Failed to parse pending pegins:', error);
     return [];
   }
 }
@@ -82,7 +60,7 @@ export function savePendingPegins(
     const key = getStorageKey(ethAddress);
     localStorage.setItem(key, JSON.stringify(pegins));
   } catch (error) {
-    // Silent fail - non-critical localStorage error
+    console.error('[peginStorage] Failed to save pending pegins:', error);
   }
 }
 
@@ -180,6 +158,6 @@ export function clearPendingPegins(ethAddress: string): void {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
   } catch (error) {
-    // Silent fail - non-critical localStorage error
+    console.error('[peginStorage] Failed to clear pending pegins:', error);
   }
 }

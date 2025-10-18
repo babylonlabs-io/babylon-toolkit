@@ -10,6 +10,7 @@
  * - Fetch once on mount, don't refetch on window focus
  */
 
+import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { vaultApiClient } from '../clients/vault-api';
 import type { VaultProvider } from '../clients/vault-api';
@@ -56,12 +57,13 @@ export function useVaultProviders(): UseVaultProvidersResult {
   });
 
   // Helper function to find provider by address
-  const findProvider = (address: string): VaultProvider | undefined => {
+  // Memoized to prevent unnecessary re-renders in consuming components
+  const findProvider = useCallback((address: string): VaultProvider | undefined => {
     if (!data) return undefined;
     return data.find(
       (p) => p.id.toLowerCase() === address.toLowerCase()
     );
-  };
+  }, [data]);
 
   // Wrap refetch to return Promise<void>
   const wrappedRefetch = async () => {
