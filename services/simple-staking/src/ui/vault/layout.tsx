@@ -16,7 +16,7 @@ type TabId = "deposit" | "positions";
 function VaultContent() {
   const [activeTab, setActiveTab] = useState<TabId>("deposit");
   const { address: ethAddress, connected: ethConnected } = useETHWallet();
-  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
+  const { address: btcAddress, publicKeyNoCoord: btcPublicKey, connected: btcConnected } = useBTCWallet();
 
   const tabItems = useMemo(
     () => [
@@ -28,6 +28,7 @@ function VaultContent() {
             <VaultDeposit
               ethAddress={ethAddress}
               btcAddress={btcAddress}
+              btcPublicKey={btcPublicKey}
               isWalletConnected={ethConnected && btcConnected}
             />
           </Section>
@@ -46,7 +47,7 @@ function VaultContent() {
         ),
       },
     ],
-    [ethAddress, btcAddress, ethConnected, btcConnected]
+    [ethAddress, btcAddress, btcPublicKey, ethConnected, btcConnected]
   );
 
   return (
