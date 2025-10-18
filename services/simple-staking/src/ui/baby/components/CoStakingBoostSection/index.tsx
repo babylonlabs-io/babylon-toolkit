@@ -5,8 +5,6 @@ import { useNavigate } from "react-router";
 import { Text, DismissibleSubSection } from "@babylonlabs-io/core-ui";
 
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
-import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
-import { DelegationV2StakingState } from "@/ui/common/types/delegationsV2";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
@@ -18,7 +16,6 @@ export function CoStakingBoostSection({
 }: {
   setActiveTab: (tab: TabId) => void;
 }) {
-  const { delegations = [], isLoading } = useDelegationV2State();
   const {
     eligibility,
     hasValidBoostData,
@@ -32,11 +29,6 @@ export function CoStakingBoostSection({
       initializeWithValue: true,
     });
   const navigate = useNavigate();
-
-  const hasActiveBtcDelegations = useMemo(
-    () => delegations.some((d) => d.state === DelegationV2StakingState.ACTIVE),
-    [delegations],
-  );
 
   const handlePrefill = () => {
     setActiveTab("stake");
@@ -54,8 +46,6 @@ export function CoStakingBoostSection({
 
   const shouldShowCoStakingBoostSection =
     isCoStakingEnabled &&
-    hasActiveBtcDelegations &&
-    !isLoading &&
     !isCoStakingLoading &&
     showCoStakingBoostSection &&
     hasValidBoostData;
