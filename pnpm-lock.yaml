@@ -411,6 +411,18 @@ importers:
         specifier: ^0.23.0
         version: 0.23.0(rollup@4.46.1)(vite@6.3.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.0)(tsx@4.20.3)(yaml@2.8.0))
 
+  packages/babylon-tbv-rust-wasm:
+    devDependencies:
+      '@internal/eslint-config':
+        specifier: workspace:*
+        version: link:../../tools/eslint-config
+      shelljs:
+        specifier: ^0.8.5
+        version: 0.8.5
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.2
+
   packages/babylon-wallet-connector:
     dependencies:
       '@babylonlabs-io/core-ui':
