@@ -44,7 +44,7 @@ export const useTransactionService = () => {
   const { data: networkFees } = useNetworkFees();
   const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const {
-    btcTipQuery: { data: tipHeader, refetch: refetchBtcTip },
+    btcTipQuery: { data: tipHeight = 0, refetch: refetchBtcTip },
   } = useBbnQuery();
 
   const { bech32Address } = useCosmosWallet();
@@ -59,8 +59,6 @@ export const useTransactionService = () => {
     [btcAddress, publicKeyNoCoord],
   );
 
-  const tipHeight = useMemo(() => tipHeader?.height ?? 0, [tipHeader]);
-
   const { createBtcStakingManager } = useStakingManagerService();
 
   /**
@@ -73,8 +71,7 @@ export const useTransactionService = () => {
   const createDelegationEoi = useCallback(
     async (stakingInput: BtcStakingInputs, feeRate: number) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeader } = await refetchBtcTip();
-      const latestTipHeight = latestTipHeader?.height ?? 0;
+      const { data: latestTipHeight = 0 } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
 
@@ -171,8 +168,7 @@ export const useTransactionService = () => {
       stakingInput: BtcStakingInputs,
     ) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeader } = await refetchBtcTip();
-      const latestTipHeight = latestTipHeader?.height ?? 0;
+      const { data: latestTipHeight = 0 } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
       validateCommonInputs(
@@ -466,8 +462,7 @@ export const useTransactionService = () => {
       feeRate: number,
     ) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeader } = await refetchBtcTip();
-      const latestTipHeight = latestTipHeader?.height ?? 0;
+      const { data: latestTipHeight = 0 } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
 
