@@ -15,7 +15,7 @@ export interface PendingPeginRequest {
   ethAddress: string; // ETH address that initiated the peg-in
   btcAddress: string; // BTC address used
   timestamp: number; // When the peg-in was initiated
-  status: 'pending' | 'confirming' | 'confirmed';
+  status: 'pending' | 'payout_signed' | 'confirming' | 'confirmed';
 
   // OPTIONAL CACHE FIELDS (for performance optimization)
   // These fields enable faster broadcasting but are NOT required for cross-device support.

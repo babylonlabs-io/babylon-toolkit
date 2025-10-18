@@ -21,10 +21,21 @@ import { broadcastPeginTransaction } from '../../services/btc/broadcastService';
 import { type PendingPeginRequest } from '../../storage/peginStorage';
 import { getPeginRequest } from '../../clients/eth-contract/btc-vaults-manager/query';
 import { CONTRACTS } from '../../config/contracts';
+import { usePendingPeginTxPolling } from '../../hooks/usePendingPeginTxPolling';
+import { useSignPeginTransactions } from '../../hooks/useSignPeginTransactions';
+import {
+  getPeginState,
+  getPrimaryActionButton,
+  getNextLocalStatus,
+  PeginAction,
+  ContractStatus,
+  LocalStorageStatus,
+} from '../../models/peginStateMachine';
 
 interface VaultActivityCardProps {
   activity: VaultActivity;
   connectedAddress?: string;
+  btcPublicKey?: string;
   pendingPegins?: PendingPeginRequest[];
   updatePendingPeginStatus?: (
     peginId: string,
@@ -39,6 +50,7 @@ interface VaultActivityCardProps {
 export function VaultActivityCard({
   activity,
   connectedAddress,
+  btcPublicKey,
   pendingPegins = [],
   updatePendingPeginStatus,
   addPendingPegin,
@@ -51,7 +63,42 @@ export function VaultActivityCard({
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
   const btcConnector = useChainConnector('BTC');
+
+  // Get current state from state machine
+  const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+  const contractStatus = activity.contractStatus as ContractStatus;
+  const localStatus = pendingPegin?.status as LocalStorageStatus | undefined;
+
+  // Get vault provider address from activity
+  const vaultProviderAddress = activity.providers[0]?.id as `0x${string}` | undefined;
+
+  // Poll vault provider RPC for claim/payout transactions
+  // Only poll when status is PENDING
+  const shouldPoll = contractStatus === ContractStatus.PENDING
+    && localStatus !== LocalStorageStatus.PAYOUT_SIGNED;
+
+  const {
+    transactions,
+    error: txError,
+    isReady: txReady,
+  } = usePendingPeginTxPolling(
+    shouldPoll && btcPublicKey && vaultProviderAddress && activity.txHash
+      ? {
+          peginTxId: activity.txHash,
+          vaultProviderAddress,
+          depositorBtcPubkey: btcPublicKey,
+        }
+      : null
+  );
+
+  // Determine current state using state machine
+  const peginState = getPeginState(contractStatus, localStatus, txReady);
+
+  // Hook for signing payout transactions
+  const { signPayoutsAndSubmit } = useSignPeginTransactions();
 
   // Broadcast handler
   const handleBroadcast = async () => {
@@ -106,12 +153,14 @@ export function VaultActivityCard({
       });
 
       // Update or create localStorage entry to show "Pending BTC Confirmations" status
+      // Use state machine to determine next status
+      const nextStatus = getNextLocalStatus(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN);
       let localStorageCreated = false; // Track if we created new entry
 
-      if (pendingPegin && updatePendingPeginStatus) {
+      if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         // Case 1: localStorage entry EXISTS - update it
-        updatePendingPeginStatus(activity.id, 'confirming', txId);
-      } else if (addPendingPegin && connectedAddress) {
+        updatePendingPeginStatus(activity.id, nextStatus, txId);
+      } else if (addPendingPegin && connectedAddress && nextStatus) {
         // Case 2: NO localStorage entry (cross-device) - create one
         // This ensures UI shows "Pending BTC Confirmations" status after broadcast
         const btcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -135,7 +184,7 @@ export function VaultActivityCard({
           unsignedTxHex: unsignedTxHex,
           utxo: utxoForStorage,
           btcTxHash: txId,
-          status: 'confirming',
+          status: nextStatus,
         });
 
         localStorageCreated = true; // Mark that we created entry
@@ -159,12 +208,59 @@ export function VaultActivityCard({
     }
   };
 
-  // Determine status to display:
-  // - If vault is in use (vaultMetadata.active=true), show "In Position"
-  // - Otherwise show the actual pegin status (from localStorage or blockchain)
+  // Sign handler for payout transactions
+  const handleSign = async () => {
+    if (!transactions || !vaultProviderAddress || !btcPublicKey || !activity.txHash) {
+      return;
+    }
+
+    // Get BTC wallet provider
+    const btcWalletProvider = btcConnector?.connectedWallet?.provider;
+    if (!btcWalletProvider) {
+      setSignError('BTC wallet not connected. Please reconnect your wallet.');
+      return;
+    }
+
+    setSigning(true);
+    setSignError(null);
+
+    try {
+      await signPayoutsAndSubmit({
+        peginTxId: activity.txHash,
+        vaultProviderAddress,
+        // Depositor's BTC public key (x-only, 32 bytes, no 0x prefix)
+        depositorBtcPubkey: btcPublicKey,
+        transactions,
+        btcWalletProvider: {
+          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
+        },
+      });
+
+      // Update localStorage status using state machine
+      const nextStatus = getNextLocalStatus(PeginAction.SIGN_PAYOUT_TRANSACTIONS);
+      if (updatePendingPeginStatus && nextStatus) {
+        updatePendingPeginStatus(activity.id, nextStatus);
+      }
+
+      // Refetch activities after successful submission
+      if (onRefetchActivities) {
+        onRefetchActivities();
+      }
+
+      setSigning(false);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : 'Failed to sign transactions';
+      setSignError(errorMessage);
+      setSigning(false);
+    }
+  };
+
+  // Determine status to display using state machine
+  // If vault is in use (vaultMetadata.active=true), override with "In Position"
   const displayStatus = activity.vaultMetadata?.active
     ? { label: 'In Position', variant: 'active' as const }
-    : activity.status;
+    : { label: peginState.displayLabel, variant: peginState.displayVariant };
 
   // Build status detail with StatusBadge
   const statusDetail: ActivityCardDetailItem = {
@@ -208,10 +304,37 @@ export function VaultActivityCard({
     ...(txHashDetail ? [txHashDetail] : []),
   ];
 
-  // Check if this is a verified vault (ready for BTC broadcast)
-  const isVerified = activity.status.label === 'Verified';
-  const canBroadcast =
-    isVerified && connectedAddress && onRefetchActivities && onShowSuccessModal;
+  // Determine primary action using state machine
+  let primaryAction: ActivityCardData['primaryAction'] = undefined;
+  const primaryActionConfig = getPrimaryActionButton(peginState);
+
+  if (primaryActionConfig) {
+    const { label, action } = primaryActionConfig;
+
+    // Map action to handler
+    let onClick: (() => void) | undefined;
+    let displayLabel = label;
+
+    if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
+      onClick = handleSign;
+      displayLabel = signing ? 'Signing...' : signError ? 'Retry Sign' : label;
+    } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
+      onClick = handleBroadcast;
+      displayLabel = broadcasting ? 'Broadcasting...' : broadcastError ? 'Retry Sign & Broadcast' : label;
+    } else if (action === PeginAction.REDEEM && activity.action) {
+      onClick = activity.action.onClick;
+      displayLabel = activity.action.label;
+    }
+
+    if (onClick) {
+      primaryAction = {
+        label: displayLabel,
+        onClick,
+        variant: 'contained' as const,
+        fullWidth: true,
+      };
+    }
+  }
 
   // Transform to ActivityCardData format
   // NOTE: optionalDetails (loan details) are now only shown in VaultPositions tab
@@ -221,31 +344,22 @@ export function VaultActivityCard({
     icon: activity.collateral.icon || bitcoinIcon,
     iconAlt: activity.collateral.symbol,
     details,
-    // Add warning for pending peg-ins or broadcast errors
+    // Add warning messages based on state or errors
     warning:
       activity.isPending && activity.pendingMessage ? (
         <Warning>{activity.pendingMessage}</Warning>
+      ) : contractStatus === ContractStatus.PENDING && !btcPublicKey ? (
+        <Warning>Unable to get BTC public key from wallet. Please reconnect your BTC wallet.</Warning>
+      ) : txError ? (
+        <Warning>Failed to fetch transactions: {txError.message}</Warning>
+      ) : signError ? (
+        <Warning>{signError}</Warning>
       ) : broadcastError ? (
         <Warning>{broadcastError}</Warning>
+      ) : peginState.message ? (
+        <Warning>{peginState.message}</Warning>
       ) : undefined,
-    // Show broadcast button for verified vaults, otherwise show action button
-    primaryAction: canBroadcast
-      ? {
-          label: broadcasting
-            ? 'Broadcasting...'
-            : broadcastError
-              ? 'Retry Broadcast'
-              : 'Broadcast to Bitcoin',
-          onClick: handleBroadcast,
-          variant: 'contained' as const,
-          fullWidth: true,
-        }
-      : activity.action
-        ? {
-            label: activity.action.label,
-            onClick: activity.action.onClick,
-          }
-        : undefined,
+    primaryAction,
   };
 
   return <ActivityCard data={cardData} />;

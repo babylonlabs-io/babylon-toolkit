@@ -14,12 +14,14 @@ import type { VaultActivity } from '../../mockData/vaultActivities';
 export interface VaultDepositProps {
   ethAddress?: string;
   btcAddress?: string;
+  btcPublicKey?: string;
   isWalletConnected?: boolean;
 }
 
 export function VaultDeposit({
   ethAddress,
   btcAddress: btcAddressProp,
+  btcPublicKey,
   isWalletConnected: isWalletConnectedProp = false,
 }: VaultDepositProps) {
   // Peg out flow state
@@ -175,6 +177,7 @@ export function VaultDeposit({
               key={activity.id}
               activity={activity}
               connectedAddress={connectedAddress}
+              btcPublicKey={btcPublicKey}
               pendingPegins={pendingPegins}
               updatePendingPeginStatus={updatePendingPeginStatus}
               addPendingPegin={addPendingPegin}

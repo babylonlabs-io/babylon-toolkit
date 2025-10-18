@@ -4,6 +4,9 @@
  * REST API client for querying vault and market information from the Babylon vault indexer.
  */
 
+import { VaultApiClient } from './api';
+import { getVaultApiUrl, DEFAULT_TIMEOUT } from './config';
+
 export { VaultApiClient } from './api';
 export {
   getVaultApiUrl,
@@ -15,3 +18,6 @@ export type {
   MorphoMarket,
   MorphoAsset,
 } from './types';
+
+// Create singleton instance
+export const vaultApiClient = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
