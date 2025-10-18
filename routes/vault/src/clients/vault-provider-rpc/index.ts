@@ -5,6 +5,9 @@
 import { VaultProviderRpcApi } from './api';
 import { RPC_TIMEOUT, getVaultProviderRpcUrl } from './config';
 
+// Export API class
+export { VaultProviderRpcApi } from './api';
+
 // Export types
 export type {
   ClaimerTransactions,

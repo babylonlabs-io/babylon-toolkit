@@ -21,7 +21,11 @@ export class VaultProviderRpcApi {
 
   /**
    * Request unsigned claim and payout transactions for a PegIn
-   * @param params - PegIn transaction hash and depositor public key
+   *
+   * Depositors call this method to get the claim and payout transactions
+   * that they need to sign for the PegIn claim flow.
+   *
+   * @param params - PegIn transaction ID and depositor's 32-byte x-only public key
    * @returns List of claim/payout transaction pairs for each claimer (VP and L)
    */
   async requestClaimAndPayoutTransactions(
@@ -34,8 +38,14 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Submit depositor signatures for claim and payout transactions
-   * @param params - PegIn TX ID, depositor public key, and signatures
+   * Submit depositor signatures for payout transactions
+   *
+   * After the depositor receives unsigned claim/payout transactions via
+   * requestClaimAndPayoutTransactions, they sign the transactions and submit
+   * their signatures through this API. The vault provider will store these
+   * signatures and use them to finalize the PegIn claim process.
+   *
+   * @param params - PegIn TX ID, depositor's 32-byte x-only public key, and Schnorr signatures
    * @returns void on success
    */
   async submitPayoutSignatures(

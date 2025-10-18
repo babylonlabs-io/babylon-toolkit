@@ -6,7 +6,7 @@
  */
 
 import { Psbt, Transaction } from 'bitcoinjs-lib';
-import { deriveUTXOFromUnsignedTx } from './utxoDerivationService';
+import { fetchUTXOFromMempool } from './utxoDerivationService';
 import { pushTx } from '../../clients/btc/mempool';
 
 /**
@@ -36,19 +36,9 @@ export interface UTXOInfo {
 
 export interface BroadcastPeginParams {
   /**
-   * Unsigned transaction hex (from WASM) - raw transaction format
+   * Unsigned transaction hex (from contract or WASM)
    */
   unsignedTxHex: string;
-
-  /**
-   * UTXO being spent in the transaction (OPTIONAL)
-   *
-   * If not provided, will be derived from unsignedTxHex + mempool API queries.
-   * This enables cross-device broadcasting without localStorage dependency.
-   *
-   * Providing UTXO is faster (avoids mempool API call) but not required.
-   */
-  utxo?: UTXOInfo;
 
   /**
    * BTC wallet provider with signing capability
@@ -62,11 +52,12 @@ export interface BroadcastPeginParams {
  * Sign and broadcast a PegIn transaction to the Bitcoin network
  *
  * This function:
- * 1. Converts raw unsigned transaction hex to PSBT format
- * 2. Adds witness UTXO data required for signing
- * 3. Signs the PSBT using the user's BTC wallet
- * 4. Extracts the final signed transaction
- * 5. Broadcasts it to the Bitcoin network via mempool API
+ * 1. Derives UTXO information from the unsigned transaction (queries mempool API)
+ * 2. Converts raw unsigned transaction hex to PSBT format
+ * 3. Adds witness UTXO data required for signing
+ * 4. Signs the PSBT using the user's BTC wallet
+ * 5. Extracts the final signed transaction
+ * 6. Broadcasts it to the Bitcoin network via mempool API
  *
  * @param params - Transaction and wallet parameters
  * @returns The broadcasted transaction ID
@@ -82,32 +73,46 @@ export async function broadcastPeginTransaction(
     : unsignedTxHex;
 
   try {
-    // Step 0: Derive UTXO if not provided (enables cross-device broadcasting)
-    let utxo = params.utxo;
-    if (!utxo) {
-      utxo = await deriveUTXOFromUnsignedTx(unsignedTxHex);
-    }
-    // Step 1: Convert raw transaction hex to PSBT with witness UTXO data
-    // Parse the raw transaction
+    // Step 1: Parse the raw transaction
     const tx = Transaction.fromHex(cleanHex);
 
-    // Create a new PSBT from the transaction
+    // Validate transaction has at least one input
+    if (tx.ins.length === 0) {
+      throw new Error('Transaction has no inputs');
+    }
+
+    // Step 2: Create PSBT and set version/locktime
     const psbt = new Psbt();
     psbt.setVersion(tx.version);
     psbt.setLocktime(tx.locktime);
 
-    // Add input with witness UTXO data
-    // For SegWit/Taproot transactions, we need the witness UTXO
-    const witnessUtxo = {
-      script: Buffer.from(utxo.scriptPubKey, 'hex'),
-      value: Number(utxo.value),
-    };
+    // Step 3: Add ALL inputs with their witness UTXO data
+    // Note: Per btc-transactions-spec.md, peg-in transactions can have multiple inputs
+    // "Amount of inputs is not constrained. Inputs can be arbitrary type except of legacy inputs"
+    // We need to fetch UTXO data for each input from mempool API
+    for (const input of tx.ins) {
+      // Extract txid and vout from this input
+      // Bitcoin stores txid in reverse byte order
+      const txid = Buffer.from(input.hash).reverse().toString('hex');
+      const vout = input.index;
 
-    psbt.addInput({
-      hash: utxo.txid,
-      index: utxo.vout,
-      witnessUtxo,
-    });
+      // Fetch UTXO data from mempool for this specific input
+      const utxoData = await fetchUTXOFromMempool(txid, vout);
+
+      // For SegWit/Taproot transactions, we need the witness UTXO
+      const witnessUtxo = {
+        script: Buffer.from(utxoData.scriptPubKey, 'hex'),
+        value: utxoData.value, // Already a number from fetchUTXOFromMempool
+      };
+
+      // Add input with witness UTXO data
+      // Use the input hash directly from parsed transaction (already in correct Buffer format)
+      psbt.addInput({
+        hash: input.hash,
+        index: input.index,
+        witnessUtxo,
+      });
+    }
 
     // Add all outputs from the unsigned transaction
     for (const output of tx.outs) {
@@ -119,22 +124,22 @@ export async function broadcastPeginTransaction(
 
     const psbtHex = psbt.toHex();
 
-    // Step 2: Sign PSBT with user's BTC wallet
+    // Step 3: Sign PSBT with user's BTC wallet
     const signedPsbtHex = await btcWalletProvider.signPsbt(psbtHex);
 
-    // Step 3: Extract finalized transaction from signed PSBT
+    // Step 4: Extract finalized transaction from signed PSBT
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
     // Finalize inputs if not already finalized
     try {
       signedPsbt.finalizeAllInputs();
-    } catch (e) {
-      // Some wallets may finalize automatically
+    } catch {
+      // Some wallets may finalize automatically, ignore errors
     }
 
     const signedTxHex = signedPsbt.extractTransaction().toHex();
 
-    // Step 4: Broadcast to Bitcoin network
+    // Step 5: Broadcast to Bitcoin network
     const txId = await pushTx(signedTxHex);
 
     return txId;

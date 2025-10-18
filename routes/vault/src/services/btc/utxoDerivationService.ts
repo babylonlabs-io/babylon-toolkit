@@ -46,7 +46,9 @@ export async function deriveUTXOFromUnsignedTx(
       throw new Error('Transaction has no inputs');
     }
 
-    // Extract first input (pegin transactions only have one input)
+    // Extract first input
+    // Note: This function is kept for backward compatibility and simple cases
+    // For transactions with multiple inputs, use fetchUTXOFromMempool directly
     const input = tx.ins[0];
 
     // Bitcoin stores txid in reverse byte order
@@ -85,7 +87,7 @@ export async function deriveUTXOFromUnsignedTx(
  * @returns UTXO data with scriptPubKey and value
  * @throws Error if transaction not found or output index invalid
  */
-async function fetchUTXOFromMempool(
+export async function fetchUTXOFromMempool(
   txid: string,
   vout: number,
 ): Promise<{ scriptPubKey: string; value: number }> {
