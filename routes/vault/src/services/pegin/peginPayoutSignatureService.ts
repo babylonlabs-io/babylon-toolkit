@@ -15,6 +15,7 @@ import type { Hex } from 'viem';
 import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
 import type { ClaimerTransactions } from '../../clients/vault-provider-rpc/types';
 import { signPayoutTransaction } from '../btc/signPayoutService';
+import { stripHexPrefix } from '../../utils/btcUtils';
 
 /**
  * Vault provider information
@@ -122,8 +123,10 @@ export async function signAndSubmitPayoutSignatures(
   // Step 2: Submit signatures to vault provider RPC
   const rpcClient = new VaultProviderRpcApi(vaultProvider.url, 30000);
 
+  // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
+  // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
   await rpcClient.submitPayoutSignatures({
-    pegin_tx_id: peginTxId,
+    pegin_tx_id: stripHexPrefix(peginTxId),
     depositor_pk: depositorBtcPubkey,
     signatures,
   });

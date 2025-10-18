@@ -5,6 +5,23 @@
  */
 
 /**
+ * Strip "0x" prefix from hex string if present
+ * Bitcoin expects plain hex (no "0x" prefix), but frontend uses Ethereum-style "0x"-prefixed hex
+ *
+ * @param hex - Hex string with or without "0x" prefix
+ * @returns Hex string without "0x" prefix
+ *
+ * @example
+ * ```ts
+ * stripHexPrefix('0xabc123') // 'abc123'
+ * stripHexPrefix('abc123')   // 'abc123'
+ * ```
+ */
+export function stripHexPrefix(hex: string): string {
+  return hex.startsWith('0x') ? hex.slice(2) : hex;
+}
+
+/**
  * Convert a 33-byte public key to 32-byte x-only format (removes first byte)
  * Used for Taproot/Schnorr signatures which only need the x-coordinate
  *
@@ -24,9 +41,7 @@ export const toXOnly = (pubKey: Buffer): Buffer =>
  */
 export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Remove '0x' prefix if present
-  const cleanHex = publicKeyHex.startsWith('0x')
-    ? publicKeyHex.slice(2)
-    : publicKeyHex;
+  const cleanHex = stripHexPrefix(publicKeyHex);
 
   // If already 64 chars (32 bytes), it's already x-only format
   if (cleanHex.length === 64) {

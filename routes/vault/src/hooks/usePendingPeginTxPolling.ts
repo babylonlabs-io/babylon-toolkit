@@ -14,6 +14,7 @@ import type {
   ClaimerTransactions
 } from '../clients/vault-provider-rpc/types';
 import { useVaultProviders } from './useVaultProviders';
+import { stripHexPrefix } from '../utils/btcUtils';
 
 export interface PendingPeginTx {
   /** Peg-in transaction ID */
@@ -42,14 +43,14 @@ export interface UsePendingPeginTxPollingResult {
  * that need to be signed by the depositor during the peg-in flow.
  *
  * **Polling Behavior:**
- * - Polls every 10 seconds when params are provided
+ * - Polls every 30 seconds when params are provided
  * - **Stops polling when:**
  *   1. Transactions are ready (both claim_tx and payout_tx exist)
  *   2. params is set to null (e.g., when status changes from 0 to something else)
  *
  * **Flow:**
  * 1. Gets vault provider URL from globally cached providers (via useVaultProviders)
- * 2. Polls vault provider RPC for claim/payout transactions every 10 seconds
+ * 2. Polls vault provider RPC for claim/payout transactions every 30 seconds
  * 3. Returns transactions when both claim_tx and payout_tx are available
  *
  * @param params - Peg-in transaction details. Pass null to disable polling (e.g., when status is not 0)
@@ -105,8 +106,10 @@ export function usePendingPeginTxPolling(
       const rpcClient = new VaultProviderRpcApi(providerUrl, 30000);
 
       // Request claim and payout transactions
+      // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
+      // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
       const response = await rpcClient.requestClaimAndPayoutTransactions({
-        pegin_tx_id: params.peginTxId,
+        pegin_tx_id: stripHexPrefix(params.peginTxId),
         depositor_pk: params.depositorBtcPubkey,
       });
 
@@ -117,14 +120,14 @@ export function usePendingPeginTxPolling(
     // 2. providerUrl is found
     // 3. no provider errors
     enabled: !!params && !!providerUrl && !providerError,
-    // Poll every 10 seconds until transactions are ready
+    // Poll every 30 seconds until transactions are ready
     refetchInterval: (query) => {
       // Stop polling if we have valid transactions (both claim_tx and payout_tx exist)
       if (query.state.data && areTransactionsReady(query.state.data)) {
         return false;
       }
-      // Continue polling every 10 seconds
-      return 10000;
+      // Continue polling every 30 seconds
+      return 30000;
     },
     // Retry on failure (transient network errors)
     retry: 3,

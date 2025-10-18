@@ -83,10 +83,13 @@ export class JsonRpcClient {
   ): Promise<TResult> {
     const requestId = ++this.requestId;
 
-    const request: JsonRpcRequest<TParams> = {
+    // jsonrpsee (Rust backend) expects params as an array (positional parameters)
+    // Per JSON-RPC 2.0 spec, params can be either an array or object
+    // The backend uses jsonrpsee::rpc_params![params] which creates: [params]
+    const request: JsonRpcRequest<TParams[]> = {
       jsonrpc: '2.0',
       method,
-      params,
+      params: [params],
       id: requestId,
     };
 
