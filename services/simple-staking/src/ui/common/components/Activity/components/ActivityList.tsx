@@ -1,7 +1,15 @@
+import { useCallback, useState } from "react";
+
 import { ExpansionHistoryModal } from "@/ui/common/components/ExpansionHistory/ExpansionHistoryModal";
 import { getNetworkConfig } from "@/ui/common/config/network";
 import { useActivityDelegations } from "@/ui/common/hooks/services/useActivityDelegations";
+import { ActionType } from "@/ui/common/hooks/services/useDelegationService";
 import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
+import { StakingSuccessModal } from "@/ui/common/components/Modals/StakingSuccessModal";
+import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
+import { DELEGATION_ACTIONS } from "@/ui/common/constants";
+import { useError } from "@/ui/common/context/Error/ErrorProvider";
+import { useLogger } from "@/ui/common/hooks/useLogger";
 
 import { ActivityCard } from "../../ActivityCard/ActivityCard";
 import { DelegationModal } from "../../Delegations/DelegationList/components/DelegationModal";
@@ -10,6 +18,8 @@ import { StakingExpansionModalSystem } from "../../StakingExpansion/StakingExpan
 const networkConfig = getNetworkConfig();
 
 export function ActivityList() {
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   // All business logic is now centralized in this hook
   const {
     activityData,
@@ -26,6 +36,31 @@ export function ActivityList() {
     expansionHistoryTargetDelegation,
     closeExpansionHistoryModal,
   } = useStakingExpansionState();
+
+  const { handleError } = useError();
+  const logger = useLogger();
+
+  const handleSubmit = useCallback(
+    async (action: ActionType, delegation: DelegationWithFP) => {
+      try {
+        await executeDelegationAction(action, delegation);
+
+        if (action === DELEGATION_ACTIONS.STAKE) {
+          setShowSuccessModal(true);
+        }
+      } catch (error) {
+        logger.error(error as Error);
+        handleError({
+          error: error as Error,
+        });
+      }
+    },
+    [executeDelegationAction, logger, handleError],
+  );
+
+  const handleCloseSuccessModal = useCallback(() => {
+    setShowSuccessModal(false);
+  }, []);
 
   if (isLoading) {
     return (
@@ -67,7 +102,7 @@ export function ActivityList() {
         delegation={confirmationModal?.delegation ?? null}
         param={confirmationModal?.param ?? null}
         processing={processing}
-        onSubmit={executeDelegationAction}
+        onSubmit={handleSubmit}
         onClose={closeConfirmationModal}
         networkConfig={networkConfig}
       />
@@ -79,6 +114,11 @@ export function ActivityList() {
         onClose={closeExpansionHistoryModal}
         targetDelegation={expansionHistoryTargetDelegation}
         allDelegations={delegations}
+      />
+
+      <StakingSuccessModal
+        open={showSuccessModal}
+        onClose={handleCloseSuccessModal}
       />
     </>
   );
