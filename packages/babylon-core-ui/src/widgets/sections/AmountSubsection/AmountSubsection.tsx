@@ -26,6 +26,7 @@ interface Props {
   step?: string;
   autoFocus?: boolean;
   decimals?: number; // Enforce decimals
+  onMaxClick?: () => void; // Handler for max button click
 }
 
 export const AmountSubsection = ({
@@ -40,6 +41,7 @@ export const AmountSubsection = ({
   step = "any",
   autoFocus = true,
   decimals,
+  onMaxClick,
 }: Props) => {
   const amount = useWatch({ name: fieldName, defaultValue: "" });
   const { setValue } = useFormContext();
@@ -51,12 +53,12 @@ export const AmountSubsection = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    
+
     // If decimals is specified, validate and restrict input
     if (decimals !== undefined && decimals >= 0) {
       // Handle multiple decimal points by taking only the first one
       const [integer, decimal] = value.split('.', 2);
-      
+
       if (decimal !== undefined && decimal.length > decimals) {
         // Truncate decimal part to specified length
         value = integer + '.' + decimal.slice(0, decimals);
@@ -68,7 +70,7 @@ export const AmountSubsection = ({
         value = integer;
       }
     }
-    
+
     setValue(fieldName, value, {
       shouldValidate: true,
       shouldDirty: true,
@@ -80,6 +82,24 @@ export const AmountSubsection = ({
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
     }
+  };
+
+  const handleMaxClick = () => {
+    if (onMaxClick) {
+      onMaxClick();
+      return;
+    }
+
+    if (!balanceDetails?.balance || !fieldName) return;
+
+    // Default behavior: set the field value to the max balance
+    const maxBalance = balanceDetails.balance.toString();
+
+    setValue(fieldName, maxBalance, {
+      shouldValidate: true,
+      shouldDirty: true,
+      shouldTouch: true,
+    });
   };
 
   let subtitle: string | undefined;
@@ -107,6 +127,7 @@ export const AmountSubsection = ({
           onKeyDown={handleKeyDown}
           amountUsd={amountUsd}
           subtitle={subtitle}
+          onMaxClick={handleMaxClick}
         />
       </SubSection>
     </>
