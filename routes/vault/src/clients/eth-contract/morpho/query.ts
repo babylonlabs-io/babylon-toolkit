@@ -18,6 +18,8 @@ export async function getMarketById(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
+  // This is a keccak256 hash of the market parameters struct
   const marketId: Hex = toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
 
   // Use Morpho SDK for all networks (including localhost)
@@ -64,6 +66,7 @@ export async function getUserPosition(
   userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
   const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
 
   // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
@@ -81,4 +84,54 @@ export async function getUserPosition(
     borrowAssets: position.borrowAssets, // Actual debt including accrued interest
     collateral: position.collateral,
   };
+}
+
+/**
+ * Bulk get user positions for multiple proxy contracts in the same market
+ * Fetches all positions in parallel for better performance
+ *
+ * @param marketId - Market ID (string or bigint)
+ * @param proxyContractAddresses - Array of proxy contract addresses
+ * @returns Array of user positions (undefined for addresses with no position)
+ */
+export async function getUserPositionsBulk(
+  marketId: string | bigint,
+  proxyContractAddresses: Address[]
+): Promise<(MorphoUserPosition | undefined)[]> {
+  if (proxyContractAddresses.length === 0) {
+    return [];
+  }
+
+  const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
+  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Fetch all positions in parallel
+  const results = await Promise.allSettled(
+    proxyContractAddresses.map(async (proxyAddress) => {
+      const position = await AccrualPosition.fetch(
+        proxyAddress,
+        marketIdHex as MarketId,
+        publicClient
+      );
+
+      return {
+        marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
+        user: proxyAddress,
+        supplyShares: position.supplyShares,
+        borrowShares: position.borrowShares,
+        borrowAssets: position.borrowAssets,
+        collateral: position.collateral,
+      };
+    })
+  );
+
+  // Map results, returning undefined for failed fetches
+  return results.map((result) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    // Position doesn't exist or error fetching
+    return undefined;
+  });
 }

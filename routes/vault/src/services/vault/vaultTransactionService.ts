@@ -11,9 +11,9 @@ import type { MarketParams } from '../../clients/eth-contract';
 import * as btcTransactionService from '../../transactions/btc/peginBuilder';
 
 /**
- * Result of mintAndBorrow operation
+ * Result of adding collateral to position and borrowing
  */
-export interface MintAndBorrowResult {
+export interface AddCollateralAndBorrowResult {
   /** Transaction hash */
   transactionHash: Hash;
   /** Transaction receipt */
@@ -33,26 +33,32 @@ export interface PeginUTXOParams {
 }
 
 /**
- * Create a vault by minting vBTC and borrowing against it
+ * Add collateral to position and borrow (creates position if needed)
  *
  * This composite operation:
  * 1. Fetches Morpho market parameters by market ID
- * 2. Executes mintAndBorrow transaction with those parameters
+ * 2. Executes addCollateralToPositionAndBorrow transaction with multiple vault IDs
+ * 3. Creates a new position if one doesn't exist, or adds to existing position
+ *
+ * Supports multi-vault collateral:
+ * - Use multiple vault IDs to combine collateral from several deposits
+ * - All vaults must belong to the same depositor
+ * - First call creates the position, subsequent calls expand it
  *
  * @param vaultControllerAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash (vault ID)
+ * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketId - Morpho market ID
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction result with market parameters
  */
-export async function mintAndBorrowWithMarketId(
+export async function addCollateralAndBorrowWithMarketId(
   vaultControllerAddress: Address,
-  pegInTxHash: Hex,
+  pegInTxHashes: Hex[],
   depositorBtcPubkey: Hex,
   marketId: string | bigint,
   borrowAmount: bigint,
-): Promise<MintAndBorrowResult> {
+): Promise<AddCollateralAndBorrowResult> {
   // Step 1: Fetch market parameters from Morpho
   const market = await Morpho.getMarketById(marketId);
 
@@ -65,10 +71,10 @@ export async function mintAndBorrowWithMarketId(
     lltv: market.lltv,
   };
 
-  // Step 3: Execute transaction
-  const { transactionHash, receipt } = await VaultControllerTx.mintAndBorrow(
+  // Step 3: Execute transaction with multiple vault IDs
+  const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
     vaultControllerAddress,
-    pegInTxHash,
+    pegInTxHashes,
     depositorBtcPubkey,
     marketParams,
     borrowAmount,
@@ -184,21 +190,32 @@ export async function approveLoanTokenForRepay(
 }
 
 /**
- * Repay a vault and initiate pegout
+ * Withdraw collateral and redeem BTC vault
  *
- * IMPORTANT: This performs a FULL repayment only - no partial repayments allowed.
- * The contract automatically repays the entire debt using the user's borrowShares.
+ * Combined operation that:
+ * 1. Repays debt (if repayAmount > 0)
+ * 2. Withdraws all collateral from the position
+ * 3. Initiates BTC redemption by emitting VaultRedeemable event
+ *
+ * IMPORTANT: This withdraws ALL collateral from the position.
+ * After repayment, the position must have no remaining debt.
  *
  * Before calling:
  * - User must have approved loan token spending (call approveLoanTokenForRepay first)
  *
  * @param vaultControllerAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash (vault ID)
+ * @param marketParams - Morpho market parameters identifying the position
+ * @param repayAmount - Amount to repay (in loan token units)
  * @returns Transaction hash and receipt
  */
-export async function repayAndPegout(
+export async function withdrawCollateralAndRedeemBTCVault(
   vaultControllerAddress: Address,
-  pegInTxHash: Hex,
+  marketParams: MarketParams,
+  repayAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  return VaultControllerTx.repayAndPegout(vaultControllerAddress, pegInTxHash);
+  return VaultControllerTx.withdrawCollateralAndRedeemBTCVault(
+    vaultControllerAddress,
+    marketParams,
+    repayAmount
+  );
 }

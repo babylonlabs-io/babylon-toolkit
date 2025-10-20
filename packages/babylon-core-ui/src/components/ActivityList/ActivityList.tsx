@@ -19,6 +19,8 @@ export interface ActivityListProps {
   className?: string;
   isEmpty?: boolean;
   isConnected?: boolean;
+  emptyStateTitle?: string;
+  emptyStateDescription?: string;
 }
 
 export function ActivityList({
@@ -27,6 +29,8 @@ export function ActivityList({
   children,
   isEmpty = false,
   isConnected = false,
+  emptyStateTitle = "Supply Collateral BTC Trustlessly",
+  emptyStateDescription = "Enter the amount of BTC you want to deposit and select a provider to secure it. Your deposit will appear here once confirmed.",
 }: PropsWithChildren<ActivityListProps>) {
   // Show empty state when connected but no activities
   if (isEmpty && isConnected) {
@@ -40,11 +44,10 @@ export function ActivityList({
           />
           <div className="text-center">
             <h3 className="text-xl font-semibold text-accent-primary mb-2">
-              Supply Collateral BTC Trustlessly
+              {emptyStateTitle}
             </h3>
             <p className="text-sm text-accent-secondary max-w-md">
-              Enter the amount of BTC you want to deposit and select a provider to secure it.
-              Your deposit will appear here once confirmed.
+              {emptyStateDescription}
             </p>
           </div>
           <IconButton

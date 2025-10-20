@@ -9,7 +9,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { approveLoanTokenForRepay, repayAndPegout } from '../../../services/vault/vaultTransactionService';
+import { approveLoanTokenForRepay, withdrawCollateralAndRedeemBTCVault } from '../../../services/vault/vaultTransactionService';
+import { Morpho, type MarketParams } from '../../../clients/eth-contract';
 import { CONTRACTS } from '../../../config/contracts';
 
 interface UseRepayTransactionParams {
@@ -69,11 +70,22 @@ export function useRepayTransaction({
         marketId
       );
 
-      // Step 2: Repay and pegout
+      // Step 2: Fetch market parameters
+      const market = await Morpho.getMarketById(marketId);
+      const marketParams: MarketParams = {
+        loanToken: market.loanToken.address,
+        collateralToken: market.collateralToken.address,
+        oracle: market.oracle,
+        irm: market.irm,
+        lltv: market.lltv,
+      };
+
+      // Step 3: Withdraw collateral and redeem BTC vault
       setCurrentStep(2);
-      await repayAndPegout(
+      await withdrawCollateralAndRedeemBTCVault(
         CONTRACTS.VAULT_CONTROLLER,
-        pegInTxHash
+        marketParams,
+        repayAmountWei
       );
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Transaction failed');

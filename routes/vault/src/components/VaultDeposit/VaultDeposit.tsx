@@ -214,8 +214,8 @@ export function VaultDeposit({
         amount={peginAmount}
       />
 
-      {/* Peg Out Flow (uses RepayFlow which calls repayAndPegout) */}
-      {/* Note: Currently uses repayAndPegout which repays Morpho and pegs out atomically. */}
+      {/* Peg Out Flow (uses RepayFlow which calls withdrawCollateralAndRedeemBTCVault) */}
+      {/* Note: Currently uses withdrawCollateralAndRedeemBTCVault which repays debt, withdraws collateral, and initiates BTC redemption atomically. */}
       {/* Future: Will be split into separate repay and pegout transactions. */}
       <RepayFlow
         activity={pegoutActivity}

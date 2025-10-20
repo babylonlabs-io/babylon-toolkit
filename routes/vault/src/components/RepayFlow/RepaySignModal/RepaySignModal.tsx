@@ -25,7 +25,7 @@ interface RepaySignModalProps {
 /**
  * RepaySignModal - Transaction signing modal for repay flow
  *
- * The repayAndPegout transaction:
+ * The withdrawCollateralAndRedeemBTCVault transaction:
  * 1. Repays the USDC loan to Morpho
  * 2. Withdraws vaultBTC collateral from Morpho
  * 3. Burns vaultBTC and initiates pegout to release BTC

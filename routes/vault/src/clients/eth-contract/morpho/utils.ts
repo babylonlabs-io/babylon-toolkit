@@ -5,7 +5,7 @@
  */
 
 import { keccak256, encodeAbiParameters, parseAbiParameters, type Hex, type Address } from 'viem';
-import type { MarketParams } from './types';
+import type { MarketParams } from '../vault-controller/transaction';
 
 /**
  * Calculate Morpho market ID from market parameters
@@ -52,6 +52,6 @@ export function calculateMarketIdFromParams(
     collateralToken,
     oracle,
     irm,
-    lltv,
+    lltv: BigInt(lltv),
   });
 }

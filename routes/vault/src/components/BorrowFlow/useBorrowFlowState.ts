@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { VaultActivity } from "../../mockData/vaultActivities";
+import type { Hex } from "viem";
 
 export function useBorrowFlowState() {
   // Modal states
@@ -7,27 +7,26 @@ export function useBorrowFlowState() {
   const [signModalOpen, setSignModalOpen] = useState(false);
   const [successModalOpen, setSuccessModalOpen] = useState(false);
 
-  // Selected activity, borrow amount, and market ID
-  const [selectedActivity, setSelectedActivity] = useState<VaultActivity | null>(null);
+  // Borrow flow state - no longer needs activity
   const [borrowAmount, setBorrowAmount] = useState(0);
   const [marketId, setMarketId] = useState<string>("");
+  const [selectedCollateralTxHashes, setSelectedCollateralTxHashes] = useState<Hex[]>([]);
 
-  // Start the borrow flow with an activity
-  const startBorrowFlow = useCallback((activity: VaultActivity) => {
-    setSelectedActivity(activity);
+  // Start the borrow flow
+  const startBorrowFlow = useCallback(() => {
     setModalOpen(true);
   }, []);
 
   // Handle modal close
   const handleModalClose = useCallback(() => {
     setModalOpen(false);
-    setSelectedActivity(null);
   }, []);
 
   // Handle borrow click from BorrowModal
-  const handleBorrowClick = useCallback((amount: number, selectedMarketId: string) => {
+  const handleBorrowClick = useCallback((amount: number, selectedMarketId: string, collateralTxHashes: Hex[]) => {
     setBorrowAmount(amount);
     setMarketId(selectedMarketId);
+    setSelectedCollateralTxHashes(collateralTxHashes);
     setModalOpen(false);      // Close borrow modal
     setSignModalOpen(true);   // Open sign modal
   }, []);
@@ -46,18 +45,18 @@ export function useBorrowFlowState() {
   // Handle success modal close
   const handleSuccessClose = useCallback(() => {
     setSuccessModalOpen(false);
-    setSelectedActivity(null);
     setBorrowAmount(0);
     setMarketId("");
+    setSelectedCollateralTxHashes([]);
   }, []);
 
   return {
     modalOpen,
     signModalOpen,
     successModalOpen,
-    selectedActivity,
     borrowAmount,
     marketId,
+    selectedCollateralTxHashes,
     startBorrowFlow,
     handleModalClose,
     handleBorrowClick,

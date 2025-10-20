@@ -1,7 +1,8 @@
 // BTC Vaults Manager - Read operations (queries)
 
-import { type Address, type Hex } from 'viem';
+import { type Address, type Hex, type Abi } from 'viem';
 import { ethClient } from '../client';
+import { executeMulticall } from '../multicall-helpers';
 import BTCVaultsManagerABI from './abis/BTCVaultsManager.abi.json';
 
 /**
@@ -108,53 +109,57 @@ export async function getPeginRequest(
 }
 
 /**
- * Check if a pegin is verified
+ * Bulk get pegin requests for multiple transaction hashes
+ * Uses multicall to batch requests into a single RPC call for better performance
+ *
+ * Note: Filters out failed requests automatically. If you need to track which requests failed,
+ * consider using the return value's length compared to input length.
+ *
  * @param contractAddress - BTCVaultsManager contract address
- * @param pegInTxHash - Pegin transaction hash
- * @returns True if pegin is verified
+ * @param pegInTxHashes - Array of pegin transaction hashes
+ * @returns Array of pegin requests (only successful fetches, failed requests are filtered out)
  */
-export async function isPeginVerified(
+export async function getPeginRequestsBulk(
   contractAddress: Address,
-  pegInTxHash: Hex,
-): Promise<boolean> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: BTCVaultsManagerABI,
-      functionName: 'isPeginVerified',
-      args: [pegInTxHash],
-    });
-    return result as boolean;
-  } catch (error) {
-    throw new Error(
-      `Failed to check if pegin is verified: ${error instanceof Error ? error.message : 'Unknown error'}`,
-    );
+  pegInTxHashes: Hex[]
+): Promise<PeginRequest[]> {
+  if (pegInTxHashes.length === 0) {
+    return [];
   }
-}
 
-/**
- * Check if an address is a registered liquidator
- * @param contractAddress - BTCVaultsManager contract address
- * @param liquidatorAddress - Address to check
- * @returns True if address is a liquidator
- */
-export async function isLiquidator(
-  contractAddress: Address,
-  liquidatorAddress: Address,
-): Promise<boolean> {
   try {
     const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: BTCVaultsManagerABI,
-      functionName: 'isLiquidator',
-      args: [liquidatorAddress],
-    });
-    return result as boolean;
+
+    // Use shared multicall helper
+    type PeginRequestRaw = [Address, Hex, Hex, bigint, Address, number, Hex];
+    const results = await executeMulticall<PeginRequestRaw>(
+      publicClient,
+      contractAddress,
+      BTCVaultsManagerABI as Abi,
+      'btcVaults',
+      pegInTxHashes.map(txHash => [txHash])
+    );
+
+    // Transform raw results to PeginRequest format
+    return results.map(([
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+      _positionId,
+    ]) => ({
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+    }));
   } catch (error) {
     throw new Error(
-      `Failed to check if liquidator: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to bulk fetch pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
