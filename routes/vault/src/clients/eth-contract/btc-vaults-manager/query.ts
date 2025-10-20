@@ -6,13 +6,21 @@ import BTCVaultsManagerABI from './abis/BTCVaultsManager.abi.json';
 
 /**
  * Pegin request structure
+ *
+ * BTCVaultStatus enum values:
+ * 0 = Pending - Request submitted, waiting for ACKs
+ * 1 = Verified - All ACKs collected, ready for inclusion proof
+ * 2 = Available - Inclusion proof verified, vBTC minted, available for positions
+ * 3 = InPosition - Vault is being used as collateral in a lending position
+ * 4 = Expired - Pegged-in BTC has been liquidated/repaid and burned
  */
 export interface PeginRequest {
   depositor: Address;
+  depositorBtcPubkey: Hex;
   unsignedBtcTx: Hex;
   amount: bigint;
   vaultProvider: Address;
-  status: number; // 0 = Pending, 1 = Verified, 2 = Active
+  status: number; // BTCVaultStatus: 0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired
 }
 
 /**
@@ -66,7 +74,7 @@ export async function getPeginRequest(
     // 5. vaultProvider, 6. status, 7. positionId
     const [
       depositor,
-      _depositorBtcPubKey,
+      depositorBtcPubkey,
       unsignedBtcTx,
       amount,
       vaultProvider,
@@ -74,7 +82,7 @@ export async function getPeginRequest(
       _positionId,
     ] = result as [
       Address, // depositor
-      Hex, // depositorBtcPubKey (32 bytes)
+      Hex, // depositorBtcPubKey (32 bytes, x-only format)
       Hex, // unsignedPegInTx
       bigint, // amount
       Address, // vaultProvider
@@ -84,12 +92,13 @@ export async function getPeginRequest(
 
     return {
       depositor,
+      depositorBtcPubkey,
       unsignedBtcTx,
       amount,
       vaultProvider,
       status,
-      // Note: depositorBtcPubKey and positionId are read but not included in return
-      // since PeginRequest interface doesn't need them for now
+      // Note: positionId is read but not included in return
+      // since PeginRequest interface doesn't need it for now
     };
   } catch (error) {
     throw new Error(

@@ -20,16 +20,6 @@ export interface VaultMetadata {
 }
 
 /**
- * Pegin request structure
- */
-export interface PeginRequest {
-  depositor: Address;
-  txHash: Hex;
-  amount: bigint;
-  status: number; // 0 = Pending, 1 = Verified, 2 = Active
-}
-
-/**
  * Get all pegin transaction hashes for a user
  * @param contractAddress - BTCVaultController contract address
  * @param userAddress - User's Ethereum address

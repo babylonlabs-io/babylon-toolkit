@@ -14,7 +14,7 @@ import type {
   ClaimerTransactions
 } from '../clients/vault-provider-rpc/types';
 import { useVaultProviders } from './useVaultProviders';
-import { stripHexPrefix } from '../utils/btcUtils';
+import { stripHexPrefix } from '../utils/btc';
 
 export interface PendingPeginTx {
   /** Peg-in transaction ID */
