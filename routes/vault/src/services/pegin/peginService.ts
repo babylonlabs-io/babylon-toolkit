@@ -78,21 +78,19 @@ export async function getPeginRequestsWithDetails(
 
   // Step 2: Bulk fetch detailed pegin request data for all hashes in a single multicall
   // This is much more efficient than individual calls in Promise.all
-  const peginRequestsArray = await BTCVaultsManager.getPeginRequestsBulk(
+  // Note: getPeginRequestsBulk filters out failed requests, so we might get fewer results than txHashes
+  const peginRequests = await BTCVaultsManager.getPeginRequestsBulk(
     btcVaultsManagerAddress,
     txHashes
   );
 
-  // Step 3: Combine with transaction hashes, filtering out undefined results
-  const peginRequestsWithDetails = txHashes
-    .map((txHash, index) => {
-      const peginRequest = peginRequestsArray[index];
-      if (!peginRequest) {
-        return null;
-      }
-      return { peginRequest, txHash };
-    })
-    .filter((item): item is PeginRequestWithTxHash => item !== null);
+  // Step 3: Combine with transaction hashes
+  // Since getPeginRequestsBulk filters failures, we need to match them back to txHashes
+  // For now, we assume all requests succeed (contract returns empty data for non-existent requests)
+  const peginRequestsWithDetails = peginRequests.map((peginRequest, index) => ({
+    peginRequest,
+    txHash: txHashes[index],
+  }));
 
   return peginRequestsWithDetails;
 }

@@ -2,6 +2,7 @@
 
 import { type Address, type Hex, type Abi } from 'viem';
 import { ethClient } from '../client';
+import { executeMulticall } from '../multicall-helpers';
 import BTCVaultsManagerABI from './abis/BTCVaultsManager.abi.json';
 
 /**
@@ -111,14 +112,17 @@ export async function getPeginRequest(
  * Bulk get pegin requests for multiple transaction hashes
  * Uses multicall to batch requests into a single RPC call for better performance
  *
+ * Note: Filters out failed requests automatically. If you need to track which requests failed,
+ * consider using the return value's length compared to input length.
+ *
  * @param contractAddress - BTCVaultsManager contract address
  * @param pegInTxHashes - Array of pegin transaction hashes
- * @returns Array of pegin requests (undefined for requests that don't exist)
+ * @returns Array of pegin requests (only successful fetches, failed requests are filtered out)
  */
 export async function getPeginRequestsBulk(
   contractAddress: Address,
   pegInTxHashes: Hex[]
-): Promise<(PeginRequest | undefined)[]> {
+): Promise<PeginRequest[]> {
   if (pegInTxHashes.length === 0) {
     return [];
   }
@@ -126,54 +130,33 @@ export async function getPeginRequestsBulk(
   try {
     const publicClient = ethClient.getPublicClient();
 
-    // Create multicall contract calls
-    const contracts = pegInTxHashes.map(txHash => ({
-      address: contractAddress,
-      abi: BTCVaultsManagerABI as Abi,
-      functionName: 'btcVaults' as const,
-      args: [txHash],
+    // Use shared multicall helper
+    type PeginRequestRaw = [Address, Hex, Hex, bigint, Address, number, Hex];
+    const results = await executeMulticall<PeginRequestRaw>(
+      publicClient,
+      contractAddress,
+      BTCVaultsManagerABI as Abi,
+      'btcVaults',
+      pegInTxHashes.map(txHash => [txHash])
+    );
+
+    // Transform raw results to PeginRequest format
+    return results.map(([
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+      _positionId,
+    ]) => ({
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
     }));
-
-    // Execute all calls in a single multicall request
-    const results = await publicClient.multicall({
-      contracts,
-      allowFailure: true, // Allow individual calls to fail without breaking the batch
-    });
-
-    // Transform results
-    return results.map((result) => {
-      if (result.status === 'failure') {
-        // Pegin request doesn't exist or error fetching
-        return undefined;
-      }
-
-      const [
-        depositor,
-        depositorBtcPubkey,
-        unsignedBtcTx,
-        amount,
-        vaultProvider,
-        status,
-        _positionId,
-      ] = result.result as [
-        Address,
-        Hex,
-        Hex,
-        bigint,
-        Address,
-        number,
-        Hex,
-      ];
-
-      return {
-        depositor,
-        depositorBtcPubkey,
-        unsignedBtcTx,
-        amount,
-        vaultProvider,
-        status,
-      };
-    });
   } catch (error) {
     throw new Error(
       `Failed to bulk fetch pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`

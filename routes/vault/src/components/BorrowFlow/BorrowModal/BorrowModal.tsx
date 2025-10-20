@@ -79,7 +79,7 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
     setTouched,
     formatUSD,
     formatPercentage,
-  } = useBorrowForm(totalCollateralBTC, undefined);
+  } = useBorrowForm(totalCollateralBTC);
 
   // Handle key down to prevent arrow keys
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

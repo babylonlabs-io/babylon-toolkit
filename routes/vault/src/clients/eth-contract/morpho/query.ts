@@ -18,6 +18,8 @@ export async function getMarketById(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
+  // This is a keccak256 hash of the market parameters struct
   const marketId: Hex = toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
 
   // Use Morpho SDK for all networks (including localhost)
@@ -64,6 +66,7 @@ export async function getUserPosition(
   userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
   const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
 
   // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
@@ -100,6 +103,7 @@ export async function getUserPositionsBulk(
   }
 
   const publicClient = ethClient.getPublicClient();
+  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
   const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
 
   // Fetch all positions in parallel
