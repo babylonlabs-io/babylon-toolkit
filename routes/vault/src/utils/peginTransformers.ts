@@ -19,11 +19,12 @@ export const SATOSHIS_PER_BTC = 100_000_000n;
 
 /**
  * Status mapping from contract enum to UI format
- * Enum BTCVaultStatus:
- * 0 = Pending - Request submitted, waiting for vault provider ACKs
- * 1 = Verified - All ACKs collected, ready for BTC broadcast
- * 2 = Available - BTC broadcast + inclusion proof verified, ready to mint vBTC
- * 3 = Expired - Pegged-in BTC has been liquidated/repaid and burned
+ * Enum BTCVaultStatus (from BTCVaultsManager.sol):
+ * 0 = Pending - Request submitted, waiting for ACKs from vault provider and liquidators
+ * 1 = Verified - All ACKs collected, ready for inclusion proof
+ * 2 = Available - Inclusion proof verified, vBTC minted, available for positions
+ * 3 = InPosition - Vault is being used as collateral in a lending position
+ * 4 = Expired - Pegged-in BTC has been liquidated/repaid and burned
  *
  * Note: "Pending BTC Confirmations" is a client-side status (not from contract)
  * shown after user broadcasts BTC but before status moves to Available (2)
@@ -32,7 +33,8 @@ const STATUS_MAP = {
   0: { label: 'Pending Verification', variant: 'pending' as const },
   1: { label: 'Verified', variant: 'pending' as const },
   2: { label: 'Available', variant: 'active' as const },
-  3: { label: 'Expired', variant: 'inactive' as const },
+  3: { label: 'In Position', variant: 'active' as const },
+  4: { label: 'Expired', variant: 'inactive' as const },
 } as const;
 
 /**
@@ -50,7 +52,7 @@ export function formatBTCAmount(satoshis: bigint): string {
 
 /**
  * Get status label and variant from contract status number
- * @param status - Status number from contract (0=Pending, 1=Verified, 2=Active/Available, 3=Expired)
+ * @param status - Status number from contract (0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired)
  * @returns Status object with label and variant for UI
  */
 export function getStatusInfo(status: number): { label: string; variant: 'active' | 'inactive' | 'pending' | 'default' } {
@@ -60,7 +62,7 @@ export function getStatusInfo(status: number): { label: string; variant: 'active
   }
 
   // Log unknown status for debugging
-  console.warn(`[peginTransformers] Unknown pegin status: ${status}. Expected 0 (Pending), 1 (Verified), 2 (Active), or 3 (Expired)`);
+  console.warn(`[peginTransformers] Unknown pegin status: ${status}. Expected 0 (Pending), 1 (Verified), 2 (Available), 3 (InPosition), or 4 (Expired)`);
   return { label: 'Unknown', variant: 'default' };
 }
 

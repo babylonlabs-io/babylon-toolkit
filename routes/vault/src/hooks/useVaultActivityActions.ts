@@ -15,6 +15,7 @@ import { useSignPeginTransactions } from './useSignPeginTransactions';
 import { getNextLocalStatus, PeginAction } from '../models/peginStateMachine';
 import type { PendingPeginRequest } from '../storage/peginStorage';
 import type { ClaimerTransactions } from '../clients/vault-provider-rpc/types';
+import { stripHexPrefix } from '../utils/btc';
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -115,12 +116,22 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         );
       }
 
+      // Get depositor's BTC public key (needed for Taproot signing)
+      // Strip "0x" prefix since it comes from contract (Ethereum-style hex)
+      const depositorBtcPubkey = stripHexPrefix(peginRequest.depositorBtcPubkey);
+      if (!depositorBtcPubkey) {
+        throw new Error(
+          'Depositor BTC public key not found. Please try creating the peg-in request again.',
+        );
+      }
+
       // Broadcast the transaction (UTXO will be derived from mempool API)
       const txId = await broadcastPeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
         },
+        depositorBtcPubkey,
       });
 
       // Update or create localStorage entry for status tracking only

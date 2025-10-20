@@ -14,7 +14,7 @@ import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 import type { VaultProvider } from '../../../clients/vault-api/types';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
-import { processPublicKeyToXOnly } from '../../../utils/btcUtils';
+import { processPublicKeyToXOnly } from '../../../utils/btc';
 
 /**
  * BTC wallet provider interface
