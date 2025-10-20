@@ -22,15 +22,22 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
   const { aprData, eligibility, hasValidBoostData } = useCoStakingState();
 
-  const { a: currentAPRDisplay, b: boostAPRDisplay } = useMemo(
+  const { a: currentAPRDisplay } = useMemo(
     () => formatAPRPairAdaptive(aprData.currentApr, aprData.boostApr),
     [aprData.currentApr, aprData.boostApr],
   );
 
+  const percentageIncrease = useMemo(() => {
+    const current = aprData.currentApr ?? 0;
+    const boost = aprData.boostApr ?? 0;
+    if (current <= 0 || boost <= current) return 0;
+    return ((boost - current) / current) * 100;
+  }, [aprData.currentApr, aprData.boostApr]);
+
   const submitButtonText = useMemo(
     () =>
-      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${boostAPRDisplay}%`,
-    [eligibility.additionalBabyNeeded, babyCoinSymbol, boostAPRDisplay],
+      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost APR by ${Math.round(percentageIncrease)}%`,
+    [eligibility.additionalBabyNeeded, babyCoinSymbol, percentageIncrease],
   );
 
   // Don't render modal if boost data is not available
@@ -58,11 +65,14 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     >
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
-        <span className="text-accent-primary">{currentAPRDisplay}%</span>. Stake{" "}
-        {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost
-        it up to <span className="text-accent-primary">{boostAPRDisplay}%</span>
-        . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
-        with {babyCoinSymbol}.
+        <span className="text-accent-primary">{currentAPRDisplay}%</span>.
+        Co-staking lets you earn more by pairing your {btcCoinSymbol} stake with{" "}
+        {babyCoinSymbol}. Stake {eligibility.additionalBabyNeeded.toFixed(2)}{" "}
+        {babyCoinSymbol} to boost your APR{" "}
+        <span className="text-accent-primary">
+          by {Math.round(percentageIncrease)}%
+        </span>
+        .
       </p>
     </SubmitModal>
   );
