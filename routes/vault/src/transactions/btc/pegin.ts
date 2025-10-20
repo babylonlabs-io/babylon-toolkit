@@ -1,11 +1,22 @@
-import init, { WasmPeginTx } from "@routes/vault/wasm/btc_vaults.js";
+import init, { WasmPeginTx } from "@routes/vault/wasm/btc_vault.js";
 
 let wasmInitialized = false;
+let wasmInitPromise: Promise<void> | null = null;
 
 export async function initWasm() {
   if (wasmInitialized) return;
-  await init();
-  wasmInitialized = true;
+  if (wasmInitPromise) return wasmInitPromise;
+
+  wasmInitPromise = (async () => {
+    try {
+      await init();
+      wasmInitialized = true;
+    } finally {
+      wasmInitPromise = null;
+    }
+  })();
+
+  return wasmInitPromise;
 }
 
 export interface PegInParams {
@@ -18,7 +29,7 @@ export interface PegInParams {
   challengerPubkeys: string[]; // array of 64-char hex
   pegInAmount: bigint;
   fee: bigint;
-  network: "bitcoin" | "testnet" | "regtest";
+  network: "bitcoin" | "testnet" | "regtest" | "signet";
 }
 
 export interface PegInResult {
@@ -55,3 +66,6 @@ export async function createPegInTransaction(
     changeValue: tx.getChangeValue(),
   };
 }
+
+// Re-export the raw WASM types if needed
+export { WasmPeginTx } from "@routes/vault/wasm/btc_vault.js";
