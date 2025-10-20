@@ -2,21 +2,32 @@
 import init, { WasmPeginTx } from "./generated/btc_vault.js";
 
 let wasmInitialized = false;
+let wasmInitPromise: Promise<void> | null = null;
 
 export async function initWasm() {
   if (wasmInitialized) return;
-  await init();
-  wasmInitialized = true;
+  if (wasmInitPromise) return wasmInitPromise;
+
+  wasmInitPromise = (async () => {
+    try {
+      await init();
+      wasmInitialized = true;
+    } finally {
+      wasmInitPromise = null;
+    }
+  })();
+
+  return wasmInitPromise;
 }
 
 export interface PegInParams {
   depositTxid: string;
   depositVout: number;
   depositValue: bigint;
-  depositScriptPubKey: string; // hex
-  depositorPubkey: string; // 64-char hex
-  claimerPubkey: string; // 64-char hex
-  challengerPubkeys: string[]; // array of 64-char hex
+  depositScriptPubKey: string;
+  depositorPubkey: string;
+  claimerPubkey: string;
+  challengerPubkeys: string[];
   pegInAmount: bigint;
   fee: bigint;
   network: "bitcoin" | "testnet" | "regtest" | "signet";

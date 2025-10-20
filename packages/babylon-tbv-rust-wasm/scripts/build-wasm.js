@@ -34,7 +34,17 @@ const buildWasm = async () => {
     const rustupBinPath = path.dirname(rustcPath);
 
     // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
-    const LLVM_BIN_PATH = "/opt/homebrew/opt/llvm/bin";
+    let LLVM_BIN_PATH = process.env.LLVM_BIN_PATH;
+    if (!LLVM_BIN_PATH) {
+      const clangPath = shell.which('clang');
+      if (clangPath) {
+        LLVM_BIN_PATH = path.dirname(clangPath.toString());
+      } else {
+        // Fallback to default Homebrew path, but warn the user
+        LLVM_BIN_PATH = "/opt/homebrew/opt/llvm/bin";
+        console.warn("Warning: LLVM_BIN_PATH not set and clang not found in PATH. Falling back to default:", LLVM_BIN_PATH);
+      }
+    }
 
     // Prepend rustup toolchain bin and LLVM to PATH
     shell.env.PATH = `${rustupBinPath}:${LLVM_BIN_PATH}:${shell.env.PATH}`;
@@ -97,6 +107,7 @@ const buildWasm = async () => {
 
     // Copy generated files to src/generated
     console.log("Copying generated files...");
+    shell.rm("-rf", OUTPUT_DIR);
     shell.mkdir("-p", OUTPUT_DIR);
 
     // The output files are named based on the package name (btc-vault -> btc_vault)
