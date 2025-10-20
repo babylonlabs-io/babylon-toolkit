@@ -6,18 +6,18 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - IMPORTANT: Update these when btc-vault updates
-const BTC_VAULT_REPO_URL = "git@github.com:babylonlabs-io/btc-vault.git";
-const BTC_VAULT_BRANCH = "feat/rust-wasm"; // Change to "main" after PR merge
-const BTC_VAULT_COMMIT = "9e08d2147413455a6b313792f97758ef1ccc6470"; // Pin to specific commit
+const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
+const BTC_VAULT_BRANCH = 'main';
+const BTC_VAULT_COMMIT = 'c16a56688f54013f35d3f81d1dfcdcc0e8e0a230';
 // TODO: When btc-vault starts using release tags, switch to tag-based versioning:
 // const BTC_VAULT_TAG = "v1.0.0";
 
-const REPO_DIR = "btc-vault-temp";
-const OUTPUT_DIR = path.join(__dirname, "..", "dist", "generated");
+const REPO_DIR = 'btc-vault-temp';
+const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
 
 const buildWasm = async () => {
   try {
-    console.log("Building BTC Vault WASM...\n");
+    console.log('Building BTC Vault WASM...\n');
 
     // Ensure rustup toolchain is used (not homebrew rust)
     const HOME = process.env.HOME;
@@ -26,7 +26,7 @@ const buildWasm = async () => {
     // Get the rustup rustc path
     const rustcPathResult = shell.exec('rustup which rustc', { silent: true });
     if (rustcPathResult.code !== 0) {
-      console.error("Error: rustup not found or not configured properly");
+      console.error('Error: rustup not found or not configured properly');
       process.exit(1);
     }
 
@@ -36,13 +36,25 @@ const buildWasm = async () => {
     // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
     let LLVM_BIN_PATH = process.env.LLVM_BIN_PATH;
     if (!LLVM_BIN_PATH) {
-      const clangPath = shell.which('clang');
-      if (clangPath) {
-        LLVM_BIN_PATH = path.dirname(clangPath.toString());
+      // Try Homebrew LLVM first (required for wasm32 target)
+      const homebrewLlvmPath = '/opt/homebrew/opt/llvm/bin';
+      if (shell.test('-d', homebrewLlvmPath)) {
+        LLVM_BIN_PATH = homebrewLlvmPath;
+        console.log(`Using Homebrew LLVM: ${LLVM_BIN_PATH}`);
       } else {
-        // Fallback to default Homebrew path, but warn the user
-        LLVM_BIN_PATH = "/opt/homebrew/opt/llvm/bin";
-        console.warn("Warning: LLVM_BIN_PATH not set and clang not found in PATH. Falling back to default:", LLVM_BIN_PATH);
+        // Fallback to system clang (may not support wasm32)
+        const clangPath = shell.which('clang');
+        if (clangPath) {
+          LLVM_BIN_PATH = path.dirname(clangPath.toString());
+          console.warn(
+            'Warning: Homebrew LLVM not found. Using system clang:',
+            LLVM_BIN_PATH,
+            '(may not support wasm32-unknown-unknown target)',
+          );
+        } else {
+          console.error('Error: No clang found. Please install LLVM via Homebrew: brew install llvm');
+          process.exit(1);
+        }
       }
     }
 
@@ -55,24 +67,30 @@ const buildWasm = async () => {
     shell.env.AR_wasm32_unknown_unknown = `${LLVM_BIN_PATH}/llvm-ar`;
 
     // Check prerequisites
-    console.log("Checking prerequisites...");
+    console.log('Checking prerequisites...');
     if (!shell.which('wasm-pack')) {
-      console.error("Error: wasm-pack not found. Install with: cargo install wasm-pack");
+      console.error(
+        'Error: wasm-pack not found. Install with: cargo install wasm-pack',
+      );
       process.exit(1);
     }
 
     // Verify rustup is being used
-    const verifyRustc = shell.exec('which rustc', { silent: true }).stdout.trim();
+    const verifyRustc = shell
+      .exec('which rustc', { silent: true })
+      .stdout.trim();
     console.log(`Using rustc from: ${verifyRustc}`);
 
     // Clone the repository
-    console.log(`Cloning btc-vault repository (branch: ${BTC_VAULT_BRANCH})...`);
+    console.log(
+      `Cloning btc-vault repository (branch: ${BTC_VAULT_BRANCH})...`,
+    );
     const cloneResult = shell.exec(
-      `git clone --depth 1 --branch ${BTC_VAULT_BRANCH} ${BTC_VAULT_REPO_URL} ${REPO_DIR}`
+      `git clone --depth 1 --branch ${BTC_VAULT_BRANCH} ${BTC_VAULT_REPO_URL} ${REPO_DIR}`,
     );
 
     if (cloneResult.code !== 0) {
-      console.error("Error: Failed to clone repository");
+      console.error('Error: Failed to clone repository');
       process.exit(1);
     }
 
@@ -83,62 +101,50 @@ const buildWasm = async () => {
     const checkoutResult = shell.exec(`git checkout ${BTC_VAULT_COMMIT}`);
 
     if (checkoutResult.code !== 0) {
-      console.error("Error: Failed to checkout commit");
+      console.error('Error: Failed to checkout commit');
       process.exit(1);
     }
 
     // Remove Cargo.lock to allow dependency resolution
-    console.log("Removing Cargo.lock to regenerate dependencies...");
-    shell.rm("-f", "Cargo.lock");
+    console.log('Removing Cargo.lock to regenerate dependencies...');
+    shell.rm('-f', 'Cargo.lock');
 
     // Build with wasm-pack
-    console.log("Building WASM with wasm-pack...");
+    console.log('Building WASM with wasm-pack...');
     const buildResult = shell.exec(
-      "wasm-pack build --target web --scope babylonlabs-io --out-dir ../wasm-build-output crates/vault -- --features wasm"
+      'wasm-pack build --target web --scope babylonlabs-io --out-dir ../wasm-build-output crates/vault -- --features wasm',
     );
 
     if (buildResult.code !== 0) {
-      console.error("Error: wasm-pack build failed");
-      shell.cd("..");
+      console.error('Error: wasm-pack build failed');
+      shell.cd('..');
       process.exit(1);
     }
 
-    shell.cd("..");
+    shell.cd('..');
 
     // Copy generated files to src/generated
-    console.log("Copying generated files...");
-    shell.rm("-rf", OUTPUT_DIR);
-    shell.mkdir("-p", OUTPUT_DIR);
+    console.log('Copying generated files...');
+    shell.rm('-rf', OUTPUT_DIR);
+    shell.mkdir('-p', OUTPUT_DIR);
 
     // The output files are named based on the package name (btc-vault -> btc_vault)
-    const pkgName = "btc_vault";
+    const pkgName = 'btc_vault';
     const wasmOutputDir = `${REPO_DIR}/crates/wasm-build-output`;
 
-    shell.cp(
-      `${wasmOutputDir}/${pkgName}.js`,
-      OUTPUT_DIR
-    );
-    shell.cp(
-      `${wasmOutputDir}/${pkgName}.d.ts`,
-      OUTPUT_DIR
-    );
-    shell.cp(
-      `${wasmOutputDir}/${pkgName}_bg.wasm`,
-      OUTPUT_DIR
-    );
-    shell.cp(
-      `${wasmOutputDir}/${pkgName}_bg.wasm.d.ts`,
-      OUTPUT_DIR
-    );
+    shell.cp(`${wasmOutputDir}/${pkgName}.js`, OUTPUT_DIR);
+    shell.cp(`${wasmOutputDir}/${pkgName}.d.ts`, OUTPUT_DIR);
+    shell.cp(`${wasmOutputDir}/${pkgName}_bg.wasm`, OUTPUT_DIR);
+    shell.cp(`${wasmOutputDir}/${pkgName}_bg.wasm.d.ts`, OUTPUT_DIR);
 
     // Clean up
-    console.log("Cleaning up...");
-    shell.rm("-rf", REPO_DIR);
+    console.log('Cleaning up...');
+    shell.rm('-rf', REPO_DIR);
 
-    console.log("\n✅ WASM build completed successfully!");
+    console.log('\n✅ WASM build completed successfully!');
     console.log(`Generated files are in: ${OUTPUT_DIR}`);
   } catch (error) {
-    console.error("Error during WASM build:", error);
+    console.error('Error during WASM build:', error);
     process.exit(1);
   }
 };
