@@ -11,15 +11,14 @@ import {
   SubSection,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { useMemo, useEffect, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 import { useBorrowForm } from "./useBorrowForm";
 import { useMarkets } from "./useMarkets";
 import { usdcIcon } from "../../../assets";
 import type { Hex } from "viem";
-import { isPeginReadyToMint } from "../../../clients/eth-contract/vault-controller/query";
-import { CONTRACTS } from "../../../config/contracts";
 import type { MorphoMarket } from "../../../clients/vault-api/types";
+import { useAvailableCollaterals } from "./useAvailableCollaterals";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
 
@@ -39,62 +38,28 @@ function ResponsiveDialog({ className, ...restProps }: ResponsiveDialogProps) {
 interface BorrowModalProps {
   open: boolean;
   onClose: () => void;
-  onBorrow?: (amount: number, marketId: string) => void;
-  collateral: {
-    amount: string;
-    symbol: string;
-    icon?: string | ReactNode;
-  };
-  marketData?: {
-    btcPriceUSD: number;
-    lltvPercent: number;
-  };
-  /** Pegin transaction hash to check if ready to mint */
-  pegInTxHash?: Hex;
+  onBorrow?: (amount: number, marketId: string, selectedCollateralTxHashes: Hex[]) => void;
+  /** User's Ethereum address to fetch available collaterals */
+  connectedAddress?: Hex;
 }
 
-export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, pegInTxHash }: BorrowModalProps) {
-  const [isReadyToMint, setIsReadyToMint] = useState<boolean | null>(null);
-  const [checkingReadiness, setCheckingReadiness] = useState(false);
+export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: BorrowModalProps) {
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [selectedCollateralTxHashes, setSelectedCollateralTxHashes] = useState<Set<Hex>>(new Set());
 
   // Fetch markets from API
   const { data: marketsData, isLoading: isLoadingMarkets, error: marketsError } = useMarkets();
   const markets = marketsData?.markets || [];
 
-  const collateralBTC = useMemo(
-    () => parseFloat(collateral.amount || "0"),
-    [collateral.amount]
-  );
+  // Fetch available collaterals (status === 2)
+  const { availableCollaterals, isLoading: isLoadingCollaterals } = useAvailableCollaterals(connectedAddress);
 
-  const collateralIconUrl = useMemo(() => {
-    if (typeof collateral.icon === "string") {
-      return collateral.icon;
-    }
-    return "";
-  }, [collateral.icon]);
-
-  // Check if pegin is ready to mint when modal opens
-  useEffect(() => {
-    const checkPeginReadiness = async () => {
-      if (!open || !pegInTxHash) {
-        setIsReadyToMint(null);
-        return;
-      }
-
-      setCheckingReadiness(true);
-      try {
-        const ready = await isPeginReadyToMint(CONTRACTS.VAULT_CONTROLLER, pegInTxHash);
-        setIsReadyToMint(ready);
-      } catch (error) {
-        setIsReadyToMint(false);
-      } finally {
-        setCheckingReadiness(false);
-      }
-    };
-
-    checkPeginReadiness();
-  }, [open, pegInTxHash]);
+  // Calculate total collateral from selected items
+  const totalCollateralBTC = useMemo(() => {
+    return availableCollaterals
+      .filter(c => selectedCollateralTxHashes.has(c.txHash))
+      .reduce((sum, c) => sum + parseFloat(c.amount || "0"), 0);
+  }, [availableCollaterals, selectedCollateralTxHashes]);
 
   const {
     borrowAmount,
@@ -111,11 +76,10 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
     maxLTV,
     liquidationLTV,
     handleInputChange,
-    handleBorrow,
     setTouched,
     formatUSD,
     formatPercentage,
-  } = useBorrowForm(collateralBTC, marketData);
+  } = useBorrowForm(totalCollateralBTC, undefined);
 
   // Handle key down to prevent arrow keys
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -124,9 +88,17 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
     }
   };
 
-  // Handle input change for collateral (read-only)
-  const handleCollateralChange = () => {
-    // No-op, collateral is read-only
+  // Handle collateral selection toggle
+  const handleToggleCollateral = (txHash: Hex) => {
+    setSelectedCollateralTxHashes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(txHash)) {
+        newSet.delete(txHash);
+      } else {
+        newSet.add(txHash);
+      }
+      return newSet;
+    });
   };
 
   // Handle market selection toggle
@@ -137,51 +109,83 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
   // Handle borrow button click
   const handleBorrowClick = async () => {
     setTouched(true);
-    if (validation.isValid && borrowAmountNum > 0 && selectedMarketId) {
-      // Call parent callback to trigger sign modal flow
+    if (validation.isValid && borrowAmountNum > 0 && selectedMarketId && selectedCollateralTxHashes.size > 0) {
       if (onBorrow) {
-        onBorrow(borrowAmountNum, selectedMarketId);
-      } else {
-        // Fallback: if no onBorrow callback, use old flow
-        await handleBorrow(borrowAmountNum);
-        onClose();
+        onBorrow(borrowAmountNum, selectedMarketId, Array.from(selectedCollateralTxHashes));
       }
     }
   };
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
-      <DialogHeader title="Collateral" onClose={onClose} className="text-accent-primary" />
+      <DialogHeader title="Borrow" onClose={onClose} className="text-accent-primary" />
       <DialogBody className="no-scrollbar text-accent-primary mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 sm:px-6">
-        {/* Subtitle */}
-        <Text variant="body2" className="text-accent-secondary -mt-2 text-sm sm:text-base">
-          Your locked BTC collateral
-        </Text>
+        {/* Collateral Selection Section */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <Text variant="subtitle1" className="text-accent-primary text-base font-semibold sm:text-lg">
+              Select Collateral
+            </Text>
+            <Text variant="body2" className="text-accent-secondary text-sm sm:text-base">
+              Choose which deposits to use as collateral (you can select multiple)
+            </Text>
+          </div>
 
-        {/* Collateral Display */}
-        <SubSection className="flex w-full flex-col content-center justify-between gap-4">
-          <AmountItem
-            amount={collateral.amount}
-            currencyIcon={collateralIconUrl}
-            currencyName="BTC"
-            placeholder=""
-            displayBalance={true}
-            balanceDetails={{
-              balance: parseFloat(collateral.amount).toFixed(2),
-              symbol: "BTC",
-              price: btcPriceUSD,
-              displayUSD: true,
-            }}
-            min="0"
-            step="any"
-            autoFocus={false}
-            onChange={handleCollateralChange}
-            onKeyDown={handleKeyDown}
-            amountUsd={formatUSD(collateralValueUSD)}
-            subtitle={`Balance: ${parseFloat(collateral.amount).toFixed(2)} BTC`}
-            disabled={true}
-          />
-        </SubSection>
+          {isLoadingCollaterals ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader size={32} className="text-primary-main" />
+            </div>
+          ) : availableCollaterals.length === 0 ? (
+            <div className="bg-secondary-highlight rounded-lg p-4">
+              <Text variant="body2" className="text-accent-secondary text-sm">
+                No available collateral found. Please deposit BTC first.
+              </Text>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {availableCollaterals.map((collateral) => {
+                const isSelected = selectedCollateralTxHashes.has(collateral.txHash);
+
+                return (
+                  <div
+                    key={collateral.txHash}
+                    className="bg-secondary-highlight flex items-center justify-between rounded-lg p-4"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <Text variant="body1" className="text-accent-primary text-sm font-medium sm:text-base">
+                        {collateral.amount} {collateral.symbol}
+                      </Text>
+                      <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm">
+                        {formatUSD(parseFloat(collateral.amount) * btcPriceUSD)}
+                      </Text>
+                    </div>
+                    <Button
+                      size="small"
+                      variant={isSelected ? "contained" : "outlined"}
+                      color="primary"
+                      onClick={() => handleToggleCollateral(collateral.txHash)}
+                      className="min-w-[80px] text-xs sm:text-sm"
+                    >
+                      {isSelected ? "Selected" : "Select"}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Total Collateral Summary */}
+          {selectedCollateralTxHashes.size > 0 && (
+            <div className="bg-primary-light/10 border-primary-main flex items-center justify-between rounded-lg border p-3">
+              <Text variant="body2" className="text-accent-secondary text-sm">
+                Total Collateral Selected:
+              </Text>
+              <Text variant="body1" className="text-accent-primary text-sm font-semibold">
+                {totalCollateralBTC.toFixed(4)} BTC ({formatUSD(collateralValueUSD)})
+              </Text>
+            </div>
+          )}
+        </div>
 
         {/* Market Selection Section */}
         <div className="flex flex-col gap-4">
@@ -296,7 +300,7 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
               Collateral
             </Text>
             <Text variant="body1" className="truncate text-right text-xs font-medium sm:text-sm">
-              {collateral.amount} BTC ({formatUSD(collateralValueUSD)})
+              {totalCollateralBTC.toFixed(4)} BTC ({formatUSD(collateralValueUSD)})
             </Text>
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -333,13 +337,6 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
         </div>
       </DialogBody>
       <DialogFooter className="flex flex-col gap-4 pb-8 pt-0">
-        {/* Warning message if pegin is not ready */}
-        {isReadyToMint === false && (
-          <Text variant="body2" className="text-warning-main text-center text-sm">
-            Vault is not ready to borrow. Please wait for the vault provider to verify your BTC deposit.
-          </Text>
-        )}
-
         <Button
           variant="contained"
           color="primary"
@@ -349,17 +346,14 @@ export function BorrowModal({ open, onClose, onBorrow, collateral, marketData, p
             !validation.isValid ||
             borrowAmountNum === 0 ||
             !selectedMarketId ||
-            processing ||
-            checkingReadiness ||
-            isReadyToMint === false
+            selectedCollateralTxHashes.size === 0 ||
+            processing
           }
         >
-          {checkingReadiness
-            ? "Checking..."
-            : processing
+          {processing
             ? "Processing..."
-            : isReadyToMint === false
-            ? "Not Ready to Borrow"
+            : selectedCollateralTxHashes.size === 0
+            ? "Select Collateral"
             : !selectedMarketId
             ? "Select Market"
             : "Borrow"}

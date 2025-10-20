@@ -82,7 +82,7 @@ export async function getVaultPositionWithMorpho(
  *
  * Composite operation that:
  * 1. Fetches all vault transaction hashes for user
- * 2. Fetches metadata for each vault in parallel
+ * 2. Bulk fetches metadata for all vaults in a single multicall (optimized)
  *
  * @param userAddress - User's Ethereum address
  * @param vaultControllerAddress - BTCVaultController contract address
@@ -100,16 +100,20 @@ export async function getUserVaultsWithDetails(
     return [];
   }
 
-  // Step 2: Fetch metadata for each vault in parallel
-  const vaultsWithDetails = await Promise.all(
-    txHashes.map(async (txHash) => {
-      const metadata = await VaultController.getVaultMetadata(vaultControllerAddress, txHash);
-      return {
-        txHash,
-        metadata,
-      };
+  // Step 2: Bulk fetch metadata for all vaults in a single multicall
+  // This is much more efficient than individual calls in Promise.all
+  const metadataArray = await VaultController.getVaultMetadataBulk(vaultControllerAddress, txHashes);
+
+  // Step 3: Combine with transaction hashes, filtering out undefined results
+  const vaultsWithDetails = txHashes
+    .map((txHash, index) => {
+      const metadata = metadataArray[index];
+      if (!metadata) {
+        return null;
+      }
+      return { txHash, metadata };
     })
-  );
+    .filter((item): item is VaultWithDetails => item !== null);
 
   return vaultsWithDetails;
 }
@@ -120,7 +124,7 @@ export async function getUserVaultsWithDetails(
  * Optimized to minimize API calls by:
  * 1. Deduplicating market ID fetches (many vaults may share the same market)
  * 2. Deduplicating oracle price fetches (markets may share the same oracle)
- * 3. Batching user position fetches in parallel
+ * 3. Bulk fetching user positions grouped by market ID (optimized)
  *
  * @param userAddress - User's Ethereum address
  * @param vaultControllerAddress - BTCVaultController contract address
@@ -173,27 +177,49 @@ export async function getUserVaultPositionsWithMorpho(
     oraclePriceMap.set(oracleAddress.toLowerCase(), oraclePricesArray[index]);
   });
 
-  // Step 3: Fetch user positions in parallel (these are unique per vault/proxy)
-  const vaultPositions = await Promise.all(
-    vaults.map(async ({ txHash, metadata }) => {
-      const marketId = metadata.marketId.toString();
+  // Step 3: Group vaults by market ID for bulk position fetching
+  const vaultsByMarketId = new Map<string, VaultWithDetails[]>();
+  vaults.forEach((vault) => {
+    const marketId = vault.metadata.marketId.toString();
+    if (!vaultsByMarketId.has(marketId)) {
+      vaultsByMarketId.set(marketId, []);
+    }
+    vaultsByMarketId.get(marketId)!.push(vault);
+  });
 
-      // Fetch user position (unique per proxy contract)
-      const morphoPosition = await Morpho.getUserPosition(metadata.marketId, metadata.proxyContract);
+  // Step 4: Bulk fetch user positions grouped by market ID
+  const positionsByProxyAddress = new Map<string, MorphoUserPosition | undefined>();
 
-      // Lookup cached market data and oracle price
-      const marketData = marketDataMap.get(marketId)!;
-      const btcPriceUSD = oraclePriceMap.get(marketData.oracle.toLowerCase())!;
+  await Promise.all(
+    Array.from(vaultsByMarketId.entries()).map(async ([marketId, marketVaults]) => {
+      // Get all proxy addresses for this market
+      const proxyAddresses = marketVaults.map(v => v.metadata.proxyContract);
 
-      return {
-        txHash,
-        metadata,
-        morphoPosition,
-        marketData,
-        btcPriceUSD,
-      };
+      // Bulk fetch positions for this market
+      const positions = await Morpho.getUserPositionsBulk(marketId, proxyAddresses);
+
+      // Store in map for lookup
+      proxyAddresses.forEach((proxyAddress, index) => {
+        positionsByProxyAddress.set(proxyAddress.toLowerCase(), positions[index]);
+      });
     })
   );
+
+  // Step 5: Combine all data
+  const vaultPositions = vaults.map(({ txHash, metadata }) => {
+    const marketId = metadata.marketId.toString();
+    const morphoPosition = positionsByProxyAddress.get(metadata.proxyContract.toLowerCase())!;
+    const marketData = marketDataMap.get(marketId)!;
+    const btcPriceUSD = oraclePriceMap.get(marketData.oracle.toLowerCase())!;
+
+    return {
+      txHash,
+      metadata,
+      morphoPosition,
+      marketData,
+      btcPriceUSD,
+    };
+  });
 
   return vaultPositions;
 }

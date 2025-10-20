@@ -82,3 +82,52 @@ export async function getUserPosition(
     collateral: position.collateral,
   };
 }
+
+/**
+ * Bulk get user positions for multiple proxy contracts in the same market
+ * Fetches all positions in parallel for better performance
+ *
+ * @param marketId - Market ID (string or bigint)
+ * @param proxyContractAddresses - Array of proxy contract addresses
+ * @returns Array of user positions (undefined for addresses with no position)
+ */
+export async function getUserPositionsBulk(
+  marketId: string | bigint,
+  proxyContractAddresses: Address[]
+): Promise<(MorphoUserPosition | undefined)[]> {
+  if (proxyContractAddresses.length === 0) {
+    return [];
+  }
+
+  const publicClient = ethClient.getPublicClient();
+  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Fetch all positions in parallel
+  const results = await Promise.allSettled(
+    proxyContractAddresses.map(async (proxyAddress) => {
+      const position = await AccrualPosition.fetch(
+        proxyAddress,
+        marketIdHex as MarketId,
+        publicClient
+      );
+
+      return {
+        marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
+        user: proxyAddress,
+        supplyShares: position.supplyShares,
+        borrowShares: position.borrowShares,
+        borrowAssets: position.borrowAssets,
+        collateral: position.collateral,
+      };
+    })
+  );
+
+  // Map results, returning undefined for failed fetches
+  return results.map((result) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    // Position doesn't exist or error fetching
+    return undefined;
+  });
+}

@@ -17,9 +17,8 @@ interface BorrowSignModalProps {
   onClose: () => void;
   onSuccess: () => void;
   borrowAmount?: number;
-  collateralAmount?: string;
-  /** Pegin transaction hash (vault ID) */
-  pegInTxHash?: Hex;
+  /** Array of pegin transaction hashes (vault IDs) to use as collateral */
+  pegInTxHashes?: Hex[];
   /** Market ID for the Morpho market */
   marketId?: string;
 }
@@ -27,7 +26,7 @@ interface BorrowSignModalProps {
 /**
  * BorrowSignModal - Transaction signing modal for borrow flow
  *
- * The mintAndBorrow transaction atomically:
+ * The addCollateralToPositionAndBorrow transaction atomically:
  * 1. Mints vaultBTC from the pegin
  * 2. Deposits vaultBTC as collateral to Morpho
  * 3. Borrows USDC against the collateral
@@ -39,7 +38,7 @@ export function BorrowSignModal({
   onClose,
   onSuccess,
   borrowAmount,
-  pegInTxHash,
+  pegInTxHashes,
   marketId,
 }: BorrowSignModalProps) {
   const [transactionStarted, setTransactionStarted] = useState(false);
@@ -53,7 +52,7 @@ export function BorrowSignModal({
   }, [open]);
 
   const handleSign = async () => {
-    if (!pegInTxHash || !borrowAmount || !marketId) {
+    if (!pegInTxHashes || pegInTxHashes.length === 0 || !borrowAmount || !marketId) {
       return;
     }
 
@@ -64,7 +63,7 @@ export function BorrowSignModal({
 
     try {
       const result = await executeMintAndBorrow({
-        pegInTxHash,
+        pegInTxHashes,
         borrowAmount: borrowAmountBigInt,
         marketId,
       });
@@ -117,7 +116,7 @@ export function BorrowSignModal({
         </Button>
 
         <Button
-          disabled={isLoading || !pegInTxHash || !borrowAmount || !marketId}
+          disabled={isLoading || !pegInTxHashes || pegInTxHashes.length === 0 || !borrowAmount || !marketId}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}

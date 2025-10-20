@@ -1,6 +1,6 @@
 // BTC Vault Controller - Read operations (queries)
 
-import { type Address, type Hex } from 'viem';
+import { type Address, type Hex, type Abi } from 'viem';
 import { ethClient } from '../client';
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 
@@ -88,53 +88,64 @@ export async function getVaultMetadata(
 
 
 /**
- * Check if pegin assets are already minted
+ * Bulk get vault metadata for multiple pegin transaction hashes
+ * Uses multicall to batch requests into a single RPC call for better performance
+ *
  * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash
- * @returns True if assets are minted
+ * @param pegInTxHashes - Array of pegin transaction hashes
+ * @returns Array of vault metadata or undefined for vaults that don't exist/aren't minted
  */
-export async function arePeginAssetsMinted(
+export async function getVaultMetadataBulk(
   contractAddress: Address,
-  pegInTxHash: Hex
-): Promise<boolean> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: BTCVaultControllerABI,
-      functionName: 'arePeginAssetsMinted',
-      args: [pegInTxHash],
-    });
-    return result as boolean;
-  } catch (error) {
-    throw new Error(
-      `Failed to check if pegin assets are minted: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+  pegInTxHashes: Hex[]
+): Promise<(VaultMetadata | undefined)[]> {
+  if (pegInTxHashes.length === 0) {
+    return [];
   }
-}
 
-/**
- * Check if pegin is ready to mint
- * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash
- * @returns True if pegin is ready to mint
- */
-export async function isPeginReadyToMint(
-  contractAddress: Address,
-  pegInTxHash: Hex
-): Promise<boolean> {
   try {
     const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
+
+    // Create multicall contract calls
+    const contracts = pegInTxHashes.map(txHash => ({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
-      functionName: 'isPeginReadyToMint',
-      args: [pegInTxHash],
+      abi: BTCVaultControllerABI as Abi,
+      functionName: 'vaultMetadata' as const,
+      args: [txHash],
+    }));
+
+    // Execute all calls in a single multicall request
+    const results = await publicClient.multicall({
+      contracts,
+      allowFailure: true, // Allow individual calls to fail without breaking the batch
     });
-    return result as boolean;
+
+    // Transform results
+    return results.map((result) => {
+      if (result.status === 'failure') {
+        // Vault not minted yet or error fetching metadata
+        return undefined;
+      }
+
+      const [depositor, proxyContract, marketId, vBTCAmount, borrowAmount, active] =
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        result.result as [any, Address, Hex, bigint, bigint, boolean];
+
+      return {
+        depositor: {
+          ethAddress: depositor.ethAddress as Address,
+          btcPubKey: depositor.btcPubKey as Hex,
+        },
+        proxyContract,
+        marketId,
+        vBTCAmount,
+        borrowAmount,
+        active,
+      };
+    });
   } catch (error) {
     throw new Error(
-      `Failed to check if pegin is ready to mint: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to bulk fetch vault metadata: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }

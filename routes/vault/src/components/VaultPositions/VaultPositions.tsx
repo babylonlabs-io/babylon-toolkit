@@ -23,7 +23,6 @@ export default function VaultPositions({
   const [repayFlowOpen, setRepayFlowOpen] = useState(false);
 
   // Borrow flow state
-  const [borrowActivity, setBorrowActivity] = useState<VaultActivity | null>(null);
   const [borrowFlowOpen, setBorrowFlowOpen] = useState(false);
 
   // Use the address from props instead of local wallet state
@@ -33,7 +32,7 @@ export default function VaultPositions({
   const { positions, rawPositions, loading, refetch } = useVaultPositionsData(connectedAddress);
 
   // Fetch available vault deposits (for borrowing against)
-  const { activities: availableVaults, refetchActivities } = useVaultPositions(connectedAddress);
+  const { refetchActivities } = useVaultPositions(connectedAddress);
 
   // Handle repay button click
   const handleRepay = useCallback((index: number) => {
@@ -105,31 +104,13 @@ export default function VaultPositions({
   // 3. Allow user to select single vault OR combination of vaults
   // 4. Pass selected vault(s) to BorrowFlow
   const handleCreatePosition = useCallback(() => {
-    // Filter for vaults that are available to borrow against
-    // A vault is available if:
-    // 1. PeginRequest status is "active" (variant === 'active')
-    // 2. Either:
-    //    - No vaultMetadata (not yet minted)
-    //    - OR vaultMetadata.active === false (minted but nothing borrowed yet)
-    const availableForBorrow = availableVaults.filter(
-      vault => vault.status.variant === 'active' && (!vault.vaultMetadata || vault.vaultMetadata.active === false)
-    );
-
-    // For now, use the first available vault
-    // Later: show vault selector to let user choose
-    if (availableForBorrow.length > 0) {
-      setBorrowActivity(availableForBorrow[0]);
-      setBorrowFlowOpen(true);
-    } else {
-      // Show message when no vaults are available
-      alert('No available vaults to borrow against. Please deposit BTC first to create a vault.');
-    }
-  }, [availableVaults]);
+    // Simply open the borrow flow - it will fetch available collaterals internally
+    setBorrowFlowOpen(true);
+  }, []);
 
   // Handle borrow flow close
   const handleBorrowClose = useCallback(() => {
     setBorrowFlowOpen(false);
-    setBorrowActivity(null);
   }, []);
 
   // Handle borrow success
@@ -171,6 +152,8 @@ export default function VaultPositions({
           onNewItem={handleCreatePosition}
           isEmpty={positions.length === 0}
           isConnected={!!connectedAddress}
+          emptyStateTitle="Create Your First Borrowing Position"
+          emptyStateDescription="Use your available BTC collateral to create a borrowing position. Select from your verified deposits to borrow against them."
         >
           {positions.map((position, index) => (
             <PositionCard
@@ -192,10 +175,10 @@ export default function VaultPositions({
 
       {/* Borrow Flow */}
       <BorrowFlow
-        activity={borrowActivity}
         isOpen={borrowFlowOpen}
         onClose={handleBorrowClose}
         onBorrowSuccess={handleBorrowSuccess}
+        connectedAddress={connectedAddress}
       />
     </>
   );

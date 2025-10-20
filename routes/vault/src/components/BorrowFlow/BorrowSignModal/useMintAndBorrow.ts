@@ -1,17 +1,17 @@
 /**
- * Hook for minting vaultBTC and borrowing against it
+ * Hook for adding collateral to position and borrowing
  */
 
 import { useState, useCallback } from 'react';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { Hex } from 'viem';
-import { mintAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
-import type { MintAndBorrowResult } from '../../../services/vault/vaultTransactionService';
+import { addCollateralAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
+import type { AddCollateralAndBorrowResult } from '../../../services/vault/vaultTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 
 export interface UseMintAndBorrowParams {
-  /** Pegin transaction hash (vault ID) */
-  pegInTxHash: Hex;
+  /** Array of pegin transaction hashes (vault IDs) to use as collateral */
+  pegInTxHashes: Hex[];
   /** Amount to borrow in USDC (with 6 decimals) */
   borrowAmount: bigint;
   /** Market ID for the Morpho market (hex string without 0x prefix) */
@@ -19,31 +19,32 @@ export interface UseMintAndBorrowParams {
 }
 
 export interface UseMintAndBorrowResult {
-  /** Execute the mint and borrow transaction */
-  executeMintAndBorrow: (params: UseMintAndBorrowParams) => Promise<MintAndBorrowResult | null>;
+  /** Execute the add collateral and borrow transaction */
+  executeMintAndBorrow: (params: UseMintAndBorrowParams) => Promise<AddCollateralAndBorrowResult | null>;
   /** Loading state */
   isLoading: boolean;
   /** Error message */
   error: string | null;
   /** Transaction result */
-  result: MintAndBorrowResult | null;
+  result: AddCollateralAndBorrowResult | null;
   /** Reset state */
   reset: () => void;
 }
 
 /**
- * Hook to mint vaultBTC and borrow USDC
+ * Hook to add collateral to position and borrow
  *
- * Gets BTC pubkey from connected wallet and calls mintAndBorrowWithMarketId service
+ * Gets BTC pubkey from connected wallet and calls addCollateralAndBorrowWithMarketId service
+ * Creates position if it doesn't exist, or expands existing position
  */
 export function useMintAndBorrow(): UseMintAndBorrowResult {
   const btcConnector = useChainConnector('BTC');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<MintAndBorrowResult | null>(null);
+  const [result, setResult] = useState<AddCollateralAndBorrowResult | null>(null);
 
   const executeMintAndBorrow = useCallback(
-    async ({ pegInTxHash, borrowAmount, marketId }: UseMintAndBorrowParams) => {
+    async ({ pegInTxHashes, borrowAmount, marketId }: UseMintAndBorrowParams) => {
       setIsLoading(true);
       setError(null);
       setResult(null);
@@ -68,10 +69,10 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         // Convert market ID from hex string (without 0x) to proper format with 0x prefix
         const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
 
-        // Call service to execute transaction
-        const txResult = await mintAndBorrowWithMarketId(
+        // Call service to execute transaction with multiple vault IDs
+        const txResult = await addCollateralAndBorrowWithMarketId(
           CONTRACTS.VAULT_CONTROLLER,
-          pegInTxHash,
+          pegInTxHashes,
           btcPubkey,
           marketIdWithPrefix,
           borrowAmount

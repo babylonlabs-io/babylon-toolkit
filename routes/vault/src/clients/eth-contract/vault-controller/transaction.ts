@@ -81,17 +81,23 @@ export async function submitPeginRequest(
 }
 
 /**
- * Create a vault by minting vBTC and borrowing against it
+ * Add collateral and borrow (or increase borrow) on existing position
+ *
+ * This function supports multi-vault collateral:
+ * - Use multiple vault IDs to combine collateral from several deposits
+ * - All vaults must belong to the same depositor
+ * - First call creates the position, subsequent calls add to it
+ *
  * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
+ * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction hash and receipt
  */
-export async function mintAndBorrow(
+export async function addCollateralToPositionAndBorrow(
   contractAddress: Address,
-  pegInTxHash: Hex,
+  vaultIds: Hex[],
   depositorBtcPubkey: Hex,
   marketParams: MarketParams,
   borrowAmount: bigint,
@@ -116,8 +122,8 @@ export async function mintAndBorrow(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'mintAndBorrow',
-      args: [pegInTxHash, depositorBtcPubkey, marketParams, borrowAmount],
+      functionName: 'addCollateralToPositionAndBorrow',
+      args: [vaultIds, depositorBtcPubkey, marketParams, borrowAmount],
       chain,
     });
 
@@ -131,28 +137,34 @@ export async function mintAndBorrow(
     };
   } catch (error) {
     throw new Error(
-      `Failed to mint and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to add collateral and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
 
 /**
- * Repay a vault and initiate pegout
+ * Withdraw collateral and redeem BTC vault
  *
- * IMPORTANT: This performs a FULL repayment only - no partial repayments.
- * The smart contract uses the user's borrowShares to repay the entire debt,
- * which ensures exact repayment without leaving dust amounts.
+ * Combined operation that:
+ * 1. Repays debt (if repayAmount > 0)
+ * 2. Withdraws all collateral from the position
+ * 3. Initiates BTC redemption by emitting VaultRedeemable event
  *
- * NOTE: User must approve loan token spending for the exact debt amount before calling this.
+ * IMPORTANT: This withdraws ALL collateral from the position.
+ * After repayment, the position must have no remaining debt.
+ *
+ * NOTE: User must approve loan token spending for the repay amount before calling this.
  * Use borrowAssets from AccrualPosition.fetch() to get the current total debt (principal + interest).
  *
  * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash (also serves as vault ID)
+ * @param marketParams - Morpho market parameters identifying the position
+ * @param repayAmount - Amount to repay (in loan token units, 0 if no debt)
  * @returns Transaction hash and receipt
  */
-export async function repayAndPegout(
+export async function withdrawCollateralAndRedeemBTCVault(
   contractAddress: Address,
-  pegInTxHash: Hex,
+  marketParams: MarketParams,
+  repayAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
@@ -174,8 +186,8 @@ export async function repayAndPegout(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'repayAndPegout',
-      args: [pegInTxHash],
+      functionName: 'withdrawCollateralAndRedeemBTCVault',
+      args: [marketParams, repayAmount],
       chain,
     });
 
@@ -189,7 +201,7 @@ export async function repayAndPegout(
     };
   } catch (error) {
     throw new Error(
-      `Failed to repay and pegout: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to withdraw collateral and redeem BTC vault: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }

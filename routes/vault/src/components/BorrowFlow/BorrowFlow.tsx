@@ -2,23 +2,25 @@ import { BorrowModal } from "./BorrowModal";
 import { BorrowSignModal } from "./BorrowSignModal/BorrowSignModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal/BorrowSuccessModal";
 import { useBorrowFlowState } from "./useBorrowFlowState";
-import type { VaultActivity } from "../../mockData/vaultActivities";
+import type { Hex } from "viem";
 import { useEffect } from "react";
 
 interface BorrowFlowProps {
-  activity: VaultActivity | null;
   isOpen: boolean;
   onClose: () => void;
   onBorrowSuccess?: () => void;
+  /** User's Ethereum address */
+  connectedAddress?: Hex;
 }
 
-export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: BorrowFlowProps) {
+export function BorrowFlow({ isOpen, onClose, onBorrowSuccess, connectedAddress }: BorrowFlowProps) {
   const {
     modalOpen,
     signModalOpen,
     successModalOpen,
     borrowAmount,
     marketId,
+    selectedCollateralTxHashes,
     startBorrowFlow,
     handleModalClose,
     handleBorrowClick,
@@ -27,12 +29,12 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
     handleSuccessClose,
   } = useBorrowFlowState();
 
-  // Start the flow when opened with an activity
+  // Start the flow when opened
   useEffect(() => {
-    if (isOpen && activity) {
-      startBorrowFlow(activity);
+    if (isOpen) {
+      startBorrowFlow();
     }
-  }, [isOpen, activity, startBorrowFlow]);
+  }, [isOpen, startBorrowFlow]);
 
   const handleClose = () => {
     handleModalClose();
@@ -50,8 +52,6 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
     onClose();
   };
 
-  if (!activity) return null;
-
   return (
     <>
       {/* Borrow Modal */}
@@ -59,9 +59,7 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
         open={modalOpen}
         onClose={handleClose}
         onBorrow={handleBorrowClick}
-        collateral={activity.collateral}
-        marketData={activity.marketData}
-        pegInTxHash={activity.txHash}
+        connectedAddress={connectedAddress}
       />
 
       {/* Borrow Sign Modal */}
@@ -70,8 +68,7 @@ export function BorrowFlow({ activity, isOpen, onClose, onBorrowSuccess }: Borro
         onClose={handleSignModalClose}
         onSuccess={handleSignSuccess}
         borrowAmount={borrowAmount}
-        collateralAmount={activity.collateral.amount}
-        pegInTxHash={activity.txHash}
+        pegInTxHashes={selectedCollateralTxHashes}
         marketId={marketId}
       />
 
