@@ -1,0 +1,32 @@
+{
+  "name": "@babylonlabs-io/babylon-tbv-rust-wasm",
+  "version": "0.0.0-semantic-release",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b tsconfig.lib.json",
+    "build-wasm": "node scripts/build-wasm.js"
+  },
+  "files": [
+    "dist",
+    "dist/**/*.d.ts",
+    "dist/**/*.wasm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "BTC Vault WASM bindings for Babylon Trustless Bitcoin Vaults",
+  "devDependencies": {
+    "@internal/eslint-config": "workspace:*",
+    "shelljs": "^0.8.5",
+    "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

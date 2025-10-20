@@ -1,0 +1,12 @@
+# Build outputs (TypeScript compilation)
+dist/*.js
+dist/*.d.ts
+dist/*.map
+dist/tsconfig.lib.tsbuildinfo
+
+# Keep WASM files checked into git
+!dist/generated/
+
+# Temporary build directories
+btc-vault-temp/
+wasm-build-output/
