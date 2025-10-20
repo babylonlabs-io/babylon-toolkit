@@ -353,7 +353,7 @@ function RewardsPageContent() {
                 babyRewardAmount={formatBalance(babyRewardBaby)}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
-                  coStakingAmountBaby !== undefined
+                  FF.IsCoStakingEnabled && coStakingAmountBaby !== undefined
                     ? formatBalance(coStakingAmountBaby)
                     : undefined
                 }
