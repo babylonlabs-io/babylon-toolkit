@@ -219,16 +219,19 @@ function RewardsPageContent() {
         const btcResult = await btcClaimRewards();
         results.push({
           kind: "btc",
-          label: `${btcCoinSymbol} Staking`,
+          label: `Claim rewards transaction for ${btcCoinSymbol} staking`,
           success: Boolean(btcResult?.txHash),
           txHash: btcResult?.txHash,
         });
       } catch (error) {
         console.error("Error claiming BTC rewards:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         results.push({
           kind: "btc",
-          label: `${btcCoinSymbol} Staking`,
+          label: `Claim rewards transaction for ${btcCoinSymbol} staking`,
           success: false,
+          errorMessage,
         });
       } finally {
         setClaimingBtc(false);
@@ -242,16 +245,19 @@ function RewardsPageContent() {
         const babyResult = await babyClaimAll();
         results.push({
           kind: "baby",
-          label: `${bbnCoinSymbol} Staking`,
+          label: `Claim rewards transaction for ${bbnCoinSymbol} staking`,
           success: Boolean(babyResult?.txHash),
           txHash: babyResult?.txHash,
         });
       } catch (error) {
         console.error("Error claiming BABY rewards:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         results.push({
           kind: "baby",
-          label: `${bbnCoinSymbol} Staking`,
+          label: `Claim rewards transaction for ${bbnCoinSymbol} staking`,
           success: false,
+          errorMessage,
         });
       } finally {
         setClaimingBaby(false);

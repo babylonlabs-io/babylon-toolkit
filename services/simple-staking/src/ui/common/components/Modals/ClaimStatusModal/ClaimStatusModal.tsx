@@ -6,7 +6,6 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { SubmitModal } from "../SubmitModal";
 
 import { ClaimResultsContent } from "./ClaimResultsContent";
-import { ClaimErrorsContent } from "./ClaimErrorsContent";
 
 interface ClaimStatusModalProps {
   open: boolean;
@@ -21,6 +20,7 @@ export interface ClaimResult {
   label: string;
   success: boolean;
   txHash?: string;
+  errorMessage?: string;
 }
 
 export enum ClaimStatus {
@@ -37,35 +37,21 @@ const MODAL_STEP = {
     icon: <Loader size={48} className="text-primary-light" />,
     title: "Processing Claim",
     submitButton: "",
-    cancelButton: "",
-    content: null,
   },
   [ClaimStatus.SUCCESS]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: `Successfully Claimed ${coinSymbol}`,
     submitButton: "Done",
-    cancelButton: "",
-    content: (results?: ClaimResult[]) => (
-      <ClaimResultsContent results={results} />
-    ),
   },
   [ClaimStatus.PARTIAL]: {
     icon: <BiSolidBadgeCheck className="text-5xl text-primary-light" />,
     title: "Claim Completed With Some Failures",
     submitButton: "Done",
-    cancelButton: "",
-    content: (results?: ClaimResult[]) => (
-      <ClaimResultsContent results={results} />
-    ),
   },
   [ClaimStatus.ERROR]: {
     icon: <BiErrorCircle className="text-5xl text-primary-light" />,
     title: "Claim Failed",
     submitButton: "Done",
-    cancelButton: "",
-    content: (results?: ClaimResult[]) => (
-      <ClaimErrorsContent results={results} />
-    ),
   },
 };
 
@@ -89,9 +75,11 @@ export const ClaimStatusModal = ({
       icon={config.icon}
       title={config.title}
       submitButton={config.submitButton}
-      cancelButton={config.cancelButton}
+      cancelButton=""
     >
-      {resolvedStatus !== ClaimStatus.PROCESSING && config.content?.(results)}
+      {resolvedStatus !== ClaimStatus.PROCESSING && (
+        <ClaimResultsContent results={results} />
+      )}
     </SubmitModal>
   );
 };

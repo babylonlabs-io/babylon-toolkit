@@ -98,7 +98,7 @@ export const useRewardsService = () => {
       logger.error(error, {
         tags: { bbnAddress },
       });
-      handleError({ error });
+      throw error; // Re-throw to be handled by the caller
     } finally {
       setProcessing(false);
     }
@@ -113,7 +113,6 @@ export const useRewardsService = () => {
     balanceQuery,
     setTransactionHash,
     closeProcessingModal,
-    handleError,
     logger,
   ]);
 
