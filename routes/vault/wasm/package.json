@@ -9,12 +9,13 @@
     "url": "https://github.com/babylonlabs-io/btc-vault.git"
   },
   "files": [
-    "btc_vaults_bg.wasm",
-    "btc_vaults.js",
-    "btc_vaults.d.ts"
+    "btc_vault_bg.wasm",
+    "btc_vault.js",
+    "btc_vault.d.ts",
+    "btc_vault_bg.wasm.d.ts"
   ],
-  "main": "btc_vaults.js",
-  "types": "btc_vaults.d.ts",
+  "main": "btc_vault.js",
+  "types": "btc_vault.d.ts",
   "sideEffects": [
     "./snippets/*"
   ]
