@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
 import { useCoStakingState } from "../../state/CoStakingState";
-import { formatAPRPairAdaptive } from "../../utils/formatAPR";
+import { formatAPRPercentage } from "../../utils/formatAPR";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -22,15 +22,28 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
   const { aprData, eligibility, hasValidBoostData } = useCoStakingState();
 
-  const { a: currentAPRDisplay, b: boostAPRDisplay } = useMemo(
-    () => formatAPRPairAdaptive(aprData.currentApr, aprData.boostApr),
-    [aprData.currentApr, aprData.boostApr],
+  const currentAPRDisplay = useMemo(
+    () => formatAPRPercentage(aprData.currentApr),
+    [aprData.currentApr],
   );
+
+  const percentageIncrease = useMemo(() => {
+    const current = aprData.currentApr ?? 0;
+    const boost = aprData.boostApr ?? 0;
+    if (current <= 0 || boost <= current) return 0;
+    return ((boost - current) / current) * 100;
+  }, [aprData.currentApr, aprData.boostApr]);
+
+  const boostPercentDisplay = useMemo(() => {
+    return percentageIncrease < 1
+      ? percentageIncrease.toFixed(1)
+      : Math.round(percentageIncrease).toString();
+  }, [percentageIncrease]);
 
   const submitButtonText = useMemo(
     () =>
-      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost to ${boostAPRDisplay}%`,
-    [eligibility.additionalBabyNeeded, babyCoinSymbol, boostAPRDisplay],
+      `Stake ${eligibility.additionalBabyNeeded.toFixed(2)} ${babyCoinSymbol} to Boost APR by ${boostPercentDisplay}%`,
+    [eligibility.additionalBabyNeeded, babyCoinSymbol, boostPercentDisplay],
   );
 
   // Don't render modal if boost data is not available
@@ -58,11 +71,11 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     >
       <p className="text-center text-base text-accent-secondary">
         Your current APR is{" "}
-        <span className="text-accent-primary">{currentAPRDisplay}%</span>. Stake{" "}
-        {eligibility.additionalBabyNeeded.toFixed(2)} {babyCoinSymbol} to boost
-        it up to <span className="text-accent-primary">{boostAPRDisplay}%</span>
-        . Co-staking lets you earn more by pairing your {btcCoinSymbol} stake
-        with {babyCoinSymbol}.
+        <span className="text-accent-primary">{currentAPRDisplay}%</span>.
+        Co-staking lets you earn more by pairing your {btcCoinSymbol} stake with{" "}
+        {babyCoinSymbol}. Stake {eligibility.additionalBabyNeeded.toFixed(2)}{" "}
+        {babyCoinSymbol} to boost your APR{" "}
+        <span className="text-accent-primary">by {boostPercentDisplay}%</span>.
       </p>
     </SubmitModal>
   );
