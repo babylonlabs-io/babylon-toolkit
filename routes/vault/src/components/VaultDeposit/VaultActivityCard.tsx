@@ -6,7 +6,7 @@
  */
 
 import { ActivityCard } from '@babylonlabs-io/core-ui';
-import type { VaultActivity } from '../../mockData/vaultActivities';
+import type { VaultActivity } from '../../types';
 import type { PendingPeginRequest } from '../../storage/peginStorage';
 import { usePendingPeginTxPolling } from '../../hooks/usePendingPeginTxPolling';
 import { useVaultActivityActions } from '../../hooks/useVaultActivityActions';

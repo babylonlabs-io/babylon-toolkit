@@ -4,8 +4,8 @@
 
 import { useState, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { addCollateralAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
-import type { AddCollateralAndBorrowResult } from '../../../services/vault/vaultTransactionService';
+import { addCollateralAndBorrowWithMarketId } from '../../../services/position/positionTransactionService';
+import type { AddCollateralAndBorrowResult } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 import { BTCVaultsManager } from '../../../clients/eth-contract';
 

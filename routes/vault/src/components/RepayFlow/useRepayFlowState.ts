@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { VaultActivity } from "../../mockData/vaultActivities";
+import type { VaultActivity } from "../../types";
 
 export function useRepayFlowState() {
   // Modal states

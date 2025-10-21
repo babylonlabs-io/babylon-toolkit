@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { approveLoanTokenForRepay, withdrawCollateralAndRedeemBTCVault } from '../../../services/vault/vaultTransactionService';
+import { approveLoanTokenForRepay, withdrawCollateralAndRedeemBTCVault } from '../../../services/position/positionTransactionService';
 import { Morpho } from '../../../clients/eth-contract';
 import { CONTRACTS } from '../../../config/contracts';
 

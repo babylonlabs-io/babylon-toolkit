@@ -41,13 +41,11 @@ export function useAvailableCollaterals(
       'availableCollaterals',
       connectedAddress,
       CONTRACTS.BTC_VAULTS_MANAGER,
-      CONTRACTS.VAULT_CONTROLLER,
     ],
     queryFn: () => {
       return getAvailableCollaterals(
         connectedAddress!,
         CONTRACTS.BTC_VAULTS_MANAGER,
-        CONTRACTS.VAULT_CONTROLLER,
       );
     },
     enabled: !!connectedAddress,

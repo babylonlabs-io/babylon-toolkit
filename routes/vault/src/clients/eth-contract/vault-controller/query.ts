@@ -14,103 +14,91 @@ interface DepositorStruct {
 }
 
 /**
- * Vault metadata structure
+ * Market position structure from the positions mapping
  */
-export interface VaultMetadata {
+export interface MarketPosition {
   depositor: {
     ethAddress: Address;
     btcPubKey: Hex;
   };
-  proxyContract: Address;
   marketId: Hex;
-  vBTCAmount: bigint;
-  borrowAmount: bigint;
-  active: boolean;
+  proxyContract: Address;
+  pegInTxHashes: Hex[]; // Array of vault transaction hashes (pegin tx hashes)
+  totalCollateral: bigint;
+  totalBorrowed: bigint;
+  lastUpdateTimestamp: bigint;
 }
 
 /**
- * Get all pegin transaction hashes for a user
+ * Get all position IDs for a user
+ *
+ * Iterates through the userPositions array by calling userPositions(address, index)
+ * starting from index 0 and incrementing until an error occurs or no result is returned.
+ *
  * @param contractAddress - BTCVaultController contract address
  * @param userAddress - User's Ethereum address
- * @returns Array of pegin transaction hashes (bytes32)
+ * @returns Array of position IDs (bytes32)
  */
-export async function getUserVaults(
+export async function getUserPositions(
   contractAddress: Address,
   userAddress: Address
 ): Promise<Hex[]> {
+  const publicClient = ethClient.getPublicClient();
+  const positions: Hex[] = [];
+  let index = 0;
+
   try {
-    const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: BTCVaultControllerABI,
-      functionName: 'getUserVaults',
-      args: [userAddress],
-    });
-    return result as Hex[];
+    while (true) {
+      try {
+        const result = await publicClient.readContract({
+          address: contractAddress,
+          abi: BTCVaultControllerABI,
+          functionName: 'userPositions',
+          args: [userAddress, BigInt(index)],
+        });
+
+        // If we get a valid result, add it to the array
+        if (result) {
+          positions.push(result as Hex);
+          index++;
+        } else {
+          // No result returned, we've reached the end
+          break;
+        }
+      } catch (error) {
+        // Error occurred (likely out of bounds), we've reached the end of the array
+        break;
+      }
+    }
+
+    return positions;
   } catch (error) {
     throw new Error(
-      `Failed to get user vaults: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to get user positions: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
 
 /**
- * Get metadata for a specific vault
- * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHash - Pegin transaction hash (bytes32)
- * @returns Vault metadata
- */
-export async function getVaultMetadata(
-  contractAddress: Address,
-  pegInTxHash: Hex
-): Promise<VaultMetadata> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: BTCVaultControllerABI,
-      functionName: 'vaultMetadata',
-      args: [pegInTxHash],
-    });
-
-    const [depositor, proxyContract, marketId, vBTCAmount, borrowAmount, active] =
-      result as [DepositorStruct, Address, Hex, bigint, bigint, boolean];
-
-    return {
-      depositor: {
-        ethAddress: depositor.ethAddress as Address,
-        btcPubKey: depositor.btcPubKey as Hex,
-      },
-      proxyContract,
-      marketId,
-      vBTCAmount,
-      borrowAmount,
-      active,
-    };
-  } catch (error) {
-    throw new Error(
-      `Failed to get vault metadata: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
-  }
-}
-
-
-/**
- * Bulk get vault metadata for multiple pegin transaction hashes
+ * Bulk get position data for multiple position IDs
  * Uses multicall to batch requests into a single RPC call for better performance
  *
  * Note: Filters out failed requests automatically. If you need to track which requests failed,
  * consider using the return value's length compared to input length.
  *
+ * IMPORTANT: This fetches from `positions` mapping which does NOT include pegInTxHashes.
+ * To get complete position data with pegInTxHashes, you need to call getPosition() for each position,
+ * but that requires depositor address + marketId (not position ID).
+ *
  * @param contractAddress - BTCVaultController contract address
- * @param pegInTxHashes - Array of pegin transaction hashes
- * @returns Array of vault metadata (only successful fetches, failed requests are filtered out)
+ * @param positionIds - Array of position IDs (bytes32)
+ * @returns Array of market positions (only successful fetches, failed requests are filtered out)
  */
-export async function getVaultMetadataBulk(
+export async function getPositionsBulk(
   contractAddress: Address,
-  pegInTxHashes: Hex[]
-): Promise<VaultMetadata[]> {
-  if (pegInTxHashes.length === 0) {
+  positionIds: Hex[]
+): Promise<MarketPosition[]> {
+  if (positionIds.length === 0) {
     return [];
   }
 
@@ -118,30 +106,35 @@ export async function getVaultMetadataBulk(
     const publicClient = ethClient.getPublicClient();
 
     // Use shared multicall helper
-    type VaultMetadataRaw = [DepositorStruct, Address, Hex, bigint, bigint, boolean];
-    const results = await executeMulticall<VaultMetadataRaw>(
+    // NOTE: The `positions` mapping returns data WITHOUT pegInTxHashes
+    // The ABI output is: [depositor, marketId, proxyContract, totalCollateral, totalBorrowed, lastUpdateTimestamp]
+    type MarketPositionRaw = [DepositorStruct, Hex, Address, bigint, bigint, bigint];
+    const results = await executeMulticall<MarketPositionRaw>(
       publicClient,
       contractAddress,
       BTCVaultControllerABI as Abi,
-      'vaultMetadata',
-      pegInTxHashes.map(txHash => [txHash])
+      'positions',
+      positionIds.map(positionId => [positionId])
     );
 
-    // Transform raw results to VaultMetadata format
-    return results.map(([depositor, proxyContract, marketId, vBTCAmount, borrowAmount, active]) => ({
+    // Transform raw results to MarketPosition format
+    // pegInTxHashes will be empty array since positions mapping doesn't return it
+    return results.map(([depositor, marketId, proxyContract, totalCollateral, totalBorrowed, lastUpdateTimestamp]) => ({
       depositor: {
         ethAddress: depositor.ethAddress as Address,
         btcPubKey: depositor.btcPubKey as Hex,
       },
-      proxyContract,
       marketId,
-      vBTCAmount,
-      borrowAmount,
-      active,
+      proxyContract,
+      pegInTxHashes: [], // positions mapping doesn't return this - must use getPosition() instead
+      totalCollateral,
+      totalBorrowed,
+      lastUpdateTimestamp,
     }));
   } catch (error) {
     throw new Error(
-      `Failed to bulk fetch vault metadata: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to bulk fetch positions: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
+

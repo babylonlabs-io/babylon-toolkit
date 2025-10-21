@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { VaultActivity } from "../../mockData/vaultActivities";
+import type { VaultActivity } from "../../types";
 import { RepaySignModal } from "./RepaySignModal/RepaySignModal";
 import { RepaySuccessModal } from "./RepaySuccessModal/RepaySuccessModal";
 import { useRepayFlowState } from "./useRepayFlowState";
@@ -46,8 +46,8 @@ export function RepayFlow({ activity, isOpen, onClose, onRepaySuccess }: RepayFl
 
   // Get repay amount in wei for transaction
   const repayAmountWei = activity.morphoPosition?.borrowAssets;
-  // Get market ID from vault metadata
-  const marketId = activity.vaultMetadata?.marketId;
+  // Get market ID from activity
+  const marketId = activity.marketId;
 
   return (
     <>

@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useMemo } from 'react';
 import { useLocalStorage } from 'usehooks-ts';
-import type { VaultActivity } from '../mockData/vaultActivities';
+import type { VaultActivity } from '../types';
 import {
   type PendingPeginRequest,
   filterPendingPegins,
@@ -80,17 +80,15 @@ export function usePeginStorage({
     return filtered.map((pegin: PendingPeginRequest) => {
       const confirmedPegin = confirmedPeginMap[pegin.id];
 
-      // Determine display label based on localStorage + blockchain status
-      let statusLabel = 'Pending';
+      // Determine pending message based on localStorage + blockchain status
       let pendingMessage =
         'Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete.';
 
       if (pegin.status === 'confirming') {
-        statusLabel = 'Pending BTC Confirmations';
         pendingMessage =
           'BTC transaction broadcast. Waiting for Bitcoin network confirmations (~5 hours).';
       } else if (confirmedPegin?.contractStatus === 1) {
-        statusLabel = 'Verified';
+        // Verified status - no warning message needed
         pendingMessage = '';
       }
 
@@ -102,10 +100,8 @@ export function usePeginStorage({
           symbol: 'BTC',
           icon: bitcoinIcon,
         },
-        status: {
-          label: statusLabel,
-          variant: 'pending' as const,
-        },
+        // Contract status from blockchain (if available)
+        // Note: Display status is derived from this via peginStateMachine
         contractStatus: confirmedPegin?.contractStatus,
         providers:
           confirmedPegin?.providers ||
@@ -115,14 +111,13 @@ export function usePeginStorage({
             icon: undefined,
           })),
         action: undefined,
-        isPending: statusLabel !== 'Verified', // Don't show warning for Verified status
+        // Don't show warning for Verified status (contractStatus === 1)
+        isPending: confirmedPegin?.contractStatus !== 1,
         pendingMessage: pendingMessage || undefined,
         morphoPosition: undefined,
         borrowingData: undefined,
         marketData: undefined,
         positionDate: undefined,
-        vaultMetadata: undefined,
-        isInUse: undefined,
       };
     });
   }, [pendingPegins, confirmedPeginMap]);

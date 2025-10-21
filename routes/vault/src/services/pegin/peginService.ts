@@ -6,8 +6,8 @@
  */
 
 import type { Address, Hex } from 'viem';
-import { BTCVaultsManager, VaultController, Morpho, MorphoOracle } from '../../clients/eth-contract';
-import type { PeginRequest, MorphoUserPosition, MorphoMarketSummary, VaultMetadata } from '../../clients/eth-contract';
+import { BTCVaultsManager } from '../../clients/eth-contract';
+import type { PeginRequest } from '../../clients/eth-contract';
 
 /**
  * Pegin request with transaction hash
@@ -17,37 +17,6 @@ export interface PeginRequestWithTxHash {
   peginRequest: PeginRequest;
   /** Transaction hash */
   txHash: Hex;
-}
-
-/**
- * Pegin request with vault metadata (for deposit tab)
- * Shows vault status without full Morpho position details
- */
-export interface PeginRequestWithVaultMetadata {
-  /** The pegin request data */
-  peginRequest: PeginRequest;
-  /** Transaction hash */
-  txHash: Hex;
-  /** Vault metadata (undefined if vault not yet minted) */
-  vaultMetadata?: VaultMetadata;
-}
-
-/**
- * Pegin request with morpho position data
- */
-export interface PeginRequestWithMorpho {
-  /** The pegin request data */
-  peginRequest: PeginRequest;
-  /** Transaction hash */
-  txHash: Hex;
-  /** Vault metadata (undefined if vault not yet minted) */
-  vaultMetadata?: VaultMetadata;
-  /** Morpho position data (undefined if vault not yet minted) */
-  morphoPosition?: MorphoUserPosition;
-  /** Morpho market data */
-  morphoMarket: MorphoMarketSummary;
-  /** BTC price in USD as a number from Morpho oracle */
-  btcPriceUSD: number;
 }
 
 /**
@@ -96,126 +65,6 @@ export async function getPeginRequestsWithDetails(
 }
 
 /**
- * Get all pegin requests with vault metadata
- *
- * Composite operation that:
- * 1. Fetches all pegin requests with details
- * 2. Bulk fetches vault metadata for all pegins in a single multicall (optimized)
- * 3. Does NOT fetch full Morpho position data (for performance)
- *
- * @param depositorAddress - Depositor's Ethereum address
- * @param btcVaultsManagerAddress - BTCVaultsManager contract address
- * @param vaultControllerAddress - VaultController contract address
- * @returns Array of pegin requests with vault metadata
- */
-export async function getPeginRequestsWithVaultMetadata(
-  depositorAddress: Address,
-  btcVaultsManagerAddress: Address,
-  vaultControllerAddress: Address
-): Promise<PeginRequestWithVaultMetadata[]> {
-  // Step 1: Get basic pegin request data
-  const peginRequests = await getPeginRequestsWithDetails(depositorAddress, btcVaultsManagerAddress);
-
-  if (peginRequests.length === 0) {
-    return [];
-  }
-
-  // Step 2: Bulk fetch vault metadata for all pegins in a single multicall
-  // This is much more efficient than individual calls in Promise.all
-  const txHashes = peginRequests.map(({ txHash }) => txHash);
-  const vaultMetadataArray = await VaultController.getVaultMetadataBulk(vaultControllerAddress, txHashes);
-
-  // Step 3: Combine pegin requests with their vault metadata
-  const peginRequestsWithMetadata = peginRequests.map(({ peginRequest, txHash }, index) => ({
-    peginRequest,
-    txHash,
-    vaultMetadata: vaultMetadataArray[index],
-  }));
-
-  return peginRequestsWithMetadata;
-}
-
-/**
- * Get all pegin requests with Morpho position data
- *
- * Composite operation that:
- * 1. Fetches all pegin requests with details
- * 2. Fetches complete Morpho market data (with supply/borrow/utilization) and BTC price (once, shared across all pegins)
- * 3. Bulk fetches vault metadata for all pegins in a single multicall
- * 4. Bulk fetches morpho positions for all vaults with metadata
- * 5. Returns pegin data with morpho position (undefined if vault not minted yet)
- *    but always includes full market data and BTC price
- *
- * @param depositorAddress - Depositor's Ethereum address
- * @param btcVaultsManagerAddress - BTCVaultsManager contract address
- * @param vaultControllerAddress - VaultController contract address
- * @param marketId - Morpho market ID
- * @returns Array of pegin requests with complete morpho market and position data
- */
-export async function getPeginRequestsWithMorpho(
-  depositorAddress: Address,
-  btcVaultsManagerAddress: Address,
-  vaultControllerAddress: Address,
-  marketId: string | bigint
-): Promise<PeginRequestWithMorpho[]> {
-  // Step 1: Get basic pegin request data
-  const peginRequests = await getPeginRequestsWithDetails(depositorAddress, btcVaultsManagerAddress);
-
-  if (peginRequests.length === 0) {
-    return [];
-  }
-
-  // Step 2: Fetch complete market data with state and BTC price (once, shared across all pegins)
-  const [morphoMarket, oraclePrice] = await Promise.all([
-    Morpho.getMarketWithData(marketId),
-    Morpho.getBasicMarketParams(marketId).then(params => MorphoOracle.getOraclePrice(params.oracle)),
-  ]);
-  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
-
-  // Step 3: Bulk fetch vault metadata for all pegins in a single multicall
-  const txHashes = peginRequests.map(({ txHash }) => txHash);
-  const vaultMetadataArray = await VaultController.getVaultMetadataBulk(vaultControllerAddress, txHashes);
-
-  // Step 4: Extract proxy contract addresses from vault metadata (for vaults that exist)
-  // Keep track of indices for mapping back to pegin requests
-  const proxyAddressesWithIndices: { proxyAddress: Address; index: number }[] = [];
-  vaultMetadataArray.forEach((metadata, index) => {
-    if (metadata) {
-      proxyAddressesWithIndices.push({
-        proxyAddress: metadata.proxyContract,
-        index,
-      });
-    }
-  });
-
-  // Step 5: Bulk fetch morpho positions for all proxy contracts
-  const morphoPositionsBulk = proxyAddressesWithIndices.length > 0
-    ? await Morpho.getUserPositionsBulk(
-        marketId,
-        proxyAddressesWithIndices.map(({ proxyAddress }) => proxyAddress)
-      )
-    : [];
-
-  // Step 6: Map morpho positions back to their indices
-  const morphoPositionsByIndex = new Map<number, typeof morphoPositionsBulk[0]>();
-  proxyAddressesWithIndices.forEach(({ index }, bulkIndex) => {
-    morphoPositionsByIndex.set(index, morphoPositionsBulk[bulkIndex]);
-  });
-
-  // Step 7: Combine all data
-  const peginRequestsWithMorpho = peginRequests.map(({ peginRequest, txHash }, index) => ({
-    peginRequest,
-    txHash,
-    vaultMetadata: vaultMetadataArray[index],
-    morphoPosition: morphoPositionsByIndex.get(index),
-    morphoMarket, // Use the complete market data fetched from Morpho
-    btcPriceUSD,
-  }));
-
-  return peginRequestsWithMorpho;
-}
-
-/**
  * Available collateral for borrowing
  */
 export interface AvailableCollateral {
@@ -245,19 +94,16 @@ export interface AvailableCollateral {
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @param btcVaultsManagerAddress - BTCVaultsManager contract address
- * @param vaultControllerAddress - VaultController contract address
  * @returns Array of available collaterals that can be selected for borrowing
  */
 export async function getAvailableCollaterals(
   depositorAddress: Address,
-  btcVaultsManagerAddress: Address,
-  vaultControllerAddress: Address
+  btcVaultsManagerAddress: Address
 ): Promise<AvailableCollateral[]> {
-  // Fetch all pegin requests with vault metadata
-  const peginRequests = await getPeginRequestsWithVaultMetadata(
+  // Fetch all pegin requests (no need to fetch vault metadata since status tells us if it's in use)
+  const peginRequests = await getPeginRequestsWithDetails(
     depositorAddress,
-    btcVaultsManagerAddress,
-    vaultControllerAddress
+    btcVaultsManagerAddress
   );
 
   // Filter for pegins with status "Available" (status === 2)

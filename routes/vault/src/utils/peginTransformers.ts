@@ -4,7 +4,7 @@
 
 import type { Hex, Address } from 'viem';
 import type { PeginRequest } from '../clients/eth-contract';
-import type { VaultActivity } from '../mockData/vaultActivities';
+import type { VaultActivity } from '../types';
 
 /**
  * Bitcoin icon as data URI (orange bitcoin logo)
@@ -18,26 +18,6 @@ const BITCOIN_ICON_DATA_URI = "data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fil
 export const SATOSHIS_PER_BTC = 100_000_000n;
 
 /**
- * Status mapping from contract enum to UI format
- * Enum BTCVaultStatus (from BTCVaultsManager.sol):
- * 0 = Pending - Request submitted, waiting for ACKs from vault provider and liquidators
- * 1 = Verified - All ACKs collected, ready for inclusion proof
- * 2 = Available - Inclusion proof verified, vBTC minted, available for positions
- * 3 = InPosition - Vault is being used as collateral in a lending position
- * 4 = Expired - Pegged-in BTC has been liquidated/repaid and burned
- *
- * Note: "Pending BTC Confirmations" is a client-side status (not from contract)
- * shown after user broadcasts BTC but before status moves to Available (2)
- */
-const STATUS_MAP = {
-  0: { label: 'Pending Verification', variant: 'pending' as const },
-  1: { label: 'Verified', variant: 'pending' as const },
-  2: { label: 'Available', variant: 'active' as const },
-  3: { label: 'In Position', variant: 'active' as const },
-  4: { label: 'Expired', variant: 'inactive' as const },
-} as const;
-
-/**
  * Format BTC amount from satoshis to BTC with proper decimals
  * @param satoshis - Amount in satoshis (smallest Bitcoin unit)
  * @returns Formatted BTC amount as string (e.g., "1.50")
@@ -48,22 +28,6 @@ export function formatBTCAmount(satoshis: bigint): string {
   
   // Format with up to 8 decimal places, removing trailing zeros
   return btc.toFixed(8).replace(/\.?0+$/, '') || '0';
-}
-
-/**
- * Get status label and variant from contract status number
- * @param status - Status number from contract (0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired)
- * @returns Status object with label and variant for UI
- */
-export function getStatusInfo(status: number): { label: string; variant: 'active' | 'inactive' | 'pending' | 'default' } {
-  // Defensive check - return default if status is unknown
-  if (status in STATUS_MAP) {
-    return STATUS_MAP[status as keyof typeof STATUS_MAP];
-  }
-
-  // Log unknown status for debugging
-  console.warn(`[peginTransformers] Unknown pegin status: ${status}. Expected 0 (Pending), 1 (Verified), 2 (Available), 3 (InPosition), or 4 (Expired)`);
-  return { label: 'Unknown', variant: 'default' };
 }
 
 /**
@@ -112,13 +76,11 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
  * For Deposit tab - shows vault status but not full Morpho loan details
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
- * @param vaultMetadata - Optional vault metadata to show if vault is in use
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
 export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
-  vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean },
 ): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
@@ -126,13 +88,8 @@ export function transformPeginToActivity(
   // Format provider
   const providerName = formatProviderName(peginRequest.vaultProvider);
 
-  // Get status info from pegin request
-  const statusInfo = getStatusInfo(peginRequest.status);
-
-  // Check if vault is in use (has active position)
-  const isInUse = vaultMetadata?.active === true;
-
-  // Create VaultActivity object (deposit/collateral info + "in use" status)
+  // Create VaultActivity object (deposit/collateral info)
+  // Note: Display status is derived from contractStatus via peginStateMachine, not stored here
   const activity: VaultActivity = {
     id: txHash,
     txHash,
@@ -141,11 +98,7 @@ export function transformPeginToActivity(
       symbol: 'BTC',
       icon: BITCOIN_ICON_DATA_URI,
     },
-    status: {
-      label: statusInfo.label,
-      variant: statusInfo.variant,
-    },
-    // Store numeric contract status for localStorage cleanup logic
+    // Store numeric contract status for state machine and localStorage cleanup logic
     contractStatus: peginRequest.status,
     providers: [
       {
@@ -154,17 +107,6 @@ export function transformPeginToActivity(
         icon: undefined, // TODO: Add provider icon support
       },
     ],
-    // Store vault metadata to show "in use" status
-    vaultMetadata: vaultMetadata ? {
-      depositor: vaultMetadata.depositor,
-      proxyContract: vaultMetadata.proxyContract,
-      marketId: vaultMetadata.marketId,
-      vBTCAmount: vaultMetadata.vBTCAmount,
-      borrowAmount: vaultMetadata.borrowAmount,
-      active: vaultMetadata.active,
-    } : undefined,
-    // Flag to indicate vault is being used by a position
-    isInUse,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No Morpho position details in deposit tab
@@ -179,13 +121,13 @@ export function transformPeginToActivity(
 
 /**
  * Transform multiple PeginRequests to VaultActivities
- * @param peginRequestsWithHashes - Array of tuples containing pegin request data, transaction hash, and optional vault metadata
+ * @param peginRequestsWithHashes - Array of tuples containing pegin request data and transaction hash
  * @returns Array of VaultActivity objects (without action handlers)
  */
 export function transformPeginRequestsToActivities(
-  peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex; vaultMetadata?: { depositor: { ethAddress: Address; btcPubKey: Hex }; proxyContract: Address; marketId: Hex; vBTCAmount: bigint; borrowAmount: bigint; active: boolean } }>,
+  peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex }>,
 ): VaultActivity[] {
-  return peginRequestsWithHashes.map(({ peginRequest, txHash, vaultMetadata }) =>
-    transformPeginToActivity(peginRequest, txHash, vaultMetadata)
+  return peginRequestsWithHashes.map(({ peginRequest, txHash }) =>
+    transformPeginToActivity(peginRequest, txHash)
   );
 }
