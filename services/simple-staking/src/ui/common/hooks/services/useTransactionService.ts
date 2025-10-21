@@ -44,7 +44,7 @@ export const useTransactionService = () => {
   const { data: networkFees } = useNetworkFees();
   const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const {
-    btcTipQuery: { data: tipHeight = 0, refetch: refetchBtcTip },
+    btcTipQuery: { data: tipHeight, refetch: refetchBtcTip },
   } = useBbnQuery();
 
   const { bech32Address } = useCosmosWallet();
@@ -71,11 +71,11 @@ export const useTransactionService = () => {
   const createDelegationEoi = useCallback(
     async (stakingInput: BtcStakingInputs, feeRate: number) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeight = 0 } = await refetchBtcTip();
+      const { data: latestTipHeight } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
 
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         latestTipHeight,
@@ -92,10 +92,10 @@ export const useTransactionService = () => {
       }
 
       const { stakingTx, signedBabylonTx } =
-        await btcStakingManager!.preStakeRegistrationBabylonTransaction(
+        await commonInputs.btcStakingManager.preStakeRegistrationBabylonTransaction(
           stakerInfo,
           stakingInput,
-          latestTipHeight,
+          commonInputs.tipHeight,
           availableUTXOs,
           feeRate,
           bech32Address,
@@ -128,7 +128,7 @@ export const useTransactionService = () => {
         feeRate,
       });
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -142,9 +142,9 @@ export const useTransactionService = () => {
         logger.error(clientError);
         throw clientError;
       }
-      const fee = btcStakingManager!.estimateBtcStakingFee(
+      const fee = commonInputs.btcStakingManager.estimateBtcStakingFee(
         stakerInfo,
-        tipHeight,
+        commonInputs.tipHeight,
         stakingInput,
         availableUTXOs,
         feeRate,
@@ -168,10 +168,10 @@ export const useTransactionService = () => {
       stakingInput: BtcStakingInputs,
     ) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeight = 0 } = await refetchBtcTip();
+      const { data: latestTipHeight } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         latestTipHeight,
@@ -187,7 +187,7 @@ export const useTransactionService = () => {
       });
 
       const { signedBabylonTx } =
-        await btcStakingManager!.postStakeRegistrationBabylonTransaction(
+        await commonInputs.btcStakingManager.postStakeRegistrationBabylonTransaction(
           stakerInfo,
           stakingTx,
           stakingHeight,
@@ -220,7 +220,7 @@ export const useTransactionService = () => {
       unsignedStakingTxHex: string,
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -238,7 +238,7 @@ export const useTransactionService = () => {
       const unsignedStakingTx = Transaction.fromHex(unsignedStakingTxHex);
 
       const signedStakingTx =
-        await btcStakingManager!.createSignedBtcStakingTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcStakingTransaction(
           stakerInfo,
           stakingInput,
           unsignedStakingTx,
@@ -301,7 +301,7 @@ export const useTransactionService = () => {
       }[],
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -311,7 +311,7 @@ export const useTransactionService = () => {
       const unsignedUnbondingTx = Transaction.fromHex(unbondingTxHex);
 
       const { transaction: signedUnbondingTx } =
-        await btcStakingManager!.createSignedBtcUnbondingTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcUnbondingTransaction(
           stakerInfo,
           stakingInput,
           paramVersion,
@@ -343,7 +343,7 @@ export const useTransactionService = () => {
         earlyUnbondingTxHex,
       });
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -351,7 +351,7 @@ export const useTransactionService = () => {
       );
 
       const { transaction: signedWithdrawalTx } =
-        await btcStakingManager!.createSignedBtcWithdrawEarlyUnbondedTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcWithdrawEarlyUnbondedTransaction(
           stakerInfo,
           stakingInput,
           paramVersion,
@@ -388,7 +388,7 @@ export const useTransactionService = () => {
         stakingTxHash: Transaction.fromHex(stakingTxHex).getId(),
       });
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -396,7 +396,7 @@ export const useTransactionService = () => {
       );
 
       const { transaction: signedWithdrawalTx } =
-        await btcStakingManager!.createSignedBtcWithdrawStakingExpiredTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcWithdrawStakingExpiredTransaction(
           stakerInfo,
           stakingInput,
           paramVersion,
@@ -429,7 +429,7 @@ export const useTransactionService = () => {
       slashingTxHex: string,
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -437,7 +437,7 @@ export const useTransactionService = () => {
       );
 
       const { transaction: signedWithdrawalTx } =
-        await btcStakingManager!.createSignedBtcWithdrawSlashingTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcWithdrawSlashingTransaction(
           stakerInfo,
           stakingInput,
           paramVersion,
@@ -462,11 +462,11 @@ export const useTransactionService = () => {
       feeRate: number,
     ) => {
       // Refetch the latest BTC tip height to prevent using stale data
-      const { data: latestTipHeight = 0 } = await refetchBtcTip();
+      const { data: latestTipHeight } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
 
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -502,10 +502,10 @@ export const useTransactionService = () => {
       );
 
       const { stakingTx, signedBabylonTx } =
-        await btcStakingManager!.stakingExpansionRegistrationBabylonTransaction(
+        await commonInputs.btcStakingManager.stakingExpansionRegistrationBabylonTransaction(
           stakerInfo,
           stakingExpansionInput,
-          latestTipHeight,
+          commonInputs.tipHeight,
           availableUTXOs,
           feeRate,
           bech32Address,
@@ -548,7 +548,7 @@ export const useTransactionService = () => {
         feeRate,
       });
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -582,9 +582,9 @@ export const useTransactionService = () => {
         stakingExpansionInput.previousStakingTxHex,
       );
 
-      const fee = btcStakingManager!.estimateBtcStakingExpansionFee(
+      const fee = commonInputs.btcStakingManager.estimateBtcStakingExpansionFee(
         stakerInfo,
-        tipHeight,
+        commonInputs.tipHeight,
         stakingExpansionInput,
         availableUTXOs,
         feeRate,
@@ -634,7 +634,7 @@ export const useTransactionService = () => {
       });
 
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      const commonInputs = validateCommonInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -673,7 +673,7 @@ export const useTransactionService = () => {
 
       // Create signed transaction using btc-staking-ts
       const signedStakingExpansionTx =
-        await btcStakingManager!.createSignedBtcStakingExpansionTransaction(
+        await commonInputs.btcStakingManager.createSignedBtcStakingExpansionTransaction(
           stakerInfo,
           stakingExpansionInput,
           unsignedStakingExpansionTx,
@@ -791,9 +791,12 @@ const getInclusionProof = async (stakingTx: Transaction) => {
 const validateCommonInputs = (
   btcStakingManager: BabylonBtcStakingManager | null,
   stakingInput: BtcStakingInputs,
-  tipHeight: number,
+  tipHeight: number | undefined,
   stakerInfo: { address: string; publicKeyNoCoordHex: string },
-) => {
+): {
+  btcStakingManager: BabylonBtcStakingManager;
+  tipHeight: number;
+} => {
   validateStakingInput(stakingInput);
   if (!btcStakingManager) {
     throw new ClientError(
@@ -813,4 +816,8 @@ const validateCommonInputs = (
       "Staker info not initialized",
     );
   }
+  return {
+    btcStakingManager,
+    tipHeight,
+  };
 };
