@@ -7,6 +7,8 @@ export interface TabItem {
   content: ReactNode;
 }
 
+export type TabsVariant = "default" | "simple";
+
 export interface TabsProps {
   items: TabItem[];
   defaultActiveTab?: string;
@@ -14,6 +16,7 @@ export interface TabsProps {
   onTabChange?: (tabId: string) => void;
   className?: string;
   keepMounted?: boolean;
+  variant?: TabsVariant;
 }
 
 export const Tabs = ({
@@ -23,6 +26,7 @@ export const Tabs = ({
   onTabChange,
   className,
   keepMounted,
+  variant = "default",
 }: TabsProps) => {
   const [internalActiveTab, setInternalActiveTab] = useState(
     defaultActiveTab || items[0]?.id || "",
@@ -47,6 +51,9 @@ export const Tabs = ({
 
   const activeContent = items.find((item) => item.id === activeTab)?.content;
 
+  // Variant-specific styles
+  const isSimple = variant === "simple";
+
   return (
     <div className={twMerge("w-full", className)}>
       <div className="mb-6 flex w-full gap-2" role="tablist">
@@ -59,10 +66,20 @@ export const Tabs = ({
             aria-controls={`panel-${item.id}`}
             tabIndex={activeTab === item.id ? 0 : -1}
             className={twMerge(
-              "rounded px-4 py-2 text-accent-primary transition-colors duration-200",
-              activeTab === item.id
-                ? "bg-secondary-highlight"
-                : "bg-transparent",
+              "transition-colors duration-200",
+              isSimple
+                ? twMerge(
+                    "px-4 py-2 text-lg font-normal",
+                    activeTab === item.id
+                      ? "text-accent-primary"
+                      : "text-accent-secondary",
+                  )
+                : twMerge(
+                    "rounded px-4 py-2 text-accent-primary",
+                    activeTab === item.id
+                      ? "bg-secondary-highlight"
+                      : "bg-transparent",
+                  ),
             )}
             onClick={() => handleTabClick(item.id)}
           >
@@ -70,6 +87,11 @@ export const Tabs = ({
           </button>
         ))}
       </div>
+      
+      {/* Divider for simple variant */}
+      {isSimple && (
+        <div className="w-full h-[1px] bg-secondary-strokeDark mb-6 -mt-6" />
+      )}
 
       {keepMounted ? (
         <div className="mt-6">

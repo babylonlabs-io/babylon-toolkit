@@ -53,15 +53,11 @@
           @apply border-l;
         }
 
-        &:last-child {
-          @apply border-r;
-        }
-      }
-
-      &.selected td {
-        @apply !border-secondary-main;
+      &:last-child {
+        @apply border-r;
       }
     }
+  }
 
     /* Odd row styles */
     tr:nth-child(odd) {

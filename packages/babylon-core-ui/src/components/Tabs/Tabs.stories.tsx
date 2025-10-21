@@ -166,3 +166,44 @@ export const ManyTabs: Story = {
   },
 };
 
+export const SimpleVariant: Story = {
+  args: {
+    variant: "simple",
+    items: [
+      {
+        id: "market-attributes",
+        label: "Market Attributes",
+        content: (
+          <div className="space-y-4 text-accent-primary">
+            <div className="flex justify-between">
+              <span className="text-accent-secondary">Collateral</span>
+              <span>BTC</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-accent-secondary">Loan</span>
+              <span>USDC</span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "positions",
+        label: "Positions",
+        content: (
+          <div className="space-y-4 text-accent-primary">
+            <div className="flex justify-between">
+              <span className="text-accent-secondary">Loan</span>
+              <span>788,859 USDC</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-accent-secondary">Market</span>
+              <span>BTC/USDC</span>
+            </div>
+          </div>
+        ),
+      },
+    ],
+    defaultActiveTab: "market-attributes",
+  },
+};
+

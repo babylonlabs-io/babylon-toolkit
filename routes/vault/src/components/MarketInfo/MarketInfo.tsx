@@ -1,4 +1,4 @@
-import { Button, Avatar, AvatarGroup, MarketStatCard, KeyValueList } from "@babylonlabs-io/core-ui";
+import { Button, Avatar, AvatarGroup, MarketStatCard, KeyValueList, Tabs } from "@babylonlabs-io/core-ui";
 
 interface MarketInfoProps {
   onBack: () => void;
@@ -11,6 +11,7 @@ interface MarketInfoProps {
   totalLiquiditySubtitle: string;
   borrowRate: string;
   attributes: Array<{ label: string; value: string }>;
+  positions?: Array<{ label: string; value: string }>;
 }
 
 export function MarketInfo({
@@ -24,6 +25,12 @@ export function MarketInfo({
   totalLiquiditySubtitle,
   borrowRate,
   attributes,
+  positions = [
+    { label: "Loan", value: "788,859 USDC" },
+    { label: "Market", value: "BTC/USDC" },
+    { label: "LTV", value: "65.8%" },
+    { label: "Liquidation LTV", value: "70%" }
+  ],
 }: MarketInfoProps) {
   return (
     <div className="space-y-6">
@@ -66,8 +73,22 @@ export function MarketInfo({
         />
       </div>
       
-      <h2 className="mb-4 text-2xl font-normal text-accent-primary">Market Attributes</h2>
-      <KeyValueList items={attributes} />
+      <Tabs
+        variant="simple"
+        items={[
+          {
+            id: "market-attributes",
+            label: "Market Attributes",
+            content: <KeyValueList items={attributes} showDivider={false} />
+          },
+          {
+            id: "positions",
+            label: "Positions",
+            content: <KeyValueList items={positions} showDivider={false} />
+          }
+        ]}
+        defaultActiveTab="market-attributes"
+      />
     </div>
   );
 }

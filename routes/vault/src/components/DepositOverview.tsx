@@ -6,7 +6,7 @@ import {
   Avatar,
   AvatarGroup,
   Button,
-  OrangeCheckbox,
+  Checkbox,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
@@ -230,7 +230,11 @@ export function DepositOverview() {
             checkboxPosition="right"
             showSelectAll={false}
             renderCheckbox={(checked) => (
-              <OrangeCheckbox checked={checked} />
+              <Checkbox 
+                checked={checked} 
+                variant="secondary"
+                showLabel={false}
+              />
             )}
           />
         </div>
