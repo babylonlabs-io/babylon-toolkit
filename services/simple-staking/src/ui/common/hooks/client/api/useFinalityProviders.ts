@@ -24,7 +24,13 @@ interface Params {
   enabled?: boolean;
 }
 
-export function useFinalityProviders({ pk, sortBy, order, name, enabled }: Params = {}) {
+export function useFinalityProviders({
+  pk,
+  sortBy,
+  order,
+  name,
+  enabled,
+}: Params = {}) {
   const { isOpen, handleError } = useError();
   const logger = useLogger();
 

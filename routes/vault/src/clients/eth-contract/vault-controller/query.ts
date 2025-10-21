@@ -6,6 +6,14 @@ import { executeMulticall } from '../multicall-helpers';
 import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
 
 /**
+ * Depositor structure from contract
+ */
+interface DepositorStruct {
+  ethAddress: Address;
+  btcPubKey: Hex;
+}
+
+/**
  * Vault metadata structure
  */
 export interface VaultMetadata {
@@ -66,8 +74,7 @@ export async function getVaultMetadata(
     });
 
     const [depositor, proxyContract, marketId, vBTCAmount, borrowAmount, active] =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      result as [any, Address, Hex, bigint, bigint, boolean];
+      result as [DepositorStruct, Address, Hex, bigint, bigint, boolean];
 
     return {
       depositor: {
@@ -111,7 +118,7 @@ export async function getVaultMetadataBulk(
     const publicClient = ethClient.getPublicClient();
 
     // Use shared multicall helper
-    type VaultMetadataRaw = [any, Address, Hex, bigint, bigint, boolean];
+    type VaultMetadataRaw = [DepositorStruct, Address, Hex, bigint, bigint, boolean];
     const results = await executeMulticall<VaultMetadataRaw>(
       publicClient,
       contractAddress,

@@ -14,10 +14,9 @@ import {
 import { useMemo, useState, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
 import { useBorrowForm } from "./useBorrowForm";
-import { useMarkets } from "./useMarkets";
+import { useMarketsWithValidation } from "./useMarketsWithValidation";
 import { usdcIcon } from "../../../assets";
-import type { Hex } from "viem";
-import type { MorphoMarket } from "../../../clients/vault-api/types";
+import { type Hex } from "viem";
 import { useAvailableCollaterals } from "./useAvailableCollaterals";
 
 type DialogComponentProps = Parameters<typeof Dialog>[0];
@@ -47,9 +46,10 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
   const [selectedCollateralTxHashes, setSelectedCollateralTxHashes] = useState<Set<Hex>>(new Set());
 
-  // Fetch markets from API
-  const { data: marketsData, isLoading: isLoadingMarkets, error: marketsError } = useMarkets();
+  // Fetch markets from API and validate them on-chain with Morpho SDK
+  const { data: marketsData, isLoading: isLoadingMarkets, error: marketsError } = useMarketsWithValidation();
   const markets = marketsData?.markets || [];
+  const hasInvalidMarkets = marketsData && !marketsData.allValid;
 
   // Fetch available collaterals (status === 2)
   const { availableCollaterals, isLoading: isLoadingCollaterals } = useAvailableCollaterals(connectedAddress);
@@ -209,41 +209,84 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
               </Text>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
-              {markets.map((market: MorphoMarket) => {
-                const isSelected = selectedMarketId === market.id;
-                // Calculate LLTV percentage (lltv has 18 decimals)
-                const lltvPercent = (Number(market.lltv) / 1e18 * 100).toFixed(2);
-                // Format market display: show last 6 chars of addresses for brevity
-                const loanToken = market.loan_token.slice(0, 6) + '...' + market.loan_token.slice(-4);
-                const collateralToken = market.collateral_token.slice(0, 6) + '...' + market.collateral_token.slice(-4);
+            <>
+              {/* Show warning if some markets failed validation */}
+              {hasInvalidMarkets && (
+                <div className="bg-error/10 border-error border rounded-lg p-4">
+                  <Text variant="body2" className="text-error text-sm font-semibold mb-2">
+                    Market Configuration Error
+                  </Text>
+                  <Text variant="body2" className="text-error text-xs">
+                    Some markets from the API don't exist on the Morpho contract. Check console for details.
+                  </Text>
+                  {marketsData?.invalidMarkets.map((market) => (
+                    <Text key={market.id} variant="body2" className="text-error text-xs mt-1">
+                      • Market ID: {market.id.slice(0, 10)}... - {market.validationError}
+                    </Text>
+                  ))}
+                </div>
+              )}
 
-                return (
-                  <div
-                    key={market.id}
-                    className="bg-secondary-highlight flex items-center justify-between rounded-lg p-4"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <Text variant="body1" className="text-accent-primary text-sm font-medium sm:text-base">
-                        Collateral: {collateralToken}
-                      </Text>
-                      <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm">
-                        Loan: {loanToken} • LLTV: {lltvPercent}%
-                      </Text>
-                    </div>
-                    <Button
-                      size="small"
-                      variant={isSelected ? "contained" : "outlined"}
-                      color="primary"
-                      onClick={() => handleToggleMarket(market.id)}
-                      className="min-w-[80px] text-xs sm:text-sm"
+              <div className="flex flex-col gap-3">
+                {markets.map((market) => {
+                  const isSelected = selectedMarketId === market.id;
+                  // Calculate LLTV percentage (lltv has 18 decimals)
+                  const lltvPercent = (Number(market.lltv) / 1e18 * 100).toFixed(2);
+                  // Format market display: show last 6 chars of addresses for brevity
+                  const loanToken = market.loan_token.slice(0, 6) + '...' + market.loan_token.slice(-4);
+                  const collateralToken = market.collateral_token.slice(0, 6) + '...' + market.collateral_token.slice(-4);
+
+                  // Format on-chain data if available
+                  const totalSupply = market.onChainData
+                    ? (Number(market.onChainData.totalSupplyAssets) / 1e6).toFixed(2)
+                    : 'N/A';
+                  const utilization = market.onChainData
+                    ? market.onChainData.utilizationPercent.toFixed(2)
+                    : 'N/A';
+
+                  return (
+                    <div
+                      key={market.id}
+                      className={twMerge(
+                        "bg-secondary-highlight flex flex-col gap-2 rounded-lg p-4",
+                        !market.isValid && "opacity-50 cursor-not-allowed"
+                      )}
                     >
-                      {isSelected ? "Selected" : "Select"}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-1">
+                          <Text variant="body1" className="text-accent-primary text-sm font-medium sm:text-base">
+                            Collateral: {collateralToken}
+                          </Text>
+                          <Text variant="body2" className="text-accent-secondary text-xs sm:text-sm">
+                            Loan: {loanToken} • LLTV: {lltvPercent}%
+                          </Text>
+                          {market.isValid && market.onChainData && (
+                            <Text variant="body2" className="text-accent-secondary text-xs">
+                              Supply: {totalSupply} USDC • Utilization: {utilization}%
+                            </Text>
+                          )}
+                        </div>
+                        <Button
+                          size="small"
+                          variant={isSelected ? "contained" : "outlined"}
+                          color="primary"
+                          onClick={() => handleToggleMarket(market.id)}
+                          className="min-w-[80px] text-xs sm:text-sm"
+                          disabled={!market.isValid}
+                        >
+                          {!market.isValid ? "Invalid" : isSelected ? "Selected" : "Select"}
+                        </Button>
+                      </div>
+                      {!market.isValid && (
+                        <Text variant="body2" className="text-error text-xs">
+                          ⚠️ {market.validationError}
+                        </Text>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 

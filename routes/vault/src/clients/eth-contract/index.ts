@@ -13,9 +13,9 @@ export type { VaultMetadata } from './vault-controller/query';
 export * as BTCVaultsManager from './btc-vaults-manager/query';
 export type { PeginRequest } from './btc-vaults-manager/query';
 
-// Morpho (using official SDK)
+// Morpho (using direct contract calls)
 export * as Morpho from './morpho/query';
-export type { MarketTokenRef, MorphoMarketSummary, MorphoUserPosition } from './morpho/types';
+export type { MorphoMarketSummary, MorphoUserPosition } from './morpho/types';
 
 // Morpho Oracle (for price feeds in Morpho markets)
 export * as MorphoOracle from './oracle/query';

@@ -59,15 +59,17 @@ export function VaultDeposit({
   // Attach action handlers to activities at component level
   // Show "Redeem" action only for Available vaults (status 2)
   const activities = useMemo(() => {
-    return rawActivities.map(activity => {
+    return rawActivities.map((activity) => {
       const isAvailable = activity.contractStatus === 2;
 
       return {
         ...activity,
-        action: isAvailable ? {
-          label: 'Redeem',
-          onClick: () => handlePegOut(activity),
-        } : undefined,
+        action: isAvailable
+          ? {
+              label: 'Redeem',
+              onClick: () => handlePegOut(activity),
+            }
+          : undefined,
       };
     });
   }, [rawActivities, handlePegOut]);
@@ -91,7 +93,8 @@ export function VaultDeposit({
 
   // Get BTC wallet connector and extract provider
   const btcConnector = useChainConnector('BTC');
-  const btcWalletProvider = btcConnector?.connectedWallet?.provider || undefined;
+  const btcWalletProvider =
+    btcConnector?.connectedWallet?.provider || undefined;
 
   // Handle peg-in sign success with storage integration
   const handlePeginSignSuccess = useCallback(
@@ -118,7 +121,7 @@ export function VaultDeposit({
         const peginData = {
           id: idForStorage,
           amount: peginAmount.toString(),
-          providers: selectedProviders.map(p => p.id), // Store only IDs for localStorage
+          providers: selectedProviders.map((p) => p.id), // Store only IDs for localStorage
           ethAddress: connectedAddress,
           btcAddress: effectiveBtcAddress,
           unsignedTxHex: data.unsignedTxHex,
@@ -128,7 +131,7 @@ export function VaultDeposit({
             value: data.utxo.value.toString(),
             scriptPubKey: data.utxo.scriptPubKey,
           },
-          status: 'pending' as const,  // Initial status when creating pegin
+          status: 'pending' as const, // Initial status when creating pegin
         };
         addPendingPegin(peginData);
 

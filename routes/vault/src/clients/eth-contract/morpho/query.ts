@@ -1,55 +1,130 @@
 // Morpho Protocol - Read operations (queries)
 
-import type { Address, Hex } from 'viem';
+import type { Address } from 'viem';
 import { ethClient } from '../client';
-import { toHex } from 'viem';
-import { fetchMarket } from '@morpho-org/blue-sdk-viem';
-import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
-import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
+import { CONTRACTS } from '../../../config/contracts';
+import { normalizeMarketId } from './utils';
+import { ID_TO_MARKET_PARAMS_ABI, MARKET_ABI, POSITION_ABI } from './abis/morpho';
 
 /**
- * Get Morpho market information by ID using the official Morpho SDK
- * Supports both production networks and localhost (via registerCustomAddresses)
- * @param id - Market ID (string or bigint)
- * @returns Market summary with tokens, LLTV, and market data
+ * Get basic market parameters directly from Morpho contract (lightweight, no IRM calls)
+ *
+ * This is a lightweight function that makes a single contract call to fetch only the
+ * 5 core market parameters needed for transactions.
+ *
+ * Use this when:
+ * - Constructing transactions (borrow, repay, etc.)
+ * - You only need market parameters, not market state
+ * - Performance is critical (avoids SDK overhead and IRM calls)
+ *
+ * For UI display with market metrics, use getMarketWithData() instead.
+ *
+ * @param id - Market ID (hex string or bigint)
+ * @returns Market parameters only (loanToken, collateralToken, oracle, irm, lltv)
  */
-export async function getMarketById(
+export async function getBasicMarketParams(
+  id: string | bigint
+): Promise<{
+  loanToken: Address;
+  collateralToken: Address;
+  oracle: Address;
+  irm: Address;
+  lltv: bigint;
+}> {
+  try {
+    const publicClient = ethClient.getPublicClient();
+
+    // Normalize market ID to bytes32 hex format
+    const marketId = normalizeMarketId(id);
+
+    // Call idToMarketParams directly from contract
+    const result = await publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: ID_TO_MARKET_PARAMS_ABI,
+      functionName: 'idToMarketParams',
+      args: [marketId],
+    });
+
+    // Check if market exists (loanToken should not be zero address)
+    if (result.loanToken === '0x0000000000000000000000000000000000000000') {
+      throw new Error(`Market does not exist for ID: ${id}`);
+    }
+
+    // Result is a tuple with market parameters
+    return {
+      loanToken: result.loanToken,
+      collateralToken: result.collateralToken,
+      oracle: result.oracle,
+      irm: result.irm,
+      lltv: result.lltv,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch market params for ID ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Get market data directly from Morpho contract (no IRM calls, no SDK)
+ *
+ * This fetches market information by calling the Morpho contract directly:
+ * - Market parameters (tokens, oracle, IRM, LLTV) via idToMarketParams()
+ * - Market state (total supply/borrow, shares, fees, last update) via market()
+ * - Derived metrics (utilization %, LLTV %)
+ *
+ * Use this when:
+ * - Working with custom IRM contracts that may not implement standard interface
+ * - You want to avoid SDK overhead and IRM calls
+ * - Displaying market information in the UI
+ *
+ * @param id - Market ID (hex string or bigint)
+ * @returns Complete market data including state and metrics
+ */
+export async function getMarketWithData(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  // This is a keccak256 hash of the market parameters struct
-  const marketId: Hex = toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
 
-  // Use Morpho SDK for all networks (including localhost)
-  const market = await fetchMarket(marketId as MarketId, publicClient);
+  // Normalize market ID to bytes32 hex format
+  const marketId = normalizeMarketId(id);
+
+  // Fetch market params and state in parallel (both from Morpho contract only)
+  const [params, state] = await Promise.all([
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: ID_TO_MARKET_PARAMS_ABI,
+      functionName: 'idToMarketParams',
+      args: [marketId],
+    }),
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: MARKET_ABI,
+      functionName: 'market',
+      args: [marketId],
+    }),
+  ]);
+
+  // Check if market exists
+  if (params.loanToken === '0x0000000000000000000000000000000000000000') {
+    throw new Error(`Market does not exist for ID: ${id}`);
+  }
 
   // Calculate derived values
-  const totalSupply = market.totalSupplyAssets;
-  const totalBorrow = market.totalBorrowAssets;
+  const totalSupply = state.totalSupplyAssets;
+  const totalBorrow = state.totalBorrowAssets;
   const utilization = totalSupply > 0n ? Number((totalBorrow * 10000n) / totalSupply) / 100 : 0;
-  const lltvPercent = Number(market.params.lltv) / 1e16;
+  const lltvPercent = Number(params.lltv) / 1e16;
 
   return {
     id: typeof id === 'bigint' ? id.toString() : id,
-    loanToken: {
-      address: market.params.loanToken as Address,
-      symbol: '', // SDK doesn't directly provide token symbols
-    },
-    collateralToken: {
-      address: market.params.collateralToken as Address,
-      symbol: '', // SDK doesn't directly provide token symbols
-    },
-    oracle: market.params.oracle as Address,
-    irm: market.params.irm as Address,
-    lltv: market.params.lltv,
-    totalSupplyAssets: market.totalSupplyAssets,
-    totalSupplyShares: market.totalSupplyShares,
-    totalBorrowAssets: market.totalBorrowAssets,
-    totalBorrowShares: market.totalBorrowShares,
-    lastUpdate: market.lastUpdate,
-    fee: market.fee,
+    loanToken: params.loanToken,
+    collateralToken: params.collateralToken,
+    oracle: params.oracle,
+    lltv: params.lltv,
+    totalSupplyAssets: state.totalSupplyAssets,
+    totalBorrowAssets: state.totalBorrowAssets,
     utilizationPercent: utilization,
     lltvPercent,
   };
@@ -66,23 +141,43 @@ export async function getUserPosition(
   userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
 
-  // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
-  const position = await AccrualPosition.fetch(
-    userProxyContractAddress,
-    marketIdHex as MarketId,
-    publicClient
-  );
+  // Normalize market ID to bytes32 hex format
+  const marketIdHex = normalizeMarketId(marketId);
+
+  // Fetch position and market state in parallel
+  const [positionData, marketState] = await Promise.all([
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: POSITION_ABI,
+      functionName: 'position',
+      args: [marketIdHex, userProxyContractAddress],
+    }),
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: MARKET_ABI,
+      functionName: 'market',
+      args: [marketIdHex],
+    }),
+  ]);
+
+  // Destructure position tuple: [supplyShares, borrowShares, collateral]
+  const [supplyShares, borrowShares, collateral] = positionData;
+
+  // Calculate borrowAssets from shares using market state
+  // Formula: borrowAssets = (borrowShares * totalBorrowAssets) / totalBorrowShares
+  const borrowAssets =
+    marketState.totalBorrowShares > 0n
+      ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+      : 0n;
 
   return {
     marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
     user: userProxyContractAddress,
-    supplyShares: position.supplyShares,
-    borrowShares: position.borrowShares,
-    borrowAssets: position.borrowAssets, // Actual debt including accrued interest
-    collateral: position.collateral,
+    supplyShares,
+    borrowShares,
+    borrowAssets, // Actual debt including accrued interest
+    collateral,
   };
 }
 
@@ -103,25 +198,44 @@ export async function getUserPositionsBulk(
   }
 
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Normalize market ID to bytes32 hex format
+  const marketIdHex = normalizeMarketId(marketId);
+
+  // Fetch market state once (needed for borrowAssets calculation)
+  const marketState = await publicClient.readContract({
+    address: CONTRACTS.MORPHO,
+    abi: MARKET_ABI,
+    functionName: 'market',
+    args: [marketIdHex],
+  });
 
   // Fetch all positions in parallel
   const results = await Promise.allSettled(
     proxyContractAddresses.map(async (proxyAddress) => {
-      const position = await AccrualPosition.fetch(
-        proxyAddress,
-        marketIdHex as MarketId,
-        publicClient
-      );
+      const positionData = await publicClient.readContract({
+        address: CONTRACTS.MORPHO,
+        abi: POSITION_ABI,
+        functionName: 'position',
+        args: [marketIdHex, proxyAddress],
+      });
+
+      // Destructure position tuple: [supplyShares, borrowShares, collateral]
+      const [supplyShares, borrowShares, collateral] = positionData;
+
+      // Calculate borrowAssets from shares using market state
+      const borrowAssets =
+        marketState.totalBorrowShares > 0n
+          ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+          : 0n;
 
       return {
         marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
         user: proxyAddress,
-        supplyShares: position.supplyShares,
-        borrowShares: position.borrowShares,
-        borrowAssets: position.borrowAssets,
-        collateral: position.collateral,
+        supplyShares,
+        borrowShares,
+        borrowAssets,
+        collateral,
       };
     })
   );

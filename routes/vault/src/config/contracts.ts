@@ -12,6 +12,7 @@ const requiredEnvVars = {
   BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
   VAULT_CONTROLLER: process.env.NEXT_PUBLIC_TBV_VAULT_CONTROLLER,
   BTC_VAULT: process.env.NEXT_PUBLIC_TBV_BTC_VAULT,
+  MORPHO: process.env.NEXT_PUBLIC_TBV_MORPHO,
 } as const;
 
 // Check for missing environment variables
@@ -40,4 +41,9 @@ export const CONTRACTS = {
    * BTCVault base contract
    */
   BTC_VAULT: requiredEnvVars.BTC_VAULT as Address,
+
+  /**
+   * Morpho Blue contract - Lending protocol for borrowing against BTC vault collateral
+   */
+  MORPHO: requiredEnvVars.MORPHO as Address,
 } as const;

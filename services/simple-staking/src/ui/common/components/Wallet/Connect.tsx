@@ -97,29 +97,26 @@ export const Connect: React.FC<ConnectProps> = ({
     publicKeyNoCoord,
   } = useBTCWallet();
   const { bech32Address, connected: bbnConnected } = useCosmosWallet();
-  const { address: ethAddress, connected: ethConnected, loading: ethLoading } = useETHWallet();
+  const {
+    address: ethAddress,
+    connected: ethConnected,
+    loading: ethLoading,
+  } = useETHWallet();
 
   // Widget states
   const { selectedWallets } = useWidgetState();
   const { disconnect } = useWalletConnect();
 
-  const {
-    isApiNormal,
-    isGeoBlocked,
-  } = useHealthCheck();
+  const { isApiNormal, isGeoBlocked } = useHealthCheck();
 
   const isConnected = useMemo(() => {
     const result = (() => {
       if (isBabyRoute) {
         return bbnConnected && !isGeoBlocked;
       } else if (isVaultRoute) {
-        return (
-          btcConnected && ethConnected && !isGeoBlocked
-        );
+        return btcConnected && ethConnected && !isGeoBlocked;
       } else {
-        return (
-          btcConnected && bbnConnected && !isGeoBlocked
-        );
+        return btcConnected && bbnConnected && !isGeoBlocked;
       }
     })();
 
@@ -135,7 +132,9 @@ export const Connect: React.FC<ConnectProps> = ({
 
   const isLoading = useMemo(() => {
     // Only disable the button if we're already connected, API is down, or there's an active connection process
-    return isConnected || !isApiNormal || loading || (isVaultRoute && ethLoading);
+    return (
+      isConnected || !isApiNormal || loading || (isVaultRoute && ethLoading)
+    );
   }, [isConnected, isApiNormal, loading, isVaultRoute, ethLoading]);
 
   const transformedWallets = useMemo(() => {
@@ -152,11 +151,11 @@ export const Connect: React.FC<ConnectProps> = ({
     const isEthLoading = isVaultRoute && ethLoading;
     let buttonContent;
     if (isEthLoading) {
-      buttonContent = 'Loading...'
+      buttonContent = "Loading...";
     } else if (isBabyRoute) {
-      buttonContent = 'Connect Wallet'
+      buttonContent = "Connect Wallet";
     } else {
-      buttonContent = 'Connect Wallets'
+      buttonContent = "Connect Wallets";
     }
 
     return (
@@ -169,9 +168,7 @@ export const Connect: React.FC<ConnectProps> = ({
           data-testid="connect-wallets-button"
         >
           <PiWalletBold size={20} className="flex md:hidden" />
-          <span className="hidden md:flex">
-            {buttonContent}
-          </span>
+          <span className="hidden md:flex">{buttonContent}</span>
         </Button>
 
         <SettingMenuWrapper />
@@ -194,7 +191,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                      "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
@@ -206,7 +203,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                      "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
@@ -218,7 +215,7 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                    "outline outline-[2px] outline-accent-primary",
+                      "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}

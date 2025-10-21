@@ -140,17 +140,17 @@ export async function getPeginRequestsWithVaultMetadata(
  *
  * Composite operation that:
  * 1. Fetches all pegin requests with details
- * 2. Fetches Morpho market data and BTC price (once, shared across all pegins)
+ * 2. Fetches complete Morpho market data (with supply/borrow/utilization) and BTC price (once, shared across all pegins)
  * 3. Bulk fetches vault metadata for all pegins in a single multicall
  * 4. Bulk fetches morpho positions for all vaults with metadata
  * 5. Returns pegin data with morpho position (undefined if vault not minted yet)
- *    but always includes market data and BTC price
+ *    but always includes full market data and BTC price
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @param btcVaultsManagerAddress - BTCVaultsManager contract address
  * @param vaultControllerAddress - VaultController contract address
  * @param marketId - Morpho market ID
- * @returns Array of pegin requests with morpho position data
+ * @returns Array of pegin requests with complete morpho market and position data
  */
 export async function getPeginRequestsWithMorpho(
   depositorAddress: Address,
@@ -165,9 +165,11 @@ export async function getPeginRequestsWithMorpho(
     return [];
   }
 
-  // Step 2: Fetch market data and BTC price (independent of vault status)
-  const morphoMarket = await Morpho.getMarketById(marketId);
-  const oraclePrice = await MorphoOracle.getOraclePrice(morphoMarket.oracle);
+  // Step 2: Fetch complete market data with state and BTC price (once, shared across all pegins)
+  const [morphoMarket, oraclePrice] = await Promise.all([
+    Morpho.getMarketWithData(marketId),
+    Morpho.getBasicMarketParams(marketId).then(params => MorphoOracle.getOraclePrice(params.oracle)),
+  ]);
   const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
 
   // Step 3: Bulk fetch vault metadata for all pegins in a single multicall
@@ -206,7 +208,7 @@ export async function getPeginRequestsWithMorpho(
     txHash,
     vaultMetadata: vaultMetadataArray[index],
     morphoPosition: morphoPositionsByIndex.get(index),
-    morphoMarket,
+    morphoMarket, // Use the complete market data fetched from Morpho
     btcPriceUSD,
   }));
 

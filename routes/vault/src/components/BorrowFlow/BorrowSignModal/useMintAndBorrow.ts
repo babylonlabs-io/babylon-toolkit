@@ -8,6 +8,7 @@ import type { Hex } from 'viem';
 import { addCollateralAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
 import type { AddCollateralAndBorrowResult } from '../../../services/vault/vaultTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
+import { processPublicKeyToXOnly } from '../../../utils/btc';
 
 export interface UseMintAndBorrowParams {
   /** Array of pegin transaction hashes (vault IDs) to use as collateral */
@@ -58,13 +59,9 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
           throw new Error('BTC wallet not connected');
         }
 
-        // Get public key from provider
+        // Get public key from provider and convert to x-only format
         const publicKeyHex = await connector.connectedWallet.provider.getPublicKeyHex();
-
-        // Convert to x-only pubkey (remove first byte coordinate, take next 32 bytes)
-        const publicKeyBuffer = Buffer.from(publicKeyHex, 'hex');
-        const publicKeyNoCoord = publicKeyBuffer.subarray(1, 33);
-        const btcPubkey = `0x${publicKeyNoCoord.toString('hex')}` as Hex;
+        const btcPubkey = `0x${processPublicKeyToXOnly(publicKeyHex)}` as Hex;
 
         // Convert market ID from hex string (without 0x) to proper format with 0x prefix
         const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
