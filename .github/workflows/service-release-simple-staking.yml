@@ -10,6 +10,11 @@ on:
       - "simple-staking/*"
   workflow_dispatch:
 
+# For github OIDC authentication to AWS
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   lint_test:
     runs-on: ubuntu-24.04
