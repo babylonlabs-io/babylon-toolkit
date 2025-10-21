@@ -2,6 +2,7 @@ import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { Config } from "wagmi";
 import { createStorage } from "wagmi";
+
 import { setSharedWagmiConfig } from "./sharedConfig";
 
 interface AppKitModalConfig {
