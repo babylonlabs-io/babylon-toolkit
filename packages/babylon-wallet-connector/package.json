@@ -21,7 +21,7 @@
   },
   "scripts": {
     "dev": "npm run storybook",
-    "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build",
     "lint": "eslint --fix .",
     "format": "prettier . --write",
     "preview": "vite preview",
@@ -55,6 +55,8 @@
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
+    "@reown/appkit": "^1.8.10",
+    "@reown/appkit-adapter-wagmi": "1.8.6",
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
     "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
@@ -63,8 +65,10 @@
     "bitcoinjs-lib": "6.1.5",
     "buffer": "6.0.3",
     "nanoevents": "9.1.0",
-    "usehooks-ts": "3.0.2",
-    "uuid": "11.1.0"
+    "usehooks-ts": "^3.1.1",
+    "uuid": "11.1.0",
+    "viem": "^2.38.2",
+    "wagmi": "^2.18.1"
   },
   "files": [
     "dist"

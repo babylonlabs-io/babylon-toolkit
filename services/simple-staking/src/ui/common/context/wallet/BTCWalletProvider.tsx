@@ -100,7 +100,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
   const { handleError } = useError();
   const btcConnector = useChainConnector("BTC");
-  const { open = () => {}, connected } = useWalletConnect();
+  const { open = () => {} } = useWalletConnect();
   const logger = useLogger();
   const { updateUser } = useSentryUser();
   const { screenAddress, clearAddressScreeningResult } =
@@ -295,13 +295,17 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     [btcWalletProvider, logger],
   );
 
+  const actuallyConnected = useMemo(() => {
+    return !loading && !!btcWalletProvider && !!address && !!publicKeyNoCoord;
+  }, [loading, btcWalletProvider, address, publicKeyNoCoord]);
+
   const btcContextValue = useMemo(
     () => ({
       loading,
       network,
       publicKeyNoCoord,
       address,
-      connected,
+      connected: actuallyConnected,
       open,
       disconnect: btcDisconnect,
       failedBtcAddressRiskAssessment,
@@ -309,7 +313,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     }),
     [
       loading,
-      connected,
+      actuallyConnected,
       network,
       publicKeyNoCoord,
       address,
