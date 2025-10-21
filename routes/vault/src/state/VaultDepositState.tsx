@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 import { createStateUtils } from "../utils/createStateUtils";
+import { usePeginStorage, type PendingPegin, PeginStatus } from "./usePeginStorage";
 
 export enum VaultDepositStep {
   IDLE = "idle",
@@ -16,6 +17,9 @@ interface VaultDepositState {
   selectedProviders: string[];
   btcTxid: string;
   ethTxHash: string;
+  pendingPegins: PendingPegin[];
+  addPendingPegin: (pegin: PendingPegin) => void;
+  updatePendingPeginStatus: (txHash: string, status: PeginStatus) => void;
   goToStep: (step: VaultDepositStep) => void;
   setDepositData: (amount: number, providers: string[]) => void;
   setTransactionHashes: (btcTxid: string, ethTxHash: string) => void;
@@ -30,6 +34,9 @@ const { StateProvider, useState: useVaultDepositState } =
     selectedProviders: [],
     btcTxid: "",
     ethTxHash: "",
+    pendingPegins: [],
+    addPendingPegin: () => {},
+    updatePendingPeginStatus: () => {},
     goToStep: () => {},
     setDepositData: () => {},
     setTransactionHashes: () => {},
@@ -43,6 +50,14 @@ export function VaultDepositState({ children }: PropsWithChildren) {
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [processing, setProcessing] = useState(false);
+
+  // Use pegin storage hook for persistent pending deposits
+  // Using a fixed key for now; in production this should be per-user (e.g., based on ETH address)
+  const {
+    pendingPegins,
+    addPendingPegin,
+    updatePendingPeginStatus,
+  } = usePeginStorage('vault_deposits');
 
   const goToStep = useCallback((newStep: VaultDepositStep) => {
     console.log("[VaultDepositState] Navigating to step:", newStep);
@@ -82,6 +97,9 @@ export function VaultDepositState({ children }: PropsWithChildren) {
       selectedProviders,
       btcTxid,
       ethTxHash,
+      pendingPegins,
+      addPendingPegin,
+      updatePendingPeginStatus,
       goToStep,
       setDepositData,
       setTransactionHashes,
@@ -94,6 +112,9 @@ export function VaultDepositState({ children }: PropsWithChildren) {
       selectedProviders,
       btcTxid,
       ethTxHash,
+      pendingPegins,
+      addPendingPegin,
+      updatePendingPeginStatus,
       goToStep,
       setDepositData,
       setTransactionHashes,
