@@ -418,7 +418,7 @@
     "name": "getVaultProvider",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -619,20 +619,7 @@
   },
   {
     "type": "function",
-    "name": "markVaultAsAvailable",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "markVaultAsExpired",
+    "name": "markPeginAsExpired",
     "inputs": [
       {
         "name": "btcTxHash",
@@ -645,10 +632,23 @@
   },
   {
     "type": "function",
+    "name": "markVaultAsAvailable",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "markVaultAsExpiredFromPosition",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -661,7 +661,7 @@
     "name": "markVaultAsInPosition",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -717,7 +717,7 @@
     "name": "releaseVaultFromPosition",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       }

@@ -78,23 +78,6 @@ export const useMarketsWithValidation = () => {
       const invalidMarkets = validatedMarkets.filter(m => !m.isValid);
       const allValid = invalidMarkets.length === 0;
 
-      // Log validation errors for debugging
-      if (!allValid) {
-        console.error('❌ Market validation failed for the following markets:');
-        invalidMarkets.forEach(market => {
-          console.error(`  - Market ID: ${market.id}`);
-          console.error(`    Loan Token: ${market.loan_token}`);
-          console.error(`    Collateral Token: ${market.collateral_token}`);
-          console.error(`    Error: ${market.validationError}`);
-        });
-      } else {
-        console.log('✅ All markets validated successfully on Morpho contract');
-        validatedMarkets.forEach(market => {
-          console.log(`  - Market ID: ${market.id.slice(0, 20)}...`);
-          console.log(`    Total Supply: ${market.onChainData ? Number(market.onChainData.totalSupplyAssets) / 1e6 : 0} USDC`);
-        });
-      }
-
       return {
         markets: validatedMarkets,
         allValid,

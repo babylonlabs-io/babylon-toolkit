@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   VaultLayout as VaultDeposit,
   VaultPositions,
-  initializeMorphoSDK,
 } from "@routes/vault";
 
 import { Container } from "@/ui/common/components/Container/Container";
@@ -86,11 +85,6 @@ function VaultContent() {
  * and handles tab navigation between Deposit and Positions views.
  */
 export default function VaultLayout() {
-  // Initialize Morpho SDK with custom Sepolia addresses on mount
-  useEffect(() => {
-    initializeMorphoSDK();
-  }, []);
-
   return (
     <BTCWalletProvider>
       <SafeETHWalletProvider>

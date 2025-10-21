@@ -62,3 +62,24 @@ export const MARKET_ABI = [
     stateMutability: 'view',
   },
 ] as const;
+
+/**
+ * ABI for position function
+ * Returns a user's position in a specific market (supply shares, borrow shares, collateral)
+ */
+export const POSITION_ABI = [
+  {
+    type: 'function',
+    name: 'position',
+    inputs: [
+      { name: 'id', type: 'bytes32', internalType: 'Id' },
+      { name: 'user', type: 'address', internalType: 'address' },
+    ],
+    outputs: [
+      { name: 'supplyShares', type: 'uint256', internalType: 'uint256' },
+      { name: 'borrowShares', type: 'uint128', internalType: 'uint128' },
+      { name: 'collateral', type: 'uint128', internalType: 'uint128' },
+    ],
+    stateMutability: 'view',
+  },
+] as const;

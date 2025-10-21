@@ -2,12 +2,10 @@
 
 import type { Address } from 'viem';
 import { ethClient } from '../client';
-import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
-import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
-import { getMorphoAddress } from './config';
+import { CONTRACTS } from '../../../config/contracts';
 import { normalizeMarketId } from './utils';
-import { ID_TO_MARKET_PARAMS_ABI, MARKET_ABI } from './abis/morpho';
+import { ID_TO_MARKET_PARAMS_ABI, MARKET_ABI, POSITION_ABI } from './abis/morpho';
 
 /**
  * Get basic market parameters directly from Morpho contract (lightweight, no IRM calls)
@@ -36,14 +34,13 @@ export async function getBasicMarketParams(
 }> {
   try {
     const publicClient = ethClient.getPublicClient();
-    const morphoAddress = getMorphoAddress();
 
     // Normalize market ID to bytes32 hex format
     const marketId = normalizeMarketId(id);
 
     // Call idToMarketParams directly from contract
     const result = await publicClient.readContract({
-      address: morphoAddress,
+      address: CONTRACTS.MORPHO,
       abi: ID_TO_MARKET_PARAMS_ABI,
       functionName: 'idToMarketParams',
       args: [marketId],
@@ -89,7 +86,6 @@ export async function getMarketWithData(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
-  const morphoAddress = getMorphoAddress();
 
   // Normalize market ID to bytes32 hex format
   const marketId = normalizeMarketId(id);
@@ -97,13 +93,13 @@ export async function getMarketWithData(
   // Fetch market params and state in parallel (both from Morpho contract only)
   const [params, state] = await Promise.all([
     publicClient.readContract({
-      address: morphoAddress,
+      address: CONTRACTS.MORPHO,
       abi: ID_TO_MARKET_PARAMS_ABI,
       functionName: 'idToMarketParams',
       args: [marketId],
     }),
     publicClient.readContract({
-      address: morphoAddress,
+      address: CONTRACTS.MORPHO,
       abi: MARKET_ABI,
       functionName: 'market',
       args: [marketId],
@@ -149,20 +145,39 @@ export async function getUserPosition(
   // Normalize market ID to bytes32 hex format
   const marketIdHex = normalizeMarketId(marketId);
 
-  // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
-  const position = await AccrualPosition.fetch(
-    userProxyContractAddress,
-    marketIdHex as MarketId,
-    publicClient
-  );
+  // Fetch position and market state in parallel
+  const [positionData, marketState] = await Promise.all([
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: POSITION_ABI,
+      functionName: 'position',
+      args: [marketIdHex, userProxyContractAddress],
+    }),
+    publicClient.readContract({
+      address: CONTRACTS.MORPHO,
+      abi: MARKET_ABI,
+      functionName: 'market',
+      args: [marketIdHex],
+    }),
+  ]);
+
+  // Destructure position tuple: [supplyShares, borrowShares, collateral]
+  const [supplyShares, borrowShares, collateral] = positionData;
+
+  // Calculate borrowAssets from shares using market state
+  // Formula: borrowAssets = (borrowShares * totalBorrowAssets) / totalBorrowShares
+  const borrowAssets =
+    marketState.totalBorrowShares > 0n
+      ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+      : 0n;
 
   return {
     marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
     user: userProxyContractAddress,
-    supplyShares: position.supplyShares,
-    borrowShares: position.borrowShares,
-    borrowAssets: position.borrowAssets, // Actual debt including accrued interest
-    collateral: position.collateral,
+    supplyShares,
+    borrowShares,
+    borrowAssets, // Actual debt including accrued interest
+    collateral,
   };
 }
 
@@ -187,22 +202,40 @@ export async function getUserPositionsBulk(
   // Normalize market ID to bytes32 hex format
   const marketIdHex = normalizeMarketId(marketId);
 
+  // Fetch market state once (needed for borrowAssets calculation)
+  const marketState = await publicClient.readContract({
+    address: CONTRACTS.MORPHO,
+    abi: MARKET_ABI,
+    functionName: 'market',
+    args: [marketIdHex],
+  });
+
   // Fetch all positions in parallel
   const results = await Promise.allSettled(
     proxyContractAddresses.map(async (proxyAddress) => {
-      const position = await AccrualPosition.fetch(
-        proxyAddress,
-        marketIdHex as MarketId,
-        publicClient
-      );
+      const positionData = await publicClient.readContract({
+        address: CONTRACTS.MORPHO,
+        abi: POSITION_ABI,
+        functionName: 'position',
+        args: [marketIdHex, proxyAddress],
+      });
+
+      // Destructure position tuple: [supplyShares, borrowShares, collateral]
+      const [supplyShares, borrowShares, collateral] = positionData;
+
+      // Calculate borrowAssets from shares using market state
+      const borrowAssets =
+        marketState.totalBorrowShares > 0n
+          ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+          : 0n;
 
       return {
         marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
         user: proxyAddress,
-        supplyShares: position.supplyShares,
-        borrowShares: position.borrowShares,
-        borrowAssets: position.borrowAssets,
-        collateral: position.collateral,
+        supplyShares,
+        borrowShares,
+        borrowAssets,
+        collateral,
       };
     })
   );
