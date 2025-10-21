@@ -29,7 +29,7 @@ const REWARD_GAUGE_KEY_COSTAKER = "COSTAKER";
 export const useBbnQuery = () => {
   const { isGeoBlocked, isLoading: isHealthcheckLoading } = useHealthCheck();
   const { bech32Address, connected } = useCosmosWallet();
-  const { queryClient, rpcClient } = useBbnRpc();
+  const { queryClient, rpcClient, isLoading: isRpcLoading } = useBbnRpc();
   const { hasRpcError, reconnect } = useRpcErrorHandler();
 
   /**
@@ -146,11 +146,16 @@ export const useBbnQuery = () => {
     queryKey: [BBN_BTCLIGHTCLIENT_TIP_KEY],
     queryFn: async () => {
       if (!rpcClient) {
-        return 0;
+        throw new ClientError(
+          ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
+          "Error getting Bitcoin tip height: rpcClient not available",
+        );
       }
       return await rpcClient.btc.getBTCTipHeight();
     },
-    enabled: Boolean(rpcClient && !isGeoBlocked && !isHealthcheckLoading),
+    enabled: Boolean(
+      rpcClient && !isRpcLoading && !isGeoBlocked && !isHealthcheckLoading,
+    ),
     staleTime: ONE_MINUTE,
     refetchInterval: false, // Disable automatic periodic refetching
   });
@@ -163,7 +168,10 @@ export const useBbnQuery = () => {
     queryKey: [BBN_HEIGHT_KEY],
     queryFn: async () => {
       if (!rpcClient) {
-        return 0;
+        throw new ClientError(
+          ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
+          "Error getting Babylon chain height: rpcClient not available",
+        );
       }
       try {
         return await rpcClient.baby.getBlockHeight();
@@ -175,7 +183,7 @@ export const useBbnQuery = () => {
         );
       }
     },
-    enabled: Boolean(rpcClient && connected),
+    enabled: Boolean(rpcClient && !isRpcLoading && connected),
     staleTime: ONE_SECOND * 10,
     refetchInterval: false, // Disable automatic periodic refetching
   });
