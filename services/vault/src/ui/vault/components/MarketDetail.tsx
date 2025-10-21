@@ -12,7 +12,7 @@ export function MarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get('tab') || 'borrow';
-  
+
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showRepayReviewModal, setShowRepayReviewModal] = useState(false);
@@ -24,7 +24,7 @@ export function MarketDetail() {
   const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
   const handleBack = () => {
-    navigate("/vault");
+    navigate("/");
   };
 
   // Hardcoded data
@@ -83,9 +83,9 @@ export function MarketDetail() {
   };
 
   // Calculate LTV for modals
-  const borrowLtv = lastBorrowData.collateral === 0 ? 0 
+  const borrowLtv = lastBorrowData.collateral === 0 ? 0
     : (lastBorrowData.borrow / (lastBorrowData.collateral * btcPrice)) * 100;
-  
+
   const repayLtv = (() => {
     const remainingCollateral = currentCollateralAmount - lastRepayData.withdraw;
     if (remainingCollateral === 0) return 0;
@@ -133,15 +133,15 @@ export function MarketDetail() {
         onConfirm={handleConfirmBorrow}
         collateralAmount={lastBorrowData.collateral}
         collateralSymbol="BTC"
-        collateralUsdValue={`$${(lastBorrowData.collateral * btcPrice).toLocaleString(undefined, { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+        collateralUsdValue={`$${(lastBorrowData.collateral * btcPrice).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
         })} USD`}
         borrowAmount={lastBorrowData.borrow}
         borrowSymbol="USDC"
-        borrowUsdValue={`$${lastBorrowData.borrow.toLocaleString(undefined, { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+        borrowUsdValue={`$${lastBorrowData.borrow.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
         })} USD`}
         borrowApy={6.25}
         ltv={borrowLtv}
@@ -155,15 +155,15 @@ export function MarketDetail() {
         onConfirm={handleConfirmRepay}
         repayAmount={lastRepayData.repay}
         repaySymbol="USDC"
-        repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+        repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
         })} USDC`}
         withdrawAmount={lastRepayData.withdraw}
         withdrawSymbol="BTC"
-        withdrawUsdValue={`$${(lastRepayData.withdraw * btcPrice).toLocaleString(undefined, { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
+        withdrawUsdValue={`$${(lastRepayData.withdraw * btcPrice).toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
         })} USD`}
         ltv={repayLtv}
         liquidationLtv={liquidationLtv}
