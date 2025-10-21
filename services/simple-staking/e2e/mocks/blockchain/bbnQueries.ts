@@ -649,18 +649,6 @@ export const injectBBNQueries = async (
     });
   });
 
-  await page.route("**/log-terms-acceptance", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        data: {
-          status: true,
-        },
-      }),
-    });
-  });
-
   // Intercept LCD bank balance by denom
   await page.route("**/cosmos/bank/v1beta1/balances/**", async (route) => {
     await route.fulfill({

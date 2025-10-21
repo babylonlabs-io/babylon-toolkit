@@ -12,12 +12,4 @@ export const utilityHandlers = [
       }),
     );
   }),
-
-  rest.post("/log-terms-acceptance", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        success: true,
-      }),
-    );
-  }),
 ];
