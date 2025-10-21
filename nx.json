@@ -57,7 +57,7 @@
     }
   ],
   "release": {
-    "projects": ["packages/*"],
+    "projects": ["packages/*", "!packages/babylon-tbv-rust-wasm"],
     "projectsRelationship": "independent",
     "releaseTagPattern": "{projectName}/{version}",
     "changelog": {
