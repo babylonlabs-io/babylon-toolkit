@@ -126,7 +126,7 @@
     "name": "addCollateralToPosition",
     "inputs": [
       {
-        "name": "vaultIds",
+        "name": "pegInTxHashes",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       },
@@ -182,7 +182,7 @@
     "name": "addCollateralToPositionAndBorrow",
     "inputs": [
       {
-        "name": "vaultIds",
+        "name": "pegInTxHashes",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       },
@@ -242,63 +242,6 @@
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "arePeginAssetsMinted",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "minted",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "assetsMinted",
-    "inputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "availableVaultBTCBalance",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -400,7 +343,7 @@
             "internalType": "address"
           },
           {
-            "name": "vaultIds",
+            "name": "pegInTxHashes",
             "type": "bytes32[]",
             "internalType": "bytes32[]"
           },
@@ -488,25 +431,6 @@
   },
   {
     "type": "function",
-    "name": "getUserVaults",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "pegInTxHashes",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "grantRole",
     "inputs": [
       {
@@ -573,85 +497,8 @@
   },
   {
     "type": "function",
-    "name": "inPositionVaultBTC",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isPeginReadyToMint",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "ready",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "liquidate",
     "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "liquidatorData",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "seizedAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "repaidAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "mintAndBorrow",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "depositorBtcPubkey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
       {
         "name": "marketParams",
         "type": "tuple",
@@ -685,16 +532,26 @@
         ]
       },
       {
-        "name": "borrowAmount",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "borrower",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "liquidatorData",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [
       {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "seizedAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "repaidAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -780,7 +637,7 @@
     "name": "redeemBTCVault",
     "inputs": [
       {
-        "name": "vaultId",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -806,19 +663,6 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "repayAndPegout",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -905,7 +749,7 @@
     "name": "submitInclusionProof",
     "inputs": [
       {
-        "name": "vaultId",
+        "name": "pegInTxHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -1047,97 +891,39 @@
   },
   {
     "type": "function",
-    "name": "userVaults",
+    "name": "withdrawCollateralAndRedeemBTCVault",
     "inputs": [
       {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "vaultMetadata",
-    "inputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "depositor",
+        "name": "marketParams",
         "type": "tuple",
-        "internalType": "struct BTCVaultsManager.AddressBTCKeyPair",
+        "internalType": "struct MarketParams",
         "components": [
           {
-            "name": "ethAddress",
+            "name": "loanToken",
             "type": "address",
             "internalType": "address"
           },
           {
-            "name": "btcPubKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
+            "name": "collateralToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "oracle",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "irm",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "lltv",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
-      },
-      {
-        "name": "proxyContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "marketId",
-        "type": "bytes32",
-        "internalType": "Id"
-      },
-      {
-        "name": "vBTCAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "borrowAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "active",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "withdrawCollateralAndRedeemBTCVault",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "redeemerPKs",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
       },
       {
         "name": "repayAmount",
@@ -1342,11 +1128,6 @@
   },
   {
     "type": "error",
-    "name": "PeginAssetsAlreadyMinted",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "ProxyDeploymentFailed",
     "inputs": []
   },
@@ -1358,11 +1139,6 @@
   {
     "type": "error",
     "name": "UnsupportedMarket",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "VaultNotActive",
     "inputs": []
   },
   {
