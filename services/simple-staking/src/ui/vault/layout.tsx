@@ -1,12 +1,22 @@
-import { useState, useMemo } from "react";
-import { VaultLayout as VaultDeposit, VaultPositions } from "@routes/vault";
+import { useState, useMemo, useEffect } from "react";
+import {
+  VaultLayout as VaultDeposit,
+  VaultPositions,
+  initializeMorphoSDK,
+} from "@routes/vault";
 
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
 import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
-import { BTCWalletProvider, useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
-import { SafeETHWalletProvider, useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
+import {
+  BTCWalletProvider,
+  useBTCWallet,
+} from "@/ui/common/context/wallet/BTCWalletProvider";
+import {
+  SafeETHWalletProvider,
+  useETHWallet,
+} from "@/ui/common/context/wallet/ETHWalletProvider";
 
 type TabId = "deposit" | "positions";
 
@@ -16,7 +26,11 @@ type TabId = "deposit" | "positions";
 function VaultContent() {
   const [activeTab, setActiveTab] = useState<TabId>("deposit");
   const { address: ethAddress, connected: ethConnected } = useETHWallet();
-  const { address: btcAddress, publicKeyNoCoord: btcPublicKey, connected: btcConnected } = useBTCWallet();
+  const {
+    address: btcAddress,
+    publicKeyNoCoord: btcPublicKey,
+    connected: btcConnected,
+  } = useBTCWallet();
 
   const tabItems = useMemo(
     () => [
@@ -47,7 +61,7 @@ function VaultContent() {
         ),
       },
     ],
-    [ethAddress, btcAddress, btcPublicKey, ethConnected, btcConnected]
+    [ethAddress, btcAddress, btcPublicKey, ethConnected, btcConnected],
   );
 
   return (
@@ -72,6 +86,11 @@ function VaultContent() {
  * and handles tab navigation between Deposit and Positions views.
  */
 export default function VaultLayout() {
+  // Initialize Morpho SDK with custom Sepolia addresses on mount
+  useEffect(() => {
+    initializeMorphoSDK();
+  }, []);
+
   return (
     <BTCWalletProvider>
       <SafeETHWalletProvider>

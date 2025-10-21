@@ -1,26 +1,124 @@
 // Morpho Protocol - Read operations (queries)
 
-import type { Address, Hex } from 'viem';
+import type { Address } from 'viem';
 import { ethClient } from '../client';
-import { toHex } from 'viem';
 import { fetchMarket } from '@morpho-org/blue-sdk-viem';
 import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
+import { getMorphoAddress } from './config';
+import { normalizeMarketId } from './utils';
+
+// Minimal ABI for idToMarketParams function
+const MORPHO_ID_TO_MARKET_PARAMS_ABI = [
+  {
+    type: 'function',
+    name: 'idToMarketParams',
+    inputs: [{ name: 'id', type: 'bytes32', internalType: 'Id' }],
+    outputs: [
+      {
+        name: '',
+        type: 'tuple',
+        internalType: 'struct MarketParams',
+        components: [
+          { name: 'loanToken', type: 'address', internalType: 'address' },
+          { name: 'collateralToken', type: 'address', internalType: 'address' },
+          { name: 'oracle', type: 'address', internalType: 'address' },
+          { name: 'irm', type: 'address', internalType: 'address' },
+          { name: 'lltv', type: 'uint256', internalType: 'uint256' },
+        ],
+      },
+    ],
+    stateMutability: 'view',
+  },
+] as const;
 
 /**
- * Get Morpho market information by ID using the official Morpho SDK
- * Supports both production networks and localhost (via registerCustomAddresses)
- * @param id - Market ID (string or bigint)
- * @returns Market summary with tokens, LLTV, and market data
+ * Get basic market parameters directly from Morpho contract (lightweight, no IRM calls)
+ *
+ * This is a lightweight function that makes a single contract call to fetch only the
+ * 5 core market parameters needed for transactions.
+ *
+ * Use this when:
+ * - Constructing transactions (borrow, repay, etc.)
+ * - You only need market parameters, not market state
+ * - Performance is critical (avoids SDK overhead and IRM calls)
+ *
+ * For UI display with market metrics, use getMarketWithData() instead.
+ *
+ * @param id - Market ID (hex string or bigint)
+ * @returns Market parameters only (loanToken, collateralToken, oracle, irm, lltv)
  */
-export async function getMarketById(
+export async function getBasicMarketParams(
+  id: string | bigint
+): Promise<{
+  loanToken: Address;
+  collateralToken: Address;
+  oracle: Address;
+  irm: Address;
+  lltv: bigint;
+}> {
+  try {
+    const publicClient = ethClient.getPublicClient();
+    const morphoAddress = getMorphoAddress();
+
+    // Normalize market ID to bytes32 hex format
+    const marketId = normalizeMarketId(id);
+
+    // Call idToMarketParams directly from contract
+    const result = await publicClient.readContract({
+      address: morphoAddress,
+      abi: MORPHO_ID_TO_MARKET_PARAMS_ABI,
+      functionName: 'idToMarketParams',
+      args: [marketId],
+    });
+
+    // Check if market exists (loanToken should not be zero address)
+    if (result.loanToken === '0x0000000000000000000000000000000000000000') {
+      throw new Error(`Market does not exist for ID: ${id}`);
+    }
+
+    // Result is a tuple with market parameters
+    return {
+      loanToken: result.loanToken,
+      collateralToken: result.collateralToken,
+      oracle: result.oracle,
+      irm: result.irm,
+      lltv: result.lltv,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch market params for ID ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+/**
+ * Get comprehensive market data using Morpho SDK (includes market state and metrics)
+ *
+ * This fetches full market information including:
+ * - Market parameters (tokens, oracle, IRM, LLTV)
+ * - Market state (total supply/borrow, shares, fees, last update)
+ * - Derived metrics (utilization %, LLTV %)
+ *
+ * Use this when:
+ * - Displaying market information in the UI
+ * - You need market state and analytics
+ * - You need utilization rates or supply/borrow totals
+ *
+ * Note: This makes multiple contract calls including the IRM contract.
+ * For transaction construction, use getBasicMarketParams() instead.
+ *
+ * @param id - Market ID (hex string or bigint)
+ * @returns Complete market data including state and metrics
+ */
+export async function getMarketWithData(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  // This is a keccak256 hash of the market parameters struct
-  const marketId: Hex = toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
+
+  // Normalize market ID to bytes32 hex format
+  const marketId = normalizeMarketId(id);
 
   // Use Morpho SDK for all networks (including localhost)
   const market = await fetchMarket(marketId as MarketId, publicClient);
@@ -66,8 +164,9 @@ export async function getUserPosition(
   userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Normalize market ID to bytes32 hex format
+  const marketIdHex = normalizeMarketId(marketId);
 
   // Fetch position using AccrualPosition to get borrowAssets (actual debt with interest)
   const position = await AccrualPosition.fetch(
@@ -103,8 +202,9 @@ export async function getUserPositionsBulk(
   }
 
   const publicClient = ethClient.getPublicClient();
-  // Morpho uses bytes32 (32 bytes = 256 bits) for market IDs
-  const marketIdHex: Hex = toHex(typeof marketId === 'bigint' ? marketId : BigInt(marketId), { size: 32 });
+
+  // Normalize market ID to bytes32 hex format
+  const marketIdHex = normalizeMarketId(marketId);
 
   // Fetch all positions in parallel
   const results = await Promise.allSettled(

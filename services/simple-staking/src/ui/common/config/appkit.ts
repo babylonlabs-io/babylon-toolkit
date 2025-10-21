@@ -9,7 +9,10 @@ const { modal, wagmiConfig } = initializeAppKitModal({
   metadata: {
     name: "Babylon Staking",
     description: "Babylon Staking - Secure Bitcoin Staking Platform",
-    url: typeof window !== "undefined" ? window.location.origin : "https://btcstaking.babylonlabs.io",
+    url:
+      typeof window !== "undefined"
+        ? window.location.origin
+        : "https://btcstaking.babylonlabs.io",
     icons: ["https://btcstaking.babylonlabs.io/favicon.ico"],
   },
   networks: [mainnet, sepolia],

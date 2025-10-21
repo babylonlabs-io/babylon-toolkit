@@ -30,10 +30,7 @@ export const AppKitConnectButton = ({ onError }: AppKitConnectButtonProps) => {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-4">
-            <AppKitButton
-              balance="show"
-              size="md"
-            />
+            <AppKitButton balance="show" size="md" />
 
             <Text className="text-center font-mono text-sm text-gray-600">
               {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}

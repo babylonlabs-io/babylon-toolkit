@@ -59,17 +59,8 @@ export async function addCollateralAndBorrowWithMarketId(
   marketId: string | bigint,
   borrowAmount: bigint,
 ): Promise<AddCollateralAndBorrowResult> {
-  // Step 1: Fetch market parameters from Morpho
-  const market = await Morpho.getMarketById(marketId);
-
-  // Step 2: Construct market params from fetched data
-  const marketParams: MarketParams = {
-    loanToken: market.loanToken.address,
-    collateralToken: market.collateralToken.address,
-    oracle: market.oracle,
-    irm: market.irm,
-    lltv: market.lltv,
-  };
+  // Step 1: Fetch market parameters from Morpho contract
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   // Step 3: Execute transaction with multiple vault IDs
   const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
@@ -173,9 +164,9 @@ export async function approveLoanTokenForRepay(
   repayAmountWei: bigint,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  // Step 1: Fetch loan token address from Morpho market
-  const market = await Morpho.getMarketById(marketId);
-  const loanTokenAddress = market.loanToken.address;
+  // Step 1: Fetch loan token address from Morpho market params
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  const loanTokenAddress = marketParams.loanToken;
 
   // Step 2: Approve loan token spending
   // Add small 0.1% buffer to account for interest accrual between approval and repay execution

@@ -42,13 +42,13 @@ export interface VaultWithDetails {
  * 1. Fetches vault metadata from BTCVaultController
  * 2. Extracts proxy contract address
  * 3. Fetches user's Morpho position using proxy address
- * 4. Fetches Morpho market data (including oracle address)
+ * 4. Fetches complete Morpho market data (with supply/borrow/utilization)
  * 5. Fetches BTC price from oracle
  *
  * @param txHash - Vault transaction hash
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param marketId - Morpho market ID
- * @returns Complete vault position with Morpho data, market data, and BTC price
+ * @returns Complete vault position with Morpho position, full market data, and BTC price
  */
 export async function getVaultPositionWithMorpho(
   txHash: Hex,
@@ -58,14 +58,13 @@ export async function getVaultPositionWithMorpho(
   // Step 1: Fetch vault metadata
   const metadata = await VaultController.getVaultMetadata(vaultControllerAddress, txHash);
 
-  // Step 2: Fetch Morpho position and market data in parallel
-  const [morphoPosition, marketData] = await Promise.all([
+  // Step 2: Fetch Morpho position, complete market data, and BTC price in parallel
+  const [morphoPosition, marketData, oraclePrice] = await Promise.all([
     Morpho.getUserPosition(marketId, metadata.proxyContract),
-    Morpho.getMarketById(marketId),
+    Morpho.getMarketWithData(marketId),
+    Morpho.getBasicMarketParams(marketId).then(params => MorphoOracle.getOraclePrice(params.oracle)),
   ]);
 
-  // Step 3: Fetch BTC price from oracle
-  const oraclePrice = await MorphoOracle.getOraclePrice(marketData.oracle);
   const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
 
   return {
@@ -122,13 +121,12 @@ export async function getUserVaultsWithDetails(
  * Get all user vault positions with Morpho data
  *
  * Optimized to minimize API calls by:
- * 1. Deduplicating market ID fetches (many vaults may share the same market)
- * 2. Deduplicating oracle price fetches (markets may share the same oracle)
- * 3. Bulk fetching user positions grouped by market ID (optimized)
+ * 1. Deduplicating market data and oracle price fetches (many vaults may share the same market)
+ * 2. Bulk fetching user positions grouped by market ID
  *
  * @param userAddress - User's Ethereum address
  * @param vaultControllerAddress - BTCVaultController contract address
- * @returns Array of vault positions with Morpho data, market data, and BTC price
+ * @returns Array of vault positions with Morpho position, full market data, and BTC price
  */
 export async function getUserVaultPositionsWithMorpho(
   userAddress: Address,
@@ -143,28 +141,25 @@ export async function getUserVaultPositionsWithMorpho(
   }
 
   // Step 1: Deduplicate and fetch unique markets
-  // Extract unique market IDs
   const uniqueMarketIds = [...new Set(vaults.map(v => v.metadata.marketId.toString()))];
 
-  // Fetch all unique markets in parallel
-  const marketDataMap = new Map<string, MorphoMarketSummary>();
+  // Fetch all unique market data in parallel
   const marketDataArray = await Promise.all(
-    uniqueMarketIds.map(marketId => Morpho.getMarketById(marketId))
+    uniqueMarketIds.map(marketId => Morpho.getMarketWithData(marketId))
   );
 
   // Build market ID -> market data map
+  const marketDataMap = new Map<string, MorphoMarketSummary>();
   uniqueMarketIds.forEach((marketId, index) => {
     marketDataMap.set(marketId, marketDataArray[index]);
   });
 
-  // Step 2: Deduplicate and fetch unique oracle prices
-  // Extract unique oracle addresses
+  // Step 2: Deduplicate and fetch unique oracle prices (multiple markets may share same oracle)
   const uniqueOracleAddresses = [...new Set(
     Array.from(marketDataMap.values()).map(m => m.oracle.toLowerCase())
   )];
 
   // Fetch all unique oracle prices in parallel
-  const oraclePriceMap = new Map<string, number>();
   const oraclePricesArray = await Promise.all(
     uniqueOracleAddresses.map(async (oracleAddress) => {
       const price = await MorphoOracle.getOraclePrice(oracleAddress as Address);
@@ -172,7 +167,8 @@ export async function getUserVaultPositionsWithMorpho(
     })
   );
 
-  // Build oracle address -> USD price map
+  // Build oracle address -> BTC price map
+  const oraclePriceMap = new Map<string, number>();
   uniqueOracleAddresses.forEach((oracleAddress, index) => {
     oraclePriceMap.set(oracleAddress.toLowerCase(), oraclePricesArray[index]);
   });

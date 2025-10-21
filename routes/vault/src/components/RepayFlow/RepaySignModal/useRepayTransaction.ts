@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Hex } from 'viem';
 import { approveLoanTokenForRepay, withdrawCollateralAndRedeemBTCVault } from '../../../services/vault/vaultTransactionService';
-import { Morpho, type MarketParams } from '../../../clients/eth-contract';
+import { Morpho } from '../../../clients/eth-contract';
 import { CONTRACTS } from '../../../config/contracts';
 
 interface UseRepayTransactionParams {
@@ -70,15 +70,8 @@ export function useRepayTransaction({
         marketId
       );
 
-      // Step 2: Fetch market parameters
-      const market = await Morpho.getMarketById(marketId);
-      const marketParams: MarketParams = {
-        loanToken: market.loanToken.address,
-        collateralToken: market.collateralToken.address,
-        oracle: market.oracle,
-        irm: market.irm,
-        lltv: market.lltv,
-      };
+      // Step 2: Fetch market parameters for transaction
+      const marketParams = await Morpho.getBasicMarketParams(marketId);
 
       // Step 3: Withdraw collateral and redeem BTC vault
       setCurrentStep(2);
