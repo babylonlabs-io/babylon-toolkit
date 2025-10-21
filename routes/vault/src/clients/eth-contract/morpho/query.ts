@@ -2,36 +2,12 @@
 
 import type { Address } from 'viem';
 import { ethClient } from '../client';
-import { fetchMarket } from '@morpho-org/blue-sdk-viem';
 import { AccrualPosition } from '@morpho-org/blue-sdk-viem/lib/augment/Position';
 import type { MarketId } from '@morpho-org/blue-sdk';
 import type { MorphoMarketSummary, MorphoUserPosition } from './types';
 import { getMorphoAddress } from './config';
 import { normalizeMarketId } from './utils';
-
-// Minimal ABI for idToMarketParams function
-const MORPHO_ID_TO_MARKET_PARAMS_ABI = [
-  {
-    type: 'function',
-    name: 'idToMarketParams',
-    inputs: [{ name: 'id', type: 'bytes32', internalType: 'Id' }],
-    outputs: [
-      {
-        name: '',
-        type: 'tuple',
-        internalType: 'struct MarketParams',
-        components: [
-          { name: 'loanToken', type: 'address', internalType: 'address' },
-          { name: 'collateralToken', type: 'address', internalType: 'address' },
-          { name: 'oracle', type: 'address', internalType: 'address' },
-          { name: 'irm', type: 'address', internalType: 'address' },
-          { name: 'lltv', type: 'uint256', internalType: 'uint256' },
-        ],
-      },
-    ],
-    stateMutability: 'view',
-  },
-] as const;
+import { ID_TO_MARKET_PARAMS_ABI, MARKET_ABI } from './abis/morpho';
 
 /**
  * Get basic market parameters directly from Morpho contract (lightweight, no IRM calls)
@@ -68,7 +44,7 @@ export async function getBasicMarketParams(
     // Call idToMarketParams directly from contract
     const result = await publicClient.readContract({
       address: morphoAddress,
-      abi: MORPHO_ID_TO_MARKET_PARAMS_ABI,
+      abi: ID_TO_MARKET_PARAMS_ABI,
       functionName: 'idToMarketParams',
       args: [marketId],
     });
@@ -94,20 +70,17 @@ export async function getBasicMarketParams(
 }
 
 /**
- * Get comprehensive market data using Morpho SDK (includes market state and metrics)
+ * Get market data directly from Morpho contract (no IRM calls, no SDK)
  *
- * This fetches full market information including:
- * - Market parameters (tokens, oracle, IRM, LLTV)
- * - Market state (total supply/borrow, shares, fees, last update)
+ * This fetches market information by calling the Morpho contract directly:
+ * - Market parameters (tokens, oracle, IRM, LLTV) via idToMarketParams()
+ * - Market state (total supply/borrow, shares, fees, last update) via market()
  * - Derived metrics (utilization %, LLTV %)
  *
  * Use this when:
+ * - Working with custom IRM contracts that may not implement standard interface
+ * - You want to avoid SDK overhead and IRM calls
  * - Displaying market information in the UI
- * - You need market state and analytics
- * - You need utilization rates or supply/borrow totals
- *
- * Note: This makes multiple contract calls including the IRM contract.
- * For transaction construction, use getBasicMarketParams() instead.
  *
  * @param id - Market ID (hex string or bigint)
  * @returns Complete market data including state and metrics
@@ -116,38 +89,46 @@ export async function getMarketWithData(
   id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
+  const morphoAddress = getMorphoAddress();
 
   // Normalize market ID to bytes32 hex format
   const marketId = normalizeMarketId(id);
 
-  // Use Morpho SDK for all networks (including localhost)
-  const market = await fetchMarket(marketId as MarketId, publicClient);
+  // Fetch market params and state in parallel (both from Morpho contract only)
+  const [params, state] = await Promise.all([
+    publicClient.readContract({
+      address: morphoAddress,
+      abi: ID_TO_MARKET_PARAMS_ABI,
+      functionName: 'idToMarketParams',
+      args: [marketId],
+    }),
+    publicClient.readContract({
+      address: morphoAddress,
+      abi: MARKET_ABI,
+      functionName: 'market',
+      args: [marketId],
+    }),
+  ]);
+
+  // Check if market exists
+  if (params.loanToken === '0x0000000000000000000000000000000000000000') {
+    throw new Error(`Market does not exist for ID: ${id}`);
+  }
 
   // Calculate derived values
-  const totalSupply = market.totalSupplyAssets;
-  const totalBorrow = market.totalBorrowAssets;
+  const totalSupply = state.totalSupplyAssets;
+  const totalBorrow = state.totalBorrowAssets;
   const utilization = totalSupply > 0n ? Number((totalBorrow * 10000n) / totalSupply) / 100 : 0;
-  const lltvPercent = Number(market.params.lltv) / 1e16;
+  const lltvPercent = Number(params.lltv) / 1e16;
 
   return {
     id: typeof id === 'bigint' ? id.toString() : id,
-    loanToken: {
-      address: market.params.loanToken as Address,
-      symbol: '', // SDK doesn't directly provide token symbols
-    },
-    collateralToken: {
-      address: market.params.collateralToken as Address,
-      symbol: '', // SDK doesn't directly provide token symbols
-    },
-    oracle: market.params.oracle as Address,
-    irm: market.params.irm as Address,
-    lltv: market.params.lltv,
-    totalSupplyAssets: market.totalSupplyAssets,
-    totalSupplyShares: market.totalSupplyShares,
-    totalBorrowAssets: market.totalBorrowAssets,
-    totalBorrowShares: market.totalBorrowShares,
-    lastUpdate: market.lastUpdate,
-    fee: market.fee,
+    loanToken: params.loanToken,
+    collateralToken: params.collateralToken,
+    oracle: params.oracle,
+    lltv: params.lltv,
+    totalSupplyAssets: state.totalSupplyAssets,
+    totalBorrowAssets: state.totalBorrowAssets,
     utilizationPercent: utilization,
     lltvPercent,
   };

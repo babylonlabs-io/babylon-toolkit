@@ -15,7 +15,8 @@ import type { Address } from 'viem';
  * Morpho Blue protocol contract addresses on Sepolia
  *
  * Custom Morpho deployment for Babylon vault system on Sepolia.
- * TODO: TO BE UPDATED
+ * The below address are custom addresses for the Babylon vault system on Sepolia.
+ * They are not the official Morpho Blue deployment on Sepolia.
  */
 const MORPHO_BLUE_ADDRESS_SEPOLIA = '0x1b832639E0b87bEf28755F5086831deE9671313f' as Address;
 const ADAPTIVE_CURVE_IRM_SEPOLIA = '0xB419D4009bfA6E41CE40b237f2861e83643D7Bae' as Address;

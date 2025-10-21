@@ -1,24 +1,23 @@
 import type { Address } from 'viem';
 
-export type MarketTokenRef = {
-  address: Address;
-  symbol: string;
-};
-
 export type MorphoMarketSummary = {
+  /** Market ID */
   id: string;
-  loanToken: MarketTokenRef;
-  collateralToken: MarketTokenRef;
+  /** Loan token address (USDC) */
+  loanToken: Address;
+  /** Collateral token address (BTC Vault) */
+  collateralToken: Address;
+  /** Oracle address for price feed */
   oracle: Address;
-  irm: Address;
+  /** Liquidation Loan-to-Value ratio (raw value with 18 decimals) */
   lltv: bigint;
+  /** Total assets supplied to the market */
   totalSupplyAssets: bigint;
-  totalSupplyShares: bigint;
+  /** Total assets borrowed from the market */
   totalBorrowAssets: bigint;
-  totalBorrowShares: bigint;
-  lastUpdate: bigint;
-  fee: bigint;
+  /** Utilization percentage (calculated: totalBorrow / totalSupply * 100) */
   utilizationPercent: number;
+  /** LLTV as percentage (calculated: lltv / 1e16) */
   lltvPercent: number;
 };
 
