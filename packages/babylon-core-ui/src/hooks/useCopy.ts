@@ -43,7 +43,7 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
     [timeout, reset],
   );
 
-  
+
 
   const isCopied = useCallback(
     (id: string) => {

@@ -4,7 +4,6 @@ import {
   type Reward,
   useRewardService,
 } from "@/ui/baby/hooks/services/useRewardService";
-import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 
@@ -37,7 +36,6 @@ function RewardState({ children }: PropsWithChildren) {
 
   const { loading, rewards, totalReward, claimAllRewards, refetchRewards } =
     useRewardService();
-  const { handleError } = useError();
   const logger = useLogger();
 
   const openClaimModal = useCallback(() => {
@@ -62,12 +60,12 @@ function RewardState({ children }: PropsWithChildren) {
       setShowClaimModal(false);
       return result;
     } catch (error: any) {
-      handleError({ error });
       logger.error(error);
+      throw error; // Re-throw to be handled by the caller
     } finally {
       setProcessing(false);
     }
-  }, [logger, handleError, claimAllRewards]);
+  }, [logger, claimAllRewards]);
 
   const context = useMemo(
     () => ({

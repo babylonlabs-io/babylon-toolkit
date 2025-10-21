@@ -2,8 +2,6 @@ import { Text, Copy, CopyIcon } from "@babylonlabs-io/core-ui";
 
 import { BABYLON_EXPLORER } from "@/ui/common/constants";
 import { trim } from "@/ui/common/utils/trim";
-import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
-import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 
 import type { ClaimResult } from "./ClaimStatusModal";
 
@@ -28,6 +26,16 @@ function Row({
 }) {
   const success = Boolean(result?.success && result.txHash);
   const tx = result?.txHash ?? "";
+
+  // Show "Request rejected" for user rejections, "Failed" for all other errors
+  const isRejectedByUser = result?.errorMessage
+    ?.toLowerCase()
+    .includes("request rejected");
+  const displayText = isRejectedByUser ? "Request rejected" : "Failed";
+
+  const showErrorMessageCopyButton = Boolean(
+    !isRejectedByUser && result?.errorMessage,
+  );
 
   return (
     <div className="flex items-center justify-between">
@@ -54,9 +62,14 @@ function Row({
             <CopyButton value={tx} />
           </>
         ) : (
-          <Text variant="body2" className="text-accent-secondary">
-            Failed
-          </Text>
+          <>
+            <Text variant="body2" className="text-accent-secondary">
+              {displayText}
+            </Text>
+            {showErrorMessageCopyButton && (
+              <CopyButton value={result?.errorMessage ?? ""} />
+            )}
+          </>
         )}
       </div>
     </div>
@@ -64,16 +77,17 @@ function Row({
 }
 
 export function ClaimResultsContent({ results }: { results?: ClaimResult[] }) {
-  const { coinSymbol: bbnCoinSymbol } = getNetworkConfigBBN();
-  const { coinSymbol: btcCoinSymbol } = getNetworkConfigBTC();
-
-  const btc = results?.find((r) => r.kind === "btc");
-  const baby = results?.find((r) => r.kind === "baby");
+  if (!results || results.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-3">
-      <Row title={`${btcCoinSymbol} Staking Transaction`} result={btc} />
-      <Row title={`${bbnCoinSymbol} Staking Transaction`} result={baby} />
+      {results.map((result) => (
+        <Row
+          key={`${result.kind}-${result.label}`}
+          title={result.label}
+          result={result}
+        />
+      ))}
     </div>
   );
 }
