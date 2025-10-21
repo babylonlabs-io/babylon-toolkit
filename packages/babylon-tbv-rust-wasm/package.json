@@ -1,6 +1,6 @@
 {
   "name": "@babylonlabs-io/babylon-tbv-rust-wasm",
-  "version": "0.0.0-semantic-release",
+  "version": "0.0.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
