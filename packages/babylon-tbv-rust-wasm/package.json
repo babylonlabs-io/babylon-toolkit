@@ -1,6 +1,7 @@
 {
   "name": "@babylonlabs-io/babylon-tbv-rust-wasm",
   "version": "0.0.0-semantic-release",
+  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -25,8 +26,5 @@
     "@internal/eslint-config": "workspace:*",
     "shelljs": "^0.8.5",
     "typescript": "^5.8.3"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }
