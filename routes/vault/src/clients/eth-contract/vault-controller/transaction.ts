@@ -81,6 +81,72 @@ export async function submitPeginRequest(
 }
 
 /**
+ * Add collateral to position (without borrowing)
+ *
+ * This function supports multi-vault collateral:
+ * - Use multiple vault IDs to combine collateral from several deposits
+ * - All vaults must belong to the same depositor
+ * - First call creates the position, subsequent calls add to it
+ * - No borrowing occurs, only deposits collateral
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
+ * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
+ * @param marketParams - Morpho market parameters
+ * @returns Transaction hash, receipt, and position ID
+ */
+export async function addCollateralToPosition(
+  contractAddress: Address,
+  vaultIds: Hex[],
+  depositorBtcPubkey: Hex,
+  marketParams: MarketParams,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; positionId: Hex }> {
+  const publicClient = ethClient.getPublicClient();
+  const wagmiConfig = getSharedWagmiConfig();
+
+  try {
+    // Get wallet client from wagmi (viem-compatible)
+    const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'addCollateralToPosition',
+      args: [vaultIds, depositorBtcPubkey, marketParams],
+      chain,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    // Extract positionId from transaction logs/events if needed
+    // For now, we can calculate it from the market params
+    const positionId = '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex; // TODO: Extract from event
+
+    return {
+      transactionHash: hash,
+      receipt,
+      positionId,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to add collateral to position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
+/**
  * Add collateral and borrow (or increase borrow) on existing position
  *
  * This function supports multi-vault collateral:

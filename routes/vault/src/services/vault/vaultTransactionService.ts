@@ -11,6 +11,20 @@ import type { MarketParams } from '../../clients/eth-contract';
 import * as btcTransactionService from '../../transactions/btc/peginBuilder';
 
 /**
+ * Result of adding collateral to position
+ */
+export interface AddCollateralResult {
+  /** Transaction hash */
+  transactionHash: Hash;
+  /** Transaction receipt */
+  receipt: TransactionReceipt;
+  /** Market parameters used */
+  marketParams: MarketParams;
+  /** Position ID */
+  positionId: Hex;
+}
+
+/**
  * Result of adding collateral to position and borrowing
  */
 export interface AddCollateralAndBorrowResult {
@@ -30,6 +44,51 @@ export interface PeginUTXOParams {
   fundingVout: number;
   fundingValue: bigint;
   fundingScriptPubkey: string;
+}
+
+/**
+ * Add collateral to position (without borrowing)
+ *
+ * This composite operation:
+ * 1. Fetches Morpho market parameters by market ID
+ * 2. Executes addCollateralToPosition transaction with multiple vault IDs
+ * 3. Creates a new position if one doesn't exist, or adds to existing position
+ *
+ * Supports multi-vault collateral:
+ * - Use multiple vault IDs to combine collateral from several deposits
+ * - All vaults must belong to the same depositor
+ * - First call creates the position, subsequent calls expand it
+ * - No borrowing occurs
+ *
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
+ * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
+ * @param marketId - Morpho market ID
+ * @returns Transaction result with market parameters and position ID
+ */
+export async function addCollateralWithMarketId(
+  vaultControllerAddress: Address,
+  pegInTxHashes: Hex[],
+  depositorBtcPubkey: Hex,
+  marketId: string | bigint,
+): Promise<AddCollateralResult> {
+  // Step 1: Fetch market parameters from Morpho contract
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+
+  // Step 2: Execute transaction with multiple vault IDs
+  const { transactionHash, receipt, positionId } = await VaultControllerTx.addCollateralToPosition(
+    vaultControllerAddress,
+    pegInTxHashes,
+    depositorBtcPubkey,
+    marketParams,
+  );
+
+  return {
+    transactionHash,
+    receipt,
+    marketParams,
+    positionId,
+  };
 }
 
 /**
