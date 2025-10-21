@@ -7,7 +7,7 @@ on:
       - "release/v1.x"
       - "chore-push-to-new-aws-account"
     tags:
-      - "simple-staking/*"
+      - "vault/*"
   workflow_dispatch:
 
 # For github OIDC authentication to AWS
