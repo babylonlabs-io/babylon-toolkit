@@ -6,9 +6,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
-import { getPeginRequestsWithVaultMetadata } from '../services/pegin/peginService';
+import { getPeginRequestsWithDetails } from '../services/pegin/peginService';
 import { transformPeginToActivity } from '../utils/peginTransformers';
-import type { VaultActivity } from '../mockData/vaultActivities';
+import type { VaultActivity } from '../types';
 import { CONTRACTS } from '../config/contracts';
 
 /**
@@ -36,9 +36,9 @@ export interface UsePeginRequestsParams {
 /**
  * Custom hook to fetch pegin requests for a connected wallet address
  *
- * Fetches pegin/deposit data with vault metadata to show "in use" status.
+ * Fetches pegin/deposit data. The "in use" status is determined from the pegin status itself (status 3 = InPosition).
  * Does NOT fetch full Morpho position details (for performance).
- * For full Morpho position data, use useVaultPositionsMorpho instead.
+ * For full position data with Morpho details, use useUserPositions instead.
  *
  * @param params - Hook parameters
  * @returns Object containing activities array, loading state, error state, and refetch function
@@ -52,13 +52,11 @@ export function usePeginRequests({
       'peginRequests',
       connectedAddress,
       CONTRACTS.BTC_VAULTS_MANAGER,
-      CONTRACTS.VAULT_CONTROLLER,
     ],
     queryFn: () => {
-      return getPeginRequestsWithVaultMetadata(
+      return getPeginRequestsWithDetails(
         connectedAddress!,
         CONTRACTS.BTC_VAULTS_MANAGER,
-        CONTRACTS.VAULT_CONTROLLER,
       );
     },
     enabled: !!connectedAddress,
@@ -79,8 +77,8 @@ export function usePeginRequests({
   const activities = useMemo(() => {
     if (!data) return [];
 
-    const transformed = data.map(({ peginRequest, txHash, vaultMetadata }) =>
-      transformPeginToActivity(peginRequest, txHash, vaultMetadata),
+    const transformed = data.map(({ peginRequest, txHash }) =>
+      transformPeginToActivity(peginRequest, txHash),
     );
     return transformed;
   }, [data]);

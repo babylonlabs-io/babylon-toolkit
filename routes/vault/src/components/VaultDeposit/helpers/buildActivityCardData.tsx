@@ -19,7 +19,7 @@ import {
   ContractStatus,
   type PeginState,
 } from '../../../models/peginStateMachine';
-import type { VaultActivity } from '../../../mockData/vaultActivities';
+import type { VaultActivity } from '../../../types';
 
 export interface ActionHandlers {
   handleSign: () => void;
@@ -46,26 +46,17 @@ export interface BuildCardDataParams {
 /**
  * Build status detail with StatusBadge
  * Note: Display status comes from peginStateMachine.ts (single source of truth)
+ * The state machine handles all 5 contract statuses including IN_POSITION (status 3)
  */
 function buildStatusDetail(
-  activity: VaultActivity,
   peginState: PeginState,
 ): ActivityCardDetailItem {
-  // If vault is in use (vaultMetadata.active=true), override with "In Position"
-  // This is UI-specific override, not core state logic
-  const displayLabel = activity.vaultMetadata?.active
-    ? 'In Position'
-    : peginState.displayLabel;
-  const displayVariant = activity.vaultMetadata?.active
-    ? 'active'
-    : peginState.displayVariant;
-
   return {
     label: 'Status',
     value: (
       <StatusBadge
-        status={displayVariant as 'active' | 'inactive' | 'pending'}
-        label={displayLabel}
+        status={peginState.displayVariant as 'active' | 'inactive' | 'pending'}
+        label={peginState.displayLabel}
       />
     ),
   };
@@ -112,7 +103,7 @@ function buildDetails(
   activity: VaultActivity,
   peginState: PeginState,
 ): ActivityCardDetailItem[] {
-  const statusDetail = buildStatusDetail(activity, peginState);
+  const statusDetail = buildStatusDetail(peginState);
   const providersDetail = buildProvidersDetail(activity.providers);
   const txHashDetail = buildTxHashDetail(activity.txHash);
 

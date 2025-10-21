@@ -109,6 +109,32 @@ export async function getPeginRequest(
 }
 
 /**
+ * Get vault provider's BTC public key
+ * @param contractAddress - BTCVaultsManager contract address
+ * @param vaultProviderAddress - Vault provider's Ethereum address
+ * @returns Vault provider's BTC public key (32 bytes, x-only format)
+ */
+export async function getProviderBTCKey(
+  contractAddress: Address,
+  vaultProviderAddress: Address,
+): Promise<Hex> {
+  try {
+    const publicClient = ethClient.getPublicClient();
+    const result = await publicClient.readContract({
+      address: contractAddress,
+      abi: BTCVaultsManagerABI,
+      functionName: 'providerBTCKeys',
+      args: [vaultProviderAddress],
+    });
+    return result as Hex;
+  } catch (error) {
+    throw new Error(
+      `Failed to get provider BTC key: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
+/**
  * Bulk get pegin requests for multiple transaction hashes
  * Uses multicall to batch requests into a single RPC call for better performance
  *

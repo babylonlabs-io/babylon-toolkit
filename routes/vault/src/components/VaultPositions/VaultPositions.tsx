@@ -6,7 +6,7 @@ import { useVaultPositions } from '../../hooks/useVaultPositions';
 import { RepayFlow } from '../RepayFlow';
 import { BorrowFlow } from '../BorrowFlow';
 import type { Address } from 'viem';
-import type { VaultActivity } from '../../mockData/vaultActivities';
+import type { VaultActivity } from '../../types';
 
 export interface VaultPositionsProps {
   ethAddress?: string;
@@ -39,24 +39,18 @@ export default function VaultPositions({
     const rawPosition = rawPositions[index];
     if (!rawPosition) return;
 
-    // Create VaultActivity from raw position for RepayFlow
     const activity: VaultActivity = {
-      id: rawPosition.txHash,
-      txHash: rawPosition.txHash,
+      id: rawPosition.positionId,
       collateral: {
         amount: positions[index].collateral.amount,
         symbol: positions[index].collateral.symbol,
         icon: positions[index].collateral.icon,
       },
-      status: {
-        label: 'Active',
-        variant: 'active',
-      },
       providers: [],
       morphoPosition: {
         collateral: rawPosition.morphoPosition.collateral,
         borrowShares: rawPosition.morphoPosition.borrowShares,
-        borrowed: rawPosition.morphoPosition.borrowShares, // Use borrowShares as borrowed (they're the same conceptually)
+        borrowed: rawPosition.morphoPosition.borrowShares,
         borrowAssets: rawPosition.morphoPosition.borrowAssets,
       },
       borrowingData: {
@@ -65,14 +59,7 @@ export default function VaultPositions({
         currentLTV: positions[index].currentLTV,
         maxLTV: positions[index].liquidationLTV,
       },
-      vaultMetadata: {
-        depositor: rawPosition.metadata.depositor,
-        proxyContract: rawPosition.metadata.proxyContract,
-        marketId: rawPosition.metadata.marketId,
-        vBTCAmount: rawPosition.metadata.vBTCAmount,
-        borrowAmount: rawPosition.metadata.borrowAmount,
-        active: rawPosition.metadata.active,
-      },
+      marketId: rawPosition.position.marketId,
     };
 
     setRepayActivity(activity);
@@ -91,13 +78,6 @@ export default function VaultPositions({
   }, [refetch]);
 
   // Handle create position button click
-  // TODO: This will later be replaced with a new design of the UI component
-  // where user see list of amount available to borrow. and this list of
-  // amount is based on the sum of available collateral in the vault. For
-  // example. we have 1 BTC and 2 BTC collateral which are available to borrow.
-  // and the user can choose to borrow 1 BTC or 2 BTC or 3 BTC. but they can't
-  // borrow 1.5 BTC etc. it had to be a combination of the available collateral.
-  //
   // Implementation approach:
   // 1. Open a vault selector modal (fetches available vaults when modal opens)
   // 2. Show vaults grouped by available collateral amounts
@@ -157,7 +137,7 @@ export default function VaultPositions({
         >
           {positions.map((position, index) => (
             <PositionCard
-              key={rawPositions[index]?.txHash || index}
+              key={rawPositions[index]?.positionId || index}
               position={position}
               onRepay={() => handleRepay(index)}
             />

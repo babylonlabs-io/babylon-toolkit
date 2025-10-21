@@ -3,12 +3,11 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import type { Hex } from 'viem';
-import { addCollateralAndBorrowWithMarketId } from '../../../services/vault/vaultTransactionService';
-import type { AddCollateralAndBorrowResult } from '../../../services/vault/vaultTransactionService';
+import { addCollateralAndBorrowWithMarketId } from '../../../services/position/positionTransactionService';
+import type { AddCollateralAndBorrowResult } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
-import { processPublicKeyToXOnly } from '../../../utils/btc';
+import { BTCVaultsManager } from '../../../clients/eth-contract';
 
 export interface UseMintAndBorrowParams {
   /** Array of pegin transaction hashes (vault IDs) to use as collateral */
@@ -35,11 +34,11 @@ export interface UseMintAndBorrowResult {
 /**
  * Hook to add collateral to position and borrow
  *
- * Gets BTC pubkey from connected wallet and calls addCollateralAndBorrowWithMarketId service
- * Creates position if it doesn't exist, or expands existing position
+ * Fetches BTC pubkey from the first pegin request (source of truth from on-chain data)
+ * and calls addCollateralAndBorrowWithMarketId service.
+ * Creates position if it doesn't exist, or expands existing position.
  */
 export function useMintAndBorrow(): UseMintAndBorrowResult {
-  const btcConnector = useChainConnector('BTC');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AddCollateralAndBorrowResult | null>(null);
@@ -51,22 +50,30 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
       setResult(null);
 
       try {
-        // Get BTC wallet public key from connected wallet provider
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const connector = btcConnector as any;
-
-        if (!connector?.connectedWallet?.provider) {
-          throw new Error('BTC wallet not connected');
+        if (!pegInTxHashes || pegInTxHashes.length === 0) {
+          throw new Error('No pegin transaction hashes provided');
         }
 
-        // Get public key from provider and convert to x-only format
-        const publicKeyHex = await connector.connectedWallet.provider.getPublicKeyHex();
-        const btcPubkey = `0x${processPublicKeyToXOnly(publicKeyHex)}` as Hex;
+        // Fetch the vault provider's BTC pubkey (on-chain source of truth)
+        // Step 1: Get the pegin request to find the vault provider address
+        // TODO: This is temporary to get 1st pegin request to find the vault provider address
+        // There is an design issue which currently being discussed.
+        const firstPeginRequest = await BTCVaultsManager.getPeginRequest(
+          CONTRACTS.BTC_VAULTS_MANAGER,
+          pegInTxHashes[0]
+        );
+
+        // Step 2: Get the vault provider's BTC public key from the providerBTCKeys mapping
+        // This is the key used for the vault's BTC locking script
+        const btcPubkey = await BTCVaultsManager.getProviderBTCKey(
+          CONTRACTS.BTC_VAULTS_MANAGER,
+          firstPeginRequest.vaultProvider
+        );
 
         // Convert market ID from hex string (without 0x) to proper format with 0x prefix
         const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
 
-        // Call service to execute transaction with multiple vault IDs
+        // Call service to execute transaction with multiple vault IDs and borrow
         const txResult = await addCollateralAndBorrowWithMarketId(
           CONTRACTS.VAULT_CONTROLLER,
           pegInTxHashes,
@@ -85,7 +92,7 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         setIsLoading(false);
       }
     },
-    [btcConnector]
+    []
   );
 
   const reset = useCallback(() => {

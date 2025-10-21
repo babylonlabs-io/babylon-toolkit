@@ -1,21 +1,21 @@
 /**
- * Hook for fetching user vault positions with Morpho data
- * Used in VaultPositions tab to show only active borrowing positions
+ * Hook for fetching user positions with Morpho data
+ * Used in Positions tab to show borrowing positions
  */
 
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
-import { getUserVaultPositionsWithMorpho } from '../services/vault/vaultService';
+import { getUserPositionsWithMorpho } from '../services/position';
 import { CONTRACTS } from '../config/contracts';
-import type { VaultPositionWithMorpho } from '../services/vault/vaultService';
+import type { PositionWithMorpho } from '../services/position';
 
 /**
- * Result interface for useVaultPositionsMorpho hook
+ * Result interface for useUserPositions hook
  */
-export interface UseVaultPositionsMorphoResult {
-  /** Array of vault positions with Morpho data */
-  positions: VaultPositionWithMorpho[];
+export interface UseUserPositionsResult {
+  /** Array of positions with Morpho data */
+  positions: PositionWithMorpho[];
   /** Loading state - true while fetching data */
   loading: boolean;
   /** Error state - contains error if fetch failed */
@@ -25,27 +25,26 @@ export interface UseVaultPositionsMorphoResult {
 }
 
 /**
- * Custom hook to fetch vault positions with Morpho data for a connected wallet
+ * Custom hook to fetch user positions with Morpho data
  *
- * This hook fetches only vaults that have active Morpho positions (borrowing).
- * Unlike usePeginRequests which fetches all peg-ins/collaterals,
- * this hook is specifically for the Positions tab.
+ * This hook fetches all positions for a user (borrowing positions in Morpho markets).
+ * Each position can contain MULTIPLE vaults as collateral (N:1 relationship).
  *
  * @param connectedAddress - Ethereum address of connected wallet (undefined if not connected)
  * @returns Object containing positions array, loading state, error state, and refetch function
  */
-export function useVaultPositionsMorpho(
+export function useUserPositions(
   connectedAddress: Address | undefined,
-): UseVaultPositionsMorphoResult {
+): UseUserPositionsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [
-      'vaultPositionsMorpho',
+      'userPositions',
       connectedAddress,
       CONTRACTS.VAULT_CONTROLLER,
     ],
     queryFn: () =>
-      getUserVaultPositionsWithMorpho(
+      getUserPositionsWithMorpho(
         connectedAddress!,
         CONTRACTS.VAULT_CONTROLLER
       ),

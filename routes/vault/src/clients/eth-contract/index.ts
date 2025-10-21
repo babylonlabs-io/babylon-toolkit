@@ -7,7 +7,7 @@ export { ethClient } from './client';
 export * as VaultController from './vault-controller/query';
 export * as VaultControllerTx from './vault-controller/transaction';
 export type { MarketParams } from './vault-controller/transaction';
-export type { VaultMetadata } from './vault-controller/query';
+export type { MarketPosition } from './vault-controller/query';
 
 // BTC Vaults Manager
 export * as BTCVaultsManager from './btc-vaults-manager/query';

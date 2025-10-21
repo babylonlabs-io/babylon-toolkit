@@ -9,7 +9,7 @@ import { useVaultPositions } from '../../hooks/useVaultPositions';
 import { usePeginFlow } from './usePeginFlow';
 import { EmptyState } from './EmptyState';
 import { VaultActivityCard } from './VaultActivityCard';
-import type { VaultActivity } from '../../mockData/vaultActivities';
+import type { VaultActivity } from '../../types';
 
 export interface VaultDepositProps {
   ethAddress?: string;
