@@ -81,9 +81,9 @@ export function ClaimResultsContent({ results }: { results?: ClaimResult[] }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {results.map((result) => (
+      {results.map((result, idx) => (
         <Row
-          key={`${result.kind}-${result.label}`}
+          key={`${result.label}-${idx}`}
           title={result.label}
           result={result}
         />

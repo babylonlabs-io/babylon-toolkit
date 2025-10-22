@@ -1,4 +1,3 @@
-import { incentivetx } from "@babylonlabs-io/babylon-proto-ts";
 import { useCallback } from "react";
 
 import { ONE_SECOND } from "@/ui/common/constants";
@@ -6,7 +5,7 @@ import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useRewardsState } from "@/ui/common/state/RewardState";
 import { retry } from "@/ui/common/utils";
-import { BBN_REGISTRY_TYPE_URLS } from "@/ui/common/utils/wallet/bbnRegistry";
+import babylon from "@/infrastructure/babylon";
 
 import { useBbnTransaction } from "../client/rpc/mutation/useBbnTransaction";
 import { useBbnQuery } from "../client/rpc/queries/useBbnQuery";
@@ -35,8 +34,8 @@ export const useRewardsService = () => {
    * @returns {Promise<number>} The gas fee for claiming rewards.
    */
   const estimateClaimRewardsGas = useCallback(async (): Promise<number> => {
-    const withdrawRewardMsg = createWithdrawRewardMsg(bbnAddress);
-    const gasFee = await estimateBbnGasFee(withdrawRewardMsg);
+    const msg = babylon.txs.btc.createClaimRewardMsg({ address: bbnAddress });
+    const gasFee = await estimateBbnGasFee(msg);
     return gasFee.amount.reduce((acc, coin) => acc + Number(coin.amount), 0);
   }, [bbnAddress, estimateBbnGasFee]);
 
@@ -74,7 +73,7 @@ export const useRewardsService = () => {
     openProcessingModal();
 
     try {
-      const msg = createWithdrawRewardMsg(bbnAddress);
+      const msg = babylon.txs.btc.createClaimRewardMsg({ address: bbnAddress });
       const signedTx = await signBbnTx(msg);
       const result = await sendBbnTx(signedTx);
 
@@ -119,17 +118,5 @@ export const useRewardsService = () => {
   return {
     claimRewards,
     showPreview,
-  };
-};
-
-const createWithdrawRewardMsg = (bech32Address: string) => {
-  const withdrawRewardMsg = incentivetx.MsgWithdrawReward.fromPartial({
-    type: "btc_staker",
-    address: bech32Address,
-  });
-
-  return {
-    typeUrl: BBN_REGISTRY_TYPE_URLS.MsgWithdrawReward,
-    value: withdrawRewardMsg,
   };
 };

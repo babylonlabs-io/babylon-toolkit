@@ -27,7 +27,7 @@ import {
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
-import { useRewardsService } from "@/ui/common/hooks/services/useRewardsService";
+import { useCombinedRewardsService } from "@/ui/common/hooks/services/useCombinedRewardsService";
 import {
   ClaimStatus,
   ClaimStatusModal,
@@ -59,16 +59,16 @@ function RewardsPageContent() {
     showProcessingModal: btcShowProcessingModal,
     closeProcessingModal: btcCloseProcessingModal,
     openProcessingModal: btcOpenProcessingModal,
-    transactionFee: btcTransactionFee,
     setTransactionHash: btcSetTransactionHash,
   } = useBtcRewardsState();
   const {
     totalReward: babyRewardUbbn,
-    claimAll: babyClaimAll,
     loading: babyLoading,
+    rewards: babyRewards,
   } = useBabyRewardState();
 
-  const { claimRewards: btcClaimRewards } = useRewardsService();
+  const { claimCombined, estimateCombinedClaimGas } =
+    useCombinedRewardsService();
 
   const { eligibility, rawAprData, hasValidBoostData } = useCoStakingState();
 
@@ -138,6 +138,7 @@ function RewardsPageContent() {
   const [claimingBaby, setClaimingBaby] = useState(false);
   const [claimStatus, setClaimStatus] = useState<ClaimStatus | undefined>();
   const [claimResults, setClaimResults] = useState<ClaimResult[]>([]);
+  const [combinedFeeUbbn, setCombinedFeeUbbn] = useState(0);
 
   const processing =
     btcProcessing || babyLoading || claimingBtc || claimingBaby;
@@ -146,8 +147,6 @@ function RewardsPageContent() {
     claimingBaby ||
     btcShowProcessingModal ||
     Boolean(claimStatus);
-
-  const transactionFee = btcTransactionFee; // Primary fee shown is BTC staking fee
 
   function NotConnected() {
     return (
@@ -194,11 +193,19 @@ function RewardsPageContent() {
 
   const handleClaimClick = async () => {
     if (processing) return;
-
     if (!hasBtcRewards && !hasBabyRewards) return;
 
-    // Skip fee pre-estimation for BTC rewards. Fees are calculated
-    // during the actual transaction signing phase, which is more reliable.
+    const babyRewardsToClaim = hasBabyRewards ? babyRewards : [];
+    try {
+      const fee = await estimateCombinedClaimGas({
+        includeBtc: Boolean(hasBtcRewards),
+        babyRewards: babyRewardsToClaim,
+      });
+      setCombinedFeeUbbn(fee);
+    } catch (error) {
+      console.error("Error estimating combined claim gas:", error);
+      setCombinedFeeUbbn(0);
+    }
 
     setPreviewOpen(true);
   };
@@ -210,68 +217,77 @@ function RewardsPageContent() {
     setClaimStatus(ClaimStatus.PROCESSING);
     setClaimResults([]);
 
-    const results: ClaimResult[] = [];
+    try {
+      setClaimingBtc(Boolean(hasBtcRewards));
+      setClaimingBaby(Boolean(hasBabyRewards));
 
-    // Claim BTC staking rewards
-    if (hasBtcRewards) {
-      try {
-        setClaimingBtc(true);
-        const btcResult = await btcClaimRewards();
+      const babyRewardsToClaim = hasBabyRewards ? babyRewards : [];
+      if (!hasBtcRewards && !hasBabyRewards) {
+        setClaimStatus(ClaimStatus.SUCCESS);
+        return;
+      }
+
+      const result = await claimCombined({
+        includeBtc: Boolean(hasBtcRewards),
+        babyRewards: babyRewardsToClaim,
+      });
+
+      const results: ClaimResult[] = [];
+      // When claiming both reward types, show a single combined result
+      if (hasBtcRewards && hasBabyRewards) {
         results.push({
-          kind: "btc",
-          label: `Claim rewards transaction for ${btcCoinSymbol} staking`,
-          success: Boolean(btcResult?.txHash),
-          txHash: btcResult?.txHash,
+          label: `Claim rewards transaction for ${btcCoinSymbol} and ${bbnCoinSymbol} staking`,
+          success: Boolean(result?.txHash),
+          txHash: result?.txHash,
         });
-      } catch (error) {
-        console.error("Error claiming BTC rewards:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+      } else if (hasBtcRewards) {
         results.push({
-          kind: "btc",
+          label: `Claim rewards transaction for ${btcCoinSymbol} staking`,
+          success: Boolean(result?.txHash),
+          txHash: result?.txHash,
+        });
+      } else if (hasBabyRewards) {
+        results.push({
+          label: `Claim rewards transaction for ${bbnCoinSymbol} staking`,
+          success: Boolean(result?.txHash),
+          txHash: result?.txHash,
+        });
+      }
+
+      setClaimResults(results);
+      setClaimStatus(ClaimStatus.SUCCESS);
+    } catch (error) {
+      console.error("Error claiming rewards:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+
+      const results: ClaimResult[] = [];
+      // When claiming both reward types, show a single combined error result
+      if (hasBtcRewards && hasBabyRewards) {
+        results.push({
+          label: `Claim rewards transaction for ${btcCoinSymbol} and ${bbnCoinSymbol} staking`,
+          success: false,
+          errorMessage,
+        });
+      } else if (hasBtcRewards) {
+        results.push({
           label: `Claim rewards transaction for ${btcCoinSymbol} staking`,
           success: false,
           errorMessage,
         });
-      } finally {
-        setClaimingBtc(false);
-      }
-    }
-
-    // Claim BABY staking rewards
-    if (hasBabyRewards) {
-      try {
-        setClaimingBaby(true);
-        const babyResult = await babyClaimAll();
+      } else if (hasBabyRewards) {
         results.push({
-          kind: "baby",
-          label: `Claim rewards transaction for ${bbnCoinSymbol} staking`,
-          success: Boolean(babyResult?.txHash),
-          txHash: babyResult?.txHash,
-        });
-      } catch (error) {
-        console.error("Error claiming BABY rewards:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        results.push({
-          kind: "baby",
           label: `Claim rewards transaction for ${bbnCoinSymbol} staking`,
           success: false,
           errorMessage,
         });
-      } finally {
-        setClaimingBaby(false);
       }
+      setClaimResults(results);
+      setClaimStatus(ClaimStatus.ERROR);
+    } finally {
+      setClaimingBtc(false);
+      setClaimingBaby(false);
     }
-
-    // Determine overall status once both attempts are done
-    setClaimResults(results);
-    const anySuccess = results.some((r) => r.success);
-    const anyFailure = results.some((r) => !r.success);
-    if (anySuccess && anyFailure) setClaimStatus(ClaimStatus.PARTIAL);
-    else if (anySuccess && !anyFailure) setClaimStatus(ClaimStatus.SUCCESS);
-    else if (!anySuccess && anyFailure) setClaimStatus(ClaimStatus.ERROR);
-    else setClaimStatus(ClaimStatus.SUCCESS); // nothing to claim
   };
 
   const handleClose = () => {
@@ -384,7 +400,7 @@ function RewardsPageContent() {
         onProceed={handleProceed}
         tokens={tokens}
         transactionFees={{
-          token: `${ubbnToBaby(transactionFee).toFixed(6)} ${bbnCoinSymbol}`,
+          token: `${ubbnToBaby(combinedFeeUbbn).toFixed(6)} ${bbnCoinSymbol}`,
           usd: "",
         }}
       />

@@ -16,7 +16,6 @@ interface ClaimStatusModalProps {
 }
 
 export interface ClaimResult {
-  kind: "btc" | "baby";
   label: string;
   success: boolean;
   txHash?: string;
