@@ -15,6 +15,8 @@ import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 import type { VaultProvider } from '../../../clients/vault-api/types';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
 import { processPublicKeyToXOnly } from '../../../utils/btc';
+import { estimatePeginFee, getMaxPeginFee } from '../../../utils/fee/peginFee';
+import { useNetworkFees } from '../../../hooks/useNetworkFees';
 
 /**
  * BTC wallet provider interface
@@ -90,6 +92,9 @@ export function usePeginFlow({
     error: utxoError,
   } = useUTXOs(btcAddress);
 
+  // Fetch dynamic fee rates from mempool API
+  const { data: networkFees } = useNetworkFees();
+
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
@@ -143,19 +148,49 @@ export function usePeginFlow({
         Math.round(amount * Number(SATOSHIS_PER_BTC)),
       );
 
-      // Calculate required amount: peg-in amount + transaction fee
-      const requiredAmount =
-        pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+      // Get fee rate: Use hourFee from mempool API, or fallback to hardcoded value
+      // hourFee provides good balance between speed (~1 hour) and cost
+      const feeRate = networkFees?.hourFee || LOCAL_PEGIN_CONFIG.fallbackFeeRate;
 
-      // Select suitable UTXO
-      const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
+      // Calculate MAXIMUM possible fee for UTXO selection
+      // This is the worst case: transaction with a change output (2 outputs total)
+      // Using max fee ensures selected UTXO can cover peg-in + fees regardless of change
+      const maxPossibleFee = getMaxPeginFee(feeRate);
+
+      // Select first UTXO that can cover peg-in amount + maximum possible fee
+      // Single-pass selection: O(n) instead of O(n²) iteration
+      const selectedUTXO = confirmedUTXOs.find(
+        (utxo) => BigInt(utxo.value) >= pegInAmountSats + maxPossibleFee,
+      );
 
       if (!selectedUTXO) {
+        // Show helpful error with actual numbers
+        const requiredAmount = pegInAmountSats + maxPossibleFee;
         const requiredBTC = Number(requiredAmount) / Number(SATOSHIS_PER_BTC);
+        const maxAvailable =
+          confirmedUTXOs.length > 0
+            ? Math.max(...confirmedUTXOs.map((u) => u.value))
+            : 0;
+        const maxAvailableBTC = maxAvailable / Number(SATOSHIS_PER_BTC);
+        const feeInBTC = Number(maxPossibleFee) / Number(SATOSHIS_PER_BTC);
+
         throw new Error(
-          `No suitable UTXO found. You need at least ${requiredBTC.toFixed(8)} BTC (including fees) in a single UTXO. Please consolidate your UTXOs or add more funds.`,
+          `Insufficient funds in single UTXO.\n\n` +
+            `Required: ${requiredBTC.toFixed(8)} BTC\n` +
+            `  ├─ Peg-in amount: ${(amount).toFixed(8)} BTC\n` +
+            `  └─ Max fee (${feeRate} sat/vb): ${feeInBTC.toFixed(8)} BTC\n\n` +
+            `Largest available UTXO: ${maxAvailableBTC.toFixed(8)} BTC\n\n` +
+            `Please consolidate your UTXOs or add more funds to a single UTXO.`,
         );
       }
+
+      // Calculate ACTUAL fee for the selected UTXO
+      // This will be <= maxPossibleFee and is what we'll actually pay
+      const actualFee = estimatePeginFee(
+        pegInAmountSats,
+        BigInt(selectedUTXO.value),
+        feeRate,
+      );
 
       // Step 1: Proof of Possession
       setCurrentStep(1);
@@ -196,6 +231,7 @@ export function usePeginFlow({
         },
         selectedProvider.id as Address,
         vaultProviderBtcPubkey,
+        feeRate, // Dynamic fee rate from mempool API
       );
 
       // Store unsigned transaction hex and ETH tx hash for later BTC broadcasting

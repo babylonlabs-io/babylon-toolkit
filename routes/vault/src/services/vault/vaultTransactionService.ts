@@ -46,11 +46,12 @@ export async function submitPeginRequest(
   utxoParams: PeginUTXOParams,
   vaultProviderAddress: Address,
   vaultProviderBtcPubkey: string,
+  feeRate: number,
 ) {
   // Step 1: Create unsigned BTC peg-in transaction
   // This uses WASM to construct the transaction with:
   // - depositor pubkey, peg-in amount, funding UTXO from wallet, selected vault provider
-  // - HARDCODED: liquidators, network, fee (TODO: calculate dynamically based on tx size and fee rate)
+  // - Dynamic fee calculated from mempool API fee rate and transaction size
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
@@ -59,6 +60,7 @@ export async function submitPeginRequest(
     fundingValue: utxoParams.fundingValue,
     fundingScriptPubkey: utxoParams.fundingScriptPubkey,
     vaultProviderBtcPubkey,
+    feeRate,
   });
 
   // Step 2: Convert to Hex format for contract (ensure 0x prefix)

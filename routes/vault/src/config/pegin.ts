@@ -50,8 +50,18 @@ export const LOCAL_PEGIN_CONFIG = {
   ],
 
   /**
-   * HARDCODED: Estimated fee for BTC transaction
-   * TODO: calculate dynamically based on the tx size
+   * Fallback fee rate for BTC transactions (in sat/vbyte)
+   *
+   * Used ONLY when mempool API is unavailable or returns an error.
+   * In normal operation, fee rates are fetched dynamically from mempool.space API
+   * using the useNetworkFees() hook.
+   *
+   * Value: 2 sat/vbyte is a conservative estimate that works in most conditions:
+   * - Historically sufficient for confirmation within 6 blocks (~1 hour)
+   * - Safe fallback during network congestion
+   * - Higher than minimum relay fee (1 sat/vb) to ensure acceptance
+   *
+   * Production recommendation: Use hourFee from mempool API (see useNetworkFees hook)
    */
-  btcTransactionFee: 10_000n,
+  fallbackFeeRate: 2, // sat/vbyte
 };
