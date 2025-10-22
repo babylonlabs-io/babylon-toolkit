@@ -8,7 +8,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import type { Hex } from 'viem';
-import { getAvailableCollaterals, type AvailableCollateral } from '../../../services/pegin/peginService';
+import { getAvailableCollaterals, type AvailableCollateral } from '../../../services/vault/vaultQueryService';
 import { CONTRACTS } from '../../../config/contracts';
 
 export type { AvailableCollateral };

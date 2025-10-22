@@ -269,15 +269,6 @@ export async function repayFromPosition(
 /**
  * Withdraw ALL collateral from position (without redeeming BTC vault)
  *
- * Withdraws ALL collateral from the position but does NOT redeem the BTC vault.
- * This is different from withdrawCollateralAndRedeemBTCVault which also initiates BTC redemption.
- *
- * IMPORTANT:
- * - Withdraws ALL collateral (no partial withdrawal available)
- * - The position must have NO DEBT or this will revert
- * - Does NOT emit VaultRedeemable event (vault remains locked)
- * - Use this when you want to remove collateral without redeeming to Bitcoin network
- *
  * @param contractAddress - BTCVaultController contract address
  * @param marketParams - Morpho market parameters identifying the position
  * @returns Transaction hash, receipt, and amount of collateral withdrawn
@@ -285,7 +276,7 @@ export async function repayFromPosition(
 export async function withdrawCollateralFromPosition(
   contractAddress: Address,
   marketParams: MarketParams,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; withdrawnAmount: bigint }> {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
 
@@ -315,13 +306,10 @@ export async function withdrawCollateralFromPosition(
       hash,
     });
 
-    // TODO: Extract withdrawnAmount from transaction logs/return value
-    const withdrawnAmount = 0n;
 
     return {
       transactionHash: hash,
       receipt,
-      withdrawnAmount,
     };
   } catch (error) {
     throw new Error(
@@ -331,34 +319,22 @@ export async function withdrawCollateralFromPosition(
 }
 
 /**
- * Withdraw all collateral and redeem BTC vault (close position)
+ * Redeem BTC vault (withdraw BTC back to user's account)
  *
- * Combined operation that:
- * 1. Repays ALL debt by burning all borrow shares (if repayAmount > 0)
- * 2. Withdraws ALL collateral from the position
- * 3. Initiates BTC redemption by emitting VaultRedeemable event
+ * This unlocks and withdraws the BTC collateral from an available vault back to the user's Bitcoin address.
+ * Can only be called on vaults that are in "Available" status (not locked in a position).
  *
- * IMPORTANT:
- * - Repays ALL debt (burns all borrow shares), not partial
- * - Withdraws ALL collateral from the position
- * - Closes the position completely
- * - Emits VaultRedeemable event for vault provider to redeem BTC
- *
- * NOTE:
- * - User must approve loan token spending for repayAmount before calling
- * - repayAmount should be the full debt amount (principal + accrued interest)
- * - Use morphoPosition.borrowAssets to get the exact amount needed
- * - Set repayAmount = 0 if position has no debt
+ * Emits VaultRedeemable event which signals the vault system to release the BTC.
  *
  * @param contractAddress - BTCVaultController contract address
- * @param marketParams - Morpho market parameters identifying the position
- * @param repayAmount - Amount of tokens to transfer for full debt repayment (0 if no debt)
+ * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
+ * @param redeemerPKs - Array of redeemer public keys (x-only, 32 bytes each)
  * @returns Transaction hash and receipt
  */
-export async function withdrawCollateralAndRedeemBTCVault(
+export async function redeemBTCVault(
   contractAddress: Address,
-  marketParams: MarketParams,
-  repayAmount: bigint,
+  pegInTxHash: Hex,
+  redeemerPKs: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
   const wagmiConfig = getSharedWagmiConfig();
@@ -380,8 +356,8 @@ export async function withdrawCollateralAndRedeemBTCVault(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'withdrawCollateralAndRedeemBTCVault',
-      args: [marketParams, repayAmount],
+      functionName: 'redeemBTCVault',
+      args: [pegInTxHash, redeemerPKs],
       chain,
     });
 
@@ -395,7 +371,7 @@ export async function withdrawCollateralAndRedeemBTCVault(
     };
   } catch (error) {
     throw new Error(
-      `Failed to withdraw collateral and redeem BTC vault: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to redeem BTC vault: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }

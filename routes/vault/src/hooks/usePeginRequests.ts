@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useEffect } from 'react';
 import type { Address } from 'viem';
-import { getPeginRequestsWithDetails } from '../services/pegin/peginService';
+import { getPeginRequestsWithDetails } from '../services/vault/vaultQueryService';
 import { transformPeginToActivity } from '../utils/peginTransformers';
 import type { VaultActivity } from '../types';
 import { CONTRACTS } from '../config/contracts';

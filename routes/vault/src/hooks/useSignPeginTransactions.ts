@@ -10,7 +10,7 @@ import { useState, useCallback } from 'react';
 import type { Hex } from 'viem';
 import type { ClaimerTransactions } from '../clients/vault-provider-rpc/types';
 import { useVaultProviders } from './useVaultProviders';
-import { signAndSubmitPayoutSignatures } from '../services/pegin/peginPayoutSignatureService';
+import { signAndSubmitPayoutSignatures } from '../services/vault/vaultPayoutSignatureService';
 
 export interface SignPeginTransactionsParams {
   /** Peg-in transaction ID */

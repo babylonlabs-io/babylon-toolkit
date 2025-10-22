@@ -4,8 +4,8 @@
 
 import { useState, useCallback } from 'react';
 import type { Hex } from 'viem';
-import { addCollateralAndBorrowWithMarketId } from '../../../services/position/positionTransactionService';
-import type { AddCollateralAndBorrowResult } from '../../../services/position/positionTransactionService';
+import { addCollateralWithMarketId } from '../../../services/position/positionTransactionService';
+import type { AddCollateralResult } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 import { BTCVaultsManager } from '../../../clients/eth-contract';
 
@@ -20,13 +20,13 @@ export interface UseMintAndBorrowParams {
 
 export interface UseMintAndBorrowResult {
   /** Execute the add collateral and borrow transaction */
-  executeMintAndBorrow: (params: UseMintAndBorrowParams) => Promise<AddCollateralAndBorrowResult | null>;
+  executeMintAndBorrow: (params: UseMintAndBorrowParams) => Promise<AddCollateralResult | null>;
   /** Loading state */
   isLoading: boolean;
   /** Error message */
   error: string | null;
   /** Transaction result */
-  result: AddCollateralAndBorrowResult | null;
+  result: AddCollateralResult | null;
   /** Reset state */
   reset: () => void;
 }
@@ -35,13 +35,13 @@ export interface UseMintAndBorrowResult {
  * Hook to add collateral to position and borrow
  *
  * Fetches BTC pubkey from the first pegin request (source of truth from on-chain data)
- * and calls addCollateralAndBorrowWithMarketId service.
+ * and calls addCollateralWithMarketId service with borrowAmount.
  * Creates position if it doesn't exist, or expands existing position.
  */
 export function useMintAndBorrow(): UseMintAndBorrowResult {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AddCollateralAndBorrowResult | null>(null);
+  const [result, setResult] = useState<AddCollateralResult | null>(null);
 
   const executeMintAndBorrow = useCallback(
     async ({ pegInTxHashes, borrowAmount, marketId }: UseMintAndBorrowParams) => {
@@ -74,7 +74,7 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
 
         // Call service to execute transaction with multiple vault IDs and borrow
-        const txResult = await addCollateralAndBorrowWithMarketId(
+        const txResult = await addCollateralWithMarketId(
           CONTRACTS.VAULT_CONTROLLER,
           pegInTxHashes,
           btcPubkey,

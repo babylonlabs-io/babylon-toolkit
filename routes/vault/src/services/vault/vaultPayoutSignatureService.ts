@@ -1,16 +1,3 @@
-/**
- * Peg-In Payout Signature Service
- *
- * Handles the business logic for signing payout transactions and submitting
- * signatures to the vault provider. This service is state-unaware and can be
- * reused across different parts of the application.
- *
- * Per pegin.md step 3:
- * - Depositor signs each Payout transaction (one for each claimer: VP + Liquidators)
- * - Signatures are Schnorr (64 bytes) for Taproot compatibility
- * - Submits all signatures to vault provider via submitPayoutSignatures RPC
- */
-
 import type { Hex } from 'viem';
 import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
 import type { ClaimerTransactions } from '../../clients/vault-provider-rpc/types';
@@ -53,15 +40,7 @@ export interface SignAndSubmitPayoutSignaturesParams {
 /**
  * Sign payout transactions and submit signatures to vault provider
  *
- * This function encapsulates the business logic for:
- * 1. Signing each payout transaction with BTC wallet (Schnorr signatures)
- * 2. Collecting signatures mapped by claimer public key
- * 3. Submitting all signatures to vault provider RPC
- *
- * The function is state-unaware and throws errors that should be handled by the caller.
- *
  * @param params - Signing and submission parameters
- * @throws Error if signing fails or RPC submission fails
  */
 export async function signAndSubmitPayoutSignatures(
   params: SignAndSubmitPayoutSignaturesParams,
