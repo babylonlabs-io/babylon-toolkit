@@ -78,7 +78,8 @@ export async function addCollateralWithMarketId(
 /**
  * Approve loan token spending for repayment
  *
- * Approves the required contract to spend loan tokens on behalf of the user.
+ * Approves the VaultController to spend loan tokens on behalf of the user.
+ * The VaultController transfers tokens from user to proxy, then proxy repays to Morpho.
  * Uses max uint256 to ensure sufficient allowance for full debt repayment.
  *
  * @param marketId - Market ID
@@ -91,13 +92,14 @@ export async function approveLoanTokenForRepay(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
   const loanTokenAddress = marketParams.loanToken;
 
-  // Approve Morpho contract to spend loan tokens
+  // Approve VaultController to spend loan tokens (not Morpho directly)
+  // VaultController.repayFromPosition does: transferFrom(msg.sender, proxy, amount)
   // Using max uint256 for unlimited approval
   const approvalAmount = 2n ** 256n - 1n;
 
   return ERC20.approveERC20(
     loanTokenAddress,
-    CONTRACTS.MORPHO, // Approve Morpho, not the vault controller
+    CONTRACTS.VAULT_CONTROLLER, // Approve VaultController to transfer tokens
     approvalAmount
   );
 }
