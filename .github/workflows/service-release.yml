@@ -114,6 +114,13 @@ jobs:
           node-version: 24.2
           cache: "npm"
 
+      - name: Configure AWS credentials (assume per-account role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/iams-github-actions
+          role-session-name: gh-terragrunt-plan
+          aws-region: ap-east-1
+
       - name: Install dependencies
         run: npm ci
 
