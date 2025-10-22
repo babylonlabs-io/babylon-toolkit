@@ -36,15 +36,10 @@ export interface Vault {
 /**
  * Vault provider information
  * Corresponds to: model.VaultProvider (swagger.yaml)
+ *
+ * Re-exported from types/ directory (domain model)
  */
-export interface VaultProvider {
-  /** Provider's Ethereum address */
-  id: string;
-  /** Provider's BTC public key */
-  btc_pub_key: string;
-  /** Provider's RPC URL */
-  url: string;
-}
+export type { VaultProvider } from '../../types/vaultProvider';
 
 // ============================================================================
 // Morpho Market Types

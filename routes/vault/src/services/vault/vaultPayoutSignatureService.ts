@@ -1,7 +1,7 @@
 import type { Hex } from 'viem';
 import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
 import type { ClaimerTransactions } from '../../clients/vault-provider-rpc/types';
-import { signPayoutTransaction } from '../btc/signPayoutService';
+import { signPayoutTransaction } from './vaultPayoutSigningService';
 import { stripHexPrefix } from '../../utils/btc';
 
 /**

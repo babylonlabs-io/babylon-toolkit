@@ -10,7 +10,7 @@ import {
 } from '@babylonlabs-io/core-ui';
 import type { Address } from 'viem';
 import { usePeginFlow } from './usePeginFlow';
-import type { VaultProvider } from '../../../clients/vault-api/types';
+import type { VaultProvider } from '../../../types';
 
 /**
  * BTC wallet provider interface

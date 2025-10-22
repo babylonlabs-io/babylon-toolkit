@@ -1,62 +1,14 @@
 import { useCallback, useMemo, useState } from "react";
+import {
+  calculateMaxBorrow,
+  calculateLTV,
+  validateBorrowAmount,
+} from "../../../utils/borrow";
 
 // Fallback values if market data not provided
 const FALLBACK_BTC_PRICE_USD = 100000;
 const FALLBACK_USDC_PRICE_USD = 1.00;
 const FALLBACK_LLTV_PERCENT = 80; // 80%
-
-// Calculate max borrowable amount
-function calculateMaxBorrow(btcAmount: number, btcPriceUSD: number, lltvPercent: number): number {
-  const collateralValueUSD = btcAmount * btcPriceUSD;
-  // LLTV is the max LTV before liquidation, so use it as the max borrow ratio
-  const maxBorrowUSD = collateralValueUSD * (lltvPercent / 100);
-  return maxBorrowUSD;
-}
-
-// Calculate current LTV
-function calculateLTV(borrowAmountUSDC: number, btcAmount: number, btcPriceUSD: number): number {
-  if (btcAmount === 0) return 0;
-  const collateralValueUSD = btcAmount * btcPriceUSD;
-  const loanValueUSD = borrowAmountUSDC;
-  return (loanValueUSD / collateralValueUSD) * 100;
-}
-
-// Validate borrow amount
-interface BorrowValidation {
-  isValid: boolean;
-  errors: {
-    amount?: string;
-    ltv?: string;
-  };
-}
-
-function validateBorrowAmount(
-  amount: number,
-  btcAmount: number,
-  btcPriceUSD: number,
-  lltvPercent: number
-): BorrowValidation {
-  const errors: BorrowValidation["errors"] = {};
-
-  if (amount <= 0) {
-    errors.amount = "Amount must be greater than 0";
-  }
-
-  const maxBorrow = calculateMaxBorrow(btcAmount, btcPriceUSD, lltvPercent);
-  if (amount > maxBorrow) {
-    errors.amount = `Amount exceeds maximum borrowable ${maxBorrow.toFixed(2)} USDC`;
-  }
-
-  const currentLTV = calculateLTV(amount, btcAmount, btcPriceUSD);
-  if (currentLTV > lltvPercent) {
-    errors.ltv = `LTV (${currentLTV.toFixed(2)}%) exceeds liquidation threshold (${lltvPercent.toFixed(0)}%)`;
-  }
-
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors,
-  };
-}
 
 export function useBorrowForm(
   collateralBTC: number,
@@ -67,7 +19,6 @@ export function useBorrowForm(
   const lltvPercent = marketData?.lltvPercent ?? FALLBACK_LLTV_PERCENT;
   const [borrowAmount, setBorrowAmount] = useState<string>("");
   const [touched, setTouched] = useState(false);
-  const [processing, setProcessing] = useState(false);
 
   // Parse borrow amount as number
   const borrowAmountNum = useMemo(() => {
@@ -117,28 +68,6 @@ export function useBorrowForm(
     []
   );
 
-  const handleBorrow = useCallback(
-    async (amount: number) => {
-      if (!validation.isValid || amount === 0) {
-        return;
-      }
-
-      setProcessing(true);
-      try {
-        // TODO: Call borrow API
-
-        // Reset form
-        setBorrowAmount("");
-        setTouched(false);
-      } catch (error) {
-        // Error handled by caller
-      } finally {
-        setProcessing(false);
-      }
-    },
-    [validation.isValid]
-  );
-
   const formatUSD = useCallback((value: number) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -166,7 +95,6 @@ export function useBorrowForm(
     borrowAmount,
     borrowAmountNum,
     touched,
-    processing,
     inputState,
     maxBorrow,
     collateralValueUSD,
@@ -178,7 +106,6 @@ export function useBorrowForm(
     maxLTV: lltvPercent / 100,
     liquidationLTV: lltvPercent / 100,
     handleInputChange,
-    handleBorrow,
     setTouched,
     formatUSD,
     formatPercentage,

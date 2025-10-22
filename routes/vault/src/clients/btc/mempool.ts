@@ -5,7 +5,7 @@
  * This is a temporary location - will be migrated to when moving to main branch.
  */
 
-// import { getBTCNetwork } from '@babylonlabs-io/config';
+import { getMempoolApiUrl } from './config';
 
 /**
  * UTXO from mempool API with confirmation status
@@ -16,19 +16,6 @@ export interface MempoolUTXO {
   value: number;
   scriptPubKey: string;
   confirmed: boolean;
-}
-
-/**
- * Get mempool API URL based on network
- */
-function getMempoolApiUrl(): string {
-  // HARDCODED: Using `signet` for vault development
-  // TODO: Use wallet's actual network or add separate env var in production
-  const baseUrl =
-    process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space';
-
-  // Always use signet for now
-  return `${baseUrl}/signet/api`;
 }
 
 /**

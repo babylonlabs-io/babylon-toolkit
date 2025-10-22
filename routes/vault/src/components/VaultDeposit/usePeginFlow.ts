@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useUTXOs, calculateBalance } from '../../hooks/useUTXOs';
-import type { VaultProvider } from '../../clients/vault-api/types';
+import type { VaultProvider } from '../../types';
 
 /**
  * Hook to manage peg-in flow modal state

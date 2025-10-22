@@ -64,7 +64,6 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
   const {
     borrowAmount,
     borrowAmountNum,
-    processing,
     inputState,
     maxBorrow,
     collateralValueUSD,
@@ -366,7 +365,7 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
                 currentLTV > maxLTV * 100 && "text-error-main"
               )}
             >
-              {formatPercentage(currentLTV)}
+              {totalCollateralBTC > 0 ? formatPercentage(currentLTV) : "—"}
             </Text>
           </div>
           <div className="flex items-center justify-between gap-2">
@@ -389,13 +388,10 @@ export function BorrowModal({ open, onClose, onBorrow, connectedAddress }: Borro
             !validation.isValid ||
             borrowAmountNum === 0 ||
             !selectedMarketId ||
-            selectedCollateralTxHashes.size === 0 ||
-            processing
+            selectedCollateralTxHashes.size === 0
           }
         >
-          {processing
-            ? "Processing..."
-            : selectedCollateralTxHashes.size === 0
+          {selectedCollateralTxHashes.size === 0
             ? "Select Collateral"
             : !selectedMarketId
             ? "Select Market"

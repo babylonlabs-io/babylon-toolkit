@@ -6,8 +6,8 @@ import { useState, useCallback } from 'react';
 import type { Hex } from 'viem';
 import { addCollateralWithMarketId } from '../../../services/position/positionTransactionService';
 import type { AddCollateralResult } from '../../../services/position/positionTransactionService';
+import { getPeginRequest, getProviderBTCKey } from '../../../services/vault';
 import { CONTRACTS } from '../../../config/contracts';
-import { BTCVaultsManager } from '../../../clients/eth-contract';
 
 export interface UseMintAndBorrowParams {
   /** Array of pegin transaction hashes (vault IDs) to use as collateral */
@@ -58,14 +58,14 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         // Step 1: Get the pegin request to find the vault provider address
         // TODO: This is temporary to get 1st pegin request to find the vault provider address
         // There is an design issue which currently being discussed.
-        const firstPeginRequest = await BTCVaultsManager.getPeginRequest(
+        const firstPeginRequest = await getPeginRequest(
           CONTRACTS.BTC_VAULTS_MANAGER,
           pegInTxHashes[0]
         );
 
         // Step 2: Get the vault provider's BTC public key from the providerBTCKeys mapping
         // This is the key used for the vault's BTC locking script
-        const btcPubkey = await BTCVaultsManager.getProviderBTCKey(
+        const btcPubkey = await getProviderBTCKey(
           CONTRACTS.BTC_VAULTS_MANAGER,
           firstPeginRequest.vaultProvider
         );

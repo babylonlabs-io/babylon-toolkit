@@ -6,7 +6,7 @@
 
 import type { Address, Hex } from 'viem';
 import { VaultControllerTx, BTCVaultsManager } from '../../clients/eth-contract';
-import * as btcTransactionService from '../../transactions/btc/peginBuilder';
+import * as btcTransactionService from './vaultBtcTransactionService';
 import { CONTRACTS } from '../../config/contracts';
 
 /**

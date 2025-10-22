@@ -14,7 +14,7 @@
 import { Transaction } from 'bitcoinjs-lib';
 
 import { getTxInfo } from '../../clients/btc/mempool';
-import type { UTXOInfo } from './broadcastService';
+import type { UTXOInfo } from './vaultPeginBroadcastService';
 
 /**
  * Derive UTXO information from an unsigned Bitcoin transaction
