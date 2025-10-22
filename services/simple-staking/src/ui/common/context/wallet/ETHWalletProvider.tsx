@@ -6,8 +6,6 @@ import {
   useCallback,
   useMemo,
   useEffect,
-  Component,
-  type ReactNode,
 } from "react";
 import {
   type ETHTypedData,
@@ -23,6 +21,7 @@ import {
   useSignMessage,
   useSignTypedData,
   useSendTransaction,
+  useSwitchChain,
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
@@ -123,6 +122,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
   const { sendTransactionAsync } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
 
   // Update network name based on chain ID
   useEffect(() => {
@@ -222,8 +222,16 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => balance?.value ?? 0n,
       getNonce: async () => 0, // Would need additional hook for nonce
-      switchChain: async () => {
-        // AppKit handles chain switching through the modal
+      switchChain: async (chainId: number) => {
+        try {
+          setIsPending(true);
+          await switchChainAsync({ chainId });
+        } catch (err) {
+          handleError({ error: err as Error });
+          throw err;
+        } finally {
+          setIsPending(false);
+        }
       },
     }),
     [
@@ -233,6 +241,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       handleError,
       signTypedDataAsync,
       sendTransactionAsync,
+      switchChainAsync,
       balance?.value,
     ],
   );
@@ -246,7 +255,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       address: address ?? "",
       publicKeyHex,
       balance: balance
-        ? Number.parseFloat(formatUnits(balance.value, balance.decimals))
+        ? parseFloat(formatUnits(balance.value, balance.decimals))
         : 0,
       formattedBalance: balance
         ? formatUnits(balance.value, balance.decimals)
@@ -283,76 +292,60 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
-// Error boundary for ETHWalletProvider
-interface ETHWalletErrorBoundaryState {
-  hasError: boolean;
-}
-
-class ETHWalletErrorBoundary extends Component<
-  PropsWithChildren,
-  ETHWalletErrorBoundaryState
-> {
-  constructor(props: PropsWithChildren) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  static getDerivedStateFromError(): ETHWalletErrorBoundaryState {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error: Error) {
-    console.warn("ETH wallet provider failed to initialize:", error);
-  }
-
-  render(): ReactNode {
-    if (this.state.hasError) {
-      const fallbackContextValue: ETHWalletContextType = {
-        loading: false,
-        connected: false,
-        open: () => console.warn("ETH wallet not available"),
-        disconnect: () => Promise.resolve(),
-        address: "",
-        publicKeyHex: "",
-        balance: 0,
-        formattedBalance: "0",
-        chainId: undefined,
-        networkName: undefined,
-        pendingTx: undefined,
-        isPending: false,
-        getAddress: async () => "",
-        getPublicKeyHex: async () => "",
-        signMessage: async () => {
-          throw new Error("ETH wallet not available");
-        },
-        signTypedData: async () => {
-          throw new Error("ETH wallet not available");
-        },
-        sendTransaction: async () => {
-          throw new Error("ETH wallet not available");
-        },
-        getBalance: async () => 0n,
-        getNonce: async () => 0,
-        switchChain: async () => {},
-        clearError: () => {},
-      };
-
-      return (
-        <ETHWalletContext.Provider value={fallbackContextValue}>
-          {this.props.children}
-        </ETHWalletContext.Provider>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 // Safe wrapper for ETHWalletProvider that handles AppKit initialization errors
 export const SafeETHWalletProvider = ({ children }: PropsWithChildren) => {
-  return (
-    <ETHWalletErrorBoundary>
-      <ETHWalletProvider>{children}</ETHWalletProvider>
-    </ETHWalletErrorBoundary>
+  const [hasError, setHasError] = useState(false);
+
+  const fallbackContextValue = useMemo(
+    () => ({
+      loading: false,
+      connected: false,
+      open: () => console.warn("ETH wallet not available"),
+      disconnect: () => Promise.resolve(),
+      address: "",
+      publicKeyHex: "",
+      balance: 0,
+      formattedBalance: "0",
+      chainId: undefined,
+      networkName: undefined,
+      pendingTx: undefined,
+      isPending: false,
+      getAddress: async () => "",
+      getPublicKeyHex: async () => "",
+      signMessage: async () => {
+        throw new Error("ETH wallet not available");
+      },
+      signTypedData: async () => {
+        throw new Error("ETH wallet not available");
+      },
+      sendTransaction: async () => {
+        throw new Error("ETH wallet not available");
+      },
+      getBalance: async () => 0n,
+      getNonce: async () => 0,
+      switchChain: async () => {},
+      clearError: () => {},
+    }),
+    [],
   );
+
+  if (hasError) {
+    return (
+      <ETHWalletContext.Provider value={fallbackContextValue}>
+        {children}
+      </ETHWalletContext.Provider>
+    );
+  }
+
+  try {
+    return <ETHWalletProvider>{children}</ETHWalletProvider>;
+  } catch (error) {
+    console.warn("ETH wallet provider failed to initialize:", error);
+    setHasError(true);
+    return (
+      <ETHWalletContext.Provider value={fallbackContextValue}>
+        {children}
+      </ETHWalletContext.Provider>
+    );
+  }
 };
