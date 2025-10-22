@@ -1,4 +1,3 @@
-import type { Hex } from "viem";
 import {
   Button,
   DialogBody,
@@ -15,9 +14,10 @@ interface RepaySignModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  pegInTxHash?: Hex;
   /** Total amount to repay in USDC wei (6 decimals) */
   repayAmountWei?: bigint;
+  /** Position ID */
+  positionId?: string;
   /** Market ID from vault metadata */
   marketId?: string;
 }
@@ -25,17 +25,19 @@ interface RepaySignModalProps {
 /**
  * RepaySignModal - Transaction signing modal for repay flow
  *
- * The withdrawCollateralAndRedeemBTCVault transaction:
- * 1. Repays the USDC loan to Morpho
- * 2. Withdraws vaultBTC collateral from Morpho
- * 3. Burns vaultBTC and initiates pegout to release BTC
+ * The repay transaction:
+ * 1. Approves loan token (USDC) spending
+ * 2. Repays debt to Morpho (collateral remains in position)
+ *
+ * Note: This only repays debt. After repaying, collateral stays in position
+ * and user can borrow again. To withdraw collateral, use a separate action.
  */
 export function RepaySignModal({
   open,
   onClose,
   onSuccess,
-  pegInTxHash,
   repayAmountWei,
+  positionId,
   marketId,
 }: RepaySignModalProps) {
   const {
@@ -44,8 +46,7 @@ export function RepaySignModal({
     error,
     executeTransaction,
   } = useRepayTransaction({
-    pegInTxHash,
-    repayAmountWei,
+    positionId,
     marketId,
     isOpen: open,
   });
@@ -69,7 +70,7 @@ export function RepaySignModal({
 
       <DialogBody className="text-accent-primary flex flex-col gap-4 px-4 pb-8 pt-4 sm:px-6">
         <Text variant="body1" className="text-accent-secondary text-sm sm:text-base">
-          Sign the transaction to repay your full loan balance (including interest) and withdraw your BTC.
+          Sign the transaction to repay your loan balance (including accrued interest). Your collateral will remain in the position.
         </Text>
 
         <div className="flex flex-col items-start gap-4 py-4">
@@ -77,7 +78,7 @@ export function RepaySignModal({
             Approve Loan Token Spending
           </Step>
           <Step step={2} currentStep={currentStep}>
-            Repay Full Loan & Withdraw BTC
+            Repay Debt
           </Step>
         </div>
 
@@ -100,7 +101,7 @@ export function RepaySignModal({
         </Button>
 
         <Button
-          disabled={isLoading || !pegInTxHash || !repayAmountWei || !marketId}
+          disabled={isLoading || !repayAmountWei || !positionId || !marketId}
           variant="contained"
           className="flex-1 text-xs sm:text-base"
           onClick={handleSign}

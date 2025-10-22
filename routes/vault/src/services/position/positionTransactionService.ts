@@ -5,8 +5,9 @@
  */
 
 import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
-import { VaultControllerTx, Morpho, ERC20 } from '../../clients/eth-contract';
+import { VaultControllerTx, VaultController, Morpho, ERC20 } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
+import { CONTRACTS } from '../../config/contracts';
 
 /**
  * Result of adding collateral to position
@@ -126,54 +127,148 @@ export async function addCollateralAndBorrowWithMarketId(
 }
 
 /**
- * Approve loan token spending for vault repayment
+ * Approve loan token spending for repayment
  *
- * Fetches the loan token address from Morpho market and approves spending
- * with a 0.1% buffer to account for interest accrual.
+ * Approves the required contract to spend loan tokens on behalf of the user.
+ * Uses max uint256 to ensure sufficient allowance for full debt repayment.
  *
- * @param vaultControllerAddress - BTCVaultController contract address
- * @param repayAmountWei - Amount to repay (in loan token's smallest unit)
- * @param marketId - Morpho market ID
+ * @param marketId - Market ID
  * @returns Transaction hash and receipt from approval
  */
 export async function approveLoanTokenForRepay(
-  vaultControllerAddress: Address,
-  repayAmountWei: bigint,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  // Step 1: Fetch loan token address from Morpho market params
+  // Fetch loan token address from Morpho market params
   const marketParams = await Morpho.getBasicMarketParams(marketId);
   const loanTokenAddress = marketParams.loanToken;
 
-  // Step 2: Approve loan token spending
-  // Add small 0.1% buffer to account for interest accrual between approval and repay execution
-  // This prevents the transaction from failing if interest accrues during the process
-  const approvalAmount = (repayAmountWei * 1001n) / 1000n;
+  // Approve Morpho contract to spend loan tokens
+  // Using max uint256 for unlimited approval
+  const approvalAmount = 2n ** 256n - 1n;
 
   return ERC20.approveERC20(
     loanTokenAddress,
-    vaultControllerAddress,
+    CONTRACTS.MORPHO, // Approve Morpho, not the vault controller
     approvalAmount
   );
 }
 
 /**
- * Withdraw collateral and redeem BTC vault
+ * Repay all debt from position
  *
- * Combined operation that:
- * 1. Repays debt (if repayAmount > 0)
- * 2. Withdraws all collateral from the position
- * 3. Initiates BTC redemption by emitting VaultRedeemable event
- *
- * IMPORTANT: This withdraws ALL collateral from the position.
- * After repayment, the position must have no remaining debt.
+ * Repays the full outstanding debt including all accrued interest and fees.
+ * Fetches the latest debt amount right before the transaction to minimize dust.
  *
  * Before calling:
- * - User must have approved loan token spending (call approveLoanTokenForRepay first)
+ * - User must approve loan token spending (call approveLoanTokenForRepay first)
+ *
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param positionId - Position ID
+ * @param marketId - Market ID
+ * @returns Transaction hash and receipt
+ */
+export async function repayDebt(
+  vaultControllerAddress: Address,
+  positionId: string,
+  marketId: string | bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  // Fetch market parameters
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+
+  // Fetch position data which includes the proxy contract address
+  const positions = await VaultController.getPositionsBulk(vaultControllerAddress, [positionId as Hex]);
+
+  if (positions.length === 0) {
+    throw new Error('Position not found');
+  }
+
+  const proxyContract = positions[0].proxyContract;
+
+  // Fetch the LATEST debt amount from Morpho right before repaying
+  // This minimizes the dust left due to interest accrual
+  const position = await Morpho.getUserPosition(marketId, proxyContract);
+
+  // Check if there's actually any debt to repay
+  if (position.borrowShares === 0n) {
+    throw new Error('No debt to repay - position already fully paid');
+  }
+
+  const borrowAssets = position.borrowAssets;
+
+  console.log('[repayDebt] Repaying debt via VaultController:', {
+    proxyContract,
+    borrowAssets: borrowAssets.toString(),
+  });
+
+  // Repay through VaultController which handles transferring tokens to proxy
+  // and calling Morpho's repay function
+  const result = await VaultControllerTx.repayFromPosition(
+    vaultControllerAddress,
+    marketParams,
+    borrowAssets,
+  );
+
+  console.log('[repayDebt] Repayment successful:', {
+    transactionHash: result.transactionHash,
+  });
+
+  return {
+    transactionHash: result.transactionHash,
+    receipt: result.receipt,
+  };
+}
+
+/**
+ * Withdraw ALL collateral from position (without redeeming BTC vault)
+ *
+ * Withdraws ALL collateral from the position but does NOT redeem the BTC vault.
+ * This is different from withdrawCollateralAndRedeemBTCVault which also initiates BTC redemption.
+ *
+ * IMPORTANT:
+ * - Withdraws ALL collateral (no partial withdrawal available)
+ * - The position must have NO DEBT or this will revert
+ * - Does NOT emit VaultRedeemable event (vault remains locked on Bitcoin network)
+ * - Use this when you want to remove collateral without redeeming to Bitcoin network
+ *
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param marketId - Morpho market ID
+ * @returns Transaction hash, receipt, and amount of collateral withdrawn
+ */
+export async function withdrawCollateralFromPosition(
+  vaultControllerAddress: Address,
+  marketId: string | bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; withdrawnAmount: bigint }> {
+  // Fetch market parameters from Morpho contract
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+
+  return VaultControllerTx.withdrawCollateralFromPosition(
+    vaultControllerAddress,
+    marketParams
+  );
+}
+
+/**
+ * Withdraw all collateral and redeem BTC vault (close position)
+ *
+ * Combined operation that:
+ * 1. Repays ALL debt by burning all borrow shares (if repayAmount > 0)
+ * 2. Withdraws ALL collateral from the position
+ * 3. Initiates BTC redemption by emitting VaultRedeemable event
+ *
+ * IMPORTANT:
+ * - Repays ALL debt (burns all borrow shares), not partial
+ * - Withdraws ALL collateral from the position
+ * - Closes the position completely
+ *
+ * Before calling:
+ * - User must approve loan token spending (call approveLoanTokenForRepay first)
+ * - repayAmount must equal the full debt (principal + accrued interest)
+ * - Use morphoPosition.borrowAssets to get the exact amount
+ * - Set repayAmount = 0 if position has no debt
  *
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param marketParams - Morpho market parameters identifying the position
- * @param repayAmount - Amount to repay (in loan token units)
+ * @param repayAmount - Amount of tokens to transfer for full debt repayment (0 if no debt)
  * @returns Transaction hash and receipt
  */
 export async function withdrawCollateralAndRedeemBTCVault(
