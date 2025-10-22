@@ -4,12 +4,13 @@ import { useChainConnector } from '@babylonlabs-io/wallet-connector';
 import { PeginModal } from '../PeginFlow/PeginModal/PeginModal';
 import { PeginSignModal } from '../PeginFlow/PeginSignModal/PeginSignModal';
 import { PeginSuccessModal } from '../PeginFlow/PeginSuccessModal/PeginSuccessModal';
-import { RepayFlow } from '../RepayFlow';
+import { RedeemFlow } from '../RedeemFlow';
 import { useVaultPositions } from '../../hooks/useVaultPositions';
 import { usePeginFlow } from './usePeginFlow';
 import { EmptyState } from './EmptyState';
 import { VaultActivityCard } from './VaultActivityCard';
 import type { VaultActivity } from '../../types';
+import { getPeginState, PeginAction } from '../../models/peginStateMachine';
 
 export interface VaultDepositProps {
   ethAddress?: string;
@@ -24,22 +25,22 @@ export function VaultDeposit({
   btcPublicKey,
   isWalletConnected: isWalletConnectedProp = false,
 }: VaultDepositProps) {
-  // Peg out flow state
-  const [pegoutActivity, setPegoutActivity] = useState<VaultActivity | null>(
+  // Redeem flow state
+  const [redeemActivity, setRedeemActivity] = useState<VaultActivity | null>(
     null,
   );
-  const [pegoutFlowOpen, setPegoutFlowOpen] = useState(false);
+  const [redeemFlowOpen, setRedeemFlowOpen] = useState(false);
 
-  // Handle peg out button click
-  const handlePegOut = useCallback((activity: VaultActivity) => {
-    setPegoutActivity(activity);
-    setPegoutFlowOpen(true);
+  // Handle redeem button click
+  const handleRedeem = useCallback((activity: VaultActivity) => {
+    setRedeemActivity(activity);
+    setRedeemFlowOpen(true);
   }, []);
 
-  // Handle peg out flow close
-  const handlePegoutClose = useCallback(() => {
-    setPegoutFlowOpen(false);
-    setPegoutActivity(null);
+  // Handle redeem flow close
+  const handleRedeemClose = useCallback(() => {
+    setRedeemFlowOpen(false);
+    setRedeemActivity(null);
   }, []);
 
   // Use wallet addresses from props
@@ -57,22 +58,31 @@ export function VaultDeposit({
   } = useVaultPositions(connectedAddress);
 
   // Attach action handlers to activities at component level
-  // Show "Redeem" action only for Available vaults (status 2)
+  // Use state machine to determine available actions
   const activities = useMemo(() => {
     return rawActivities.map((activity) => {
-      const isAvailable = activity.contractStatus === 2;
+      // Only process activities with contractStatus (pegin deposits)
+      if (activity.contractStatus === undefined) {
+        return activity;
+      }
+
+      // Get current state from state machine
+      const state = getPeginState(activity.contractStatus);
+
+      // Check if REDEEM action is available using state machine
+      const canRedeem = state.availableActions.includes(PeginAction.REDEEM);
 
       return {
         ...activity,
-        action: isAvailable
+        action: canRedeem
           ? {
               label: 'Redeem',
-              onClick: () => handlePegOut(activity),
+              onClick: () => handleRedeem(activity),
             }
           : undefined,
       };
     });
-  }, [rawActivities, handlePegOut]);
+  }, [rawActivities, handleRedeem]);
 
   // Peg-in flow modal state
   // Note: Borrow/Repay flows are now in VaultPositions tab
@@ -217,14 +227,12 @@ export function VaultDeposit({
         amount={peginAmount}
       />
 
-      {/* Peg Out Flow (uses RepayFlow which calls withdrawCollateralAndRedeemBTCVault) */}
-      {/* Note: Currently uses withdrawCollateralAndRedeemBTCVault which repays debt, withdraws collateral, and initiates BTC redemption atomically. */}
-      {/* Future: Will be split into separate repay and pegout transactions. */}
-      <RepayFlow
-        activity={pegoutActivity}
-        isOpen={pegoutFlowOpen}
-        onClose={handlePegoutClose}
-        onRepaySuccess={refetchActivities}
+      {/* Redeem Flow - Redeems available vaults back to BTC */}
+      <RedeemFlow
+        activity={redeemActivity}
+        isOpen={redeemFlowOpen}
+        onClose={handleRedeemClose}
+        onRedeemSuccess={refetchActivities}
       />
     </>
   );

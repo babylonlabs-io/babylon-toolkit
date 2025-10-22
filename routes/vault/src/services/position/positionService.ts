@@ -28,11 +28,6 @@ export interface PositionWithMorpho {
 /**
  * Get all user positions with Morpho data
  *
- * Optimized to minimize API calls by:
- * 1. Bulk fetching all position data in one multicall
- * 2. Deduplicating market data and oracle price fetches (many positions may share the same market)
- * 3. Bulk fetching Morpho positions grouped by market ID
- *
  * @param userAddress - User's Ethereum address
  * @param vaultControllerAddress - BTCVaultController contract address
  * @returns Array of positions with Morpho position, full market data, and BTC price
@@ -44,19 +39,13 @@ export async function getUserPositionsWithMorpho(
   // Step 1: Get all position IDs for the user
   const positionIds = await VaultController.getUserPositions(vaultControllerAddress, userAddress);
 
-  console.log('positionIds:', positionIds);
-
   // Early return if no positions
   if (positionIds.length === 0) {
     return [];
   }
 
   // Step 2: Bulk fetch all position data in a single multicall
-  // Note: This uses the `positions` mapping which does NOT include pegInTxHashes
-  // If pegInTxHashes are needed in the future, use getPositionsCompleteBulk() instead
   const positions = await VaultController.getPositionsBulk(vaultControllerAddress, positionIds);
-
-  console.log('positions:', positions);
 
   // Step 3: Deduplicate and fetch unique markets
   const uniqueMarketIds = [...new Set(positions.map(p => p.marketId.toString()))];

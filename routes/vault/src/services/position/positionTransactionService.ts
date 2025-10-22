@@ -10,7 +10,7 @@ import type { MarketParams } from '../../clients/eth-contract';
 import { CONTRACTS } from '../../config/contracts';
 
 /**
- * Result of adding collateral to position
+ * Result of adding collateral to position (with optional borrowing)
  */
 export interface AddCollateralResult {
   /** Transaction hash */
@@ -19,111 +19,60 @@ export interface AddCollateralResult {
   receipt: TransactionReceipt;
   /** Market parameters used */
   marketParams: MarketParams;
-  /** Position ID */
-  positionId: Hex;
+  /** Position ID (only available when not borrowing) */
+  positionId?: Hex;
 }
 
 /**
- * Result of adding collateral to position and borrowing
- */
-export interface AddCollateralAndBorrowResult {
-  /** Transaction hash */
-  transactionHash: Hash;
-  /** Transaction receipt */
-  receipt: TransactionReceipt;
-  /** Market parameters used */
-  marketParams: MarketParams;
-}
-
-/**
- * Add collateral to position (without borrowing)
- *
- * This composite operation:
- * 1. Fetches Morpho market parameters by market ID
- * 2. Executes addCollateralToPosition transaction with multiple vault IDs
- * 3. Creates a new position if one doesn't exist, or adds to existing position
- *
- * Supports multi-vault collateral:
- * - Use multiple vault IDs to combine collateral from several deposits
- * - All vaults must belong to the same depositor
- * - First call creates the position, subsequent calls expand it
- * - No borrowing occurs
+ * Add collateral to position (with optional borrowing)
  *
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketId - Morpho market ID
- * @returns Transaction result with market parameters and position ID
+ * @param borrowAmount - Optional amount to borrow (in loan token units). If provided and > 0, borrows from position.
+ * @returns Transaction result with market parameters and optional position ID
  */
 export async function addCollateralWithMarketId(
   vaultControllerAddress: Address,
   pegInTxHashes: Hex[],
   depositorBtcPubkey: Hex,
   marketId: string | bigint,
+  borrowAmount?: bigint,
 ): Promise<AddCollateralResult> {
   // Step 1: Fetch market parameters from Morpho contract
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
-  // Step 2: Execute transaction with multiple vault IDs
-  const { transactionHash, receipt, positionId } = await VaultControllerTx.addCollateralToPosition(
-    vaultControllerAddress,
-    pegInTxHashes,
-    depositorBtcPubkey,
-    marketParams,
-  );
+  // Step 2: Execute transaction based on whether borrowing is requested
+  if (borrowAmount !== undefined && borrowAmount > 0n) {
+    const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
+      vaultControllerAddress,
+      pegInTxHashes,
+      depositorBtcPubkey,
+      marketParams,
+      borrowAmount,
+    );
 
-  return {
-    transactionHash,
-    receipt,
-    marketParams,
-    positionId,
-  };
-}
+    return {
+      transactionHash,
+      receipt,
+      marketParams,
+    };
+  } else {
+    const { transactionHash, receipt, positionId } = await VaultControllerTx.addCollateralToPosition(
+      vaultControllerAddress,
+      pegInTxHashes,
+      depositorBtcPubkey,
+      marketParams,
+    );
 
-/**
- * Add collateral to position and borrow (creates position if needed)
- *
- * This composite operation:
- * 1. Fetches Morpho market parameters by market ID
- * 2. Executes addCollateralToPositionAndBorrow transaction with multiple vault IDs
- * 3. Creates a new position if one doesn't exist, or adds to existing position
- *
- * Supports multi-vault collateral:
- * - Use multiple vault IDs to combine collateral from several deposits
- * - All vaults must belong to the same depositor
- * - First call creates the position, subsequent calls expand it
- *
- * @param vaultControllerAddress - BTCVaultController contract address
- * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
- * @param marketId - Morpho market ID
- * @param borrowAmount - Amount to borrow (in loan token units)
- * @returns Transaction result with market parameters
- */
-export async function addCollateralAndBorrowWithMarketId(
-  vaultControllerAddress: Address,
-  pegInTxHashes: Hex[],
-  depositorBtcPubkey: Hex,
-  marketId: string | bigint,
-  borrowAmount: bigint,
-): Promise<AddCollateralAndBorrowResult> {
-  // Step 1: Fetch market parameters from Morpho contract
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
-
-  // Step 3: Execute transaction with multiple vault IDs
-  const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
-    vaultControllerAddress,
-    pegInTxHashes,
-    depositorBtcPubkey,
-    marketParams,
-    borrowAmount,
-  );
-
-  return {
-    transactionHash,
-    receipt,
-    marketParams,
-  };
+    return {
+      transactionHash,
+      receipt,
+      marketParams,
+      positionId,
+    };
+  }
 }
 
 /**
@@ -155,13 +104,7 @@ export async function approveLoanTokenForRepay(
 
 /**
  * Repay all debt from position
- *
- * Repays the full outstanding debt including all accrued interest and fees.
- * Fetches the latest debt amount right before the transaction to minimize dust.
- *
- * Before calling:
- * - User must approve loan token spending (call approveLoanTokenForRepay first)
- *
+ * 
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param positionId - Position ID
  * @param marketId - Market ID
@@ -237,48 +180,12 @@ export async function repayDebt(
 export async function withdrawCollateralFromPosition(
   vaultControllerAddress: Address,
   marketId: string | bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; withdrawnAmount: bigint }> {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
   // Fetch market parameters from Morpho contract
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   return VaultControllerTx.withdrawCollateralFromPosition(
     vaultControllerAddress,
     marketParams
-  );
-}
-
-/**
- * Withdraw all collateral and redeem BTC vault (close position)
- *
- * Combined operation that:
- * 1. Repays ALL debt by burning all borrow shares (if repayAmount > 0)
- * 2. Withdraws ALL collateral from the position
- * 3. Initiates BTC redemption by emitting VaultRedeemable event
- *
- * IMPORTANT:
- * - Repays ALL debt (burns all borrow shares), not partial
- * - Withdraws ALL collateral from the position
- * - Closes the position completely
- *
- * Before calling:
- * - User must approve loan token spending (call approveLoanTokenForRepay first)
- * - repayAmount must equal the full debt (principal + accrued interest)
- * - Use morphoPosition.borrowAssets to get the exact amount
- * - Set repayAmount = 0 if position has no debt
- *
- * @param vaultControllerAddress - BTCVaultController contract address
- * @param marketParams - Morpho market parameters identifying the position
- * @param repayAmount - Amount of tokens to transfer for full debt repayment (0 if no debt)
- * @returns Transaction hash and receipt
- */
-export async function withdrawCollateralAndRedeemBTCVault(
-  vaultControllerAddress: Address,
-  marketParams: MarketParams,
-  repayAmount: bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  return VaultControllerTx.withdrawCollateralAndRedeemBTCVault(
-    vaultControllerAddress,
-    marketParams,
-    repayAmount
   );
 }

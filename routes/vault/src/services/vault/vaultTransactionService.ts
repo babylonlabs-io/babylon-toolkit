@@ -5,8 +5,9 @@
  */
 
 import type { Address, Hex } from 'viem';
-import { VaultControllerTx } from '../../clients/eth-contract';
+import { VaultControllerTx, BTCVaultsManager } from '../../clients/eth-contract';
 import * as btcTransactionService from '../../transactions/btc/peginBuilder';
+import { CONTRACTS } from '../../config/contracts';
 
 /**
  * UTXO parameters for peg-in transaction
@@ -86,5 +87,53 @@ export async function submitPeginRequest(
     btcTxid: btcTx.txid,
     btcTxHex: btcTx.unsignedTxHex,
   };
+}
+
+/**
+ * Redeem BTC vault (withdraw BTC back to user's account)
+ *
+ * This function:
+ * 1. Fetches vault data and validates status
+ * 2. Gets the vault provider's BTC public key (used as redeemer key)
+ * 3. Executes the redeem transaction
+ *
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
+ * @returns Transaction hash and receipt
+ * @throws Error if vault is not in Available status (status !== 2)
+ */
+export async function redeemVault(
+  vaultControllerAddress: Address,
+  pegInTxHash: Hex,
+) {
+  // Step 1: Fetch vault data to validate status and get vault provider
+  const vault = await BTCVaultsManager.getPeginRequest(
+    CONTRACTS.BTC_VAULTS_MANAGER,
+    pegInTxHash
+  );
+
+  // Step 2: Validate vault status is "Available" (status === 2)
+  if (vault.status !== 2) {
+    const statusNames = ['Pending', 'Verified', 'Available', 'InPosition', 'Expired'];
+    const currentStatus = statusNames[vault.status] || `Unknown (${vault.status})`;
+    throw new Error(
+      `Cannot redeem vault: vault status is "${currentStatus}". ` +
+      `Only vaults with "Available" status can be redeemed.`
+    );
+  }
+
+  // Step 3: Get the vault provider's BTC public key
+  // The vault provider's BTC key is used as the redeemer key (who can claim BTC on Bitcoin network)
+  const providerBtcKey = await BTCVaultsManager.getProviderBTCKey(
+    CONTRACTS.BTC_VAULTS_MANAGER,
+    vault.vaultProvider
+  );
+
+  // Step 4: Execute redeem transaction with vault provider's BTC key as redeemer
+  return VaultControllerTx.redeemBTCVault(
+    vaultControllerAddress,
+    pegInTxHash,
+    [providerBtcKey] // claimerPKs - vault provider can claim the BTC
+  );
 }
 
