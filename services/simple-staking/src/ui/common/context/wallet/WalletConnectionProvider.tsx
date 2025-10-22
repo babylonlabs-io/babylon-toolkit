@@ -7,7 +7,6 @@ import { useTheme } from "next-themes";
 import { useCallback, type PropsWithChildren } from "react";
 import { useLocation } from "react-router";
 
-import { logTermsAcceptance } from "@/ui/common/api/logTermAcceptance";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
@@ -17,10 +16,6 @@ import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 import { useError } from "../Error/ErrorProvider";
 
 const context = typeof window !== "undefined" ? window : {};
-
-const lifecycleHooks = {
-  acceptTermsOfService: logTermsAcceptance,
-};
 
 const config: ChainConfigArr = [
   {
@@ -81,7 +76,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     <WalletProvider
       persistent
       theme={theme}
-      lifecycleHooks={lifecycleHooks}
       config={config}
       context={context}
       onError={onError}
