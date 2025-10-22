@@ -1,21 +1,23 @@
 /**
- * Hook to manage the full repay transaction flow
+ * Hook to manage the repay transaction flow
  *
  * Handles:
  * 1. Managing multi-step state (approving → repaying)
- * 2. Calling service layer for separate approve and repay transactions
+ * 2. Calling service layer for approve and repay transactions
  * 3. Error handling and state management
+ *
+ * Note: This only repays debt, it does NOT withdraw collateral.
+ * After repaying, collateral remains in position and user can:
+ * - Borrow again if needed
+ * - Withdraw collateral separately (only when debt = 0)
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Hex } from 'viem';
-import { approveLoanTokenForRepay, withdrawCollateralAndRedeemBTCVault } from '../../../services/position/positionTransactionService';
-import { Morpho } from '../../../clients/eth-contract';
+import { approveLoanTokenForRepay, repayDebt } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 
 interface UseRepayTransactionParams {
-  pegInTxHash?: Hex;
-  repayAmountWei?: bigint;
+  positionId?: string;
   marketId?: string;
   isOpen: boolean;
 }
@@ -27,15 +29,14 @@ interface UseRepayTransactionResult {
   isLoading: boolean;
   /** Error message if transaction failed */
   error: string | null;
-  /** Execute the full repay transaction flow */
+  /** Execute the repay transaction flow */
   executeTransaction: () => Promise<void>;
   /** Reset state (called when modal closes) */
   reset: () => void;
 }
 
 export function useRepayTransaction({
-  pegInTxHash,
-  repayAmountWei,
+  positionId,
   marketId,
   isOpen,
 }: UseRepayTransactionParams): UseRepayTransactionResult {
@@ -53,7 +54,7 @@ export function useRepayTransaction({
   }, [isOpen]);
 
   const executeTransaction = useCallback(async () => {
-    if (!pegInTxHash || !repayAmountWei || !marketId) {
+    if (!positionId || !marketId) {
       setError('Missing required transaction data');
       return;
     }
@@ -64,21 +65,15 @@ export function useRepayTransaction({
     try {
       // Step 1: Approve loan token spending
       setCurrentStep(1);
-      await approveLoanTokenForRepay(
-        CONTRACTS.VAULT_CONTROLLER,
-        repayAmountWei,
-        marketId
-      );
+      await approveLoanTokenForRepay(marketId);
 
-      // Step 2: Fetch market parameters for transaction
-      const marketParams = await Morpho.getBasicMarketParams(marketId);
-
-      // Step 3: Withdraw collateral and redeem BTC vault
+      // Step 2: Repay all debt
+      // This repays ALL debt including fees and interest
       setCurrentStep(2);
-      await withdrawCollateralAndRedeemBTCVault(
+      await repayDebt(
         CONTRACTS.VAULT_CONTROLLER,
-        marketParams,
-        repayAmountWei
+        positionId,
+        marketId
       );
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Transaction failed');
@@ -87,7 +82,7 @@ export function useRepayTransaction({
     } finally {
       setIsLoading(false);
     }
-  }, [pegInTxHash, repayAmountWei, marketId]);
+  }, [positionId, marketId]);
 
   const reset = useCallback(() => {
     setCurrentStep(0);

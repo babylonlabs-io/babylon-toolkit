@@ -209,22 +209,150 @@ export async function addCollateralToPositionAndBorrow(
 }
 
 /**
- * Withdraw collateral and redeem BTC vault
+ * Repay debt from position
  *
- * Combined operation that:
- * 1. Repays debt (if repayAmount > 0)
- * 2. Withdraws all collateral from the position
- * 3. Initiates BTC redemption by emitting VaultRedeemable event
+ * Repays debt for the position by transferring loan tokens from user to the proxy
+ * and calling Morpho's repay function. Supports partial or full repayment.
  *
- * IMPORTANT: This withdraws ALL collateral from the position.
- * After repayment, the position must have no remaining debt.
- *
- * NOTE: User must approve loan token spending for the repay amount before calling this.
- * Use borrowAssets from AccrualPosition.fetch() to get the current total debt (principal + interest).
+ * Use this when you want to reduce or eliminate debt without withdrawing collateral.
  *
  * @param contractAddress - BTCVaultController contract address
  * @param marketParams - Morpho market parameters identifying the position
- * @param repayAmount - Amount to repay (in loan token units, 0 if no debt)
+ * @param repayAmount - Amount to repay (in loan token units, must be > 0)
+ * @returns Transaction hash and receipt
+ */
+export async function repayFromPosition(
+  contractAddress: Address,
+  marketParams: MarketParams,
+  repayAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const publicClient = ethClient.getPublicClient();
+  const wagmiConfig = getSharedWagmiConfig();
+
+  try {
+    // Get wallet client from wagmi (viem-compatible)
+    const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'repayFromPosition',
+      args: [marketParams, repayAmount],
+      chain,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    return {
+      transactionHash: hash,
+      receipt,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to repay from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
+/**
+ * Withdraw ALL collateral from position (without redeeming BTC vault)
+ *
+ * Withdraws ALL collateral from the position but does NOT redeem the BTC vault.
+ * This is different from withdrawCollateralAndRedeemBTCVault which also initiates BTC redemption.
+ *
+ * IMPORTANT:
+ * - Withdraws ALL collateral (no partial withdrawal available)
+ * - The position must have NO DEBT or this will revert
+ * - Does NOT emit VaultRedeemable event (vault remains locked)
+ * - Use this when you want to remove collateral without redeeming to Bitcoin network
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param marketParams - Morpho market parameters identifying the position
+ * @returns Transaction hash, receipt, and amount of collateral withdrawn
+ */
+export async function withdrawCollateralFromPosition(
+  contractAddress: Address,
+  marketParams: MarketParams,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; withdrawnAmount: bigint }> {
+  const publicClient = ethClient.getPublicClient();
+  const wagmiConfig = getSharedWagmiConfig();
+
+  try {
+    // Get wallet client from wagmi (viem-compatible)
+    const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'withdrawCollateralFromPosition',
+      args: [marketParams],
+      chain,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    // TODO: Extract withdrawnAmount from transaction logs/return value
+    const withdrawnAmount = 0n;
+
+    return {
+      transactionHash: hash,
+      receipt,
+      withdrawnAmount,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to withdraw collateral from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
+/**
+ * Withdraw all collateral and redeem BTC vault (close position)
+ *
+ * Combined operation that:
+ * 1. Repays ALL debt by burning all borrow shares (if repayAmount > 0)
+ * 2. Withdraws ALL collateral from the position
+ * 3. Initiates BTC redemption by emitting VaultRedeemable event
+ *
+ * IMPORTANT:
+ * - Repays ALL debt (burns all borrow shares), not partial
+ * - Withdraws ALL collateral from the position
+ * - Closes the position completely
+ * - Emits VaultRedeemable event for vault provider to redeem BTC
+ *
+ * NOTE:
+ * - User must approve loan token spending for repayAmount before calling
+ * - repayAmount should be the full debt amount (principal + accrued interest)
+ * - Use morphoPosition.borrowAssets to get the exact amount needed
+ * - Set repayAmount = 0 if position has no debt
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param marketParams - Morpho market parameters identifying the position
+ * @param repayAmount - Amount of tokens to transfer for full debt repayment (0 if no debt)
  * @returns Transaction hash and receipt
  */
 export async function withdrawCollateralAndRedeemBTCVault(
