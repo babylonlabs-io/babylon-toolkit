@@ -9,7 +9,8 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./wasm/*": "./wasm/*"
   },
   "scripts": {
     "build": "echo 'Skipping build for route package. Bundling happens from the service package.'",
@@ -25,8 +26,10 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
+    "@tanstack/react-query": "5.28.14",
     "react-icons": "5.3.0",
-    "react-router": "7.6.3"
+    "react-router": "7.6.3",
+    "usehooks-ts": "^3.1.1"
   },
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",
