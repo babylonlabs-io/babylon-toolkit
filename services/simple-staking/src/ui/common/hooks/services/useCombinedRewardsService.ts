@@ -7,6 +7,8 @@ import { useRewardState as useBabyRewardState } from "@/ui/baby/state/RewardStat
 
 import { useBbnTransaction } from "../client/rpc/mutation/useBbnTransaction";
 
+const isNonZeroAmount = (r: { amount: bigint }) => r.amount > 0n;
+
 export const useCombinedRewardsService = () => {
   const { bbnAddress, refetchRewardBalance } = useRewardsState();
   const { refreshRewards } = useBabyRewardState();
@@ -34,14 +36,12 @@ export const useCombinedRewardsService = () => {
 
       if (babyRewards && babyRewards.length > 0) {
         msgs.push(
-          ...babyRewards
-            .filter((r) => r.amount > 0n)
-            .map((r) =>
-              babylon.txs.baby.createClaimRewardMsg({
-                validatorAddress: r.validatorAddress,
-                delegatorAddress: bbnAddress,
-              }),
-            ),
+          ...babyRewards.filter(isNonZeroAmount).map((r) =>
+            babylon.txs.baby.createClaimRewardMsg({
+              validatorAddress: r.validatorAddress,
+              delegatorAddress: bbnAddress,
+            }),
+          ),
         );
       }
 
@@ -75,7 +75,7 @@ export const useCombinedRewardsService = () => {
       if (params.includeBtc) {
         await refetchRewardBalance();
       }
-      if (params.babyRewards && params.babyRewards.some((r) => r.amount > 0n)) {
+      if (params.babyRewards && params.babyRewards.some(isNonZeroAmount)) {
         await refreshRewards();
       }
       return result;

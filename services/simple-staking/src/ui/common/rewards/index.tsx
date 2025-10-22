@@ -222,10 +222,6 @@ function RewardsPageContent() {
       setClaimingBaby(Boolean(hasBabyRewards));
 
       const babyRewardsToClaim = hasBabyRewards ? babyRewards : [];
-      if (!hasBtcRewards && !hasBabyRewards) {
-        setClaimStatus(ClaimStatus.SUCCESS);
-        return;
-      }
 
       const result = await claimCombined({
         includeBtc: Boolean(hasBtcRewards),
