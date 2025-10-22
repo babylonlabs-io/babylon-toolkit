@@ -24,9 +24,10 @@ export interface PositionData {
 interface PositionCardProps {
   position: PositionData;
   onRepay?: () => void;
+  onBorrowMore?: () => void;
 }
 
-export function PositionCard({ position, onRepay }: PositionCardProps) {
+export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardProps) {
   return (
     <div className="bg-secondary-highlight w-full space-y-4 rounded p-4">
       {/* Collateral Section */}
@@ -49,12 +50,19 @@ export function PositionCard({ position, onRepay }: PositionCardProps) {
             )}
           </div>
         </div>
-        {/* Repay Button */}
-        {onRepay && (
-          <Button onClick={onRepay} variant="contained">
-            Repay
-          </Button>
-        )}
+        {/* Action Buttons */}
+        <div className="flex gap-2">
+          {onBorrowMore && (
+            <Button onClick={onBorrowMore} variant="outlined">
+              Borrow More
+            </Button>
+          )}
+          {onRepay && (
+            <Button onClick={onRepay} variant="contained">
+              Repay
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Loan Details Section */}

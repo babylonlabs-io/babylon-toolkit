@@ -162,6 +162,29 @@ export async function repayDebt(
 }
 
 /**
+ * Borrow more from an existing position
+ * 
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param marketId - Market ID
+ * @param borrowAmount - Amount to borrow (in loan token units)
+ * @returns Transaction hash, receipt, and actual amount borrowed
+ */
+export async function borrowMoreFromPosition(
+  vaultControllerAddress: Address,
+  marketId: string | bigint,
+  borrowAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
+  // Fetch market parameters
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+
+  return VaultControllerTx.borrowFromPosition(
+    vaultControllerAddress,
+    marketParams,
+    borrowAmount
+  );
+}
+
+/**
  * Withdraw ALL collateral from position (without redeeming BTC vault)
  *
  * Withdraws ALL collateral from the position but does NOT redeem the BTC vault.

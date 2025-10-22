@@ -267,6 +267,59 @@ export async function repayFromPosition(
 }
 
 /**
+ * Borrow more from an existing position
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param marketParams - Morpho market parameters identifying the position
+ * @param borrowAmount - Amount to borrow (in loan token units, must be > 0)
+ * @returns Transaction hash, receipt, and actual amount borrowed
+ */
+export async function borrowFromPosition(
+  contractAddress: Address,
+  marketParams: MarketParams,
+  borrowAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
+  const publicClient = ethClient.getPublicClient();
+  const wagmiConfig = getSharedWagmiConfig();
+
+  try {
+    // Get wallet client from wagmi (viem-compatible)
+    const chain = getETHChain();
+
+    // Switch to the correct chain if needed
+    await switchChain(wagmiConfig, { chainId: chain.id });
+
+    const walletClient = await getWalletClient(wagmiConfig, {
+      chainId: chain.id,
+    });
+    if (!walletClient) {
+      throw new Error('Wallet not connected');
+    }
+
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: 'borrowFromPosition',
+      args: [marketParams, borrowAmount],
+      chain,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    return {
+      transactionHash: hash,
+      receipt,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to borrow from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
+/**
  * Withdraw ALL collateral from position (without redeeming BTC vault)
  *
  * @param contractAddress - BTCVaultController contract address
