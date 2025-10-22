@@ -3,10 +3,11 @@ import { ActivityList } from '@babylonlabs-io/core-ui';
 import { PositionCard } from './PositionCard';
 import { useVaultPositionsData } from './useVaultPositionsData';
 import { useVaultPositions } from '../../hooks/useVaultPositions';
+import { usePositionFlowHandlers } from './usePositionFlowHandlers';
 import { RepayFlow } from '../RepayFlow';
 import { BorrowFlow } from '../BorrowFlow';
+import { BorrowMoreFlow } from '../BorrowMoreFlow';
 import type { Address } from 'viem';
-import type { VaultActivity } from '../../types';
 
 export interface VaultPositionsProps {
   ethAddress?: string;
@@ -18,10 +19,6 @@ export default function VaultPositions({
   ethAddress,
   isWalletConnected = false
 }: VaultPositionsProps) {
-  // Repay flow state
-  const [repayActivity, setRepayActivity] = useState<VaultActivity | null>(null);
-  const [repayFlowOpen, setRepayFlowOpen] = useState(false);
-
   // Borrow flow state
   const [borrowFlowOpen, setBorrowFlowOpen] = useState(false);
 
@@ -34,48 +31,19 @@ export default function VaultPositions({
   // Fetch available vault deposits (for borrowing against)
   const { refetchActivities } = useVaultPositions(connectedAddress);
 
-  // Handle repay button click
-  const handleRepay = useCallback((index: number) => {
-    const rawPosition = rawPositions[index];
-    if (!rawPosition) return;
-
-    const activity: VaultActivity = {
-      id: rawPosition.positionId,
-      collateral: {
-        amount: positions[index].collateral.amount,
-        symbol: positions[index].collateral.symbol,
-        icon: positions[index].collateral.icon,
-      },
-      providers: [],
-      morphoPosition: {
-        collateral: rawPosition.morphoPosition.collateral,
-        borrowShares: rawPosition.morphoPosition.borrowShares,
-        borrowed: rawPosition.morphoPosition.borrowShares,
-        borrowAssets: rawPosition.morphoPosition.borrowAssets,
-      },
-      borrowingData: {
-        borrowedAmount: positions[index].borrowedAmount,
-        borrowedSymbol: positions[index].borrowedSymbol,
-        currentLTV: positions[index].currentLTV,
-        maxLTV: positions[index].liquidationLTV,
-      },
-      marketId: rawPosition.position.marketId,
-    };
-
-    setRepayActivity(activity);
-    setRepayFlowOpen(true);
-  }, [rawPositions, positions]);
-
-  // Handle repay flow close
-  const handleRepayClose = useCallback(() => {
-    setRepayFlowOpen(false);
-    setRepayActivity(null);
-  }, []);
-
-  // Handle repay success
-  const handleRepaySuccess = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+  // Position flow handlers (repay, borrow more)
+  const {
+    repayActivity,
+    repayFlowOpen,
+    handleRepay,
+    handleRepayClose,
+    handleRepaySuccess,
+    borrowMoreActivity,
+    borrowMoreFlowOpen,
+    handleBorrowMore,
+    handleBorrowMoreClose,
+    handleBorrowMoreSuccess,
+  } = usePositionFlowHandlers({ rawPositions, positions, refetch });
 
   // Handle create position button click
   // Implementation approach:
@@ -140,6 +108,7 @@ export default function VaultPositions({
               key={rawPositions[index]?.positionId || index}
               position={position}
               onRepay={() => handleRepay(index)}
+              onBorrowMore={() => handleBorrowMore(index)}
             />
           ))}
         </ActivityList>
@@ -159,6 +128,14 @@ export default function VaultPositions({
         onClose={handleBorrowClose}
         onBorrowSuccess={handleBorrowSuccess}
         connectedAddress={connectedAddress}
+      />
+
+      {/* Borrow More Flow */}
+      <BorrowMoreFlow
+        activity={borrowMoreActivity}
+        isOpen={borrowMoreFlowOpen}
+        onClose={handleBorrowMoreClose}
+        onBorrowMoreSuccess={handleBorrowMoreSuccess}
       />
     </>
   );
