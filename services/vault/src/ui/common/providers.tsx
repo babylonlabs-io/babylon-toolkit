@@ -3,9 +3,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "./components/NotificationContainer";
+import { wagmiConfig } from "./config/appkit";
+import { AppState } from "./state";
 
+// Minimal vault-specific providers - following babylon-toolkit-vault-example pattern
 function Providers({ children }: React.PropsWithChildren) {
   const [client] = useState(new QueryClient());
   const appRootRef = useRef<HTMLDivElement>(null);
@@ -25,13 +29,15 @@ function Providers({ children }: React.PropsWithChildren) {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
-              <QueryClientProvider client={client}>
-                {children}
-                <ReactQueryDevtools
-                  buttonPosition="bottom-left"
-                  initialIsOpen={false}
-                />
-              </QueryClientProvider>
+              <WagmiProvider config={wagmiConfig}>
+                <QueryClientProvider client={client}>
+                  <AppState>{children}</AppState>
+                  <ReactQueryDevtools
+                    buttonPosition="bottom-left"
+                    initialIsOpen={false}
+                  />
+                </QueryClientProvider>
+              </WagmiProvider>
               <NotificationContainer />
             </div>
           </CoreUIProvider>
