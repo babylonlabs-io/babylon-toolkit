@@ -1,4 +1,4 @@
-import VaultLayout from "./vault/VaultLayout";
+import { VaultLayout } from "./vault/VaultLayout";
 import { MarketDetail as MarketDetailPage } from "./vault/components/MarketDetail";
 import { Route, Routes } from "react-router";
 
