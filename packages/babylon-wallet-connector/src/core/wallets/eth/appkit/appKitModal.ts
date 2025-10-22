@@ -101,6 +101,10 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         ssr: false,
         syncConnectedChain: true,
         reconnect: true,
+        enableWalletConnect: true,
+        enableEIP6963: false,
+        enableInjected: false,
+        enableCoinbase: false,
     } as any);
 
     // Create and store the AppKit modal instance
