@@ -3,11 +3,18 @@
  *
  * Extracts common logic for handling position actions (repay, borrow more, etc.)
  * to reduce duplication in VaultPositions component.
+ *
+ * Uses positionStateMachine to validate actions before opening flows.
  */
 
 import { useState, useCallback } from 'react';
 import type { VaultActivity } from '../../types';
 import type { PositionData } from './PositionCard';
+import {
+  validateRepayAction,
+  validateBorrowMoreAction,
+  validateWithdrawAction,
+} from '../../models/positionStateMachine';
 
 interface RawPosition {
   positionId: string;
@@ -41,6 +48,13 @@ interface UsePositionFlowHandlersResult {
   handleBorrowMore: (index: number) => void;
   handleBorrowMoreClose: () => void;
   handleBorrowMoreSuccess: () => Promise<void>;
+
+  // Withdraw flow
+  withdrawActivity: VaultActivity | null;
+  withdrawFlowOpen: boolean;
+  handleWithdraw: (index: number) => void;
+  handleWithdrawClose: () => void;
+  handleWithdrawSuccess: () => Promise<void>;
 }
 
 /**
@@ -91,10 +105,29 @@ export function usePositionFlowHandlers({
   const [borrowMoreActivity, setBorrowMoreActivity] = useState<VaultActivity | null>(null);
   const [borrowMoreFlowOpen, setBorrowMoreFlowOpen] = useState(false);
 
+  // Withdraw flow state
+  const [withdrawActivity, setWithdrawActivity] = useState<VaultActivity | null>(null);
+  const [withdrawFlowOpen, setWithdrawFlowOpen] = useState(false);
+
   // Repay handlers
   const handleRepay = useCallback((index: number) => {
     const activity = createActivityFromPosition(index, rawPositions, positions);
     if (!activity) return;
+
+    // Validate action using state machine
+    const position = positions[index];
+    try {
+      validateRepayAction({
+        collateral: parseFloat(position.collateral.amount) || 0,
+        debt: parseFloat(position.borrowedAmount) || 0,
+        currentLTV: position.currentLTV / 100,
+        liquidationLTV: position.liquidationLTV / 100,
+      });
+    } catch (error) {
+      // TODO: Show error message to user (toast notification)
+      console.error('Cannot repay:', error instanceof Error ? error.message : error);
+      return;
+    }
 
     setRepayActivity(activity);
     setRepayFlowOpen(true);
@@ -114,6 +147,21 @@ export function usePositionFlowHandlers({
     const activity = createActivityFromPosition(index, rawPositions, positions);
     if (!activity) return;
 
+    // Validate action using state machine
+    const position = positions[index];
+    try {
+      validateBorrowMoreAction({
+        collateral: parseFloat(position.collateral.amount) || 0,
+        debt: parseFloat(position.borrowedAmount) || 0,
+        currentLTV: position.currentLTV / 100,
+        liquidationLTV: position.liquidationLTV / 100,
+      });
+    } catch (error) {
+      // TODO: Show error message to user (toast notification)
+      console.error('Cannot borrow more:', error instanceof Error ? error.message : error);
+      return;
+    }
+
     setBorrowMoreActivity(activity);
     setBorrowMoreFlowOpen(true);
   }, [rawPositions, positions]);
@@ -124,6 +172,38 @@ export function usePositionFlowHandlers({
   }, []);
 
   const handleBorrowMoreSuccess = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
+  // Withdraw handlers
+  const handleWithdraw = useCallback((index: number) => {
+    const activity = createActivityFromPosition(index, rawPositions, positions);
+    if (!activity) return;
+
+    // Validate action using state machine
+    const position = positions[index];
+    try {
+      validateWithdrawAction({
+        collateral: parseFloat(position.collateral.amount) || 0,
+        debt: parseFloat(position.borrowedAmount) || 0,
+        currentLTV: position.currentLTV / 100,
+        liquidationLTV: position.liquidationLTV / 100,
+      });
+    } catch (error) {
+      console.error('Cannot withdraw:', error instanceof Error ? error.message : error);
+      return;
+    }
+
+    setWithdrawActivity(activity);
+    setWithdrawFlowOpen(true);
+  }, [rawPositions, positions]);
+
+  const handleWithdrawClose = useCallback(() => {
+    setWithdrawFlowOpen(false);
+    setWithdrawActivity(null);
+  }, []);
+
+  const handleWithdrawSuccess = useCallback(async () => {
     await refetch();
   }, [refetch]);
 
@@ -141,5 +221,12 @@ export function usePositionFlowHandlers({
     handleBorrowMore,
     handleBorrowMoreClose,
     handleBorrowMoreSuccess,
+
+    // Withdraw flow
+    withdrawActivity,
+    withdrawFlowOpen,
+    handleWithdraw,
+    handleWithdrawClose,
+    handleWithdrawSuccess,
   };
 }

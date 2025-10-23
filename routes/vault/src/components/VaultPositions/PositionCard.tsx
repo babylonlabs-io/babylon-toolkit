@@ -1,10 +1,13 @@
 /**
  * PositionCard - Displays a position with loan details
  * Shows the same fields as VaultActivityCard's optionalDetails
+ *
+ * Uses positionStateMachine to determine available actions.
  */
 
 import { Button } from '@babylonlabs-io/core-ui';
 import { bitcoinIcon } from '../../assets';
+import { getActionButtons, PositionAction } from '../../models/positionStateMachine';
 
 export interface PositionData {
   collateral: {
@@ -24,9 +27,18 @@ interface PositionCardProps {
   position: PositionData;
   onRepay?: () => void;
   onBorrowMore?: () => void;
+  onWithdraw?: () => void;
 }
 
-export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardProps) {
+export function PositionCard({ position, onRepay, onBorrowMore, onWithdraw }: PositionCardProps) {
+  // Get available action buttons based on position state
+  const actionButtons = getActionButtons({
+    collateral: parseFloat(position.collateral.amount) || 0,
+    debt: parseFloat(position.borrowedAmount) || 0,
+    currentLTV: position.currentLTV / 100, // Convert percentage to 0-1 scale
+    liquidationLTV: position.liquidationLTV / 100, // Convert percentage to 0-1 scale
+  });
+
   return (
     <div className="bg-secondary-highlight w-full space-y-4 rounded p-4">
       {/* Collateral Section */}
@@ -49,18 +61,28 @@ export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardPr
             )}
           </div>
         </div>
-        {/* Action Buttons */}
+        {/* Action Buttons - Determined by state machine */}
         <div className="flex gap-2">
-          {onBorrowMore && (
-            <Button onClick={onBorrowMore} variant="outlined">
-              Borrow More
-            </Button>
-          )}
-          {onRepay && (
-            <Button onClick={onRepay} variant="contained">
-              Repay
-            </Button>
-          )}
+          {actionButtons.map((button) => {
+            // Map actions to handlers
+            const onClick =
+              button.action === PositionAction.REPAY ? onRepay :
+              button.action === PositionAction.BORROW_MORE ? onBorrowMore :
+              button.action === PositionAction.WITHDRAW ? onWithdraw :
+              undefined;
+
+            if (!onClick) return null;
+
+            return (
+              <Button
+                key={button.action}
+                onClick={onClick}
+                variant={button.variant === 'primary' ? 'contained' : 'outlined'}
+              >
+                {button.label}
+              </Button>
+            );
+          })}
         </div>
       </div>
 

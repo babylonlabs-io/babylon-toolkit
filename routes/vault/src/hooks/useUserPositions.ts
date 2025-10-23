@@ -60,12 +60,16 @@ export function useUserPositions(
     }
   }, [connectedAddress, refetch]);
 
-  // Filter positions to only include those with active borrowing (borrowShares > 0)
+  // Filter positions to include:
+  // 1. Active borrowing (borrowShares > 0) - can repay/borrow more
+  // 2. Collateral only (borrowShares = 0, collateral > 0) - can withdraw
   const activePositions = useMemo(() => {
     if (!data) return [];
 
     return data.filter(
-      (position) => position.morphoPosition.borrowShares > 0n
+      (position) =>
+        position.morphoPosition.borrowShares > 0n ||
+        position.morphoPosition.collateral > 0n
     );
   }, [data]);
 

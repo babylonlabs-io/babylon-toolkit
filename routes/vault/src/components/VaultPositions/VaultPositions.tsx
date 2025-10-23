@@ -7,6 +7,7 @@ import { usePositionFlowHandlers } from './usePositionFlowHandlers';
 import { RepayFlow } from '../RepayFlow';
 import { BorrowFlow } from '../BorrowFlow';
 import { BorrowMoreFlow } from '../BorrowMoreFlow';
+import { WithdrawFlow } from '../WithdrawFlow';
 import type { Address } from 'viem';
 
 export interface VaultPositionsProps {
@@ -31,7 +32,7 @@ export default function VaultPositions({
   // Fetch available vault deposits (for borrowing against)
   const { refetchActivities } = useVaultPositions(connectedAddress);
 
-  // Position flow handlers (repay, borrow more)
+  // Position flow handlers (repay, borrow more, withdraw)
   const {
     repayActivity,
     repayFlowOpen,
@@ -43,6 +44,11 @@ export default function VaultPositions({
     handleBorrowMore,
     handleBorrowMoreClose,
     handleBorrowMoreSuccess,
+    withdrawActivity,
+    withdrawFlowOpen,
+    handleWithdraw,
+    handleWithdrawClose,
+    handleWithdrawSuccess,
   } = usePositionFlowHandlers({ rawPositions, positions, refetch });
 
   // Handle create position button click
@@ -109,6 +115,7 @@ export default function VaultPositions({
               position={position}
               onRepay={() => handleRepay(index)}
               onBorrowMore={() => handleBorrowMore(index)}
+              onWithdraw={() => handleWithdraw(index)}
             />
           ))}
         </ActivityList>
@@ -136,6 +143,14 @@ export default function VaultPositions({
         isOpen={borrowMoreFlowOpen}
         onClose={handleBorrowMoreClose}
         onBorrowMoreSuccess={handleBorrowMoreSuccess}
+      />
+
+      {/* Withdraw Flow */}
+      <WithdrawFlow
+        activity={withdrawActivity}
+        isOpen={withdrawFlowOpen}
+        onClose={handleWithdrawClose}
+        onWithdrawSuccess={handleWithdrawSuccess}
       />
     </>
   );
