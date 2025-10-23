@@ -143,7 +143,7 @@ export function RedeemCollateralSignModal({
           disabled={processing && !error}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={error ? onClose : () => { }}
+          onClick={error ? onClose : () => {}}
         >
           {processing && !error ? (
             <Loader size={16} className="text-accent-contrast" />
