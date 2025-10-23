@@ -186,6 +186,13 @@ export function usePeginFlow({
       // Process vault provider's BTC public key (convert to x-only format)
       const vaultProviderBtcPubkey = processPublicKeyToXOnly(selectedProvider.btc_pub_key);
 
+      // Process liquidator BTC public keys (convert to x-only format and strip 0x prefix)
+      const liquidatorBtcPubkeys = selectedProvider.liquidators.map(liquidator => {
+        const xOnlyKey = processPublicKeyToXOnly(liquidator.btc_pub_key);
+        // Strip 0x prefix for WASM (it expects hex without 0x)
+        return xOnlyKey.startsWith('0x') ? xOnlyKey.slice(2) : xOnlyKey;
+      });
+
       // Get wallet client for signing
       const wagmiConfig = getSharedWagmiConfig();
       const chain = getETHChain();
@@ -210,6 +217,7 @@ export function usePeginFlow({
         },
         selectedProvider.id as Address,
         vaultProviderBtcPubkey,
+        liquidatorBtcPubkeys,
       );
 
       // Store unsigned transaction hex and ETH tx hash for later BTC broadcasting

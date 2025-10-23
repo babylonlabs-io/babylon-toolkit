@@ -39,6 +39,7 @@ export interface PeginUTXOParams {
  * @param utxoParams - Real UTXO parameters from wallet
  * @param vaultProviderAddress - Selected vault provider's Ethereum address
  * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
+ * @param liquidatorBtcPubkeys - Liquidator BTC public keys from the selected vault provider
  * @returns Transaction hash, receipt, and pegin transaction details
  */
 export async function submitPeginRequest(
@@ -50,11 +51,10 @@ export async function submitPeginRequest(
   utxoParams: PeginUTXOParams,
   vaultProviderAddress: Address,
   vaultProviderBtcPubkey: string,
+  liquidatorBtcPubkeys: string[],
 ) {
   // Step 1: Create unsigned BTC peg-in transaction
-  // This uses WASM to construct the transaction with:
-  // - depositor pubkey, peg-in amount, funding UTXO from wallet, selected vault provider
-  // - HARDCODED: liquidators, network, fee (TODO: calculate dynamically based on tx size and fee rate)
+  // This uses WASM to construct the transaction with all REAL data from the user and indexer API
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
@@ -63,6 +63,7 @@ export async function submitPeginRequest(
     fundingValue: utxoParams.fundingValue,
     fundingScriptPubkey: utxoParams.fundingScriptPubkey,
     vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
   });
 
   // Step 2: Convert to Hex format for contract (ensure 0x prefix)
