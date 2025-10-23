@@ -6,4 +6,3 @@ export interface Position {
   borrowRate: string;
   health: string;
 }
-

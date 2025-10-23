@@ -1,11 +1,12 @@
 import {
+  Avatar,
   Table,
   useIsMobile,
   VaultDetailCard,
-  Avatar,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
+
 import type { Activity } from "../types/activity";
 
 // Hardcoded activity data
@@ -69,10 +70,12 @@ export function ActivityOverview() {
             e.stopPropagation();
             handleCopyHash(row.transactionHash);
           }}
-          className="text-sm text-accent-secondary hover:text-accent-primary transition-colors cursor-pointer"
+          className="cursor-pointer text-sm text-accent-secondary transition-colors hover:text-accent-primary"
           title="Click to copy"
         >
-          {copiedHash === row.transactionHash ? "Copied!" : truncateHash(row.transactionHash)}
+          {copiedHash === row.transactionHash
+            ? "Copied!"
+            : truncateHash(row.transactionHash)}
         </button>
       ),
     },
@@ -81,7 +84,7 @@ export function ActivityOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {activities.length === 0 ? (
             <div className="py-8 text-center text-sm text-accent-secondary">
               Your activity will appear here.
@@ -106,7 +109,7 @@ export function ActivityOverview() {
                           e.stopPropagation();
                           handleCopyHash(activity.transactionHash);
                         }}
-                        className="text-sm text-accent-secondary hover:text-accent-primary transition-colors"
+                        className="text-sm text-accent-secondary transition-colors hover:text-accent-primary"
                       >
                         {copiedHash === activity.transactionHash
                           ? "Copied!"
@@ -121,11 +124,10 @@ export function ActivityOverview() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
           <Table data={activities} columns={columns} fluid />
         </div>
       )}
     </>
   );
 }
-

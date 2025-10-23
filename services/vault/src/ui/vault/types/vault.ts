@@ -14,4 +14,3 @@ export interface Deposit {
   };
   status: "Available" | "Pending" | "In Use";
 }
-

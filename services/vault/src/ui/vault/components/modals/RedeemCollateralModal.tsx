@@ -1,13 +1,13 @@
 import {
+  AmountSlider,
   Button,
-  ResponsiveDialog,
   DialogBody,
   DialogFooter,
   DialogHeader,
+  ResponsiveDialog,
   Text,
-  AmountSlider,
 } from "@babylonlabs-io/core-ui";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 
 interface RedeemCollateralModalProps {
   open: boolean;
@@ -81,7 +81,7 @@ export function RedeemCollateralModal({
           sliderSteps={redeemSteps}
           onSliderChange={setRedeemAmount}
           onSliderStepsChange={(selectedSteps) => {
-            console.log('Redeem Collateral - Selected steps:', selectedSteps);
+            console.log("Redeem Collateral - Selected steps:", selectedSteps);
             // Handle cumulative step selection here
           }}
           sliderVariant="primary"
@@ -91,7 +91,7 @@ export function RedeemCollateralModal({
           }}
           onMaxClick={() => setRedeemAmount(availableBalance)}
           rightField={{
-            value: `$${(redeemAmount * btcPrice).toLocaleString('en-US', {
+            value: `$${(redeemAmount * btcPrice).toLocaleString("en-US", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
             })} USD`,

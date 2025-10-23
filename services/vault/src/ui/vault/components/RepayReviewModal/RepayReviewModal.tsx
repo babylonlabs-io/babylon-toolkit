@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { 
-  ResponsiveDialog,
-  DialogHeader, 
-  DialogBody, 
-  DialogFooter, 
-  Button, 
-  Text,
-  Heading,
+import {
+  Button,
   Checkbox,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  Heading,
+  ResponsiveDialog,
+  Text,
 } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 
 interface RepayReviewModalProps {
   open: boolean;
@@ -106,9 +106,9 @@ export function RepayReviewModal({
           <Heading variant="h6" className="mb-2">
             Attention!
           </Heading>
-          
+
           {/* Risk Acknowledgment Checkbox */}
-          <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
+          <div className="bg-surface-secondary flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark p-4 transition-colors hover:border-accent-primary/30">
             <Checkbox
               checked={acknowledged}
               onChange={(checked) => setAcknowledged(checked || false)}
@@ -143,4 +143,3 @@ export function RepayReviewModal({
     </ResponsiveDialog>
   );
 }
-

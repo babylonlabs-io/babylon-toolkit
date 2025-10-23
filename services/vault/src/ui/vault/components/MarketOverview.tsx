@@ -1,12 +1,13 @@
 import {
-  useIsMobile,
-  VaultDetailCard,
   Avatar,
   AvatarGroup,
   Table,
+  useIsMobile,
+  VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
+
 import type { Market } from "../types/market";
 
 // Hardcoded market data
@@ -43,7 +44,12 @@ export function MarketOverview() {
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
-            <Avatar url="/usdc.png" alt="USDC" size="small" variant="circular" />
+            <Avatar
+              url="/usdc.png"
+              alt="USDC"
+              size="small"
+              variant="circular"
+            />
           </AvatarGroup>
           <span className="text-sm text-accent-primary">{row.loan}</span>
         </div>
@@ -103,7 +109,13 @@ export function MarketOverview() {
       render: (_value: unknown, row: Market) => (
         <AvatarGroup size="small" max={3}>
           {row.trustedBy.map((url, idx) => (
-            <Avatar key={idx} url={url} alt="" size="small" variant="circular" />
+            <Avatar
+              key={idx}
+              url={url}
+              alt=""
+              size="small"
+              variant="circular"
+            />
           ))}
         </AvatarGroup>
       ),
@@ -113,7 +125,7 @@ export function MarketOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {markets.length === 0 ? (
             <div className="py-8 text-center text-sm text-accent-secondary">
               No markets available
@@ -123,11 +135,11 @@ export function MarketOverview() {
               const marketSizeParts = market.marketSize.split(" ");
               const marketSizeMain = marketSizeParts.slice(0, 2).join(" ");
               const marketSizeSub = marketSizeParts.slice(2).join(" ");
-              
+
               const liquidityParts = market.totalLiquidity.split(" ");
               const liquidityMain = liquidityParts.slice(0, 2).join(" ");
               const liquiditySub = liquidityParts.slice(2).join(" ");
-              
+
               return (
                 <VaultDetailCard
                   key={market.id}
@@ -143,9 +155,13 @@ export function MarketOverview() {
                       label: "Total Market Size",
                       value: (
                         <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">{marketSizeMain}</span>
+                          <span className="text-sm text-accent-primary">
+                            {marketSizeMain}
+                          </span>
                           {marketSizeSub && (
-                            <span className="text-sm text-accent-secondary">{marketSizeSub}</span>
+                            <span className="text-sm text-accent-secondary">
+                              {marketSizeSub}
+                            </span>
                           )}
                         </div>
                       ),
@@ -154,9 +170,13 @@ export function MarketOverview() {
                       label: "Total Liquidity",
                       value: (
                         <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">{liquidityMain}</span>
+                          <span className="text-sm text-accent-primary">
+                            {liquidityMain}
+                          </span>
                           {liquiditySub && (
-                            <span className="text-sm text-accent-secondary">{liquiditySub}</span>
+                            <span className="text-sm text-accent-secondary">
+                              {liquiditySub}
+                            </span>
                           )}
                         </div>
                       ),
@@ -167,7 +187,13 @@ export function MarketOverview() {
                       value: (
                         <AvatarGroup size="small" max={3}>
                           {market.trustedBy.map((url, idx) => (
-                            <Avatar key={idx} url={url} alt="" size="small" variant="circular" />
+                            <Avatar
+                              key={idx}
+                              url={url}
+                              alt=""
+                              size="small"
+                              variant="circular"
+                            />
                           ))}
                         </AvatarGroup>
                       ),
@@ -180,12 +206,14 @@ export function MarketOverview() {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
-          <Table 
-            data={markets} 
-            columns={columns} 
-            fluid 
-            onRowClick={(market: Market) => navigate(`/vault/market/${market.id}`)}
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+          <Table
+            data={markets}
+            columns={columns}
+            fluid
+            onRowClick={(market: Market) =>
+              navigate(`/vault/market/${market.id}`)
+            }
           />
         </div>
       )}

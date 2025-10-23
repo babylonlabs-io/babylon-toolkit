@@ -1,18 +1,19 @@
-import { Card, Tabs, Button, AmountSlider } from "@babylonlabs-io/core-ui";
-import { useState, useMemo } from "react";
+import { AmountSlider, Button, Card, Tabs } from "@babylonlabs-io/core-ui";
+import { useMemo, useState } from "react";
+
 import { LoanSummaryCard } from "../LoanSummaryCard";
 import { RepaySummaryCard } from "../RepaySummaryCard";
 
 interface LoanCardProps {
   defaultTab?: string;
-  
+
   // Borrow flow props
   maxCollateral: number;
   maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
-  
+
   // Repay flow props
   currentLoanAmount: number;
   currentCollateralAmount: number;
@@ -20,7 +21,7 @@ interface LoanCardProps {
 }
 
 export function LoanCard({
-  defaultTab = 'borrow',
+  defaultTab = "borrow",
   maxCollateral,
   maxBorrow,
   btcPrice,
@@ -34,7 +35,7 @@ export function LoanCard({
   const [borrowAmount, setBorrowAmount] = useState(0);
   const [repayAmount, setRepayAmount] = useState(0);
   const [withdrawCollateralAmount, setWithdrawCollateralAmount] = useState(0);
-  
+
   // Hardcoded collateral step arrays
   const borrowCollateralSteps = useMemo(() => {
     const maxBtc = maxCollateral;
@@ -47,7 +48,7 @@ export function LoanCard({
       { value: maxBtc },
     ];
   }, [maxCollateral]);
-  
+
   const withdrawCollateralSteps = useMemo(() => {
     const currentBtc = currentCollateralAmount;
     return [
@@ -69,12 +70,19 @@ export function LoanCard({
 
   // Calculate LTV for repay flow
   const repayLtv = useMemo(() => {
-    const remainingCollateral = currentCollateralAmount - withdrawCollateralAmount;
+    const remainingCollateral =
+      currentCollateralAmount - withdrawCollateralAmount;
     if (remainingCollateral === 0) return 0;
     const remainingCollateralValueUSD = remainingCollateral * btcPrice;
     const remainingLoan = currentLoanAmount - repayAmount;
     return (remainingLoan / remainingCollateralValueUSD) * 100;
-  }, [currentCollateralAmount, withdrawCollateralAmount, currentLoanAmount, repayAmount, btcPrice]);
+  }, [
+    currentCollateralAmount,
+    withdrawCollateralAmount,
+    currentLoanAmount,
+    repayAmount,
+    btcPrice,
+  ]);
 
   return (
     <Card>
@@ -86,7 +94,9 @@ export function LoanCard({
             content: (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[24px] font-normal text-accent-primary">Collateral</h3>
+                  <h3 className="text-[24px] font-normal text-accent-primary">
+                    Collateral
+                  </h3>
                   <AmountSlider
                     amount={collateralAmount}
                     currencyIcon="/btc.png"
@@ -103,7 +113,10 @@ export function LoanCard({
                     sliderSteps={borrowCollateralSteps}
                     onSliderChange={setCollateralAmount}
                     onSliderStepsChange={(selectedSteps) => {
-                      console.log('Borrow Collateral - Selected steps:', selectedSteps);
+                      console.log(
+                        "Borrow Collateral - Selected steps:",
+                        selectedSteps,
+                      );
                       // Handle cumulative step selection here
                     }}
                     sliderVariant="primary"
@@ -113,21 +126,28 @@ export function LoanCard({
                     }}
                     onMaxClick={() => setCollateralAmount(maxCollateral)}
                     rightField={{
-                      value: `$${(collateralAmount * btcPrice).toLocaleString(undefined, { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })} USD`,
+                      value: `$${(collateralAmount * btcPrice).toLocaleString(
+                        undefined,
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        },
+                      )} USD`,
                     }}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-[24px] font-normal text-accent-primary">Borrow</h3>
+                  <h3 className="text-[24px] font-normal text-accent-primary">
+                    Borrow
+                  </h3>
                   <AmountSlider
                     amount={borrowAmount}
                     currencyIcon="/usdc.png"
                     currencyName="USDC"
-                    onAmountChange={(e) => setBorrowAmount(parseFloat(e.target.value) || 0)}
+                    onAmountChange={(e) =>
+                      setBorrowAmount(parseFloat(e.target.value) || 0)
+                    }
                     balanceDetails={{
                       balance: maxBorrow.toLocaleString(),
                       symbol: "USDC",
@@ -145,9 +165,9 @@ export function LoanCard({
                     }}
                     onMaxClick={() => setBorrowAmount(maxBorrow)}
                     rightField={{
-                      value: `$${borrowAmount.toLocaleString(undefined, { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      value: `$${borrowAmount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })} USD`,
                     }}
                   />
@@ -168,7 +188,9 @@ export function LoanCard({
                   disabled={collateralAmount === 0 || borrowAmount === 0}
                   onClick={() => onBorrow(collateralAmount, borrowAmount)}
                 >
-                  {collateralAmount === 0 || borrowAmount === 0 ? "Enter an amount" : "Borrow"}
+                  {collateralAmount === 0 || borrowAmount === 0
+                    ? "Enter an amount"
+                    : "Borrow"}
                 </Button>
               </div>
             ),
@@ -179,12 +201,16 @@ export function LoanCard({
             content: (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <h3 className="text-[24px] font-normal text-accent-primary">Repay</h3>
+                  <h3 className="text-[24px] font-normal text-accent-primary">
+                    Repay
+                  </h3>
                   <AmountSlider
                     amount={repayAmount}
                     currencyIcon="/usdc.png"
                     currencyName="USDC"
-                    onAmountChange={(e) => setRepayAmount(parseFloat(e.target.value) || 0)}
+                    onAmountChange={(e) =>
+                      setRepayAmount(parseFloat(e.target.value) || 0)
+                    }
                     balanceDetails={{
                       balance: currentLoanAmount.toLocaleString(),
                       symbol: "USDC",
@@ -203,16 +229,18 @@ export function LoanCard({
                     }}
                     onMaxClick={() => setRepayAmount(currentLoanAmount)}
                     rightField={{
-                      value: `$${repayAmount.toLocaleString(undefined, { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      value: `$${repayAmount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })} USD`,
                     }}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-[24px] font-normal text-accent-primary">Withdraw Collateral</h3>
+                  <h3 className="text-[24px] font-normal text-accent-primary">
+                    Withdraw Collateral
+                  </h3>
                   <AmountSlider
                     amount={withdrawCollateralAmount}
                     currencyIcon="/btc.png"
@@ -229,7 +257,10 @@ export function LoanCard({
                     sliderSteps={withdrawCollateralSteps}
                     onSliderChange={setWithdrawCollateralAmount}
                     onSliderStepsChange={(selectedSteps: number[]) => {
-                      console.log('Withdraw Collateral - Selected steps:', selectedSteps);
+                      console.log(
+                        "Withdraw Collateral - Selected steps:",
+                        selectedSteps,
+                      );
                       // Handle cumulative step selection here
                     }}
                     sliderVariant="primary"
@@ -237,11 +268,15 @@ export function LoanCard({
                       label: "Max",
                       value: `${currentCollateralAmount.toFixed(4)} BTC`,
                     }}
-                    onMaxClick={() => setWithdrawCollateralAmount(currentCollateralAmount)}
+                    onMaxClick={() =>
+                      setWithdrawCollateralAmount(currentCollateralAmount)
+                    }
                     rightField={{
-                      value: `$${(withdrawCollateralAmount * btcPrice).toLocaleString(undefined, { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      value: `$${(
+                        withdrawCollateralAmount * btcPrice
+                      ).toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
                       })} USD`,
                     }}
                   />
@@ -262,7 +297,9 @@ export function LoanCard({
                   disabled={repayAmount === 0 && withdrawCollateralAmount === 0}
                   onClick={() => onRepay(repayAmount, withdrawCollateralAmount)}
                 >
-                  {repayAmount === 0 && withdrawCollateralAmount === 0 ? "Enter an amount" : "Repay and Withdraw"}
+                  {repayAmount === 0 && withdrawCollateralAmount === 0
+                    ? "Enter an amount"
+                    : "Repay and Withdraw"}
                 </Button>
               </div>
             ),
@@ -273,4 +310,3 @@ export function LoanCard({
     </Card>
   );
 }
-

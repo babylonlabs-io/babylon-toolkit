@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
+
 import { createStateUtils } from "../utils/createStateUtils";
 
 export enum VaultDepositStep {
@@ -59,7 +60,10 @@ export function VaultDepositState({ children }: PropsWithChildren) {
   }, []);
 
   const setTransactionHashes = useCallback((btc: string, eth: string) => {
-    console.log("[VaultDepositState] Setting transaction hashes:", { btc, eth });
+    console.log("[VaultDepositState] Setting transaction hashes:", {
+      btc,
+      eth,
+    });
     setBtcTxid(btc);
     setEthTxHash(eth);
   }, []);
@@ -98,11 +102,10 @@ export function VaultDepositState({ children }: PropsWithChildren) {
       setDepositData,
       setTransactionHashes,
       reset,
-    ]
+    ],
   );
 
   return <StateProvider value={context}>{children}</StateProvider>;
 }
 
 export { useVaultDepositState };
-

@@ -8,4 +8,3 @@ export interface Market {
   rate: string;
   trustedBy: string[];
 }
-

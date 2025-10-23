@@ -1,18 +1,25 @@
 import {
-  Table,
-  useIsMobile,
-  StatusBadge,
-  VaultDetailCard,
   Avatar,
   AvatarGroup,
   Button,
   Checkbox,
+  StatusBadge,
+  Table,
+  useIsMobile,
+  VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
+
+import {
+  useVaultDepositState,
+  VaultDepositStep,
+} from "../state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../state/VaultRedeemState";
 import type { Deposit } from "../types/vault";
-import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
-import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
 
 // Hardcoded deposit data
 const HARDCODED_DEPOSITS: Deposit[] = [
@@ -84,7 +91,9 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
 export function DepositOverview() {
   const isMobile = useIsMobile();
   const deposits = HARDCODED_DEPOSITS;
-  const [selectedDepositIds, setSelectedDepositIds] = useState<Array<string | number>>([]);
+  const [selectedDepositIds, setSelectedDepositIds] = useState<
+    Array<string | number>
+  >([]);
   const { goToStep: goToDepositStep } = useVaultDepositState();
   const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
 
@@ -136,15 +145,12 @@ export function DepositOverview() {
       render: (_value: unknown, row: Deposit) => {
         const statusMap = {
           // Hardcoded statuses for now
-          "Available": "inactive" as const,
-          "Pending": "pending" as const,
+          Available: "inactive" as const,
+          Pending: "pending" as const,
           "In Use": "active" as const,
         };
         return (
-          <StatusBadge
-            status={statusMap[row.status]}
-            label={row.status}
-          />
+          <StatusBadge status={statusMap[row.status]} label={row.status} />
         );
       },
     },
@@ -153,7 +159,7 @@ export function DepositOverview() {
   return (
     <div className="relative">
       {/* Header with Deposit and Redeem buttons */}
-      <div className="flex items-center justify-end mb-4 gap-2">
+      <div className="mb-4 flex items-center justify-end gap-2">
         <Button
           variant="outlined"
           size="medium"
@@ -177,11 +183,11 @@ export function DepositOverview() {
 
       {/* Desktop: Deposits Table, Mobile: Deposit Cards */}
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {deposits.map((deposit) => {
             const statusMap = {
-              "Available": "inactive" as const,
-              "Pending": "pending" as const,
+              Available: "inactive" as const,
+              Pending: "pending" as const,
               "In Use": "active" as const,
             };
             return (
@@ -197,7 +203,9 @@ export function DepositOverview() {
                     label: "Yield Provider",
                     value: (
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{deposit.vaultProvider.icon}</span>
+                        <span className="text-base">
+                          {deposit.vaultProvider.icon}
+                        </span>
                         <span className="text-sm text-accent-primary">
                           {deposit.vaultProvider.name}
                         </span>
@@ -219,7 +227,7 @@ export function DepositOverview() {
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
           <Table
             data={deposits}
             columns={columns}
@@ -230,8 +238,8 @@ export function DepositOverview() {
             checkboxPosition="right"
             showSelectAll={false}
             renderCheckbox={(checked) => (
-              <Checkbox 
-                checked={checked} 
+              <Checkbox
+                checked={checked}
                 variant="secondary"
                 showLabel={false}
               />

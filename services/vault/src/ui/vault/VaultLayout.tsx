@@ -1,4 +1,4 @@
-import { VaultStats, VaultOverviewPanel } from "./components";
+import { VaultOverviewPanel, VaultStats } from "./components";
 import { VaultDepositState } from "./state/VaultDepositState";
 import { VaultRedeemState } from "./state/VaultRedeemState";
 
@@ -10,7 +10,7 @@ export function VaultLayout() {
   }
 
   return (
-    <div className="w-full md:mx-auto md:max-w-3xl flex flex-1 flex-col gap-6 px-1 pb-6 max-md:gap-4 max-md:px-0 max-md:pt-0 max-md:pb-4 max-md:flex-none">
+    <div className="flex w-full flex-1 flex-col gap-6 px-1 pb-6 max-md:flex-none max-md:gap-4 max-md:px-0 max-md:pb-4 max-md:pt-0 md:mx-auto md:max-w-3xl">
       <VaultStats />
       <VaultDepositState>
         <VaultRedeemState>

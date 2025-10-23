@@ -1,11 +1,11 @@
 import {
   Button,
-  ResponsiveDialog,
   DialogBody,
   DialogFooter,
   DialogHeader,
-  Text,
   Heading,
+  ResponsiveDialog,
+  Text,
 } from "@babylonlabs-io/core-ui";
 
 interface VaultProvider {
@@ -30,7 +30,10 @@ const VAULT_PROVIDERS: Record<string, VaultProvider> = {
     name: "Ironclad BTC",
     icon: (
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text variant="body2" className="text-sm font-medium text-accent-contrast">
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
           I
         </Text>
       </div>
@@ -41,7 +44,10 @@ const VAULT_PROVIDERS: Record<string, VaultProvider> = {
     name: "Atlas Custody",
     icon: (
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text variant="body2" className="text-sm font-medium text-accent-contrast">
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
           A
         </Text>
       </div>
@@ -52,7 +58,10 @@ const VAULT_PROVIDERS: Record<string, VaultProvider> = {
     name: "Stonewall Capital",
     icon: (
       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text variant="body2" className="text-sm font-medium text-accent-contrast">
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
           S
         </Text>
       </div>
@@ -62,9 +71,9 @@ const VAULT_PROVIDERS: Record<string, VaultProvider> = {
 
 // Hardcoded fees as per requirements
 const BTC_FEE = 0.00000001;
-const BTC_FEE_USD = 10.20;
+const BTC_FEE_USD = 10.2;
 const ETH_FEE = 0.001;
-const ETH_FEE_USD = 10.20;
+const ETH_FEE_USD = 10.2;
 
 export function CollateralDepositReviewModal({
   open,
@@ -105,7 +114,8 @@ export function CollateralDepositReviewModal({
               {amount} BTC
             </Text>
             <Text variant="body2" className="text-accent-secondary">
-              (${amountUsd.toLocaleString("en-US", {
+              ($
+              {amountUsd.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{" "}
@@ -121,10 +131,7 @@ export function CollateralDepositReviewModal({
           </Text>
           <div className="flex flex-col items-end gap-3">
             {selectedProviders.map((provider) => (
-              <div
-                key={provider.id}
-                className="flex items-center gap-3"
-              >
+              <div key={provider.id} className="flex items-center gap-3">
                 {provider.icon}
                 <Text variant="body1">{provider.name}</Text>
               </div>
@@ -148,7 +155,7 @@ export function CollateralDepositReviewModal({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-divider" />
+        <div className="border-divider border-t" />
 
         {/* Attention Section - No Border */}
         <div className="flex flex-col gap-3">
@@ -166,16 +173,10 @@ export function CollateralDepositReviewModal({
       </DialogBody>
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={onConfirm}
-          fluid
-        >
+        <Button variant="contained" color="primary" onClick={onConfirm} fluid>
           Confirm
         </Button>
       </DialogFooter>
     </ResponsiveDialog>
   );
 }
-

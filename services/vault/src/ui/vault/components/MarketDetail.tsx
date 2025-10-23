@@ -1,17 +1,18 @@
-import { useNavigate, useParams, useSearchParams } from "react-router";
 import { useState } from "react";
-import { MarketInfo } from "./MarketInfo";
-import { LoanCard } from "./LoanCard";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+
 import { BorrowReviewModal } from "./BorrowReviewModal";
-import { RepayReviewModal } from "./RepayReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
+import { LoanCard } from "./LoanCard";
+import { MarketInfo } from "./MarketInfo";
+import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
 
 export function MarketDetail() {
   const navigate = useNavigate();
   const { marketId } = useParams<{ marketId: string }>();
   const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get('tab') || 'borrow';
+  const defaultTab = searchParams.get("tab") || "borrow";
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -20,7 +21,10 @@ export function MarketDetail() {
   const [showRepaySuccessModal, setShowRepaySuccessModal] = useState(false);
 
   // Store last borrow/repay values for modals
-  const [lastBorrowData, setLastBorrowData] = useState({ collateral: 0, borrow: 0 });
+  const [lastBorrowData, setLastBorrowData] = useState({
+    collateral: 0,
+    borrow: 0,
+  });
   const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
   const handleBack = () => {
@@ -39,7 +43,10 @@ export function MarketDetail() {
     { label: "Collateral", value: "BTC" },
     { label: "Loan", value: "USDC" },
     { label: "Liquidation LTV", value: "70%" },
-    { label: "Oracle price", value: `BTC / USDC = ${btcPrice.toLocaleString()}` },
+    {
+      label: "Oracle price",
+      value: `BTC / USDC = ${btcPrice.toLocaleString()}`,
+    },
     { label: "Created on", value: "2025-10-14" },
     { label: "Utilization", value: "90.58%" },
   ];
@@ -49,8 +56,14 @@ export function MarketDetail() {
     setShowReviewModal(true);
   };
 
-  const handleRepay = (repayAmount: number, withdrawCollateralAmount: number) => {
-    setLastRepayData({ repay: repayAmount, withdraw: withdrawCollateralAmount });
+  const handleRepay = (
+    repayAmount: number,
+    withdrawCollateralAmount: number,
+  ) => {
+    setLastRepayData({
+      repay: repayAmount,
+      withdraw: withdrawCollateralAmount,
+    });
     setShowRepayReviewModal(true);
   };
 
@@ -58,7 +71,7 @@ export function MarketDetail() {
     setProcessing(true);
     try {
       console.log("Confirming borrow:", { marketId, ...lastBorrowData });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       setShowReviewModal(false);
       setShowBorrowSuccessModal(true);
     } catch (error) {
@@ -72,7 +85,7 @@ export function MarketDetail() {
     setProcessing(true);
     try {
       console.log("Confirming repay:", { marketId, ...lastRepayData });
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       setShowRepayReviewModal(false);
       setShowRepaySuccessModal(true);
     } catch (error) {
@@ -83,11 +96,14 @@ export function MarketDetail() {
   };
 
   // Calculate LTV for modals
-  const borrowLtv = lastBorrowData.collateral === 0 ? 0
-    : (lastBorrowData.borrow / (lastBorrowData.collateral * btcPrice)) * 100;
+  const borrowLtv =
+    lastBorrowData.collateral === 0
+      ? 0
+      : (lastBorrowData.borrow / (lastBorrowData.collateral * btcPrice)) * 100;
 
   const repayLtv = (() => {
-    const remainingCollateral = currentCollateralAmount - lastRepayData.withdraw;
+    const remainingCollateral =
+      currentCollateralAmount - lastRepayData.withdraw;
     if (remainingCollateral === 0) return 0;
     const remainingLoan = currentLoanAmount - lastRepayData.repay;
     return (remainingLoan / (remainingCollateral * btcPrice)) * 100;
@@ -95,7 +111,7 @@ export function MarketDetail() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
-      <div className="grid grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-2 items-start gap-6">
         {/* Left Side: Market Info */}
         <MarketInfo
           onBack={handleBack}
@@ -133,15 +149,17 @@ export function MarketDetail() {
         onConfirm={handleConfirmBorrow}
         collateralAmount={lastBorrowData.collateral}
         collateralSymbol="BTC"
-        collateralUsdValue={`$${(lastBorrowData.collateral * btcPrice).toLocaleString(undefined, {
+        collateralUsdValue={`$${(
+          lastBorrowData.collateral * btcPrice
+        ).toLocaleString(undefined, {
           minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          maximumFractionDigits: 2,
         })} USD`}
         borrowAmount={lastBorrowData.borrow}
         borrowSymbol="USDC"
         borrowUsdValue={`$${lastBorrowData.borrow.toLocaleString(undefined, {
           minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          maximumFractionDigits: 2,
         })} USD`}
         borrowApy={6.25}
         ltv={borrowLtv}
@@ -157,13 +175,15 @@ export function MarketDetail() {
         repaySymbol="USDC"
         repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, {
           minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          maximumFractionDigits: 2,
         })} USDC`}
         withdrawAmount={lastRepayData.withdraw}
         withdrawSymbol="BTC"
-        withdrawUsdValue={`$${(lastRepayData.withdraw * btcPrice).toLocaleString(undefined, {
+        withdrawUsdValue={`$${(
+          lastRepayData.withdraw * btcPrice
+        ).toLocaleString(undefined, {
           minimumFractionDigits: 2,
-          maximumFractionDigits: 2
+          maximumFractionDigits: 2,
         })} USD`}
         ltv={repayLtv}
         liquidationLtv={liquidationLtv}

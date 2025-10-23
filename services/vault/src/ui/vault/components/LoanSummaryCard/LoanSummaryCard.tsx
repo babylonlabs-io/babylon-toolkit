@@ -1,4 +1,8 @@
-import { KeyValueList, SubSection, type KeyValueItem } from "@babylonlabs-io/core-ui";
+import {
+  KeyValueList,
+  SubSection,
+  type KeyValueItem,
+} from "@babylonlabs-io/core-ui";
 
 interface LoanSummaryCardProps {
   collateralAmount: number;

@@ -1,14 +1,14 @@
 import {
   Button,
-  ResponsiveDialog,
   DialogBody,
   DialogFooter,
   DialogHeader,
-  Text,
   Loader,
+  ResponsiveDialog,
   Step,
+  Text,
 } from "@babylonlabs-io/core-ui";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
@@ -46,6 +46,7 @@ export function CollateralDepositSignModal({
     if (open && currentStep === 1 && !processing && !error) {
       executeDepositFlow();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // TODO: Replace with wallet integration
@@ -54,35 +55,47 @@ export function CollateralDepositSignModal({
     try {
       // Step 1: Simulate proof of possession
       setCurrentStep(1);
-      console.log('[CollateralDepositSignModal] Step 1: Creating proof of possession...');
+      console.log(
+        "[CollateralDepositSignModal] Step 1: Creating proof of possession...",
+      );
       await delay(2000);
 
       // Step 2: Simulate transaction submission
       setCurrentStep(2);
-      console.log('[CollateralDepositSignModal] Step 2: Submitting collateral deposit request to Vault Controller...');
+      console.log(
+        "[CollateralDepositSignModal] Step 2: Submitting collateral deposit request to Vault Controller...",
+      );
       await delay(2000);
 
       // Step 3: Simulate validation
       setCurrentStep(3);
-      console.log('[CollateralDepositSignModal] Step 3: Validating transaction...');
+      console.log(
+        "[CollateralDepositSignModal] Step 3: Validating transaction...",
+      );
       await delay(2000);
 
       // Step 4: Complete
       setCurrentStep(4);
-      console.log('[CollateralDepositSignModal] Step 4: Complete!');
+      console.log("[CollateralDepositSignModal] Step 4: Complete!");
       await delay(1000);
 
       setProcessing(false);
-      
+
       // Call success callback with mock transaction IDs
       const mockBtcTxid = `mock-btc-txid-${Date.now()}`;
       const mockEthTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      console.log('[CollateralDepositSignModal] Collateral deposit successful:', { mockBtcTxid, mockEthTxHash });
-      
+      console.log(
+        "[CollateralDepositSignModal] Collateral deposit successful:",
+        { mockBtcTxid, mockEthTxHash },
+      );
+
       onSuccess(mockBtcTxid, mockEthTxHash);
     } catch (err) {
-      console.error('[CollateralDepositSignModal] Collateral deposit failed:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      console.error(
+        "[CollateralDepositSignModal] Collateral deposit failed:",
+        err,
+      );
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
       setProcessing(false);
     }
   };
@@ -120,8 +133,8 @@ export function CollateralDepositSignModal({
 
         {/* Error Display */}
         {error && (
-          <div className="rounded-lg bg-error/10 p-4">
-            <Text variant="body2" className="text-sm text-error">
+          <div className="bg-error/10 rounded-lg p-4">
+            <Text variant="body2" className="text-error text-sm">
               Error: {error}
             </Text>
           </div>
@@ -133,18 +146,17 @@ export function CollateralDepositSignModal({
           disabled={processing && !error}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={error ? onClose : () => {}}
+          onClick={error ? onClose : () => { }}
         >
           {processing && !error ? (
             <Loader size={16} className="text-accent-contrast" />
           ) : error ? (
-            'Close'
+            "Close"
           ) : (
-            'View Position'
+            "View Position"
           )}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>
   );
 }
-

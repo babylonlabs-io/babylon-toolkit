@@ -1,9 +1,9 @@
-import { VaultLayout } from "./vault/VaultLayout";
-import { MarketDetail as MarketDetailPage } from "./vault/components/MarketDetail";
 import { Route, Routes } from "react-router";
 
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
+import { VaultLayout } from "./vault/VaultLayout";
+import { MarketDetail as MarketDetailPage } from "./vault/components/MarketDetail";
 
 export const Router = () => {
   return (

@@ -1,4 +1,8 @@
-import { KeyValueList, SubSection, type KeyValueItem } from "@babylonlabs-io/core-ui";
+import {
+  KeyValueList,
+  SubSection,
+  type KeyValueItem,
+} from "@babylonlabs-io/core-ui";
 
 interface RepaySummaryCardProps {
   currentLoanAmount: number;
@@ -36,4 +40,3 @@ export function RepaySummaryCard({
     </SubSection>
   );
 }
-

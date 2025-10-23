@@ -23,16 +23,22 @@ export function CollateralDepositSuccessModal({
         <img
           src="/btc.png"
           alt="Bitcoin"
-          className="h-auto mx-auto w-full max-w-[160px]"
+          className="mx-auto h-auto w-full max-w-[160px]"
         />
 
-        <Heading variant="h4" className="mb-4 mt-6 text-xl sm:text-2xl text-accent-primary">
+        <Heading
+          variant="h4"
+          className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
+        >
           BTC Deposit Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
-          Your deposit has been recorded and is now awaiting confirmation on
-          the Bitcoin network. This usually takes up to 5 hours.
+        <Text
+          variant="body1"
+          className="text-sm text-accent-secondary sm:text-base"
+        >
+          Your deposit has been recorded and is now awaiting confirmation on the
+          Bitcoin network. This usually takes up to 5 hours.
         </Text>
       </DialogBody>
 
@@ -49,4 +55,3 @@ export function CollateralDepositSuccessModal({
     </ResponsiveDialog>
   );
 }
-

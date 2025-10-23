@@ -1,11 +1,11 @@
 import {
   Button,
-  ResponsiveDialog,
   DialogBody,
   DialogFooter,
   DialogHeader,
-  Text,
   Heading,
+  ResponsiveDialog,
+  Text,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
@@ -60,9 +60,9 @@ const HARDCODED_DEPOSITS: Deposit[] = [
 
 // Hardcoded fees
 const BTC_FEE = 0.00000001;
-const BTC_FEE_USD = 10.20;
+const BTC_FEE_USD = 10.2;
 const ETH_FEE = 0.001;
-const ETH_FEE_USD = 10.20;
+const ETH_FEE_USD = 10.2;
 
 export function RedeemCollateralReviewModal({
   open,
@@ -74,13 +74,13 @@ export function RedeemCollateralReviewModal({
   // Get selected deposits
   const selectedDeposits = useMemo(
     () => HARDCODED_DEPOSITS.filter((d) => depositIds.includes(d.id)),
-    [depositIds]
+    [depositIds],
   );
 
   // Calculate total amount
   const totalAmount = useMemo(
     () => selectedDeposits.reduce((sum, d) => sum + d.amount, 0),
-    [selectedDeposits]
+    [selectedDeposits],
   );
 
   // Calculate USD value
@@ -88,7 +88,9 @@ export function RedeemCollateralReviewModal({
 
   // Get unique providers
   const uniqueProviders = useMemo(() => {
-    const providerNames = new Set(selectedDeposits.map((d) => d.vaultProvider.name));
+    const providerNames = new Set(
+      selectedDeposits.map((d) => d.vaultProvider.name),
+    );
     return Array.from(providerNames);
   }, [selectedDeposits]);
 
@@ -115,7 +117,8 @@ export function RedeemCollateralReviewModal({
               {totalAmount} BTC
             </Text>
             <Text variant="body2" className="text-accent-secondary">
-              (${totalUsd.toLocaleString("en-US", {
+              ($
+              {totalUsd.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{" "}
@@ -154,7 +157,7 @@ export function RedeemCollateralReviewModal({
         </div>
 
         {/* Divider */}
-        <div className="border-t border-divider" />
+        <div className="border-divider border-t" />
 
         {/* Attention Section */}
         <div className="flex flex-col gap-3">
@@ -162,24 +165,19 @@ export function RedeemCollateralReviewModal({
             Attention!
           </Heading>
           <Text variant="body2" className="text-sm text-accent-secondary">
-            After submission, your redemption will be processed. This may take up to 5 hours,
-            during which your deposits will be unlocked and BTC transferred back to your wallet.
-            The transaction will need to be confirmed on both the Bitcoin and Ethereum networks.
+            After submission, your redemption will be processed. This may take
+            up to 5 hours, during which your deposits will be unlocked and BTC
+            transferred back to your wallet. The transaction will need to be
+            confirmed on both the Bitcoin and Ethereum networks.
           </Text>
         </div>
       </DialogBody>
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={onConfirm}
-          fluid
-        >
+        <Button variant="contained" color="primary" onClick={onConfirm} fluid>
           Confirm
         </Button>
       </DialogFooter>
     </ResponsiveDialog>
   );
 }
-

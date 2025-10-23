@@ -1,15 +1,15 @@
 import {
+  AmountItem,
   Button,
-  ResponsiveDialog,
   DialogBody,
   DialogFooter,
   DialogHeader,
-  Text,
-  AmountItem,
-  SubSection,
   ProviderCard,
+  ResponsiveDialog,
+  SubSection,
+  Text,
 } from "@babylonlabs-io/core-ui";
-import { useState, useMemo, ReactNode } from "react";
+import { ReactNode, useMemo, useState } from "react";
 
 interface VaultProvider {
   id: string;
@@ -30,10 +30,10 @@ const satoshiToBtc = (satoshi: number): number => {
   return satoshi / 100000000;
 };
 
-export function CollateralDepositModal({ 
-  open, 
-  onClose, 
-  onDeposit, 
+export function CollateralDepositModal({
+  open,
+  onClose,
+  onDeposit,
   btcBalance = 1000000000, // Default: 10 BTC (matches image)
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
 }: CollateralDepositModalProps) {
@@ -42,34 +42,58 @@ export function CollateralDepositModal({
 
   // Mock vault providers matching the image
   const mockProviders: VaultProvider[] = [
-    { 
-      id: 'ironclad-btc', 
-      name: 'Ironclad BTC',
-      icon: <Text variant="body2" className="text-sm font-medium text-accent-contrast">I</Text>,
+    {
+      id: "ironclad-btc",
+      name: "Ironclad BTC",
+      icon: (
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
+          I
+        </Text>
+      ),
     },
-    { 
-      id: 'atlas-custody', 
-      name: 'Atlas Custody',
-      icon: <Text variant="body2" className="text-sm font-medium text-accent-contrast">A</Text>,
+    {
+      id: "atlas-custody",
+      name: "Atlas Custody",
+      icon: (
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
+          A
+        </Text>
+      ),
     },
-    { 
-      id: 'stonewall-capital', 
-      name: 'Stonewall Capital',
-      icon: <Text variant="body2" className="text-sm font-medium text-accent-contrast">S</Text>,
+    {
+      id: "stonewall-capital",
+      name: "Stonewall Capital",
+      icon: (
+        <Text
+          variant="body2"
+          className="text-sm font-medium text-accent-contrast"
+        >
+          S
+        </Text>
+      ),
     },
   ];
 
   // Conversion and validation
-  const btcBalanceFormatted = useMemo(() => satoshiToBtc(btcBalance), [btcBalance]);
+  const btcBalanceFormatted = useMemo(
+    () => satoshiToBtc(btcBalance),
+    [btcBalance],
+  );
   const amountNum = useMemo(() => {
     const parsed = parseFloat(amount || "0");
     return isNaN(parsed) ? 0 : parsed;
   }, [amount]);
 
   const amountUsd = useMemo(() => {
-    if (!btcPrice || amountNum === 0) return '';
+    if (!btcPrice || amountNum === 0) return "";
     const usdValue = amountNum * btcPrice;
-    return `$${usdValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `$${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [amountNum, btcPrice]);
 
   const isValid = amountNum > 0 && selectedProviders.length > 0;
@@ -79,7 +103,7 @@ export function CollateralDepositModal({
     setSelectedProviders((prev) =>
       prev.includes(providerId)
         ? prev.filter((id) => id !== providerId)
-        : [...prev, providerId]
+        : [...prev, providerId],
     );
   };
 
@@ -157,7 +181,10 @@ export function CollateralDepositModal({
         <div className="flex flex-col gap-4">
           {/* Header with CounterButton */}
           <div className="flex flex-col gap-2">
-            <Text variant="subtitle1" className="text-base font-semibold text-accent-primary">
+            <Text
+              variant="subtitle1"
+              className="text-base font-semibold text-accent-primary"
+            >
               Select Vault Providers
             </Text>
             <Text variant="body2" className="text-accent-secondary">
@@ -198,4 +225,3 @@ export function CollateralDepositModal({
     </ResponsiveDialog>
   );
 }
-

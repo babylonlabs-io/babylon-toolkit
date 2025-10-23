@@ -22,16 +22,22 @@ export function RedeemCollateralSuccessModal({
         <img
           src="/btc.png"
           alt="Bitcoin"
-          className="h-auto mx-auto w-full max-w-[160px]"
+          className="mx-auto h-auto w-full max-w-[160px]"
         />
 
-        <Heading variant="h4" className="mb-4 mt-6 text-xl sm:text-2xl text-accent-primary">
+        <Heading
+          variant="h4"
+          className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
+        >
           BTC Redemption Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
-          Your redemption has been initiated and is now being processed on
-          the Bitcoin network. This usually takes up to 5 hours.
+        <Text
+          variant="body1"
+          className="text-sm text-accent-secondary sm:text-base"
+        >
+          Your redemption has been initiated and is now being processed on the
+          Bitcoin network. This usually takes up to 5 hours.
         </Text>
       </DialogBody>
 
@@ -48,4 +54,3 @@ export function RedeemCollateralSuccessModal({
     </ResponsiveDialog>
   );
 }
-

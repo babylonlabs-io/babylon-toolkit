@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { 
-  ResponsiveDialog,
-  DialogHeader, 
-  DialogBody, 
-  DialogFooter, 
-  Button, 
-  Text,
-  Heading,
+import {
+  Button,
   Checkbox,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  Heading,
+  ResponsiveDialog,
+  Text,
 } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 
 interface BorrowReviewModalProps {
   open: boolean;
@@ -97,7 +97,6 @@ export function BorrowReviewModal({
                   {field.value}
                 </Text>
               </div>
-              
             </div>
           ))}
         </div>
@@ -109,9 +108,9 @@ export function BorrowReviewModal({
           <Heading variant="h6" className="mb-2">
             Attention!
           </Heading>
-          
+
           {/* Risk Acknowledgment Checkbox */}
-          <div className="flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark bg-surface-secondary p-4 transition-colors hover:border-accent-primary/30">
+          <div className="bg-surface-secondary flex cursor-pointer items-start gap-3 rounded-lg border border-secondary-strokeDark p-4 transition-colors hover:border-accent-primary/30">
             <Checkbox
               checked={acknowledged}
               onChange={(checked) => setAcknowledged(checked || false)}
@@ -124,7 +123,7 @@ export function BorrowReviewModal({
       </DialogBody>
 
       <DialogFooter className="flex gap-4 pb-8 pt-0">
-      <Button
+        <Button
           variant="contained"
           color="primary"
           onClick={handleConfirm}
@@ -137,4 +136,3 @@ export function BorrowReviewModal({
     </ResponsiveDialog>
   );
 }
-

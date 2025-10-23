@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
+
 import { createStateUtils } from "../utils/createStateUtils";
 
 export enum VaultRedeemStep {
@@ -90,11 +91,10 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
       setRedeemData,
       setTransactionHashes,
       reset,
-    ]
+    ],
   );
 
   return <StateProvider value={context}>{children}</StateProvider>;
 }
 
 export { useVaultRedeemState };
-

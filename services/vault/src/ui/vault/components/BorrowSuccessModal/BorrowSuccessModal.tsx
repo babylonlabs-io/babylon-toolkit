@@ -16,7 +16,7 @@ interface BorrowSuccessModalProps {
 
 /**
  * BorrowSuccessModal - Success celebration modal after borrow completion
- * 
+ *
  * Displays:
  * - Mascot image (celebrating)
  * - "Borrow Successful" heading
@@ -38,18 +38,18 @@ export function BorrowSuccessModal({
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
-        <img
-          src="/usdc.png"
-          alt="USDC"
-          className="mx-auto mb-6 h-24 w-24"
-        />
+        <img src="/usdc.png" alt="USDC" className="mx-auto mb-6 h-24 w-24" />
 
         <Heading variant="h4" className="mb-4 text-xl sm:text-2xl">
           Borrow Successful
         </Heading>
 
-        <Text variant="body1" className="text-sm text-accent-secondary sm:text-base">
-          {formattedAmount} {borrowSymbol} has been borrowed and is now available in your wallet.
+        <Text
+          variant="body1"
+          className="text-sm text-accent-secondary sm:text-base"
+        >
+          {formattedAmount} {borrowSymbol} has been borrowed and is now
+          available in your wallet.
         </Text>
       </DialogBody>
 
@@ -66,4 +66,3 @@ export function BorrowSuccessModal({
     </ResponsiveDialog>
   );
 }
-

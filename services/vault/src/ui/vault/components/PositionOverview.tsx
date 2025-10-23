@@ -1,12 +1,13 @@
 import {
+  Avatar,
+  AvatarGroup,
   Table,
   useIsMobile,
   VaultDetailCard,
-  Avatar,
-  AvatarGroup,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
+
 import type { Position } from "../types/position";
 
 // Hardcoded position data
@@ -47,7 +48,12 @@ export function PositionOverview() {
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar url="/btc.png" alt="BTC" size="small" variant="circular" />
-            <Avatar url="/usdc.png" alt="USDC" size="small" variant="circular" />
+            <Avatar
+              url="/usdc.png"
+              alt="USDC"
+              size="small"
+              variant="circular"
+            />
           </AvatarGroup>
           <span className="text-sm font-medium text-accent-primary">
             {row.loan}
@@ -98,13 +104,13 @@ export function PositionOverview() {
   return (
     <>
       {isMobile ? (
-        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+        <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {positions.map((position) => {
             const parts = position.liquidationLtv.split(" ");
             const mainText = parts.slice(0, 2).join(" ");
             const subText = parts.slice(2).join(" ");
             return (
-              <div 
+              <div
                 key={position.id}
                 onClick={() => handlePositionClick(position)}
                 className="cursor-pointer"
@@ -121,9 +127,13 @@ export function PositionOverview() {
                       label: "Liquidation LTV",
                       value: (
                         <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">{mainText}</span>
+                          <span className="text-sm text-accent-primary">
+                            {mainText}
+                          </span>
                           {subText && (
-                            <span className="text-sm text-accent-secondary">{subText}</span>
+                            <span className="text-sm text-accent-secondary">
+                              {subText}
+                            </span>
                           )}
                         </div>
                       ),
@@ -137,11 +147,11 @@ export function PositionOverview() {
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto bg-primary-contrast max-h-[500px] overflow-y-auto">
-          <Table 
-            data={positions} 
-            columns={columns} 
-            fluid 
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+          <Table
+            data={positions}
+            columns={columns}
+            fluid
             onRowClick={handlePositionClick}
           />
         </div>
@@ -149,4 +159,3 @@ export function PositionOverview() {
     </>
   );
 }
-

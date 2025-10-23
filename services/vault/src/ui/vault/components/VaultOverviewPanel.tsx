@@ -1,8 +1,17 @@
-import { Card, useIsMobile, Tabs } from "@babylonlabs-io/core-ui";
+import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
+
+import {
+  useVaultDepositState,
+  VaultDepositStep,
+} from "../state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../state/VaultRedeemState";
+
+import { ActivityOverview } from "./ActivityOverview";
 import { DepositOverview } from "./DepositOverview";
 import { MarketOverview } from "./MarketOverview";
-import { PositionOverview } from "./PositionOverview";
-import { ActivityOverview } from "./ActivityOverview";
 import {
   CollateralDepositModal,
   CollateralDepositReviewModal,
@@ -13,12 +22,11 @@ import {
   RedeemCollateralSignModal,
   RedeemCollateralSuccessModal,
 } from "./modals";
-import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
-import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
+import { PositionOverview } from "./PositionOverview";
 
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
-  
+
   // Deposit flow state
   const {
     step: depositStep,
@@ -97,7 +105,7 @@ export function VaultOverviewPanel() {
           </h3>
           <ActivityOverview />
         </Card>
-        
+
         {/* Deposit Modal Flow */}
         {depositStep === VaultDepositStep.FORM && (
           <CollateralDepositModal
@@ -156,10 +164,7 @@ export function VaultOverviewPanel() {
           />
         )}
         {redeemStep === VaultRedeemStep.SUCCESS && (
-          <RedeemCollateralSuccessModal
-            open
-            onClose={resetRedeem}
-          />
+          <RedeemCollateralSuccessModal open onClose={resetRedeem} />
         )}
       </>
     );
@@ -194,7 +199,7 @@ export function VaultOverviewPanel() {
           defaultActiveTab="deposits"
         />
       </Card>
-      
+
       {/* Deposit Modal Flow */}
       {depositStep === VaultDepositStep.FORM && (
         <CollateralDepositModal
@@ -253,12 +258,8 @@ export function VaultOverviewPanel() {
         />
       )}
       {redeemStep === VaultRedeemStep.SUCCESS && (
-        <RedeemCollateralSuccessModal
-          open
-          onClose={resetRedeem}
-        />
+        <RedeemCollateralSuccessModal open onClose={resetRedeem} />
       )}
     </>
   );
 }
-
