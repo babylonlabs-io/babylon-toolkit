@@ -13,6 +13,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { approveLoanTokenForRepay, repayDebt } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 
@@ -63,14 +66,25 @@ export function useRepayTransaction({
     setError(null);
 
     try {
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Step 1: Approve loan token spending
       setCurrentStep(1);
-      await approveLoanTokenForRepay(marketId);
+      await approveLoanTokenForRepay(walletClient, chain, marketId);
 
       // Step 2: Repay all debt
       // This repays ALL debt including fees and interest
       setCurrentStep(2);
       await repayDebt(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         positionId,
         marketId

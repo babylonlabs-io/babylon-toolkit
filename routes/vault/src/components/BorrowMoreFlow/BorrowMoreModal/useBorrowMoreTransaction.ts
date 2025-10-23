@@ -9,6 +9,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { borrowMoreFromPosition } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 
@@ -62,8 +65,19 @@ export function useBorrowMoreTransaction({
     setError(null);
 
     try {
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Execute borrow more transaction
       await borrowMoreFromPosition(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         marketId,
         borrowAmount

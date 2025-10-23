@@ -49,10 +49,10 @@ export enum PositionAction {
  * Parameters for determining position type and actions
  */
 export interface PositionParams {
-  /** Collateral amount in base units (bigint or number) */
-  collateral: bigint | number;
-  /** Debt amount in base units (bigint or number) */
-  debt: bigint | number;
+  /** Collateral amount in token's smallest unit (e.g., wei for ETH, satoshis for BTC) */
+  collateral: bigint;
+  /** Debt amount in token's smallest unit */
+  debt: bigint;
   /** Current LTV ratio (0-1 scale, e.g., 0.85 = 85%) - optional, used for validation */
   currentLTV?: number;
   /** Liquidation LTV threshold (0-1 scale, e.g., 0.86 = 86%) - optional, used for validation */
@@ -66,12 +66,7 @@ export interface PositionParams {
  * @returns Position type
  */
 export function getPositionType(params: PositionParams): PositionType {
-  const collateral = typeof params.collateral === 'bigint'
-    ? params.collateral
-    : BigInt(Math.floor(params.collateral));
-  const debt = typeof params.debt === 'bigint'
-    ? params.debt
-    : BigInt(Math.floor(params.debt));
+  const { collateral, debt } = params;
 
   // Liquidated: No collateral but has debt
   if (collateral === 0n && debt > 0n) {

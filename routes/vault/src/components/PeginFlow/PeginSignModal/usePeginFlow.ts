@@ -7,6 +7,9 @@
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../services/vault/vaultProofOfPossessionService';
 import { CONTRACTS } from '../../../config/contracts';
@@ -183,8 +186,19 @@ export function usePeginFlow({
       // Process vault provider's BTC public key (convert to x-only format)
       const vaultProviderBtcPubkey = processPublicKeyToXOnly(selectedProvider.btc_pub_key);
 
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Submit to smart contract (ETH wallet signs, broadcasts, and waits for confirmation)
       const result = await submitPeginRequest(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         depositorBtcPubkey,
         pegInAmountSats,

@@ -114,12 +114,12 @@ export function usePositionFlowHandlers({
     const activity = createActivityFromPosition(index, rawPositions, positions);
     if (!activity) return;
 
-    // Validate action using state machine
+    // Validate action using state machine with raw bigint values
     const position = positions[index];
     try {
       validateRepayAction({
-        collateral: parseFloat(position.collateral.amount) || 0,
-        debt: parseFloat(position.borrowedAmount) || 0,
+        collateral: position.collateral.raw,
+        debt: position.rawDebt,
         currentLTV: position.currentLTV / 100,
         liquidationLTV: position.liquidationLTV / 100,
       });
@@ -147,12 +147,12 @@ export function usePositionFlowHandlers({
     const activity = createActivityFromPosition(index, rawPositions, positions);
     if (!activity) return;
 
-    // Validate action using state machine
+    // Validate action using state machine with raw bigint values
     const position = positions[index];
     try {
       validateBorrowMoreAction({
-        collateral: parseFloat(position.collateral.amount) || 0,
-        debt: parseFloat(position.borrowedAmount) || 0,
+        collateral: position.collateral.raw,
+        debt: position.rawDebt,
         currentLTV: position.currentLTV / 100,
         liquidationLTV: position.liquidationLTV / 100,
       });
@@ -180,12 +180,12 @@ export function usePositionFlowHandlers({
     const activity = createActivityFromPosition(index, rawPositions, positions);
     if (!activity) return;
 
-    // Validate action using state machine
+    // Validate action using state machine with raw bigint values
     const position = positions[index];
     try {
       validateWithdrawAction({
-        collateral: parseFloat(position.collateral.amount) || 0,
-        debt: parseFloat(position.borrowedAmount) || 0,
+        collateral: position.collateral.raw,
+        debt: position.rawDebt,
         currentLTV: position.currentLTV / 100,
         liquidationLTV: position.liquidationLTV / 100,
       });

@@ -90,12 +90,14 @@ export function useVaultPositionsData(
           symbol: 'BTC',
           icon: bitcoinIcon,
           valueUSD: collateralValueUSDFormatted,
+          raw: collateral,
         },
         borrowedAmount: currentDebt,
         borrowedSymbol: loanTokenSymbol,
         totalToRepay: totalRepayAmount,
         currentLTV,
         liquidationLTV,
+        rawDebt: borrowAssets,
       };
     });
   }, [userPositions]);

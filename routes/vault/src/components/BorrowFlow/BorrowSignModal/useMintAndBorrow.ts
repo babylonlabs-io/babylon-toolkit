@@ -4,6 +4,9 @@
 
 import { useState, useCallback } from 'react';
 import type { Hex } from 'viem';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { addCollateralWithMarketId } from '../../../services/position/positionTransactionService';
 import type { AddCollateralResult } from '../../../services/position/positionTransactionService';
 import { getPeginRequest, getProviderBTCKey } from '../../../services/vault';
@@ -73,8 +76,19 @@ export function useMintAndBorrow(): UseMintAndBorrowResult {
         // Convert market ID from hex string (without 0x) to proper format with 0x prefix
         const marketIdWithPrefix = marketId.startsWith('0x') ? marketId : `0x${marketId}`;
 
+        // Get wallet client for signing
+        const wagmiConfig = getSharedWagmiConfig();
+        const chain = getETHChain();
+        const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+        if (!walletClient) {
+          throw new Error('Ethereum wallet not connected');
+        }
+
         // Call service to execute transaction with multiple vault IDs and borrow
         const txResult = await addCollateralWithMarketId(
+          walletClient,
+          chain,
           CONTRACTS.VAULT_CONTROLLER,
           pegInTxHashes,
           btcPubkey,

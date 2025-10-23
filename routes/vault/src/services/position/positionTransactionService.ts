@@ -4,7 +4,7 @@
  * Orchestrates transaction operations for positions (borrowing, repaying, adding collateral).
  */
 
-import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
+import type { Address, Hex, Hash, TransactionReceipt, WalletClient, Chain } from 'viem';
 import { VaultControllerTx, VaultController, Morpho, MorphoOracle, ERC20 } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
 import { CONTRACTS } from '../../config/contracts';
@@ -26,6 +26,8 @@ export interface AddCollateralResult {
 /**
  * Add collateral to position (with optional borrowing)
  *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
@@ -34,6 +36,8 @@ export interface AddCollateralResult {
  * @returns Transaction result with market parameters and optional position ID
  */
 export async function addCollateralWithMarketId(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   pegInTxHashes: Hex[],
   depositorBtcPubkey: Hex,
@@ -46,6 +50,8 @@ export async function addCollateralWithMarketId(
   // Step 2: Execute transaction based on whether borrowing is requested
   if (borrowAmount !== undefined && borrowAmount > 0n) {
     const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
+      walletClient,
+      chain,
       vaultControllerAddress,
       pegInTxHashes,
       depositorBtcPubkey,
@@ -60,6 +66,8 @@ export async function addCollateralWithMarketId(
     };
   } else {
     const { transactionHash, receipt, positionId } = await VaultControllerTx.addCollateralToPosition(
+      walletClient,
+      chain,
       vaultControllerAddress,
       pegInTxHashes,
       depositorBtcPubkey,
@@ -78,14 +86,14 @@ export async function addCollateralWithMarketId(
 /**
  * Approve loan token spending for repayment
  *
- * Approves the VaultController to spend loan tokens on behalf of the user.
- * The VaultController transfers tokens from user to proxy, then proxy repays to Morpho.
- * Uses max uint256 to ensure sufficient allowance for full debt repayment.
- *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param marketId - Market ID
  * @returns Transaction hash and receipt from approval
  */
 export async function approveLoanTokenForRepay(
+  walletClient: WalletClient,
+  chain: Chain,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch loan token address from Morpho market params
@@ -98,6 +106,8 @@ export async function approveLoanTokenForRepay(
   const approvalAmount = 2n ** 256n - 1n;
 
   return ERC20.approveERC20(
+    walletClient,
+    chain,
     loanTokenAddress,
     CONTRACTS.VAULT_CONTROLLER, // Approve VaultController to transfer tokens
     approvalAmount
@@ -162,12 +172,16 @@ function calculateRepayAmount(borrowAssets: bigint): bigint {
 /**
  * Repay all debt from position
  *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param positionId - Position ID
  * @param marketId - Market ID
  * @returns Transaction hash and receipt
  */
 export async function repayDebt(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   positionId: string,
   marketId: string | bigint,
@@ -206,6 +220,8 @@ export async function repayDebt(
   // Execute repayment
   try {
     const result = await VaultControllerTx.repayFromPosition(
+      walletClient,
+      chain,
       vaultControllerAddress,
       marketParams,
       repayAmount,
@@ -226,13 +242,17 @@ export async function repayDebt(
 
 /**
  * Borrow more from an existing position
- * 
+ *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param marketId - Market ID
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction hash, receipt, and actual amount borrowed
  */
 export async function borrowMoreFromPosition(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   marketId: string | bigint,
   borrowAmount: bigint,
@@ -241,6 +261,8 @@ export async function borrowMoreFromPosition(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   return VaultControllerTx.borrowFromPosition(
+    walletClient,
+    chain,
     vaultControllerAddress,
     marketParams,
     borrowAmount
@@ -250,20 +272,15 @@ export async function borrowMoreFromPosition(
 /**
  * Withdraw ALL collateral from position (without redeeming BTC vault)
  *
- * Withdraws ALL collateral from the position but does NOT redeem the BTC vault.
- * This is different from withdrawCollateralAndRedeemBTCVault which also initiates BTC redemption.
- *
- * IMPORTANT:
- * - Withdraws ALL collateral (no partial withdrawal available)
- * - The position must have NO DEBT or this will revert
- * - Does NOT emit VaultRedeemable event (vault remains locked on Bitcoin network)
- * - Use this when you want to remove collateral without redeeming to Bitcoin network
- *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param marketId - Morpho market ID
  * @returns Transaction hash, receipt, and amount of collateral withdrawn
  */
 export async function withdrawCollateralFromPosition(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
@@ -271,6 +288,8 @@ export async function withdrawCollateralFromPosition(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   return VaultControllerTx.withdrawCollateralFromPosition(
+    walletClient,
+    chain,
     vaultControllerAddress,
     marketParams
   );

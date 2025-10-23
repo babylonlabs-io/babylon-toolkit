@@ -15,12 +15,16 @@ export interface PositionData {
     symbol: string;
     icon?: string;
     valueUSD?: string;
+    /** Raw collateral amount in token's smallest unit (required for state machine) */
+    raw: bigint;
   };
   borrowedAmount: string;
   borrowedSymbol: string;
   totalToRepay: string;
   currentLTV: number;
   liquidationLTV: number;
+  /** Raw debt amount in token's smallest unit (required for state machine) */
+  rawDebt: bigint;
 }
 
 interface PositionCardProps {
@@ -31,10 +35,10 @@ interface PositionCardProps {
 }
 
 export function PositionCard({ position, onRepay, onBorrowMore, onWithdraw }: PositionCardProps) {
-  // Get available action buttons based on position state
+  // Get available action buttons based on position state using raw bigint values
   const actionButtons = getActionButtons({
-    collateral: parseFloat(position.collateral.amount) || 0,
-    debt: parseFloat(position.borrowedAmount) || 0,
+    collateral: position.collateral.raw,
+    debt: position.rawDebt,
     currentLTV: position.currentLTV / 100, // Convert percentage to 0-1 scale
     liquidationLTV: position.liquidationLTV / 100, // Convert percentage to 0-1 scale
   });

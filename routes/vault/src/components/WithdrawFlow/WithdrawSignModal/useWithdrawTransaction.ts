@@ -10,6 +10,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { withdrawCollateralFromPosition } from '../../../services/position/positionTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
 
@@ -58,9 +61,20 @@ export function useWithdrawTransaction({
     setError(null);
 
     try {
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Withdraw all collateral from position
       setCurrentStep(1);
       await withdrawCollateralFromPosition(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         marketId
       );
