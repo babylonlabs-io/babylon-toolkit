@@ -110,17 +110,13 @@ export const Connect: React.FC<ConnectProps> = ({
   const { isApiNormal, isGeoBlocked } = useHealthCheck();
 
   const isConnected = useMemo(() => {
-    const result = (() => {
-      if (isBabyRoute) {
-        return bbnConnected && !isGeoBlocked;
-      } else if (isVaultRoute) {
-        return btcConnected && ethConnected && !isGeoBlocked;
-      } else {
-        return btcConnected && bbnConnected && !isGeoBlocked;
-      }
-    })();
-
-    return result;
+    if (isBabyRoute) {
+      return bbnConnected && !isGeoBlocked;
+    } else if (isVaultRoute) {
+      return btcConnected && ethConnected && !isGeoBlocked;
+    } else {
+      return btcConnected && bbnConnected && !isGeoBlocked;
+    }
   }, [
     isBabyRoute,
     isVaultRoute,
