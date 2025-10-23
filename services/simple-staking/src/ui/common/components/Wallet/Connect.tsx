@@ -17,6 +17,7 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
+import { useETHWallet } from "@/ui/common/context/wallet/ETHWalletProvider";
 import { useUTXOs } from "@/ui/common/hooks/client/api/useUTXOs";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 import { useAppState } from "@/ui/common/state";
@@ -44,7 +45,7 @@ export const Connect: React.FC<ConnectProps> = ({
 
   const location = useLocation();
   const isBabyRoute = location.pathname.startsWith("/baby");
-  const requireBothWallets = !isBabyRoute;
+  const isVaultRoute = location.pathname.startsWith("/vault");
 
   // App state and wallet context
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
@@ -91,46 +92,50 @@ export const Connect: React.FC<ConnectProps> = ({
 
   // Wallet states
   const {
-    loading: btcLoading,
     address: btcAddress,
     connected: btcConnected,
     publicKeyNoCoord,
   } = useBTCWallet();
+  const { bech32Address, connected: bbnConnected } = useCosmosWallet();
   const {
-    loading: bbnLoading,
-    bech32Address,
-    connected: bbnConnected,
-  } = useCosmosWallet();
+    address: ethAddress,
+    connected: ethConnected,
+    loading: ethLoading,
+  } = useETHWallet();
 
   // Widget states
   const { selectedWallets } = useWidgetState();
   const { disconnect } = useWalletConnect();
 
-  const {
-    isApiNormal,
+  const { isApiNormal, isGeoBlocked } = useHealthCheck();
+
+  const isConnected = useMemo(() => {
+    const result = (() => {
+      if (isBabyRoute) {
+        return bbnConnected && !isGeoBlocked;
+      } else if (isVaultRoute) {
+        return btcConnected && ethConnected && !isGeoBlocked;
+      } else {
+        return btcConnected && bbnConnected && !isGeoBlocked;
+      }
+    })();
+
+    return result;
+  }, [
+    isBabyRoute,
+    isVaultRoute,
+    btcConnected,
+    bbnConnected,
+    ethConnected,
     isGeoBlocked,
-    isLoading: isHealthcheckLoading,
-  } = useHealthCheck();
+  ]);
 
-  const isConnected = useMemo(
-    () =>
-      (requireBothWallets ? btcConnected && bbnConnected : bbnConnected) &&
-      !isGeoBlocked &&
-      !isHealthcheckLoading,
-    [
-      requireBothWallets,
-      btcConnected,
-      bbnConnected,
-      isGeoBlocked,
-      isHealthcheckLoading,
-    ],
-  );
-
-  const isLoading =
-    isConnected ||
-    !isApiNormal ||
-    loading ||
-    (requireBothWallets ? btcLoading || bbnLoading : bbnLoading);
+  const isLoading = useMemo(() => {
+    // Only disable the button if we're already connected, API is down, or there's an active connection process
+    return (
+      isConnected || !isApiNormal || loading || (isVaultRoute && ethLoading)
+    );
+  }, [isConnected, isApiNormal, loading, isVaultRoute, ethLoading]);
 
   const transformedWallets = useMemo(() => {
     const result: Record<string, { name: string; icon: string }> = {};
@@ -142,21 +147,28 @@ export const Connect: React.FC<ConnectProps> = ({
     return result;
   }, [selectedWallets]);
 
-  // DISCONNECTED STATE: Show connect button + settings menu
   if (!isConnected) {
+    const isEthLoading = isVaultRoute && ethLoading;
+    let buttonContent;
+    if (isEthLoading) {
+      buttonContent = "Loading...";
+    } else if (isBabyRoute) {
+      buttonContent = "Connect Wallet";
+    } else {
+      buttonContent = "Connect Wallets";
+    }
+
     return (
       <div className="flex items-center gap-2">
         <Button
           size="large"
           className="h-[2.5rem] min-h-[2.5rem] rounded-full px-6 py-2 text-base text-white md:rounded"
           onClick={onConnect}
-          disabled={isLoading}
+          disabled={isLoading || isEthLoading}
           data-testid="connect-wallets-button"
         >
           <PiWalletBold size={20} className="flex md:hidden" />
-          <span className="hidden md:flex">
-            {isBabyRoute ? "Connect Wallet" : "Connect Wallets"}
-          </span>
+          <span className="hidden md:flex">{buttonContent}</span>
         </Button>
 
         <SettingMenuWrapper />
@@ -170,8 +182,8 @@ export const Connect: React.FC<ConnectProps> = ({
       <WalletMenu
         trigger={
           <div className="cursor-pointer">
-            <AvatarGroup max={2} variant="circular">
-              {selectedWallets["BTC"] ? (
+            <AvatarGroup max={3} variant="circular">
+              {selectedWallets["BTC"] && !isBabyRoute ? (
                 <Avatar
                   alt={selectedWallets["BTC"]?.name}
                   url={selectedWallets["BTC"]?.icon}
@@ -179,25 +191,40 @@ export const Connect: React.FC<ConnectProps> = ({
                   className={twMerge(
                     "box-content bg-accent-contrast object-contain",
                     isWalletMenuOpen &&
-                      "outline outline-[2px] outline-accent-primary",
+                    "outline outline-[2px] outline-accent-primary",
                   )}
                 />
               ) : null}
-              <Avatar
-                alt={selectedWallets["BBN"]?.name}
-                url={selectedWallets["BBN"]?.icon}
-                size="large"
-                className={twMerge(
-                  "box-content bg-accent-contrast object-contain",
-                  isWalletMenuOpen &&
+              {selectedWallets["BBN"] && !isVaultRoute ? (
+                <Avatar
+                  alt={selectedWallets["BBN"]?.name}
+                  url={selectedWallets["BBN"]?.icon}
+                  size="large"
+                  className={twMerge(
+                    "box-content bg-accent-contrast object-contain",
+                    isWalletMenuOpen &&
                     "outline outline-[2px] outline-accent-primary",
-                )}
-              />
+                  )}
+                />
+              ) : null}
+              {selectedWallets["ETH"] && isVaultRoute ? (
+                <Avatar
+                  alt={selectedWallets["ETH"]?.name || "Ethereum Wallet"}
+                  url={selectedWallets["ETH"]?.icon || ""}
+                  size="large"
+                  className={twMerge(
+                    "box-content bg-accent-contrast object-contain",
+                    isWalletMenuOpen &&
+                    "outline outline-[2px] outline-accent-primary",
+                  )}
+                />
+              ) : null}
             </AvatarGroup>
           </div>
         }
         btcAddress={btcAddress}
         bbnAddress={bech32Address}
+        ethAddress={ethAddress}
         selectedWallets={transformedWallets}
         ordinalsExcluded={ordinalsExcluded}
         linkedDelegationsVisibility={linkedDelegationsVisibility}
