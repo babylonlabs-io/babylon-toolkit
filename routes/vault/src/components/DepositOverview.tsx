@@ -9,41 +9,30 @@ import {
   Checkbox,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Deposit } from "../types/vault";
 import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
 import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
+import { PeginStatus } from "../state/usePeginStorage";
+import { SATOSHIS_PER_BTC } from "../utils/peginTransformers";
 
-// Hardcoded deposit data
-const HARDCODED_DEPOSITS: Deposit[] = [
-  {
-    id: "1",
-    amount: 5,
-    vaultProvider: {
-      name: "Ironclad BTC",
-      icon: "",
-    },
-    status: "In Use",
-  },
-  {
-    id: "2",
-    amount: 2,
-    vaultProvider: {
-      name: "Atlas Custody",
-      icon: "",
-    },
-    status: "Available",
-  },
-  {
-    id: "3",
-    amount: 3,
-    vaultProvider: {
-      name: "Ironclad BTC",
-      icon: "",
-    },
-    status: "Available",
-  },
-];
+// Map pegin status to display status
+const mapPeginStatusToDisplay = (status: PeginStatus): string => {
+  switch (status) {
+    case PeginStatus.PENDING_SUBMISSION:
+      return "Submitting";
+    case PeginStatus.PENDING_VERIFICATION:
+      return "Pending";
+    case PeginStatus.VERIFIED:
+      return "Verified";
+    case PeginStatus.AVAILABLE:
+      return "Available";
+    case PeginStatus.EXPIRED:
+      return "Expired";
+    default:
+      return "Unknown";
+  }
+};
 
 function EmptyState({ onDeposit }: { onDeposit: () => void }) {
   return (
@@ -83,10 +72,35 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
 
 export function DepositOverview() {
   const isMobile = useIsMobile();
-  const deposits = HARDCODED_DEPOSITS;
   const [selectedDepositIds, setSelectedDepositIds] = useState<Array<string | number>>([]);
-  const { goToStep: goToDepositStep } = useVaultDepositState();
+  const { goToStep: goToDepositStep, pendingPegins } = useVaultDepositState();
   const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
+
+  // Transform pending pegins to deposits format
+  const deposits: Deposit[] = useMemo(() => {
+    return pendingPegins.map((pegin): Deposit => {
+      const displayStatus = mapPeginStatusToDisplay(pegin.status);
+      // Map display status to Deposit status type
+      let depositStatus: Deposit["status"];
+      if (displayStatus === "Available") {
+        depositStatus = "Available";
+      } else if (displayStatus === "Verified" || displayStatus === "Submitting" || displayStatus === "Pending") {
+        depositStatus = "Pending";
+      } else {
+        depositStatus = "In Use";
+      }
+      
+      return {
+        id: pegin.txHash,
+        amount: pegin.amount / Number(SATOSHIS_PER_BTC), // Convert sats to BTC
+        vaultProvider: {
+          name: pegin.providerAddress.slice(0, 6) + '...' + pegin.providerAddress.slice(-4),
+          icon: "",
+        },
+        status: depositStatus,
+      };
+    });
+  }, [pendingPegins]);
 
   const handleDeposit = () => {
     goToDepositStep(VaultDepositStep.FORM);
@@ -134,11 +148,10 @@ export function DepositOverview() {
       key: "status",
       header: "Status",
       render: (_value: unknown, row: Deposit) => {
-        const statusMap = {
-          // Hardcoded statuses for now
-          "Available": "inactive" as const,
-          "Pending": "pending" as const,
-          "In Use": "active" as const,
+        const statusMap: Record<Deposit["status"], "inactive" | "pending" | "active"> = {
+          "Available": "inactive",
+          "Pending": "pending",
+          "In Use": "active",
         };
         return (
           <StatusBadge
@@ -179,10 +192,10 @@ export function DepositOverview() {
       {isMobile ? (
         <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
           {deposits.map((deposit) => {
-            const statusMap = {
-              "Available": "inactive" as const,
-              "Pending": "pending" as const,
-              "In Use": "active" as const,
+            const statusMap: Record<Deposit["status"], "inactive" | "pending" | "active"> = {
+              "Available": "inactive",
+              "Pending": "pending",
+              "In Use": "active",
             };
             return (
               <VaultDetailCard
