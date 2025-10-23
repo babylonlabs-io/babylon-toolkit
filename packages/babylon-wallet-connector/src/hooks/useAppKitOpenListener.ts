@@ -1,15 +1,26 @@
 import { useEffect } from "react";
 
-import { openAppKitModal, hasAppKitModal } from "@/core/wallets/eth/appkit/appKitModal";
+import { openAppKitModal, hasAppKitModal, initializeAppKitModal } from "@/core/wallets/eth/appkit/appKitModal";
 
 /**
  * Listens for the custom "babylon:open-appkit" event and opens the AppKit modal
  *
  * This hook enables external code to trigger the AppKit modal opening
  * without direct coupling to the AppKit implementation.
+ * 
+ * The hook will automatically initialize the AppKit modal if it hasn't been initialized yet.
  */
 export const useAppKitOpenListener = () => {
     useEffect(() => {
+        // Initialize AppKit modal if not already initialized
+        if (!hasAppKitModal()) {
+            try {
+                initializeAppKitModal();
+            } catch (error) {
+                console.error("Failed to initialize AppKit modal:", error);
+            }
+        }
+
         const handleOpenRequest = () => {
             if (hasAppKitModal()) {
                 try {

@@ -1,7 +1,7 @@
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { Config } from "wagmi";
-import { createStorage } from "wagmi";
+import { mainnet, sepolia } from "wagmi/chains";
 
 import { setSharedWagmiConfig } from "./sharedConfig";
 
@@ -55,58 +55,21 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         icons: config?.metadata?.icons || ["https://btcstaking.babylonlabs.io/favicon.ico"],
     };
 
-    // Define networks for AppKit - use minimal network configuration
-    const networks = config?.networks || [
-        {
-            id: 1,
-            name: "Ethereum",
-            nativeCurrency: {
-                name: "Ether",
-                symbol: "ETH",
-                decimals: 18,
-            },
-            rpcUrls: {
-                default: { http: ["https://cloudflare-eth.com"] },
-            },
-            blockExplorers: {
-                default: { name: "Etherscan", url: "https://etherscan.io" },
-            },
-        },
-        {
-            id: 11155111,
-            name: "Sepolia",
-            nativeCurrency: {
-                name: "Sepolia Ether",
-                symbol: "ETH",
-                decimals: 18,
-            },
-            rpcUrls: {
-                default: { http: ["https://rpc.sepolia.org"] },
-            },
-            blockExplorers: {
-                default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
-            },
-        },
-    ] as any;
-
-    const storageConfig = createStorage({
-        storage: typeof window !== "undefined" ? window.localStorage : undefined,
-        key: "wagmi.store",
-    });
+    // Define networks for AppKit - use wagmi chain definitions
+    // This is crucial for AppKit to properly display wallet options
+    const networks = (config?.networks && config.networks.length > 0)
+        ? config.networks
+        : [mainnet, sepolia];
 
     wagmiAdapter = new WagmiAdapter({
         networks,
         projectId,
-        storage: storageConfig,
-        ssr: false,
-        syncConnectedChain: true,
-        reconnect: true,
-    } as any);
+    });
 
     // Create and store the AppKit modal instance
     appKitModal = createAppKit({
         adapters: [wagmiAdapter],
-        networks,
+        networks: networks as [typeof mainnet, ...typeof networks],
         projectId,
         metadata,
         features: {
@@ -114,15 +77,14 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
             swaps: false,
             onramp: false,
         },
-        enableWalletConnect: true,
         themeMode: config?.themeMode || "light",
         themeVariables: config?.themeVariables || {
             "--w3m-accent": "#FF7C2A",
         },
-        featuredWalletIds: config?.featuredWalletIds || [
-            "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
-        ],
-    } as any);
+        // Only set featuredWalletIds if explicitly provided in config
+        // Otherwise, show all available wallets (MetaMask, OKX, Coinbase, Rainbow, etc.)
+        ...(config?.featuredWalletIds ? { featuredWalletIds: config.featuredWalletIds } : {}),
+    });
 
     // Set the shared wagmi config for the wallet-connector AppKitProvider
     // This prevents multiple WalletConnect initializations

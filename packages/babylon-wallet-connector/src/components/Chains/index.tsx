@@ -27,48 +27,53 @@ export const Chains = memo(
     onConfirm,
     onSelectChain,
     onDisconnectWallet,
-  }: ChainsProps) => (
-    <div className={twMerge("flex flex-1 flex-col text-accent-primary", className)}>
-      <DialogHeader className="mb-10" title="Connect Wallets" onClose={onClose}>
-        <Text className="text-accent-secondary">Connect to both Bitcoin and Babylon Chain Wallets</Text>
-      </DialogHeader>
+  }: ChainsProps) => {
+    const chainNames = chains.map((chain) => chain.name).join(" and ");
+    const subtitle = `Connect to both ${chainNames} Wallets`;
 
-      <DialogBody className="flex flex-col gap-6">
-        {chains.map((chain) => {
-          const selectedWallet = selectedWallets[chain.id];
+    return (
+      <div className={twMerge("flex flex-1 flex-col text-accent-primary", className)}>
+        <DialogHeader className="mb-10" title="Connect Wallets" onClose={onClose}>
+          <Text className="text-accent-secondary">{subtitle}</Text>
+        </DialogHeader>
 
-          return (
-            <ChainButton
-              key={chain.id}
-              disabled={Boolean(selectedWallet)}
-              title={`Select ${chain.name} Wallet`}
-              logo={chain.icon}
-              alt={chain.name}
-              onClick={() => void onSelectChain?.(chain)}
-            >
-              {selectedWallet && (
-                <ConnectedWallet
-                  chainId={chain.id}
-                  logo={selectedWallet.icon}
-                  name={selectedWallet.name}
-                  address={selectedWallet.account?.address ?? ""}
-                  onDisconnect={onDisconnectWallet}
-                />
-              )}
-            </ChainButton>
-          );
-        })}
-      </DialogBody>
+        <DialogBody className="flex flex-col gap-6">
+          {chains.map((chain) => {
+            const selectedWallet = selectedWallets[chain.id];
 
-      <DialogFooter className="mt-auto flex gap-4 pt-10">
-        <Button variant="outlined" fluid onClick={onClose}>
-          Cancel
-        </Button>
+            return (
+              <ChainButton
+                key={chain.id}
+                disabled={Boolean(selectedWallet)}
+                title={`Select ${chain.name} Wallet`}
+                logo={chain.icon}
+                alt={chain.name}
+                onClick={() => void onSelectChain?.(chain)}
+              >
+                {selectedWallet && (
+                  <ConnectedWallet
+                    chainId={chain.id}
+                    logo={selectedWallet.icon}
+                    name={selectedWallet.name}
+                    address={selectedWallet.account?.address ?? ""}
+                    onDisconnect={onDisconnectWallet}
+                  />
+                )}
+              </ChainButton>
+            );
+          })}
+        </DialogBody>
 
-        <Button disabled={disabled} fluid onClick={onConfirm} data-testid="chains-done-button">
-          Done
-        </Button>
-      </DialogFooter>
-    </div>
-  ),
+        <DialogFooter className="mt-auto flex gap-4 pt-10">
+          <Button variant="outlined" fluid onClick={onClose}>
+            Cancel
+          </Button>
+
+          <Button disabled={disabled} fluid onClick={onConfirm} data-testid="chains-done-button">
+            Done
+          </Button>
+        </DialogFooter>
+      </div>
+    );
+  },
 );
