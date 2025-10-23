@@ -77,6 +77,9 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
         );
       }
 
+      // Extract liquidator BTC pubkeys from vault provider
+      const liquidatorBtcPubkeys = provider.liquidators?.map(liq => liq.btc_pub_key) || [];
+
       // Delegate to service layer (state-unaware, reusable business logic)
       await signAndSubmitPayoutSignatures({
         peginTxId: params.peginTxId,
@@ -85,6 +88,8 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
         vaultProvider: {
           address: params.vaultProviderAddress,
           url: provider.url,
+          btcPubkey: provider.btc_pub_key,
+          liquidatorBtcPubkeys,
         },
         btcWalletProvider: params.btcWalletProvider,
       });

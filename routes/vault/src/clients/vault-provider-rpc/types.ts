@@ -46,6 +46,15 @@ export interface GetPeginStatusParams {
   pegin_tx_id: string;
 }
 
+/**
+ * Parameters for getting PegIn claim transaction graph
+ * Corresponds to: GetPeginClaimTxGraphParams (types.rs:196-199)
+ */
+export interface GetPeginClaimTxGraphParams {
+  /** The PegIn transaction ID (hex encoded txid) */
+  pegin_tx_id: string;
+}
+
 // ============================================================================
 // Response Types
 // ============================================================================
@@ -92,6 +101,15 @@ export interface GetPeginStatusResponse {
    * "Acknowledged", "Activated", "ClaimPosted", "ChallengePeriod", "PeggedOut"
    */
   status: string;
+}
+
+/**
+ * Response for querying PegIn claim transaction graph
+ * Corresponds to: GetPeginClaimTxGraphResponse (types.rs:342-345)
+ */
+export interface GetPeginClaimTxGraphResponse {
+  /** The PegInClaimTxGraph serialized as JSON string */
+  graph_json: string;
 }
 
 // ============================================================================

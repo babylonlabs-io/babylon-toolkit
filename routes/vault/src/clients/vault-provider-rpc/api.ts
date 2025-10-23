@@ -9,6 +9,8 @@ import type {
   SubmitPayoutSignaturesParams,
   GetPeginStatusParams,
   GetPeginStatusResponse,
+  GetPeginClaimTxGraphParams,
+  GetPeginClaimTxGraphResponse,
 } from './types';
 
 export class VaultProviderRpcApi {
@@ -67,5 +69,23 @@ export class VaultProviderRpcApi {
       'vlt_getPeginStatus',
       params,
     );
+  }
+
+  /**
+   * Get the PegIn claim transaction graph
+   *
+   * This returns the complete transaction graph including all public keys,
+   * which can be used to verify the exact order of liquidators used by the VP.
+   *
+   * @param params - PegIn transaction ID
+   * @returns The PegInClaimTxGraph serialized as JSON
+   */
+  async getPeginClaimTxGraph(
+    params: GetPeginClaimTxGraphParams,
+  ): Promise<GetPeginClaimTxGraphResponse> {
+    return this.client.call<
+      GetPeginClaimTxGraphParams,
+      GetPeginClaimTxGraphResponse
+    >('vlt_getPeginClaimTxGraph', params);
   }
 }
