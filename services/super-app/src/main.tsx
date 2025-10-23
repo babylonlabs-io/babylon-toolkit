@@ -7,6 +7,8 @@ import GlobalError from "@/ui/common/global-error";
 import Providers from "@/ui/common/providers";
 import { Router } from "@/ui/router";
 
+import "@/ui/globals.css";
+
 createRoot(document.getElementById("root")!).render(
     <StrictMode>
         <BrowserRouter>

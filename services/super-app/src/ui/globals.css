@@ -42,11 +42,11 @@ input[type="number"] {
     }
 
     .app-bg {
-        background-image: url("../../simple-staking/src/ui/common/assets/background-light.webp");
+        background-image: url("./common/assets/background-light.webp");
     }
 
     .dark .app-bg {
-        background-image: url("../../simple-staking/src/ui/common/assets/background-dark.webp");
+        background-image: url("./common/assets/background-dark.webp");
     }
 }
 

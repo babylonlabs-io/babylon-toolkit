@@ -11,7 +11,7 @@ export function VaultLayout() {
   }
 
   return (
-    <div className="container mx-auto flex max-w-[1200px] flex-1 flex-col gap-6 px-4 pb-6 max-md:gap-4 max-md:px-0 max-md:pt-0 max-md:pb-4 max-md:flex-none">
+    <div className="w-full md:mx-auto md:max-w-3xl flex flex-1 flex-col gap-6 px-1 pb-6 max-md:gap-4 max-md:px-0 max-md:pt-0 max-md:pb-4 max-md:flex-none">
       <VaultStats />
       <VaultDepositState>
         <VaultRedeemState>
