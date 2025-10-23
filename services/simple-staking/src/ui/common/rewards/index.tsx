@@ -301,9 +301,10 @@ function RewardsPageContent() {
 
   const transactionFees = useMemo(() => {
     return {
-      token: combinedFeeUbbn > 0
-        ? `${ubbnToBaby(combinedFeeUbbn).toFixed(6)} ${bbnCoinSymbol}`
-        : "Calculated in next step",
+      token:
+        combinedFeeUbbn > 0
+          ? `${ubbnToBaby(combinedFeeUbbn).toFixed(6)} ${bbnCoinSymbol}`
+          : "Calculated in next step",
       usd: "",
     };
   }, [combinedFeeUbbn, bbnCoinSymbol]);
