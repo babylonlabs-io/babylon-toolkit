@@ -2,14 +2,9 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": true,
-        "tsBuildInfoFile": "./tsconfig.lib.tsbuildinfo",
-        "skipLibCheck": true
+        "tsBuildInfoFile": "./tsconfig.lib.tsbuildinfo"
     },
     "include": [
         "src"
-    ],
-    "exclude": [
-        "../simple-staking/src",
-        "../vault/src"
     ]
 }
