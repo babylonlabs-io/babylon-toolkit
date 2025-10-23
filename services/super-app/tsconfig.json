@@ -35,8 +35,6 @@
         }
     },
     "include": [
-        "src",
-        "../vault/src",
-        "../simple-staking/src"
+        "src"
     ]
 }

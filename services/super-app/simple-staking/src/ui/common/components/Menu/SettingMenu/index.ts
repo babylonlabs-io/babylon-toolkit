@@ -1,1 +1,0 @@
-export { SettingMenuWrapper } from "./SettingMenuWrapper";

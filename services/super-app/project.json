@@ -7,6 +7,13 @@
         "type:service"
     ],
     "targets": {
+        "dev": {
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "command": "pnpm dev"
+            }
+        },
         "dev:watchDeps": {
             "dependsOn": [
                 "^build"

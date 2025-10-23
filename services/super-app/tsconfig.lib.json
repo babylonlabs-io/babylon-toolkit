@@ -5,8 +5,6 @@
         "tsBuildInfoFile": "./tsconfig.lib.tsbuildinfo"
     },
     "include": [
-        "src",
-        "../vault/src",
-        "../simple-staking/src"
+        "src"
     ]
 }

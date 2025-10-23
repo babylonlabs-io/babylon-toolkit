@@ -1,20 +1,17 @@
 import { Navigate, Route, Routes } from "react-router";
 
-import Layout from "./common/layout";
 import NotFound from "./common/not-found";
-import { StakingRoutes } from "./staking/routes";
-import { VaultRoutes } from "./vault/routes";
+import { StakingApp } from "./staking/StakingApp";
+import { VaultApp } from "./vault/VaultApp";
 
 export const Router = () => {
     return (
         <Routes>
-            <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="btc" replace />} />
-                <Route path="btc" element={<StakingRoutes />} />
-                <Route path="baby" element={<StakingRoutes />} />
-                <Route path="rewards" element={<StakingRoutes />} />
-                <Route path="vault/*" element={<VaultRoutes />} />
-            </Route>
+            <Route index element={<Navigate to="btc" replace />} />
+            <Route path="btc/*" element={<StakingApp />} />
+            <Route path="baby/*" element={<StakingApp />} />
+            <Route path="rewards/*" element={<StakingApp />} />
+            <Route path="vault/*" element={<VaultApp />} />
             <Route path="*" element={<NotFound />} />
         </Routes>
     );
