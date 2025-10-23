@@ -55,7 +55,7 @@
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
-    "@reown/appkit": "1.8.6",
+    "@reown/appkit": "^1.8.10",
     "@reown/appkit-adapter-wagmi": "1.8.6",
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
