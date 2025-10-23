@@ -15,3 +15,15 @@ export {
   type UTXO,
   getPsbtInputFields,
 } from './getPsbtInputFields';
+export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants';
+export {
+  type Network,
+  type PegInParams,
+  type PegInResult,
+  type PayoutConnectorParams,
+  type PayoutConnectorInfo,
+  createPegInTransaction,
+  createPayoutConnector,
+  WasmPeginTx,
+  WasmPeginPayoutConnector,
+} from './wasm';
