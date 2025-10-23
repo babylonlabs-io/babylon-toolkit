@@ -16,7 +16,6 @@ export interface PositionData {
   borrowedAmount: string;
   borrowedSymbol: string;
   totalToRepay: string;
-  interestAccrued: string;
   currentLTV: number;
   liquidationLTV: number;
 }
@@ -69,31 +68,13 @@ export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardPr
       <div className="border-accent-tertiary space-y-3 border-t pt-4">
         <div className="text-accent-primary text-base font-semibold">Loan Details</div>
 
-        {/* Borrowed Amount */}
+        {/* Current Debt */}
         <div className="flex justify-between">
-          <span className="text-accent-secondary text-sm">Borrowed</span>
+          <span className="text-accent-secondary text-sm">Current Debt</span>
           <span className="text-sm font-medium">
             {position.borrowedAmount} {position.borrowedSymbol}
           </span>
         </div>
-
-        {/* Total to Repay */}
-        <div className="flex justify-between">
-          <span className="text-accent-secondary text-sm">Total to Repay</span>
-          <span className="text-sm font-medium">
-            {position.totalToRepay} {position.borrowedSymbol}
-          </span>
-        </div>
-
-        {/* Interest Accrued */}
-        {parseFloat(position.interestAccrued) > 0 && (
-          <div className="flex justify-between">
-            <span className="text-accent-secondary text-sm">Interest Accrued</span>
-            <span className="text-sm font-medium">
-              {position.interestAccrued} {position.borrowedSymbol}
-            </span>
-          </div>
-        )}
 
         {/* Current LTV */}
         {position.currentLTV > 0 && (

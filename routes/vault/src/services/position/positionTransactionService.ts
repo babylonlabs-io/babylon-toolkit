@@ -5,7 +5,7 @@
  */
 
 import type { Address, Hex, Hash, TransactionReceipt } from 'viem';
-import { VaultControllerTx, VaultController, Morpho, ERC20 } from '../../clients/eth-contract';
+import { VaultControllerTx, VaultController, Morpho, MorphoOracle, ERC20 } from '../../clients/eth-contract';
 import type { MarketParams } from '../../clients/eth-contract';
 import { CONTRACTS } from '../../config/contracts';
 
@@ -105,8 +105,63 @@ export async function approveLoanTokenForRepay(
 }
 
 /**
+ * Validate position has collateral and is not liquidated
+ */
+function validatePositionCollateral(collateral: bigint, borrowAssets: bigint): void {
+  if (collateral === 0n && borrowAssets > 0n) {
+    throw new Error(
+      'Position has been liquidated. All collateral has been seized. ' +
+      `Remaining bad debt: ${(Number(borrowAssets) / 1e6).toFixed(6)} USDC. ` +
+      'This debt cannot be repaid through normal means.'
+    );
+  }
+
+  if (collateral === 0n) {
+    throw new Error('Position has no collateral. Cannot repay from an empty position.');
+  }
+}
+
+/**
+ * Validate position is not underwater (LTV > liquidation threshold)
+ */
+function validatePositionHealth(
+  collateral: bigint,
+  borrowAssets: bigint,
+  btcPriceUSD: number,
+  liquidationLTV: number
+): void {
+  const collateralBTC = Number(collateral) / 1e18; // vBTC has 18 decimals
+  const collateralValueUSD = collateralBTC * btcPriceUSD;
+  const debtValueUSD = Number(borrowAssets) / 1e6; // USDC has 6 decimals
+  const currentLTV = collateralValueUSD > 0 ? (debtValueUSD / collateralValueUSD) : Infinity;
+
+  if (currentLTV > liquidationLTV) {
+    const ltvPercent = (currentLTV * 100).toFixed(2);
+    const liqLtvPercent = (liquidationLTV * 100).toFixed(2);
+
+    throw new Error(
+      `Cannot repay: Position is underwater (LTV ${ltvPercent}% exceeds liquidation threshold ${liqLtvPercent}%). ` +
+      `This position is eligible for liquidation. The contract is likely blocking repayment operations. ` +
+      `Collateral: ${collateralBTC.toFixed(8)} BTC ($${collateralValueUSD.toFixed(2)}), ` +
+      `Debt: ${debtValueUSD.toFixed(6)} USDC. ` +
+      `To fix: Either liquidate the position or adjust the oracle price to restore a healthy LTV.`
+    );
+  }
+}
+
+/**
+ * Calculate repay amount with buffer for interest accrual
+ */
+function calculateRepayAmount(borrowAssets: bigint): bigint {
+  const bufferPercent = borrowAssets / 1000n; // 0.1% of debt
+  const minBuffer = 1_000_000n; // 1 USDC (6 decimals)
+  const buffer = bufferPercent > minBuffer ? bufferPercent : minBuffer;
+  return borrowAssets + buffer;
+}
+
+/**
  * Repay all debt from position
- * 
+ *
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param positionId - Position ID
  * @param marketId - Market ID
@@ -117,50 +172,56 @@ export async function repayDebt(
   positionId: string,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  // Fetch market parameters
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
-  // Fetch position data which includes the proxy contract address
+  // Fetch position data
   const positions = await VaultController.getPositionsBulk(vaultControllerAddress, [positionId as Hex]);
-
   if (positions.length === 0) {
     throw new Error('Position not found');
   }
 
   const proxyContract = positions[0].proxyContract;
-
-  // Fetch the LATEST debt amount from Morpho right before repaying
-  // This minimizes the dust left due to interest accrual
   const position = await Morpho.getUserPosition(marketId, proxyContract);
 
-  // Check if there's actually any debt to repay
   if (position.borrowShares === 0n) {
     throw new Error('No debt to repay - position already fully paid');
   }
 
-  const borrowAssets = position.borrowAssets;
+  const { borrowAssets, collateral } = position;
 
-  console.log('[repayDebt] Repaying debt via VaultController:', {
-    proxyContract,
-    borrowAssets: borrowAssets.toString(),
-  });
+  // Validate position state
+  validatePositionCollateral(collateral, borrowAssets);
 
-  // Repay through VaultController which handles transferring tokens to proxy
-  // and calling Morpho's repay function
-  const result = await VaultControllerTx.repayFromPosition(
-    vaultControllerAddress,
-    marketParams,
-    borrowAssets,
-  );
+  // Fetch market data and validate position health
+  const marketData = await Morpho.getMarketWithData(marketId);
+  const oraclePrice = await MorphoOracle.getOraclePrice(marketData.oracle as Address);
+  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+  const liquidationLTV = Number(marketData.lltv) / 1e18;
 
-  console.log('[repayDebt] Repayment successful:', {
-    transactionHash: result.transactionHash,
-  });
+  validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
 
-  return {
-    transactionHash: result.transactionHash,
-    receipt: result.receipt,
-  };
+  // Calculate repay amount with buffer
+  const repayAmount = calculateRepayAmount(borrowAssets);
+
+  // Execute repayment
+  try {
+    const result = await VaultControllerTx.repayFromPosition(
+      vaultControllerAddress,
+      marketParams,
+      repayAmount,
+    );
+
+    return {
+      transactionHash: result.transactionHash,
+      receipt: result.receipt,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to repay from position: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+      `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
+      `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`
+    );
+  }
 }
 
 /**
