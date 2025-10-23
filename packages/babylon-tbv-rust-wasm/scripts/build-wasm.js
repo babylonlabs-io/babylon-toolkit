@@ -7,9 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - IMPORTANT: Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
-// TODO use main branch commit when wasm connectors are merged
-const BTC_VAULT_BRANCH = 'konradstaniec/wasm-connectors';
-const BTC_VAULT_COMMIT = 'aef32dab6d95094201d55a07f81c39cacfb5244a';
+const BTC_VAULT_BRANCH = 'main';
+const BTC_VAULT_COMMIT = 'dbe604bd945df5fc69aad9dac93f315ba6b76ec1';
 // TODO: When btc-vault starts using release tags, switch to tag-based versioning:
 // const BTC_VAULT_TAG = "v1.0.0";
 
