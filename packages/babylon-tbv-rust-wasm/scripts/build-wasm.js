@@ -7,8 +7,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - IMPORTANT: Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
-const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = 'c16a56688f54013f35d3f81d1dfcdcc0e8e0a230';
+// TODO use main branch commit when wasm connectors are merged
+const BTC_VAULT_BRANCH = 'konradstaniec/wasm-connectors';
+const BTC_VAULT_COMMIT = 'aef32dab6d95094201d55a07f81c39cacfb5244a';
 // TODO: When btc-vault starts using release tags, switch to tag-based versioning:
 // const BTC_VAULT_TAG = "v1.0.0";
 
@@ -52,7 +53,9 @@ const buildWasm = async () => {
             '(may not support wasm32-unknown-unknown target)',
           );
         } else {
-          console.error('Error: No clang found. Please install LLVM via Homebrew: brew install llvm');
+          console.error(
+            'Error: No clang found. Please install LLVM via Homebrew: brew install llvm',
+          );
           process.exit(1);
         }
       }
