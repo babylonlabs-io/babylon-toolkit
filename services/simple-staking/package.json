@@ -125,9 +125,7 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "overrides": {
-    "whatwg-url@11.0.0": {
-      "tr46": "4.0.0"
-    }
+    "tr46": "4.0.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
