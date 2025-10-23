@@ -2,4 +2,4 @@
 export * from "./components";
 export * from "./assets";
 export * from "./state/VaultDepositState";
-export { default as VaultLayout } from "./VaultLayout";
+export { VaultLayout } from "./VaultLayout";

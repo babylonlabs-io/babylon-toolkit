@@ -2,7 +2,8 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": true,
-        "tsBuildInfoFile": "./tsconfig.lib.tsbuildinfo"
+        "tsBuildInfoFile": "./tsconfig.lib.tsbuildinfo",
+        "skipLibCheck": true
     },
     "include": [
         "src"
