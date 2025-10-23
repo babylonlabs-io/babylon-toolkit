@@ -1,11 +1,13 @@
-import { Router } from "@services/vault/ui/router";
-import Providers from "@services/vault/ui/common/providers";
+import { Route, Routes } from "react-router";
+import { VaultLayout } from "@services/vault/ui/vault/VaultLayout";
+import { MarketDetail as MarketDetailPage } from "@services/vault/ui/vault/components/MarketDetail";
 
 export const VaultApp = () => {
     return (
-        <Providers>
-            <Router />
-        </Providers>
+        <Routes>
+            <Route index element={<VaultLayout />} />
+            <Route path="market/:marketId" element={<MarketDetailPage />} />
+        </Routes>
     );
 };
 
