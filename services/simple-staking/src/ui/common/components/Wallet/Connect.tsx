@@ -150,7 +150,7 @@ export const Connect: React.FC<ConnectProps> = ({
   if (!isConnected) {
     const isEthLoading = isVaultRoute && ethLoading;
     let buttonContent;
-    if (isEthLoading) {
+    if (isEthLoading || loading) {
       buttonContent = "Loading...";
     } else if (isBabyRoute) {
       buttonContent = "Connect Wallet";
