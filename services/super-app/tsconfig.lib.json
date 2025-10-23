@@ -7,5 +7,9 @@
     },
     "include": [
         "src"
+    ],
+    "exclude": [
+        "../simple-staking/src",
+        "../vault/src"
     ]
 }
