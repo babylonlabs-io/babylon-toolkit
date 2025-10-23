@@ -1,6 +1,6 @@
 import type { Hex } from "viem";
 import { usePeginRequests } from "./usePeginRequests";
-import { usePeginStorage } from "./usePeginStorage";
+import { usePeginStorage } from "../storage/usePeginStorage";
 
 /**
  * Hook to manage vault positions data fetching

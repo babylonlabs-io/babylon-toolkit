@@ -53,22 +53,17 @@ export async function createProofOfPossession(
     );
   }
 
-  try {
-    // BIP-322 message format: sign ETH address with BTC key
-    // Per spec: "Proof-of-possession signed by the depositor's BTC private key over its ETH address following BIP322"
-    const message = params.ethAddress;
+  // BIP-322 message format: sign ETH address with BTC key
+  // Per spec: "Proof-of-possession signed by the depositor's BTC private key over its ETH address following BIP322"
+  const message = params.ethAddress;
 
-    // Request signature from BTC wallet
-    const signature = await params.signMessage(message);
+  // Request signature from BTC wallet
+  const signature = await params.signMessage(message);
 
-    // Validate signature is not empty
-    if (!signature || signature.length === 0) {
-      throw new Error('BTC wallet returned empty signature');
-    }
-
-    return signature;
-  } catch (error) {
-    // Re-throw all errors - PoP is required
-    throw error;
+  // Validate signature is not empty
+  if (!signature || signature.length === 0) {
+    throw new Error('BTC wallet returned empty signature');
   }
+
+  return signature;
 }

@@ -1,5 +1,4 @@
 import { useMemo, useCallback } from 'react';
-import { object, number, array, string } from 'yup';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 
 // Helper function to convert satoshis to BTC
@@ -7,15 +6,8 @@ const satoshiToBtc = (satoshi: number): number => {
   return satoshi / Number(SATOSHIS_PER_BTC);
 };
 
-// Helper function to format number
-const formatNumber = (value: any): number => {
-  if (typeof value === 'number') return value;
-  const parsed = parseFloat(value);
-  return isNaN(parsed) ? 0 : parsed;
-};
-
 // Helper function to validate decimal points
-const validateDecimalPoints = (value: any): boolean => {
+const validateDecimalPoints = (value: unknown): boolean => {
   if (!value) return true;
   const str = String(value);
   const decimalIndex = str.indexOf('.');
@@ -41,33 +33,6 @@ export function usePeginForm({
   const btcBalanceFormatted = useMemo(
     () => satoshiToBtc(btcBalance),
     [btcBalance]
-  );
-
-  // Validation schema (following simple-staking pattern)
-  const validationSchema = useMemo(
-    () =>
-      object().shape({
-        amount: number()
-          .transform(formatNumber)
-          .typeError('Peg-in amount must be a valid number.')
-          .required('Peg-in amount is required.')
-          .moreThan(0, 'Peg-in amount must be greater than 0.')
-          .max(
-            btcBalanceFormatted,
-            `Peg-in amount exceeds your balance (${satoshiToBtc(btcBalance).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 8 })} ${coinName})!`
-          )
-          .test(
-            'decimal-points',
-            'Peg-in amount must have no more than 8 decimal points.',
-            validateDecimalPoints
-          ),
-
-        selectedProviders: array()
-          .of(string().required())
-          .required('Please select at least one vault provider.')
-          .min(1, 'Please select at least one vault provider.'),
-      }),
-    [btcBalance, btcBalanceFormatted, coinName]
   );
 
   // Calculate USD equivalent
@@ -124,7 +89,6 @@ export function usePeginForm({
   }, [btcBalanceFormatted]);
 
   return {
-    validationSchema,
     btcBalanceFormatted,
     calculateUsdValue,
     validateAmount,

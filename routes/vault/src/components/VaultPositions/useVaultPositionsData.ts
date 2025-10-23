@@ -43,7 +43,7 @@ export function useVaultPositionsData(
 
   // Transform user positions into PositionData for display
   const positions: PositionData[] = useMemo(() => {
-    return userPositions.map(({ morphoPosition, position, btcPriceUSD, marketData }) => {
+    return userPositions.map(({ morphoPosition, btcPriceUSD, marketData }) => {
       const borrowAssets = morphoPosition.borrowAssets;
       const collateral = morphoPosition.collateral;
 
@@ -61,17 +61,21 @@ export function useVaultPositionsData(
         maximumFractionDigits: 2
       });
 
-      // Format borrowed amount (from position data - the total borrowed amount)
-      // and total to repay (from Morpho - includes accrued interest)
-      const borrowedAmount = formatUSDCAmount(position.totalBorrowed);
-      const totalRepayAmount = formatUSDCAmount(borrowAssets);
+      // Format loan token amount
+      // Note: Currently assumes USDC (6 decimals) - the loan token for all active markets
+      // TODO: Fetch ERC20 symbol and decimals from marketData.loanToken for full flexibility
+      const loanTokenDecimals = 6; // USDC decimals
+      const loanTokenSymbol = 'USDC';
 
-      // Calculate interest accrued (difference between current debt and original borrow)
-      const interestAccrued = formatUSDCAmount(borrowAssets - position.totalBorrowed);
+      // Current debt from Morpho (this is the actual amount owed right now)
+      const currentDebt = formatUSDCAmount(borrowAssets);
+
+      // Total to repay is the same as current debt (kept for backwards compatibility)
+      const totalRepayAmount = currentDebt;
 
       // Calculate current LTV
       // LTV = (borrowed USD value / collateral USD value) * 100
-      const borrowedValueUSD = Number(borrowAssets) / 1e6; // USDC has 6 decimals
+      const borrowedValueUSD = Number(borrowAssets) / Math.pow(10, loanTokenDecimals);
       const currentLTV = collateralValueUSD > 0
         ? Math.round((borrowedValueUSD / collateralValueUSD) * 100)
         : 0;
@@ -86,13 +90,14 @@ export function useVaultPositionsData(
           symbol: 'BTC',
           icon: bitcoinIcon,
           valueUSD: collateralValueUSDFormatted,
+          raw: collateral,
         },
-        borrowedAmount,
-        borrowedSymbol: 'USDC',
+        borrowedAmount: currentDebt,
+        borrowedSymbol: loanTokenSymbol,
         totalToRepay: totalRepayAmount,
-        interestAccrued,
         currentLTV,
         liquidationLTV,
+        rawDebt: borrowAssets,
       };
     });
   }, [userPositions]);

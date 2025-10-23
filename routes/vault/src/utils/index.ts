@@ -4,7 +4,6 @@
 
 export {
   formatBTCAmount,
-  getStatusInfo,
   formatProviderName,
   transformPeginToActivity,
   transformPeginRequestsToActivities,

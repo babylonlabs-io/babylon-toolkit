@@ -2,3 +2,6 @@
 
 // Activity types
 export type { VaultActivity } from './activity';
+
+// Vault provider types
+export type { VaultProvider } from './vaultProvider';

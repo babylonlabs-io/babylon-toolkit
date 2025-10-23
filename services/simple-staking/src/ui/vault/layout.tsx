@@ -1,8 +1,5 @@
 import { useState, useMemo } from "react";
-import {
-  VaultLayout as VaultDeposit,
-  VaultPositions,
-} from "@routes/vault";
+import { VaultLayout as VaultDeposit, VaultPositions } from "@routes/vault";
 
 import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";

@@ -4,9 +4,9 @@
  * Handles vault/pegin-related transaction operations.
  */
 
-import type { Address, Hex } from 'viem';
+import type { Address, Hex, WalletClient, Chain } from 'viem';
 import { VaultControllerTx, BTCVaultsManager } from '../../clients/eth-contract';
-import * as btcTransactionService from '../../transactions/btc/peginBuilder';
+import * as btcTransactionService from './vaultBtcTransactionService';
 import { CONTRACTS } from '../../config/contracts';
 
 /**
@@ -31,6 +31,8 @@ export interface PeginUTXOParams {
  * Note: This function does NOT broadcast the BTC transaction to the Bitcoin network.
  * For the POC, we only submit the unsigned transaction to the Ethereum vault contract.
  *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes hex)
  * @param pegInAmountSats - Amount to peg in (in satoshis)
@@ -40,6 +42,8 @@ export interface PeginUTXOParams {
  * @returns Transaction hash, receipt, and pegin transaction details
  */
 export async function submitPeginRequest(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   depositorBtcPubkey: string,
   pegInAmountSats: bigint,
@@ -76,6 +80,8 @@ export async function submitPeginRequest(
   // - Stores the peg-in request on-chain
   // - Emits PegInRequest event for vault provider and liquidators
   const result = await VaultControllerTx.submitPeginRequest(
+    walletClient,
+    chain,
     vaultControllerAddress,
     unsignedPegInTx,
     depositorBtcPubkeyHex,
@@ -97,12 +103,16 @@ export async function submitPeginRequest(
  * 2. Gets the depositor's BTC public key (used as redeemer key)
  * 3. Executes the redeem transaction
  *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
  * @returns Transaction hash and receipt
  * @throws Error if vault is not in Available status (status !== 2)
  */
 export async function redeemVault(
+  walletClient: WalletClient,
+  chain: Chain,
   vaultControllerAddress: Address,
   pegInTxHash: Hex,
 ) {
@@ -128,6 +138,8 @@ export async function redeemVault(
 
   // Step 4: Execute redeem transaction with depositor's BTC key as redeemer
   return VaultControllerTx.redeemBTCVault(
+    walletClient,
+    chain,
     vaultControllerAddress,
     pegInTxHash,
     [depositorBtcKey] // redeemerPKs - depositor can claim the BTC back to their address

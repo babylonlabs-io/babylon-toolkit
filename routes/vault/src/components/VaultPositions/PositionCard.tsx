@@ -1,10 +1,13 @@
 /**
  * PositionCard - Displays a position with loan details
  * Shows the same fields as VaultActivityCard's optionalDetails
+ *
+ * Uses positionStateMachine to determine available actions.
  */
 
 import { Button } from '@babylonlabs-io/core-ui';
 import { bitcoinIcon } from '../../assets';
+import { getActionButtons, PositionAction } from '../../models/positionStateMachine';
 
 export interface PositionData {
   collateral: {
@@ -12,22 +15,34 @@ export interface PositionData {
     symbol: string;
     icon?: string;
     valueUSD?: string;
+    /** Raw collateral amount in token's smallest unit (required for state machine) */
+    raw: bigint;
   };
   borrowedAmount: string;
   borrowedSymbol: string;
   totalToRepay: string;
-  interestAccrued: string;
   currentLTV: number;
   liquidationLTV: number;
+  /** Raw debt amount in token's smallest unit (required for state machine) */
+  rawDebt: bigint;
 }
 
 interface PositionCardProps {
   position: PositionData;
   onRepay?: () => void;
   onBorrowMore?: () => void;
+  onWithdraw?: () => void;
 }
 
-export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardProps) {
+export function PositionCard({ position, onRepay, onBorrowMore, onWithdraw }: PositionCardProps) {
+  // Get available action buttons based on position state using raw bigint values
+  const actionButtons = getActionButtons({
+    collateral: position.collateral.raw,
+    debt: position.rawDebt,
+    currentLTV: position.currentLTV / 100, // Convert percentage to 0-1 scale
+    liquidationLTV: position.liquidationLTV / 100, // Convert percentage to 0-1 scale
+  });
+
   return (
     <div className="bg-secondary-highlight w-full space-y-4 rounded p-4">
       {/* Collateral Section */}
@@ -50,18 +65,28 @@ export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardPr
             )}
           </div>
         </div>
-        {/* Action Buttons */}
+        {/* Action Buttons - Determined by state machine */}
         <div className="flex gap-2">
-          {onBorrowMore && (
-            <Button onClick={onBorrowMore} variant="outlined">
-              Borrow More
-            </Button>
-          )}
-          {onRepay && (
-            <Button onClick={onRepay} variant="contained">
-              Repay
-            </Button>
-          )}
+          {actionButtons.map((button) => {
+            // Map actions to handlers
+            const onClick =
+              button.action === PositionAction.REPAY ? onRepay :
+              button.action === PositionAction.BORROW_MORE ? onBorrowMore :
+              button.action === PositionAction.WITHDRAW ? onWithdraw :
+              undefined;
+
+            if (!onClick) return null;
+
+            return (
+              <Button
+                key={button.action}
+                onClick={onClick}
+                variant={button.variant === 'primary' ? 'contained' : 'outlined'}
+              >
+                {button.label}
+              </Button>
+            );
+          })}
         </div>
       </div>
 
@@ -69,31 +94,13 @@ export function PositionCard({ position, onRepay, onBorrowMore }: PositionCardPr
       <div className="border-accent-tertiary space-y-3 border-t pt-4">
         <div className="text-accent-primary text-base font-semibold">Loan Details</div>
 
-        {/* Borrowed Amount */}
+        {/* Current Debt */}
         <div className="flex justify-between">
-          <span className="text-accent-secondary text-sm">Borrowed</span>
+          <span className="text-accent-secondary text-sm">Current Debt</span>
           <span className="text-sm font-medium">
             {position.borrowedAmount} {position.borrowedSymbol}
           </span>
         </div>
-
-        {/* Total to Repay */}
-        <div className="flex justify-between">
-          <span className="text-accent-secondary text-sm">Total to Repay</span>
-          <span className="text-sm font-medium">
-            {position.totalToRepay} {position.borrowedSymbol}
-          </span>
-        </div>
-
-        {/* Interest Accrued */}
-        {parseFloat(position.interestAccrued) > 0 && (
-          <div className="flex justify-between">
-            <span className="text-accent-secondary text-sm">Interest Accrued</span>
-            <span className="text-sm font-medium">
-              {position.interestAccrued} {position.borrowedSymbol}
-            </span>
-          </div>
-        )}
 
         {/* Current LTV */}
         {position.currentLTV > 0 && (

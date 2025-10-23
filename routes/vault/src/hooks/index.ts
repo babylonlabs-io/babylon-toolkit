@@ -7,5 +7,4 @@
 
 export { usePeginRequests } from './usePeginRequests';
 export type { UsePeginRequestsResult } from './usePeginRequests';
-export { usePeginStorage } from './usePeginStorage';
 export { useVaultPositions } from './useVaultPositions';

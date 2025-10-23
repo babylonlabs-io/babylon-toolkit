@@ -13,7 +13,7 @@ import { useState, useMemo } from "react";
 import { bitcoinIcon } from "../../../assets";
 import { useVaultProviders } from "./useVaultProviders";
 import { usePeginForm } from "./usePeginForm";
-import type { VaultProvider } from "../../../clients/vault-api/types";
+import type { VaultProvider } from "../../../types";
 
 interface PeginModalProps {
   open: boolean;

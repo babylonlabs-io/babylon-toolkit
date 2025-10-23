@@ -7,12 +7,15 @@
 
 import { useState, useEffect } from 'react';
 import type { Address } from 'viem';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
-import { createProofOfPossession } from '../../../transactions/btc/proofOfPossession';
+import { createProofOfPossession } from '../../../services/vault/vaultProofOfPossessionService';
 import { CONTRACTS } from '../../../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
-import type { VaultProvider } from '../../../clients/vault-api/types';
+import type { VaultProvider } from '../../../types';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
 import { processPublicKeyToXOnly } from '../../../utils/btc';
 
@@ -183,8 +186,19 @@ export function usePeginFlow({
       // Process vault provider's BTC public key (convert to x-only format)
       const vaultProviderBtcPubkey = processPublicKeyToXOnly(selectedProvider.btc_pub_key);
 
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Submit to smart contract (ETH wallet signs, broadcasts, and waits for confirmation)
       const result = await submitPeginRequest(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         depositorBtcPubkey,
         pegInAmountSats,

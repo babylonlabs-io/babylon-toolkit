@@ -9,9 +9,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import type { Hex } from 'viem';
+import { getWalletClient } from '@wagmi/core';
+import { getSharedWagmiConfig } from '@babylonlabs-io/wallet-connector';
+import { getETHChain } from '@babylonlabs-io/config';
 import { redeemVault } from '../../../services/vault/vaultTransactionService';
 import { CONTRACTS } from '../../../config/contracts';
-import type { Hex } from 'viem';
 
 interface UseRedeemTransactionParams {
   pegInTxHash?: Hex;
@@ -55,9 +58,20 @@ export function useRedeemTransaction({
     setError(null);
 
     try {
+      // Get wallet client for signing
+      const wagmiConfig = getSharedWagmiConfig();
+      const chain = getETHChain();
+      const walletClient = await getWalletClient(wagmiConfig, { chainId: chain.id });
+
+      if (!walletClient) {
+        throw new Error('Ethereum wallet not connected');
+      }
+
       // Execute redeem transaction
       // The service layer will fetch vault provider's BTC key internally
       await redeemVault(
+        walletClient,
+        chain,
         CONTRACTS.VAULT_CONTROLLER,
         pegInTxHash
       );

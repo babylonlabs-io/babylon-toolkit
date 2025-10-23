@@ -1,10 +1,13 @@
 // Business logic layer orchestrating clients and transactions
 
-// Vault services - transactions
-export * from './vault/vaultTransactionService';
+// Market services
+export * from './market';
 
-// Pegin services
-export * from './pegin/peginService';
+// Vault services
+export * from './vault/vaultTransactionService';
+export * from './vault/vaultQueryService';
+export * from './vault/vaultPayoutSignatureService';
+export * from './vault/vaultPeginBroadcastService';
 
 // Position services
 export * from './position';

@@ -20,6 +20,34 @@ export interface PeginRequestWithTxHash {
 }
 
 /**
+ * Get a single pegin request by transaction hash
+ *
+ * @param btcVaultsManagerAddress - BTCVaultsManager contract address
+ * @param peginTxHash - Pegin transaction hash (vault ID)
+ * @returns Pegin request data
+ */
+export async function getPeginRequest(
+  btcVaultsManagerAddress: Address,
+  peginTxHash: Hex
+): Promise<PeginRequest> {
+  return BTCVaultsManager.getPeginRequest(btcVaultsManagerAddress, peginTxHash);
+}
+
+/**
+ * Get vault provider's BTC public key
+ *
+ * @param btcVaultsManagerAddress - BTCVaultsManager contract address
+ * @param providerAddress - Vault provider's Ethereum address
+ * @returns Vault provider's BTC public key (x-only format, 32 bytes)
+ */
+export async function getProviderBTCKey(
+  btcVaultsManagerAddress: Address,
+  providerAddress: Address
+): Promise<Hex> {
+  return BTCVaultsManager.getProviderBTCKey(btcVaultsManagerAddress, providerAddress);
+}
+
+/**
  * Get all pegin requests for a depositor with full details
  *
  * Composite operation that:

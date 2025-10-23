@@ -6,7 +6,7 @@
  */
 
 import { Psbt, Transaction } from 'bitcoinjs-lib';
-import { fetchUTXOFromMempool } from './utxoDerivationService';
+import { fetchUTXOFromMempool } from './vaultUtxoDerivationService';
 import { pushTx } from '../../clients/btc/mempool';
 import { getPsbtInputFields } from '../../utils/btc';
 

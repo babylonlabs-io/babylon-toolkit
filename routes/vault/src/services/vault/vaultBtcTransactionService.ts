@@ -6,7 +6,7 @@
  * local infrastructure data.
  */
 
-import { createPegInTransaction } from '../../transactions/btc/pegin';
+import { createPegInTransaction } from '../../utils/btc/wasm';
 import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
 
 export interface CreatePeginTxParams {

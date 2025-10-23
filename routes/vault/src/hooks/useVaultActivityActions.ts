@@ -8,8 +8,7 @@
 import { useState } from 'react';
 import type { Hex } from 'viem';
 import { useChainConnector } from '@babylonlabs-io/wallet-connector';
-import { broadcastPeginTransaction } from '../services/btc/broadcastService';
-import { getPeginRequest } from '../clients/eth-contract/btc-vaults-manager/query';
+import { broadcastPeginTransaction, getPeginRequest } from '../services/vault';
 import { CONTRACTS } from '../config/contracts';
 import { useSignPeginTransactions } from './useSignPeginTransactions';
 import { getNextLocalStatus, PeginAction } from '../models/peginStateMachine';
