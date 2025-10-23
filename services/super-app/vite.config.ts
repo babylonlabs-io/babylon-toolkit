@@ -20,7 +20,14 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     react: ["react", "react-dom"],
-                    babylon: ["@babylonlabs-io/core-ui"],
+                    bitcoin: ["@bitcoin-js/tiny-secp256k1-asmjs", "bitcoinjs-lib"],
+                    cosmos: ["@cosmjs/proto-signing", "@cosmjs/stargate"],
+                    babylon: [
+                        "@babylonlabs-io/babylon-proto-ts",
+                        "@babylonlabs-io/btc-staking-ts",
+                        "@babylonlabs-io/core-ui",
+                    ],
+                    wallets: ["@babylonlabs-io/wallet-connector"],
                 },
             },
         },
