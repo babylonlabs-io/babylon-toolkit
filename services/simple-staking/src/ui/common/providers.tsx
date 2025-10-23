@@ -5,6 +5,8 @@ import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { WagmiProvider } from "wagmi";
 
+import { PendingOperationsProvider } from "../baby/hooks/services/usePendingOperationsService";
+
 import { NotificationContainer } from "./components/Notification/NotificationContainer";
 import { wagmiConfig } from "./config/appkit";
 import { ErrorProvider } from "./context/Error/ErrorProvider";
@@ -14,7 +16,6 @@ import { CosmosWalletProvider } from "./context/wallet/CosmosWalletProvider";
 import { SafeETHWalletProvider } from "./context/wallet/ETHWalletProvider";
 import { WalletConnectionProvider } from "./context/wallet/WalletConnectionProvider";
 import { AppState } from "./state";
-import { PendingOperationsProvider } from "../baby/hooks/services/usePendingOperationsService";
 
 function Providers({ children }: React.PropsWithChildren) {
   const [client] = useState(new QueryClient());
