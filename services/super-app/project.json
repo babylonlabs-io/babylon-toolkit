@@ -1,0 +1,29 @@
+{
+    "$schema": "../../node_modules/nx/schemas/project-schema.json",
+    "name": "@services/super-app",
+    "sourceRoot": "{projectRoot}/src",
+    "projectType": "application",
+    "tags": [
+        "type:service"
+    ],
+    "targets": {
+        "dev:watchDeps": {
+            "dependsOn": [
+                "^build"
+            ],
+            "executor": "nx:run-commands",
+            "options": {
+                "cwd": "services/super-app",
+                "parallel": true,
+                "commands": [
+                    {
+                        "command": "./scripts/watch-deps.sh {projectName}"
+                    },
+                    {
+                        "command": "pnpm exec vite"
+                    }
+                ]
+            }
+        }
+    }
+}

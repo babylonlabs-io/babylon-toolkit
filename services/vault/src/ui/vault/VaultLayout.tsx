@@ -5,6 +5,7 @@ import { VaultRedeemState } from "./state/VaultRedeemState";
 const isVaultEnabled = process.env.NEXT_PUBLIC_FF_VAULT === "true";
 
 export function VaultLayout() {
+  console.log({ isVaultEnabled })
   if (!isVaultEnabled) {
     return null;
   }
