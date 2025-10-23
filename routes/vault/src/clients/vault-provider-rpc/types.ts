@@ -37,6 +37,15 @@ export interface SubmitPayoutSignaturesParams {
   signatures: Record<string, string>;
 }
 
+/**
+ * Parameters for getting PegIn status
+ * Corresponds to: GetPeginStatusParams (types.rs:276-281)
+ */
+export interface GetPeginStatusParams {
+  /** The PegIn transaction ID (hex encoded txid) */
+  pegin_tx_id: string;
+}
+
 // ============================================================================
 // Response Types
 // ============================================================================
@@ -70,6 +79,19 @@ export interface ClaimerTransactions {
 export interface RequestClaimAndPayoutTransactionsResponse {
   /** List of transactions for each claimer (VP and L) */
   txs: ClaimerTransactions[];
+}
+
+/**
+ * Response for getting PegIn status
+ * Corresponds to: GetPeginStatusResponse (types.rs:354-361)
+ */
+export interface GetPeginStatusResponse {
+  /**
+   * The current status of the PegIn in vault provider's database
+   * Possible values: "PendingChallengerSignatures", "PendingDepositorSignatures",
+   * "Acknowledged", "Activated", "ClaimPosted", "ChallengePeriod", "PeggedOut"
+   */
+  status: string;
 }
 
 // ============================================================================

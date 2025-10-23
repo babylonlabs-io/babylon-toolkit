@@ -7,6 +7,8 @@ import type {
   RequestClaimAndPayoutTransactionsParams,
   RequestClaimAndPayoutTransactionsResponse,
   SubmitPayoutSignaturesParams,
+  GetPeginStatusParams,
+  GetPeginStatusResponse,
 } from './types';
 
 export class VaultProviderRpcApi {
@@ -40,11 +42,6 @@ export class VaultProviderRpcApi {
   /**
    * Submit depositor signatures for payout transactions
    *
-   * After the depositor receives unsigned claim/payout transactions via
-   * requestClaimAndPayoutTransactions, they sign the transactions and submit
-   * their signatures through this API. The vault provider will store these
-   * signatures and use them to finalize the PegIn claim process.
-   *
    * @param params - PegIn TX ID, depositor's 32-byte x-only public key, and Schnorr signatures
    * @returns void on success
    */
@@ -53,6 +50,21 @@ export class VaultProviderRpcApi {
   ): Promise<void> {
     return this.client.call<SubmitPayoutSignaturesParams, void>(
       'vlt_submitPayoutSignatures',
+      params,
+    );
+  }
+
+  /**
+   * Get the current status of a PegIn transaction
+   *
+   * @param params - PegIn transaction ID
+   * @returns Current status as a string
+   */
+  async getPeginStatus(
+    params: GetPeginStatusParams,
+  ): Promise<GetPeginStatusResponse> {
+    return this.client.call<GetPeginStatusParams, GetPeginStatusResponse>(
+      'vlt_getPeginStatus',
       params,
     );
   }

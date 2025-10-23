@@ -18,10 +18,6 @@ export async function getVaultProviders(): Promise<VaultProvider[]> {
   const client = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
   const providers = await client.getProviders();
 
-  // Transform to match expected format (already matches, but explicit mapping for clarity)
-  return providers.map((provider) => ({
-    id: provider.id,
-    btc_pub_key: provider.btc_pub_key,
-    url: provider.url,
-  }));
+  // Return providers directly - API response already matches VaultProvider type
+  return providers;
 }
