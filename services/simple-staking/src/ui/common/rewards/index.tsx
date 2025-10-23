@@ -299,6 +299,15 @@ function RewardsPageContent() {
     ? `Stake ${formatter.format(eligibility.additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
     : undefined;
 
+  const transactionFees = useMemo(() => {
+    return {
+      token: combinedFeeUbbn > 0
+        ? `${ubbnToBaby(combinedFeeUbbn).toFixed(6)} ${bbnCoinSymbol}`
+        : "Calculated in next step",
+      usd: "",
+    };
+  }, [combinedFeeUbbn, bbnCoinSymbol]);
+
   const tokens = useMemo(() => {
     const items: TokenReward[] = [];
 
@@ -395,10 +404,7 @@ function RewardsPageContent() {
         onClose={handleClose}
         onProceed={handleProceed}
         tokens={tokens}
-        transactionFees={{
-          token: `${ubbnToBaby(combinedFeeUbbn).toFixed(6)} ${bbnCoinSymbol}`,
-          usd: "",
-        }}
+        transactionFees={transactionFees}
       />
 
       <ClaimStatusModal

@@ -67,7 +67,7 @@ export const RewardsPreviewModal = ({
             ))}
           </div>
 
-          {transactionFees.token && parseFloat(transactionFees.token) > 0 && (
+          {transactionFees.token && (isNaN(parseFloat(transactionFees.token)) || parseFloat(transactionFees.token) > 0) && (
             <>
               <div className="py-6">
                 <div className="border-divider w-full border-t" />

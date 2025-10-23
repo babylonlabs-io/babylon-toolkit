@@ -69,6 +69,9 @@ export const useCombinedRewardsService = () => {
       babyRewards?: Array<{ validatorAddress: string; amount: bigint }>;
     }) => {
       const msgs = buildCombinedClaimMsgs(params);
+      if (msgs.length === 0) {
+        throw new Error("No rewards available to claim");
+      }
       const signedTx = await signBbnTx(msgs);
       const result = await sendBbnTx(signedTx);
       // Trigger refetches to update both BTC and BABY reward views
