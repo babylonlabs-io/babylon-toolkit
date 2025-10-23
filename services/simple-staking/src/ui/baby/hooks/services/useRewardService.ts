@@ -48,12 +48,14 @@ export function useRewardService() {
 
   const claimAllRewards = useCallback(async () => {
     if (!bech32Address) throw Error("Babylon Wallet is not connected");
-    const msgs = rewardList.map((reward) =>
-      babylon.txs.baby.createClaimRewardMsg({
-        validatorAddress: reward.validatorAddress,
-        delegatorAddress: bech32Address,
-      }),
-    );
+    const msgs = rewardList
+      .filter((reward) => reward.amount > 0n)
+      .map((reward) =>
+        babylon.txs.baby.createClaimRewardMsg({
+          validatorAddress: reward.validatorAddress,
+          delegatorAddress: bech32Address,
+        }),
+      );
     const signedTx = await signBbnTx(msgs);
     const result = await sendBbnTx(signedTx);
     await refetchRewards();

@@ -1,6 +1,15 @@
 /* tslint:disable */
 /* eslint-disable */
 export function init_panic_hook(): void;
+export class WasmPeginPayoutConnector {
+  free(): void;
+  [Symbol.dispose](): void;
+  constructor(depositor: string, vault_provider: string, liquidators: string[]);
+  getAddress(network: string): string;
+  getScriptPubKey(network: string): string;
+  getPayoutScript(): string;
+  getTaprootScriptHash(): string;
+}
 export class WasmPeginTx {
   free(): void;
   [Symbol.dispose](): void;
@@ -23,6 +32,12 @@ export interface InitOutput {
   readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
   readonly wasmpegintx_getVaultValue: (a: number) => bigint;
   readonly wasmpegintx_getChangeValue: (a: number) => bigint;
+  readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
+  readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+  readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
+  readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
   readonly init_panic_hook: () => void;
   readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
   readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;

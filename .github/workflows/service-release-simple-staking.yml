@@ -1,13 +1,19 @@
-name: docker_publish
+name: simple-staking-publish
 
 on:
   push:
     branches:
       - "main"
       - "release/v1.x"
+      - "chore-push-to-new-aws-account"
     tags:
       - "simple-staking/*"
   workflow_dispatch:
+
+# For github OIDC authentication to AWS
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   lint_test:
@@ -39,7 +45,7 @@ jobs:
     strategy:
       matrix:
         environment:
-          [canon-devnet, testnet, mainnet, btc-mainnet-devnet, bsn-devnet, edge-devnet]
+          [canon-devnet, testnet, mainnet, btc-mainnet-devnet, vault-devnet, edge-devnet]
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
@@ -124,3 +130,106 @@ jobs:
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
           aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt
+
+
+  s3_publish_new:
+    needs: [lint_test]
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - environment: vault-devnet
+            aws_account: 537927626649
+          - environment: canon-devnet
+            aws_account: 537927626649
+          - environment: btc-mainnet-devnet
+            aws_account: 537927626649
+          - environment: edge-devnet
+            aws_account: 537927626649
+          - environment: testnet
+            aws_account: 615368094160
+          - environment: mainnet
+            aws_account: 490721144737
+
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Configure AWS credentials (assume per-account role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/iams-github-actions
+          role-session-name: gh-terragrunt-plan
+          aws-region: ap-east-1
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm run build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
+          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_NETWORK: ${{ vars.NEXT_PUBLIC_NETWORK }}
+          NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES: ${{ vars.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_FIXED_STAKING_TERM: ${{ vars.NEXT_PUBLIC_FIXED_STAKING_TERM }}
+          NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
+          NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
+          NEXT_PUBLIC_BBN_GAS_PRICE: ${{ vars.NEXT_PUBLIC_BBN_GAS_PRICE }}
+          NEXT_PUBLIC_SIDECAR_API_URL: ${{ vars.NEXT_PUBLIC_SIDECAR_API_URL }}
+          NEXT_PUBLIC_BABYLON_EXPLORER: ${{ vars.NEXT_PUBLIC_BABYLON_EXPLORER }}
+          NEXT_PUBLIC_REPLAYS_RATE: ${{ vars.NEXT_PUBLIC_REPLAYS_RATE }}
+          NEXT_PUBLIC_STAKING_DISABLED: ${{ vars.NEXT_PUBLIC_STAKING_DISABLED }}
+          NEXT_PUBLIC_FF_TESTNET_SUNSET: ${{ vars.NEXT_PUBLIC_FF_TESTNET_SUNSET }}
+          NEXT_PUBLIC_DISABLED_WALLETS: ${{ vars.NEXT_PUBLIC_DISABLED_WALLETS }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_DIST: ${{ github.run_id }}
+          SENTRY_ENVIRONMENT: ${{ matrix.environment }}
+          NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
+          NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
+          # Feature Flags
+          NEXT_PUBLIC_FF_ENABLE_LEDGER: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LEDGER }}
+          NEXT_PUBLIC_FF_PHASE_3: ${{ vars.NEXT_PUBLIC_FF_PHASE_3 }}
+          NEXT_PUBLIC_FF_CO_STAKING: ${{ vars.NEXT_PUBLIC_FF_CO_STAKING }}
+          NEXT_PUBLIC_FF_TIMELOCK_RENEWAL: ${{ vars.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL }}
+
+      - name: Generate sha256sum checksum
+        run: |
+          cd services/simple-staking/dist
+          FILES_CHECKSUM_PATH="/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt"
+          GLOBAL_CHECKSUM_PATH="/tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt"
+          find . -type f -exec sha256sum {} \; | sort > $FILES_CHECKSUM_PATH # sort is for make sure the order on different OS is the same
+          sha256sum $FILES_CHECKSUM_PATH | cut -d' ' -f1 > $GLOBAL_CHECKSUM_PATH # cut is for remove the filename from the output
+
+      - name: Archive output
+        run: tar -czvf /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C services/simple-staking/dist .
+
+      - name: Upload to S3 with commit sha
+        run: |
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}.tar.gz
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
+
+      - name: Upload to S3 with Git Tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}.tar.gz
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-files-checksum.txt
+          aws s3 cp /tmp/simple-staking-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/simple-staking/${{ matrix.environment }}/${{ github.ref_name }}-global-checksum.txt

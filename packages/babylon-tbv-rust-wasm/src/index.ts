@@ -1,5 +1,6 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
 import init, { WasmPeginTx } from "./generated/btc_vault.js";
+import type { PegInParams, PegInResult } from "./types.js";
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -18,27 +19,6 @@ export async function initWasm() {
   })();
 
   return wasmInitPromise;
-}
-
-export interface PegInParams {
-  depositTxid: string;
-  depositVout: number;
-  depositValue: bigint;
-  depositScriptPubKey: string;
-  depositorPubkey: string;
-  claimerPubkey: string;
-  challengerPubkeys: string[];
-  pegInAmount: bigint;
-  fee: bigint;
-  network: "bitcoin" | "testnet" | "regtest" | "signet";
-}
-
-export interface PegInResult {
-  txHex: string;
-  txid: string;
-  vaultScriptPubKey: string;
-  vaultValue: bigint;
-  changeValue: bigint;
 }
 
 export async function createPegInTransaction(
@@ -68,6 +48,21 @@ export async function createPegInTransaction(
   };
 }
 
+// Export types
+export type {
+  Network,
+  PegInParams,
+  PegInResult,
+  PayoutConnectorParams,
+  PayoutConnectorInfo,
+} from "./types.js";
+
+// Export constants
+export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
+
+// Export payout connector utilities
+export { createPayoutConnector } from "./payoutConnector.js";
+
 // Re-export the raw WASM types if needed
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-export { WasmPeginTx } from "./generated/btc_vault.js";
+export { WasmPeginTx, WasmPeginPayoutConnector } from "./generated/btc_vault.js";

@@ -15,7 +15,7 @@ interface RewardState {
   showClaimModal: boolean;
   openClaimModal: () => void;
   closeClaimModal: () => void;
-  refreshRewards: () => void;
+  refreshRewards: () => Promise<void>;
 }
 
 const { StateProvider, useState: useRewardState } =
@@ -27,7 +27,7 @@ const { StateProvider, useState: useRewardState } =
     showClaimModal: false,
     openClaimModal: () => {},
     closeClaimModal: () => {},
-    refreshRewards: () => {},
+    refreshRewards: () => Promise.resolve(),
   });
 
 function RewardState({ children }: PropsWithChildren) {
@@ -46,8 +46,8 @@ function RewardState({ children }: PropsWithChildren) {
     setShowClaimModal(false);
   }, []);
 
-  const refreshRewards = useCallback(() => {
-    refetchRewards();
+  const refreshRewards = useCallback(async () => {
+    await refetchRewards();
   }, [refetchRewards]);
 
   const claimAll = useCallback(async () => {
