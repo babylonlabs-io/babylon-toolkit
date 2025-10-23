@@ -27,11 +27,15 @@ export const Chains = memo(
     onConfirm,
     onSelectChain,
     onDisconnectWallet,
-  }: ChainsProps) => (
-    <div className={twMerge("flex flex-1 flex-col text-accent-primary", className)}>
-      <DialogHeader className="mb-10" title="Connect Wallets" onClose={onClose}>
-        <Text className="text-accent-secondary">Connect to both Bitcoin and Babylon Chain Wallets</Text>
-      </DialogHeader>
+  }: ChainsProps) => {
+    const chainNames = chains.map((chain) => chain.name).join(" and ");
+    const subtitle = `Connect to both ${chainNames} Wallets`;
+
+    return (
+      <div className={twMerge("flex flex-1 flex-col text-accent-primary", className)}>
+        <DialogHeader className="mb-10" title="Connect Wallets" onClose={onClose}>
+          <Text className="text-accent-secondary">{subtitle}</Text>
+        </DialogHeader>
 
       <DialogBody className="flex flex-col gap-6">
         {chains.map((chain) => {
@@ -70,5 +74,6 @@ export const Chains = memo(
         </Button>
       </DialogFooter>
     </div>
-  ),
+    );
+  },
 );
