@@ -4,8 +4,6 @@ import { ResponsiveDialog } from "@/components/ResponsiveDialog/ResponsiveDialog
 import { useChainProviders } from "@/context/Chain.context";
 import { useInscriptionProvider } from "@/context/Inscriptions.context";
 import { HashMap } from "@/core/types";
-import { useAppKitBridge } from "@/hooks/useAppKitBridge";
-import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
@@ -29,10 +27,6 @@ export function WalletDialog({ persistent, storage, config, onError }: WalletDia
   const walletWidgets = useWalletWidgets(connectors, config, onError);
   const { connect, disconnect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
   const { disconnect: disconnectAll } = useWalletConnect();
-
-  // Enable AppKit modal functionality
-  useAppKitBridge({ onError });
-  useAppKitOpenListener();
 
   const handleAccepTermsOfService = useCallback(() => {
     displayChains?.();
