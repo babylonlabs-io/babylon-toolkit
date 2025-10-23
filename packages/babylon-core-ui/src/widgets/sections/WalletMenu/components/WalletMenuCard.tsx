@@ -23,7 +23,7 @@ export interface WalletBalanceData {
 }
 
 export interface WalletMenuCardProps {
-  walletType: 'Bitcoin' | 'Babylon';
+  walletType: 'Bitcoin' | 'Babylon' | 'Ethereum';
   walletName?: string;
   walletIcon?: string;
   address: string;
@@ -136,6 +136,24 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
     </>
   );
 
+  const renderEthereumBalances = () => (
+    <>
+      {balances?.available !== undefined && (
+        <div className="flex flex-col">
+          <Text
+            variant="body1"
+            className="text-accent-secondary font-medium !text-xs"
+          >
+            Balance
+          </Text>
+          <div data-testid="ethereum-balance">
+            {renderBalanceValue(balances.available)}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className={twJoin(
       "bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-[4px] p-3 flex-1 md:p-4",
@@ -149,7 +167,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
             size="large"
             className="w-8 h-8 md:w-10 md:h-10 flex-shrink-0"
           />
-          
+
           <div className="flex flex-1 flex-col items-start min-w-0">
             <Text
               variant="body1"
@@ -182,7 +200,9 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
         {/* Balance Sections - only show if balances are provided */}
         {balances && coinSymbol && (
           <div className="space-y-2">
-            {walletType === 'Bitcoin' ? renderBitcoinBalances() : renderBabylonBalances()}
+            {walletType === 'Bitcoin' && renderBitcoinBalances()}
+            {walletType === 'Babylon' && renderBabylonBalances()}
+            {walletType === 'Ethereum' && renderEthereumBalances()}
           </div>
         )}
       </div>
