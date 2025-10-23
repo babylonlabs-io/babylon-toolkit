@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router";
 
-
 import BabyLayout from "./baby/layout";
 import Layout from "./common/layout";
 import NotFound from "./common/not-found";
