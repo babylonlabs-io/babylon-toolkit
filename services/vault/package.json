@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
-    "@routes/vault": "workspace:*",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
     "next-themes": "0.3.0",

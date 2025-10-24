@@ -152,7 +152,7 @@ function RewardsPageContent() {
     return (
       <div className="flex flex-col gap-2">
         <img
-          src="/mascot-happy.png"
+          src="/images/mascot-happy.png"
           alt="Mascot Happy"
           width={400}
           height={240}

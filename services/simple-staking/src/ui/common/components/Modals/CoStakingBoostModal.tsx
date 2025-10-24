@@ -55,7 +55,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     <SubmitModal
       icon={
         <img
-          src="/mascot-head-happy.png"
+          src="/images/mascot-head-happy.png"
           alt="Mascot head happy illustration"
           className="mb-10 h-full w-full object-cover"
         />
