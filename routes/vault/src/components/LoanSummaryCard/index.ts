@@ -1,2 +1,0 @@
-export { LoanSummaryCard } from "./LoanSummaryCard";
-

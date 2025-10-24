@@ -37,7 +37,6 @@
     "@cosmjs/stargate": "0.36.0",
     "@cosmjs/tendermint-rpc": "0.36.0",
     "@reown/appkit": "^1.8.10",
-    "@routes/vault": "workspace:*",
     "@sentry/react": "8.30.0",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
@@ -125,9 +124,7 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "overrides": {
-    "whatwg-url@11.0.0": {
-      "tr46": "4.0.0"
-    }
+    "tr46": "4.0.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
