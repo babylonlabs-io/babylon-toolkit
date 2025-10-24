@@ -1,16 +1,11 @@
 import { useCallback } from "react";
 
-import { ONE_SECOND } from "@/ui/common/constants";
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useRewardsState } from "@/ui/common/state/RewardState";
-import { retry } from "@/ui/common/utils";
 import babylon from "@/infrastructure/babylon";
 
 import { useBbnTransaction } from "../client/rpc/mutation/useBbnTransaction";
-import { useBbnQuery } from "../client/rpc/queries/useBbnQuery";
-
-const MAX_RETRY_ATTEMPTS = 3;
 
 export const useRewardsService = () => {
   const {
@@ -20,11 +15,9 @@ export const useRewardsService = () => {
     openProcessingModal,
     closeProcessingModal,
     setTransactionHash,
-    refetchRewardBalance,
     setProcessing,
     setTransactionFee,
   } = useRewardsState();
-  const { balanceQuery } = useBbnQuery();
   const { handleError } = useError();
   const logger = useLogger();
   const { estimateBbnGasFee, sendBbnTx, signBbnTx } = useBbnTransaction();
@@ -81,15 +74,6 @@ export const useRewardsService = () => {
         setTransactionHash(result.txHash);
       }
 
-      await refetchRewardBalance();
-      const initialBalance = balanceQuery.data || 0;
-      await retry(
-        () => balanceQuery.refetch().then((res) => res.data),
-        (value) => value !== initialBalance,
-        ONE_SECOND,
-        MAX_RETRY_ATTEMPTS,
-      );
-
       return result;
     } catch (error: any) {
       closeProcessingModal();
@@ -108,8 +92,6 @@ export const useRewardsService = () => {
     bbnAddress,
     signBbnTx,
     sendBbnTx,
-    refetchRewardBalance,
-    balanceQuery,
     setTransactionHash,
     closeProcessingModal,
     logger,
