@@ -86,6 +86,45 @@ Create a `.env` file with the following variables:
 
 - `pnpm clean` - Remove node_modules
 
+## Deposit Flow Implementation
+
+### Architecture
+
+The vault implements a complete BTC peg-in deposit flow:
+
+1. **Wallet Connection**: BTC and Ethereum wallets via `@babylonlabs-io/wallet-connector`
+2. **Provider Selection**: Real-time vault provider data from API
+3. **Transaction Building**: BTC peg-in with fee estimation using mempool API
+4. **Signing & Submission**: Dual-chain transaction (BTC + EVM)
+5. **Status Tracking**: Persistent storage with lifecycle management
+
+### Key Components
+
+- **`hooks/useDepositFlow.ts`**: Core orchestration of deposit flow
+- **`hooks/useVaultProviders.ts`**: Vault provider API integration
+- **`hooks/useUTXOs.ts`**: Real-time BTC balance and UTXO fetching
+- **`state/usePeginStorage.ts`**: Persistent pegin tracking in localStorage
+- **`utils/fee/peginFee.ts`**: Fee estimation (from PR #469)
+
+### Flow Steps
+
+```typescript
+// 1. User connects wallets and enters amount
+// 2. Fetch UTXOs and calculate fee
+const fee = estimatePeginFee(amountSats, utxos, feeRate);
+
+// 3. Build and sign BTC transaction (WASM)
+const btcTxHex = await buildPeginTransaction(...);
+
+// 4. Submit to EVM vault contract
+const ethTxHash = await vaultContract.deposit(...);
+
+// 5. Persist pending deposit
+addPendingPegin({ btcTxid, ethTxHash, status: PeginStatus.PENDING_VERIFICATION });
+```
+
+See [MIGRATION_SUMMARY.md](./MIGRATION_SUMMARY.md) for detailed implementation notes.
+
 ## Deployment
 
 The application is built using Vite and can be deployed to any static hosting service:
@@ -94,6 +133,13 @@ The application is built using Vite and can be deployed to any static hosting se
 pnpm build
 # Output will be in dist/
 ```
+
+Deployment is automated via GitHub Actions to S3 for multiple environments:
+- `vault-devnet`
+- `testnet`  
+- `mainnet`
+
+See `.github/workflows/service-release-vault.yml`
 
 ## Troubleshooting
 
