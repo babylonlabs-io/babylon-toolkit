@@ -1,6 +1,6 @@
+import { useIsMobile } from "@babylonlabs-io/core-ui";
 import { Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
-import { useIsMobile } from "@babylonlabs-io/core-ui";
 
 export default function RootLayout() {
   const isMobile = useIsMobile();

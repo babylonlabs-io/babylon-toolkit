@@ -1,9 +1,9 @@
 import { Route, Routes } from "react-router";
 
 import Layout from "./components/layouts/layout";
+import { MarketDetail as MarketDetailPage } from "./components/MarketDetail";
 import NotFound from "./components/pages/not-found";
 import { VaultLayout } from "./components/pages/VaultLayout";
-import { MarketDetail as MarketDetailPage } from "./components/MarketDetail";
 
 export const Router = () => {
   return (
