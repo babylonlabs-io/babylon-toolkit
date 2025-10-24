@@ -1,17 +1,11 @@
-import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
-
-import {
-  useVaultDepositState,
-  VaultDepositStep,
-} from "../state/VaultDepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../state/VaultRedeemState";
-
-import { ActivityOverview } from "./ActivityOverview";
+import { Card, useIsMobile, Tabs } from "@babylonlabs-io/core-ui";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useAccount } from "wagmi";
+import { useMemo } from "react";
 import { DepositOverview } from "./DepositOverview";
 import { MarketOverview } from "./MarketOverview";
+import { ActivityOverview } from "./ActivityOverview";
+import { PositionOverview } from "./PositionOverview";
 import {
   CollateralDepositModal,
   CollateralDepositReviewModal,
@@ -22,10 +16,39 @@ import {
   RedeemCollateralSignModal,
   RedeemCollateralSuccessModal,
 } from "./modals";
-import { PositionOverview } from "./PositionOverview";
+import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
+import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
+import { useVaultProviders } from "../hooks/useVaultProviders";
+import { useUTXOs, calculateBalance } from "../hooks/useUTXOs";
+import { useNetworkFees } from "../hooks/api/useNetworkFees";
 
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
+  
+  // Get wallet connections
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider = useMemo(() => {
+    return btcConnector?.connectedWallet?.provider || null;
+  }, [btcConnector]);
+  const { address: ethAddress } = useAccount();
+  
+  // Get BTC address from connected wallet
+  const btcAddress = useMemo(() => {
+    return btcConnector?.connectedWallet?.account?.address;
+  }, [btcConnector]);
+  
+  // Fetch UTXOs and calculate BTC balance
+  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  const btcBalanceSat = useMemo(
+    () => calculateBalance(confirmedUTXOs),
+    [confirmedUTXOs],
+  );
+  
+  // Fetch vault providers from API
+  const { providers } = useVaultProviders();
+
+  // Fetch network fees from mempool.space API
+  const { data: networkFees } = useNetworkFees();
 
   // Deposit flow state
   const {
@@ -46,6 +69,44 @@ export function VaultOverviewPanel() {
     setTransactionHashes: setRedeemTransactionHashes,
     reset: resetRedeem,
   } = useVaultRedeemState();
+
+  // Get selected provider's BTC public key and liquidators from API data
+  const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
+    if (selectedProviders.length === 0 || providers.length === 0) {
+      return {
+        selectedProviderBtcPubkey: '',
+        liquidatorBtcPubkeys: [],
+      };
+    }
+    
+    // Find the selected provider by ETH address (stored in id field)
+    const selectedProvider = providers.find(
+      (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase()
+    );
+    
+    // Extract liquidator BTC public keys from API response
+    // Strip 0x prefix as the WASM/transaction building expects raw hex
+    const liquidators = selectedProvider?.liquidators && selectedProvider.liquidators.length > 0
+      ? selectedProvider.liquidators.map(liq => liq.btc_pub_key.replace(/^0x/, ''))
+      : [];
+    
+    return {
+      selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || '',
+      liquidatorBtcPubkeys: liquidators,
+    };
+  }, [selectedProviders, providers]);
+
+  // Calculate BTC transaction fee in satoshis
+  // Use "halfHourFee" (medium priority) from mempool.space API
+  // Convert from sat/vbyte to total sats (estimate ~200 vbytes for pegin tx)
+  const btcTransactionFeeSats = useMemo(() => {
+    if (!networkFees?.halfHourFee) {
+      return 10_000n; // Fallback to 10k sats if API unavailable
+    }
+    // Estimate: ~200 vbytes for typical pegin transaction
+    const estimatedVbytes = 200;
+    return BigInt(Math.ceil(networkFees.halfHourFee * estimatedVbytes));
+  }, [networkFees]);
 
   // Deposit flow handlers
   const handleDeposit = (amount: number, providers: string[]) => {
@@ -112,6 +173,7 @@ export function VaultOverviewPanel() {
             open
             onClose={resetDeposit}
             onDeposit={handleDeposit}
+            btcBalance={btcBalanceSat}
           />
         )}
         {depositStep === VaultDepositStep.REVIEW && (
@@ -129,6 +191,12 @@ export function VaultOverviewPanel() {
             onClose={resetDeposit}
             onSuccess={handleDepositSignSuccess}
             amount={depositAmount}
+            btcWalletProvider={btcWalletProvider}
+            depositorEthAddress={ethAddress}
+            selectedProviders={selectedProviders}
+            vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+            liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+            transactionFeeSats={btcTransactionFeeSats}
           />
         )}
         {depositStep === VaultDepositStep.SUCCESS && (
@@ -206,6 +274,7 @@ export function VaultOverviewPanel() {
           open
           onClose={resetDeposit}
           onDeposit={handleDeposit}
+          btcBalance={btcBalanceSat}
         />
       )}
       {depositStep === VaultDepositStep.REVIEW && (
@@ -223,6 +292,12 @@ export function VaultOverviewPanel() {
           onClose={resetDeposit}
           onSuccess={handleDepositSignSuccess}
           amount={depositAmount}
+          btcWalletProvider={btcWalletProvider}
+          depositorEthAddress={ethAddress}
+          selectedProviders={selectedProviders}
+          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+          transactionFeeSats={btcTransactionFeeSats}
         />
       )}
       {depositStep === VaultDepositStep.SUCCESS && (

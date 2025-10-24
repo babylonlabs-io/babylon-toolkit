@@ -15,10 +15,12 @@
     "sort-imports": "eslint --fix ."
   },
   "dependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
+    "bitcoinjs-lib": "^6.1.6",
     "next-themes": "0.3.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
@@ -26,7 +28,10 @@
     "react-router": "7.6.3",
     "react-toastify": "10.0.6",
     "react-tooltip": "5.29.1",
-    "tailwind-merge": "2.5.4"
+    "tailwind-merge": "2.5.4",
+    "usehooks-ts": "^3.1.1",
+    "viem": "^2.21.54",
+    "wagmi": "^2.18.1"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",
