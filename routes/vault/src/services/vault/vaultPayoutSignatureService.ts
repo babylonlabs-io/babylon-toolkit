@@ -1,46 +1,35 @@
 import type { Hex } from 'viem';
 import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
 import type { ClaimerTransactions } from '../../clients/vault-provider-rpc/types';
-import { signPayoutTransaction } from './vaultPayoutSigningService';
+import { signPayoutTransaction } from './btcPayoutSigner';
 import { stripHexPrefix } from '../../utils/btc';
+import { getPeginRequest, getProviderBTCKey } from './vaultQueryService';
+import { CONTRACTS } from '../../config/contracts';
+import type { Network } from '../../utils/btc';
+import { getBTCNetworkForWASM } from '../../config/pegin';
 
-/**
- * Vault provider information
- */
 export interface VaultProviderInfo {
-  /** Ethereum address of the vault provider */
   address: Hex;
-  /** RPC URL of the vault provider */
   url: string;
+  btcPubkey?: string;
+  liquidatorBtcPubkeys?: string[];
 }
 
-/**
- * BTC wallet provider for signing
- */
 export interface BtcWalletProvider {
   signPsbt: (psbtHex: string) => Promise<string>;
 }
 
-/**
- * Parameters for signing and submitting payout signatures
- */
 export interface SignAndSubmitPayoutSignaturesParams {
-  /** Peg-in transaction ID */
   peginTxId: string;
-  /** Depositor's BTC public key (32-byte x-only, no 0x prefix) */
   depositorBtcPubkey: string;
-  /** Transactions to sign from vault provider */
   claimerTransactions: ClaimerTransactions[];
-  /** Vault provider information */
   vaultProvider: VaultProviderInfo;
-  /** BTC wallet provider for signing */
   btcWalletProvider: BtcWalletProvider;
 }
 
 /**
- * Sign payout transactions and submit signatures to vault provider
- *
- * @param params - Signing and submission parameters
+ * Sign payout transactions and submit signatures to vault provider.
+ * Fetches pegin data, signs each claimer transaction, and submits to VP RPC.
  */
 export async function signAndSubmitPayoutSignatures(
   params: SignAndSubmitPayoutSignaturesParams,
@@ -62,7 +51,6 @@ export async function signAndSubmitPayoutSignatures(
     throw new Error('Invalid depositorBtcPubkey: must be a non-empty string');
   }
 
-  // Validate BTC public key format (should be 64 hex chars = 32 bytes, no 0x prefix)
   if (!/^[0-9a-fA-F]{64}$/.test(depositorBtcPubkey)) {
     throw new Error(
       'Invalid depositorBtcPubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)',
@@ -81,29 +69,98 @@ export async function signAndSubmitPayoutSignatures(
     );
   }
 
-  // Step 1: Sign payout transactions for each claimer
-  // Each payout transaction needs a Schnorr signature (64 bytes) from the depositor
+  // Fetch pegin transaction from smart contract
+  const peginRequest = await getPeginRequest(
+    CONTRACTS.BTC_VAULTS_MANAGER,
+    peginTxId as Hex,
+  );
+
+  if (!peginRequest.unsignedBtcTx) {
+    throw new Error('Pegin transaction not found in contract');
+  }
+
+  const peginTxHex = peginRequest.unsignedBtcTx;
+
+  // Fetch vault provider's BTC public key (if not provided)
+  let vaultProviderBtcPubkey: string;
+  if (vaultProvider.btcPubkey) {
+    vaultProviderBtcPubkey = stripHexPrefix(vaultProvider.btcPubkey);
+  } else {
+    const btcPubkeyHex = await getProviderBTCKey(
+      CONTRACTS.BTC_VAULTS_MANAGER,
+      vaultProvider.address,
+    );
+    vaultProviderBtcPubkey = stripHexPrefix(btcPubkeyHex);
+  }
+
+  // Get liquidator BTC public keys
+  const liquidatorBtcPubkeys: string[] = vaultProvider.liquidatorBtcPubkeys || [];
+  if (liquidatorBtcPubkeys.length === 0) {
+    throw new Error('No liquidator BTC public keys provided in vault provider info');
+  }
+
+  const cleanLiquidatorPubkeys = liquidatorBtcPubkeys.map(stripHexPrefix);
+
+  // Pre-sort liquidators to match Rust backend behavior (lexicographic sort)
+  // Rust: crates/vault/src/connectors/script_utils.rs:30 - sorted_signers.sort()
+  const sortedLiquidatorPubkeys = [...cleanLiquidatorPubkeys].sort();
+
+  // Fetch transaction graph from vault provider to get exact liquidator order
+  // The VP's graph contains the canonical order used for script generation
+  const rpcClient = new VaultProviderRpcApi(vaultProvider.url, 30000);
+  let finalLiquidatorPubkeys = cleanLiquidatorPubkeys;
+
+  try {
+    const graphResponse = await rpcClient.getPeginClaimTxGraph({
+      pegin_tx_id: stripHexPrefix(peginTxId),
+    });
+
+    const graph = JSON.parse(graphResponse.graph_json);
+
+    if (graph.liquidator_pubkeys && Array.isArray(graph.liquidator_pubkeys)) {
+      finalLiquidatorPubkeys = graph.liquidator_pubkeys.map((pk: string) => stripHexPrefix(pk));
+    } else {
+      finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
+    }
+  } catch (error) {
+    // Fallback to sorted order if VP graph fetch fails
+    finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
+  }
+
+  const network: Network = getBTCNetworkForWASM();
   const signatures: Record<string, string> = {};
 
   for (const claimerTx of claimerTransactions) {
     const payoutTxHex = claimerTx.payout_tx.tx_hex;
+    const claimTxHex = claimerTx.claim_tx.tx_hex;
+    const claimerPubkey = claimerTx.claimer_pubkey;
 
-    // Sign the payout transaction using BTC wallet
-    // This extracts the Schnorr signature (64 bytes, no sighash flag)
+    // Convert claimer pubkey to x-only format (VP expects 32-byte x-only keys)
+    let claimerPubkeyXOnly = claimerPubkey;
+    if (claimerPubkey.length === 66) {
+      claimerPubkeyXOnly = claimerPubkey.substring(2);
+    } else if (claimerPubkey.length !== 64) {
+      throw new Error(
+        `Unexpected claimer pubkey length: ${claimerPubkey.length} chars (expected 64 or 66)`
+      );
+    }
+
+    // Sign using VP's canonical liquidator order to ensure correct sighash
     const signature = await signPayoutTransaction({
-      transactionHex: payoutTxHex,
+      payoutTxHex,
+      peginTxHex,
+      claimTxHex,
+      depositorBtcPubkey,
+      vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys: finalLiquidatorPubkeys,
+      network,
       btcWalletProvider,
     });
 
-    // Map claimer pubkey to depositor's signature
-    signatures[claimerTx.claimer_pubkey] = signature;
+    signatures[claimerPubkeyXOnly] = signature;
   }
 
-  // Step 2: Submit signatures to vault provider RPC
-  const rpcClient = new VaultProviderRpcApi(vaultProvider.url, 30000);
-
-  // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
-  // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
+  // Submit signatures to vault provider RPC
   await rpcClient.submitPayoutSignatures({
     pegin_tx_id: stripHexPrefix(peginTxId),
     depositor_pk: depositorBtcPubkey,
