@@ -8,20 +8,16 @@ import {
   ResponsiveDialog,
   SubSection,
   Text,
+  Loader,
 } from "@babylonlabs-io/core-ui";
-import { ReactNode, useMemo, useState } from "react";
-
-interface VaultProvider {
-  id: string;
-  name: string;
-  icon?: ReactNode;
-}
+import { useState, useMemo } from "react";
+import { useVaultProviders } from "../../hooks/useVaultProviders";
 
 interface CollateralDepositModalProps {
   open: boolean;
   onClose: () => void;
   onDeposit: (amount: number, providers: string[]) => void;
-  btcBalance?: number; // in satoshis
+  btcBalance?: number | bigint; // in satoshis
   btcPrice?: number; // USD price per BTC
 }
 
@@ -30,61 +26,25 @@ const satoshiToBtc = (satoshi: number): number => {
   return satoshi / 100000000;
 };
 
-export function CollateralDepositModal({
-  open,
-  onClose,
-  onDeposit,
-  btcBalance = 1000000000, // Default: 10 BTC (matches image)
+export function CollateralDepositModal({ 
+  open, 
+  onClose, 
+  onDeposit, 
+  btcBalance, // Use actual wallet balance
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
 }: CollateralDepositModalProps) {
   const [amount, setAmount] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
-  // Mock vault providers matching the image
-  const mockProviders: VaultProvider[] = [
-    {
-      id: "ironclad-btc",
-      name: "Ironclad BTC",
-      icon: (
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          I
-        </Text>
-      ),
-    },
-    {
-      id: "atlas-custody",
-      name: "Atlas Custody",
-      icon: (
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          A
-        </Text>
-      ),
-    },
-    {
-      id: "stonewall-capital",
-      name: "Stonewall Capital",
-      icon: (
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          S
-        </Text>
-      ),
-    },
-  ];
+  // Fetch real vault providers from API
+  const { providers: vaultProviders, isLoading: isLoadingProviders, error: providersError } = useVaultProviders();
 
   // Conversion and validation
-  const btcBalanceFormatted = useMemo(
-    () => satoshiToBtc(btcBalance),
-    [btcBalance],
-  );
+  const btcBalanceFormatted = useMemo(() => {
+    if (btcBalance === undefined || btcBalance === null) return 0;
+    const balanceNum = typeof btcBalance === 'bigint' ? Number(btcBalance) : btcBalance;
+    return satoshiToBtc(balanceNum);
+  }, [btcBalance]);
   const amountNum = useMemo(() => {
     const parsed = parseFloat(amount || "0");
     return isNaN(parsed) ? 0 : parsed;
@@ -194,16 +154,39 @@ export function CollateralDepositModal({
 
           {/* Provider Cards */}
           <div className="flex flex-col gap-3">
-            {mockProviders.map((provider) => (
-              <ProviderCard
-                key={provider.id}
-                id={provider.id}
-                name={provider.name}
-                icon={provider.icon}
-                isSelected={selectedProviders.includes(provider.id)}
-                onToggle={handleToggleProvider}
-              />
-            ))}
+            {isLoadingProviders ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader size={32} className="text-primary-main" />
+              </div>
+            ) : providersError ? (
+              <div className="rounded-lg bg-error/10 p-4">
+                <Text variant="body2" className="text-sm text-error">
+                  Failed to load vault providers. Please try again.
+                </Text>
+              </div>
+            ) : vaultProviders.length === 0 ? (
+              <div className="rounded-lg bg-secondary-highlight p-4">
+                <Text variant="body2" className="text-sm text-accent-secondary">
+                  No vault providers available at this time.
+                </Text>
+              </div>
+            ) : (
+              vaultProviders.map((provider) => {
+                const shortId = provider.id.length > 14
+                  ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
+                  : provider.id;
+                return (
+                  <ProviderCard
+                    key={provider.id}
+                    id={provider.id}
+                    name={shortId}
+                    icon={<Text variant="body2" className="text-sm font-medium text-accent-contrast">{provider.id.slice(2, 3).toUpperCase()}</Text>}
+                    isSelected={selectedProviders.includes(provider.id)}
+                    onToggle={handleToggleProvider}
+                  />
+                );
+              })
+            )}
           </div>
         </div>
       </DialogBody>
