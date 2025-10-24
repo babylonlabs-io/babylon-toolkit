@@ -1,4 +1,4 @@
-import { NetworkFees } from "@/types/fee";
+import { NetworkFees } from "../types/fee";
 
 const MEMPOOL_API_URL =
   import.meta.env.VITE_MEMPOOL_API_URL || "https://mempool.space";
