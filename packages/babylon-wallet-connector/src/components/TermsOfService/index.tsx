@@ -32,7 +32,7 @@ export function TermsOfService({ className, onClose, onSubmit }: Props) {
 
   return (
     <div className={twMerge("flex flex-1 flex-col", className)}>
-      <DialogHeader className="mb-10 text-accent-primary" title="Connect Wallets" onClose={onClose}>
+      <DialogHeader className="mb-6 text-accent-primary" title="Connect Wallets" onClose={onClose}>
         <Text className="text-accent-secondary">Please read and accept the following terms</Text>
       </DialogHeader>
 
@@ -61,14 +61,14 @@ export function TermsOfService({ className, onClose, onSubmit }: Props) {
               .
             </div>
           }
-          className="mb-8"
+          className="mb-4"
         >
           <Checkbox checked={state["termsOfUse"]} onChange={handleChange("termsOfUse")} />
         </FieldControl>
 
         <FieldControl
           label="I certify that I wish to stake bitcoin and agree that doing so may cause some or all of the bitcoin ordinals, NFTs, Runes, and other inscriptions in the connected bitcoin wallet to be lost. I acknowledge that this interface will not detect all Inscriptions."
-          className="mb-8"
+          className="mb-4"
         >
           <Checkbox checked={state["inscriptions"]} onChange={handleChange("inscriptions")} />
         </FieldControl>
@@ -78,7 +78,7 @@ export function TermsOfService({ className, onClose, onSubmit }: Props) {
         </FieldControl>
       </DialogBody>
 
-      <DialogFooter className="mt-auto pt-10">
+      <DialogFooter className="mt-auto pt-6">
         <Button disabled={!valid} fluid onClick={onSubmit} data-testid="terms-next-button">
           Next
         </Button>
