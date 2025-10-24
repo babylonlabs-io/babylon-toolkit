@@ -5,9 +5,6 @@
       "path": "../../packages/babylon-core-ui"
     },
     {
-      "path": "../../routes/vault"
-    },
-    {
       "path": "./tsconfig.lib.json"
     },
     {

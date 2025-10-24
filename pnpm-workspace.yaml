@@ -2,7 +2,6 @@ packages:
   - packages/*
   - tools/*
   - services/*
-  - routes/*
 
 ignoredBuiltDependencies:
   - '@sentry/cli'
