@@ -24,6 +24,7 @@ interface CollateralDepositSignModalProps {
   selectedProviders: string[];
   vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
   liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
+  transactionFeeSats: bigint; // Dynamic BTC transaction fee from mempool.space API
 }
 
 export function CollateralDepositSignModal({
@@ -36,6 +37,7 @@ export function CollateralDepositSignModal({
   selectedProviders,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
+  transactionFeeSats,
 }: CollateralDepositSignModalProps) {
   const { addPendingPegin } = useVaultDepositState();
 
@@ -51,6 +53,7 @@ export function CollateralDepositSignModal({
     selectedProviders,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
+    transactionFeeSats,
     onSuccess: (btcTxid, ethTxHash, btcTxHex) => {
       addPendingPegin({
         txHash: ethTxHash,

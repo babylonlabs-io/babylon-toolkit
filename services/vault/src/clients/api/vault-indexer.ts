@@ -6,11 +6,16 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_VAULT_API_URL || 'http://localhost:8080';
 
+export interface Liquidator {
+  address: string; // Liquidator's ETH address
+  btc_pub_key: string; // Liquidator's BTC public key (x-only, 32 bytes hex with 0x prefix)
+}
+
 export interface VaultProvider {
   id: string; // Provider's ETH address (same as contract address)
   btc_pub_key: string;
   url: string;
-  liquidators: string[]; // Array of liquidator BTC public keys
+  liquidators: Liquidator[]; // Array of liquidator objects with addresses and BTC public keys
 }
 
 

@@ -20,7 +20,7 @@ import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositSta
 import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
 import { useVaultProviders } from "../hooks/useVaultProviders";
 import { useUTXOs, calculateBalance } from "../hooks/useUTXOs";
-import { LOCAL_PEGIN_CONFIG } from "../config/pegin";
+import { useNetworkFees } from "../hooks/api/useNetworkFees";
 
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
@@ -46,6 +46,9 @@ export function VaultOverviewPanel() {
   
   // Fetch vault providers from API
   const { providers } = useVaultProviders();
+
+  // Fetch network fees from mempool.space API
+  const { data: networkFees } = useNetworkFees();
 
   // Deposit flow state
   const {
@@ -81,16 +84,29 @@ export function VaultOverviewPanel() {
       (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase()
     );
     
-    // Use liquidators from API if available, otherwise use hardcoded fallback
+    // Extract liquidator BTC public keys from API response
+    // Strip 0x prefix as the WASM/transaction building expects raw hex
     const liquidators = selectedProvider?.liquidators && selectedProvider.liquidators.length > 0
-      ? selectedProvider.liquidators
-      : LOCAL_PEGIN_CONFIG.liquidatorBtcPubkeys;
+      ? selectedProvider.liquidators.map(liq => liq.btc_pub_key.replace(/^0x/, ''))
+      : [];
     
     return {
       selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || '',
       liquidatorBtcPubkeys: liquidators,
     };
   }, [selectedProviders, providers]);
+
+  // Calculate BTC transaction fee in satoshis
+  // Use "halfHourFee" (medium priority) from mempool.space API
+  // Convert from sat/vbyte to total sats (estimate ~200 vbytes for pegin tx)
+  const btcTransactionFeeSats = useMemo(() => {
+    if (!networkFees?.halfHourFee) {
+      return 10_000n; // Fallback to 10k sats if API unavailable
+    }
+    // Estimate: ~200 vbytes for typical pegin transaction
+    const estimatedVbytes = 200;
+    return BigInt(Math.ceil(networkFees.halfHourFee * estimatedVbytes));
+  }, [networkFees]);
 
   // Deposit flow handlers
   const handleDeposit = (amount: number, providers: string[]) => {
@@ -180,6 +196,7 @@ export function VaultOverviewPanel() {
             selectedProviders={selectedProviders}
             vaultProviderBtcPubkey={selectedProviderBtcPubkey}
             liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+            transactionFeeSats={btcTransactionFeeSats}
           />
         )}
         {depositStep === VaultDepositStep.SUCCESS && (
@@ -280,6 +297,7 @@ export function VaultOverviewPanel() {
           selectedProviders={selectedProviders}
           vaultProviderBtcPubkey={selectedProviderBtcPubkey}
           liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+          transactionFeeSats={btcTransactionFeeSats}
         />
       )}
       {depositStep === VaultDepositStep.SUCCESS && (

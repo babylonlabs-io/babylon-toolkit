@@ -5,7 +5,7 @@
  */
 
 import { createPegInTransaction } from './pegin';
-import { PEGIN_FEE_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
+import { getBTCNetworkForWASM } from '../../config/pegin';
 
 export interface CreatePeginTxParams {
   /**
@@ -79,8 +79,12 @@ export interface PeginTxResult {
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
-  // Determine fee to use
-  const fee = params.fee ?? PEGIN_FEE_CONFIG.defaultFee;
+  // Fee is required and must be provided from mempool.space API
+  if (!params.fee) {
+    throw new Error('Transaction fee is required. Please ensure network fees are fetched from mempool.space API.');
+  }
+  
+  const fee = params.fee;
   
   // Validate UTXO has sufficient value
   const requiredValue = params.pegInAmount + fee;

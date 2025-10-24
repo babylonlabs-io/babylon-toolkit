@@ -38,6 +38,7 @@ export interface PeginUTXOParams {
  * @param vaultProviderAddress - Selected vault provider's Ethereum address
  * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
  * @param liquidatorBtcPubkeys - Liquidators' BTC public keys (from vault-indexer API)
+ * @param transactionFeeSats - Dynamic BTC transaction fee from mempool.space API
  * @returns Transaction hash, receipt, and pegin transaction details
  */
 export async function submitPeginRequest(
@@ -48,13 +49,14 @@ export async function submitPeginRequest(
   vaultProviderAddress: Address,
   vaultProviderBtcPubkey: string,
   liquidatorBtcPubkeys: string[],
+  transactionFeeSats: bigint,
 ): Promise<{
   transactionHash: Hash;
   receipt: TransactionReceipt;
   btcTxid: string;
   btcTxHex: string;
 }> {
-  // Step 1: Create unsigned BTC peg-in transaction
+  // Step 1: Create unsigned BTC peg-in transaction with dynamic fee
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
@@ -64,6 +66,7 @@ export async function submitPeginRequest(
     fundingScriptPubkey: utxoParams.fundingScriptPubkey,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
+    fee: transactionFeeSats, // Use dynamic fee from mempool.space API
   });
 
   // Step 2: Convert to Hex format for contract (ensure 0x prefix)

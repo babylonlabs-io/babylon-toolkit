@@ -13,7 +13,6 @@ import { CONTRACTS } from '../config/contracts';
 import { useUTXOs, selectUTXOForPegin } from './useUTXOs';
 import { SATOSHIS_PER_BTC } from '../utils/peginTransformers';
 import { processPublicKeyToXOnly } from '../utils/btcUtils';
-import { PEGIN_FEE_CONFIG } from '../config/pegin';
 
 /**
  * TODO: Replace with proper error handling and logging from shared infrastructure
@@ -47,6 +46,7 @@ interface UseDepositFlowParams {
   selectedProviders: string[]; // ETH addresses
   vaultProviderBtcPubkey: string; // Selected vault provider's BTC public key (from API)
   liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys (from API)
+  transactionFeeSats: bigint; // Dynamic BTC transaction fee from mempool.space API
   onSuccess?: (btcTxid: string, ethTxHash: string, btcTxHex: string) => void;
 }
 
@@ -67,6 +67,7 @@ export function useDepositFlow({
   selectedProviders,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
+  transactionFeeSats,
   onSuccess,
 }: UseDepositFlowParams): UseDepositFlowReturn {
   const [currentStep, setCurrentStep] = useState(1);
@@ -137,8 +138,8 @@ export function useDepositFlow({
       const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
       const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
-      // Select suitable UTXO (using default fee from config)
-      const requiredAmount = pegInAmountSats + PEGIN_FEE_CONFIG.defaultFee;
+      // Select suitable UTXO (using dynamic fee from mempool.space API)
+      const requiredAmount = pegInAmountSats + transactionFeeSats;
       const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
 
       if (!selectedUTXO) {
@@ -161,6 +162,7 @@ export function useDepositFlow({
         selectedProvider,
         vaultProviderBtcPubkey,
         liquidatorBtcPubkeys,
+        transactionFeeSats, // Pass dynamic fee from mempool.space API
       );
 
       // Step 3: Complete
