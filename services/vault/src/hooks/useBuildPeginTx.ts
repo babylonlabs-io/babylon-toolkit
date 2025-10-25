@@ -16,7 +16,11 @@ import {
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { useState } from "react";
-import { buildPeginPsbt, getNetwork } from "../utils/transaction/buildPeginPsbt";
+
+import {
+  buildPeginPsbt,
+  getNetwork,
+} from "../utils/transaction/buildPeginPsbt";
 import { selectUtxosForPegin, type UTXO } from "../utils/utxo/selectUtxos";
 
 export interface UseBuildPeginTxParams {
@@ -134,7 +138,9 @@ export function useBuildPeginTx(
       return txHex;
     } catch (err) {
       const error =
-        err instanceof Error ? err : new Error("Unknown error building transaction");
+        err instanceof Error
+          ? err
+          : new Error("Unknown error building transaction");
       setError(error);
       throw error;
     } finally {
