@@ -934,6 +934,9 @@ importers:
 
   services/vault:
     dependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../../packages/babylon-tbv-rust-wasm
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
@@ -946,6 +949,12 @@ importers:
       '@uidotdev/usehooks':
         specifier: 2.4.1
         version: 2.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@wagmi/core':
+        specifier: ^2.18.1
+        version: 2.22.1(@tanstack/query-core@5.28.13)(@types/react@18.3.23)(react@18.3.1)(typescript@5.9.2)(use-sync-external-store@1.4.0(react@18.3.1))(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12))
+      bitcoinjs-lib:
+        specifier: 6.1.5
+        version: 6.1.5
       next-themes:
         specifier: 0.3.0
         version: 0.3.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -970,6 +979,9 @@ importers:
       tailwind-merge:
         specifier: 2.5.4
         version: 2.5.4
+      viem:
+        specifier: ^2.38.2
+        version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
     devDependencies:
       '@babel/core':
         specifier: ^7.24.7
