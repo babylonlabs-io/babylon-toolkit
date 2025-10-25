@@ -970,6 +970,9 @@ importers:
       tailwind-merge:
         specifier: 2.5.4
         version: 2.5.4
+      viem:
+        specifier: ^2.38.2
+        version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
     devDependencies:
       '@babel/core':
         specifier: ^7.24.7
