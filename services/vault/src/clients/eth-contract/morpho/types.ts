@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import type { Address } from 'viem';
 
 export type MorphoMarketSummary = {
   /** Market ID */
@@ -29,3 +29,4 @@ export type MorphoUserPosition = {
   borrowAssets: bigint; // Actual debt amount including accrued interest
   collateral: bigint;
 };
+

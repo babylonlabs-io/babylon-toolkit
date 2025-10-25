@@ -1,17 +1,11 @@
 // Morpho Protocol - Read operations (queries)
 
-import type { Address } from "viem";
-
-import { CONTRACTS } from "../../../config/contracts";
-import { ethClient } from "../client";
-
-import {
-  ID_TO_MARKET_PARAMS_ABI,
-  MARKET_ABI,
-  POSITION_ABI,
-} from "./abis/morpho";
-import type { MorphoMarketSummary, MorphoUserPosition } from "./types";
-import { normalizeMarketId } from "./utils";
+import type { Address } from 'viem';
+import { ethClient } from '../client';
+import type { MorphoMarketSummary, MorphoUserPosition } from './types';
+import { CONTRACTS } from '../../../config/contracts';
+import { normalizeMarketId } from './utils';
+import { ID_TO_MARKET_PARAMS_ABI, MARKET_ABI, POSITION_ABI } from './abis/morpho';
 
 /**
  * Get basic market parameters directly from Morpho contract (lightweight, no IRM calls)
@@ -29,7 +23,9 @@ import { normalizeMarketId } from "./utils";
  * @param id - Market ID (hex string or bigint)
  * @returns Market parameters only (loanToken, collateralToken, oracle, irm, lltv)
  */
-export async function getBasicMarketParams(id: string | bigint): Promise<{
+export async function getBasicMarketParams(
+  id: string | bigint
+): Promise<{
   loanToken: Address;
   collateralToken: Address;
   oracle: Address;
@@ -46,12 +42,12 @@ export async function getBasicMarketParams(id: string | bigint): Promise<{
     const result = await publicClient.readContract({
       address: CONTRACTS.MORPHO,
       abi: ID_TO_MARKET_PARAMS_ABI,
-      functionName: "idToMarketParams",
+      functionName: 'idToMarketParams',
       args: [marketId],
     });
 
     // Check if market exists (loanToken should not be zero address)
-    if (result.loanToken === "0x0000000000000000000000000000000000000000") {
+    if (result.loanToken === '0x0000000000000000000000000000000000000000') {
       throw new Error(`Market does not exist for ID: ${id}`);
     }
 
@@ -65,7 +61,7 @@ export async function getBasicMarketParams(id: string | bigint): Promise<{
     };
   } catch (error) {
     throw new Error(
-      `Failed to fetch market params for ID ${id}: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to fetch market params for ID ${id}: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
@@ -87,7 +83,7 @@ export async function getBasicMarketParams(id: string | bigint): Promise<{
  * @returns Complete market data including state and metrics
  */
 export async function getMarketWithData(
-  id: string | bigint,
+  id: string | bigint
 ): Promise<MorphoMarketSummary> {
   const publicClient = ethClient.getPublicClient();
 
@@ -99,31 +95,30 @@ export async function getMarketWithData(
     publicClient.readContract({
       address: CONTRACTS.MORPHO,
       abi: ID_TO_MARKET_PARAMS_ABI,
-      functionName: "idToMarketParams",
+      functionName: 'idToMarketParams',
       args: [marketId],
     }),
     publicClient.readContract({
       address: CONTRACTS.MORPHO,
       abi: MARKET_ABI,
-      functionName: "market",
+      functionName: 'market',
       args: [marketId],
     }),
   ]);
 
   // Check if market exists
-  if (params.loanToken === "0x0000000000000000000000000000000000000000") {
+  if (params.loanToken === '0x0000000000000000000000000000000000000000') {
     throw new Error(`Market does not exist for ID: ${id}`);
   }
 
   // Calculate derived values
   const totalSupply = state.totalSupplyAssets;
   const totalBorrow = state.totalBorrowAssets;
-  const utilization =
-    totalSupply > 0n ? Number((totalBorrow * 10000n) / totalSupply) / 100 : 0;
+  const utilization = totalSupply > 0n ? Number((totalBorrow * 10000n) / totalSupply) / 100 : 0;
   const lltvPercent = Number(params.lltv) / 1e16;
 
   return {
-    id: typeof id === "bigint" ? id.toString() : id,
+    id: typeof id === 'bigint' ? id.toString() : id,
     loanToken: params.loanToken,
     collateralToken: params.collateralToken,
     oracle: params.oracle,
@@ -143,7 +138,7 @@ export async function getMarketWithData(
  */
 export async function getUserPosition(
   marketId: string | bigint,
-  userProxyContractAddress: Address,
+  userProxyContractAddress: Address
 ): Promise<MorphoUserPosition> {
   const publicClient = ethClient.getPublicClient();
 
@@ -155,13 +150,13 @@ export async function getUserPosition(
     publicClient.readContract({
       address: CONTRACTS.MORPHO,
       abi: POSITION_ABI,
-      functionName: "position",
+      functionName: 'position',
       args: [marketIdHex, userProxyContractAddress],
     }),
     publicClient.readContract({
       address: CONTRACTS.MORPHO,
       abi: MARKET_ABI,
-      functionName: "market",
+      functionName: 'market',
       args: [marketIdHex],
     }),
   ]);
@@ -171,15 +166,13 @@ export async function getUserPosition(
 
   // Calculate borrowAssets from shares using market state
   // Formula: borrowAssets = (borrowShares * totalBorrowAssets) / totalBorrowShares
-  const borrowAssets = (
+  const borrowAssets =
     marketState.totalBorrowShares > 0n
-      ? (borrowShares * marketState.totalBorrowAssets) /
-        marketState.totalBorrowShares
-      : 0n
-  ) as bigint;
+      ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+      : 0n;
 
   return {
-    marketId: typeof marketId === "bigint" ? marketId.toString() : marketId,
+    marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
     user: userProxyContractAddress,
     supplyShares,
     borrowShares,
@@ -198,7 +191,7 @@ export async function getUserPosition(
  */
 export async function getUserPositionsBulk(
   marketId: string | bigint,
-  proxyContractAddresses: Address[],
+  proxyContractAddresses: Address[]
 ): Promise<(MorphoUserPosition | undefined)[]> {
   if (proxyContractAddresses.length === 0) {
     return [];
@@ -213,7 +206,7 @@ export async function getUserPositionsBulk(
   const marketState = await publicClient.readContract({
     address: CONTRACTS.MORPHO,
     abi: MARKET_ABI,
-    functionName: "market",
+    functionName: 'market',
     args: [marketIdHex],
   });
 
@@ -223,7 +216,7 @@ export async function getUserPositionsBulk(
       const positionData = await publicClient.readContract({
         address: CONTRACTS.MORPHO,
         abi: POSITION_ABI,
-        functionName: "position",
+        functionName: 'position',
         args: [marketIdHex, proxyAddress],
       });
 
@@ -231,27 +224,25 @@ export async function getUserPositionsBulk(
       const [supplyShares, borrowShares, collateral] = positionData;
 
       // Calculate borrowAssets from shares using market state
-      const borrowAssets = (
+      const borrowAssets =
         marketState.totalBorrowShares > 0n
-          ? (borrowShares * marketState.totalBorrowAssets) /
-            marketState.totalBorrowShares
-          : 0n
-      ) as bigint;
+          ? (borrowShares * marketState.totalBorrowAssets) / marketState.totalBorrowShares
+          : 0n;
 
       return {
-        marketId: typeof marketId === "bigint" ? marketId.toString() : marketId,
+        marketId: typeof marketId === 'bigint' ? marketId.toString() : marketId,
         user: proxyAddress,
         supplyShares,
         borrowShares,
         borrowAssets,
         collateral,
       };
-    }),
+    })
   );
 
   // Map results, returning undefined for failed fetches
   return results.map((result) => {
-    if (result.status === "fulfilled") {
+    if (result.status === 'fulfilled') {
       return result.value;
     }
     // Position doesn't exist or error fetching

@@ -11,24 +11,24 @@
  */
 export const ID_TO_MARKET_PARAMS_ABI = [
   {
-    type: "function",
-    name: "idToMarketParams",
-    inputs: [{ name: "id", type: "bytes32", internalType: "Id" }],
+    type: 'function',
+    name: 'idToMarketParams',
+    inputs: [{ name: 'id', type: 'bytes32', internalType: 'Id' }],
     outputs: [
       {
-        name: "",
-        type: "tuple",
-        internalType: "struct MarketParams",
+        name: '',
+        type: 'tuple',
+        internalType: 'struct MarketParams',
         components: [
-          { name: "loanToken", type: "address", internalType: "address" },
-          { name: "collateralToken", type: "address", internalType: "address" },
-          { name: "oracle", type: "address", internalType: "address" },
-          { name: "irm", type: "address", internalType: "address" },
-          { name: "lltv", type: "uint256", internalType: "uint256" },
+          { name: 'loanToken', type: 'address', internalType: 'address' },
+          { name: 'collateralToken', type: 'address', internalType: 'address' },
+          { name: 'oracle', type: 'address', internalType: 'address' },
+          { name: 'irm', type: 'address', internalType: 'address' },
+          { name: 'lltv', type: 'uint256', internalType: 'uint256' },
         ],
       },
     ],
-    stateMutability: "view",
+    stateMutability: 'view',
   },
 ] as const;
 
@@ -41,41 +41,25 @@ export const ID_TO_MARKET_PARAMS_ABI = [
  */
 export const MARKET_ABI = [
   {
-    type: "function",
-    name: "market",
-    inputs: [{ name: "id", type: "bytes32", internalType: "Id" }],
+    type: 'function',
+    name: 'market',
+    inputs: [{ name: 'id', type: 'bytes32', internalType: 'Id' }],
     outputs: [
       {
-        name: "",
-        type: "tuple",
-        internalType: "struct Market",
+        name: '',
+        type: 'tuple',
+        internalType: 'struct Market',
         components: [
-          {
-            name: "totalSupplyAssets",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "totalSupplyShares",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "totalBorrowAssets",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          {
-            name: "totalBorrowShares",
-            type: "uint128",
-            internalType: "uint128",
-          },
-          { name: "lastUpdate", type: "uint128", internalType: "uint128" },
-          { name: "fee", type: "uint128", internalType: "uint128" },
+          { name: 'totalSupplyAssets', type: 'uint128', internalType: 'uint128' },
+          { name: 'totalSupplyShares', type: 'uint128', internalType: 'uint128' },
+          { name: 'totalBorrowAssets', type: 'uint128', internalType: 'uint128' },
+          { name: 'totalBorrowShares', type: 'uint128', internalType: 'uint128' },
+          { name: 'lastUpdate', type: 'uint128', internalType: 'uint128' },
+          { name: 'fee', type: 'uint128', internalType: 'uint128' },
         ],
       },
     ],
-    stateMutability: "view",
+    stateMutability: 'view',
   },
 ] as const;
 
@@ -85,17 +69,17 @@ export const MARKET_ABI = [
  */
 export const POSITION_ABI = [
   {
-    type: "function",
-    name: "position",
+    type: 'function',
+    name: 'position',
     inputs: [
-      { name: "id", type: "bytes32", internalType: "Id" },
-      { name: "user", type: "address", internalType: "address" },
+      { name: 'id', type: 'bytes32', internalType: 'Id' },
+      { name: 'user', type: 'address', internalType: 'address' },
     ],
     outputs: [
-      { name: "supplyShares", type: "uint256", internalType: "uint256" },
-      { name: "borrowShares", type: "uint128", internalType: "uint128" },
-      { name: "collateral", type: "uint128", internalType: "uint128" },
+      { name: 'supplyShares', type: 'uint256', internalType: 'uint256' },
+      { name: 'borrowShares', type: 'uint128', internalType: 'uint128' },
+      { name: 'collateral', type: 'uint128', internalType: 'uint128' },
     ],
-    stateMutability: "view",
+    stateMutability: 'view',
   },
 ] as const;

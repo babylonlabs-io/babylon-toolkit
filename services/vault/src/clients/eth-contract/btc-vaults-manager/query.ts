@@ -1,11 +1,9 @@
 // BTC Vaults Manager - Read operations (queries)
 
-import { type Abi, type Address, type Hex } from "viem";
-
-import { ethClient } from "../client";
-import { executeMulticall } from "../multicall-helpers";
-
-import BTCVaultsManagerABI from "./abis/BTCVaultsManager.abi.json";
+import { type Address, type Hex, type Abi } from 'viem';
+import { ethClient } from '../client';
+import { executeMulticall } from '../multicall-helpers';
+import BTCVaultsManagerABI from './abis/BTCVaultsManager.abi.json';
 
 /**
  * Pegin request structure
@@ -41,13 +39,13 @@ export async function getDepositorPeginRequests(
     const result = await publicClient.readContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
-      functionName: "getDepositorPeginRequests",
+      functionName: 'getDepositorPeginRequests',
       args: [depositorAddress],
     });
     return result as Hex[];
   } catch (error) {
     throw new Error(
-      `Failed to get depositor pegin requests: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to get depositor pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -68,7 +66,7 @@ export async function getPeginRequest(
     const result = await publicClient.readContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
-      functionName: "btcVaults",
+      functionName: 'btcVaults',
       args: [pegInTxHash],
     });
 
@@ -81,8 +79,8 @@ export async function getPeginRequest(
       unsignedBtcTx,
       amount,
       vaultProvider,
-      status, // positionId - not needed in interface
-      ,
+      status,
+      _positionId,
     ] = result as [
       Address, // depositor
       Hex, // depositorBtcPubKey (32 bytes, x-only format)
@@ -105,7 +103,7 @@ export async function getPeginRequest(
     };
   } catch (error) {
     throw new Error(
-      `Failed to get pegin request: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to get pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -125,13 +123,13 @@ export async function getProviderBTCKey(
     const result = await publicClient.readContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
-      functionName: "providerBTCKeys",
+      functionName: 'providerBTCKeys',
       args: [vaultProviderAddress],
     });
     return result as Hex;
   } catch (error) {
     throw new Error(
-      `Failed to get provider BTC key: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to get provider BTC key: ${error instanceof Error ? error.message : 'Unknown error'}`,
     );
   }
 }
@@ -149,7 +147,7 @@ export async function getProviderBTCKey(
  */
 export async function getPeginRequestsBulk(
   contractAddress: Address,
-  pegInTxHashes: Hex[],
+  pegInTxHashes: Hex[]
 ): Promise<PeginRequest[]> {
   if (pegInTxHashes.length === 0) {
     return [];
@@ -164,32 +162,30 @@ export async function getPeginRequestsBulk(
       publicClient,
       contractAddress,
       BTCVaultsManagerABI as Abi,
-      "btcVaults",
-      pegInTxHashes.map((txHash) => [txHash]),
+      'btcVaults',
+      pegInTxHashes.map(txHash => [txHash])
     );
 
     // Transform raw results to PeginRequest format
-    return results.map(
-      ([
-        depositor,
-        depositorBtcPubkey,
-        unsignedBtcTx,
-        amount,
-        vaultProvider,
-        status, // positionId - not needed in interface
-        ,
-      ]) => ({
-        depositor,
-        depositorBtcPubkey,
-        unsignedBtcTx,
-        amount,
-        vaultProvider,
-        status,
-      }),
-    );
+    return results.map(([
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+      _positionId,
+    ]) => ({
+      depositor,
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      amount,
+      vaultProvider,
+      status,
+    }));
   } catch (error) {
     throw new Error(
-      `Failed to bulk fetch pegin requests: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Failed to bulk fetch pegin requests: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }

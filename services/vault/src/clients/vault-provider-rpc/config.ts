@@ -4,7 +4,7 @@
  * Uses centralized environment variable validation from config/env.ts
  */
 
-import { ENV, ENV_DEFAULTS } from "../../config/env";
+import { ENV, ENV_DEFAULTS } from '../../config/env';
 
 /** Default timeout for RPC requests (30 seconds) */
 export const RPC_TIMEOUT = 30000;

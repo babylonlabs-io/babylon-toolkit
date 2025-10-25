@@ -5,9 +5,12 @@
  *
  */
 
-import { RestClient } from "../../utils/rest-client";
-
-import type { MorphoMarket, Vault, VaultProvider } from "./types";
+import { RestClient } from '../../utils/rest-client';
+import type {
+  Vault,
+  VaultProvider,
+  MorphoMarket,
+} from './types';
 
 export class VaultApiClient {
   private client: RestClient;
@@ -24,7 +27,7 @@ export class VaultApiClient {
    * @returns Array of Morpho market configurations
    */
   async getMarkets(): Promise<MorphoMarket[]> {
-    return this.client.get<MorphoMarket[]>("/v1/markets");
+    return this.client.get<MorphoMarket[]>('/v1/markets');
   }
 
   /**
@@ -32,7 +35,7 @@ export class VaultApiClient {
    * @returns Array of vault provider information
    */
   async getProviders(): Promise<VaultProvider[]> {
-    return this.client.get<VaultProvider[]>("/v1/providers");
+    return this.client.get<VaultProvider[]>('/v1/providers');
   }
 
   /**

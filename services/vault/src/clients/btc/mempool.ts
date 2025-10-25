@@ -5,7 +5,7 @@
  * This is a temporary location - will be migrated to when moving to main branch.
  */
 
-import { getMempoolApiUrl } from "./config";
+import { getMempoolApiUrl } from './config';
 
 /**
  * UTXO from mempool API with confirmation status
@@ -32,8 +32,8 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
       );
     }
 
-    const contentType = response.headers.get("content-type");
-    if (contentType?.includes("application/json")) {
+    const contentType = response.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
       return (await response.json()) as T;
     } else {
       return (await response.text()) as T;
@@ -42,7 +42,7 @@ async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
     if (error instanceof Error) {
       throw new Error(`Failed to fetch from mempool API: ${error.message}`);
     }
-    throw new Error("Failed to fetch from mempool API: Unknown error");
+    throw new Error('Failed to fetch from mempool API: Unknown error');
   }
 }
 
@@ -115,10 +115,10 @@ export async function pushTx(txHex: string): Promise<string> {
 
   try {
     const response = await fetch(`${apiUrl}/tx`, {
-      method: "POST",
+      method: 'POST',
       body: txHex,
       headers: {
-        "Content-Type": "text/plain",
+        'Content-Type': 'text/plain',
       },
     });
 
@@ -138,7 +138,7 @@ export async function pushTx(txHex: string): Promise<string> {
     if (error instanceof Error) {
       throw new Error(`Failed to broadcast BTC transaction: ${error.message}`);
     }
-    throw new Error("Failed to broadcast BTC transaction: Unknown error");
+    throw new Error('Failed to broadcast BTC transaction: Unknown error');
   }
 }
 

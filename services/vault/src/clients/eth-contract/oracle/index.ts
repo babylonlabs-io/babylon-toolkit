@@ -1,2 +1,2 @@
 // Oracle client exports
-export { convertOraclePriceToUSD, getOraclePrice } from "./query";
+export { getOraclePrice, convertOraclePriceToUSD } from './query';

@@ -2,11 +2,11 @@
  * Vault Provider RPC Client
  */
 
-import { VaultProviderRpcApi } from "./api";
-import { RPC_TIMEOUT, getVaultProviderRpcUrl } from "./config";
+import { VaultProviderRpcApi } from './api';
+import { RPC_TIMEOUT, getVaultProviderRpcUrl } from './config';
 
 // Export API class
-export { VaultProviderRpcApi } from "./api";
+export { VaultProviderRpcApi } from './api';
 
 // Export types
 export type {
@@ -15,10 +15,10 @@ export type {
   RequestClaimAndPayoutTransactionsResponse,
   SubmitPayoutSignaturesParams,
   TransactionData,
-} from "./types";
+} from './types';
 
 // Export error codes
-export { RpcErrorCode } from "./types";
+export { RpcErrorCode } from './types';
 
 let apiInstance: VaultProviderRpcApi | null = null;
 
@@ -27,10 +27,7 @@ let apiInstance: VaultProviderRpcApi | null = null;
  */
 export function getVaultProviderRpcApi(): VaultProviderRpcApi {
   if (!apiInstance) {
-    apiInstance = new VaultProviderRpcApi(
-      getVaultProviderRpcUrl(),
-      RPC_TIMEOUT,
-    );
+    apiInstance = new VaultProviderRpcApi(getVaultProviderRpcUrl(), RPC_TIMEOUT);
   }
   return apiInstance;
 }

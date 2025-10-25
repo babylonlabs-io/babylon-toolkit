@@ -4,7 +4,7 @@
  * Uses centralized environment variable validation from config/env.ts
  */
 
-import { ENV } from "../../config/env";
+import { ENV } from '../../config/env';
 
 /**
  * Get the Vault API base URL from environment variables
