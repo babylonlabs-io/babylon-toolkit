@@ -120,11 +120,12 @@ export function updatePeginStatus(
 
 /**
  * Filter and clean up old pending peg-ins
- * Removes peg-ins that have been confirmed on blockchain OR exceeded max duration
+ * Removes peg-ins that have reached Available status (2+) OR exceeded max duration
  *
- * IMPORTANT: localStorage is a temporary placeholder until blockchain confirms the transaction
+ * IMPORTANT: localStorage is kept for Pending (0) and Verified (1) statuses to track user actions
  * - NOT on blockchain yet: Keep in localStorage (show pending state to user)
- * - ON blockchain (any status): Remove from localStorage (blockchain is source of truth)
+ * - ON blockchain with status < 2: Keep in localStorage (track Sign Payout / Sign & Broadcast actions)
+ * - ON blockchain with status >= 2: Remove from localStorage (blockchain is source of truth)
  * - Older than 24 hours: Remove from localStorage (cleanup stale data)
  */
 export function filterPendingPegins(
@@ -133,15 +134,14 @@ export function filterPendingPegins(
 ): PendingPeginRequest[] {
   const now = Date.now();
 
-  // Create a set of confirmed pegin IDs for quick lookup
-  const confirmedPeginIds = new Set(
-    confirmedPegins.map((p) => p.id)
-  );
-
   return pendingPegins.filter((pegin) => {
-    // If this pegin exists on blockchain (any status), remove from localStorage
+    // Check if pegin exists on blockchain
+    const confirmedPegin = confirmedPegins.find((p) => p.id === pegin.id);
+
+    // If pegin reached Available status (2) or higher, remove from localStorage
     // Blockchain data is now the source of truth
-    if (confirmedPeginIds.has(pegin.id)) {
+    // Keep localStorage entries for Pending (0) and Verified (1) statuses
+    if (confirmedPegin && confirmedPegin.status >= 2) {
       return false;
     }
 
@@ -151,7 +151,7 @@ export function filterPendingPegins(
       return false;
     }
 
-    // Keep in localStorage (not yet on blockchain)
+    // Keep in localStorage (not yet on blockchain or status < 2)
     return true;
   });
 }

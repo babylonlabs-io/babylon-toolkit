@@ -81,12 +81,19 @@ export function usePeginStorage({
       const confirmedPegin = confirmedPeginMap[pegin.id];
 
       // Determine pending message based on localStorage + blockchain status
-      let pendingMessage =
-        'Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete.';
+      let pendingMessage = 'Your peg-in is being processed.';
 
-      if (pegin.status === 'confirming') {
+      // Handle different localStorage statuses
+      if (pegin.status === 'payout_signed') {
+        pendingMessage =
+          'Payout signatures submitted. Waiting for vault provider to collect acknowledgements and update on-chain status...';
+      } else if (pegin.status === 'confirming') {
         pendingMessage =
           'BTC transaction broadcast. Waiting for Bitcoin network confirmations (~5 hours).';
+      } else if (confirmedPegin?.contractStatus === 0) {
+        // Pending status - let state machine handle the message
+        // (either "Waiting for vault provider..." or no message for "Ready to Sign")
+        pendingMessage = '';
       } else if (confirmedPegin?.contractStatus === 1) {
         // Verified status - no warning message needed
         pendingMessage = '';
@@ -114,6 +121,7 @@ export function usePeginStorage({
         // Don't show warning for Verified status (contractStatus === 1)
         isPending: confirmedPegin?.contractStatus !== 1,
         pendingMessage: pendingMessage || undefined,
+        timestamp: pegin.timestamp, // For sorting
         morphoPosition: undefined,
         borrowingData: undefined,
         marketData: undefined,
@@ -134,7 +142,13 @@ export function usePeginStorage({
       (p) => !pendingIds.has(p.id),
     );
 
-    return [...pendingActivities, ...filteredConfirmed];
+    // Merge and sort by timestamp (oldest first)
+    const merged = [...pendingActivities, ...filteredConfirmed];
+    return merged.sort((a, b) => {
+      const timeA = a.timestamp ?? 0;
+      const timeB = b.timestamp ?? 0;
+      return timeA - timeB; // Ascending order (oldest first)
+    });
   }, [pendingActivities, confirmedPegins]);
 
   // Add a new pending peg-in

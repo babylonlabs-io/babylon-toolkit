@@ -158,7 +158,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: 'Confirming',
+        displayLabel: 'Pending Bitcoin Confirmations',
         displayVariant: 'pending',
         availableActions: [PeginAction.NONE],
         message: 'Bitcoin transaction broadcasted. Waiting for network confirmations...',
