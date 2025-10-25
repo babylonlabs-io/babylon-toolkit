@@ -1,7 +1,7 @@
 // Shared ETH client singleton for all contract interactions
 
-import { createPublicClient, http, type PublicClient } from 'viem';
-import { getNetworkConfigETH, getETHChain } from '@babylonlabs-io/config';
+import { getETHChain, getNetworkConfigETH } from "@babylonlabs-io/config";
+import { createPublicClient, http, type PublicClient } from "viem";
 
 /**
  * ETHClient - Singleton client for Ethereum interactions

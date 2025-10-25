@@ -2,16 +2,16 @@
  * High-level API methods for vault provider RPC service
  */
 
-import { JsonRpcClient } from '../../utils/rpc';
+import { JsonRpcClient } from "../../utils/rpc";
 import type {
+  GetPeginClaimTxGraphParams,
+  GetPeginClaimTxGraphResponse,
+  GetPeginStatusParams,
+  GetPeginStatusResponse,
   RequestClaimAndPayoutTransactionsParams,
   RequestClaimAndPayoutTransactionsResponse,
   SubmitPayoutSignaturesParams,
-  GetPeginStatusParams,
-  GetPeginStatusResponse,
-  GetPeginClaimTxGraphParams,
-  GetPeginClaimTxGraphResponse,
-} from './types';
+} from "./types";
 
 export class VaultProviderRpcApi {
   private client: JsonRpcClient;
@@ -38,7 +38,7 @@ export class VaultProviderRpcApi {
     return this.client.call<
       RequestClaimAndPayoutTransactionsParams,
       RequestClaimAndPayoutTransactionsResponse
-    >('vlt_requestClaimAndPayoutTransactions', params);
+    >("vlt_requestClaimAndPayoutTransactions", params);
   }
 
   /**
@@ -51,7 +51,7 @@ export class VaultProviderRpcApi {
     params: SubmitPayoutSignaturesParams,
   ): Promise<void> {
     return this.client.call<SubmitPayoutSignaturesParams, void>(
-      'vlt_submitPayoutSignatures',
+      "vlt_submitPayoutSignatures",
       params,
     );
   }
@@ -66,7 +66,7 @@ export class VaultProviderRpcApi {
     params: GetPeginStatusParams,
   ): Promise<GetPeginStatusResponse> {
     return this.client.call<GetPeginStatusParams, GetPeginStatusResponse>(
-      'vlt_getPeginStatus',
+      "vlt_getPeginStatus",
       params,
     );
   }
@@ -86,6 +86,6 @@ export class VaultProviderRpcApi {
     return this.client.call<
       GetPeginClaimTxGraphParams,
       GetPeginClaimTxGraphResponse
-    >('vlt_getPeginClaimTxGraph', params);
+    >("vlt_getPeginClaimTxGraph", params);
   }
 }

@@ -5,7 +5,7 @@
  * that use viem's multicall feature for batching RPC calls.
  */
 
-import type { Address, Abi, PublicClient } from 'viem';
+import type { Abi, Address, PublicClient } from "viem";
 
 /**
  * Generic multicall helper that handles the boilerplate of:
@@ -25,14 +25,14 @@ export async function executeMulticall<T>(
   contractAddress: Address,
   abi: Abi,
   functionName: string,
-  args: unknown[][]
+  args: unknown[][],
 ): Promise<T[]> {
   if (args.length === 0) {
     return [];
   }
 
   // Create multicall contract calls
-  const contracts = args.map(callArgs => ({
+  const contracts = args.map((callArgs) => ({
     address: contractAddress,
     abi,
     functionName: functionName as never,
@@ -47,6 +47,6 @@ export async function executeMulticall<T>(
 
   // Filter and return successful results
   return results
-    .filter((result) => result.status === 'success')
+    .filter((result) => result.status === "success")
     .map((result) => result.result as T);
 }
