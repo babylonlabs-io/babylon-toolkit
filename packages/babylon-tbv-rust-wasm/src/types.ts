@@ -4,17 +4,17 @@
 export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 
 /**
- * Parameters for creating a peg-in transaction
+ * Parameters for creating an unfunded peg-in transaction.
+ *
+ * Note: This creates a transaction with no inputs and one output (the pegin output).
+ * The frontend is responsible for:
+ * - Selecting UTXOs to fund the transaction
+ * - Calculating transaction fees
+ * - Adding inputs to cover peginAmount + fees
+ * - Adding a change output if needed
+ * - Creating and signing the PSBT via wallet
  */
 export interface PegInParams {
-  /** Transaction ID of the deposit transaction */
-  depositTxid: string;
-  /** Output index (vout) of the deposit transaction */
-  depositVout: number;
-  /** Value of the deposit output in satoshis */
-  depositValue: bigint;
-  /** Script pubkey of the deposit output (hex encoded) */
-  depositScriptPubKey: string;
   /** X-only public key of the depositor (hex encoded) */
   depositorPubkey: string;
   /** X-only public key of the claimer/vault provider (hex encoded) */
@@ -23,26 +23,28 @@ export interface PegInParams {
   challengerPubkeys: string[];
   /** Amount to peg-in in satoshis */
   pegInAmount: bigint;
-  /** Transaction fee in satoshis */
-  fee: bigint;
   /** Bitcoin network */
   network: Network;
 }
 
 /**
- * Result of creating a peg-in transaction
+ * Result of creating an unfunded peg-in transaction.
+ *
+ * This transaction has no inputs and only one output (the pegin output).
+ * The frontend must:
+ * - Add inputs from selected UTXOs
+ * - Calculate and add change output if needed
+ * - Sign the transaction via wallet
  */
 export interface PegInResult {
-  /** Transaction hex */
+  /** Unfunded transaction hex (no inputs, only pegin output) */
   txHex: string;
-  /** Transaction ID */
+  /** Transaction ID (will change after adding inputs and signing) */
   txid: string;
   /** Vault script pubkey (hex encoded) */
   vaultScriptPubKey: string;
   /** Vault output value in satoshis */
   vaultValue: bigint;
-  /** Change output value in satoshis (0 if no change) */
-  changeValue: bigint;
 }
 
 /**

@@ -21,21 +21,34 @@ export async function initWasm() {
   return wasmInitPromise;
 }
 
+/**
+ * Creates an unfunded peg-in transaction with no inputs and one output.
+ *
+ * This function creates a Bitcoin transaction template that the frontend
+ * must fund by:
+ * 1. Selecting appropriate UTXOs from the wallet
+ * 2. Calculating transaction fees based on selected inputs
+ * 3. Adding inputs to cover peginAmount + fees
+ * 4. Adding a change output if the input value exceeds peginAmount + fees
+ * 5. Creating a PSBT and signing it via the wallet
+ *
+ * The returned transaction has:
+ * - 0 inputs
+ * - 1 output (the pegin output to the vault address)
+ *
+ * @param params - Peg-in parameters (public keys, amount, network)
+ * @returns Unfunded transaction details with vault output information
+ */
 export async function createPegInTransaction(
   params: PegInParams
 ): Promise<PegInResult> {
   await initWasm();
 
   const tx = new WasmPeginTx(
-    params.depositTxid,
-    params.depositVout,
-    params.depositValue,
-    params.depositScriptPubKey,
     params.depositorPubkey,
     params.claimerPubkey,
     params.challengerPubkeys,
     params.pegInAmount,
-    params.fee,
     params.network
   );
 
@@ -44,7 +57,6 @@ export async function createPegInTransaction(
     txid: tx.getTxid(),
     vaultScriptPubKey: tx.getVaultScriptPubKey(),
     vaultValue: tx.getVaultValue(),
-    changeValue: tx.getChangeValue(),
   };
 }
 

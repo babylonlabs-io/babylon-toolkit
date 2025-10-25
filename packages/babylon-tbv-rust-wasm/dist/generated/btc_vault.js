@@ -259,31 +259,22 @@ export class WasmPeginTx {
         wasm.__wbg_wasmpegintx_free(ptr, 0);
     }
     /**
-     * @param {string} deposit_txid
-     * @param {number} deposit_vout
-     * @param {bigint} deposit_value
-     * @param {string} deposit_script_pubkey
      * @param {string} depositor_pubkey
      * @param {string} claimer_pubkey
      * @param {string[]} challenger_pubkeys
      * @param {bigint} pegin_amount
-     * @param {bigint} fee
      * @param {string} network
      */
-    constructor(deposit_txid, deposit_vout, deposit_value, deposit_script_pubkey, depositor_pubkey, claimer_pubkey, challenger_pubkeys, pegin_amount, fee, network) {
-        const ptr0 = passStringToWasm0(deposit_txid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    constructor(depositor_pubkey, claimer_pubkey, challenger_pubkeys, pegin_amount, network) {
+        const ptr0 = passStringToWasm0(depositor_pubkey, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(deposit_script_pubkey, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(claimer_pubkey, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(depositor_pubkey, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr2 = passArrayJsValueToWasm0(challenger_pubkeys, wasm.__wbindgen_malloc);
         const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(claimer_pubkey, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr3 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passArrayJsValueToWasm0(challenger_pubkeys, wasm.__wbindgen_malloc);
-        const len4 = WASM_VECTOR_LEN;
-        const ptr5 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len5 = WASM_VECTOR_LEN;
-        const ret = wasm.wasmpegintx_new(ptr0, len0, deposit_vout, deposit_value, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, pegin_amount, fee, ptr5, len5);
+        const ret = wasm.wasmpegintx_new(ptr0, len0, ptr1, len1, ptr2, len2, pegin_amount, ptr3, len3);
         if (ret[2]) {
             throw takeFromExternrefTable0(ret[1]);
         }
@@ -341,13 +332,6 @@ export class WasmPeginTx {
      */
     getVaultValue() {
         const ret = wasm.wasmpegintx_getVaultValue(this.__wbg_ptr);
-        return BigInt.asUintN(64, ret);
-    }
-    /**
-     * @returns {bigint}
-     */
-    getChangeValue() {
-        const ret = wasm.wasmpegintx_getChangeValue(this.__wbg_ptr);
         return BigInt.asUintN(64, ret);
     }
 }
