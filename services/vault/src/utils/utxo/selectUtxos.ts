@@ -70,7 +70,9 @@ export function selectUtxosForPegin(
   }
 
   // Sort by value: HIGHEST to LOWEST (use big UTXOs first)
-  const sortedUTXOs = validUTXOs.sort((a, b) => b.value - a.value);
+  const sortedUTXOs = validUTXOs.sort((a, b) =>
+    b.value > a.value ? 1 : b.value < a.value ? -1 : 0,
+  );
 
   const selectedUTXOs: UTXO[] = [];
   let accumulatedValue = 0n;

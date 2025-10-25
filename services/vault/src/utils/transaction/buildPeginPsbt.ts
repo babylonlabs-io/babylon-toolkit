@@ -10,6 +10,7 @@
 
 import * as bitcoin from "bitcoinjs-lib";
 
+import { BTC_DUST_SAT } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
 export interface PeginPsbtParams {
@@ -118,8 +119,7 @@ export function buildPeginPsbt(params: PeginPsbtParams): string {
   tx.addOutput(vaultScript, vaultValue);
 
   // Add change output if above dust threshold
-  const DUST_THRESHOLD = 546n;
-  if (changeAmount > DUST_THRESHOLD) {
+  if (changeAmount > BigInt(BTC_DUST_SAT)) {
     const changeScript = bitcoin.address.toOutputScript(changeAddress, network);
     tx.addOutput(changeScript, Number(changeAmount));
   }
