@@ -8,7 +8,7 @@
 import { Transaction } from 'bitcoinjs-lib';
 import { createPegInTransaction } from '../../utils/btc/wasm';
 import { getBTCNetworkForWASM } from '../../config/pegin';
-import { buildPeginPsbt, getNetwork } from '../../utils/transaction';
+import { buildPeginTransaction, getNetwork } from '../../utils/transaction';
 import { selectUtxosForPegin, type UTXO } from '../../utils/utxo';
 
 export interface CreatePeginTxParams {
@@ -68,16 +68,16 @@ export interface PeginTxResult {
 }
 
 /**
- * Create a peg-in transaction PSBT for submission to the vault contract.
+ * Create a peg-in transaction for submission to the vault contract.
  *
  * This function orchestrates the complete flow:
  * 1. Get unfunded transaction from WASM (0 inputs, 1 output)
  * 2. Select UTXOs to fund the transaction
  * 3. Calculate fees dynamically based on selected inputs
- * 4. Build a PSBT ready for wallet signing
+ * 4. Build a funded transaction ready for wallet signing
  *
  * @param params - Transaction parameters including UTXOs, fee rate, and vault provider info
- * @returns PSBT and transaction details
+ * @returns Transaction and details
  */
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
@@ -90,14 +90,6 @@ export async function createPeginTxForSubmission(
     challengerPubkeys: params.liquidatorBtcPubkeys,
     pegInAmount: params.pegInAmount,
     network: getBTCNetworkForWASM(),
-  });
-
-  console.log('[DEBUG] WASM unfundedTxResult:', {
-    txHex: unfundedTxResult.txHex,
-    txHexLength: unfundedTxResult.txHex.length,
-    txid: unfundedTxResult.txid,
-    vaultValue: unfundedTxResult.vaultValue.toString(),
-    vaultScriptPubKey: unfundedTxResult.vaultScriptPubKey,
   });
 
   // Step 2: Select UTXOs with iterative fee calculation
@@ -115,9 +107,9 @@ export async function createPeginTxForSubmission(
   const { selectedUTXOs, fee, changeAmount } = selectionResult;
 
   // Step 3: Build complete transaction
-  // buildPeginPsbt now returns transaction hex directly (not PSBT)
+  // buildPeginTransaction returns unsigned transaction hex ready for wallet signing
   const network = getNetwork(getBTCNetworkForWASM());
-  const unsignedTxHex = buildPeginPsbt({
+  const unsignedTxHex = buildPeginTransaction({
     unfundedTxHex: unfundedTxResult.txHex,
     selectedUTXOs,
     changeAddress: params.changeAddress,
@@ -128,14 +120,6 @@ export async function createPeginTxForSubmission(
   // Step 4: Parse transaction to get txid
   const unsignedTx = Transaction.fromHex(unsignedTxHex);
   const txid = unsignedTx.getId();
-
-  console.log('[DEBUG] Final transaction:', {
-    txid,
-    unsignedTxHex,
-    selectedUTXOsCount: selectedUTXOs.length,
-    fee: fee.toString(),
-    changeAmount: changeAmount.toString(),
-  });
 
   return {
     unsignedTxHex,

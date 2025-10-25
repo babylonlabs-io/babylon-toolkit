@@ -1,1 +1,2 @@
-export * from './buildPeginPsbt';
+export * from './buildPeginTransaction';
+export * from './parseUnfundedWasmTransaction';
