@@ -4,6 +4,7 @@
  */
 
 import { script as bitcoinScript } from "bitcoinjs-lib";
+
 import {
   BTC_DUST_SAT,
   MAX_NON_LEGACY_OUTPUT_SIZE,
