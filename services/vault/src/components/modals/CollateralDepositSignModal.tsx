@@ -8,97 +8,73 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import type { Address } from "viem";
+import { useDepositFlow } from "../../hooks/useDepositFlow";
+import { useVaultDepositState } from "../../state/VaultDepositState";
+import { PeginStatus } from "../../state/usePeginStorage";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (btcTxid: string, ethTxHash: string) => void;
   amount: number;
-  btcConnector?: unknown; // for future implementation
-  btcAddress?: string;
-  depositorEthAddress?: string;
+  btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
+  depositorEthAddress: Address | undefined;
+  selectedProviders: string[];
+  vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
+  liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
 }
-
-// Helper to delay for UI feedback
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function CollateralDepositSignModal({
   open,
   onClose,
   onSuccess,
+  amount,
+  btcWalletProvider,
+  depositorEthAddress,
+  selectedProviders,
+  vaultProviderBtcPubkey,
+  liquidatorBtcPubkeys,
 }: CollateralDepositSignModalProps) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { addPendingPegin } = useVaultDepositState();
 
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!open) {
-      setCurrentStep(1);
-      setProcessing(false);
-      setError(null);
-    }
-  }, [open]);
+  const {
+    executeDepositFlow,
+    currentStep,
+    processing,
+    error,
+  } = useDepositFlow({
+    amount,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+    onSuccess: (btcTxid, ethTxHash, btcTxHex) => {
+      addPendingPegin({
+        txHash: ethTxHash,
+        btcTxid,
+        ethTxHash,
+        btcTxHex,
+        amount: Math.floor(amount * 100_000_000), // Convert BTC to sats
+        providerAddress: selectedProviders[0] || '',
+        status: PeginStatus.PENDING_VERIFICATION,
+        createdAt: Date.now(),
+      });
 
-  // Execute collateral deposit flow when modal opens
+      // Call parent success handler
+      onSuccess(btcTxid, ethTxHash);
+    },
+  });
+
+  // Execute flow when modal opens
   useEffect(() => {
-    if (open && currentStep === 1 && !processing && !error) {
+    if (open && !processing && !error) {
       executeDepositFlow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
-
-  // TODO: Replace with wallet integration
-  const executeDepositFlow = async () => {
-    setProcessing(true);
-    try {
-      // Step 1: Simulate proof of possession
-      setCurrentStep(1);
-      console.log(
-        "[CollateralDepositSignModal] Step 1: Creating proof of possession...",
-      );
-      await delay(2000);
-
-      // Step 2: Simulate transaction submission
-      setCurrentStep(2);
-      console.log(
-        "[CollateralDepositSignModal] Step 2: Submitting collateral deposit request to Vault Controller...",
-      );
-      await delay(2000);
-
-      // Step 3: Simulate validation
-      setCurrentStep(3);
-      console.log(
-        "[CollateralDepositSignModal] Step 3: Validating transaction...",
-      );
-      await delay(2000);
-
-      // Step 4: Complete
-      setCurrentStep(4);
-      console.log("[CollateralDepositSignModal] Step 4: Complete!");
-      await delay(1000);
-
-      setProcessing(false);
-
-      // Call success callback with mock transaction IDs
-      const mockBtcTxid = `mock-btc-txid-${Date.now()}`;
-      const mockEthTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      console.log(
-        "[CollateralDepositSignModal] Collateral deposit successful:",
-        { mockBtcTxid, mockEthTxHash },
-      );
-
-      onSuccess(mockBtcTxid, mockEthTxHash);
-    } catch (err) {
-      console.error(
-        "[CollateralDepositSignModal] Collateral deposit failed:",
-        err,
-      );
-      setError(err instanceof Error ? err.message : "Unknown error occurred");
-      setProcessing(false);
-    }
-  };
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
@@ -124,9 +100,6 @@ export function CollateralDepositSignModal({
             Sign & broadcast collateral deposit request to Vault Controller
           </Step>
           <Step step={3} currentStep={currentStep}>
-            Validating
-          </Step>
-          <Step step={4} currentStep={currentStep}>
             Complete
           </Step>
         </div>
