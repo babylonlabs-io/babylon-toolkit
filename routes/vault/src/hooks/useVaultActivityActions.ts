@@ -38,10 +38,14 @@ export interface SignPayoutParams {
   depositorBtcPubkey: string;
   transactions: ClaimerTransactions[];
   activityId: string;
+  activityAmount: string;
+  activityProviders: Array<{ id: string }>;
+  connectedAddress: string;
   updatePendingPeginStatus?: (
     peginId: string,
     status: PendingPeginRequest['status'],
   ) => void;
+  addPendingPegin?: (pegin: Omit<PendingPeginRequest, 'timestamp'>) => void;
   onRefetchActivities?: () => void;
 }
 
@@ -178,7 +182,11 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       depositorBtcPubkey,
       transactions,
       activityId,
+      activityAmount,
+      activityProviders,
+      connectedAddress,
       updatePendingPeginStatus,
+      addPendingPegin,
       onRefetchActivities,
     } = params;
 
@@ -203,10 +211,25 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         },
       });
 
-      // Update localStorage status using state machine
+      // Update or create localStorage entry for status tracking
+      // Use state machine to determine next status
       const nextStatus = getNextLocalStatus(PeginAction.SIGN_PAYOUT_TRANSACTIONS);
+
       if (updatePendingPeginStatus && nextStatus) {
+        // Case 1: localStorage entry EXISTS - update status
         updatePendingPeginStatus(activityId, nextStatus);
+      } else if (addPendingPegin && nextStatus) {
+        // Case 2: NO localStorage entry (cross-device or removed by old filter) - create one
+        const btcAddress = btcConnector?.connectedWallet?.account?.address;
+
+        addPendingPegin({
+          id: activityId,
+          amount: activityAmount,
+          providers: activityProviders.map((p) => p.id),
+          ethAddress: connectedAddress,
+          btcAddress: btcAddress || '',
+          status: nextStatus,
+        });
       }
 
       // Refetch activities after successful submission

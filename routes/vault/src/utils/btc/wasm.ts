@@ -24,42 +24,78 @@ export async function initWasm() {
 
 export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 
+/**
+ * Parameters for creating an unfunded peg-in transaction.
+ *
+ * Note: This creates a transaction with no inputs and one output (the pegin output).
+ * The frontend is responsible for:
+ * - Selecting UTXOs to fund the transaction
+ * - Calculating transaction fees
+ * - Adding inputs to cover peginAmount + fees
+ * - Adding a change output if needed
+ * - Creating and signing the PSBT via wallet
+ */
 export interface PegInParams {
-  depositTxid: string;
-  depositVout: number;
-  depositValue: bigint;
-  depositScriptPubKey: string; // hex
-  depositorPubkey: string; // 64-char hex
-  claimerPubkey: string; // 64-char hex
-  challengerPubkeys: string[]; // array of 64-char hex
+  /** X-only public key of the depositor (hex encoded) */
+  depositorPubkey: string;
+  /** X-only public key of the claimer/vault provider (hex encoded) */
+  claimerPubkey: string;
+  /** Array of x-only public keys of challengers (hex encoded) */
+  challengerPubkeys: string[];
+  /** Amount to peg-in in satoshis */
   pegInAmount: bigint;
-  fee: bigint;
+  /** Bitcoin network */
   network: Network;
 }
 
+/**
+ * Result of creating an unfunded peg-in transaction.
+ *
+ * This transaction has no inputs and only one output (the pegin output).
+ * The frontend must:
+ * - Add inputs from selected UTXOs
+ * - Calculate and add change output if needed
+ * - Sign the transaction via wallet
+ */
 export interface PegInResult {
+  /** Unfunded transaction hex (no inputs, only pegin output) */
   txHex: string;
+  /** Transaction ID (will change after adding inputs and signing) */
   txid: string;
+  /** Vault script pubkey (hex encoded) */
   vaultScriptPubKey: string;
+  /** Vault output value in satoshis */
   vaultValue: bigint;
-  changeValue: bigint;
 }
 
+/**
+ * Creates an unfunded peg-in transaction with no inputs and one output.
+ *
+ * This function creates a Bitcoin transaction template that the frontend
+ * must fund by:
+ * 1. Selecting appropriate UTXOs from the wallet
+ * 2. Calculating transaction fees based on selected inputs
+ * 3. Adding inputs to cover peginAmount + fees
+ * 4. Adding a change output if the input value exceeds peginAmount + fees
+ * 5. Creating a PSBT and signing it via the wallet
+ *
+ * The returned transaction has:
+ * - 0 inputs
+ * - 1 output (the pegin output to the vault address)
+ *
+ * @param params - Peg-in parameters (public keys, amount, network)
+ * @returns Unfunded transaction details with vault output information
+ */
 export async function createPegInTransaction(
   params: PegInParams
 ): Promise<PegInResult> {
   await initWasm();
 
   const tx = new WasmPeginTx(
-    params.depositTxid,
-    params.depositVout,
-    params.depositValue,
-    params.depositScriptPubKey,
     params.depositorPubkey,
     params.claimerPubkey,
     params.challengerPubkeys,
     params.pegInAmount,
-    params.fee,
     params.network
   );
 
@@ -68,7 +104,6 @@ export async function createPegInTransaction(
     txid: tx.getTxid(),
     vaultScriptPubKey: tx.getVaultScriptPubKey(),
     vaultValue: tx.getVaultValue(),
-    changeValue: tx.getChangeValue(),
   };
 }
 

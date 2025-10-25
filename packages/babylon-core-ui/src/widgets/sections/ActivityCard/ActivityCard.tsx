@@ -24,6 +24,7 @@ export interface ActivityCardActionButton {
   size?: "small" | "medium" | "large";
   className?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 }
 
 export interface ActivityCardData {
@@ -87,6 +88,7 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
           className={`mt-4 ${data.primaryAction.className || ""}`}
           onClick={data.primaryAction.onClick}
           fluid={data.primaryAction.fullWidth !== false}
+          disabled={data.primaryAction.disabled}
         >
           {data.primaryAction.label}
         </Button>

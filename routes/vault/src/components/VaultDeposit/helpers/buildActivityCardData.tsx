@@ -158,6 +158,7 @@ function buildPrimaryAction(
     onClick,
     variant: 'contained' as const,
     fullWidth: true,
+    disabled: actionStates.signing || actionStates.broadcasting,
   };
 }
 

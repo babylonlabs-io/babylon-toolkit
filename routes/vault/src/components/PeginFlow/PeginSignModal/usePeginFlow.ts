@@ -13,7 +13,7 @@ import { getETHChain } from '@babylonlabs-io/config';
 import { submitPeginRequest } from '../../../services/vault/vaultTransactionService';
 import { createProofOfPossession } from '../../../services/vault/vaultProofOfPossessionService';
 import { CONTRACTS } from '../../../config/contracts';
-import { useUTXOs, selectUTXOForPegin } from '../../../hooks/useUTXOs';
+import { useUTXOs } from '../../../hooks/useUTXOs';
 import { SATOSHIS_PER_BTC } from '../../../utils/peginTransformers';
 import type { VaultProvider } from '../../../types';
 import { LOCAL_PEGIN_CONFIG } from '../../../config/pegin';
@@ -39,12 +39,13 @@ interface UsePeginFlowParams {
     btcTxId: string;
     ethTxHash: string;
     unsignedTxHex: string;
-    utxo: {
+    selectedUTXOs: Array<{
       txid: string;
       vout: number;
-      value: bigint;
+      value: number;
       scriptPubKey: string;
-    };
+    }>;
+    fee: bigint;
   }) => void;
 }
 
@@ -146,19 +147,8 @@ export function usePeginFlow({
         Math.round(amount * Number(SATOSHIS_PER_BTC)),
       );
 
-      // Calculate required amount: peg-in amount + transaction fee
-      const requiredAmount =
-        pegInAmountSats + LOCAL_PEGIN_CONFIG.btcTransactionFee;
-
-      // Select suitable UTXO
-      const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
-
-      if (!selectedUTXO) {
-        const requiredBTC = Number(requiredAmount) / Number(SATOSHIS_PER_BTC);
-        throw new Error(
-          `No suitable UTXO found. You need at least ${requiredBTC.toFixed(8)} BTC (including fees) in a single UTXO. Please consolidate your UTXOs or add more funds.`,
-        );
-      }
+      // Note: UTXO selection and fee calculation now handled by service layer
+      // Multiple UTXOs will be automatically selected and combined as needed
 
       // Step 1: Proof of Possession
       setCurrentStep(1);
@@ -202,19 +192,25 @@ export function usePeginFlow({
         throw new Error('Ethereum wallet not connected');
       }
 
+      // Convert MempoolUTXO[] to UTXO[] format expected by service
+      const availableUTXOs = confirmedUTXOs.map(utxo => ({
+        txid: utxo.txid,
+        vout: utxo.vout,
+        value: utxo.value,
+        scriptPubKey: utxo.scriptPubKey,
+      }));
+
       // Submit to smart contract (ETH wallet signs, broadcasts, and waits for confirmation)
+      // Service will automatically select UTXOs and calculate fees
       const result = await submitPeginRequest(
         walletClient,
         chain,
         CONTRACTS.VAULT_CONTROLLER,
         depositorBtcPubkey,
         pegInAmountSats,
-        {
-          fundingTxid: selectedUTXO.txid,
-          fundingVout: selectedUTXO.vout,
-          fundingValue: BigInt(selectedUTXO.value),
-          fundingScriptPubkey: selectedUTXO.scriptPubKey,
-        },
+        availableUTXOs,
+        LOCAL_PEGIN_CONFIG.defaultFeeRate,
+        btcAddress, // Change address (same as sending address)
         selectedProvider.id as Address,
         vaultProviderBtcPubkey,
         liquidatorBtcPubkeys,
@@ -232,25 +228,21 @@ export function usePeginFlow({
       setCurrentStep(3); // Set to 3 to show step 2 as complete (checkmark, not spinner)
       setProcessing(false);
 
-      // Pass all data to parent including unsigned TX and UTXO for localStorage caching
+      // Pass all data to parent including unsigned TX and selected UTXOs
       // Note: btcTxid is the EXPECTED transaction ID, BTC tx not yet broadcast
       //
       // CACHING STRATEGY:
-      // - Store unsignedTxHex & UTXO in localStorage as OPTIONAL cache (faster broadcasting)
+      // - Store unsignedTxHex & selectedUTXOs in localStorage as OPTIONAL cache (faster broadcasting)
       // - Cross-device broadcasting works WITHOUT these cached values by:
       //   1. Fetching unsignedTxHex from ETH contract
-      //   2. Deriving UTXO from unsignedTxHex + mempool API queries
+      //   2. Deriving UTXOs from unsignedTxHex + mempool API queries
       onSuccess({
         btcTxId: result.btcTxid,
         ethTxHash: result.transactionHash,
-        // unsignedTxHex + utxo -> Cache for performance (optional)
+        // unsignedTxHex + selectedUTXOs + fee -> Cache for performance (optional)
         unsignedTxHex: result.btcTxHex,
-        utxo: {
-          txid: selectedUTXO.txid,
-          vout: selectedUTXO.vout,
-          value: BigInt(selectedUTXO.value),
-          scriptPubKey: selectedUTXO.scriptPubKey,
-        },
+        selectedUTXOs: result.selectedUTXOs,
+        fee: result.fee,
       });
     } catch (err) {
       // Log full error for debugging
