@@ -15,6 +15,7 @@
     "sort-imports": "eslint --fix ."
   },
   "dependencies": {
+    "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@tanstack/react-query": "5.28.14",
