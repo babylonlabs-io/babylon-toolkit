@@ -142,10 +142,10 @@ export function usePeginStorage(storageKey: string) {
   /**
    * Get array of pending pegins sorted by creation time (newest first)
    */
-  const pendingPeginsArray = useMemo(() => {
+  const pendingPeginsArray = useMemo<PendingPegin[]>(() => {
     return Object.values(pendingPegins).sort(
       (a, b) => (b as PendingPegin).createdAt - (a as PendingPegin).createdAt
-    );
+    ) as PendingPegin[];
   }, [pendingPegins]);
 
   return {
