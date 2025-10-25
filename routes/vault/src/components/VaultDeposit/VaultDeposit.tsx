@@ -112,12 +112,13 @@ export function VaultDeposit({
       btcTxId: string;
       ethTxHash: string;
       unsignedTxHex: string;
-      utxo: {
+      selectedUTXOs: Array<{
         txid: string;
         vout: number;
-        value: bigint;
+        value: number;
         scriptPubKey: string;
-      };
+      }>;
+      fee: bigint;
     }) => {
       // Add to local storage with BTC transaction ID as ID (with 0x prefix)
       // IMPORTANT: The smart contract stores BTC txids as Hex type (with 0x prefix)
@@ -135,12 +136,12 @@ export function VaultDeposit({
           ethAddress: connectedAddress,
           btcAddress: effectiveBtcAddress,
           unsignedTxHex: data.unsignedTxHex,
-          utxo: {
-            txid: data.utxo.txid,
-            vout: data.utxo.vout,
-            value: data.utxo.value.toString(),
-            scriptPubKey: data.utxo.scriptPubKey,
-          },
+          selectedUTXOs: data.selectedUTXOs.map(utxo => ({
+            txid: utxo.txid,
+            vout: utxo.vout,
+            value: utxo.value.toString(), // Convert number to string for JSON serialization
+            scriptPubKey: utxo.scriptPubKey,
+          })),
           status: 'pending' as const, // Initial status when creating pegin
         };
         addPendingPegin(peginData);

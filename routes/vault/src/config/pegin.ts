@@ -50,8 +50,8 @@ export const LOCAL_PEGIN_CONFIG = {
   ],
 
   /**
-   * HARDCODED: Estimated fee for BTC transaction
-   * TODO: calculate dynamically based on the tx size
+   * Default fee rate for BTC transactions (sat/vbyte)
+   * Fees are now calculated dynamically based on transaction size and selected UTXOs
    */
-  btcTransactionFee: 10_000n,
+  defaultFeeRate: 10, // sat/vbyte - reasonable default for most conditions
 };

@@ -16,6 +16,14 @@ export interface PendingPeginRequest {
   btcAddress: string; // BTC address used
   timestamp: number; // When the peg-in was initiated
   status: 'pending' | 'payout_signed' | 'confirming' | 'confirmed';
+  // Optional cache fields for performance optimization (multi-UTXO support)
+  unsignedTxHex?: string; // Unsigned transaction hex (cached for same-device broadcast)
+  selectedUTXOs?: Array<{
+    txid: string;
+    vout: number;
+    value: string; // Store as string to avoid BigInt serialization issues
+    scriptPubKey: string;
+  }>;
 }
 
 const STORAGE_KEY_PREFIX = 'vault-pending-pegins';
