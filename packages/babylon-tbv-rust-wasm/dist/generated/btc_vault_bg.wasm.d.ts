@@ -2,12 +2,11 @@
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const __wbg_wasmpegintx_free: (a: number, b: number) => void;
-export const wasmpegintx_new: (a: number, b: number, c: number, d: bigint, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: bigint, n: bigint, o: number, p: number) => [number, number, number];
+export const wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
 export const wasmpegintx_toHex: (a: number) => [number, number];
 export const wasmpegintx_getTxid: (a: number) => [number, number];
 export const wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
 export const wasmpegintx_getVaultValue: (a: number) => bigint;
-export const wasmpegintx_getChangeValue: (a: number) => bigint;
 export const __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
 export const wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
 export const wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];

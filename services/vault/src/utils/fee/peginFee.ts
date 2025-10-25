@@ -3,20 +3,16 @@
  * Follows btc-staking-ts methodology with support for multiple input UTXOs.
  */
 
-// P2TR input size in vbytes (42 vbytes non-witness + 16 vbytes witness)
-const P2TR_INPUT_SIZE = 58;
-
-// P2TR output size in bytes (largest non-legacy output type)
-const MAX_NON_LEGACY_OUTPUT_SIZE = 43;
-
-// Base transaction overhead (version, input/output counts, locktime, SegWit marker)
-const TX_BUFFER_SIZE_OVERHEAD = 11;
+import {
+  BTC_DUST_SAT,
+  MAX_NON_LEGACY_OUTPUT_SIZE,
+  P2TR_INPUT_SIZE,
+  rateBasedTxBufferFee,
+  TX_BUFFER_SIZE_OVERHEAD,
+} from "./constants";
 
 // Safety margin: 10% buffer for size variations and fee market volatility
 const FEE_SAFETY_MARGIN = 1.1;
-
-// Dust threshold: outputs below this may not be relayed
-const DUST_THRESHOLD = 546n;
 
 /**
  * Estimates transaction fee for peg-in with support for multiple input UTXOs.
@@ -38,15 +34,18 @@ export function estimatePeginFee(
   );
   const inputSize = depositUTXOs.length * P2TR_INPUT_SIZE;
 
-  // Base fee: N inputs + 1 output (pegin) + overhead
+  // Base fee: N inputs + 1 output (pegin) + overhead + buffer
   const baseTxSize =
     inputSize + MAX_NON_LEGACY_OUTPUT_SIZE + TX_BUFFER_SIZE_OVERHEAD;
-  const baseFee = BigInt(Math.ceil(baseTxSize * feeRate));
+  const baseFee =
+    BigInt(Math.ceil(baseTxSize * feeRate)) +
+    BigInt(rateBasedTxBufferFee(feeRate));
 
   // Check if change output is needed
   let changeAmount = totalInputValue - peginAmount - baseFee;
   let finalFee = baseFee;
 
+  const DUST_THRESHOLD = BigInt(BTC_DUST_SAT);
   if (changeAmount > DUST_THRESHOLD) {
     // Add fee for change output
     const changeOutputFee = BigInt(

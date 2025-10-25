@@ -13,12 +13,11 @@ export class WasmPeginPayoutConnector {
 export class WasmPeginTx {
   free(): void;
   [Symbol.dispose](): void;
-  constructor(deposit_txid: string, deposit_vout: number, deposit_value: bigint, deposit_script_pubkey: string, depositor_pubkey: string, claimer_pubkey: string, challenger_pubkeys: string[], pegin_amount: bigint, fee: bigint, network: string);
+  constructor(depositor_pubkey: string, claimer_pubkey: string, challenger_pubkeys: string[], pegin_amount: bigint, network: string);
   toHex(): string;
   getTxid(): string;
   getVaultScriptPubKey(): string;
   getVaultValue(): bigint;
-  getChangeValue(): bigint;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -26,12 +25,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-  readonly wasmpegintx_new: (a: number, b: number, c: number, d: bigint, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: bigint, n: bigint, o: number, p: number) => [number, number, number];
+  readonly wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
   readonly wasmpegintx_toHex: (a: number) => [number, number];
   readonly wasmpegintx_getTxid: (a: number) => [number, number];
   readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
   readonly wasmpegintx_getVaultValue: (a: number) => bigint;
-  readonly wasmpegintx_getChangeValue: (a: number) => bigint;
   readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
   readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
   readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
