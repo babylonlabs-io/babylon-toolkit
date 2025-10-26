@@ -4,8 +4,16 @@
  * Helper functions for working with Morpho markets
  */
 
-import { keccak256, encodeAbiParameters, parseAbiParameters, toHex, type Hex, type Address } from 'viem';
-import type { MarketParams } from '../vault-controller/transaction';
+import {
+  encodeAbiParameters,
+  keccak256,
+  parseAbiParameters,
+  toHex,
+  type Address,
+  type Hex,
+} from "viem";
+
+import type { MarketParams } from "../vault-controller/transaction";
 
 /**
  * Calculate Morpho market ID from market parameters
@@ -17,14 +25,14 @@ import type { MarketParams } from '../vault-controller/transaction';
  */
 export function calculateMarketId(params: MarketParams): Hex {
   const encoded = encodeAbiParameters(
-    parseAbiParameters('address, address, address, address, uint256'),
+    parseAbiParameters("address, address, address, address, uint256"),
     [
       params.loanToken,
       params.collateralToken,
       params.oracle,
       params.irm,
-      BigInt(params.lltv)
-    ]
+      BigInt(params.lltv),
+    ],
   );
 
   return keccak256(encoded);
@@ -45,7 +53,7 @@ export function calculateMarketIdFromParams(
   collateralToken: Address,
   oracle: Address,
   irm: Address,
-  lltv: bigint | string | number
+  lltv: bigint | string | number,
 ): Hex {
   return calculateMarketId({
     loanToken,
@@ -70,11 +78,11 @@ export function calculateMarketIdFromParams(
  */
 export function normalizeMarketId(id: string | bigint): Hex {
   // If input is already a hex string (64 hex characters with or without 0x prefix)
-  if (typeof id === 'string' && /^(0x)?[0-9a-fA-F]{64}$/.test(id)) {
+  if (typeof id === "string" && /^(0x)?[0-9a-fA-F]{64}$/.test(id)) {
     // Add 0x prefix if missing
-    return (id.startsWith('0x') ? id : `0x${id}`) as Hex;
+    return (id.startsWith("0x") ? id : `0x${id}`) as Hex;
   }
 
   // Convert from bigint or decimal string to hex (32 bytes)
-  return toHex(typeof id === 'bigint' ? id : BigInt(id), { size: 32 });
+  return toHex(typeof id === "bigint" ? id : BigInt(id), { size: 32 });
 }

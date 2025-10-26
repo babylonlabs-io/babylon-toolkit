@@ -1,7 +1,8 @@
 // Oracle - Read operations for price feeds
 
-import type { Address } from 'viem';
-import { ethClient } from '../client';
+import type { Address } from "viem";
+
+import { ethClient } from "../client";
 
 /**
  * Morpho Oracle ABI - minimal interface for reading prices
@@ -10,10 +11,10 @@ import { ethClient } from '../client';
 const MORPHO_ORACLE_ABI = [
   {
     inputs: [],
-    name: 'price',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
+    name: "price",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
   },
 ] as const;
 
@@ -33,7 +34,7 @@ export async function getOraclePrice(oracleAddress: Address): Promise<bigint> {
   const price = await publicClient.readContract({
     address: oracleAddress,
     abi: MORPHO_ORACLE_ABI,
-    functionName: 'price',
+    functionName: "price",
   });
 
   return price;

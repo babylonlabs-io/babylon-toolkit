@@ -1,9 +1,11 @@
 // BTC Vault Controller - Read operations (queries)
 
-import { type Address, type Hex, type Abi } from 'viem';
-import { ethClient } from '../client';
-import { executeMulticall } from '../multicall-helpers';
-import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
+import { type Abi, type Address, type Hex } from "viem";
+
+import { ethClient } from "../client";
+import { executeMulticall } from "../multicall-helpers";
+
+import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
 
 /**
  * Depositor structure from contract
@@ -41,7 +43,7 @@ export interface MarketPosition {
  */
 export async function getUserPositions(
   contractAddress: Address,
-  userAddress: Address
+  userAddress: Address,
 ): Promise<Hex[]> {
   const publicClient = ethClient.getPublicClient();
   const positions: Hex[] = [];
@@ -53,7 +55,7 @@ export async function getUserPositions(
         const result = await publicClient.readContract({
           address: contractAddress,
           abi: BTCVaultControllerABI,
-          functionName: 'userPositions',
+          functionName: "userPositions",
           args: [userAddress, BigInt(index)],
         });
 
@@ -65,7 +67,7 @@ export async function getUserPositions(
           // No result returned, we've reached the end
           break;
         }
-      } catch (error) {
+      } catch {
         // Error occurred (likely out of bounds), we've reached the end of the array
         break;
       }
@@ -74,7 +76,7 @@ export async function getUserPositions(
     return positions;
   } catch (error) {
     throw new Error(
-      `Failed to get user positions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to get user positions: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -96,7 +98,7 @@ export async function getUserPositions(
  */
 export async function getPositionsBulk(
   contractAddress: Address,
-  positionIds: Hex[]
+  positionIds: Hex[],
 ): Promise<MarketPosition[]> {
   if (positionIds.length === 0) {
     return [];
@@ -108,33 +110,48 @@ export async function getPositionsBulk(
     // Use shared multicall helper
     // NOTE: The `positions` mapping returns data WITHOUT pegInTxHashes
     // The ABI output is: [depositor, marketId, proxyContract, totalCollateral, totalBorrowed, lastUpdateTimestamp]
-    type MarketPositionRaw = [DepositorStruct, Hex, Address, bigint, bigint, bigint];
+    type MarketPositionRaw = [
+      DepositorStruct,
+      Hex,
+      Address,
+      bigint,
+      bigint,
+      bigint,
+    ];
     const results = await executeMulticall<MarketPositionRaw>(
       publicClient,
       contractAddress,
       BTCVaultControllerABI as Abi,
-      'positions',
-      positionIds.map(positionId => [positionId])
+      "positions",
+      positionIds.map((positionId) => [positionId]),
     );
 
     // Transform raw results to MarketPosition format
     // pegInTxHashes will be empty array since positions mapping doesn't return it
-    return results.map(([depositor, marketId, proxyContract, totalCollateral, totalBorrowed, lastUpdateTimestamp]) => ({
-      depositor: {
-        ethAddress: depositor.ethAddress as Address,
-        btcPubKey: depositor.btcPubKey as Hex,
-      },
-      marketId,
-      proxyContract,
-      pegInTxHashes: [], // positions mapping doesn't return this - must use getPosition() instead
-      totalCollateral,
-      totalBorrowed,
-      lastUpdateTimestamp,
-    }));
+    return results.map(
+      ([
+        depositor,
+        marketId,
+        proxyContract,
+        totalCollateral,
+        totalBorrowed,
+        lastUpdateTimestamp,
+      ]) => ({
+        depositor: {
+          ethAddress: depositor.ethAddress as Address,
+          btcPubKey: depositor.btcPubKey as Hex,
+        },
+        marketId,
+        proxyContract,
+        pegInTxHashes: [], // positions mapping doesn't return this - must use getPosition() instead
+        totalCollateral,
+        totalBorrowed,
+        lastUpdateTimestamp,
+      }),
+    );
   } catch (error) {
     throw new Error(
-      `Failed to bulk fetch positions: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to bulk fetch positions: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
-

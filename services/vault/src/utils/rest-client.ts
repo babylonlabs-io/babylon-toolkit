@@ -20,7 +20,7 @@ export class RestClientError extends Error {
     public response?: string,
   ) {
     super(message);
-    this.name = 'RestClientError';
+    this.name = "RestClientError";
   }
 }
 
@@ -33,10 +33,10 @@ export class RestClient {
   private headers: Record<string, string>;
 
   constructor(config: RestClientConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.timeout = config.timeout;
     this.headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...config.headers,
     };
   }
@@ -78,7 +78,7 @@ export class RestClient {
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
+        if (error.name === "AbortError") {
           throw new RestClientError(
             408,
             `Request timeout after ${this.timeout}ms`,
@@ -91,7 +91,7 @@ export class RestClient {
         // Network errors
         throw new RestClientError(0, `Network error: ${error.message}`);
       }
-      throw new RestClientError(0, 'Unknown error occurred during API request');
+      throw new RestClientError(0, "Unknown error occurred during API request");
     }
   }
 
@@ -99,7 +99,7 @@ export class RestClient {
    * Convenience method for GET requests
    */
   async get<T>(endpoint: string): Promise<T> {
-    return this.fetch<T>(endpoint, { method: 'GET' });
+    return this.fetch<T>(endpoint, { method: "GET" });
   }
 
   /**
@@ -107,7 +107,7 @@ export class RestClient {
    */
   async post<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.fetch<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: body ? JSON.stringify(body) : undefined,
     });
   }
@@ -117,7 +117,7 @@ export class RestClient {
    */
   async put<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.fetch<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: body ? JSON.stringify(body) : undefined,
     });
   }
@@ -126,7 +126,7 @@ export class RestClient {
    * Convenience method for DELETE requests
    */
   async delete<T>(endpoint: string): Promise<T> {
-    return this.fetch<T>(endpoint, { method: 'DELETE' });
+    return this.fetch<T>(endpoint, { method: "DELETE" });
   }
 
   getBaseUrl(): string {
@@ -134,7 +134,7 @@ export class RestClient {
   }
 
   setBaseUrl(url: string): void {
-    this.baseUrl = url.replace(/\/$/, '');
+    this.baseUrl = url.replace(/\/$/, "");
   }
 
   setTimeout(timeout: number): void {
