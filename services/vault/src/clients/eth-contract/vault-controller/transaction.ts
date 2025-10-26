@@ -2,14 +2,16 @@
 
 import {
   type Address,
-  type Hash,
-  type TransactionReceipt,
-  type Hex,
-  type WalletClient,
   type Chain,
-} from 'viem';
-import { ethClient } from '../client';
-import BTCVaultControllerABI from './abis/BTCVaultController.abi.json';
+  type Hash,
+  type Hex,
+  type TransactionReceipt,
+  type WalletClient,
+} from "viem";
+
+import { ethClient } from "../client";
+
+import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
 
 /**
  * Morpho market parameters
@@ -49,7 +51,7 @@ export async function submitPeginRequest(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'submitPeginRequest',
+      functionName: "submitPeginRequest",
       args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
       chain,
       account: walletClient.account!,
@@ -65,7 +67,7 @@ export async function submitPeginRequest(
     };
   } catch (error) {
     throw new Error(
-      `Failed to submit pegin request: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to submit pegin request: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -94,14 +96,18 @@ export async function addCollateralToPosition(
   vaultIds: Hex[],
   depositorBtcPubkey: Hex,
   marketParams: MarketParams,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; positionId: Hex }> {
+): Promise<{
+  transactionHash: Hash;
+  receipt: TransactionReceipt;
+  positionId: Hex;
+}> {
   const publicClient = ethClient.getPublicClient();
 
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'addCollateralToPosition',
+      functionName: "addCollateralToPosition",
       args: [vaultIds, depositorBtcPubkey, marketParams],
       chain,
       account: walletClient.account!,
@@ -113,7 +119,8 @@ export async function addCollateralToPosition(
 
     // Extract positionId from transaction logs/events if needed
     // For now, we can calculate it from the market params
-    const positionId = '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex; // TODO: Extract from event
+    const positionId =
+      "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex; // TODO: Extract from event
 
     return {
       transactionHash: hash,
@@ -122,7 +129,7 @@ export async function addCollateralToPosition(
     };
   } catch (error) {
     throw new Error(
-      `Failed to add collateral to position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to add collateral to position: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -159,7 +166,7 @@ export async function addCollateralToPositionAndBorrow(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'addCollateralToPositionAndBorrow',
+      functionName: "addCollateralToPositionAndBorrow",
       args: [vaultIds, depositorBtcPubkey, marketParams, borrowAmount],
       chain,
       account: walletClient.account!,
@@ -175,7 +182,7 @@ export async function addCollateralToPositionAndBorrow(
     };
   } catch (error) {
     throw new Error(
-      `Failed to add collateral and borrow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to add collateral and borrow: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -208,7 +215,7 @@ export async function repayFromPosition(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'repayFromPosition',
+      functionName: "repayFromPosition",
       args: [marketParams, repayAmount],
       chain,
       account: walletClient.account!,
@@ -224,7 +231,7 @@ export async function repayFromPosition(
     };
   } catch (error) {
     throw new Error(
-      `Failed to repay from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -245,14 +252,14 @@ export async function borrowFromPosition(
   contractAddress: Address,
   marketParams: MarketParams,
   borrowAmount: bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
 
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'borrowFromPosition',
+      functionName: "borrowFromPosition",
       args: [marketParams, borrowAmount],
       chain,
       account: walletClient.account!,
@@ -268,7 +275,7 @@ export async function borrowFromPosition(
     };
   } catch (error) {
     throw new Error(
-      `Failed to borrow from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to borrow from position: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -294,7 +301,7 @@ export async function withdrawCollateralFromPosition(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'withdrawCollateralFromPosition',
+      functionName: "withdrawCollateralFromPosition",
       args: [marketParams],
       chain,
       account: walletClient.account!,
@@ -304,14 +311,13 @@ export async function withdrawCollateralFromPosition(
       hash,
     });
 
-
     return {
       transactionHash: hash,
       receipt,
     };
   } catch (error) {
     throw new Error(
-      `Failed to withdraw collateral from position: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to withdraw collateral from position: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }
@@ -344,7 +350,7 @@ export async function redeemBTCVault(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'redeemBTCVault',
+      functionName: "redeemBTCVault",
       args: [pegInTxHash, redeemerPKs],
       chain,
       account: walletClient.account!,
@@ -360,7 +366,7 @@ export async function redeemBTCVault(
     };
   } catch (error) {
     throw new Error(
-      `Failed to redeem BTC vault: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      `Failed to redeem BTC vault: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
   }
 }

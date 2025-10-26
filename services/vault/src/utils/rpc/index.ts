@@ -6,4 +6,4 @@ export {
   type JsonRpcRequest,
   type JsonRpcResponse,
   type JsonRpcSuccessResponse,
-} from './json-rpc-client';
+} from "./json-rpc-client";

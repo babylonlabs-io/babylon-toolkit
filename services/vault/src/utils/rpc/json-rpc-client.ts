@@ -5,20 +5,20 @@
  */
 
 export interface JsonRpcRequest<T = unknown> {
-  jsonrpc: '2.0';
+  jsonrpc: "2.0";
   method: string;
   params: T;
   id: number | string;
 }
 
 export interface JsonRpcSuccessResponse<T = unknown> {
-  jsonrpc: '2.0';
+  jsonrpc: "2.0";
   result: T;
   id: number | string;
 }
 
 export interface JsonRpcErrorResponse {
-  jsonrpc: '2.0';
+  jsonrpc: "2.0";
   error: {
     code: number;
     message: string;
@@ -47,7 +47,7 @@ export class JsonRpcError extends Error {
     public data?: unknown,
   ) {
     super(message);
-    this.name = 'JsonRpcError';
+    this.name = "JsonRpcError";
   }
 }
 
@@ -61,10 +61,10 @@ export class JsonRpcClient {
   private requestId = 0;
 
   constructor(config: JsonRpcClientConfig) {
-    this.baseUrl = config.baseUrl.replace(/\/$/, '');
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.timeout = config.timeout;
     this.headers = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...config.headers,
     };
   }
@@ -87,7 +87,7 @@ export class JsonRpcClient {
     // Per JSON-RPC 2.0 spec, params can be either an array or object
     // The backend uses jsonrpsee::rpc_params![params] which creates: [params]
     const request: JsonRpcRequest<TParams[]> = {
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       method,
       params: [params],
       id: requestId,
@@ -98,7 +98,7 @@ export class JsonRpcClient {
 
     try {
       const response = await fetch(this.baseUrl, {
-        method: 'POST',
+        method: "POST",
         headers: this.headers,
         body: JSON.stringify(request),
         signal: controller.signal,
@@ -115,7 +115,7 @@ export class JsonRpcClient {
       const jsonResponse: JsonRpcResponse<TResult> = await response.json();
 
       // Check for JSON-RPC error response
-      if ('error' in jsonResponse) {
+      if ("error" in jsonResponse) {
         const errorResponse = jsonResponse as JsonRpcErrorResponse;
         throw new JsonRpcError(
           errorResponse.error.code,
@@ -131,8 +131,11 @@ export class JsonRpcClient {
       clearTimeout(timeoutId);
 
       // Handle timeout
-      if (error instanceof Error && error.name === 'AbortError') {
-        throw new JsonRpcError(-32000, `Request timeout after ${this.timeout}ms`);
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new JsonRpcError(
+          -32000,
+          `Request timeout after ${this.timeout}ms`,
+        );
       }
 
       // Handle network errors
@@ -150,7 +153,7 @@ export class JsonRpcClient {
   }
 
   setBaseUrl(url: string): void {
-    this.baseUrl = url.replace(/\/$/, '');
+    this.baseUrl = url.replace(/\/$/, "");
   }
 
   setTimeout(timeout: number): void {
