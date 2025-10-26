@@ -15,6 +15,7 @@
     "sort-imports": "eslint --fix ."
   },
   "dependencies": {
+    "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@tanstack/react-query": "5.28.14",
@@ -26,7 +27,8 @@
     "react-router": "7.6.3",
     "react-toastify": "10.0.6",
     "react-tooltip": "5.29.1",
-    "tailwind-merge": "2.5.4"
+    "tailwind-merge": "2.5.4",
+    "viem": "^2.38.2"
   },
   "devDependencies": {
     "@babel/core": "^7.24.7",
