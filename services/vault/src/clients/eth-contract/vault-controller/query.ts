@@ -67,7 +67,7 @@ export async function getUserPositions(
           // No result returned, we've reached the end
           break;
         }
-      } catch (error) {
+      } catch {
         // Error occurred (likely out of bounds), we've reached the end of the array
         break;
       }

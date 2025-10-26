@@ -81,8 +81,8 @@ export async function getPeginRequest(
       unsignedBtcTx,
       amount,
       vaultProvider,
-      status,
-      _positionId,
+      status, // positionId - not needed in interface
+      ,
     ] = result as [
       Address, // depositor
       Hex, // depositorBtcPubKey (32 bytes, x-only format)
@@ -176,8 +176,8 @@ export async function getPeginRequestsBulk(
         unsignedBtcTx,
         amount,
         vaultProvider,
-        status,
-        _positionId,
+        status, // positionId - not needed in interface
+        ,
       ]) => ({
         depositor,
         depositorBtcPubkey,
