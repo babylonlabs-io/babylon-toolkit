@@ -39,7 +39,7 @@ export interface Vault {
  *
  * Re-exported from types/ directory (domain model)
  */
-export type { VaultProvider } from '../../types/vaultProvider';
+export type { VaultProvider } from "../../types/vaultProvider";
 
 // ============================================================================
 // Morpho Market Types

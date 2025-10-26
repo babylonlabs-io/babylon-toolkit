@@ -4,8 +4,9 @@
  * Uses centralized environment variable validation from config/env.ts
  */
 
-import type { Address } from 'viem';
-import { ENV } from './env';
+import type { Address } from "viem";
+
+import { ENV } from "./env";
 
 export const CONTRACTS = {
   /**

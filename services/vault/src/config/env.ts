@@ -5,7 +5,7 @@
  * If any required variables are missing, the application will fail fast with a clear error message.
  */
 
-import type { Address } from 'viem';
+import type { Address } from "viem";
 
 /**
  * Required environment variables for the vault application
@@ -46,36 +46,36 @@ function validateEnvVars(): RequiredEnvVars {
 
   // Check for missing required environment variables
   const requiredVars = [
-    'BTC_VAULTS_MANAGER',
-    'VAULT_CONTROLLER',
-    'BTC_VAULT',
-    'MORPHO',
-    'VAULT_API_URL',
-    'MEMPOOL_API',
+    "BTC_VAULTS_MANAGER",
+    "VAULT_CONTROLLER",
+    "BTC_VAULT",
+    "MORPHO",
+    "VAULT_API_URL",
+    "MEMPOOL_API",
   ] as const;
 
   const missingVars = requiredVars.filter(
-    (key) => !envVars[key as keyof typeof envVars]
+    (key) => !envVars[key as keyof typeof envVars],
   );
 
   if (missingVars.length > 0) {
     const missingVarNames = missingVars.map((key) => {
       // Map internal names to actual env var names
       const envVarMap: Record<string, string> = {
-        BTC_VAULTS_MANAGER: 'NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER',
-        VAULT_CONTROLLER: 'NEXT_PUBLIC_TBV_VAULT_CONTROLLER',
-        BTC_VAULT: 'NEXT_PUBLIC_TBV_BTC_VAULT',
-        MORPHO: 'NEXT_PUBLIC_TBV_MORPHO',
-        VAULT_API_URL: 'NEXT_PUBLIC_VAULT_API_URL',
-        MEMPOOL_API: 'NEXT_PUBLIC_MEMPOOL_API',
+        BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
+        VAULT_CONTROLLER: "NEXT_PUBLIC_TBV_VAULT_CONTROLLER",
+        BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
+        MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
+        VAULT_API_URL: "NEXT_PUBLIC_VAULT_API_URL",
+        MEMPOOL_API: "NEXT_PUBLIC_MEMPOOL_API",
       };
       return envVarMap[key] || key;
     });
 
     throw new Error(
-      `Missing required environment variables:\n  - ${missingVarNames.join('\n  - ')}\n\n` +
-        'Please configure these variables in your .env file.\n' +
-        'See .env.example for reference.'
+      `Missing required environment variables:\n  - ${missingVarNames.join("\n  - ")}\n\n` +
+        "Please configure these variables in your .env file.\n" +
+        "See .env.example for reference.",
     );
   }
 
@@ -92,5 +92,5 @@ export const ENV = validateEnvVars();
  * Default values for optional environment variables
  */
 export const ENV_DEFAULTS = {
-  VAULT_PROVIDER_RPC_URL: 'http://localhost:8080',
+  VAULT_PROVIDER_RPC_URL: "http://localhost:8080",
 } as const;
