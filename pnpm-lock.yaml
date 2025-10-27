@@ -992,6 +992,9 @@ importers:
       tailwind-merge:
         specifier: 2.5.4
         version: 2.5.4
+      usehooks-ts:
+        specifier: ^3.1.1
+        version: 3.1.1(react@18.3.1)
       viem:
         specifier: ^2.38.2
         version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
