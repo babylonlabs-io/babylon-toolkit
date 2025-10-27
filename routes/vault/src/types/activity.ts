@@ -51,6 +51,9 @@ export interface VaultActivity {
   isPending?: boolean;
   pendingMessage?: string;
 
+  /** Timestamp for sorting (milliseconds since epoch) */
+  timestamp?: number;
+
   // === Position fields (VaultPositions tab) ===
 
   /** Morpho position data */

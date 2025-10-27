@@ -48,7 +48,7 @@ export async function deriveUTXOFromUnsignedTx(
 
     // Extract first input
     // Note: This function is kept for backward compatibility and simple cases
-    // For transactions with multiple inputs, use fetchUTXOFromMempool directly
+    // For transactions with multiple inputs, use deriveUTXOsFromUnsignedTx()
     const input = tx.ins[0];
 
     // Bitcoin stores txid in reverse byte order
@@ -72,6 +72,67 @@ export async function deriveUTXOFromUnsignedTx(
     }
     throw new Error(
       'Failed to derive UTXO from unsigned transaction: Unknown error',
+    );
+  }
+}
+
+/**
+ * Derive ALL UTXO information from an unsigned Bitcoin transaction
+ *
+ * This function enables cross-device pegin support for multi-UTXO transactions
+ * by reconstructing all UTXO data from the unsigned transaction hex + mempool API.
+ *
+ * Process:
+ * 1. Parse unsigned TX to extract all input references (txid, vout)
+ * 2. Fetch full transaction data from mempool API for each input (in parallel)
+ * 3. Extract UTXO details (scriptPubKey, value) for all inputs
+ *
+ * @param unsignedTxHex - Unsigned transaction hex (from ETH contract)
+ * @returns Array of UTXO information needed for PSBT construction
+ * @throws Error if transaction parsing fails or any UTXO not found in mempool
+ */
+export async function deriveUTXOsFromUnsignedTx(
+  unsignedTxHex: string,
+): Promise<UTXOInfo[]> {
+  try {
+    // Step 1: Parse unsigned transaction to extract all input references
+    const cleanHex = unsignedTxHex.startsWith('0x')
+      ? unsignedTxHex.slice(2)
+      : unsignedTxHex;
+
+    const tx = Transaction.fromHex(cleanHex);
+
+    if (tx.ins.length === 0) {
+      throw new Error('Transaction has no inputs');
+    }
+
+    // Step 2: Fetch all UTXO data from mempool API in parallel
+    const utxoPromises = tx.ins.map(async (input) => {
+      // Bitcoin stores txid in reverse byte order
+      const txid = Buffer.from(input.hash).reverse().toString('hex');
+      const vout = input.index;
+
+      // Fetch UTXO data from mempool
+      const utxoData = await fetchUTXOFromMempool(txid, vout);
+
+      return {
+        txid,
+        vout,
+        value: BigInt(utxoData.value),
+        scriptPubKey: utxoData.scriptPubKey,
+      };
+    });
+
+    // Wait for all fetches to complete
+    return await Promise.all(utxoPromises);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to derive UTXOs from unsigned transaction: ${error.message}`,
+      );
+    }
+    throw new Error(
+      'Failed to derive UTXOs from unsigned transaction: Unknown error',
     );
   }
 }

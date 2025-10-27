@@ -7,36 +7,29 @@
 import type { Address, Hex, WalletClient, Chain } from 'viem';
 import { VaultControllerTx, BTCVaultsManager } from '../../clients/eth-contract';
 import * as btcTransactionService from './vaultBtcTransactionService';
+import type { UTXO } from '../../utils/utxo';
 import { CONTRACTS } from '../../config/contracts';
 
 /**
- * UTXO parameters for peg-in transaction
- */
-export interface PeginUTXOParams {
-  fundingTxid: string;
-  fundingVout: number;
-  fundingValue: bigint;
-  fundingScriptPubkey: string;
-}
-
-/**
- * Submit a pegin request
+ * Submit a pegin request with multi-UTXO support
  *
  * This orchestrates the complete peg-in submission:
- * 1. Create unsigned BTC transaction using WASM (with REAL user data, REAL UTXOs, REAL selected provider)
+ * 1. Create unsigned BTC transaction using WASM (with multi-UTXO support)
  * 2. Submit unsigned BTC transaction to smart contract
  * 3. Wait for ETH transaction confirmation
  * 4. Return transaction details
  *
  * Note: This function does NOT broadcast the BTC transaction to the Bitcoin network.
- * For the POC, we only submit the unsigned transaction to the Ethereum vault contract.
+ * We only submit the unsigned transaction to the Ethereum vault contract.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes hex)
  * @param pegInAmountSats - Amount to peg in (in satoshis)
- * @param utxoParams - Real UTXO parameters from wallet
+ * @param availableUTXOs - Available UTXOs from wallet
+ * @param feeRate - Fee rate in sat/vbyte
+ * @param changeAddress - Change address from wallet
  * @param vaultProviderAddress - Selected vault provider's Ethereum address
  * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
  * @param liquidatorBtcPubkeys - Liquidator BTC public keys from the selected vault provider
@@ -48,20 +41,21 @@ export async function submitPeginRequest(
   vaultControllerAddress: Address,
   depositorBtcPubkey: string,
   pegInAmountSats: bigint,
-  utxoParams: PeginUTXOParams,
+  availableUTXOs: UTXO[],
+  feeRate: number,
+  changeAddress: string,
   vaultProviderAddress: Address,
   vaultProviderBtcPubkey: string,
   liquidatorBtcPubkeys: string[],
 ) {
-  // Step 1: Create unsigned BTC peg-in transaction
+  // Step 1: Create unsigned BTC peg-in transaction with multi-UTXO support
   // This uses WASM to construct the transaction with all REAL data from the user and indexer API
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
-    fundingTxid: utxoParams.fundingTxid,
-    fundingVout: utxoParams.fundingVout,
-    fundingValue: utxoParams.fundingValue,
-    fundingScriptPubkey: utxoParams.fundingScriptPubkey,
+    availableUTXOs,
+    feeRate,
+    changeAddress,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
   });
@@ -93,6 +87,8 @@ export async function submitPeginRequest(
     ...result,
     btcTxid: btcTx.txid,
     btcTxHex: btcTx.unsignedTxHex,
+    fee: btcTx.fee,
+    selectedUTXOs: btcTx.selectedUTXOs,
   };
 }
 

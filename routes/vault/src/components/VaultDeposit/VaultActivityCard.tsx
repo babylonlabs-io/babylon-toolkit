@@ -82,7 +82,7 @@ export function VaultActivityCard({
 
   // Action handlers (thin wrappers with bound parameters)
   const handleSign = () => {
-    if (!transactions || !vaultProviderAddress || !btcPublicKey || !activity.txHash) {
+    if (!transactions || !vaultProviderAddress || !btcPublicKey || !activity.txHash || !connectedAddress) {
       return;
     }
 
@@ -92,7 +92,11 @@ export function VaultActivityCard({
       depositorBtcPubkey: btcPublicKey,
       transactions,
       activityId: activity.id,
+      activityAmount: activity.collateral.amount,
+      activityProviders: activity.providers,
+      connectedAddress,
       updatePendingPeginStatus,
+      addPendingPegin,
       onRefetchActivities,
     });
   };

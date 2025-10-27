@@ -28,12 +28,13 @@ interface PeginSignModalProps {
     btcTxId: string;
     ethTxHash: string;
     unsignedTxHex: string;
-    utxo: {
+    selectedUTXOs: Array<{
       txid: string;
       vout: number;
-      value: bigint;
+      value: number;
       scriptPubKey: string;
-    };
+    }>;
+    fee: bigint;
   }) => void;
   amount: number;
   /**

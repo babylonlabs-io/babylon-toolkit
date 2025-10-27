@@ -2,12 +2,14 @@
  * BTC Transaction Service
  *
  * Handles creation of BTC peg-in transactions using WASM module.
- * Extracts data from connected BTC wallet and combines with hardcoded
- * local infrastructure data.
+ * Supports multiple UTXOs with dynamic fee calculation.
  */
 
+import { Transaction } from 'bitcoinjs-lib';
 import { createPegInTransaction } from '../../utils/btc/wasm';
-import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
+import { getBTCNetworkForWASM } from '../../config/pegin';
+import { buildPeginTransaction, getNetwork } from '../../utils/transaction';
+import { selectUtxosForPegin, type UTXO } from '../../utils/utxo';
 
 export interface CreatePeginTxParams {
   /**
@@ -21,24 +23,19 @@ export interface CreatePeginTxParams {
   pegInAmount: bigint;
 
   /**
-   * Funding transaction ID (from selected UTXO)
+   * Available UTXOs from wallet
    */
-  fundingTxid: string;
+  availableUTXOs: UTXO[];
 
   /**
-   * Funding transaction output index (from selected UTXO)
+   * Fee rate in sat/vbyte
    */
-  fundingVout: number;
+  feeRate: number;
 
   /**
-   * Funding transaction output value in satoshis (from selected UTXO)
+   * Change address from wallet
    */
-  fundingValue: bigint;
-
-  /**
-   * Funding transaction scriptPubKey hex (from selected UTXO)
-   */
-  fundingScriptPubkey: string;
+  changeAddress: string;
 
   /**
    * Selected vault provider's BTC public key (x-only, 32 bytes hex)
@@ -54,49 +51,83 @@ export interface CreatePeginTxParams {
 }
 
 export interface PeginTxResult {
+  /** Unsigned transaction hex (for wallet signing and contract submission) */
   unsignedTxHex: string;
+  /** Transaction ID (calculated from unsigned tx) */
   txid: string;
+  /** Selected UTXOs used as inputs */
+  selectedUTXOs: UTXO[];
+  /** Calculated fee in satoshis */
+  fee: bigint;
+  /** Change amount in satoshis */
+  changeAmount: bigint;
+  /** Vault script pubkey */
   vaultScriptPubKey: string;
+  /** Vault output value */
   vaultValue: bigint;
-  changeValue: bigint;
 }
 
 /**
- * Create a peg-in transaction for submission to the vault contract
+ * Create a peg-in transaction for submission to the vault contract.
  *
- * @param params - Transaction parameters including real UTXO data, selected provider, and liquidators
- * @returns Unsigned BTC transaction details
+ * This function orchestrates the complete flow:
+ * 1. Get unfunded transaction from WASM (0 inputs, 1 output)
+ * 2. Select UTXOs to fund the transaction
+ * 3. Calculate fees dynamically based on selected inputs
+ * 4. Build a funded transaction ready for wallet signing
+ *
+ * @param params - Transaction parameters including UTXOs, fee rate, and vault provider info
+ * @returns Transaction and details
  */
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
-  // Validate UTXO has sufficient value
-  const requiredValue = params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
-  if (params.fundingValue < requiredValue) {
-    throw new Error(
-      `Insufficient UTXO value. Required: ${requiredValue} sats, Available: ${params.fundingValue} sats`,
-    );
-  }
-
-  // Create BTC peg-in transaction using WASM
-  const pegInTx = await createPegInTransaction({
-    depositTxid: params.fundingTxid,
-    depositVout: params.fundingVout,
-    depositValue: params.fundingValue,
-    depositScriptPubKey: params.fundingScriptPubkey,
+  // Step 1: Get unfunded transaction from WASM
+  // This creates a tx with 0 inputs and 1 output (the pegin output)
+  const unfundedTxResult = await createPegInTransaction({
     depositorPubkey: params.depositorBtcPubkey,
     claimerPubkey: params.vaultProviderBtcPubkey,
     challengerPubkeys: params.liquidatorBtcPubkeys,
     pegInAmount: params.pegInAmount,
-    fee: LOCAL_PEGIN_CONFIG.btcTransactionFee,
     network: getBTCNetworkForWASM(),
   });
 
+  // Step 2: Select UTXOs with iterative fee calculation
+  // This function internally:
+  // - Filters for script validity
+  // - Sorts by value (largest first)
+  // - Iteratively selects UTXOs and recalculates fee
+  // - Returns selected UTXOs, calculated fee, and change amount
+  const selectionResult = selectUtxosForPegin(
+    params.availableUTXOs,
+    params.pegInAmount,
+    params.feeRate,
+  );
+
+  const { selectedUTXOs, fee, changeAmount } = selectionResult;
+
+  // Step 3: Build complete transaction
+  // buildPeginTransaction returns unsigned transaction hex ready for wallet signing
+  const network = getNetwork(getBTCNetworkForWASM());
+  const unsignedTxHex = buildPeginTransaction({
+    unfundedTxHex: unfundedTxResult.txHex,
+    selectedUTXOs,
+    changeAddress: params.changeAddress,
+    changeAmount,
+    network,
+  });
+
+  // Step 4: Parse transaction to get txid
+  const unsignedTx = Transaction.fromHex(unsignedTxHex);
+  const txid = unsignedTx.getId();
+
   return {
-    unsignedTxHex: pegInTx.txHex,
-    txid: pegInTx.txid,
-    vaultScriptPubKey: pegInTx.vaultScriptPubKey,
-    vaultValue: pegInTx.vaultValue,
-    changeValue: pegInTx.changeValue,
+    unsignedTxHex,
+    txid,
+    selectedUTXOs,
+    fee,
+    changeAmount,
+    vaultScriptPubKey: unfundedTxResult.vaultScriptPubKey,
+    vaultValue: unfundedTxResult.vaultValue,
   };
 }
