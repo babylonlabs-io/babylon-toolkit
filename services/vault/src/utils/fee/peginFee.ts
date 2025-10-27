@@ -5,14 +5,12 @@
 
 import {
   BTC_DUST_SAT,
+  FEE_SAFETY_MARGIN,
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
   rateBasedTxBufferFee,
   TX_BUFFER_SIZE_OVERHEAD,
 } from "./constants";
-
-// Safety margin: 10% buffer for size variations and fee market volatility
-const FEE_SAFETY_MARGIN = 1.1;
 
 /**
  * Estimates transaction fee for peg-in with support for multiple input UTXOs.

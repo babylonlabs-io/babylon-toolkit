@@ -21,6 +21,9 @@ export const LOW_RATE_ESTIMATION_ACCURACY_BUFFER = 30;
 // Wallet relay fee rate threshold - different buffer fees are used based on this
 export const WALLET_RELAY_FEE_RATE_THRESHOLD = 2;
 
+// Safety margin: 10% buffer for size variations and fee market volatility
+export const FEE_SAFETY_MARGIN = 1.1;
+
 /**
  * Adds a buffer to the transaction fee calculation if the fee rate is low.
  *
