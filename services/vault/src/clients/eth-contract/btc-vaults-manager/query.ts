@@ -1,8 +1,10 @@
 // BTC Vaults Manager - Read operations (queries)
 
 import { type Abi, type Address, type Hex } from "viem";
+
 import { ethClient } from "../client";
 import { executeMulticall } from "../multicall-helpers";
+
 import BTCVaultsManagerABI from "./abis/BTCVaultsManager.abi.json";
 
 /**
@@ -80,7 +82,7 @@ export async function getPeginRequest(
       amount,
       vaultProvider,
       status,
-      _positionId,
+      _positionId, // eslint-disable-line @typescript-eslint/no-unused-vars
     ] = result as [
       Address, // depositor
       Hex, // depositorBtcPubKey (32 bytes, x-only format)
@@ -175,7 +177,7 @@ export async function getPeginRequestsBulk(
         amount,
         vaultProvider,
         status,
-        _positionId,
+        _positionId, // eslint-disable-line @typescript-eslint/no-unused-vars
       ]) => ({
         depositor,
         depositorBtcPubkey,

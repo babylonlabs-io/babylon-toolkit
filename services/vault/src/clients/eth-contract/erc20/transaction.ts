@@ -7,6 +7,7 @@ import {
   type TransactionReceipt,
   type WalletClient,
 } from "viem";
+
 import { ethClient } from "../client";
 
 /**

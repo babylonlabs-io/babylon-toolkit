@@ -5,6 +5,7 @@
  */
 
 import type { Address } from "viem";
+
 import { ENV } from "./env";
 
 export const CONTRACTS = {

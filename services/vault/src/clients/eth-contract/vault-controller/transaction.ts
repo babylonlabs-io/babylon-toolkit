@@ -8,7 +8,9 @@ import {
   type TransactionReceipt,
   type WalletClient,
 } from "viem";
+
 import { ethClient } from "../client";
+
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
 
 /**

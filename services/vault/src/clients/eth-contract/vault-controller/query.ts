@@ -1,8 +1,10 @@
 // BTC Vault Controller - Read operations (queries)
 
 import { type Abi, type Address, type Hex } from "viem";
+
 import { ethClient } from "../client";
 import { executeMulticall } from "../multicall-helpers";
+
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
 
 /**
@@ -65,6 +67,7 @@ export async function getUserPositions(
           // No result returned, we've reached the end
           break;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         // Error occurred (likely out of bounds), we've reached the end of the array
         break;

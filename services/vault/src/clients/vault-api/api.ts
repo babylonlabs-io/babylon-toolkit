@@ -6,6 +6,7 @@
  */
 
 import { RestClient } from "../../utils/rest-client";
+
 import type { MorphoMarket, Vault, VaultProvider } from "./types";
 
 export class VaultApiClient {

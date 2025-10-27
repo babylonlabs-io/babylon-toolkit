@@ -1,8 +1,10 @@
 // Morpho Protocol - Read operations (queries)
 
 import type { Address } from "viem";
+
 import { CONTRACTS } from "../../../config/contracts";
 import { ethClient } from "../client";
+
 import {
   ID_TO_MARKET_PARAMS_ABI,
   MARKET_ABI,

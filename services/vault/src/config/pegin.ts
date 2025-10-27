@@ -1,8 +1,5 @@
 /**
  * Peg-in Configuration for Local Development
- *
- * IMPORTANT: These values are HARDCODED for local Anvil testnet.
- * In production, these would be fetched.
  */
 
 import { getBTCNetwork, type BTCNetwork } from "@babylonlabs-io/config";

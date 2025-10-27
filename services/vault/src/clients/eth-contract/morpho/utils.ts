@@ -12,6 +12,7 @@ import {
   type Address,
   type Hex,
 } from "viem";
+
 import type { MarketParams } from "../vault-controller/transaction";
 
 /**
