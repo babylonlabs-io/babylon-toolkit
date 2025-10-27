@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@babylonlabs-io/config": "workspace:*",
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",

@@ -132,6 +132,7 @@ The E2E tests use environment variables from `.env.test` and are located in the 
 To run E2E tests:
 
 1. Build the application for testing:
+
    ```bash
    pnpm build:e2e
    ```

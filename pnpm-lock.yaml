@@ -947,6 +947,9 @@ importers:
 
   services/vault:
     dependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../../packages/babylon-tbv-rust-wasm
       '@babylonlabs-io/config':
         specifier: workspace:*
         version: link:../../packages/babylon-config
