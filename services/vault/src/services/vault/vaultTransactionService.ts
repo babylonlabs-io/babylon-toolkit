@@ -106,8 +106,11 @@ export async function submitPeginRequest(
  *
  * This function:
  * 1. Fetches vault data and validates status
- * 2. Gets the depositor's BTC public key (used as redeemer key)
+ * 2. Gets the vault provider's BTC public key (they can claim BTC on Bitcoin)
  * 3. Executes the redeem transaction
+ *
+ * Note: The depositor initiates redemption, but the vault provider is the one
+ * who can actually claim the BTC on the Bitcoin network.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
@@ -122,7 +125,7 @@ export async function redeemVault(
   vaultControllerAddress: Address,
   pegInTxHash: Hex,
 ) {
-  // Step 1: Fetch vault data to validate status and get depositor BTC key
+  // Step 1: Fetch vault data to validate status
   const vault = await BTCVaultsManager.getPeginRequest(
     CONTRACTS.BTC_VAULTS_MANAGER,
     pegInTxHash,
@@ -145,16 +148,18 @@ export async function redeemVault(
     );
   }
 
-  // Step 3: Use the depositor's BTC public key as redeemer
-  // The depositor's BTC key is used as the redeemer key (who can claim BTC on Bitcoin network)
-  const depositorBtcKey = vault.depositorBtcPubkey;
+  // Step 3: Get vault provider's BTC public key (they are the ones who can claim BTC)
+  const vaultProviderBtcKey = await BTCVaultsManager.getProviderBTCKey(
+    CONTRACTS.BTC_VAULTS_MANAGER,
+    vault.vaultProvider,
+  );
 
-  // Step 4: Execute redeem transaction with depositor's BTC key as redeemer
+  // Step 4: Execute redeem transaction with vault provider's BTC key as redeemer
   return VaultControllerTx.redeemBTCVault(
     walletClient,
     chain,
     vaultControllerAddress,
     pegInTxHash,
-    [depositorBtcKey], // redeemerPKs - depositor can claim the BTC back to their address
+    [vaultProviderBtcKey], // redeemerPKs - vault provider can claim the BTC
   );
 }
