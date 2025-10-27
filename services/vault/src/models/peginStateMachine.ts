@@ -38,13 +38,13 @@ export enum ContractStatus {
  */
 export enum LocalStorageStatus {
   /** Initial state: Peg-in request submitted to contract */
-  PENDING = 'pending',
+  PENDING = "pending",
   /** Depositor submitted payout signatures, waiting for on-chain ACK */
-  PAYOUT_SIGNED = 'payout_signed',
+  PAYOUT_SIGNED = "payout_signed",
   /** BTC transaction broadcasted, waiting for confirmations */
-  CONFIRMING = 'confirming',
+  CONFIRMING = "confirming",
   /** Confirmed on blockchain (should be removed from localStorage) */
-  CONFIRMED = 'confirmed',
+  CONFIRMED = "confirmed",
 }
 
 /**
@@ -52,13 +52,13 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/db.rs PegInStatus enum
  */
 export enum DaemonStatus {
-  PENDING_CHALLENGER_SIGNATURES = 'PendingChallengerSignatures',
-  PENDING_DEPOSITOR_SIGNATURES = 'PendingDepositorSignatures',
-  ACKNOWLEDGED = 'Acknowledged',
-  ACTIVATED = 'Activated',
-  CLAIM_POSTED = 'ClaimPosted',
-  CHALLENGE_PERIOD = 'ChallengePeriod',
-  PEGGED_OUT = 'PeggedOut',
+  PENDING_CHALLENGER_SIGNATURES = "PendingChallengerSignatures",
+  PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
+  ACKNOWLEDGED = "Acknowledged",
+  ACTIVATED = "Activated",
+  CLAIM_POSTED = "ClaimPosted",
+  CHALLENGE_PERIOD = "ChallengePeriod",
+  PEGGED_OUT = "PeggedOut",
 }
 
 // ============================================================================
@@ -76,7 +76,7 @@ export interface PeginState {
   /** Display label for UI */
   displayLabel: string;
   /** Display variant for styling */
-  displayVariant: 'pending' | 'active' | 'inactive';
+  displayVariant: "pending" | "active" | "inactive";
   /** Available user actions */
   availableActions: PeginAction[];
   /** Informational message (if any) */
@@ -89,13 +89,13 @@ export interface PeginState {
  */
 export enum PeginAction {
   /** Sign payout transactions */
-  SIGN_PAYOUT_TRANSACTIONS = 'SIGN_PAYOUT_TRANSACTIONS',
+  SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   /** Sign and broadcast peg-in transaction to Bitcoin */
-  SIGN_AND_BROADCAST_TO_BITCOIN = 'SIGN_AND_BROADCAST_TO_BITCOIN',
+  SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
   /** Redeem (peg-out) */
-  REDEEM = 'REDEEM',
+  REDEEM = "REDEEM",
   /** No action available - user must wait */
-  NONE = 'NONE',
+  NONE = "NONE",
 }
 
 // ============================================================================
@@ -122,10 +122,11 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: 'Processing',
-        displayVariant: 'pending',
+        displayLabel: "Processing",
+        displayVariant: "pending",
         availableActions: [PeginAction.NONE],
-        message: 'Payout signatures submitted. Waiting for vault provider to collect acknowledgements and update on-chain status...',
+        message:
+          "Payout signatures submitted. Waiting for vault provider to collect acknowledgements and update on-chain status...",
       };
     }
 
@@ -134,10 +135,11 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: 'Pending',
-        displayVariant: 'pending',
+        displayLabel: "Pending",
+        displayVariant: "pending",
         availableActions: [PeginAction.NONE],
-        message: 'Waiting for vault provider to prepare Claim and Payout transactions...',
+        message:
+          "Waiting for vault provider to prepare Claim and Payout transactions...",
       };
     }
 
@@ -145,8 +147,8 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: 'Ready to Sign',
-      displayVariant: 'pending',
+      displayLabel: "Ready to Sign",
+      displayVariant: "pending",
       availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
     };
   }
@@ -158,10 +160,11 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: 'Confirming',
-        displayVariant: 'pending',
+        displayLabel: "Confirming",
+        displayVariant: "pending",
         availableActions: [PeginAction.NONE],
-        message: 'Bitcoin transaction broadcasted. Waiting for network confirmations...',
+        message:
+          "Bitcoin transaction broadcasted. Waiting for network confirmations...",
       };
     }
 
@@ -169,8 +172,8 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: 'Verified',
-      displayVariant: 'pending',
+      displayLabel: "Verified",
+      displayVariant: "pending",
       availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
     };
   }
@@ -180,8 +183,8 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: 'Available',
-      displayVariant: 'active',
+      displayLabel: "Available",
+      displayVariant: "active",
       availableActions: [PeginAction.REDEEM],
     };
   }
@@ -191,10 +194,11 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: 'In Position',
-      displayVariant: 'active',
+      displayLabel: "In Position",
+      displayVariant: "active",
       availableActions: [PeginAction.NONE],
-      message: 'Vault is currently being used as collateral in a lending position',
+      message:
+        "Vault is currently being used as collateral in a lending position",
     };
   }
 
@@ -203,10 +207,10 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: 'Expired',
-      displayVariant: 'inactive',
+      displayLabel: "Expired",
+      displayVariant: "inactive",
       availableActions: [PeginAction.NONE],
-      message: 'Vault has been redeemed or liquidated',
+      message: "Vault has been redeemed or liquidated",
     };
   }
 
@@ -214,8 +218,8 @@ export function getPeginState(
   return {
     contractStatus,
     localStatus,
-    displayLabel: 'Unknown',
-    displayVariant: 'inactive',
+    displayLabel: "Unknown",
+    displayVariant: "inactive",
     availableActions: [PeginAction.NONE],
   };
 }
@@ -239,21 +243,23 @@ export function getPrimaryActionButton(state: PeginState): {
 } | null {
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
     return {
-      label: 'Sign Payout Transactions',
+      label: "Sign Payout Transactions",
       action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     };
   }
 
-  if (state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+  if (
+    state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
+  ) {
     return {
-      label: 'Sign & Broadcast to Bitcoin',
+      label: "Sign & Broadcast to Bitcoin",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }
 
   if (state.availableActions.includes(PeginAction.REDEEM)) {
     return {
-      label: 'Redeem',
+      label: "Redeem",
       action: PeginAction.REDEEM,
     };
   }
@@ -289,7 +295,10 @@ export function shouldRemoveFromLocalStorage(
   localStatus: LocalStorageStatus,
 ): boolean {
   // Remove if contract status has progressed beyond local status
-  if (contractStatus === ContractStatus.VERIFIED && localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
+  if (
+    contractStatus === ContractStatus.VERIFIED &&
+    localStatus === LocalStorageStatus.PAYOUT_SIGNED
+  ) {
     return true; // On-chain ACK received, no longer need local flag
   }
 
@@ -305,4 +314,3 @@ export function shouldRemoveFromLocalStorage(
 
   return false;
 }
-

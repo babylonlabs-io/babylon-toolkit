@@ -20,13 +20,13 @@
  */
 export enum PositionType {
   /** Active borrowing position (debt > 0, collateral > 0) */
-  ACTIVE_BORROWING = 'ACTIVE_BORROWING',
+  ACTIVE_BORROWING = "ACTIVE_BORROWING",
   /** Collateral only, no debt (debt = 0, collateral > 0) */
-  COLLATERAL_ONLY = 'COLLATERAL_ONLY',
+  COLLATERAL_ONLY = "COLLATERAL_ONLY",
   /** Liquidated position (collateral = 0, debt > 0) */
-  LIQUIDATED = 'LIQUIDATED',
+  LIQUIDATED = "LIQUIDATED",
   /** Empty position (should not exist in practice) */
-  EMPTY = 'EMPTY',
+  EMPTY = "EMPTY",
 }
 
 /**
@@ -34,11 +34,11 @@ export enum PositionType {
  */
 export enum PositionAction {
   /** Repay debt (reduce or eliminate borrowed amount) */
-  REPAY = 'REPAY',
+  REPAY = "REPAY",
   /** Borrow more against existing collateral */
-  BORROW_MORE = 'BORROW_MORE',
+  BORROW_MORE = "BORROW_MORE",
   /** Withdraw collateral (only when debt = 0) */
-  WITHDRAW = 'WITHDRAW',
+  WITHDRAW = "WITHDRAW",
 }
 
 // ============================================================================
@@ -153,42 +153,43 @@ export function canPerformAction(
 export function getActionButtons(params: PositionParams): Array<{
   label: string;
   action: PositionAction;
-  variant: 'primary' | 'secondary';
+  variant: "primary" | "secondary";
 }> {
   const availableActions = getAvailableActions(params);
   const buttons: Array<{
     label: string;
     action: PositionAction;
-    variant: 'primary' | 'secondary';
+    variant: "primary" | "secondary";
   }> = [];
 
   // Repay button (secondary unless at risk)
   if (availableActions.includes(PositionAction.REPAY)) {
-    const isAtRisk = params.currentLTV !== undefined &&
-                     params.liquidationLTV !== undefined &&
-                     params.currentLTV >= params.liquidationLTV * 0.9;
+    const isAtRisk =
+      params.currentLTV !== undefined &&
+      params.liquidationLTV !== undefined &&
+      params.currentLTV >= params.liquidationLTV * 0.9;
     buttons.push({
-      label: 'Repay',
+      label: "Repay",
       action: PositionAction.REPAY,
-      variant: isAtRisk ? 'primary' : 'secondary',
+      variant: isAtRisk ? "primary" : "secondary",
     });
   }
 
   // Borrow more button (primary)
   if (availableActions.includes(PositionAction.BORROW_MORE)) {
     buttons.push({
-      label: 'Borrow More',
+      label: "Borrow More",
       action: PositionAction.BORROW_MORE,
-      variant: 'primary',
+      variant: "primary",
     });
   }
 
   // Withdraw button (primary)
   if (availableActions.includes(PositionAction.WITHDRAW)) {
     buttons.push({
-      label: 'Withdraw',
+      label: "Withdraw",
       action: PositionAction.WITHDRAW,
-      variant: 'primary',
+      variant: "primary",
     });
   }
 
@@ -209,21 +210,24 @@ export function validateRepayAction(params: PositionParams): void {
 
   if (positionType === PositionType.LIQUIDATED) {
     throw new Error(
-      'Position has been liquidated. All collateral has been seized to cover the debt.'
+      "Position has been liquidated. All collateral has been seized to cover the debt.",
     );
   }
 
   if (!canPerformAction(params, PositionAction.REPAY)) {
     // Check if underwater
-    if (params.currentLTV !== undefined && params.liquidationLTV !== undefined) {
+    if (
+      params.currentLTV !== undefined &&
+      params.liquidationLTV !== undefined
+    ) {
       if (params.currentLTV >= params.liquidationLTV) {
         throw new Error(
-          'Cannot repay: Position is underwater (LTV exceeds liquidation threshold). ' +
-          'The position may be in the process of liquidation.'
+          "Cannot repay: Position is underwater (LTV exceeds liquidation threshold). " +
+            "The position may be in the process of liquidation.",
         );
       }
     }
-    throw new Error('Repayment is not available for this position.');
+    throw new Error("Repayment is not available for this position.");
   }
 }
 
@@ -236,24 +240,27 @@ export function validateBorrowMoreAction(params: PositionParams): void {
   const positionType = getPositionType(params);
 
   if (positionType === PositionType.LIQUIDATED) {
-    throw new Error('Cannot borrow: Position has been liquidated.');
+    throw new Error("Cannot borrow: Position has been liquidated.");
   }
 
   if (!canPerformAction(params, PositionAction.BORROW_MORE)) {
     // Check specific failure reasons
-    if (params.currentLTV !== undefined && params.liquidationLTV !== undefined) {
+    if (
+      params.currentLTV !== undefined &&
+      params.liquidationLTV !== undefined
+    ) {
       if (params.currentLTV >= params.liquidationLTV) {
         throw new Error(
-          'Cannot borrow more: Position is underwater (LTV exceeds liquidation threshold).'
+          "Cannot borrow more: Position is underwater (LTV exceeds liquidation threshold).",
         );
       }
       if (params.currentLTV >= params.liquidationLTV * 0.9) {
         throw new Error(
-          'Cannot borrow more: Position is at risk of liquidation. Please repay debt first.'
+          "Cannot borrow more: Position is at risk of liquidation. Please repay debt first.",
         );
       }
     }
-    throw new Error('Borrowing more is not available for this position.');
+    throw new Error("Borrowing more is not available for this position.");
   }
 }
 
@@ -267,11 +274,11 @@ export function validateWithdrawAction(params: PositionParams): void {
 
   if (positionType !== PositionType.COLLATERAL_ONLY) {
     throw new Error(
-      'Cannot withdraw: Position has outstanding debt. Please repay all debt before withdrawing collateral.'
+      "Cannot withdraw: Position has outstanding debt. Please repay all debt before withdrawing collateral.",
     );
   }
 
   if (!canPerformAction(params, PositionAction.WITHDRAW)) {
-    throw new Error('Withdrawal is not available for this position.');
+    throw new Error("Withdrawal is not available for this position.");
   }
 }
