@@ -110,18 +110,16 @@ export function updatePeginStatus(
 
 /**
  * Filter and clean up old pending peg-ins.
- * Removes peg-ins that have been confirmed on blockchain (regardless of status) OR exceeded max duration.
+ * Removes peg-ins that exist on blockchain OR exceeded max duration.
  *
  * IMPORTANT: localStorage is a temporary placeholder until blockchain confirms the transaction.
  * - NOT on blockchain yet: Keep in localStorage (show pending state to user)
- * - ON blockchain (any status): Remove from localStorage (blockchain is source of truth)
+ * - ON blockchain (any presence): Remove from localStorage (blockchain is source of truth)
  * - Older than 24 hours: Remove from localStorage (cleanup stale data)
- *
- * Note: The 'confirmedPegins' parameter only requires the 'id' property; 'status' is ignored.
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
-  confirmedPegins: Array<{ id: string; status: number }>,
+  confirmedPegins: Array<{ id: string }>,
 ): PendingPeginRequest[] {
   const now = Date.now();
 
