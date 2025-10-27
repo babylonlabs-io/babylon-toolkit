@@ -57,10 +57,7 @@ export default tseslint.config(
       "import-x/no-unresolved": [
         "error",
         {
-          ignore: [
-            "@bitcoin-js/tiny-secp256k1-asmjs",
-            "@routes/vault/wasm/btc_vault.js",
-          ],
+          ignore: ["@bitcoin-js/tiny-secp256k1-asmjs"],
         },
       ],
       "import-x/order": [
