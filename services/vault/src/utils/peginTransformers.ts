@@ -3,6 +3,7 @@
  */
 
 import type { Address, Hex } from "viem";
+
 import type { PeginRequest } from "../clients/eth-contract";
 import type { VaultActivity } from "../types";
 

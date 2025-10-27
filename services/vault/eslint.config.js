@@ -19,6 +19,7 @@ export default tseslint.config(
       "blob-report",
       "playwright/.cache",
       "out",
+      "wasm",
       "*.{js,ts}",
       "postcss.config.cjs",
       "prettier.config.cjs",
