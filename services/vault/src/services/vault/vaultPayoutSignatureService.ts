@@ -4,7 +4,7 @@ import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import type { Network } from "../../utils/btc";
+import { stripHexPrefix, type Network } from "../../utils/btc";
 
 import { signPayoutTransaction } from "./btcPayoutSigner";
 import { getPeginRequest, getProviderBTCKey } from "./vaultQueryService";
