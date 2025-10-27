@@ -1,11 +1,10 @@
-import type { Coin } from "@cosmjs/stargate";
-
 import {
   REWARD_GAUGE_KEY_BTC_DELEGATION,
   REWARD_GAUGE_KEY_COSTAKER,
 } from "../../constants";
 import * as btclightclientquery from "../../generated/babylon/btclightclient/v1/query";
 import * as incentivequery from "../../generated/babylon/incentive/query";
+import { sumCoinAmounts } from "../utils/sumCoinAmounts";
 
 interface Dependencies {
   incentive: incentivequery.QueryClientImpl;
@@ -34,35 +33,19 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
       // Calculate rewards from BTC_STAKER gauge (base BTC staking rewards)
       const btcStakerCoins =
         rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
-      const btcStakerWithdrawn =
-        rewards.rewardGauges[
-          REWARD_GAUGE_KEY_BTC_DELEGATION
-        ]?.withdrawnCoins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) || 0;
-      const btcStakerTotal = btcStakerCoins
-        ? btcStakerCoins.reduce(
-            (acc: number, coin: Coin) => acc + Number(coin.amount),
-            0,
-          )
-        : 0;
+      const btcStakerWithdrawn = sumCoinAmounts(
+        rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.withdrawnCoins,
+      );
+      const btcStakerTotal = sumCoinAmounts(btcStakerCoins);
       const btcStakerAvailable = btcStakerTotal - btcStakerWithdrawn;
 
       // Calculate rewards from COSTAKER gauge (co-staking bonus)
       const costakerCoins =
         rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.coins;
-      const costakerWithdrawn =
-        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.withdrawnCoins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) || 0;
-      const costakerTotal = costakerCoins
-        ? costakerCoins.reduce(
-            (acc: number, coin: Coin) => acc + Number(coin.amount),
-            0,
-          )
-        : 0;
+      const costakerWithdrawn = sumCoinAmounts(
+        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.withdrawnCoins,
+      );
+      const costakerTotal = sumCoinAmounts(costakerCoins);
       const costakerAvailable = costakerTotal - costakerWithdrawn;
 
       // Total available rewards = BTC staking + co-staking bonus

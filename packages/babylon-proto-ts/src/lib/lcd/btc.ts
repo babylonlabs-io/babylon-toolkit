@@ -1,7 +1,6 @@
-import type { Coin } from "@cosmjs/proto-signing";
-
 import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../../constants";
 import type { RequestFn } from "../utils/http";
+import { sumCoinAmounts } from "../utils/sumCoinAmounts";
 
 interface Dependencies {
   request: RequestFn;
@@ -21,20 +20,11 @@ const createBTCClient = ({ request }: Dependencies) => ({
         return 0;
       }
 
-      const withdrawnCoins =
-        response.rewardGauges[
-          REWARD_GAUGE_KEY_BTC_DELEGATION
-        ]?.withdrawnCoins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) || 0;
-
-      return (
-        coins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) - withdrawnCoins
+      const withdrawnCoins = sumCoinAmounts(
+        response.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.withdrawnCoins,
       );
+
+      return sumCoinAmounts(coins) - withdrawnCoins;
     } catch (error) {
       // If error message contains "reward gauge not found", silently return 0
       // This is to handle the case where the user has no rewards, meaning
