@@ -44,19 +44,16 @@ export function usePeginStorage({
     );
   }, [confirmedPegins]);
 
-  // Sync: Remove pending peg-ins that reached Available status (2+)
-  // Keep localStorage data for Pending (0) and Verified (1) status
+  // Sync: Remove pending peg-ins that appear on blockchain
+  // localStorage is cleaned up once the pegin is confirmed on blockchain (any status)
   useEffect(() => {
     if (!ethAddress) return;
 
-    // Map confirmed pegins to {id, status} for the filter function
-    const confirmedPeginsWithStatus = confirmedPegins.map((p) => ({
-      id: p.id,
-      status: p.contractStatus ?? 0, // Default to 0 if missing
-    }));
+    // Extract IDs from confirmed pegins for filtering
+    const confirmedPeginIds = confirmedPegins.map((p) => ({ id: p.id }));
     const filteredPegins = filterPendingPegins(
       pendingPegins,
-      confirmedPeginsWithStatus,
+      confirmedPeginIds,
     );
 
     // Only update if something changed
