@@ -8,3 +8,5 @@
 export { usePeginRequests } from "./usePeginRequests";
 export type { UsePeginRequestsResult } from "./usePeginRequests";
 export { useVaultPositions } from "./useVaultPositions";
+export { useDepositFlow } from "./useDepositFlow";
+export type { UseDepositFlowParams, UseDepositFlowReturn } from "./useDepositFlow";
