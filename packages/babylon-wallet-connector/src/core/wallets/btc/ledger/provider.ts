@@ -73,6 +73,12 @@ type LedgerWalletInfo = {
   publicKeyHex: string | undefined;
 };
 
+// 添加派生路径配置接口
+interface DerivationConfig {
+  purpose: 84 | 86; // BIP84 (P2WPKH) 或 BIP86 (P2TR)
+  addressIndex: number; // 地址索引，默认为0
+}
+
 export const WALLET_PROVIDER_NAME = "Ledger";
 
 function sleep(ms: number): Promise<void> {
@@ -101,9 +107,15 @@ async function openSpeculosAndWait(baseURL: string = "http://localhost:5000"): P
 export class LedgerProvider implements IBTCProvider {
   private ledgerWalletInfo: LedgerWalletInfo | undefined;
   private config: BTCConfig;
+  private derivationConfig: DerivationConfig; // 添加派生路径配置
 
   constructor(_wallet: any, config: BTCConfig) {
     this.config = config;
+    // 设置默认派生路径配置
+    this.derivationConfig = {
+      purpose: 86, // 默认使用BIP86 (P2TR)
+      addressIndex: 0, // 默认地址索引为0
+    };
   }
 
   private isUsingSimulator(): boolean {
@@ -112,6 +124,19 @@ export class LedgerProvider implements IBTCProvider {
 
   private getSimulatorURL(): string {
     return SIMULATOR_URL;
+  }
+
+  // 添加设置派生路径配置的方法
+  setDerivationConfig(config: Partial<DerivationConfig>): void {
+    this.derivationConfig = {
+      ...this.derivationConfig,
+      ...config,
+    };
+  }
+
+  // 添加获取派生路径配置的方法
+  getDerivationConfig(): DerivationConfig {
+    return { ...this.derivationConfig };
   }
 
   // Create a transport instance for Ledger devices
@@ -141,9 +166,9 @@ export class LedgerProvider implements IBTCProvider {
 
   private getDerivationPath(): string {
     const networkDerivationIndex = this.getNetworkDerivationIndex();
-    // return `m/86'/${networkDerivationIndex}'/0'`;
-    // TODO: how to return different path ...
-    return `m/84'/${networkDerivationIndex}'/0'`;
+    // 返回3级路径：m/purpose'/networkIndex'/account'
+    // account固定为0，最后两级/change/addressIndex由其他地方补充
+    return `m/${this.derivationConfig.purpose}'/${networkDerivationIndex}'/0'`;
   }
 
   // Create a new AppClient instance using the transport
@@ -167,9 +192,23 @@ export class LedgerProvider implements IBTCProvider {
       }
       
       const networkDerivationIndex = this.getNetworkDerivationIndex();
-      // TODO: policy choose
-      const policyDescriptor = `[${fpr}/84'/${networkDerivationIndex}'/0']${extendedPubKey}`;
-      const policy = new DefaultWalletPolicy("wpkh(@0/**)", policyDescriptor);
+      const purpose = this.derivationConfig.purpose;
+      
+      // 根据purpose选择不同的策略描述符和模板
+      let policyTemplate: string;
+      if (purpose === 86) {
+        policyTemplate = "tr(@0/**)"; // P2TR (Taproot)
+      } else {
+        policyTemplate = "wpkh(@0/**)"; // P2WPKH (默认)
+      }
+      
+      // 策略描述符格式：[fingerprint/purpose'/networkIndex'/account']xpub
+      // account固定为0，与getDerivationPath保持一致
+      const policyDescriptor = `[${fpr}/${purpose}'/${networkDerivationIndex}'/0']${extendedPubKey}`;
+      
+      // 使用字符串创建策略，而不是尝试转换类型
+      const policy = new DefaultWalletPolicy(policyTemplate as any, policyDescriptor);
+      
       if (!policy) {
         throw new Error("Could not create the wallet policy");
       }
@@ -338,7 +377,8 @@ export class LedgerProvider implements IBTCProvider {
       throw new Error("Ledger is not connected");
     }
     // signMessage requires a full 5-level derivation path
-    const fullDerivationPath = `${this.ledgerWalletInfo.path}/0/0`;
+    // 补充最后两级：/change/addressIndex (0为external addresses)
+    const fullDerivationPath = `${this.ledgerWalletInfo.path}/0/${this.derivationConfig.addressIndex}`;
 
     const signedMessage = await signMessage({
       transport: this.ledgerWalletInfo?.app.transport,
