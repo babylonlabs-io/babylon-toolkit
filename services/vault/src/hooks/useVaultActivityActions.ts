@@ -5,16 +5,18 @@
  * to improve separation of concerns and testability.
  */
 
-import { useState } from 'react';
-import type { Hex } from 'viem';
-import { useChainConnector } from '@babylonlabs-io/wallet-connector';
-import { broadcastPeginTransaction, getPeginRequest } from '../services/vault';
-import { CONTRACTS } from '../config/contracts';
-import { useSignPeginTransactions } from './useSignPeginTransactions';
-import { getNextLocalStatus, PeginAction } from '../models/peginStateMachine';
-import type { PendingPeginRequest } from '../storage/peginStorage';
-import type { ClaimerTransactions } from '../clients/vault-provider-rpc/types';
-import { stripHexPrefix } from '../utils/btc';
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useState } from "react";
+import type { Hex } from "viem";
+
+import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
+import { CONTRACTS } from "../config/contracts";
+import { getNextLocalStatus, PeginAction } from "../models/peginStateMachine";
+import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
+import type { PendingPeginRequest } from "../storage/peginStorage";
+import { stripHexPrefix } from "../utils/btc";
+
+import { useSignPeginTransactions } from "./useSignPeginTransactions";
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -24,10 +26,10 @@ export interface BroadcastPeginParams {
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     peginId: string,
-    status: PendingPeginRequest['status'],
+    status: PendingPeginRequest["status"],
     btcTxHash?: string,
   ) => void;
-  addPendingPegin?: (pegin: Omit<PendingPeginRequest, 'timestamp'>) => void;
+  addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
 }
@@ -40,7 +42,7 @@ export interface SignPayoutParams {
   activityId: string;
   updatePendingPeginStatus?: (
     peginId: string,
-    status: PendingPeginRequest['status'],
+    status: PendingPeginRequest["status"],
   ) => void;
   onRefetchActivities?: () => void;
 }
@@ -70,7 +72,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
   const [signError, setSignError] = useState<string | null>(null);
 
   // Connectors
-  const btcConnector = useChainConnector('BTC');
+  const btcConnector = useChainConnector("BTC");
   const { signPayoutsAndSubmit } = useSignPeginTransactions();
 
   /**
@@ -103,7 +105,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
 
       if (!unsignedTxHex) {
         throw new Error(
-          'Unsigned transaction not found in contract. Please try again.',
+          "Unsigned transaction not found in contract. Please try again.",
         );
       }
 
@@ -111,16 +113,18 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
         throw new Error(
-          'BTC wallet not connected. Please reconnect your wallet.',
+          "BTC wallet not connected. Please reconnect your wallet.",
         );
       }
 
       // Get depositor's BTC public key (needed for Taproot signing)
       // Strip "0x" prefix since it comes from contract (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(peginRequest.depositorBtcPubkey);
+      const depositorBtcPubkey = stripHexPrefix(
+        peginRequest.depositorBtcPubkey,
+      );
       if (!depositorBtcPubkey) {
         throw new Error(
-          'Depositor BTC public key not found. Please try creating the peg-in request again.',
+          "Depositor BTC public key not found. Please try creating the peg-in request again.",
         );
       }
 
@@ -135,7 +139,9 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
 
       // Update or create localStorage entry for status tracking only
       // Use state machine to determine next status
-      const nextStatus = getNextLocalStatus(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN);
+      const nextStatus = getNextLocalStatus(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
         // Case 1: localStorage entry EXISTS - update status
@@ -149,7 +155,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
           amount: activityAmount,
           providers: activityProviders.map((p) => p.id),
           ethAddress: connectedAddress,
-          btcAddress: btcAddress || '',
+          btcAddress: btcAddress || "",
           btcTxHash: txId,
           status: nextStatus,
         });
@@ -162,7 +168,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       setBroadcasting(false);
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to broadcast transaction';
+        err instanceof Error ? err.message : "Failed to broadcast transaction";
       setBroadcastError(errorMessage);
       setBroadcasting(false);
     }
@@ -185,7 +191,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
     // Get BTC wallet provider
     const btcWalletProvider = btcConnector?.connectedWallet?.provider;
     if (!btcWalletProvider) {
-      setSignError('BTC wallet not connected. Please reconnect your wallet.');
+      setSignError("BTC wallet not connected. Please reconnect your wallet.");
       return;
     }
 
@@ -204,7 +210,9 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       });
 
       // Update localStorage status using state machine
-      const nextStatus = getNextLocalStatus(PeginAction.SIGN_PAYOUT_TRANSACTIONS);
+      const nextStatus = getNextLocalStatus(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
       if (updatePendingPeginStatus && nextStatus) {
         updatePendingPeginStatus(activityId, nextStatus);
       }
@@ -217,7 +225,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       setSigning(false);
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : 'Failed to sign transactions';
+        err instanceof Error ? err.message : "Failed to sign transactions";
       setSignError(errorMessage);
       setSigning(false);
     }

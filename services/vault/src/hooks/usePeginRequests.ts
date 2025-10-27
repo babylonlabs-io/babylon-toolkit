@@ -3,13 +3,14 @@
  * Used in VaultDeposit tab to show deposit/collateral status only (no Morpho data)
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useEffect } from 'react';
-import type { Address } from 'viem';
-import { getPeginRequestsWithDetails } from '../services/vault/vaultQueryService';
-import { transformPeginToActivity } from '../utils/peginTransformers';
-import type { VaultActivity } from '../types';
-import { CONTRACTS } from '../config/contracts';
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import type { Address } from "viem";
+
+import { CONTRACTS } from "../config/contracts";
+import { getPeginRequestsWithDetails } from "../services/vault/vaultQueryService";
+import type { VaultActivity } from "../types";
+import { transformPeginToActivity } from "../utils/peginTransformers";
 
 /**
  * Result interface for usePeginRequests hook
@@ -48,11 +49,7 @@ export function usePeginRequests({
 }: UsePeginRequestsParams): UsePeginRequestsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [
-      'peginRequests',
-      connectedAddress,
-      CONTRACTS.BTC_VAULTS_MANAGER,
-    ],
+    queryKey: ["peginRequests", connectedAddress, CONTRACTS.BTC_VAULTS_MANAGER],
     queryFn: () => {
       return getPeginRequestsWithDetails(
         connectedAddress!,

@@ -6,11 +6,13 @@
  * the peginPayoutSignatureService for reusability.
  */
 
-import { useState, useCallback } from 'react';
-import type { Hex } from 'viem';
-import type { ClaimerTransactions } from '../clients/vault-provider-rpc/types';
-import { useVaultProviders } from './useVaultProviders';
-import { signAndSubmitPayoutSignatures } from '../services/vault/vaultPayoutSignatureService';
+import { useCallback, useState } from "react";
+import type { Hex } from "viem";
+
+import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
+import { signAndSubmitPayoutSignatures } from "../services/vault/vaultPayoutSignatureService";
+
+import { useVaultProviders } from "./useVaultProviders";
 
 export interface SignPeginTransactionsParams {
   /** Peg-in transaction ID */
@@ -56,55 +58,62 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
   // Get cached vault providers
   const { findProvider } = useVaultProviders();
 
-  const signPayoutsAndSubmit = useCallback(async (params: SignPeginTransactionsParams) => {
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-
-    try {
-      // Get vault provider information from cached data
-      const provider = findProvider(params.vaultProviderAddress);
-
-      if (!provider) {
-        throw new Error(
-          `Vault provider ${params.vaultProviderAddress} not found in indexer`
-        );
-      }
-
-      if (!provider.url) {
-        throw new Error(
-          `Vault provider ${params.vaultProviderAddress} has no RPC URL`
-        );
-      }
-
-      // Extract liquidator BTC pubkeys from vault provider
-      const liquidatorBtcPubkeys = provider.liquidators?.map(liq => liq.btc_pub_key) || [];
-
-      // Delegate to service layer (state-unaware, reusable business logic)
-      await signAndSubmitPayoutSignatures({
-        peginTxId: params.peginTxId,
-        depositorBtcPubkey: params.depositorBtcPubkey,
-        claimerTransactions: params.transactions,
-        vaultProvider: {
-          address: params.vaultProviderAddress,
-          url: provider.url,
-          btcPubkey: provider.btc_pub_key,
-          liquidatorBtcPubkeys,
-        },
-        btcWalletProvider: params.btcWalletProvider,
-      });
-
-      setSuccess(true);
+  const signPayoutsAndSubmit = useCallback(
+    async (params: SignPeginTransactionsParams) => {
+      setLoading(true);
       setError(null);
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error('Failed to sign and submit payout signatures');
-      setError(error);
       setSuccess(false);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, [findProvider]);
+
+      try {
+        // Get vault provider information from cached data
+        const provider = findProvider(params.vaultProviderAddress);
+
+        if (!provider) {
+          throw new Error(
+            `Vault provider ${params.vaultProviderAddress} not found in indexer`,
+          );
+        }
+
+        if (!provider.url) {
+          throw new Error(
+            `Vault provider ${params.vaultProviderAddress} has no RPC URL`,
+          );
+        }
+
+        // Extract liquidator BTC pubkeys from vault provider
+        const liquidatorBtcPubkeys =
+          provider.liquidators?.map((liq) => liq.btc_pub_key) || [];
+
+        // Delegate to service layer (state-unaware, reusable business logic)
+        await signAndSubmitPayoutSignatures({
+          peginTxId: params.peginTxId,
+          depositorBtcPubkey: params.depositorBtcPubkey,
+          claimerTransactions: params.transactions,
+          vaultProvider: {
+            address: params.vaultProviderAddress,
+            url: provider.url,
+            btcPubkey: provider.btc_pub_key,
+            liquidatorBtcPubkeys,
+          },
+          btcWalletProvider: params.btcWalletProvider,
+        });
+
+        setSuccess(true);
+        setError(null);
+      } catch (err) {
+        const error =
+          err instanceof Error
+            ? err
+            : new Error("Failed to sign and submit payout signatures");
+        setError(error);
+        setSuccess(false);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [findProvider],
+  );
 
   return {
     signPayoutsAndSubmit,

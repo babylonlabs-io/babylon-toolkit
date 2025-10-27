@@ -3,12 +3,13 @@
  * Used in Positions tab to show borrowing positions
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useEffect } from 'react';
-import type { Address } from 'viem';
-import { getUserPositionsWithMorpho } from '../services/position';
-import { CONTRACTS } from '../config/contracts';
-import type { PositionWithMorpho } from '../services/position';
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import type { Address } from "viem";
+
+import { CONTRACTS } from "../config/contracts";
+import type { PositionWithMorpho } from "../services/position";
+import { getUserPositionsWithMorpho } from "../services/position";
 
 /**
  * Result interface for useUserPositions hook
@@ -38,16 +39,9 @@ export function useUserPositions(
 ): UseUserPositionsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [
-      'userPositions',
-      connectedAddress,
-      CONTRACTS.VAULT_CONTROLLER,
-    ],
+    queryKey: ["userPositions", connectedAddress, CONTRACTS.VAULT_CONTROLLER],
     queryFn: () =>
-      getUserPositionsWithMorpho(
-        connectedAddress!,
-        CONTRACTS.VAULT_CONTROLLER
-      ),
+      getUserPositionsWithMorpho(connectedAddress!, CONTRACTS.VAULT_CONTROLLER),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
@@ -69,7 +63,7 @@ export function useUserPositions(
     return data.filter(
       (position) =>
         position.morphoPosition.borrowShares > 0n ||
-        position.morphoPosition.collateral > 0n
+        position.morphoPosition.collateral > 0n,
     );
   }, [data]);
 

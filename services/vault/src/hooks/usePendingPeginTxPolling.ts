@@ -5,16 +5,18 @@
  * to get claim and payout transactions that need to be signed by the depositor.
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-import type { Hex } from 'viem';
-import { VaultProviderRpcApi } from '../clients/vault-provider-rpc';
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import type { Hex } from "viem";
+
+import { VaultProviderRpcApi } from "../clients/vault-provider-rpc";
 import type {
+  ClaimerTransactions,
   RequestClaimAndPayoutTransactionsResponse,
-  ClaimerTransactions
-} from '../clients/vault-provider-rpc/types';
-import { useVaultProviders } from './useVaultProviders';
-import { stripHexPrefix } from '../utils/btc';
+} from "../clients/vault-provider-rpc/types";
+import { stripHexPrefix } from "../utils/btc";
+
+import { useVaultProviders } from "./useVaultProviders";
 
 export interface PendingPeginTx {
   /** Peg-in transaction ID */
@@ -57,10 +59,14 @@ export interface UsePendingPeginTxPollingResult {
  * @returns Polling result with transactions, loading, error states
  */
 export function usePendingPeginTxPolling(
-  params: PendingPeginTx | null
+  params: PendingPeginTx | null,
 ): UsePendingPeginTxPollingResult {
   // Step 1: Get cached vault providers (fetched once globally)
-  const { findProvider, loading: providersLoading, error: providersError } = useVaultProviders();
+  const {
+    findProvider,
+    loading: providersLoading,
+    error: providersError,
+  } = useVaultProviders();
 
   // Step 2: Find the specific provider URL from cached data
   const providerUrl = useMemo(() => {
@@ -77,12 +83,12 @@ export function usePendingPeginTxPolling(
     const provider = findProvider(params.vaultProviderAddress);
     if (!provider) {
       return new Error(
-        `Vault provider ${params.vaultProviderAddress} not found in indexer`
+        `Vault provider ${params.vaultProviderAddress} not found in indexer`,
       );
     }
     if (!provider.url) {
       return new Error(
-        `Vault provider ${params.vaultProviderAddress} has no RPC URL`
+        `Vault provider ${params.vaultProviderAddress} has no RPC URL`,
       );
     }
     return null;
@@ -92,14 +98,14 @@ export function usePendingPeginTxPolling(
   // Only poll if params exist, provider is found, and no provider errors
   const { data, isLoading, error } = useQuery({
     queryKey: [
-      'pendingPeginTx',
+      "pendingPeginTx",
       params?.peginTxId,
       params?.vaultProviderAddress,
       providerUrl,
     ],
     queryFn: async () => {
       if (!params || !providerUrl) {
-        throw new Error('Missing parameters or provider URL');
+        throw new Error("Missing parameters or provider URL");
       }
 
       // Create RPC client with provider URL
@@ -140,7 +146,7 @@ export function usePendingPeginTxPolling(
   return {
     transactions: isReady && data ? data.txs : null,
     loading: isLoading || (!providerUrl && !providerError && !!params),
-    error: error as Error | null || providerError,
+    error: (error as Error | null) || providerError,
     isReady,
   };
 }
@@ -151,7 +157,7 @@ export function usePendingPeginTxPolling(
  * @returns true if all transactions have both claim_tx and payout_tx
  */
 function areTransactionsReady(
-  response: RequestClaimAndPayoutTransactionsResponse
+  response: RequestClaimAndPayoutTransactionsResponse,
 ): boolean {
   if (!response.txs || response.txs.length === 0) {
     return false;
@@ -163,6 +169,6 @@ function areTransactionsReady(
       tx.claim_tx?.tx_hex &&
       tx.payout_tx?.tx_hex &&
       tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0
+      tx.payout_tx.tx_hex.length > 0,
   );
 }
