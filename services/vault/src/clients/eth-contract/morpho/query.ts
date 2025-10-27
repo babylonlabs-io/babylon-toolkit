@@ -171,12 +171,11 @@ export async function getUserPosition(
 
   // Calculate borrowAssets from shares using market state
   // Formula: borrowAssets = (borrowShares * totalBorrowAssets) / totalBorrowShares
-  const borrowAssets = (
+  const borrowAssets =
     marketState.totalBorrowShares > 0n
       ? (borrowShares * marketState.totalBorrowAssets) /
         marketState.totalBorrowShares
-      : 0n
-  ) as bigint;
+      : 0n;
 
   return {
     marketId: typeof marketId === "bigint" ? marketId.toString() : marketId,
@@ -231,12 +230,11 @@ export async function getUserPositionsBulk(
       const [supplyShares, borrowShares, collateral] = positionData;
 
       // Calculate borrowAssets from shares using market state
-      const borrowAssets = (
+      const borrowAssets =
         marketState.totalBorrowShares > 0n
           ? (borrowShares * marketState.totalBorrowAssets) /
             marketState.totalBorrowShares
-          : 0n
-      ) as bigint;
+          : 0n;
 
       return {
         marketId: typeof marketId === "bigint" ? marketId.toString() : marketId,

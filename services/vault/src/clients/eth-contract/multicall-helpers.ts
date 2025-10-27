@@ -47,9 +47,6 @@ export async function executeMulticall<T>(
 
   // Filter and return successful results
   return results
-    .filter(
-      (result): result is { status: "success"; result: T } =>
-        result.status === "success",
-    )
-    .map((result) => result.result);
+    .filter((result) => result.status === "success")
+    .map((result) => result.result as T);
 }
