@@ -4,9 +4,12 @@
  * Handles fetching and managing vault provider data from the vault-indexer API.
  */
 
-import { VaultApiClient } from '../../clients/vault-api';
-import { getVaultApiUrl, DEFAULT_TIMEOUT } from '../../clients/vault-api/config';
-import type { VaultProvider } from '../../types/vaultProvider';
+import { VaultApiClient } from "../../clients/vault-api";
+import {
+  DEFAULT_TIMEOUT,
+  getVaultApiUrl,
+} from "../../clients/vault-api/config";
+import type { VaultProvider } from "../../types/vaultProvider";
 
 /**
  * Fetch all vault providers from the vault-indexer API

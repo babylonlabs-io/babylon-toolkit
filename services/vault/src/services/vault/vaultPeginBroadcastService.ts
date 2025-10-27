@@ -5,10 +5,12 @@
  * Used in PegIn flow step after vault provider verification.
  */
 
-import { Psbt, Transaction } from 'bitcoinjs-lib';
-import { fetchUTXOFromMempool } from './vaultUtxoDerivationService';
-import { pushTx } from '../../clients/btc/mempool';
-import { getPsbtInputFields } from '../../utils/btc';
+import { Psbt, Transaction } from "bitcoinjs-lib";
+
+import { pushTx } from "../../clients/btc/mempool";
+import { getPsbtInputFields } from "../../utils/btc";
+
+import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 
 /**
  * UTXO information needed for PSBT construction
@@ -50,7 +52,7 @@ async function addInputsToPsbt(
 ): Promise<void> {
   for (const input of tx.ins) {
     // Extract txid and vout (Bitcoin stores txid in reverse byte order)
-    const txid = Buffer.from(input.hash).reverse().toString('hex');
+    const txid = Buffer.from(input.hash).reverse().toString("hex");
     const vout = input.index;
 
     // Fetch UTXO data from mempool
@@ -141,17 +143,17 @@ export async function broadcastPeginTransaction(
 
   try {
     // Parse transaction
-    const cleanHex = unsignedTxHex.startsWith('0x')
+    const cleanHex = unsignedTxHex.startsWith("0x")
       ? unsignedTxHex.slice(2)
       : unsignedTxHex;
     const tx = Transaction.fromHex(cleanHex);
 
     if (tx.ins.length === 0) {
-      throw new Error('Transaction has no inputs');
+      throw new Error("Transaction has no inputs");
     }
 
     // Convert to PSBT with proper input fields
-    const publicKeyNoCoord = Buffer.from(depositorBtcPubkey, 'hex');
+    const publicKeyNoCoord = Buffer.from(depositorBtcPubkey, "hex");
     const psbt = await createPsbtFromTransaction(tx, publicKeyNoCoord);
 
     // Sign and finalize
@@ -163,7 +165,7 @@ export async function broadcastPeginTransaction(
     // Broadcast to network
     return await pushTx(signedTxHex);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    const message = error instanceof Error ? error.message : "Unknown error";
     throw new Error(`Failed to broadcast PegIn transaction: ${message}`);
   }
 }

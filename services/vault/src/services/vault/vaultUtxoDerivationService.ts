@@ -11,10 +11,11 @@
  * TODO: Deduplicate when merging vault to main branch.
  */
 
-import { Transaction } from 'bitcoinjs-lib';
+import { Transaction } from "bitcoinjs-lib";
 
-import { getTxInfo } from '../../clients/btc/mempool';
-import type { UTXOInfo } from './vaultPeginBroadcastService';
+import { getTxInfo } from "../../clients/btc/mempool";
+
+import type { UTXOInfo } from "./vaultPeginBroadcastService";
 
 /**
  * Derive UTXO information from an unsigned Bitcoin transaction
@@ -36,14 +37,14 @@ export async function deriveUTXOFromUnsignedTx(
 ): Promise<UTXOInfo> {
   try {
     // Step 1: Parse unsigned transaction to extract input reference
-    const cleanHex = unsignedTxHex.startsWith('0x')
+    const cleanHex = unsignedTxHex.startsWith("0x")
       ? unsignedTxHex.slice(2)
       : unsignedTxHex;
 
     const tx = Transaction.fromHex(cleanHex);
 
     if (tx.ins.length === 0) {
-      throw new Error('Transaction has no inputs');
+      throw new Error("Transaction has no inputs");
     }
 
     // Extract first input
@@ -52,7 +53,7 @@ export async function deriveUTXOFromUnsignedTx(
     const input = tx.ins[0];
 
     // Bitcoin stores txid in reverse byte order
-    const txid = Buffer.from(input.hash).reverse().toString('hex');
+    const txid = Buffer.from(input.hash).reverse().toString("hex");
     const vout = input.index;
 
     // Step 2: Fetch full UTXO data from mempool API
@@ -71,7 +72,7 @@ export async function deriveUTXOFromUnsignedTx(
       );
     }
     throw new Error(
-      'Failed to derive UTXO from unsigned transaction: Unknown error',
+      "Failed to derive UTXO from unsigned transaction: Unknown error",
     );
   }
 }
@@ -119,8 +120,8 @@ export async function fetchUTXOFromMempool(
     if (error instanceof Error) {
       // Check for common error cases and provide helpful messages
       if (
-        error.message.includes('404') ||
-        error.message.includes('not found')
+        error.message.includes("404") ||
+        error.message.includes("not found")
       ) {
         throw new Error(
           `Transaction ${txid} not found in mempool. The UTXO may have been spent or the transaction is not yet confirmed. Please try again later or contact support.`,
@@ -129,6 +130,6 @@ export async function fetchUTXOFromMempool(
 
       throw new Error(`Failed to fetch UTXO from mempool: ${error.message}`);
     }
-    throw new Error('Failed to fetch UTXO from mempool: Unknown error');
+    throw new Error("Failed to fetch UTXO from mempool: Unknown error");
   }
 }

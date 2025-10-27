@@ -6,7 +6,7 @@
  * the appropriate PSBT input fields required for that UTXO.
  */
 
-import { BitcoinScriptType, getScriptType } from './btcScriptType';
+import { BitcoinScriptType, getScriptType } from "./btcScriptType";
 
 /**
  * PSBT input fields (subset of PsbtInputExtended from bip174)
@@ -75,27 +75,27 @@ export function getPsbtInputFields(
   utxo: UTXO,
   publicKeyNoCoord?: Buffer,
 ): PsbtInputFields {
-  const scriptPubKey = Buffer.from(utxo.scriptPubKey, 'hex');
+  const scriptPubKey = Buffer.from(utxo.scriptPubKey, "hex");
   const type = getScriptType(scriptPubKey);
 
   switch (type) {
     case BitcoinScriptType.P2PKH: {
       if (!utxo.rawTxHex) {
-        throw new Error('Missing rawTxHex for legacy P2PKH input');
+        throw new Error("Missing rawTxHex for legacy P2PKH input");
       }
-      return { nonWitnessUtxo: Buffer.from(utxo.rawTxHex, 'hex') };
+      return { nonWitnessUtxo: Buffer.from(utxo.rawTxHex, "hex") };
     }
 
     case BitcoinScriptType.P2SH: {
       if (!utxo.rawTxHex) {
-        throw new Error('Missing rawTxHex for P2SH input');
+        throw new Error("Missing rawTxHex for P2SH input");
       }
       if (!utxo.redeemScript) {
-        throw new Error('Missing redeemScript for P2SH input');
+        throw new Error("Missing redeemScript for P2SH input");
       }
       return {
-        nonWitnessUtxo: Buffer.from(utxo.rawTxHex, 'hex'),
-        redeemScript: Buffer.from(utxo.redeemScript, 'hex'),
+        nonWitnessUtxo: Buffer.from(utxo.rawTxHex, "hex"),
+        redeemScript: Buffer.from(utxo.redeemScript, "hex"),
       };
     }
 
@@ -110,14 +110,14 @@ export function getPsbtInputFields(
 
     case BitcoinScriptType.P2WSH: {
       if (!utxo.witnessScript) {
-        throw new Error('Missing witnessScript for P2WSH input');
+        throw new Error("Missing witnessScript for P2WSH input");
       }
       return {
         witnessUtxo: {
           script: scriptPubKey,
           value: utxo.value,
         },
-        witnessScript: Buffer.from(utxo.witnessScript, 'hex'),
+        witnessScript: Buffer.from(utxo.witnessScript, "hex"),
       };
     }
 

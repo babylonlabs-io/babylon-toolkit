@@ -5,9 +5,10 @@
  * This layer sits between React hooks and low-level clients.
  */
 
-import type { Address, Hex } from 'viem';
-import { BTCVaultsManager } from '../../clients/eth-contract';
-import type { PeginRequest } from '../../clients/eth-contract';
+import type { Address, Hex } from "viem";
+
+import type { PeginRequest } from "../../clients/eth-contract";
+import { BTCVaultsManager } from "../../clients/eth-contract";
 
 /**
  * Pegin request with transaction hash
@@ -28,7 +29,7 @@ export interface PeginRequestWithTxHash {
  */
 export async function getPeginRequest(
   btcVaultsManagerAddress: Address,
-  peginTxHash: Hex
+  peginTxHash: Hex,
 ): Promise<PeginRequest> {
   return BTCVaultsManager.getPeginRequest(btcVaultsManagerAddress, peginTxHash);
 }
@@ -42,9 +43,12 @@ export async function getPeginRequest(
  */
 export async function getProviderBTCKey(
   btcVaultsManagerAddress: Address,
-  providerAddress: Address
+  providerAddress: Address,
 ): Promise<Hex> {
-  return BTCVaultsManager.getProviderBTCKey(btcVaultsManagerAddress, providerAddress);
+  return BTCVaultsManager.getProviderBTCKey(
+    btcVaultsManagerAddress,
+    providerAddress,
+  );
 }
 
 /**
@@ -60,12 +64,12 @@ export async function getProviderBTCKey(
  */
 export async function getPeginRequestsWithDetails(
   depositorAddress: Address,
-  btcVaultsManagerAddress: Address
+  btcVaultsManagerAddress: Address,
 ): Promise<PeginRequestWithTxHash[]> {
   // Step 1: Get all transaction hashes for this depositor
   const txHashes: Hex[] = await BTCVaultsManager.getDepositorPeginRequests(
     btcVaultsManagerAddress,
-    depositorAddress
+    depositorAddress,
   );
 
   // Early return if no pegin requests found
@@ -78,7 +82,7 @@ export async function getPeginRequestsWithDetails(
   // Note: getPeginRequestsBulk filters out failed requests, so we might get fewer results than txHashes
   const peginRequests = await BTCVaultsManager.getPeginRequestsBulk(
     btcVaultsManagerAddress,
-    txHashes
+    txHashes,
   );
 
   // Step 3: Combine with transaction hashes
@@ -126,12 +130,12 @@ export interface AvailableCollateral {
  */
 export async function getAvailableCollaterals(
   depositorAddress: Address,
-  btcVaultsManagerAddress: Address
+  btcVaultsManagerAddress: Address,
 ): Promise<AvailableCollateral[]> {
   // Fetch all pegin requests (no need to fetch vault metadata since status tells us if it's in use)
   const peginRequests = await getPeginRequestsWithDetails(
     depositorAddress,
-    btcVaultsManagerAddress
+    btcVaultsManagerAddress,
   );
 
   // Filter for pegins with status "Available" (status === 2)
@@ -144,7 +148,7 @@ export async function getAvailableCollaterals(
     .map(({ txHash, peginRequest }) => ({
       txHash,
       amount: (Number(peginRequest.amount) / 1e8).toFixed(8), // Convert satoshis to BTC
-      symbol: 'BTC',
+      symbol: "BTC",
       icon: undefined, // Will be set by UI layer if needed
     }));
 

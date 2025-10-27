@@ -18,7 +18,7 @@
  * ```
  */
 export function stripHexPrefix(hex: string): string {
-  return hex.startsWith('0x') ? hex.slice(2) : hex;
+  return hex.startsWith("0x") ? hex.slice(2) : hex;
 }
 
 /**
@@ -51,11 +51,10 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Validate public key length (should be 66 chars for compressed key or 130 for uncompressed)
   if (cleanHex.length !== 66 && cleanHex.length !== 130) {
     throw new Error(
-      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`
+      `Invalid public key length: ${cleanHex.length} (expected 64, 66, or 130 hex chars)`,
     );
   }
 
-  const pubkeyBuffer = Buffer.from(cleanHex, 'hex');
-  return toXOnly(pubkeyBuffer).toString('hex');
+  const pubkeyBuffer = Buffer.from(cleanHex, "hex");
+  return toXOnly(pubkeyBuffer).toString("hex");
 }
-

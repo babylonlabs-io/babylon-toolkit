@@ -5,13 +5,14 @@
  * Constructs PSBTs with complete Taproot spend information and extracts Schnorr signatures.
  */
 
-import { Psbt, Transaction, payments, initEccLib } from 'bitcoinjs-lib';
-import * as ecc from '@bitcoin-js/tiny-secp256k1-asmjs';
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { Psbt, Transaction, initEccLib, payments } from "bitcoinjs-lib";
+
 import {
   createPayoutConnector,
   tapInternalPubkey,
   type Network,
-} from '../../utils/btc';
+} from "../../utils/btc";
 
 // Initialize ECC library for Taproot operations
 initEccLib(ecc);
@@ -59,9 +60,15 @@ export async function signPayoutTransaction(
   } = params;
 
   // Strip 0x prefix if present
-  const cleanPayoutHex = payoutTxHex.startsWith('0x') ? payoutTxHex.slice(2) : payoutTxHex;
-  const cleanPeginHex = peginTxHex.startsWith('0x') ? peginTxHex.slice(2) : peginTxHex;
-  const cleanClaimHex = claimTxHex.startsWith('0x') ? claimTxHex.slice(2) : claimTxHex;
+  const cleanPayoutHex = payoutTxHex.startsWith("0x")
+    ? payoutTxHex.slice(2)
+    : payoutTxHex;
+  const cleanPeginHex = peginTxHex.startsWith("0x")
+    ? peginTxHex.slice(2)
+    : peginTxHex;
+  const cleanClaimHex = claimTxHex.startsWith("0x")
+    ? claimTxHex.slice(2)
+    : claimTxHex;
 
   try {
     const payoutTx = Transaction.fromHex(cleanPayoutHex);
@@ -78,8 +85,11 @@ export async function signPayoutTransaction(
       network,
     );
 
-    const payoutScriptBuffer = Buffer.from(payoutConnector.payoutScript, 'hex');
-    const controlBlock = computeControlBlock(tapInternalPubkey, payoutScriptBuffer);
+    const payoutScriptBuffer = Buffer.from(payoutConnector.payoutScript, "hex");
+    const controlBlock = computeControlBlock(
+      tapInternalPubkey,
+      payoutScriptBuffer,
+    );
 
     const psbt = new Psbt();
     psbt.setVersion(payoutTx.version);
@@ -90,7 +100,7 @@ export async function signPayoutTransaction(
       const input = payoutTx.ins[i];
 
       // Determine which transaction this input spends from
-      const inputTxid = Buffer.from(input.hash).reverse().toString('hex');
+      const inputTxid = Buffer.from(input.hash).reverse().toString("hex");
       const peginTxid = peginTx.getId();
       const prevTx = inputTxid === peginTxid ? peginTx : claimTx;
       const prevOut = prevTx.outs[input.index];
@@ -149,14 +159,14 @@ export async function signPayoutTransaction(
 
     // Extract the Schnorr signature from the first input
     if (signedPsbt.data.inputs.length === 0) {
-      throw new Error('No inputs found in signed PSBT');
+      throw new Error("No inputs found in signed PSBT");
     }
 
     const firstInput = signedPsbt.data.inputs[0];
 
     // Extract from tapScriptSig (preferred for non-finalized PSBT)
     if (firstInput.tapScriptSig && firstInput.tapScriptSig.length > 0) {
-      const depositorPubkeyBuffer = Buffer.from(depositorBtcPubkey, 'hex');
+      const depositorPubkeyBuffer = Buffer.from(depositorBtcPubkey, "hex");
 
       for (const sigEntry of firstInput.tapScriptSig) {
         if (sigEntry.pubkey.equals(depositorPubkeyBuffer)) {
@@ -164,23 +174,26 @@ export async function signPayoutTransaction(
 
           // Remove sighash flag byte if present (Taproot signatures are 64 bytes without flag)
           if (signature.length === 64) {
-            return signature.toString('hex');
+            return signature.toString("hex");
           } else if (signature.length === 65) {
-            return signature.subarray(0, 64).toString('hex');
+            return signature.subarray(0, 64).toString("hex");
           } else {
-            throw new Error(`Unexpected Schnorr signature length: ${signature.length}`);
+            throw new Error(
+              `Unexpected Schnorr signature length: ${signature.length}`,
+            );
           }
         }
       }
     }
 
     // Try to extract from finalized transaction witness (for finalized PSBT)
+    // eslint-disable-next-line no-useless-catch
     try {
       const tx = signedPsbt.extractTransaction();
       const witness = tx.ins[0].witness;
 
       if (!witness || witness.length === 0) {
-        throw new Error('No witness data in signed transaction');
+        throw new Error("No witness data in signed transaction");
       }
 
       // For Taproot script path spend: [sig1] [sig2] ... [sigN] [script] [control_block]
@@ -188,13 +201,15 @@ export async function signPayoutTransaction(
 
       // Remove sighash flag byte if present
       if (depositorSig.length === 64) {
-        return depositorSig.toString('hex');
+        return depositorSig.toString("hex");
       } else if (depositorSig.length === 65) {
         const sighashFlag = depositorSig[64];
         if (sighashFlag !== 0x01 && sighashFlag !== 0x00) {
-          throw new Error(`Unexpected sighash flag: 0x${sighashFlag.toString(16)}`);
+          throw new Error(
+            `Unexpected sighash flag: 0x${sighashFlag.toString(16)}`,
+          );
         }
-        return depositorSig.subarray(0, 64).toString('hex');
+        return depositorSig.subarray(0, 64).toString("hex");
       } else {
         throw new Error(`Unexpected signature length: ${depositorSig.length}`);
       }
@@ -205,7 +220,7 @@ export async function signPayoutTransaction(
     if (error instanceof Error) {
       throw new Error(`Failed to sign payout transaction: ${error.message}`);
     }
-    throw new Error('Failed to sign payout transaction: Unknown error');
+    throw new Error("Failed to sign payout transaction: Unknown error");
   }
 }
 
@@ -213,10 +228,7 @@ export async function signPayoutTransaction(
  * Compute control block for Taproot script path spend.
  * For a single script (no tree), format is: [leaf_version | parity] || internal_key
  */
-function computeControlBlock(
-  internalKey: Buffer,
-  script: Buffer,
-): Buffer {
+function computeControlBlock(internalKey: Buffer, script: Buffer): Buffer {
   const scriptTree = { output: script };
   const payment = payments.p2tr({
     internalPubkey: internalKey,
@@ -225,7 +237,7 @@ function computeControlBlock(
 
   const outputKey = payment.pubkey;
   if (!outputKey) {
-    throw new Error('Failed to compute output key');
+    throw new Error("Failed to compute output key");
   }
 
   // Control block: [leaf_version | parity] || [internal_key_x_only]

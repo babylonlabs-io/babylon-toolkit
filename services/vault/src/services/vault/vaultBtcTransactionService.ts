@@ -6,8 +6,8 @@
  * local infrastructure data.
  */
 
-import { createPegInTransaction } from '../../utils/btc/wasm';
-import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from '../../config/pegin';
+import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from "../../config/pegin";
+import { createPegInTransaction } from "../../utils/btc/wasm";
 
 export interface CreatePeginTxParams {
   /**
@@ -71,7 +71,8 @@ export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
   // Validate UTXO has sufficient value
-  const requiredValue = params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+  const requiredValue =
+    params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
   if (params.fundingValue < requiredValue) {
     throw new Error(
       `Insufficient UTXO value. Required: ${requiredValue} sats, Available: ${params.fundingValue} sats`,

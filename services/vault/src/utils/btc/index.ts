@@ -4,14 +4,10 @@
  * Centralized exports for Bitcoin-specific utility functions
  */
 
-export { BitcoinScriptType, getScriptType } from './btcScriptType';
+export { BitcoinScriptType, getScriptType } from "./btcScriptType";
+export { processPublicKeyToXOnly, stripHexPrefix, toXOnly } from "./btcUtils";
 export {
-  stripHexPrefix,
-  toXOnly,
-  processPublicKeyToXOnly,
-} from './btcUtils';
-export {
+  getPsbtInputFields,
   type PsbtInputFields,
   type UTXO,
-  getPsbtInputFields,
-} from './getPsbtInputFields';
+} from "./getPsbtInputFields";

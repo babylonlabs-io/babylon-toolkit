@@ -6,12 +6,12 @@
  */
 
 export enum BitcoinScriptType {
-  P2PKH = 'P2PKH',
-  P2SH = 'P2SH',
-  P2WPKH = 'P2WPKH',
-  P2WSH = 'P2WSH',
-  P2TR = 'P2TR',
-  UNKNOWN = 'UNKNOWN',
+  P2PKH = "P2PKH",
+  P2SH = "P2SH",
+  P2WPKH = "P2WPKH",
+  P2WSH = "P2WSH",
+  P2TR = "P2TR",
+  UNKNOWN = "UNKNOWN",
 }
 
 /**

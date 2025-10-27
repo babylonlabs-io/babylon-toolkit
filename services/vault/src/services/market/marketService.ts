@@ -7,12 +7,19 @@
  * - Getting market data and user positions
  */
 
-import type { Address } from 'viem';
-import { VaultApiClient } from '../../clients/vault-api';
-import { getVaultApiUrl, DEFAULT_TIMEOUT } from '../../clients/vault-api/config';
-import { Morpho } from '../../clients/eth-contract';
-import type { MorphoMarket } from '../../clients/vault-api/types';
-import type { MorphoMarketSummary, MorphoUserPosition } from '../../clients/eth-contract';
+import type { Address } from "viem";
+
+import type {
+  MorphoMarketSummary,
+  MorphoUserPosition,
+} from "../../clients/eth-contract";
+import { Morpho } from "../../clients/eth-contract";
+import { VaultApiClient } from "../../clients/vault-api";
+import {
+  DEFAULT_TIMEOUT,
+  getVaultApiUrl,
+} from "../../clients/vault-api/config";
+import type { MorphoMarket } from "../../clients/vault-api/types";
 
 /**
  * Market with validation status
@@ -58,7 +65,7 @@ export async function getMarkets(): Promise<MorphoMarket[]> {
  * @returns Market with validation status and on-chain data
  */
 export async function validateMarket(
-  market: MorphoMarket
+  market: MorphoMarket,
 ): Promise<MarketWithValidation> {
   try {
     // Fetch market data directly from Morpho contract (no IRM calls)
@@ -81,7 +88,7 @@ export async function validateMarket(
       validationError:
         error instanceof Error
           ? error.message
-          : 'Failed to fetch market from Morpho contract',
+          : "Failed to fetch market from Morpho contract",
     };
   }
 }
@@ -100,7 +107,7 @@ export async function getMarketsWithValidation(): Promise<MarketsWithValidationR
 
   // Step 2: Validate each market on-chain and fetch data
   const validatedMarkets = await Promise.all(
-    apiMarkets.map((market) => validateMarket(market))
+    apiMarkets.map((market) => validateMarket(market)),
   );
 
   // Step 3: Separate valid and invalid markets
@@ -121,7 +128,7 @@ export async function getMarketsWithValidation(): Promise<MarketsWithValidationR
  * @returns Market data including supply, borrow, utilization, etc.
  */
 export async function getMarketData(
-  marketId: string | bigint
+  marketId: string | bigint,
 ): Promise<MorphoMarketSummary> {
   return Morpho.getMarketWithData(marketId);
 }
@@ -135,7 +142,7 @@ export async function getMarketData(
  */
 export async function getUserMarketPosition(
   marketId: string | bigint,
-  userProxyAddress: Address
+  userProxyAddress: Address,
 ): Promise<MorphoUserPosition> {
   return Morpho.getUserPosition(marketId, userProxyAddress);
 }

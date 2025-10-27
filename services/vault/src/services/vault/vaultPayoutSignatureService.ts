@@ -1,12 +1,13 @@
-import type { Hex } from 'viem';
-import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
-import type { ClaimerTransactions } from '../../clients/vault-provider-rpc/types';
-import { signPayoutTransaction } from './btcPayoutSigner';
-import { stripHexPrefix } from '../../utils/btc';
-import { getPeginRequest, getProviderBTCKey } from './vaultQueryService';
-import { CONTRACTS } from '../../config/contracts';
-import type { Network } from '../../utils/btc';
-import { getBTCNetworkForWASM } from '../../config/pegin';
+import type { Hex } from "viem";
+
+import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
+import { CONTRACTS } from "../../config/contracts";
+import { getBTCNetworkForWASM } from "../../config/pegin";
+import type { Network } from "../../utils/btc";
+
+import { signPayoutTransaction } from "./btcPayoutSigner";
+import { getPeginRequest, getProviderBTCKey } from "./vaultQueryService";
 
 export interface VaultProviderInfo {
   address: Hex;
@@ -43,29 +44,27 @@ export async function signAndSubmitPayoutSignatures(
   } = params;
 
   // Validate inputs
-  if (!peginTxId || typeof peginTxId !== 'string') {
-    throw new Error('Invalid peginTxId: must be a non-empty string');
+  if (!peginTxId || typeof peginTxId !== "string") {
+    throw new Error("Invalid peginTxId: must be a non-empty string");
   }
 
-  if (!depositorBtcPubkey || typeof depositorBtcPubkey !== 'string') {
-    throw new Error('Invalid depositorBtcPubkey: must be a non-empty string');
+  if (!depositorBtcPubkey || typeof depositorBtcPubkey !== "string") {
+    throw new Error("Invalid depositorBtcPubkey: must be a non-empty string");
   }
 
   if (!/^[0-9a-fA-F]{64}$/.test(depositorBtcPubkey)) {
     throw new Error(
-      'Invalid depositorBtcPubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)',
+      "Invalid depositorBtcPubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)",
     );
   }
 
   if (!claimerTransactions || claimerTransactions.length === 0) {
-    throw new Error(
-      'Invalid claimerTransactions: must be a non-empty array',
-    );
+    throw new Error("Invalid claimerTransactions: must be a non-empty array");
   }
 
   if (!vaultProvider?.address || !vaultProvider?.url) {
     throw new Error(
-      'Invalid vaultProvider: must have address and url properties',
+      "Invalid vaultProvider: must have address and url properties",
     );
   }
 
@@ -76,7 +75,7 @@ export async function signAndSubmitPayoutSignatures(
   );
 
   if (!peginRequest.unsignedBtcTx) {
-    throw new Error('Pegin transaction not found in contract');
+    throw new Error("Pegin transaction not found in contract");
   }
 
   const peginTxHex = peginRequest.unsignedBtcTx;
@@ -94,9 +93,12 @@ export async function signAndSubmitPayoutSignatures(
   }
 
   // Get liquidator BTC public keys
-  const liquidatorBtcPubkeys: string[] = vaultProvider.liquidatorBtcPubkeys || [];
+  const liquidatorBtcPubkeys: string[] =
+    vaultProvider.liquidatorBtcPubkeys || [];
   if (liquidatorBtcPubkeys.length === 0) {
-    throw new Error('No liquidator BTC public keys provided in vault provider info');
+    throw new Error(
+      "No liquidator BTC public keys provided in vault provider info",
+    );
   }
 
   const cleanLiquidatorPubkeys = liquidatorBtcPubkeys.map(stripHexPrefix);
@@ -118,10 +120,13 @@ export async function signAndSubmitPayoutSignatures(
     const graph = JSON.parse(graphResponse.graph_json);
 
     if (graph.liquidator_pubkeys && Array.isArray(graph.liquidator_pubkeys)) {
-      finalLiquidatorPubkeys = graph.liquidator_pubkeys.map((pk: string) => stripHexPrefix(pk));
+      finalLiquidatorPubkeys = graph.liquidator_pubkeys.map((pk: string) =>
+        stripHexPrefix(pk),
+      );
     } else {
       finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
     }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
     // Fallback to sorted order if VP graph fetch fails
     finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
@@ -141,7 +146,7 @@ export async function signAndSubmitPayoutSignatures(
       claimerPubkeyXOnly = claimerPubkey.substring(2);
     } else if (claimerPubkey.length !== 64) {
       throw new Error(
-        `Unexpected claimer pubkey length: ${claimerPubkey.length} chars (expected 64 or 66)`
+        `Unexpected claimer pubkey length: ${claimerPubkey.length} chars (expected 64 or 66)`,
       );
     }
 

@@ -4,10 +4,11 @@
  * Handles checking the status of a PegIn transaction from the vault provider's backend.
  */
 
-import type { Hex } from 'viem';
-import { VaultProviderRpcApi } from '../../clients/vault-provider-rpc';
-import { stripHexPrefix } from '../../utils/btc';
-import type { DaemonStatus } from '../../models/peginStateMachine';
+import type { Hex } from "viem";
+
+import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import type { DaemonStatus } from "../../models/peginStateMachine";
+import { stripHexPrefix } from "../../utils/btc";
 
 /**
  * Vault provider information for status check
@@ -42,12 +43,12 @@ export async function checkPeginStatus(
   vaultProvider: VaultProviderInfo,
 ): Promise<PeginStatusResult> {
   // Validate inputs
-  if (!peginTxId || typeof peginTxId !== 'string') {
-    throw new Error('Invalid peginTxId: must be a non-empty string');
+  if (!peginTxId || typeof peginTxId !== "string") {
+    throw new Error("Invalid peginTxId: must be a non-empty string");
   }
 
   if (!vaultProvider?.url) {
-    throw new Error('Invalid vaultProvider: must have url property');
+    throw new Error("Invalid vaultProvider: must have url property");
   }
 
   // Create RPC client
@@ -64,26 +65,26 @@ export async function checkPeginStatus(
   let status: DaemonStatus;
 
   switch (rawStatus) {
-    case 'PendingChallengerSignatures':
-      status = 'PendingChallengerSignatures' as DaemonStatus;
+    case "PendingChallengerSignatures":
+      status = "PendingChallengerSignatures" as DaemonStatus;
       break;
-    case 'PendingDepositorSignatures':
-      status = 'PendingDepositorSignatures' as DaemonStatus;
+    case "PendingDepositorSignatures":
+      status = "PendingDepositorSignatures" as DaemonStatus;
       break;
-    case 'Acknowledged':
-      status = 'Acknowledged' as DaemonStatus;
+    case "Acknowledged":
+      status = "Acknowledged" as DaemonStatus;
       break;
-    case 'Activated':
-      status = 'Activated' as DaemonStatus;
+    case "Activated":
+      status = "Activated" as DaemonStatus;
       break;
-    case 'ClaimPosted':
-      status = 'ClaimPosted' as DaemonStatus;
+    case "ClaimPosted":
+      status = "ClaimPosted" as DaemonStatus;
       break;
-    case 'ChallengePeriod':
-      status = 'ChallengePeriod' as DaemonStatus;
+    case "ChallengePeriod":
+      status = "ChallengePeriod" as DaemonStatus;
       break;
-    case 'PeggedOut':
-      status = 'PeggedOut' as DaemonStatus;
+    case "PeggedOut":
+      status = "PeggedOut" as DaemonStatus;
       break;
     default:
       throw new Error(`Unknown daemon status: ${rawStatus}`);

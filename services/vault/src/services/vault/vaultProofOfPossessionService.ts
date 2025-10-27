@@ -6,7 +6,7 @@
  * controls the BTC public key.
  */
 
-import type { Address } from 'viem';
+import type { Address } from "viem";
 
 export interface ProofOfPossessionParams {
   /**
@@ -40,16 +40,16 @@ export async function createProofOfPossession(
 ): Promise<string> {
   // Validate inputs
   if (!params.ethAddress) {
-    throw new Error('[PoP] Ethereum address is required');
+    throw new Error("[PoP] Ethereum address is required");
   }
   if (!params.btcAddress) {
-    throw new Error('[PoP] BTC address is required');
+    throw new Error("[PoP] BTC address is required");
   }
 
   // Check if wallet supports message signing
   if (!params.signMessage) {
     throw new Error(
-      'BTC wallet does not support message signing. Please use a wallet that supports BIP-322 message signing (e.g., Unisat, Xverse)',
+      "BTC wallet does not support message signing. Please use a wallet that supports BIP-322 message signing (e.g., Unisat, Xverse)",
     );
   }
 
@@ -62,7 +62,7 @@ export async function createProofOfPossession(
 
   // Validate signature is not empty
   if (!signature || signature.length === 0) {
-    throw new Error('BTC wallet returned empty signature');
+    throw new Error("BTC wallet returned empty signature");
   }
 
   return signature;

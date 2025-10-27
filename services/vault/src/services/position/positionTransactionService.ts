@@ -4,10 +4,24 @@
  * Orchestrates transaction operations for positions (borrowing, repaying, adding collateral).
  */
 
-import type { Address, Hex, Hash, TransactionReceipt, WalletClient, Chain } from 'viem';
-import { VaultControllerTx, VaultController, Morpho, MorphoOracle, ERC20 } from '../../clients/eth-contract';
-import type { MarketParams } from '../../clients/eth-contract';
-import { CONTRACTS } from '../../config/contracts';
+import type {
+  Address,
+  Chain,
+  Hash,
+  Hex,
+  TransactionReceipt,
+  WalletClient,
+} from "viem";
+
+import type { MarketParams } from "../../clients/eth-contract";
+import {
+  ERC20,
+  Morpho,
+  MorphoOracle,
+  VaultController,
+  VaultControllerTx,
+} from "../../clients/eth-contract";
+import { CONTRACTS } from "../../config/contracts";
 
 /**
  * Result of adding collateral to position (with optional borrowing)
@@ -49,15 +63,16 @@ export async function addCollateralWithMarketId(
 
   // Step 2: Execute transaction based on whether borrowing is requested
   if (borrowAmount !== undefined && borrowAmount > 0n) {
-    const { transactionHash, receipt } = await VaultControllerTx.addCollateralToPositionAndBorrow(
-      walletClient,
-      chain,
-      vaultControllerAddress,
-      pegInTxHashes,
-      depositorBtcPubkey,
-      marketParams,
-      borrowAmount,
-    );
+    const { transactionHash, receipt } =
+      await VaultControllerTx.addCollateralToPositionAndBorrow(
+        walletClient,
+        chain,
+        vaultControllerAddress,
+        pegInTxHashes,
+        depositorBtcPubkey,
+        marketParams,
+        borrowAmount,
+      );
 
     return {
       transactionHash,
@@ -65,14 +80,15 @@ export async function addCollateralWithMarketId(
       marketParams,
     };
   } else {
-    const { transactionHash, receipt, positionId } = await VaultControllerTx.addCollateralToPosition(
-      walletClient,
-      chain,
-      vaultControllerAddress,
-      pegInTxHashes,
-      depositorBtcPubkey,
-      marketParams,
-    );
+    const { transactionHash, receipt, positionId } =
+      await VaultControllerTx.addCollateralToPosition(
+        walletClient,
+        chain,
+        vaultControllerAddress,
+        pegInTxHashes,
+        depositorBtcPubkey,
+        marketParams,
+      );
 
     return {
       transactionHash,
@@ -110,24 +126,29 @@ export async function approveLoanTokenForRepay(
     chain,
     loanTokenAddress,
     CONTRACTS.VAULT_CONTROLLER, // Approve VaultController to transfer tokens
-    approvalAmount
+    approvalAmount,
   );
 }
 
 /**
  * Validate position has collateral and is not liquidated
  */
-function validatePositionCollateral(collateral: bigint, borrowAssets: bigint): void {
+function validatePositionCollateral(
+  collateral: bigint,
+  borrowAssets: bigint,
+): void {
   if (collateral === 0n && borrowAssets > 0n) {
     throw new Error(
-      'Position has been liquidated. All collateral has been seized. ' +
-      `Remaining bad debt: ${(Number(borrowAssets) / 1e6).toFixed(6)} USDC. ` +
-      'This debt cannot be repaid through normal means.'
+      "Position has been liquidated. All collateral has been seized. " +
+        `Remaining bad debt: ${(Number(borrowAssets) / 1e6).toFixed(6)} USDC. ` +
+        "This debt cannot be repaid through normal means.",
     );
   }
 
   if (collateral === 0n) {
-    throw new Error('Position has no collateral. Cannot repay from an empty position.');
+    throw new Error(
+      "Position has no collateral. Cannot repay from an empty position.",
+    );
   }
 }
 
@@ -138,12 +159,13 @@ function validatePositionHealth(
   collateral: bigint,
   borrowAssets: bigint,
   btcPriceUSD: number,
-  liquidationLTV: number
+  liquidationLTV: number,
 ): void {
   const collateralBTC = Number(collateral) / 1e18; // vBTC has 18 decimals
   const collateralValueUSD = collateralBTC * btcPriceUSD;
   const debtValueUSD = Number(borrowAssets) / 1e6; // USDC has 6 decimals
-  const currentLTV = collateralValueUSD > 0 ? (debtValueUSD / collateralValueUSD) : Infinity;
+  const currentLTV =
+    collateralValueUSD > 0 ? debtValueUSD / collateralValueUSD : Infinity;
 
   if (currentLTV > liquidationLTV) {
     const ltvPercent = (currentLTV * 100).toFixed(2);
@@ -151,10 +173,10 @@ function validatePositionHealth(
 
     throw new Error(
       `Cannot repay: Position is underwater (LTV ${ltvPercent}% exceeds liquidation threshold ${liqLtvPercent}%). ` +
-      `This position is eligible for liquidation. The contract is likely blocking repayment operations. ` +
-      `Collateral: ${collateralBTC.toFixed(8)} BTC ($${collateralValueUSD.toFixed(2)}), ` +
-      `Debt: ${debtValueUSD.toFixed(6)} USDC. ` +
-      `To fix: Either liquidate the position or adjust the oracle price to restore a healthy LTV.`
+        `This position is eligible for liquidation. The contract is likely blocking repayment operations. ` +
+        `Collateral: ${collateralBTC.toFixed(8)} BTC ($${collateralValueUSD.toFixed(2)}), ` +
+        `Debt: ${debtValueUSD.toFixed(6)} USDC. ` +
+        `To fix: Either liquidate the position or adjust the oracle price to restore a healthy LTV.`,
     );
   }
 }
@@ -189,16 +211,19 @@ export async function repayDebt(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   // Fetch position data
-  const positions = await VaultController.getPositionsBulk(vaultControllerAddress, [positionId as Hex]);
+  const positions = await VaultController.getPositionsBulk(
+    vaultControllerAddress,
+    [positionId as Hex],
+  );
   if (positions.length === 0) {
-    throw new Error('Position not found');
+    throw new Error("Position not found");
   }
 
   const proxyContract = positions[0].proxyContract;
   const position = await Morpho.getUserPosition(marketId, proxyContract);
 
   if (position.borrowShares === 0n) {
-    throw new Error('No debt to repay - position already fully paid');
+    throw new Error("No debt to repay - position already fully paid");
   }
 
   const { borrowAssets, collateral } = position;
@@ -208,7 +233,9 @@ export async function repayDebt(
 
   // Fetch market data and validate position health
   const marketData = await Morpho.getMarketWithData(marketId);
-  const oraclePrice = await MorphoOracle.getOraclePrice(marketData.oracle as Address);
+  const oraclePrice = await MorphoOracle.getOraclePrice(
+    marketData.oracle as Address,
+  );
   const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
   const liquidationLTV = Number(marketData.lltv) / 1e18;
 
@@ -233,9 +260,9 @@ export async function repayDebt(
     };
   } catch (error) {
     throw new Error(
-      `Failed to repay from position: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-      `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
-      `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`
+      `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
+        `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
+        `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
     );
   }
 }
@@ -256,7 +283,7 @@ export async function borrowMoreFromPosition(
   vaultControllerAddress: Address,
   marketId: string | bigint,
   borrowAmount: bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
@@ -265,7 +292,7 @@ export async function borrowMoreFromPosition(
     chain,
     vaultControllerAddress,
     marketParams,
-    borrowAmount
+    borrowAmount,
   );
 }
 
@@ -283,7 +310,7 @@ export async function withdrawCollateralFromPosition(
   chain: Chain,
   vaultControllerAddress: Address,
   marketId: string | bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt; }> {
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters from Morpho contract
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
@@ -291,6 +318,6 @@ export async function withdrawCollateralFromPosition(
     walletClient,
     chain,
     vaultControllerAddress,
-    marketParams
+    marketParams,
   );
 }
