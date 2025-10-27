@@ -5,7 +5,6 @@
  * Constructs PSBTs with complete Taproot spend information and extracts Schnorr signatures.
  */
 
-// eslint-disable-next-line import-x/no-unresolved
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Psbt, Transaction, initEccLib, payments } from "bitcoinjs-lib";
 

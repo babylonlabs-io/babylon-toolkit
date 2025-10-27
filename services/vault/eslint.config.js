@@ -54,6 +54,15 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/no-unused-expressions": "error",
       "import-x/no-unused-modules": "error",
+      "import-x/no-unresolved": [
+        "error",
+        {
+          ignore: [
+            "@bitcoin-js/tiny-secp256k1-asmjs",
+            "@routes/vault/wasm/btc_vault.js",
+          ],
+        },
+      ],
       "import-x/order": [
         "error",
         {
