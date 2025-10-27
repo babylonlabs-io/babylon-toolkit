@@ -19,6 +19,7 @@ export default tseslint.config(
       "blob-report",
       "playwright/.cache",
       "out",
+      "wasm",
       "*.{js,ts}",
       "postcss.config.cjs",
       "prettier.config.cjs",
@@ -54,6 +55,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/no-unused-expressions": "error",
       "import-x/no-unused-modules": "error",
+      "import-x/no-unresolved": [
+        "error",
+        {
+          ignore: ["@bitcoin-js/tiny-secp256k1-asmjs"],
+        },
+      ],
       "import-x/order": [
         "error",
         {
