@@ -137,17 +137,17 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         depositorBtcPubkey,
       });
 
-      // Update or create localStorage entry for status tracking only
+      // Update or create localStorage entry with broadcast results
       // Use state machine to determine next status
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
 
       if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update status
+        // Case 1: localStorage entry EXISTS - update status and BTC tx hash
         updatePendingPeginStatus(activityId, nextStatus, txId);
       } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create one for status tracking
+        // Case 2: NO localStorage entry (cross-device) - create full peg-in entry
         const btcAddress = btcConnector?.connectedWallet?.account?.address;
 
         addPendingPegin({

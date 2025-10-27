@@ -66,19 +66,10 @@ export function usePeginStorage({
   }, [ethAddress, confirmedPegins, pendingPegins, setPendingPegins]);
 
   // Convert pending peg-ins to VaultActivity format
-  // localStorage is the source of truth for display until blockchain status >= 2 (Available)
+  // Note: pendingPegins are already filtered by useEffect above - items are removed
+  // from localStorage as soon as they appear on blockchain (any status)
   const pendingActivities: VaultActivity[] = useMemo(() => {
-    const filtered = pendingPegins.filter((pegin: PendingPeginRequest) => {
-      const confirmedPegin = confirmedPeginMap[pegin.id];
-
-      // Show pending pegin if:
-      // 1. Not yet on blockchain
-      // 2. On blockchain but status < 2 (Pending or Verified - not yet Available)
-      if (!confirmedPegin) return true;
-      return (confirmedPegin.contractStatus ?? 0) < 2;
-    });
-
-    return filtered.map((pegin: PendingPeginRequest) => {
+    return pendingPegins.map((pegin: PendingPeginRequest) => {
       const confirmedPegin = confirmedPeginMap[pegin.id];
 
       // Determine pending message based on localStorage + blockchain status
