@@ -1,7 +1,7 @@
 import init, {
   WasmPeginPayoutConnector,
   WasmPeginTx,
-} from "@routes/vault/wasm/btc_vault.js";
+} from "@routes/vault/wasm/btc_vault.js"; // eslint-disable-line import-x/no-unresolved
 
 let wasmInitialized = false;
 let wasmInitPromise: Promise<void> | null = null;
@@ -146,4 +146,4 @@ export async function createPayoutConnector(
 export {
   WasmPeginPayoutConnector,
   WasmPeginTx,
-} from "@routes/vault/wasm/btc_vault.js";
+} from "@routes/vault/wasm/btc_vault.js"; // eslint-disable-line import-x/no-unresolved
