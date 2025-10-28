@@ -4,13 +4,14 @@ import {
   DialogBody,
   DialogFooter,
   DialogHeader,
+  Loader,
   ProviderCard,
   ResponsiveDialog,
   SubSection,
   Text,
-  Loader,
 } from "@babylonlabs-io/core-ui";
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+
 import { useVaultProviders } from "../../hooks/useVaultProviders";
 
 interface CollateralDepositModalProps {
@@ -28,10 +29,10 @@ const satoshiToBtc = (satoshi: number): number => {
   return satoshi / 100000000;
 };
 
-export function CollateralDepositModal({ 
-  open, 
-  onClose, 
-  onDeposit, 
+export function CollateralDepositModal({
+  open,
+  onClose,
+  onDeposit,
   btcBalance, // Use actual wallet balance
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
   btcWalletConnected = false,
@@ -41,15 +42,20 @@ export function CollateralDepositModal({
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
 
   // Fetch real vault providers from API
-  const { providers: vaultProviders, loading: isLoadingProviders, error: providersError } = useVaultProviders();
-  
+  const {
+    providers: vaultProviders,
+    loading: isLoadingProviders,
+    error: providersError,
+  } = useVaultProviders();
+
   // Check if both wallets are connected
   const walletsConnected = btcWalletConnected && ethWalletConnected;
 
   // Conversion and validation
   const btcBalanceFormatted = useMemo(() => {
     if (btcBalance === undefined || btcBalance === null) return 0;
-    const balanceNum = typeof btcBalance === 'bigint' ? Number(btcBalance) : btcBalance;
+    const balanceNum =
+      typeof btcBalance === "bigint" ? Number(btcBalance) : btcBalance;
     return satoshiToBtc(balanceNum);
   }, [btcBalance]);
   const amountNum = useMemo(() => {
@@ -63,7 +69,8 @@ export function CollateralDepositModal({
     return `$${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [amountNum, btcPrice]);
 
-  const isValid = amountNum > 0 && selectedProviders.length > 0 && walletsConnected;
+  const isValid =
+    amountNum > 0 && selectedProviders.length > 0 && walletsConnected;
 
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
@@ -166,8 +173,8 @@ export function CollateralDepositModal({
                 <Loader size={32} className="text-primary-main" />
               </div>
             ) : providersError ? (
-              <div className="rounded-lg bg-error/10 p-4">
-                <Text variant="body2" className="text-sm text-error">
+              <div className="bg-error/10 rounded-lg p-4">
+                <Text variant="body2" className="text-error text-sm">
                   Failed to load vault providers. Please try again.
                 </Text>
               </div>
@@ -179,15 +186,23 @@ export function CollateralDepositModal({
               </div>
             ) : (
               vaultProviders.map((provider) => {
-                const shortId = provider.id.length > 14
-                  ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
-                  : provider.id;
+                const shortId =
+                  provider.id.length > 14
+                    ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
+                    : provider.id;
                 return (
                   <ProviderCard
                     key={provider.id}
                     id={provider.id}
                     name={shortId}
-                    icon={<Text variant="body2" className="text-sm font-medium text-accent-contrast">{provider.id.slice(2, 3).toUpperCase()}</Text>}
+                    icon={
+                      <Text
+                        variant="body2"
+                        className="text-sm font-medium text-accent-contrast"
+                      >
+                        {provider.id.slice(2, 3).toUpperCase()}
+                      </Text>
+                    }
                     isSelected={selectedProviders.includes(provider.id)}
                     onToggle={handleToggleProvider}
                   />
@@ -204,7 +219,7 @@ export function CollateralDepositModal({
             {selectedProviders.length} Selected
           </Text>
           {!walletsConnected && (
-            <Text variant="body2" className="text-xs text-error">
+            <Text variant="body2" className="text-error text-xs">
               {!btcWalletConnected && !ethWalletConnected
                 ? "Please connect both BTC and ETH wallets"
                 : !btcWalletConnected

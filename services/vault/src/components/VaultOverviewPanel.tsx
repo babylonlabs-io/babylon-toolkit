@@ -1,11 +1,23 @@
-import { Card, useIsMobile, Tabs } from "@babylonlabs-io/core-ui";
+import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useAccount, useWalletClient, useChainId } from "wagmi";
 import { useMemo } from "react";
 import * as chains from "viem/chains";
+import { useAccount, useChainId, useWalletClient } from "wagmi";
+
+import { calculateBalance, useUTXOs } from "../hooks/useUTXOs";
+import { useVaultProviders } from "../hooks/useVaultProviders";
+import {
+  useVaultDepositState,
+  VaultDepositStep,
+} from "../state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../state/VaultRedeemState";
+
+import { ActivityOverview } from "./ActivityOverview";
 import { DepositOverview } from "./DepositOverview";
 import { MarketOverview } from "./MarketOverview";
-import { ActivityOverview } from "./ActivityOverview";
 import { PositionOverview } from "./PositionOverview";
 import {
   CollateralDepositModal,
@@ -17,40 +29,38 @@ import {
   RedeemCollateralSignModal,
   RedeemCollateralSuccessModal,
 } from "./modals";
-import { useVaultDepositState, VaultDepositStep } from "../state/VaultDepositState";
-import { useVaultRedeemState, VaultRedeemStep } from "../state/VaultRedeemState";
-import { useVaultProviders } from "../hooks/useVaultProviders";
-import { useUTXOs, calculateBalance } from "../hooks/useUTXOs";
 
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
-  
+
   // Get wallet connections
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = useMemo(() => {
     return btcConnector?.connectedWallet?.provider || null;
   }, [btcConnector]);
   const { address: ethAddress } = useAccount();
-  
+
   // Get ETH wallet client and chain for transactions
   const { data: walletClient } = useWalletClient();
   const chainId = useChainId();
   const chain = useMemo(() => {
-    return Object.values(chains).find((c) => c.id === chainId) || chains.sepolia;
+    return (
+      Object.values(chains).find((c) => c.id === chainId) || chains.sepolia
+    );
   }, [chainId]);
-  
+
   // Get BTC address from connected wallet
   const btcAddress = useMemo(() => {
     return btcConnector?.connectedWallet?.account?.address;
   }, [btcConnector]);
-  
+
   // Fetch UTXOs and calculate BTC balance
   const { confirmedUTXOs } = useUTXOs(btcAddress);
   const btcBalanceSat = useMemo(
     () => calculateBalance(confirmedUTXOs),
     [confirmedUTXOs],
   );
-  
+
   // Fetch vault providers from API
   const { providers } = useVaultProviders();
 
@@ -78,21 +88,22 @@ export function VaultOverviewPanel() {
   const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
     if (selectedProviders.length === 0 || providers.length === 0) {
       return {
-        selectedProviderBtcPubkey: '',
+        selectedProviderBtcPubkey: "",
         liquidatorBtcPubkeys: [],
       };
     }
-    
-    // Find the selected provider by ETH address 
+
+    // Find the selected provider by ETH address
     const selectedProvider = providers.find(
-      (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase()
+      (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
     );
-    
+
     // Extract BTC public keys from liquidator objects
-    const liquidators = selectedProvider?.liquidators?.map(liq => liq.btc_pub_key) || [];
-    
+    const liquidators =
+      selectedProvider?.liquidators?.map((liq) => liq.btc_pub_key) || [];
+
     return {
-      selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || '',
+      selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || "",
       liquidatorBtcPubkeys: liquidators,
     };
   }, [selectedProviders, providers]);

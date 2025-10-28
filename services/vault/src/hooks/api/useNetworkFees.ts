@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+
 import { getNetworkFees } from "../../utils/mempoolApi";
 
 export const NETWORK_FEES_KEY = "NETWORK_FEES";

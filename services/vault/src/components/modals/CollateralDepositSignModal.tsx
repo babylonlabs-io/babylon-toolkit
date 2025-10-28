@@ -9,7 +9,8 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
-import type { Address, WalletClient, Chain } from "viem";
+import type { Address, Chain, WalletClient } from "viem";
+
 import { useDepositFlow } from "../../hooks/useDepositFlow";
 import { addPendingPegin } from "../../storage/peginStorage";
 
@@ -40,37 +41,34 @@ export function CollateralDepositSignModal({
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
 }: CollateralDepositSignModalProps) {
-  const {
-    executeDepositFlow,
-    currentStep,
-    processing,
-    error,
-  } = useDepositFlow({
-    walletClient,
-    chain,
-    amount,
-    btcWalletProvider,
-    depositorEthAddress,
-    selectedProviders,
-    vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
-    onSuccess: (btcTxid, ethTxHash) => {
-      // Store pegin in localStorage for tracking
-      if (depositorEthAddress) {
-        addPendingPegin(depositorEthAddress, {
-          id: ethTxHash,
-          btcTxHash: btcTxid,
-          amount: amount.toString(),
-          providers: selectedProviders,
-          ethAddress: depositorEthAddress,
-          btcAddress: '', // Will be populated when needed
-        });
-      }
+  const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
+    {
+      walletClient,
+      chain,
+      amount,
+      btcWalletProvider,
+      depositorEthAddress,
+      selectedProviders,
+      vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys,
+      onSuccess: (btcTxid, ethTxHash) => {
+        // Store pegin in localStorage for tracking
+        if (depositorEthAddress) {
+          addPendingPegin(depositorEthAddress, {
+            id: ethTxHash,
+            btcTxHash: btcTxid,
+            amount: amount.toString(),
+            providers: selectedProviders,
+            ethAddress: depositorEthAddress,
+            btcAddress: "", // Will be populated when needed
+          });
+        }
 
-      // Call parent success handler
-      onSuccess(btcTxid, ethTxHash);
+        // Call parent success handler
+        onSuccess(btcTxid, ethTxHash);
+      },
     },
-  });
+  );
 
   // Execute flow when modal opens
   useEffect(() => {

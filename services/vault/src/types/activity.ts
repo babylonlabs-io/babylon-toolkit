@@ -94,4 +94,3 @@ export interface Activity {
   amount: string;
   transactionHash: string;
 }
-
