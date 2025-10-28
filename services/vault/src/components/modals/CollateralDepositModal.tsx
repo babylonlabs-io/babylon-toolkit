@@ -20,8 +20,6 @@ interface CollateralDepositModalProps {
   onDeposit: (amount: number, providers: string[]) => void;
   btcBalance?: number | bigint; // in satoshis
   btcPrice?: number; // USD price per BTC
-  btcWalletConnected?: boolean; // Whether BTC wallet is connected
-  ethWalletConnected?: boolean; // Whether ETH wallet is connected
 }
 
 // Helper function to convert satoshis to BTC
@@ -35,8 +33,6 @@ export function CollateralDepositModal({
   onDeposit,
   btcBalance, // Use actual wallet balance
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
-  btcWalletConnected = false,
-  ethWalletConnected = false,
 }: CollateralDepositModalProps) {
   const [amount, setAmount] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
@@ -47,9 +43,6 @@ export function CollateralDepositModal({
     loading: isLoadingProviders,
     error: providersError,
   } = useVaultProviders();
-
-  // Check if both wallets are connected
-  const walletsConnected = btcWalletConnected && ethWalletConnected;
 
   // Conversion and validation
   const btcBalanceFormatted = useMemo(() => {
@@ -69,8 +62,7 @@ export function CollateralDepositModal({
     return `$${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [amountNum, btcPrice]);
 
-  const isValid =
-    amountNum > 0 && selectedProviders.length > 0 && walletsConnected;
+  const isValid = amountNum > 0 && selectedProviders.length > 0;
 
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
@@ -213,21 +205,10 @@ export function CollateralDepositModal({
         </div>
       </DialogBody>
 
-      <DialogFooter className="flex flex-col items-stretch gap-2 pb-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <Text variant="body2" className="text-sm text-accent-secondary">
-            {selectedProviders.length} Selected
-          </Text>
-          {!walletsConnected && (
-            <Text variant="body2" className="text-error text-xs">
-              {!btcWalletConnected && !ethWalletConnected
-                ? "Please connect both BTC and ETH wallets"
-                : !btcWalletConnected
-                  ? "Please connect BTC wallet"
-                  : "Please connect ETH wallet"}
-            </Text>
-          )}
-        </div>
+      <DialogFooter className="flex items-center justify-between pb-6">
+        <Text variant="body2" className="text-sm text-accent-secondary">
+          {selectedProviders.length} Selected
+        </Text>
         <Button
           variant="contained"
           color="primary"

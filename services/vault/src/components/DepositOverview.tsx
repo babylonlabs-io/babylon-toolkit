@@ -22,6 +22,7 @@ import {
 import type { Deposit } from "../types/vault";
 
 // Hardcoded deposit data
+// TODO: Replace with useVaultPositions when wallet providers are integrated
 const HARDCODED_DEPOSITS: Deposit[] = [
   {
     id: "1",
@@ -149,7 +150,6 @@ export function DepositOverview() {
       header: "Status",
       render: (_value: unknown, row: Deposit) => {
         const statusMap = {
-          // Hardcoded statuses for now
           Available: "inactive" as const,
           Pending: "pending" as const,
           "In Use": "active" as const,

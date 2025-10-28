@@ -6,6 +6,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "@/components/NotificationContainer";
+import { ErrorProvider } from "@/context/Error/ErrorProvider";
+import { AppState } from "@/state/AppState";
 
 import { wagmiConfig } from "./config/appkit";
 
@@ -30,7 +32,9 @@ function Providers({ children }: React.PropsWithChildren) {
             <div ref={appRootRef} className="min-h-screen">
               <WagmiProvider config={wagmiConfig}>
                 <QueryClientProvider client={client}>
-                  {children}
+                  <ErrorProvider>
+                    <AppState>{children}</AppState>
+                  </ErrorProvider>
                   <ReactQueryDevtools
                     buttonPosition="bottom-left"
                     initialIsOpen={false}

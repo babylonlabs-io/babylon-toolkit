@@ -1,10 +1,6 @@
 import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
-import * as chains from "viem/chains";
-import { useAccount, useChainId, useWalletClient } from "wagmi";
 
-import { calculateBalance, useUTXOs } from "../hooks/useUTXOs";
 import { useVaultProviders } from "../hooks/useVaultProviders";
 import {
   useVaultDepositState,
@@ -33,35 +29,19 @@ import {
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
 
-  // Get wallet connections
-  const btcConnector = useChainConnector("BTC");
-  const btcWalletProvider = useMemo(() => {
-    return btcConnector?.connectedWallet?.provider || null;
-  }, [btcConnector]);
-  const { address: ethAddress } = useAccount();
+  // TODO: Uncomment when wallet providers are added
+  // const btcConnector = useChainConnector("BTC");
+  // const btcWalletProvider = btcConnector?.connectedWallet?.provider || null;
+  // const { address: ethAddress } = useAccount();
+  // const { confirmedUTXOs } = useUTXOs(btcAddress);
+  // const btcBalanceSat = calculateBalance(confirmedUTXOs);
 
-  // Get ETH wallet client and chain for transactions
-  const { data: walletClient } = useWalletClient();
-  const chainId = useChainId();
-  const chain = useMemo(() => {
-    return (
-      Object.values(chains).find((c) => c.id === chainId) || chains.sepolia
-    );
-  }, [chainId]);
+  // Temporary mock data
+  const btcWalletProvider = null;
+  const ethAddress = undefined;
+  const btcBalanceSat = 0;
 
-  // Get BTC address from connected wallet
-  const btcAddress = useMemo(() => {
-    return btcConnector?.connectedWallet?.account?.address;
-  }, [btcConnector]);
-
-  // Fetch UTXOs and calculate BTC balance
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
-  const btcBalanceSat = useMemo(
-    () => calculateBalance(confirmedUTXOs),
-    [confirmedUTXOs],
-  );
-
-  // Fetch vault providers from API
+  // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();
 
   // Deposit flow state
@@ -174,8 +154,6 @@ export function VaultOverviewPanel() {
             onClose={resetDeposit}
             onDeposit={handleDeposit}
             btcBalance={btcBalanceSat}
-            btcWalletConnected={!!btcWalletProvider}
-            ethWalletConnected={!!ethAddress}
           />
         )}
         {depositStep === VaultDepositStep.REVIEW && (
@@ -192,8 +170,6 @@ export function VaultOverviewPanel() {
             open
             onClose={resetDeposit}
             onSuccess={handleDepositSignSuccess}
-            walletClient={walletClient}
-            chain={chain}
             amount={depositAmount}
             btcWalletProvider={btcWalletProvider}
             depositorEthAddress={ethAddress}
@@ -278,8 +254,6 @@ export function VaultOverviewPanel() {
           onClose={resetDeposit}
           onDeposit={handleDeposit}
           btcBalance={btcBalanceSat}
-          btcWalletConnected={!!btcWalletProvider}
-          ethWalletConnected={!!ethAddress}
         />
       )}
       {depositStep === VaultDepositStep.REVIEW && (
@@ -296,8 +270,6 @@ export function VaultOverviewPanel() {
           open
           onClose={resetDeposit}
           onSuccess={handleDepositSignSuccess}
-          walletClient={walletClient}
-          chain={chain}
           amount={depositAmount}
           btcWalletProvider={btcWalletProvider}
           depositorEthAddress={ethAddress}

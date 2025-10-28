@@ -9,7 +9,7 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
-import type { Address, Chain, WalletClient } from "viem";
+import type { Address } from "viem";
 
 import { useDepositFlow } from "../../hooks/useDepositFlow";
 import { addPendingPegin } from "../../storage/peginStorage";
@@ -18,8 +18,6 @@ interface CollateralDepositSignModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (btcTxid: string, ethTxHash: string) => void;
-  walletClient: WalletClient | undefined;
-  chain: Chain;
   amount: number;
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
@@ -32,8 +30,6 @@ export function CollateralDepositSignModal({
   open,
   onClose,
   onSuccess,
-  walletClient,
-  chain,
   amount,
   btcWalletProvider,
   depositorEthAddress,
@@ -43,8 +39,6 @@ export function CollateralDepositSignModal({
 }: CollateralDepositSignModalProps) {
   const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
     {
-      walletClient,
-      chain,
       amount,
       btcWalletProvider,
       depositorEthAddress,

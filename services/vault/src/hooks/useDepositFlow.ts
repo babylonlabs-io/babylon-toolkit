@@ -6,21 +6,19 @@
  */
 
 import { useCallback, useState } from "react";
-import type { Address, Chain, WalletClient } from "viem";
+import type { Address } from "viem";
 
-import { CONTRACTS } from "../config/contracts";
 import { createProofOfPossession } from "../services/vault/vaultProofOfPossessionService";
-import { submitPeginRequest } from "../services/vault/vaultTransactionService";
-import { processPublicKeyToXOnly } from "../utils/btcUtils";
+// import { processPublicKeyToXOnly } from "../utils/btcUtils";
 import { SATOSHIS_PER_BTC } from "../utils/peginTransformers";
 
-import { selectUTXOForPegin, useUTXOs } from "./useUTXOs";
+import { useUTXOs } from "./useUTXOs";
 
 /**
  * Default fee for pegin transactions (10,000 sats = ~$10 at $100k BTC)
  * This is a conservative estimate that should cover most transaction fees
  */
-const DEFAULT_PEGIN_FEE = 10_000n;
+// const DEFAULT_PEGIN_FEE = 10_000n;
 
 /**
  * TODO: Replace with proper error handling and logging from shared infrastructure
@@ -54,10 +52,6 @@ interface BtcWalletProvider {
 }
 
 export interface UseDepositFlowParams {
-  /** Wagmi wallet client for ETH transactions */
-  walletClient: WalletClient | undefined;
-  /** ETH chain configuration */
-  chain: Chain;
   /** Amount to deposit in BTC */
   amount: number;
   /** BTC wallet provider */
@@ -70,7 +64,7 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   /** Liquidator BTC public keys (from API) */
   liquidatorBtcPubkeys: string[];
-  /** Callback on successful deposit */
+  /** Callback on successful deposit - TODO: Re-enable when wallet providers added */
   onSuccess?: (btcTxid: string, ethTxHash: string, btcTxHex: string) => void;
 }
 
@@ -94,15 +88,13 @@ export interface UseDepositFlowReturn {
  * 3. Complete and call success callback
  */
 export function useDepositFlow({
-  walletClient,
-  chain,
   amount,
   btcWalletProvider,
   depositorEthAddress,
   selectedProviders,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
-  onSuccess,
+  // onSuccess - TODO: Re-enable when wallet providers added
 }: UseDepositFlowParams): UseDepositFlowReturn {
   const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
@@ -118,9 +110,6 @@ export function useDepositFlow({
 
     try {
       // Validate prerequisites
-      if (!walletClient) {
-        throw new Error("ETH wallet client not available");
-      }
       if (!btcWalletProvider) {
         throw new Error("BTC wallet not connected");
       }
@@ -174,52 +163,58 @@ export function useDepositFlow({
         provider: selectedProvider,
       });
 
+      // TODO: Re-enable when wallet providers are added
       // Get depositor's BTC public key and convert to x-only format
-      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+      // const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      // const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
       // Select suitable UTXO (using default fee)
-      const requiredAmount = pegInAmountSats + DEFAULT_PEGIN_FEE;
-      const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
+      // const requiredAmount = pegInAmountSats + DEFAULT_PEGIN_FEE;
+      // const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
 
-      if (!selectedUTXO) {
-        throw new Error(
-          `No suitable UTXO found. Required: ${requiredAmount} sats. Please ensure you have enough confirmed BTC.`,
-        );
-      }
+      // if (!selectedUTXO) {
+      //   throw new Error(
+      //     `No suitable UTXO found. Required: ${requiredAmount} sats. Please ensure you have enough confirmed BTC.`,
+      //   );
+      // }
 
       // Submit to smart contract with provider and liquidator data from API
-      const result = await submitPeginRequest(
-        walletClient,
-        chain,
-        CONTRACTS.VAULT_CONTROLLER,
-        depositorBtcPubkey,
-        pegInAmountSats,
-        {
-          fundingTxid: selectedUTXO.txid,
-          fundingVout: selectedUTXO.vout,
-          fundingValue: BigInt(selectedUTXO.value),
-          fundingScriptPubkey: selectedUTXO.scriptPubKey,
-        },
-        selectedProvider,
-        vaultProviderBtcPubkey,
-        liquidatorBtcPubkeys,
+      throw new Error(
+        "Wallet providers not yet integrated. This feature will be available soon.",
       );
 
+      // const result = await submitPeginRequest(
+      //   walletClient,
+      //   chain,
+      //   CONTRACTS.VAULT_CONTROLLER,
+      //   depositorBtcPubkey,
+      //   pegInAmountSats,
+      //   {
+      //     fundingTxid: selectedUTXO.txid,
+      //     fundingVout: selectedUTXO.vout,
+      //     fundingValue: BigInt(selectedUTXO.value),
+      //     fundingScriptPubkey: selectedUTXO.scriptPubKey,
+      //   },
+      //   selectedProvider,
+      //   vaultProviderBtcPubkey,
+      //   liquidatorBtcPubkeys,
+      // );
+
+      // TODO: Re-enable when wallet providers are added
       // Step 3: Complete
-      setCurrentStep(3);
-      logger.info("Deposit request submitted successfully", {
-        category: "vault-deposit",
-        btcTxid: result.btcTxid,
-        ethTxHash: result.transactionHash,
-      });
+      // setCurrentStep(3);
+      // logger.info("Deposit request submitted successfully", {
+      //   category: "vault-deposit",
+      //   btcTxid: result.btcTxid,
+      //   ethTxHash: result.transactionHash,
+      // });
 
-      setProcessing(false);
+      // setProcessing(false);
 
-      // Call success callback
-      if (onSuccess) {
-        onSuccess(result.btcTxid, result.transactionHash, result.btcTxHex);
-      }
+      // // Call success callback
+      // if (onSuccess) {
+      //   onSuccess(result.btcTxid, result.transactionHash, result.btcTxHex);
+      // }
     } catch (err) {
       const error =
         err instanceof Error
@@ -238,9 +233,8 @@ export function useDepositFlow({
       setError(error.message);
       setProcessing(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    walletClient,
-    chain,
     amount,
     btcWalletProvider,
     depositorEthAddress,
@@ -248,7 +242,6 @@ export function useDepositFlow({
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
     confirmedUTXOs,
-    onSuccess,
     currentStep,
   ]);
 
