@@ -91,7 +91,6 @@ export function RedeemCollateralModal({
           sliderSteps={redeemSteps}
           onSliderChange={setRedeemAmount}
           onSliderStepsChange={(selectedSteps) => {
-            console.log("Redeem Collateral - Selected steps:", selectedSteps);
             // Handle cumulative step selection here
           }}
           sliderVariant="primary"

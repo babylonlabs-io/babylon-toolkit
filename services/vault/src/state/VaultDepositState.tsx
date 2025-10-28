@@ -46,30 +46,20 @@ export function VaultDepositState({ children }: PropsWithChildren) {
   const [processing, setProcessing] = useState(false);
 
   const goToStep = useCallback((newStep: VaultDepositStep) => {
-    console.log("[VaultDepositState] Navigating to step:", newStep);
     setStep(newStep);
   }, []);
 
   const setDepositData = useCallback((amount: bigint, providers: string[]) => {
-    console.log("[VaultDepositState] Setting deposit data:", {
-      amount: amount.toString(),
-      providers,
-    });
     setDepositAmount(amount);
     setSelectedProviders(providers);
   }, []);
 
   const setTransactionHashes = useCallback((btc: string, eth: string) => {
-    console.log("[VaultDepositState] Setting transaction hashes:", {
-      btc,
-      eth,
-    });
     setBtcTxid(btc);
     setEthTxHash(eth);
   }, []);
 
   const reset = useCallback(() => {
-    console.log("[VaultDepositState] Resetting state");
     setStep(undefined);
     setDepositAmount(0n);
     setSelectedProviders([]);
