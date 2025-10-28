@@ -132,19 +132,12 @@ export async function redeemVault(
     );
   }
 
-  // Step 3: Get vault provider's BTC public key (they are the ones who can claim BTC)
-  const vaultProviderBtcKey = await BTCVaultsManager.getProviderBTCKey(
-    CONTRACTS.BTC_VAULTS_MANAGER,
-    vault.vaultProvider
-  );
-
-  // Step 4: Execute redeem transaction with vault provider's BTC key as redeemer
-  return VaultControllerTx.redeemBTCVault(
+  // Step 3: Execute redeem transaction (redeemer key is automatically inferred from vault provider)
+  return VaultControllerTx.depositorRedeemBTCVault(
     walletClient,
     chain,
     vaultControllerAddress,
-    pegInTxHash,
-    [vaultProviderBtcKey] // redeemerPKs - vault provider can claim the BTC
+    pegInTxHash
   );
 }
 

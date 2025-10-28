@@ -317,10 +317,11 @@ export async function withdrawCollateralFromPosition(
 }
 
 /**
- * Redeem BTC vault (withdraw BTC back to user's account)
+ * Depositor redeems BTC vault (withdraw BTC back to depositor's account)
  *
- * This unlocks and withdraws the BTC collateral from an available vault back to the user's Bitcoin address.
+ * This unlocks and withdraws the BTC collateral from an available vault back to the depositor's Bitcoin address.
  * Can only be called on vaults that are in "Available" status (not locked in a position).
+ * The redeemer public key (vault provider's BTC key) is automatically inferred from the vault.
  *
  * Emits VaultRedeemable event which signals the vault system to release the BTC.
  *
@@ -328,15 +329,13 @@ export async function withdrawCollateralFromPosition(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
- * @param redeemerPKs - Array of redeemer public keys (x-only, 32 bytes each)
  * @returns Transaction hash and receipt
  */
-export async function redeemBTCVault(
+export async function depositorRedeemBTCVault(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
   pegInTxHash: Hex,
-  redeemerPKs: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
 
@@ -344,8 +343,8 @@ export async function redeemBTCVault(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: 'redeemBTCVault',
-      args: [pegInTxHash, redeemerPKs],
+      functionName: 'depositorRedeemBTCVault',
+      args: [pegInTxHash],
       chain,
       account: walletClient.account!,
     });
