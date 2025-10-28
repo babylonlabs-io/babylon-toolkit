@@ -43,25 +43,19 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
   const [processing, setProcessing] = useState(false);
 
   const goToStep = useCallback((newStep: VaultRedeemStep) => {
-    console.log("[VaultRedeemState] Navigating to step:", newStep);
     setStep(newStep);
   }, []);
 
   const setRedeemData = useCallback((depositIds: string[]) => {
-    console.log("[VaultRedeemState] Setting redeem data:", {
-      depositIds,
-    });
     setRedeemDepositIds(depositIds);
   }, []);
 
   const setTransactionHashes = useCallback((btc: string, eth: string) => {
-    console.log("[VaultRedeemState] Setting transaction hashes:", { btc, eth });
     setBtcTxid(btc);
     setEthTxHash(eth);
   }, []);
 
   const reset = useCallback(() => {
-    console.log("[VaultRedeemState] Resetting state");
     setStep(undefined);
     setRedeemDepositIds([]);
     setBtcTxid("");

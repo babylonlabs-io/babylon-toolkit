@@ -41,8 +41,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
     return parsed;
-  } catch (error) {
-    console.error("[peginStorage] Failed to parse pending pegins:", error);
+  } catch {
     return [];
   }
 }
@@ -59,8 +58,8 @@ export function savePendingPegins(
   try {
     const key = getStorageKey(ethAddress);
     localStorage.setItem(key, JSON.stringify(pegins));
-  } catch (error) {
-    console.error("[peginStorage] Failed to save pending pegins:", error);
+  } catch {
+    // Silent failure - localStorage might be unavailable
   }
 }
 
@@ -153,7 +152,7 @@ export function clearPendingPegins(ethAddress: string): void {
   try {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
-  } catch (error) {
-    console.error("[peginStorage] Failed to clear pending pegins:", error);
+  } catch {
+    // Silent failure - localStorage might be unavailable
   }
 }

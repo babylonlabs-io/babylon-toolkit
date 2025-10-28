@@ -90,7 +90,7 @@ export function RedeemCollateralModal({
           sliderStep={availableBtc / 1000}
           sliderSteps={redeemSteps}
           onSliderChange={setRedeemAmount}
-          onSliderStepsChange={(selectedSteps) => {
+          onSliderStepsChange={() => {
             // Handle cumulative step selection here
           }}
           sliderVariant="primary"

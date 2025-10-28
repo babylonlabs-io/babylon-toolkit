@@ -109,12 +109,6 @@ export function useDepositFlow({
       }
       setBtcAddress(address);
 
-      // Use first selected provider for now (multi-provider support TBD)
-      const selectedProvider = selectedProviders[0] as Address;
-
-      // Amount is already in satoshis (bigint)
-      const pegInAmountSats = amount;
-
       // Step 1: Create proof of possession
       setCurrentStep(1);
 

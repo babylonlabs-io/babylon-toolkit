@@ -55,28 +55,18 @@ export function RedeemCollateralSignModal({
     try {
       // Step 1: Simulate proof of possession
       setCurrentStep(1);
-      console.log(
-        "[RedeemCollateralSignModal] Step 1: Creating proof of possession...",
-      );
       await delay(2000);
 
       // Step 2: Simulate transaction submission
       setCurrentStep(2);
-      console.log(
-        "[RedeemCollateralSignModal] Step 2: Submitting redemption request to Vault Controller...",
-      );
       await delay(2000);
 
       // Step 3: Simulate validation
       setCurrentStep(3);
-      console.log(
-        "[RedeemCollateralSignModal] Step 3: Validating transaction...",
-      );
       await delay(2000);
 
       // Step 4: Complete
       setCurrentStep(4);
-      console.log("[RedeemCollateralSignModal] Step 4: Complete!");
       await delay(1000);
 
       setProcessing(false);
@@ -84,14 +74,9 @@ export function RedeemCollateralSignModal({
       // Call success callback with mock transaction IDs
       const mockBtcTxid = `mock-btc-txid-${Date.now()}`;
       const mockEthTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
-      console.log("[RedeemCollateralSignModal] Redemption successful:", {
-        mockBtcTxid,
-        mockEthTxHash,
-      });
 
       onSuccess(mockBtcTxid, mockEthTxHash);
     } catch (err) {
-      console.error("[RedeemCollateralSignModal] Redemption failed:", err);
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       setProcessing(false);
     }
