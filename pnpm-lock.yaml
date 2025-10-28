@@ -444,6 +444,9 @@ importers:
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
+      '@cosmjs/proto-signing':
+        specifier: 0.36.0
+        version: 0.36.0
       '@cosmjs/stargate':
         specifier: 0.36.0
         version: 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)

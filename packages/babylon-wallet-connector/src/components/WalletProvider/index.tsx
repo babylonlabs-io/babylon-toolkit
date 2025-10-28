@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren } from "react";
+import { useEffect, useMemo, type PropsWithChildren } from "react";
 
 import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
@@ -6,6 +6,8 @@ import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
+import { initializeAppKitModal } from "@/core/wallets/eth/appkit/appKitModal";
+import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -35,6 +37,25 @@ export function WalletProvider({
   requiredChains,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
+
+  // Ensure AppKit is initialized once when ETH chain is enabled
+  useEffect(() => {
+    try {
+      const hasETH = config?.some((c) => c.chain === "ETH");
+      if (hasETH) {
+        initializeAppKitModal({
+          themeMode: theme === "dark" ? "dark" : "light",
+        });
+      }
+    } catch (error) {
+      // Non-fatal; ETH flow will fallback to direct WalletConnect in provider
+       
+      console.error("Failed to initialize AppKit modal:", error);
+    }
+  }, [config, theme]);
+
+  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+  useAppKitOpenListener();
 
   return (
     <TomoConnectionProvider theme={theme} config={config}>

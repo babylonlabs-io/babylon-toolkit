@@ -7,6 +7,8 @@ import {
 import { Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { Connect } from "../Wallet";
+
 export default function RootLayout() {
   const isMobile = useIsMobile();
 
@@ -20,16 +22,7 @@ export default function RootLayout() {
       )}
     >
       <div className="flex min-h-svh flex-col">
-        <Header
-          size="sm"
-          rightActions={
-            <div className="flex items-center gap-2">
-              connect wallet button here
-              {/* TODO: Add vault-specific wallet Connect button */}
-              {/* Will support BTC + ETH wallets */}
-            </div>
-          }
-        />
+        <Header size="sm" rightActions={<Connect />} />
         <Outlet />
         <div className="mt-auto">
           <Footer

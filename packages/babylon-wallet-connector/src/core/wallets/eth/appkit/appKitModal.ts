@@ -19,6 +19,15 @@ interface AppKitModalConfig {
     };
     featuredWalletIds?: string[];
     networks?: any[];
+    enableWalletConnect?: boolean;
+    features?: {
+        email?: boolean;
+        socials?: false | string[];
+        analytics?: boolean;
+        swaps?: boolean;
+        onramp?: boolean;
+    };
+    allWallets?: 'SHOW' | 'HIDE' | 'ONLY_MOBILE';
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
@@ -122,7 +131,7 @@ export function initializeAppKitModal(config?: AppKitModalConfig) {
         featuredWalletIds: config?.featuredWalletIds || [
             "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
         ],
-    } as any);
+    });
 
     // Set the shared wagmi config for the wallet-connector AppKitProvider
     // This prevents multiple WalletConnect initializations

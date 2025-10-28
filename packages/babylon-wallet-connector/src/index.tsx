@@ -2,6 +2,10 @@ import "./index.css";
 
 export { ExternalWallets } from "@/components/ExternalWallets";
 export { WalletProvider } from "@/components/WalletProvider";
+export { createWalletConfig } from "@/utils/configBuilder";
+export type { WalletConfigOptions } from "@/utils/configBuilder";
+
+export * from "@/providers";
 
 export { useChainConnector } from "@/hooks/useChainConnector";
 export { useWalletConnect } from "@/hooks/useWalletConnect";

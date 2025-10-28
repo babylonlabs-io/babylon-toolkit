@@ -1,14 +1,16 @@
 import { CoreUIProvider, ScrollLocker } from "@babylonlabs-io/core-ui";
+import {
+  BTCWalletProvider,
+  ETHWalletProvider,
+} from "@babylonlabs-io/wallet-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "@/components/NotificationContainer";
+import { VaultWalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
-
-import { wagmiConfig } from "./config/appkit";
 
 function Providers({ children }: React.PropsWithChildren) {
   const [client] = useState(new QueryClient());
@@ -29,15 +31,19 @@ function Providers({ children }: React.PropsWithChildren) {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
-              <WagmiProvider config={wagmiConfig}>
-                <QueryClientProvider client={client}>
-                  <AppState>{children}</AppState>
-                  <ReactQueryDevtools
-                    buttonPosition="bottom-left"
-                    initialIsOpen={false}
-                  />
-                </QueryClientProvider>
-              </WagmiProvider>
+              <QueryClientProvider client={client}>
+                <VaultWalletConnectionProvider>
+                  <BTCWalletProvider>
+                    <ETHWalletProvider>
+                      <AppState>{children}</AppState>
+                    </ETHWalletProvider>
+                  </BTCWalletProvider>
+                </VaultWalletConnectionProvider>
+                <ReactQueryDevtools
+                  buttonPosition="bottom-left"
+                  initialIsOpen={false}
+                />
+              </QueryClientProvider>
               <NotificationContainer />
             </div>
           </CoreUIProvider>

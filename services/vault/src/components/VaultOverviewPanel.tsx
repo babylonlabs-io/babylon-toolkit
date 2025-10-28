@@ -1,6 +1,10 @@
 import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
+import type { Address } from "viem";
 
+import { useBTCWallet, useETHWallet } from "../context/wallet";
+import { calculateBalance, useUTXOs } from "../hooks/useUTXOs";
 import { useVaultProviders } from "../hooks/useVaultProviders";
 import {
   useVaultDepositState,
@@ -29,17 +33,17 @@ import {
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
 
-  // TODO: Uncomment when wallet providers are added
-  // const btcConnector = useChainConnector("BTC");
-  // const btcWalletProvider = btcConnector?.connectedWallet?.provider || null;
-  // const { address: ethAddress } = useAccount();
-  // const { confirmedUTXOs } = useUTXOs(btcAddress);
-  // const btcBalanceSat = calculateBalance(confirmedUTXOs);
+  // Wallet providers
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider = btcConnector?.connectedWallet?.provider || null;
+  const { address: btcAddress } = useBTCWallet();
+  const { address: ethAddressRaw } = useETHWallet();
+  const ethAddress = ethAddressRaw as Address | undefined;
+  const { confirmedUTXOs } = useUTXOs(btcAddress);
 
-  // Temporary mock data
-  const btcWalletProvider = null;
-  const ethAddress = undefined;
-  const btcBalanceSat = 0n;
+  const btcBalanceSat = useMemo(() => {
+    return BigInt(calculateBalance(confirmedUTXOs || []));
+  }, [confirmedUTXOs]);
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();

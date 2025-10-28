@@ -22,3 +22,4 @@ export const NavItem = ({ title, href, onClick, isActive }: NavItemProps) => {
   );
 };
 
+
