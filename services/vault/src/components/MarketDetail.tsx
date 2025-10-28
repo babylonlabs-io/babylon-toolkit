@@ -28,7 +28,7 @@ export function MarketDetail() {
   const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
   const handleBack = () => {
-    navigate("/");
+    navigate("/vault");
   };
 
   // Hardcoded data

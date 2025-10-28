@@ -1,12 +1,11 @@
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useState } from "react";
-import { Card } from "@babylonlabs-io/core-ui";
+import { Card, Container } from "@babylonlabs-io/core-ui";
 
 import { DelegationState } from "@/ui/baby/state/DelegationState";
 import { StakingState } from "@/ui/baby/state/StakingState";
 import { ValidatorState } from "@/ui/baby/state/ValidatorState";
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
-import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
 import { FAQ } from "@/ui/common/components/FAQ/FAQ";
 import { Section } from "@/ui/common/components/Section/Section";

@@ -1,4 +1,9 @@
-import { useIsMobile } from "@babylonlabs-io/core-ui";
+import {
+  DEFAULT_SOCIAL_LINKS,
+  Footer,
+  Header,
+  useIsMobile,
+} from "@babylonlabs-io/core-ui";
 import { Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
@@ -15,7 +20,23 @@ export default function RootLayout() {
       )}
     >
       <div className="flex min-h-svh flex-col">
+        <Header
+          size="sm"
+          rightActions={
+            <div className="flex items-center gap-2">
+              connect wallet button here
+              {/* TODO: Add vault-specific wallet Connect button */}
+              {/* Will support BTC + ETH wallets */}
+            </div>
+          }
+        />
         <Outlet />
+        <div className="mt-auto">
+          <Footer
+            socialLinks={DEFAULT_SOCIAL_LINKS}
+            copyrightYear={new Date().getFullYear()}
+          />
+        </div>
       </div>
     </div>
   );
