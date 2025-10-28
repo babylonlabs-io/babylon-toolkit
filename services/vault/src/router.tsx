@@ -8,7 +8,7 @@ import { VaultLayout } from "./components/pages/VaultLayout";
 export const Router = () => {
   return (
     <Routes>
-      <Route path="/" element={<Layout />}>
+      <Route path="/vault" element={<Layout />}>
         <Route index element={<VaultLayout />} />
         <Route path="market/:marketId" element={<MarketDetailPage />} />
       </Route>

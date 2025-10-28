@@ -6,12 +6,12 @@ import {
   CoStakingRewardsSubsection,
   RewardsPreviewModal,
   TokenReward,
+  Container,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { Container } from "@/ui/common/components/Container/Container";
 import { Content } from "@/ui/common/components/Content/Content";
 import { Section } from "@/ui/common/components/Section/Section";
 import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";

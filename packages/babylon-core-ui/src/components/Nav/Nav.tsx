@@ -11,3 +11,4 @@ export const Nav = ({ children }: NavProps) => {
     </nav>
   );
 };
+

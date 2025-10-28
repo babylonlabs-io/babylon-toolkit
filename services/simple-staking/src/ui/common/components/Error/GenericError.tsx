@@ -1,11 +1,10 @@
-import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
+import { Button, Heading, Text, Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import BitcoinBlock from "@/ui/common/assets/bitcoin-block.svg";
-import { Container } from "@/ui/common/components/Container/Container";
 
 import { Footer } from "../Footer/Footer";
-import { SimplifiedHeader } from "../Header/SimplifiedHeader";
+import { Header } from "../Header/Header";
 
 interface Props {
   title?: string;
@@ -24,7 +23,7 @@ export default function GenericError({
 
   return (
     <div className="flex h-full min-h-svh w-full flex-col justify-between">
-      <SimplifiedHeader />
+      <Header />
 
       <Container className="px-6 py-12">
         <div className="flex flex-col items-center justify-center gap-8">
