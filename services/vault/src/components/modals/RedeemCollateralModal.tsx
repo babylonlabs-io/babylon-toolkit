@@ -9,11 +9,16 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
+import {
+  btcNumberToSatoshi,
+  satoshiToBtcNumber,
+} from "../../utils/btcConversion";
+
 interface RedeemCollateralModalProps {
   open: boolean;
   onClose: () => void;
-  onRedeem: (amount: number) => void;
-  availableBalance?: number; // Total available BTC to redeem
+  onRedeem: (amount: bigint) => void;
+  availableBalance?: bigint;
   btcPrice?: number;
 }
 
@@ -21,15 +26,19 @@ export function RedeemCollateralModal({
   open,
   onClose,
   onRedeem,
-  availableBalance = 10.0, // Default 10 BTC available
+  availableBalance = 1000000000n, // Default 10 BTC in satoshis
   btcPrice = 112694.16,
 }: RedeemCollateralModalProps) {
   const [redeemAmount, setRedeemAmount] = useState(0);
 
+  const availableBtc = useMemo(
+    () => satoshiToBtcNumber(availableBalance),
+    [availableBalance],
+  );
+
   // Hardcoded redeem step array for demonstration
   // Values represent BTC amounts
   const redeemSteps = useMemo(() => {
-    const availableBtc = availableBalance;
     return [
       { value: 0 },
       { value: availableBtc * 0.2 },
@@ -38,11 +47,12 @@ export function RedeemCollateralModal({
       { value: availableBtc * 0.8 },
       { value: availableBtc },
     ];
-  }, [availableBalance]);
+  }, [availableBtc]);
 
   const handleRedeem = () => {
     if (redeemAmount > 0) {
-      onRedeem(redeemAmount);
+      const amountSats = btcNumberToSatoshi(redeemAmount);
+      onRedeem(amountSats);
     }
   };
 
@@ -69,15 +79,15 @@ export function RedeemCollateralModal({
           currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
           balanceDetails={{
-            balance: availableBalance,
+            balance: availableBtc,
             symbol: "BTC",
             price: btcPrice,
             displayUSD: false,
           }}
           sliderValue={redeemAmount}
           sliderMin={0}
-          sliderMax={availableBalance}
-          sliderStep={availableBalance / 1000}
+          sliderMax={availableBtc}
+          sliderStep={availableBtc / 1000}
           sliderSteps={redeemSteps}
           onSliderChange={setRedeemAmount}
           onSliderStepsChange={(selectedSteps) => {
@@ -87,9 +97,9 @@ export function RedeemCollateralModal({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${availableBalance.toFixed(4)} BTC`,
+            value: `${availableBtc.toFixed(4)} BTC`,
           }}
-          onMaxClick={() => setRedeemAmount(availableBalance)}
+          onMaxClick={() => setRedeemAmount(availableBtc)}
           rightField={{
             value: `$${(redeemAmount * btcPrice).toLocaleString("en-US", {
               minimumFractionDigits: 2,

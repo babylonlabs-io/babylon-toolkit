@@ -10,15 +10,9 @@ import type { Address } from "viem";
 
 import { createProofOfPossession } from "../services/vault/vaultProofOfPossessionService";
 // import { processPublicKeyToXOnly } from "../utils/btcUtils";
-import { SATOSHIS_PER_BTC } from "../utils/peginTransformers";
+// import { estimatePeginFee } from "../utils/fee/peginFee";
 
 import { useUTXOs } from "./useUTXOs";
-
-/**
- * Default fee for pegin transactions (10,000 sats = ~$10 at $100k BTC)
- * This is a conservative estimate that should cover most transaction fees
- */
-// const DEFAULT_PEGIN_FEE = 10_000n;
 
 /**
  * TODO: Replace with proper error handling and logging from shared infrastructure
@@ -52,8 +46,8 @@ interface BtcWalletProvider {
 }
 
 export interface UseDepositFlowParams {
-  /** Amount to deposit in BTC */
-  amount: number;
+  /** Amount to deposit in satoshis (bigint) */
+  amount: bigint;
   /** BTC wallet provider */
   btcWalletProvider: BtcWalletProvider | null;
   /** Depositor's ETH address */
@@ -136,10 +130,8 @@ export function useDepositFlow({
       // Use first selected provider for now (multi-provider support TBD)
       const selectedProvider = selectedProviders[0] as Address;
 
-      // Convert amount from BTC to satoshis
-      const pegInAmountSats = BigInt(
-        Math.floor(amount * Number(SATOSHIS_PER_BTC)),
-      );
+      // Amount is already in satoshis (bigint)
+      const pegInAmountSats = amount;
 
       // Step 1: Create proof of possession
       setCurrentStep(1);
@@ -168,8 +160,11 @@ export function useDepositFlow({
       // const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
       // const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
-      // Select suitable UTXO (using default fee)
-      // const requiredAmount = pegInAmountSats + DEFAULT_PEGIN_FEE;
+      // TODO: Use estimatePeginFee from utils/fee/peginFee.ts
+      // Select suitable UTXO and estimate fee dynamically
+      // const feeRate = await getFeeRate(); // Fetch current network fee rate
+      // const estimatedFee = estimatePeginFee(pegInAmountSats, [selectedUTXO], feeRate);
+      // const requiredAmount = pegInAmountSats + estimatedFee;
       // const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
 
       // if (!selectedUTXO) {

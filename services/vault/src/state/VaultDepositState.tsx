@@ -13,12 +13,12 @@ export enum VaultDepositStep {
 interface VaultDepositState {
   step: VaultDepositStep | undefined;
   processing: boolean;
-  depositAmount: number;
+  depositAmount: bigint;
   selectedProviders: string[];
   btcTxid: string;
   ethTxHash: string;
   goToStep: (step: VaultDepositStep) => void;
-  setDepositData: (amount: number, providers: string[]) => void;
+  setDepositData: (amount: bigint, providers: string[]) => void;
   setTransactionHashes: (btcTxid: string, ethTxHash: string) => void;
   reset: () => void;
 }
@@ -27,7 +27,7 @@ const { StateProvider, useState: useVaultDepositState } =
   createStateUtils<VaultDepositState>({
     step: undefined,
     processing: false,
-    depositAmount: 0,
+    depositAmount: 0n,
     selectedProviders: [],
     btcTxid: "",
     ethTxHash: "",
@@ -39,7 +39,7 @@ const { StateProvider, useState: useVaultDepositState } =
 
 export function VaultDepositState({ children }: PropsWithChildren) {
   const [step, setStep] = useState<VaultDepositStep>();
-  const [depositAmount, setDepositAmount] = useState(0);
+  const [depositAmount, setDepositAmount] = useState(0n);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
@@ -50,9 +50,9 @@ export function VaultDepositState({ children }: PropsWithChildren) {
     setStep(newStep);
   }, []);
 
-  const setDepositData = useCallback((amount: number, providers: string[]) => {
+  const setDepositData = useCallback((amount: bigint, providers: string[]) => {
     console.log("[VaultDepositState] Setting deposit data:", {
-      amount,
+      amount: amount.toString(),
       providers,
     });
     setDepositAmount(amount);
@@ -71,7 +71,7 @@ export function VaultDepositState({ children }: PropsWithChildren) {
   const reset = useCallback(() => {
     console.log("[VaultDepositState] Resetting state");
     setStep(undefined);
-    setDepositAmount(0);
+    setDepositAmount(0n);
     setSelectedProviders([]);
     setBtcTxid("");
     setEthTxHash("");

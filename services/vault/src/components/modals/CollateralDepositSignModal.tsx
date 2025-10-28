@@ -18,7 +18,7 @@ interface CollateralDepositSignModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: (btcTxid: string, ethTxHash: string) => void;
-  amount: number;
+  amount: bigint; // in satoshis
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];

@@ -39,7 +39,7 @@ export function VaultOverviewPanel() {
   // Temporary mock data
   const btcWalletProvider = null;
   const ethAddress = undefined;
-  const btcBalanceSat = 0;
+  const btcBalanceSat = 0n;
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();
@@ -89,7 +89,7 @@ export function VaultOverviewPanel() {
   }, [selectedProviders, providers]);
 
   // Deposit flow handlers
-  const handleDeposit = (amount: number, providers: string[]) => {
+  const handleDeposit = (amount: bigint, providers: string[]) => {
     setDepositData(amount, providers);
     goToDepositStep(VaultDepositStep.REVIEW);
   };

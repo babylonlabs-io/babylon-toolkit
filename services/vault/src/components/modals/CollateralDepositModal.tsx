@@ -13,25 +13,30 @@ import {
 import { useMemo, useState } from "react";
 
 import { useVaultProviders } from "../../hooks/useVaultProviders";
+import {
+  btcStringToSatoshi,
+  satoshiToBtcNumber,
+} from "../../utils/btcConversion";
 
 interface CollateralDepositModalProps {
   open: boolean;
   onClose: () => void;
-  onDeposit: (amount: number, providers: string[]) => void;
-  btcBalance?: number | bigint; // in satoshis
+  onDeposit: (amount: bigint, providers: string[]) => void;
+  btcBalance?: bigint;
   btcPrice?: number; // USD price per BTC
 }
-
-// Helper function to convert satoshis to BTC
-const satoshiToBtc = (satoshi: number): number => {
-  return satoshi / 100000000;
-};
 
 export function CollateralDepositModal({
   open,
   onClose,
   onDeposit,
   btcBalance, // Use actual wallet balance
+  // TODO: Fetch BTC price from oracle service
+  // The price oracle is available at services/vault/src/clients/eth-contract/oracle
+  // - Use getOraclePrice(oracleAddress) to get price with 36 decimals
+  // - Use convertOraclePriceToUSD(oraclePrice) to convert to USD per BTC
+  // - Oracle address should be exposed via a service layer (not yet implemented)
+  // - Create a service in services/vault/src/services/oracle/ if it doesn't exist
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
 }: CollateralDepositModalProps) {
   const [amount, setAmount] = useState("");
@@ -47,9 +52,7 @@ export function CollateralDepositModal({
   // Conversion and validation
   const btcBalanceFormatted = useMemo(() => {
     if (btcBalance === undefined || btcBalance === null) return 0;
-    const balanceNum =
-      typeof btcBalance === "bigint" ? Number(btcBalance) : btcBalance;
-    return satoshiToBtc(balanceNum);
+    return satoshiToBtcNumber(btcBalance);
   }, [btcBalance]);
   const amountNum = useMemo(() => {
     const parsed = parseFloat(amount || "0");
@@ -88,7 +91,9 @@ export function CollateralDepositModal({
   // Handler: Deposit button click
   const handleDeposit = () => {
     if (isValid) {
-      onDeposit(amountNum, selectedProviders);
+      // Convert BTC string input to satoshis (bigint)
+      const amountSats = btcStringToSatoshi(amount);
+      onDeposit(amountSats, selectedProviders);
     }
   };
 
