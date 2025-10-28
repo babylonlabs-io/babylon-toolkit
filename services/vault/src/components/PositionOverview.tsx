@@ -27,9 +27,11 @@ export function PositionOverview() {
   const navigate = useNavigate();
   const positions = HARDCODED_POSITIONS;
 
-  const handlePositionClick = (position: Position) => {
-    // Navigate to market detail with repay tab
-    navigate(`/vault/market/${position.id}?tab=repay`);
+  const handlePositionClick = (position: Position | null) => {
+    if (position) {
+      // Navigate to market detail with repay tab
+      navigate(`/market/${position.id}?tab=repay`);
+    }
   };
 
   if (positions.length === 0) {
@@ -157,7 +159,7 @@ export function PositionOverview() {
             data={positions}
             columns={columns}
             fluid
-            onRowClick={handlePositionClick}
+            onRowSelect={handlePositionClick}
           />
         </div>
       )}

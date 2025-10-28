@@ -29,6 +29,12 @@ export function MarketOverview() {
   const navigate = useNavigate();
   const markets: Market[] = HARDCODED_MARKETS;
 
+  const handleMarketClick = (market: Market | null) => {
+    if (market) {
+      navigate(`/market/${market.id}`);
+    }
+  };
+
   const columns: ColumnProps<Market>[] = [
     {
       key: "curator",
@@ -146,66 +152,71 @@ export function MarketOverview() {
               const liquiditySub = liquidityParts.slice(2).join(" ");
 
               return (
-                <VaultDetailCard
+                <div
                   key={market.id}
-                  id={market.id}
-                  title={{
-                    icons: ["/images/btc.png", "/images/usdc.png"],
-                    text: market.loan,
-                  }}
-                  details={[
-                    { label: "Curator", value: market.curator },
-                    { label: "LLTV", value: market.lltv },
-                    {
-                      label: "Total Market Size",
-                      value: (
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">
-                            {marketSizeMain}
-                          </span>
-                          {marketSizeSub && (
-                            <span className="text-sm text-accent-secondary">
-                              {marketSizeSub}
+                  onClick={() => handleMarketClick(market)}
+                  className="cursor-pointer"
+                >
+                  <VaultDetailCard
+                    id={market.id}
+                    title={{
+                      icons: ["/images/btc.png", "/images/usdc.png"],
+                      text: market.loan,
+                    }}
+                    details={[
+                      { label: "Curator", value: market.curator },
+                      { label: "LLTV", value: market.lltv },
+                      {
+                        label: "Total Market Size",
+                        value: (
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm text-accent-primary">
+                              {marketSizeMain}
                             </span>
-                          )}
-                        </div>
-                      ),
-                    },
-                    {
-                      label: "Total Liquidity",
-                      value: (
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">
-                            {liquidityMain}
-                          </span>
-                          {liquiditySub && (
-                            <span className="text-sm text-accent-secondary">
-                              {liquiditySub}
+                            {marketSizeSub && (
+                              <span className="text-sm text-accent-secondary">
+                                {marketSizeSub}
+                              </span>
+                            )}
+                          </div>
+                        ),
+                      },
+                      {
+                        label: "Total Liquidity",
+                        value: (
+                          <div className="flex flex-col items-end">
+                            <span className="text-sm text-accent-primary">
+                              {liquidityMain}
                             </span>
-                          )}
-                        </div>
-                      ),
-                    },
-                    { label: "Borrow Rate", value: market.rate },
-                    {
-                      label: "Trusted by",
-                      value: (
-                        <AvatarGroup size="small" max={3}>
-                          {market.trustedBy.map((url, idx) => (
-                            <Avatar
-                              key={idx}
-                              url={url}
-                              alt=""
-                              size="small"
-                              variant="circular"
-                            />
-                          ))}
-                        </AvatarGroup>
-                      ),
-                    },
-                  ]}
-                  actions={[]}
-                />
+                            {liquiditySub && (
+                              <span className="text-sm text-accent-secondary">
+                                {liquiditySub}
+                              </span>
+                            )}
+                          </div>
+                        ),
+                      },
+                      { label: "Borrow Rate", value: market.rate },
+                      {
+                        label: "Trusted by",
+                        value: (
+                          <AvatarGroup size="small" max={3}>
+                            {market.trustedBy.map((url, idx) => (
+                              <Avatar
+                                key={idx}
+                                url={url}
+                                alt=""
+                                size="small"
+                                variant="circular"
+                              />
+                            ))}
+                          </AvatarGroup>
+                        ),
+                      },
+                    ]}
+                    actions={[]}
+                  />
+                </div>
               );
             })
           )}
@@ -216,9 +227,7 @@ export function MarketOverview() {
             data={markets}
             columns={columns}
             fluid
-            onRowClick={(market: Market) =>
-              navigate(`/vault/market/${market.id}`)
-            }
+            onRowSelect={handleMarketClick}
           />
         </div>
       )}

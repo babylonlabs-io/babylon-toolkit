@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
@@ -7,12 +8,31 @@ import { LoanCard } from "./LoanCard";
 import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
+import { Morpho } from "../clients/eth-contract";
+import type { MorphoMarketSummary } from "../clients/eth-contract";
 
 export function MarketDetail() {
   const navigate = useNavigate();
-  // const { marketId } = useParams<{ marketId: string }>();
+  const { marketId } = useParams<{ marketId: string }>();
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get("tab") || "borrow";
+
+  // Fetch market data using Morpho client contract calls directly
+  const {
+    data: marketData,
+    isLoading: isMarketLoading,
+    error: marketError
+  } = useQuery<MorphoMarketSummary>({
+    queryKey: ["marketData", marketId],
+    queryFn: () => Morpho.getMarketWithData(marketId!),
+    enabled: !!marketId,
+    retry: 2,
+    staleTime: 30000, // 30 seconds
+  });
+
+  // Log the marketId and data for debugging
+  console.log("MarketDetail - marketId:", marketId);
+  console.log("MarketDetail - marketData:", marketData);
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -31,24 +51,42 @@ export function MarketDetail() {
     navigate("/");
   };
 
-  // Hardcoded data
-  const maxCollateral = 10.0;
-  const maxBorrow = 100000;
-  const btcPrice = 112694.16;
-  const liquidationLtv = 70;
-  const currentLoanAmount = 788859;
-  const currentCollateralAmount = 10.0;
+  // Helper function to format bigint values to USDC (6 decimals)
+  const formatUSDC = (value: bigint) => {
+    return Number(value) / 1e6;
+  };
+
+  // Helper function to format bigint values to BTC (8 decimals)
+  // Note: Currently unused but available for future BTC-related calculations
+  const formatBTC = (value: bigint) => {
+    return Number(value) / 1e8;
+  };
+
+  // Dynamic data from market service (with fallbacks)
+  const maxCollateral = 10.0; // This would come from user's BTC balance
+  const maxBorrow = marketData ? formatUSDC(marketData.totalSupplyAssets) : 100000;
+  const btcPrice = 112694.16; // This would come from oracle price feed
+  const liquidationLtv = marketData ? marketData.lltvPercent : 70;
+  const currentLoanAmount = 788859; // This would come from user's position
+  const currentCollateralAmount = 10.0; // This would come from user's position
 
   const marketAttributes = [
+    { label: "Market ID", value: marketId || "Unknown" },
     { label: "Collateral", value: "BTC" },
     { label: "Loan", value: "USDC" },
-    { label: "Liquidation LTV", value: "70%" },
+    {
+      label: "Liquidation LTV",
+      value: marketData ? `${marketData.lltvPercent.toFixed(1)}%` : "70%"
+    },
     {
       label: "Oracle price",
       value: `BTC / USDC = ${btcPrice.toLocaleString()}`,
     },
     { label: "Created on", value: "2025-10-14" },
-    { label: "Utilization", value: "90.58%" },
+    {
+      label: "Utilization",
+      value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "90.58%"
+    },
   ];
 
   const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
@@ -107,6 +145,15 @@ export function MarketDetail() {
     return (remainingLoan / (remainingCollateral * btcPrice)) * 100;
   })();
 
+  // Loading state
+  if (isMarketLoading) {
+    return "Loading...";
+  }
+
+  if (marketError) {
+    return null;
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
       <div className="grid grid-cols-2 items-start gap-6">
@@ -116,10 +163,10 @@ export function MarketDetail() {
           marketPair="BTC / USDC"
           btcIcon="/images/btc.png"
           usdcIcon="/images/usdc.png"
-          totalMarketSize="$525.40M"
-          totalMarketSizeSubtitle="525.40M USDC"
-          totalLiquidity="$182.60M"
-          totalLiquiditySubtitle="182.6M USDC"
+          totalMarketSize={marketData ? `$${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M` : "$525.40M"}
+          totalMarketSizeSubtitle={marketData ? `${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M USDC` : "525.40M USDC"}
+          totalLiquidity={marketData ? `$${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M` : "$182.60M"}
+          totalLiquiditySubtitle={marketData ? `${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M USDC` : "182.6M USDC"}
           borrowRate="6.25%"
           attributes={marketAttributes}
         />
