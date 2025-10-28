@@ -39,7 +39,6 @@ export default function StakingForm({
   const {
     loading,
     formSchema,
-    availableBalance,
     babyPrice,
     calculateFee,
     showPreview,
@@ -144,7 +143,7 @@ export default function StakingForm({
       defaultValues={defaultValues}
       onChange={handleChange}
     >
-      <AmountField balance={availableBalance} price={babyPrice} />
+      <AmountField />
       <ValidatorField />
       <FeeField babyPrice={babyPrice} calculateFee={calculateFee} />
 
