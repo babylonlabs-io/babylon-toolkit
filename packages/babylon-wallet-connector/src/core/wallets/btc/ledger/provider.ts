@@ -75,8 +75,8 @@ type LedgerWalletInfo = {
 
 // 添加派生路径配置接口
 interface DerivationConfig {
-  purpose: 84 | 86; // BIP84 (P2WPKH) 或 BIP86 (P2TR)
-  addressIndex: number; // 地址索引，默认为0
+  purpose: 84 | 86;
+  addressIndex: number;
 }
 
 export const WALLET_PROVIDER_NAME = "Ledger";
@@ -107,14 +107,13 @@ async function openSpeculosAndWait(baseURL: string = "http://localhost:5000"): P
 export class LedgerProvider implements IBTCProvider {
   private ledgerWalletInfo: LedgerWalletInfo | undefined;
   private config: BTCConfig;
-  private derivationConfig: DerivationConfig; // 添加派生路径配置
+  private derivationConfig: DerivationConfig;
 
   constructor(_wallet: any, config: BTCConfig) {
     this.config = config;
-    // 设置默认派生路径配置
     this.derivationConfig = {
-      purpose: 86, // 默认使用BIP86 (P2TR)
-      addressIndex: 0, // 默认地址索引为0
+      purpose: 86,
+      addressIndex: 0,
     };
   }
 
@@ -126,7 +125,6 @@ export class LedgerProvider implements IBTCProvider {
     return SIMULATOR_URL;
   }
 
-  // 添加设置派生路径配置的方法
   setDerivationConfig(config: Partial<DerivationConfig>): void {
     this.derivationConfig = {
       ...this.derivationConfig,
@@ -134,7 +132,6 @@ export class LedgerProvider implements IBTCProvider {
     };
   }
 
-  // 添加获取派生路径配置的方法
   getDerivationConfig(): DerivationConfig {
     return { ...this.derivationConfig };
   }
@@ -166,8 +163,6 @@ export class LedgerProvider implements IBTCProvider {
 
   private getDerivationPath(): string {
     const networkDerivationIndex = this.getNetworkDerivationIndex();
-    // 返回3级路径：m/purpose'/networkIndex'/account'
-    // account固定为0，最后两级/change/addressIndex由其他地方补充
     return `m/${this.derivationConfig.purpose}'/${networkDerivationIndex}'/0'`;
   }
 
@@ -194,19 +189,13 @@ export class LedgerProvider implements IBTCProvider {
       const networkDerivationIndex = this.getNetworkDerivationIndex();
       const purpose = this.derivationConfig.purpose;
       
-      // 根据purpose选择不同的策略描述符和模板
       let policyTemplate: string;
       if (purpose === 86) {
-        policyTemplate = "tr(@0/**)"; // P2TR (Taproot)
+        policyTemplate = "tr(@0/**)";
       } else {
-        policyTemplate = "wpkh(@0/**)"; // P2WPKH (默认)
+        policyTemplate = "wpkh(@0/**)";
       }
-      
-      // 策略描述符格式：[fingerprint/purpose'/networkIndex'/account']xpub
-      // account固定为0，与getDerivationPath保持一致
       const policyDescriptor = `[${fpr}/${purpose}'/${networkDerivationIndex}'/0']${extendedPubKey}`;
-      
-      // 使用字符串创建策略，而不是尝试转换类型
       const policy = new DefaultWalletPolicy(policyTemplate as any, policyDescriptor);
       
       if (!policy) {
@@ -228,17 +217,15 @@ export class LedgerProvider implements IBTCProvider {
     try {
       console.log("Getting Ledger account with policy:", policy);
       console.log("Extended Public Key:", extendedPublicKey);
-      // Get and display on the screen the first address
-      // We use change=0 (external) and addressIndex=0 (first address)
       const address = await app.getWalletAddress(
         policy,
         null,
         0, // 0 - normal, 1 - change
-        0, // address index
+        this.derivationConfig.addressIndex, // addre
         true, // show address on the wallet's screen
       );
       const currentNetwork = await this.getNetwork();
-      const publicKeyBuffer = getPublicKeyFromXpub(extendedPublicKey, "M/0/0", toNetwork(currentNetwork));
+      const publicKeyBuffer = getPublicKeyFromXpub(extendedPublicKey, `M/0/${this.derivationConfig.addressIndex}`, toNetwork(currentNetwork));
       const publicKeyHex = publicKeyBuffer.toString("hex");
       return { address, publicKeyHex };
     } catch (error) {
@@ -376,8 +363,6 @@ export class LedgerProvider implements IBTCProvider {
     if (!this.ledgerWalletInfo?.app.transport || !this.ledgerWalletInfo?.path) {
       throw new Error("Ledger is not connected");
     }
-    // signMessage requires a full 5-level derivation path
-    // 补充最后两级：/change/addressIndex (0为external addresses)
     const fullDerivationPath = `${this.ledgerWalletInfo.path}/0/${this.derivationConfig.addressIndex}`;
 
     const signedMessage = await signMessage({
