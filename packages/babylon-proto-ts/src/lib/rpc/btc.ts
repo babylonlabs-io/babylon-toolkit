@@ -17,9 +17,9 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
    * This includes both base BTC staking rewards (BTC_STAKER gauge) and
    * co-staking bonus rewards (COSTAKER gauge).
    * @param address - The Babylon address to query rewards for
-   * @returns {Promise<number>} - Total available rewards in ubbn (base BTC + co-staking bonus)
+   * @returns {Promise<bigint>} - Total available rewards in ubbn (base BTC + co-staking bonus)
    */
-  async getRewards(address: string): Promise<number> {
+  async getRewards(address: string): Promise<bigint> {
     try {
       const req = incentivequery.QueryRewardGaugesRequest.fromPartial({
         address,
@@ -27,7 +27,7 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
 
       const rewards = await incentive.RewardGauges(req);
       if (!rewards || !rewards.rewardGauges) {
-        return 0;
+        return 0n;
       }
 
       // Calculate rewards from BTC_STAKER gauge (base BTC staking rewards)
@@ -58,7 +58,7 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
         error instanceof Error &&
         error.message.includes("reward gauge not found")
       ) {
-        return 0;
+        return 0n;
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
         cause: error,

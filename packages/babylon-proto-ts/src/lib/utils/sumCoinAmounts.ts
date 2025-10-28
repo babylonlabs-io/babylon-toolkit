@@ -1,9 +1,9 @@
 import type { Coin } from "@cosmjs/stargate";
 
-export function sumCoinAmounts(coins?: Coin[] | null): number {
+export function sumCoinAmounts(coins?: Coin[] | null): bigint {
   const sum = coins?.reduce(
-    (acc: number, coin: Coin) => acc + Number(coin.amount),
-    0,
+    (acc: bigint, coin: Coin) => acc + BigInt(coin.amount),
+    0n,
   );
-  return sum || 0;
+  return sum || 0n;
 }

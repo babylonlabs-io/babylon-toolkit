@@ -7,7 +7,7 @@ interface Dependencies {
 }
 
 const createBTCClient = ({ request }: Dependencies) => ({
-  async getRewards(address: string): Promise<number> {
+  async getRewards(address: string): Promise<bigint> {
     try {
       const response = await request(
         `/babylon/incentive/address/${address}/reward_gauge`,
@@ -17,7 +17,7 @@ const createBTCClient = ({ request }: Dependencies) => ({
         response?.rewardGauges?.[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
 
       if (!coins) {
-        return 0;
+        return 0n;
       }
 
       const withdrawnCoins = sumCoinAmounts(
@@ -33,7 +33,7 @@ const createBTCClient = ({ request }: Dependencies) => ({
         error instanceof Error &&
         error.message.includes("reward gauge not found")
       ) {
-        return 0;
+        return 0n;
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
         cause: error,

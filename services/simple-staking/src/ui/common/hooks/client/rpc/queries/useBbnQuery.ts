@@ -36,7 +36,8 @@ export const useBbnQuery = () => {
         return 0;
       }
       try {
-        return await rpcClient.btc.getRewards(bech32Address);
+        const rewards = await rpcClient.btc.getRewards(bech32Address);
+        return Number(rewards);
       } catch (error) {
         throw new ClientError(
           ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
