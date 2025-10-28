@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import EnvironmentPlugin from "vite-plugin-environment";
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +30,7 @@ export default defineConfig({
     tsconfigPaths({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],
     }),
+    nodePolyfills({ include: ["buffer", "crypto"] }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),
   ],
   define: {

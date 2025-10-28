@@ -8,6 +8,8 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
+import { satoshiToBtcNumber } from "../../utils/btcConversion";
+
 interface VaultProvider {
   id: string;
   name: string;
@@ -18,7 +20,7 @@ interface CollateralDepositReviewModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  amount: number;
+  amount: bigint;
   providers: string[];
   btcPrice?: number;
 }
@@ -83,8 +85,11 @@ export function CollateralDepositReviewModal({
   providers,
   btcPrice = 97833.68,
 }: CollateralDepositReviewModalProps) {
+  // Convert satoshis to BTC for display
+  const amountBtc = satoshiToBtcNumber(amount);
+
   // Calculate USD value
-  const amountUsd = amount * btcPrice;
+  const amountUsd = amountBtc * btcPrice;
 
   // Get provider details
   const selectedProviders = providers
@@ -111,7 +116,7 @@ export function CollateralDepositReviewModal({
           </Text>
           <div className="flex flex-col items-end">
             <Text variant="body1" className="font-medium">
-              {amount} BTC
+              {amountBtc} BTC
             </Text>
             <Text variant="body2" className="text-accent-secondary">
               ($

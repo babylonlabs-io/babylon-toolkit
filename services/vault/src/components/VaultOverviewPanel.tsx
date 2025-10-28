@@ -1,5 +1,7 @@
 import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
+import { useMemo } from "react";
 
+import { useVaultProviders } from "../hooks/useVaultProviders";
 import {
   useVaultDepositState,
   VaultDepositStep,
@@ -12,6 +14,7 @@ import {
 import { ActivityOverview } from "./ActivityOverview";
 import { DepositOverview } from "./DepositOverview";
 import { MarketOverview } from "./MarketOverview";
+import { PositionOverview } from "./PositionOverview";
 import {
   CollateralDepositModal,
   CollateralDepositReviewModal,
@@ -22,10 +25,24 @@ import {
   RedeemCollateralSignModal,
   RedeemCollateralSuccessModal,
 } from "./modals";
-import { PositionOverview } from "./PositionOverview";
 
 export function VaultOverviewPanel() {
   const isMobile = useIsMobile();
+
+  // TODO: Uncomment when wallet providers are added
+  // const btcConnector = useChainConnector("BTC");
+  // const btcWalletProvider = btcConnector?.connectedWallet?.provider || null;
+  // const { address: ethAddress } = useAccount();
+  // const { confirmedUTXOs } = useUTXOs(btcAddress);
+  // const btcBalanceSat = calculateBalance(confirmedUTXOs);
+
+  // Temporary mock data
+  const btcWalletProvider = null;
+  const ethAddress = undefined;
+  const btcBalanceSat = 0n;
+
+  // Fetch vault providers from API (keep this - it's a data fetch function)
+  const { providers } = useVaultProviders();
 
   // Deposit flow state
   const {
@@ -47,8 +64,32 @@ export function VaultOverviewPanel() {
     reset: resetRedeem,
   } = useVaultRedeemState();
 
+  // Get selected provider's BTC public key and liquidators from API data
+  const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
+    if (selectedProviders.length === 0 || providers.length === 0) {
+      return {
+        selectedProviderBtcPubkey: "",
+        liquidatorBtcPubkeys: [],
+      };
+    }
+
+    // Find the selected provider by ETH address
+    const selectedProvider = providers.find(
+      (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
+    );
+
+    // Extract BTC public keys from liquidator objects
+    const liquidators =
+      selectedProvider?.liquidators?.map((liq) => liq.btc_pub_key) || [];
+
+    return {
+      selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || "",
+      liquidatorBtcPubkeys: liquidators,
+    };
+  }, [selectedProviders, providers]);
+
   // Deposit flow handlers
-  const handleDeposit = (amount: number, providers: string[]) => {
+  const handleDeposit = (amount: bigint, providers: string[]) => {
     setDepositData(amount, providers);
     goToDepositStep(VaultDepositStep.REVIEW);
   };
@@ -112,6 +153,7 @@ export function VaultOverviewPanel() {
             open
             onClose={resetDeposit}
             onDeposit={handleDeposit}
+            btcBalance={btcBalanceSat}
           />
         )}
         {depositStep === VaultDepositStep.REVIEW && (
@@ -129,6 +171,11 @@ export function VaultOverviewPanel() {
             onClose={resetDeposit}
             onSuccess={handleDepositSignSuccess}
             amount={depositAmount}
+            btcWalletProvider={btcWalletProvider}
+            depositorEthAddress={ethAddress}
+            selectedProviders={selectedProviders}
+            vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+            liquidatorBtcPubkeys={liquidatorBtcPubkeys}
           />
         )}
         {depositStep === VaultDepositStep.SUCCESS && (
@@ -206,6 +253,7 @@ export function VaultOverviewPanel() {
           open
           onClose={resetDeposit}
           onDeposit={handleDeposit}
+          btcBalance={btcBalanceSat}
         />
       )}
       {depositStep === VaultDepositStep.REVIEW && (
@@ -223,6 +271,11 @@ export function VaultOverviewPanel() {
           onClose={resetDeposit}
           onSuccess={handleDepositSignSuccess}
           amount={depositAmount}
+          btcWalletProvider={btcWalletProvider}
+          depositorEthAddress={ethAddress}
+          selectedProviders={selectedProviders}
+          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
         />
       )}
       {depositStep === VaultDepositStep.SUCCESS && (

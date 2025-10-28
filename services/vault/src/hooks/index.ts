@@ -5,6 +5,11 @@
  * This directory now only contains truly shared/reusable hooks.
  */
 
+export { useDepositFlow } from "./useDepositFlow";
+export type {
+  UseDepositFlowParams,
+  UseDepositFlowReturn,
+} from "./useDepositFlow";
 export { usePeginRequests } from "./usePeginRequests";
 export type { UsePeginRequestsResult } from "./usePeginRequests";
 export { useVaultPositions } from "./useVaultPositions";

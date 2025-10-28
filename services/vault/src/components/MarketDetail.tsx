@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
@@ -10,7 +10,7 @@ import { RepaySuccessModal } from "./RepaySuccessModal";
 
 export function MarketDetail() {
   const navigate = useNavigate();
-  const { marketId } = useParams<{ marketId: string }>();
+  // const { marketId } = useParams<{ marketId: string }>();
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get("tab") || "borrow";
 
@@ -70,12 +70,11 @@ export function MarketDetail() {
   const handleConfirmBorrow = async () => {
     setProcessing(true);
     try {
-      console.log("Confirming borrow:", { marketId, ...lastBorrowData });
       await new Promise((resolve) => setTimeout(resolve, 2000));
       setShowReviewModal(false);
       setShowBorrowSuccessModal(true);
-    } catch (error) {
-      console.error("Borrow failed:", error);
+    } catch {
+      // Handle error silently
     } finally {
       setProcessing(false);
     }
@@ -84,12 +83,11 @@ export function MarketDetail() {
   const handleConfirmRepay = async () => {
     setProcessing(true);
     try {
-      console.log("Confirming repay:", { marketId, ...lastRepayData });
       await new Promise((resolve) => setTimeout(resolve, 2000));
       setShowRepayReviewModal(false);
       setShowRepaySuccessModal(true);
-    } catch (error) {
-      console.error("Repay failed:", error);
+    } catch {
+      // Handle error silently
     } finally {
       setProcessing(false);
     }

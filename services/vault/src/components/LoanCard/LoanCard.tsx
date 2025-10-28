@@ -112,11 +112,7 @@ export function LoanCard({
                     sliderStep={maxCollateral / 1000}
                     sliderSteps={borrowCollateralSteps}
                     onSliderChange={setCollateralAmount}
-                    onSliderStepsChange={(selectedSteps) => {
-                      console.log(
-                        "Borrow Collateral - Selected steps:",
-                        selectedSteps,
-                      );
+                    onSliderStepsChange={() => {
                       // Handle cumulative step selection here
                     }}
                     sliderVariant="primary"
@@ -256,11 +252,7 @@ export function LoanCard({
                     sliderStep={currentCollateralAmount / 1000}
                     sliderSteps={withdrawCollateralSteps}
                     onSliderChange={setWithdrawCollateralAmount}
-                    onSliderStepsChange={(selectedSteps: number[]) => {
-                      console.log(
-                        "Withdraw Collateral - Selected steps:",
-                        selectedSteps,
-                      );
+                    onSliderStepsChange={() => {
                       // Handle cumulative step selection here
                     }}
                     sliderVariant="primary"

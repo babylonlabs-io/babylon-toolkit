@@ -10,7 +10,7 @@ import {
 interface CollateralDepositSuccessModalProps {
   open: boolean;
   onClose: () => void;
-  amount: number;
+  amount: bigint;
 }
 
 export function CollateralDepositSuccessModal({
