@@ -15,24 +15,6 @@ import { createProofOfPossession } from "../services/vault/vaultProofOfPossessio
 import { useUTXOs } from "./useUTXOs";
 
 /**
- * TODO: Replace with proper error handling and logging from shared infrastructure
- * This is a temporary implementation until vault routes are integrated with
- * the main app's error handling context (ErrorProvider) and logging (Sentry)
- */
-const logger = {
-  info: (message: string, data?: Record<string, unknown>) => {
-    console.log(`[useDepositFlow] ${message}`, data);
-  },
-  error: (
-    error: Error,
-    data?: { tags?: Record<string, unknown>; data?: Record<string, unknown> },
-  ) => {
-    console.error(`[useDepositFlow] Error:`, error.message, data);
-    console.error(error);
-  },
-};
-
-/**
  * BTC wallet provider interface
  * Defines the minimal interface needed from BTC wallet for deposit flow
  */
@@ -135,10 +117,6 @@ export function useDepositFlow({
 
       // Step 1: Create proof of possession
       setCurrentStep(1);
-      logger.info("Creating proof of possession", {
-        category: "vault-deposit",
-        depositorEthAddress,
-      });
 
       await createProofOfPossession({
         ethAddress: depositorEthAddress,
@@ -149,11 +127,6 @@ export function useDepositFlow({
 
       // Step 2: Prepare and submit transaction
       setCurrentStep(2);
-      logger.info("Submitting deposit request to Vault Controller", {
-        category: "vault-deposit",
-        amount: pegInAmountSats.toString(),
-        provider: selectedProvider,
-      });
 
       // TODO: Re-enable when wallet providers are added
       // Get depositor's BTC public key and convert to x-only format
@@ -198,12 +171,6 @@ export function useDepositFlow({
       // TODO: Re-enable when wallet providers are added
       // Step 3: Complete
       // setCurrentStep(3);
-      // logger.info("Deposit request submitted successfully", {
-      //   category: "vault-deposit",
-      //   btcTxid: result.btcTxid,
-      //   ethTxHash: result.transactionHash,
-      // });
-
       // setProcessing(false);
 
       // // Call success callback
@@ -215,15 +182,6 @@ export function useDepositFlow({
         err instanceof Error
           ? err
           : new Error("Unknown error occurred during deposit flow");
-
-      logger.error(error, {
-        tags: { component: "useDepositFlow", step: currentStep },
-        data: {
-          amount,
-          depositorEthAddress,
-          selectedProvider: selectedProviders[0],
-        },
-      });
 
       setError(error.message);
       setProcessing(false);
