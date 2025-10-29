@@ -271,7 +271,8 @@ describe("Logger auto-redaction", () => {
     it("redacts multiple sensitive fields at once", () => {
       const btcAddress = "bc1q5hj2k3l4m5n6p7q8r9s0t1u2v3w4x5y6z7a8b9";
       const babylonAddress = "babylon1qwertyuiopasdfghjklzxcvbnm123456789";
-      const userPublicKey = "02a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4";
+      const userPublicKey =
+        "02a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4";
 
       logger.info("Multiple addresses", {
         btcAddress,
