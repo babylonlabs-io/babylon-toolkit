@@ -139,14 +139,14 @@ export function StakeExpansionSection({
           iconClassName="mr-4"
         >
           <Text variant="body1" className="font-medium text-accent-primary">
-            Stake Expansion
+            Stake Extension
           </Text>
         </AccordionSummary>
         <AccordionDetails className="space-y-3 px-4 pb-4">
           <div className="flex w-full flex-col gap-4">
             {hasVerifiedRenewal ? (
               <Hint
-                tooltip="A timelock renewal is already verified. Please check 'Verified Stake Expansion' to complete it."
+                tooltip="A timelock renewal is already verified. Please check 'Verified Stake Extension' to complete it."
                 placement="top"
               >
                 {renewButton}
@@ -156,7 +156,7 @@ export function StakeExpansionSection({
             )}
             <ExpansionButton
               Icon={iconHistory}
-              text="Expansion History"
+              text="Extension History"
               counter={
                 expansionHistoryCount > 0
                   ? `${expansionHistoryCount}`
@@ -170,7 +170,7 @@ export function StakeExpansionSection({
             {delegationVerifiedExpansionInfo.hasVerifiedExpansions && (
               <ExpansionButton
                 Icon={iconVerified}
-                text="Verified Stake Expansion"
+                text="Verified Stake Extension"
                 counter={`${delegationVerifiedExpansionInfo.count}`}
                 onClick={handleVerifiedExpansion}
                 disabled={

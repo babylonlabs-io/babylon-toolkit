@@ -44,14 +44,14 @@ function VerifiedExpansionItem({
 
     if (!originalDelegation) {
       console.error(
-        "Original delegation not found for verified expansion:",
+        "Original delegation not found for verified extension:",
         delegation.stakingTxHashHex,
         "previousTxHash:",
         delegation.previousStakingTxHashHex,
       );
       // This should not happen for verified expansions, but return a fallback
       throw new Error(
-        `Invalid verified expansion: original delegation not found for ${delegation.stakingTxHashHex}`,
+        `Invalid verified extension: original delegation not found for ${delegation.stakingTxHashHex}`,
       );
     }
 
@@ -105,20 +105,20 @@ function VerifiedStakeExpansionModalInner({
   return (
     <ResponsiveDialog open={open} onClose={() => !isExpanding && onClose()}>
       <DialogHeader
-        title="Verified Stake Expansions"
+        title="Verified Stake Extensions"
         onClose={onClose}
         className="text-accent-primary"
       />
       <Text variant="body1" className="mb-4 text-accent-secondary">
-        Your expansion requests have been verified by the Babylon network. You
-        can now complete the expansion by signing and broadcasting to Bitcoin.
+        Your extension requests have been verified by the Babylon network. You
+        can now complete the extension by signing and broadcasting to Bitcoin.
       </Text>
       <DialogBody className="no-scrollbar flex max-h-[70vh] flex-col gap-4 overflow-y-auto pb-4 text-accent-primary">
         <div className="flex flex-col gap-2">
           {verifiedExpansions.length === 0 ? (
             <div className="py-8 text-center">
               <Text variant="body1" className="text-accent-secondary">
-                No verified expansions found.
+                No verified extensions found.
               </Text>
             </div>
           ) : (

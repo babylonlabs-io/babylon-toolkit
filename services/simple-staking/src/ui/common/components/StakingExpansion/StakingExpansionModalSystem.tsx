@@ -80,7 +80,7 @@ function StakingExpansionModalSystemInner() {
     useDelegationV2State();
   const detailsModalTitle =
     (delegationV2StepOptions?.type as string) ||
-    "Expansion Transaction Details";
+    "Extension Transaction Details";
 
   // Prepare BSN and FP info arrays for preview modal
   const { bsnInfos, finalityProviderInfos, details } = useMemo(() => {
@@ -277,7 +277,7 @@ function StakingExpansionModalSystemInner() {
               open
               processing={processing}
               step={EOI_STEP_INDEXES[step]}
-              title="Staking Expansion"
+              title="Staking Extension"
               options={expansionStepOptions}
             />
           )}

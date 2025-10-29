@@ -46,10 +46,10 @@ const getIntermediatePendingBtcStatus = ({
 
   return {
     label: isExpansion
-      ? `Expansion Pending ${coinName} Confirmation`
+      ? `Extension Pending ${coinName} Confirmation`
       : `Pending ${coinName} Confirmation`,
     tooltip: isExpansion
-      ? `Stake expansion is pending ${confirmationDepth} ${coinName} confirmations`
+      ? `Stake extension is pending ${confirmationDepth} ${coinName} confirmations`
       : `Stake is pending ${confirmationDepth} ${coinName} confirmations`,
   };
 };
