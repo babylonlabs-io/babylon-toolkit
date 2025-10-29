@@ -1,10 +1,3 @@
-import { incentivequery } from "@babylonlabs-io/babylon-proto-ts";
-import {
-  QueryClient,
-  createProtobufRpcClient,
-  setupBankExtension,
-} from "@cosmjs/stargate";
-
 import { ONE_MINUTE, ONE_SECOND } from "@/ui/common/constants";
 import { useBbnRpc } from "@/ui/common/context/rpc/BbnRpcProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
@@ -19,8 +12,6 @@ const BBN_BTCLIGHTCLIENT_TIP_KEY = "BBN_BTCLIGHTCLIENT_TIP";
 const BBN_BALANCE_KEY = "BBN_BALANCE";
 const BBN_REWARDS_KEY = "BBN_REWARDS";
 const BBN_HEIGHT_KEY = "BBN_HEIGHT";
-const REWARD_GAUGE_KEY_BTC_DELEGATION = "BTC_STAKER";
-const REWARD_GAUGE_KEY_COSTAKER = "COSTAKER";
 
 /**
  * Query service for Babylon which contains all the queries for
@@ -29,7 +20,7 @@ const REWARD_GAUGE_KEY_COSTAKER = "COSTAKER";
 export const useBbnQuery = () => {
   const { isGeoBlocked, isLoading: isHealthcheckLoading } = useHealthCheck();
   const { bech32Address, connected } = useCosmosWallet();
-  const { queryClient, rpcClient, isLoading: isRpcLoading } = useBbnRpc();
+  const { rpcClient, isLoading: isRpcLoading } = useBbnRpc();
   const { hasRpcError, reconnect } = useRpcErrorHandler();
 
   /**
@@ -41,69 +32,22 @@ export const useBbnQuery = () => {
   const rewardsQuery = useClientQuery({
     queryKey: [BBN_REWARDS_KEY, bech32Address, connected],
     queryFn: async () => {
-      if (!connected || !queryClient || !bech32Address) {
-        return undefined as any;
+      if (!connected || !rpcClient || !bech32Address) {
+        return 0;
       }
-      const { incentive } = setupIncentiveExtension(queryClient);
-      const req: incentivequery.QueryRewardGaugesRequest =
-        incentivequery.QueryRewardGaugesRequest.fromPartial({
-          address: bech32Address,
-        });
-
-      let rewards: incentivequery.QueryRewardGaugesResponse;
       try {
-        rewards = await incentive.RewardGauges(req);
+        const rewards = await rpcClient.btc.getRewards(bech32Address);
+        return Number(rewards);
       } catch (error) {
-        // If error message contains "reward gauge not found", silently return 0
-        // This is to handle the case where the user has no rewards, meaning
-        // they have not staked
-        if (
-          error instanceof Error &&
-          error.message.includes("reward gauge not found")
-        ) {
-          return 0;
-        }
         throw new ClientError(
           ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
           "Error getting rewards",
           { cause: error as Error },
         );
       }
-      if (!rewards) {
-        return 0;
-      }
-
-      // Calculate rewards from BTC_STAKER gauge
-      const btcStakerCoins =
-        rewards.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
-      const btcStakerWithdrawn =
-        rewards.rewardGauges[
-          REWARD_GAUGE_KEY_BTC_DELEGATION
-        ]?.withdrawnCoins.reduce((acc, coin) => acc + Number(coin.amount), 0) ||
-        0;
-      const btcStakerTotal = btcStakerCoins
-        ? btcStakerCoins.reduce((acc, coin) => acc + Number(coin.amount), 0)
-        : 0;
-      const btcStakerAvailable = btcStakerTotal - btcStakerWithdrawn;
-
-      // Calculate rewards from COSTAKER gauge (co-staking bonus)
-      const costakerCoins =
-        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.coins;
-      const costakerWithdrawn =
-        rewards.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.withdrawnCoins.reduce(
-          (acc, coin) => acc + Number(coin.amount),
-          0,
-        ) || 0;
-      const costakerTotal = costakerCoins
-        ? costakerCoins.reduce((acc, coin) => acc + Number(coin.amount), 0)
-        : 0;
-      const costakerAvailable = costakerTotal - costakerWithdrawn;
-
-      // Total available rewards = BTC staking + co-staking bonus
-      return btcStakerAvailable + costakerAvailable;
     },
     enabled: Boolean(
-      queryClient &&
+      rpcClient &&
         connected &&
         bech32Address &&
         !isGeoBlocked &&
@@ -115,20 +59,19 @@ export const useBbnQuery = () => {
 
   /**
    * Gets the balance of the user's account.
-   * @returns {Promise<Object>} - The balance of the user's account.
+   * @returns {Promise<number>} - The balance of the user's account in ubbn.
    */
   const balanceQuery = useClientQuery({
     queryKey: [BBN_BALANCE_KEY, bech32Address, connected],
     queryFn: async () => {
-      if (!connected || !queryClient || !bech32Address) {
+      if (!connected || !rpcClient || !bech32Address) {
         return 0;
       }
-      const { bank } = setupBankExtension(queryClient);
-      const balance = await bank.balance(bech32Address, "ubbn");
-      return Number(balance?.amount ?? 0);
+      const balance = await rpcClient.baby.getBalance(bech32Address, "ubbn");
+      return Number(balance);
     },
     enabled: Boolean(
-      queryClient &&
+      rpcClient &&
         connected &&
         bech32Address &&
         !isGeoBlocked &&
@@ -195,17 +138,5 @@ export const useBbnQuery = () => {
     babyTipQuery,
     hasRpcError,
     reconnectRpc: reconnect,
-    queryClient,
   };
-};
-
-// Extend the QueryClient with the Incentive module
-const setupIncentiveExtension = (
-  base: QueryClient,
-): {
-  incentive: incentivequery.QueryClientImpl;
-} => {
-  const rpc = createProtobufRpcClient(base);
-  const incentiveQueryClient = new incentivequery.QueryClientImpl(rpc);
-  return { incentive: incentiveQueryClient };
 };
