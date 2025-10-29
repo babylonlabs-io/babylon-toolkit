@@ -11,6 +11,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
+import { useBTCWallet, useETHWallet } from "../context/wallet";
 import {
   useVaultDepositState,
   VaultDepositStep,
@@ -23,66 +24,33 @@ import type { Deposit } from "../types/vault";
 
 // Hardcoded deposit data
 // TODO: Replace with useVaultPositions when wallet providers are integrated
-const HARDCODED_DEPOSITS: Deposit[] = [
-  {
-    id: "1",
-    amount: 5,
-    vaultProvider: {
-      name: "Ironclad BTC",
-      icon: "",
-    },
-    status: "In Use",
-  },
-  {
-    id: "2",
-    amount: 2,
-    vaultProvider: {
-      name: "Atlas Custody",
-      icon: "",
-    },
-    status: "Available",
-  },
-  {
-    id: "3",
-    amount: 3,
-    vaultProvider: {
-      name: "Ironclad BTC",
-      icon: "",
-    },
-    status: "Available",
-  },
-];
+const HARDCODED_DEPOSITS: Deposit[] = [];
 
 function EmptyState({ onDeposit }: { onDeposit: () => void }) {
   return (
-    <div className="rounded-2xl bg-primary-contrast p-6">
-      <div className="flex flex-col items-center">
-        <img
-          src="/images/mascot-bitcoin.png"
-          alt="Supply collateral mascot"
-          className="h-auto max-w-[240px]"
-        />
-        <div className="flex flex-col gap-1 text-center">
-          <h4 className="text-lg font-semibold text-accent-primary">
-            Supply Collateral BTC Trustlessly
-          </h4>
-          <p className="text-sm text-accent-secondary">
-            Enter the amount of BTC you want to deposit and select a provider to
-            secure it.
-            <br />
-            Your deposit will appear here once confirmed.
-          </p>
-        </div>
-        <div className="mt-8">
-          <Button
-            variant="outlined"
-            size="large"
-            rounded
-            onClick={onDeposit}
-            aria-label="Add deposit"
-          >
-            Deposit
-          </Button>
+    <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+      <div className="flex min-h-[200px] items-center justify-center p-6">
+        <div className="flex flex-col items-center">
+          <img src="/images/btc.png" alt="Bitcoin" className="mb-4 h-16 w-16" />
+          <div className="flex flex-col gap-2 text-center">
+            <h4 className="text-lg font-semibold text-accent-primary">
+              Deposit BTC Trustlessly
+            </h4>
+            <p className="text-sm text-accent-secondary">
+              Your deposit will appear here once confirmed.
+            </p>
+          </div>
+          <div className="mt-6">
+            <Button
+              variant="outlined"
+              size="medium"
+              rounded
+              onClick={onDeposit}
+              aria-label="Add deposit"
+            >
+              Deposit
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -91,6 +59,10 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
 
 export function DepositOverview() {
   const isMobile = useIsMobile();
+  const { connected: btcConnected } = useBTCWallet();
+  const { connected: ethConnected } = useETHWallet();
+  const isConnected = btcConnected && ethConnected;
+
   const deposits = HARDCODED_DEPOSITS;
   const [selectedDepositIds, setSelectedDepositIds] = useState<
     Array<string | number>
@@ -109,7 +81,8 @@ export function DepositOverview() {
     }
   };
 
-  if (deposits.length === 0) {
+  // Show empty state when not connected OR when connected but no data
+  if (!isConnected || deposits.length === 0) {
     return <EmptyState onDeposit={handleDeposit} />;
   }
 
