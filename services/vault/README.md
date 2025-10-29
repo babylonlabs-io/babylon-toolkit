@@ -49,17 +49,29 @@ Create a `.env` file with the following variables:
 
 ### Required
 
-- `NEXT_PUBLIC_API_URL` - Back-end API URL for vault system queries
-  - Example: `https://staking-api.testnet.babylonlabs.io`
-- `NEXT_PUBLIC_NETWORK` - BTC network environment (`mainnet`, `testnet`, `signet`)
-  - Example: `testnet`
-- `NEXT_PUBLIC_FF_VAULT` - Feature flag to enable vault functionality
-  - Set to `true` to enable the vault UI
+- `NEXT_PUBLIC_BTC_NETWORK` - Bitcoin network (must be `mainnet` or `signet`)
+  - Use `signet` for devnet/testnet
+  - Use `mainnet` for production
+  - Example: `signet`
+- `NEXT_PUBLIC_ETH_CHAINID` - Ethereum chain ID (must be `1` or `11155111`)
+  - Use `11155111` (Sepolia) for devnet/testnet
+  - Use `1` (Ethereum Mainnet) for production
+  - Example: `11155111`
+- `NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL` - Vault provider RPC endpoint
+  - Example: `https://btc-vault-api.vault-devnet.babylonlabs.io`
+- `NEXT_PUBLIC_VAULT_API_URL` - Vault indexer API endpoint
+  - Example: `https://vault-indexer-api.vault-devnet.babylonlabs.io`
+- `NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER` - TBV BTC Vaults Manager contract address
+- `NEXT_PUBLIC_TBV_VAULT_CONTROLLER` - TBV Vault Controller contract address
+- `NEXT_PUBLIC_TBV_BTC_VAULT` - TBV BTC Vault contract address
+- `NEXT_PUBLIC_TBV_MORPHO` - TBV Morpho contract address
 
 ### Optional
 
 - `NEXT_PUBLIC_MEMPOOL_API` - Mempool.space host for Bitcoin node queries
-  - Default: `https://mempool.space`
+  - Default: `https://mempool.space` (mainnet) or `https://mempool.space/signet` (signet)
+- `NEXT_PUBLIC_ETH_RPC_URL` - Custom Ethereum RPC URL
+  - Default: `https://cloudflare-eth.com` (mainnet) or `https://rpc.sepolia.org` (sepolia)
 - `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)
 - `NEXT_PUBLIC_CANONICAL` - Canonical URL for the application
 

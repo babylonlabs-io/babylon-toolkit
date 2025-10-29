@@ -1,14 +1,13 @@
-import type { Coin } from "@cosmjs/proto-signing";
-
 import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../../constants";
 import type { RequestFn } from "../utils/http";
+import { sumCoinAmounts } from "../utils/sumCoinAmounts";
 
 interface Dependencies {
   request: RequestFn;
 }
 
 const createBTCClient = ({ request }: Dependencies) => ({
-  async getRewards(address: string): Promise<number> {
+  async getRewards(address: string): Promise<bigint> {
     try {
       const response = await request(
         `/babylon/incentive/address/${address}/reward_gauge`,
@@ -18,23 +17,14 @@ const createBTCClient = ({ request }: Dependencies) => ({
         response?.rewardGauges?.[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
 
       if (!coins) {
-        return 0;
+        return 0n;
       }
 
-      const withdrawnCoins =
-        response.rewardGauges[
-          REWARD_GAUGE_KEY_BTC_DELEGATION
-        ]?.withdrawnCoins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) || 0;
-
-      return (
-        coins.reduce(
-          (acc: number, coin: Coin) => acc + Number(coin.amount),
-          0,
-        ) - withdrawnCoins
+      const withdrawnCoins = sumCoinAmounts(
+        response.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.withdrawnCoins,
       );
+
+      return sumCoinAmounts(coins) - withdrawnCoins;
     } catch (error) {
       // If error message contains "reward gauge not found", silently return 0
       // This is to handle the case where the user has no rewards, meaning
@@ -43,7 +33,7 @@ const createBTCClient = ({ request }: Dependencies) => ({
         error instanceof Error &&
         error.message.includes("reward gauge not found")
       ) {
-        return 0;
+        return 0n;
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
         cause: error,

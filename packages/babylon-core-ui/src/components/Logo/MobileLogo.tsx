@@ -1,5 +1,5 @@
 export const MobileLogo: React.FC = () => (
-  <a href="/">
+  <a href="/vault">
     <svg
       width="41"
       height="40"
@@ -18,3 +18,5 @@ export const MobileLogo: React.FC = () => (
     </svg>
   </a>
 );
+
+

@@ -3,17 +3,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { WagmiProvider } from "wagmi";
 
 import { PendingOperationsProvider } from "../baby/hooks/services/usePendingOperationsService";
 
 import { NotificationContainer } from "./components/Notification/NotificationContainer";
-import { wagmiConfig } from "./config/appkit";
 import { ErrorProvider } from "./context/Error/ErrorProvider";
 import { BbnRpcProvider } from "./context/rpc/BbnRpcProvider";
 import { BTCWalletProvider } from "./context/wallet/BTCWalletProvider";
 import { CosmosWalletProvider } from "./context/wallet/CosmosWalletProvider";
-import { SafeETHWalletProvider } from "./context/wallet/ETHWalletProvider";
 import { WalletConnectionProvider } from "./context/wallet/WalletConnectionProvider";
 import { AppState } from "./state";
 
@@ -36,29 +33,25 @@ function Providers({ children }: React.PropsWithChildren) {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
-              <WagmiProvider config={wagmiConfig}>
-                <QueryClientProvider client={client}>
-                  <ErrorProvider>
-                    <BbnRpcProvider>
-                      <WalletConnectionProvider>
-                        <BTCWalletProvider>
-                          <CosmosWalletProvider>
-                            <SafeETHWalletProvider>
-                              <PendingOperationsProvider>
-                                <AppState>{children}</AppState>
-                              </PendingOperationsProvider>
-                            </SafeETHWalletProvider>
-                          </CosmosWalletProvider>
-                        </BTCWalletProvider>
-                      </WalletConnectionProvider>
-                    </BbnRpcProvider>
-                  </ErrorProvider>
-                  <ReactQueryDevtools
-                    buttonPosition="bottom-left"
-                    initialIsOpen={false}
-                  />
-                </QueryClientProvider>
-              </WagmiProvider>
+              <QueryClientProvider client={client}>
+                <ErrorProvider>
+                  <BbnRpcProvider>
+                    <WalletConnectionProvider>
+                      <BTCWalletProvider>
+                        <CosmosWalletProvider>
+                          <PendingOperationsProvider>
+                            <AppState>{children}</AppState>
+                          </PendingOperationsProvider>
+                        </CosmosWalletProvider>
+                      </BTCWalletProvider>
+                    </WalletConnectionProvider>
+                  </BbnRpcProvider>
+                </ErrorProvider>
+                <ReactQueryDevtools
+                  buttonPosition="bottom-left"
+                  initialIsOpen={false}
+                />
+              </QueryClientProvider>
               <NotificationContainer />
             </div>
           </CoreUIProvider>

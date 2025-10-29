@@ -46,6 +46,7 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@keplr-wallet/provider-extension": "0.12.272",
     "@keplr-wallet/types": "0.12.272",
@@ -55,8 +56,8 @@
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
-    "@reown/appkit": "^1.8.10",
-    "@reown/appkit-adapter-wagmi": "1.8.6",
+    "@reown/appkit": "1.8.12",
+    "@reown/appkit-adapter-wagmi": "1.8.12",
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
     "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",

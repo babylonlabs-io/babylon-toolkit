@@ -1,65 +1,65 @@
+import { Header as CoreHeader, Nav } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useState } from "react";
-import { MdOutlineMenu } from "react-icons/md";
+import { NavLink } from "react-router";
+import { twJoin } from "tailwind-merge";
 
-import { Container } from "@/ui/common/components/Container/Container";
-import { MobileNavOverlay, Nav, NavItem } from "@/ui/common/components/Nav";
-import { useIsMobileView } from "@/ui/common/hooks/useBreakpoint";
 import { useAppState } from "@/ui/common/state";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
-import { MobileLogo } from "../Logo/MobileLogo";
-import { SmallLogo } from "../Logo/SmallLogo";
 import { Connect } from "../Wallet/Connect";
 
 export const Header = () => {
   const { open } = useWalletConnect();
   const { isLoading: loading } = useAppState();
-  const isMobileView = useIsMobileView();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const navItems = [
+    { title: "BTC Staking", to: "/btc" },
+    { title: "BABY Staking", to: "/baby" },
+    { title: "Rewards", to: "/rewards" },
+  ];
+
+  const navigation = (
+    <Nav>
+      {navItems.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className={({ isActive }) =>
+            twJoin(
+              "flex h-10 w-fit items-center justify-center whitespace-nowrap text-center",
+              isActive ? "text-accent-primary" : "text-accent-secondary",
+            )
+          }
+        >
+          {item.title}
+        </NavLink>
+      ))}
+    </Nav>
+  );
+
+  const mobileNavigation = (
+    <>
+      {navItems.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          className={({ isActive }) =>
+            twJoin(
+              "flex h-10 w-fit items-center justify-center whitespace-nowrap text-center",
+              isActive ? "text-accent-primary" : "text-accent-secondary",
+            )
+          }
+        >
+          {item.title}
+        </NavLink>
+      ))}
+    </>
+  );
 
   return (
-    <header className="mb-20">
-      <Container className="relative flex h-20 items-center justify-between">
-        <div className="flex items-center gap-4">
-          {isMobileView ? (
-            <>
-              <MobileLogo />
-              <button
-                type="button"
-                aria-label="Open menu"
-                className="cursor-pointer text-accent-primary"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <MdOutlineMenu size={32} />
-              </button>
-            </>
-          ) : (
-            <SmallLogo />
-          )}
-        </div>
-
-        {!isMobileView && (
-          <div className="absolute left-1/2 -translate-x-1/2 transform">
-            <Nav>
-              <NavItem title="BTC Staking" to="/btc" />
-              <NavItem title="BABY Staking" to="/baby" />
-              <NavItem title="Rewards" to="/rewards" />
-              {FeatureFlagService.IsVaultEnabled && (
-                <NavItem title="Vault" to="/vault" />
-              )}
-            </Nav>
-          </div>
-        )}
-
-        <div className="flex items-center gap-4">
-          <Connect loading={loading} onConnect={open} />
-        </div>
-      </Container>
-      <MobileNavOverlay
-        open={isMobileView && isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-      />
-    </header>
+    <CoreHeader
+      navigation={navigation}
+      mobileNavigation={mobileNavigation}
+      rightActions={<Connect loading={loading} onConnect={open} />}
+    />
   );
 };

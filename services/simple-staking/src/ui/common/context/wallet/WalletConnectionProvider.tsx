@@ -1,7 +1,6 @@
 import {
-  ChainConfigArr,
-  ExternalWallets,
   WalletProvider,
+  createWalletConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, type PropsWithChildren } from "react";
@@ -17,37 +16,6 @@ import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 import { useError } from "../Error/ErrorProvider";
 
 const context = typeof window !== "undefined" ? window : {};
-
-const config: ChainConfigArr = [
-  {
-    chain: "BTC",
-    connectors: [
-      {
-        id: "tomo-btc-connector",
-        widget: ({ onError }: { onError?: (e: Error) => void }) => (
-          <ExternalWallets chainName="bitcoin" onError={onError} />
-        ),
-      },
-    ],
-    config: getNetworkConfigBTC(),
-  },
-  {
-    chain: "BBN",
-    connectors: [
-      {
-        id: "tomo-bbn-connector",
-        widget: ({ onError }: { onError?: (e: Error) => void }) => (
-          <ExternalWallets chainName="cosmos" onError={onError} />
-        ),
-      },
-    ],
-    config: getNetworkConfigBBN(),
-  },
-  {
-    chain: "ETH",
-    config: getNetworkConfigETH(),
-  },
-];
 
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { handleError } = useError();
@@ -80,6 +48,15 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       : location.pathname.startsWith("/vault")
         ? ["BTC", "ETH"]
         : ["BTC", "BBN"];
+
+  const config = createWalletConfig({
+    chains: requiredChains,
+    networkConfigs: {
+      BTC: getNetworkConfigBTC(),
+      BBN: getNetworkConfigBBN(),
+      ETH: getNetworkConfigETH(),
+    },
+  });
 
   return (
     <WalletProvider

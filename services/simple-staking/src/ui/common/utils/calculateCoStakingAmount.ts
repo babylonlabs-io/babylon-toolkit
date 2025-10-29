@@ -1,60 +1,63 @@
+import type { PersonalizedAPRResponse } from "@/ui/common/types/api/coStaking";
+
 import { maxDecimals } from "./maxDecimals";
 
 const MAX_DECIMALS = 6;
 
 /**
- * Calculate co-staking amount from total BTC rewards using pool-share APR ratio
+ * Calculate co-staking amount split from BTC rewards using API APR ratios
  *
  * Splits BTC rewards into:
  * - Base BTC staking rewards
  * - Co-staking bonus rewards
  *
  * @param btcRewardBaby - Total BTC rewards in BABY
- * @param userScore - User's total score from rewards tracker
- * @param globalScore - Global total score from current rewards
- * @param activeBabyUbbn - User's active BABY in ubbn
- * @param rewardSupply - Annual co-staking reward supply in ubbn
- * @param btcApr - BTC staking APR percentage
- * @returns Object with coStakingAmount and baseBtcAmount, or null if calculation not possible
+ * @param rawAprData - APR data from API containing co_staking_apr, btc_staking_apr, total_apr
+ * @returns Object with coStakingAmountBaby and baseBtcRewardBaby
  */
 export function calculateCoStakingAmount(
   btcRewardBaby: number,
-  userScore: string | undefined,
-  globalScore: string | undefined,
-  activeBabyUbbn: string | undefined,
-  rewardSupply: number | null | undefined,
-  btcApr: number | undefined,
-): { coStakingAmount: number; baseBtcAmount: number } | null {
-  if (!userScore || !globalScore || !activeBabyUbbn) return null;
+  rawAprData: PersonalizedAPRResponse["data"] | null,
+): { coStakingAmountBaby: number; baseBtcRewardBaby: number } {
+  // If co-staking APR data not available, return base values
+  if (!rawAprData || !rawAprData.current) {
+    return {
+      coStakingAmountBaby: 0,
+      baseBtcRewardBaby: btcRewardBaby,
+    };
+  }
 
-  if (!rewardSupply || !btcApr) return null;
+  const { co_staking_apr, btc_staking_apr, total_apr } = rawAprData.current;
 
-  const userScoreNum = Number(userScore);
-  const globalScoreNum = Number(globalScore);
-  const activeBabyNum = Number(activeBabyUbbn);
+  // If no co-staking APR, all BTC rewards are base BTC rewards
+  // Guard against division by zero and invalid numbers
+  if (
+    co_staking_apr === 0 ||
+    total_apr === 0 ||
+    !Number.isFinite(total_apr) ||
+    total_apr < 0
+  ) {
+    return {
+      coStakingAmountBaby: 0,
+      baseBtcRewardBaby: btcRewardBaby,
+    };
+  }
 
-  if (globalScoreNum <= 0 || activeBabyNum <= 0 || userScoreNum <= 0)
-    return null;
+  // Calculate split based on APR ratios from API
+  const coStakingRatio = co_staking_apr / total_apr;
+  const btcStakingRatio = btc_staking_apr / total_apr;
 
-  const poolShare = userScoreNum / globalScoreNum;
-  const userAnnualRewardsUbbn = poolShare * rewardSupply;
-  const userCoStakingApr = (userAnnualRewardsUbbn / activeBabyNum) * 100;
-  const denominator = btcApr + userCoStakingApr;
-
-  if (denominator <= 0) return null;
-
-  const coStakingRatio = userCoStakingApr / denominator;
-  const rawCoStakingBaby = btcRewardBaby * coStakingRatio;
-  const clampedCoStakingBaby = Math.max(
-    0,
-    Math.min(btcRewardBaby, rawCoStakingBaby),
+  const coStakingAmount = maxDecimals(
+    btcRewardBaby * coStakingRatio,
+    MAX_DECIMALS,
   );
-
-  const coStakingAmount = maxDecimals(clampedCoStakingBaby, MAX_DECIMALS);
   const baseBtcAmount = maxDecimals(
-    btcRewardBaby - coStakingAmount,
+    btcRewardBaby * btcStakingRatio,
     MAX_DECIMALS,
   );
 
-  return { coStakingAmount, baseBtcAmount };
+  return {
+    coStakingAmountBaby: coStakingAmount,
+    baseBtcRewardBaby: baseBtcAmount,
+  };
 }

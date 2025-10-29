@@ -5,7 +5,7 @@ interface LogoProps {
 }
 
 export const Logo: React.FC<LogoProps> = ({ className }) => (
-  <a href="/">
+  <a href="/vault">
     <svg
       viewBox="0 0 367 91"
       xmlns="http://www.w3.org/2000/svg"
@@ -50,3 +50,5 @@ export const Logo: React.FC<LogoProps> = ({ className }) => (
     </svg>
   </a>
 );
+
+
