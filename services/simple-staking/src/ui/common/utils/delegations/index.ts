@@ -2,7 +2,7 @@ import { UTXO } from "@babylonlabs-io/btc-staking-ts";
 import { Transaction } from "bitcoinjs-lib";
 
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
-import { BtcStakingInputs } from "@/ui/common/hooks/services/useTransactionService";
+import type { BtcStakingInputs } from "@/ui/common/types/stakingInputs";
 import {
   DelegationV2StakingState as DelegationState,
   DelegationV2,
