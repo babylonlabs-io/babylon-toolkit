@@ -9,6 +9,7 @@ import {
 
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useLogger } from "@/ui/common/hooks/useLogger";
+import { redactTelemetry } from "@/ui/common/utils/telemetry";
 import {
   getBabyEpochData,
   getCurrentEpoch,
@@ -88,7 +89,7 @@ function usePendingOperationsServiceInternal() {
     } catch {
       logger.warn("Error getting pending operations from localStorage", {
         tags: {
-          bech32Address,
+          bech32Address: redactTelemetry(bech32Address),
           app: "baby",
         },
       });

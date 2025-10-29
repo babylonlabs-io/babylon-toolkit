@@ -6,6 +6,7 @@ import { useCallback } from "react";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
+import { redactTelemetry } from "@/ui/common/utils/telemetry";
 
 /**
  * Hook for signing and broadcasting transactions with the Cosmos wallet
@@ -47,7 +48,9 @@ export const useSigningStargateClient = () => {
         throw clientError;
       }
       if (bech32Address) {
-        logger.info("Using Cosmos address for simulation", { bech32Address });
+        logger.info("Using Cosmos address for simulation", {
+          bech32Address: redactTelemetry(bech32Address),
+        });
       }
       return signingStargateClient.simulate(
         bech32Address,
@@ -84,7 +87,7 @@ export const useSigningStargateClient = () => {
       }
       if (bech32Address) {
         logger.info("Using Cosmos address for signAndBroadcast", {
-          bech32Address,
+          bech32Address: redactTelemetry(bech32Address),
         });
       }
       const res = await signingStargateClient.signAndBroadcast(

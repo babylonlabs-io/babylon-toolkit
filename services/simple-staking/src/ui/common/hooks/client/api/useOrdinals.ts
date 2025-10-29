@@ -8,6 +8,7 @@ import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { wait } from "@/ui/common/utils";
+import { redactTelemetry } from "@/ui/common/utils/telemetry";
 import { filterDust } from "@/ui/common/utils/wallet";
 
 export const ORDINAL_KEY = "ORDINALS";
@@ -22,7 +23,9 @@ export function useOrdinals(
 
   const fetchOrdinals = async (): Promise<InscriptionIdentifier[]> => {
     if (address) {
-      logger.info("Fetching ordinals for address", { btcAddress: address });
+      logger.info("Fetching ordinals for address", {
+        btcAddress: redactTelemetry(address),
+      });
     }
     try {
       const inscriptions = await Promise.race([

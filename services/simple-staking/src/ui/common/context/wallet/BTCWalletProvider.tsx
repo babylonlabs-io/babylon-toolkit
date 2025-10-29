@@ -29,6 +29,7 @@ import {
   getTipHeight,
   pushTx,
 } from "@/ui/common/utils/mempool_api";
+import { redactTelemetry } from "@/ui/common/utils/telemetry";
 import {
   getPublicKeyNoCoord,
   isSupportedAddressType,
@@ -186,8 +187,8 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
         logger.info("BTC wallet connected", {
           network,
-          userPublicKey: publicKeyNoCoordHex,
-          btcAddress: address,
+          userPublicKey: redactTelemetry(publicKeyNoCoordHex),
+          btcAddress: redactTelemetry(address),
           walletName: await walletProvider.getWalletProviderName(),
         });
       } catch (error: any) {
@@ -198,8 +199,8 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
             retryAction: () => connectBTC(walletProvider),
           },
           metadata: {
-            userPublicKey: publicKeyNoCoord,
-            btcAddress: address,
+            userPublicKey: redactTelemetry(publicKeyNoCoord),
+            btcAddress: redactTelemetry(address),
           },
         });
       }
