@@ -1,8 +1,8 @@
 import {
   Avatar,
   AvatarGroup,
+  BtcEthWalletMenu,
   ConnectButton,
-  WalletMenu,
 } from "@babylonlabs-io/core-ui";
 import {
   useWalletConnect,
@@ -48,11 +48,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
     setIsWalletMenuOpen(open);
   };
 
-  // Show WalletMenu when connected
+  // Show BtcEthWalletMenu when connected
   if (isConnected) {
     return (
       <div className="flex flex-row items-center gap-4">
-        <WalletMenu
+        <BtcEthWalletMenu
           trigger={
             <div className="cursor-pointer">
               <AvatarGroup max={3} variant="circular">
@@ -84,15 +84,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
             </div>
           }
           btcAddress={btcAddress}
-          bbnAddress="" // Vault doesn't use BBN
           ethAddress={ethAddress}
           selectedWallets={transformedWallets}
-          ordinalsExcluded={false}
-          linkedDelegationsVisibility={false}
-          onIncludeOrdinals={() => {}}
-          onExcludeOrdinals={() => {}}
-          onDisplayLinkedDelegations={() => {}}
           publicKeyNoCoord={publicKeyNoCoord}
+          btcCoinSymbol="BTC"
+          ethCoinSymbol="ETH"
           onDisconnect={disconnect}
           onOpenChange={handleOpenChange}
         />

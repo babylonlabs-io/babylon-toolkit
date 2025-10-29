@@ -8,9 +8,14 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { WagmiProvider } from "wagmi";
 
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
+import {
+  getAppKitWagmiConfig,
+  hasAppKitModal,
+} from "@/core/wallets/eth/appkit/appKitModal";
 
 export interface ETHWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
@@ -41,9 +46,48 @@ export interface ETHWalletProviderProps extends PropsWithChildren {
 export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string>();
+  const [wagmiConfig, setWagmiConfig] = useState<ReturnType<
+    typeof getAppKitWagmiConfig
+  > | null>(null);
   
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
+
+  // Initialize wagmi config from AppKit
+  useEffect(() => {
+    // Wait for AppKit to be initialized
+    if (hasAppKitModal()) {
+      try {
+        const config = getAppKitWagmiConfig();
+        setWagmiConfig(config);
+      } catch (error) {
+        console.warn("Failed to get AppKit wagmi config:", error);
+      }
+    } else {
+      // Poll until AppKit is initialized (with timeout)
+      let attempts = 0;
+      const maxAttempts = 10;
+      const interval = setInterval(() => {
+        attempts++;
+        if (hasAppKitModal()) {
+          try {
+            const config = getAppKitWagmiConfig();
+            setWagmiConfig(config);
+            clearInterval(interval);
+          } catch (error) {
+            console.warn("Failed to get AppKit wagmi config:", error);
+          }
+        } else if (attempts >= maxAttempts) {
+          console.warn(
+            "AppKit not initialized after multiple attempts, wallet reconnection may not work",
+          );
+          clearInterval(interval);
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, []);
 
   const disconnect = useCallback(async () => {
     setAddress(undefined);
@@ -142,18 +186,25 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     [address],
   );
 
+  // Render without WagmiProvider until wagmiConfig is available
+  if (!wagmiConfig) {
+    return <>{children}</>;
+  }
+
   return (
-    <ETHWalletContext.Provider
-      value={{
-        loading,
-        connected,
-        address,
-        disconnect,
-        open,
-      }}
-    >
-      {children}
-    </ETHWalletContext.Provider>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount>
+      <ETHWalletContext.Provider
+        value={{
+          loading,
+          connected,
+          address,
+          disconnect,
+          open,
+        }}
+      >
+        {children}
+      </ETHWalletContext.Provider>
+    </WagmiProvider>
   );
 };
 

@@ -1,22 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { useState } from "react";
-import { WalletMenu } from "./WalletMenu";
+import { BtcEthWalletMenu } from "./presets/BtcEthWalletMenu";
+import { BtcBabyWalletMenu } from "./presets/BtcBabyWalletMenu";
+import { BabyWalletMenu } from "./presets/BabyWalletMenu";
 import { AvatarGroup, Avatar } from "../../../components/Avatar";
 
-const meta: Meta<typeof WalletMenu> = {
+const meta: Meta = {
   title: "Widgets/Menus/WalletMenu",
-  component: WalletMenu,
   tags: ["autodocs"],
 };
 
 export default meta;
 
-type Story = StoryObj<typeof meta>;
-
 // Example wallet data
 const mockWalletData = {
   btcAddress: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
   bbnAddress: "bbn1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+  ethAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
   selectedWallets: {
     BTC: {
       name: "Binance Wallet",
@@ -25,6 +25,10 @@ const mockWalletData = {
     BBN: {
       name: "Binance Wallet",
       icon: "/images/wallets/binance.webp",
+    },
+    ETH: {
+      name: "MetaMask",
+      icon: "/images/wallets/metamask.webp",
     },
   },
   publicKeyNoCoord: "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
@@ -38,15 +42,73 @@ const mockWalletData = {
   bbnBalances: {
     available: 250.5,
   },
+  ethBalances: {
+    available: 1.5,
+  },
 };
 
-export const Default: Story = {
+export const BtcEth: StoryObj = {
+  name: "BtcEthWalletMenu (Vault)",
+  render: () => {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+    const trigger = (
+      <div className="cursor-pointer">
+        <AvatarGroup max={2} variant="circular">
+          <Avatar
+            alt={mockWalletData.selectedWallets.BTC.name}
+            url={mockWalletData.selectedWallets.BTC.icon}
+            size="large"
+            className={`object-contain bg-accent-contrast box-content ${isMenuOpen ? "outline outline-[2px] outline-accent-primary" : ""}`}
+          />
+          <Avatar
+            alt={mockWalletData.selectedWallets.ETH.name}
+            url={mockWalletData.selectedWallets.ETH.icon}
+            size="large"
+            className={`object-contain bg-accent-contrast box-content ${isMenuOpen ? "outline outline-[2px] outline-accent-primary" : ""}`}
+          />
+        </AvatarGroup>
+      </div>
+    );
+
+    const customFormatBalance = (amount: number, coinSymbol: string) => {
+      return `${amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8,
+      })} ${coinSymbol}`;
+    };
+
+    return (
+      <div className="space-y-4 p-4">
+        <h3 className="text-lg font-semibold">BtcEthWalletMenu - For Vault (BTC + ETH)</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Includes: BTC card, ETH card, Bitcoin Public Key. No BTC staking settings.
+        </p>
+        <BtcEthWalletMenu
+          trigger={trigger}
+          btcAddress={mockWalletData.btcAddress}
+          ethAddress={mockWalletData.ethAddress}
+          selectedWallets={mockWalletData.selectedWallets}
+          publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
+          onDisconnect={() => console.log("Disconnect wallets")}
+          onOpenChange={setIsMenuOpen}
+          btcBalances={mockWalletData.btcBalances}
+          ethBalances={mockWalletData.ethBalances}
+          btcCoinSymbol="BTC"
+          ethCoinSymbol="ETH"
+          formatBalance={customFormatBalance}
+        />
+      </div>
+    );
+  },
+};
+
+export const BtcBaby: StoryObj = {
+  name: "BtcBabyWalletMenu (Simple-staking)",
   render: () => {
     const [ordinalsExcluded, setOrdinalsExcluded] = useState(false);
     const [linkedDelegationsVisibility, setLinkedDelegationsVisibility] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [balancesLoading, setBalancesLoading] = useState(false);
-    const [hasUnconfirmedTx, setHasUnconfirmedTx] = useState(false);
 
     const trigger = (
       <div className="cursor-pointer">
@@ -75,8 +137,12 @@ export const Default: Story = {
     };
 
     return (
-      <div className="space-y-4">
-        <WalletMenu
+      <div className="space-y-4 p-4">
+        <h3 className="text-lg font-semibold">BtcBabyWalletMenu - For simple-staking (BTC + BABY)</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Includes: BTC card, BABY card, Using Inscriptions toggle, Linked Wallet Stakes toggle, Bitcoin Public Key.
+        </p>
+        <BtcBabyWalletMenu
           trigger={trigger}
           btcAddress={mockWalletData.btcAddress}
           bbnAddress={mockWalletData.bbnAddress}
@@ -93,42 +159,17 @@ export const Default: Story = {
           bbnBalances={mockWalletData.bbnBalances}
           btcCoinSymbol="BTC"
           bbnCoinSymbol="BABY"
-          balancesLoading={balancesLoading}
-          hasUnconfirmedTransactions={hasUnconfirmedTx}
           formatBalance={customFormatBalance}
         />
-
-        <div className="flex flex-col gap-4 p-4 border border-gray-300 rounded-lg max-w-md">
-          <h4 className="font-semibold">State Controls</h4>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={balancesLoading}
-              onChange={(e) => setBalancesLoading(e.target.checked)}
-            />
-            Loading State
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hasUnconfirmedTx}
-              onChange={(e) => setHasUnconfirmedTx(e.target.checked)}
-            />
-            Has Unconfirmed Transactions (BTC only)
-          </label>
-        </div>
       </div>
     );
   },
 };
 
-export const WithoutBitcoin: Story = {
+export const Baby: StoryObj = {
+  name: "BabyWalletMenu (BABY-only)",
   render: () => {
-    const [ordinalsExcluded, setOrdinalsExcluded] = useState(false);
-    const [linkedDelegationsVisibility, setLinkedDelegationsVisibility] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [balancesLoading, setBalancesLoading] = useState(false);
-    const [hasUnconfirmedTx, setHasUnconfirmedTx] = useState(false);
 
     const trigger = (
       <div className="cursor-pointer">
@@ -151,47 +192,21 @@ export const WithoutBitcoin: Story = {
     };
 
     return (
-      <div className="space-y-4">
-        <WalletMenu
+      <div className="space-y-4 p-4">
+        <h3 className="text-lg font-semibold">BabyWalletMenu - For BABY-only apps</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          Includes: BABY card only. No BTC-specific settings.
+        </p>
+        <BabyWalletMenu
           trigger={trigger}
-          btcAddress=""
           bbnAddress={mockWalletData.bbnAddress}
           selectedWallets={mockWalletData.selectedWallets}
-          ordinalsExcluded={ordinalsExcluded}
-          linkedDelegationsVisibility={linkedDelegationsVisibility}
-          onIncludeOrdinals={() => setOrdinalsExcluded(false)}
-          onExcludeOrdinals={() => setOrdinalsExcluded(true)}
-          onDisplayLinkedDelegations={setLinkedDelegationsVisibility}
-          publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
-          onDisconnect={() => console.log("Disconnect wallets")}
+          onDisconnect={() => console.log("Disconnect wallet")}
           onOpenChange={setIsMenuOpen}
           bbnBalances={mockWalletData.bbnBalances}
-          btcCoinSymbol="BTC"
           bbnCoinSymbol="BABY"
-          balancesLoading={balancesLoading}
-          hasUnconfirmedTransactions={hasUnconfirmedTx}
           formatBalance={customFormatBalance}
         />
-
-        <div className="flex flex-col gap-4 p-4 border border-gray-300 rounded-lg max-w-md">
-          <h4 className="font-semibold">State Controls</h4>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={balancesLoading}
-              onChange={(e) => setBalancesLoading(e.target.checked)}
-            />
-            Loading State
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={hasUnconfirmedTx}
-              onChange={(e) => setHasUnconfirmedTx(e.target.checked)}
-            />
-            Has Unconfirmed Transactions (BTC only)
-          </label>
-        </div>
       </div>
     );
   },

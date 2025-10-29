@@ -14,3 +14,6 @@ export type { SettingMenuItemProps } from "./components";
 export type { SettingMenuSubMenuProps } from "./components";
 export type { SettingMenuDescriptionProps } from "./components";
 export type { SettingMenuCustomContentProps } from "./components";
+
+// Presets
+export { StandardSettingsMenu, type StandardSettingsMenuProps } from "./presets";

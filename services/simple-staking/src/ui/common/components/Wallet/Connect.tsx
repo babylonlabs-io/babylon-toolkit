@@ -2,7 +2,7 @@ import {
   Avatar,
   AvatarGroup,
   Button,
-  WalletMenu,
+  BtcBabyWalletMenu,
 } from "@babylonlabs-io/core-ui";
 import {
   useWalletConnect,
@@ -156,7 +156,7 @@ export const Connect: React.FC<ConnectProps> = ({
   // CONNECTED STATE: Show wallet avatars + settings menu
   return (
     <div className="relative flex flex-row items-center gap-4">
-      <WalletMenu
+      <BtcBabyWalletMenu
         trigger={
           <div className="cursor-pointer">
             <AvatarGroup max={3} variant="circular">
