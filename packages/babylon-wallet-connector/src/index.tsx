@@ -32,4 +32,5 @@ export {
     hasAppKitModal,
     openAppKitModal,
     closeAppKitModal,
+    type AppKitModalConfig,
 } from "@/core/wallets/eth/appkit/appKitModal";

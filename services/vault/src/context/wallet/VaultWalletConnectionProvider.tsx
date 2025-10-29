@@ -3,14 +3,22 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
+  BTCWalletProvider,
+  ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
+  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 
+import { AppKitProvider } from "@/components/AppKitProvider";
+
 const context = typeof window !== "undefined" ? window : {};
 
+/**
+ * VaultWalletConnectionProvider
+ */
 export const VaultWalletConnectionProvider = ({
   children,
 }: PropsWithChildren) => {
@@ -25,6 +33,25 @@ export const VaultWalletConnectionProvider = ({
           ETH: getNetworkConfigETH(),
         },
       }),
+    [],
+  );
+
+  const appKitConfig: AppKitModalConfig = useMemo(
+    () => ({
+      metadata: {
+        name: "Babylon Vault",
+        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://staking.vault-devnet.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+    }),
     [],
   );
 
@@ -43,8 +70,13 @@ export const VaultWalletConnectionProvider = ({
       context={context}
       onError={onError}
       requiredChains={["BTC", "ETH"]}
+      appKitConfig={appKitConfig}
     >
-      {children}
+      <AppKitProvider>
+        <BTCWalletProvider>
+          <ETHWalletProvider>{children}</ETHWalletProvider>
+        </BTCWalletProvider>
+      </AppKitProvider>
     </WalletProvider>
   );
 };
