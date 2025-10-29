@@ -1,11 +1,9 @@
 import { Header as CoreHeader, Nav } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
 import { NavLink } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { useAppState } from "@/ui/common/state";
-// import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { Connect } from "../Wallet/Connect";
 
@@ -13,20 +11,11 @@ export const Header = () => {
   const { open } = useWalletConnect();
   const { isLoading: loading } = useAppState();
 
-  // Build nav items based on feature flags
-  const navItems = useMemo(() => {
-    const items = [
-      { title: "BTC Staking", to: "/btc" },
-      { title: "BABY Staking", to: "/baby" },
-      { title: "Rewards", to: "/rewards" },
-    ];
-
-    // if (FeatureFlagService.IsVaultEnabled) {
-    //   items.push({ title: "Vault", to: "/vault" });
-    // }
-
-    return items;
-  }, []);
+  const navItems = [
+    { title: "BTC Staking", to: "/btc" },
+    { title: "BABY Staking", to: "/baby" },
+    { title: "Rewards", to: "/rewards" },
+  ];
 
   const navigation = (
     <Nav>

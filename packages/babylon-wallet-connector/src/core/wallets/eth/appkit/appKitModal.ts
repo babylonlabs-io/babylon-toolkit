@@ -1,7 +1,7 @@
 import { createAppKit } from "@reown/appkit/react";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { Config } from "wagmi";
-import { createStorage } from "wagmi";
+import { cookieStorage, createStorage } from "wagmi";
 
 import { setSharedWagmiConfig } from "./sharedConfig";
 
@@ -19,7 +19,6 @@ export interface AppKitModalConfig {
     };
     featuredWalletIds?: string[];
     networks?: any[];
-    enableWalletConnect?: boolean;
     features?: {
         email?: boolean;
         socials?: false | string[];
@@ -86,19 +85,18 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
         },
     ] as any;
 
-    const storageConfig = createStorage({
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        key: 'wagmi.store',
+    // Create storage for wallet persistence
+    const storage = createStorage({
+        storage: cookieStorage,
     });
 
+    // Create Wagmi Adapter with storage for reconnection
     wagmiAdapter = new WagmiAdapter({
         networks,
         projectId,
-        storage: storageConfig,
         ssr: false,
-        syncConnectedChain: true,
-        reconnect: true,
-    } as any);
+        storage,
+    });
 
     // Create and store the AppKit modal instance
     appKitModal = createAppKit({
@@ -107,18 +105,20 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
         projectId,
         metadata,
         features: {
-            analytics: true,
-            swaps: false,
-            onramp: false,
+            analytics: config.features?.analytics ?? true,
+            swaps: config.features?.swaps ?? false,
+            onramp: config.features?.onramp ?? false,
         },
         enableWalletConnect: true,
-        themeMode: config?.themeMode || "light",
-        themeVariables: config?.themeVariables || {
+        enableCoinbase: true,
+        themeMode: config.themeMode || "light",
+        themeVariables: config.themeVariables || {
             "--w3m-accent": "#FF7C2A",
         },
-        featuredWalletIds: config?.featuredWalletIds || [
+        featuredWalletIds: config.featuredWalletIds || [
             "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
         ],
+        allWallets: config.allWallets || 'SHOW',
     });
 
     // Set the shared wagmi config for the wallet-connector AppKitProvider

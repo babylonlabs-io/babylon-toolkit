@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   createContext,
   useCallback,
@@ -70,9 +71,45 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     [callbacks],
   );
 
+  // Check for existing connection on mount (handles auto-reconnection)
   useEffect(() => {
     setLoading(false);
     if (!ethConnector) return;
+
+    const checkExistingConnection = async () => {
+      try {
+        // First check if connector already has a connected wallet
+        if (ethConnector.connectedWallet?.provider && !address) {
+          const addr = await ethConnector.connectedWallet.provider.getAddress();
+          if (addr) {
+            connectETH(addr);
+          }
+          return;
+        }
+
+        // If not, try to auto-reconnect using the first available wallet
+        // The AppKitProvider will detect existing wagmi connection and return immediately
+        if (!address && ethConnector.wallets.length > 0) {
+          const wallet = ethConnector.wallets[0]; // AppKit wallet
+          if (wallet.provider) {
+            try {
+              // This will check for existing connection and return immediately if found
+              const addr = await wallet.provider.getAddress();
+              if (addr) {
+                // Found existing connection, trigger manual connect to sync state
+                await ethConnector.connect(wallet);
+              }
+            } catch (error) {
+              // No existing connection, which is fine
+            }
+          }
+        }
+      } catch (error) {
+        // No existing connection, which is fine
+      }
+    };
+
+    checkExistingConnection();
 
     const unsubscribe = ethConnector.on("connect", async (wallet) => {
       if (wallet.provider) {
@@ -88,7 +125,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     });
 
     return unsubscribe;
-  }, [ethConnector, connectETH]);
+  }, [ethConnector, connectETH, address]);
 
   useEffect(() => {
     if (!ethConnector) return;

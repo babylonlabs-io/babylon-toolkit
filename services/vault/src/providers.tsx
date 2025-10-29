@@ -1,8 +1,4 @@
 import { CoreUIProvider, ScrollLocker } from "@babylonlabs-io/core-ui";
-import {
-  BTCWalletProvider,
-  ETHWalletProvider,
-} from "@babylonlabs-io/wallet-connector";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
@@ -33,11 +29,7 @@ function Providers({ children }: React.PropsWithChildren) {
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
                 <VaultWalletConnectionProvider>
-                  <BTCWalletProvider>
-                    <ETHWalletProvider>
-                      <AppState>{children}</AppState>
-                    </ETHWalletProvider>
-                  </BTCWalletProvider>
+                  <AppState>{children}</AppState>
                 </VaultWalletConnectionProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"

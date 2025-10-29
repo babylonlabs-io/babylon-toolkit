@@ -3,6 +3,8 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
+  BTCWalletProvider,
+  ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
   type AppKitModalConfig,
@@ -10,8 +12,13 @@ import {
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 
+import { AppKitProvider } from "@/components/AppKitProvider";
+
 const context = typeof window !== "undefined" ? window : {};
 
+/**
+ * VaultWalletConnectionProvider
+ */
 export const VaultWalletConnectionProvider = ({
   children,
 }: PropsWithChildren) => {
@@ -65,7 +72,11 @@ export const VaultWalletConnectionProvider = ({
       requiredChains={["BTC", "ETH"]}
       appKitConfig={appKitConfig}
     >
-      {children}
+      <AppKitProvider>
+        <BTCWalletProvider>
+          <ETHWalletProvider>{children}</ETHWalletProvider>
+        </BTCWalletProvider>
+      </AppKitProvider>
     </WalletProvider>
   );
 };
