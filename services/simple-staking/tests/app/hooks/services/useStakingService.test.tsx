@@ -174,7 +174,7 @@ describe("useStakingService", () => {
 
       const fee = result.current.calculateFeeAmount({
         finalityProviders: mockFormData.finalityProviders,
-        amount: mockFormData.amount,
+        amount: 1.2, // BTC input for fee estimation
         term: mockFormData.term,
         feeRate: mockFormData.feeRate,
       });
@@ -203,7 +203,7 @@ describe("useStakingService", () => {
       expect(() => {
         result.current.calculateFeeAmount({
           finalityProviders: mockFormData.finalityProviders,
-          amount: mockFormData.amount,
+          amount: 1.2, // BTC input
           term: mockFormData.term,
           feeRate: mockFormData.feeRate,
         });
