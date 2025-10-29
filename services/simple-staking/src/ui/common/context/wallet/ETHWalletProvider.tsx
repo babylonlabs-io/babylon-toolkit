@@ -23,6 +23,7 @@ import {
   useSignMessage,
   useSignTypedData,
   useSendTransaction,
+  useSwitchChain,
 } from "wagmi";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
@@ -123,6 +124,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
   const { sendTransactionAsync } = useSendTransaction();
+  const { switchChainAsync } = useSwitchChain();
 
   // Update network name based on chain ID
   useEffect(() => {
@@ -222,8 +224,16 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       },
       getBalance: async () => balance?.value ?? 0n,
       getNonce: async () => 0, // Would need additional hook for nonce
-      switchChain: async () => {
-        // AppKit handles chain switching through the modal
+      switchChain: async (chainId: number) => {
+        try {
+          setIsPending(true);
+          await switchChainAsync({ chainId });
+        } catch (err) {
+          handleError({ error: err as Error });
+          throw err;
+        } finally {
+          setIsPending(false);
+        }
       },
     }),
     [
@@ -233,6 +243,7 @@ export const ETHWalletProvider = ({ children }: PropsWithChildren) => {
       handleError,
       signTypedDataAsync,
       sendTransactionAsync,
+      switchChainAsync,
       balance?.value,
     ],
   );

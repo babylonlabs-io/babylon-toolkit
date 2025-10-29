@@ -40,6 +40,7 @@ export * from "./components/Logo";
 export * from "./components/Nav";
 export * from "./components/Header";
 export * from "./components/Footer";
+export * from "./components/ConnectButton";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";

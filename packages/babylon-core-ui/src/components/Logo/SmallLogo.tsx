@@ -47,3 +47,4 @@ export const SmallLogo: React.FC = () => (
   </a>
 );
 
+

@@ -52,6 +52,17 @@ export class AppKitProvider implements IETHProvider {
   private setupEventWatchers(): void {
     const config = this.getWagmiConfig();
 
+    // Check for existing connection on initialization (for auto-reconnection)
+    const initialAccount = getAccount(config);
+    if (initialAccount.address && initialAccount.status === 'connected') {
+      this.address = initialAccount.address;
+      this.chainId = initialAccount.chainId;
+      // Emit connect event after a short delay to ensure provider is fully initialized
+      setTimeout(() => {
+        this.emit("accountsChanged", [initialAccount.address!]);
+      }, 100);
+    }
+
     // Watch for account changes
     const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
