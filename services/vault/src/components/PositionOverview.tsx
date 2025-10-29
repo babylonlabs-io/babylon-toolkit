@@ -11,6 +11,7 @@ import { useNavigate } from "react-router";
 
 import { useUserPositions } from "../hooks/useUserPositions";
 import type { PositionWithMorpho } from "../services/position";
+import { formatLLTV } from "../utils/formatting";
 
 // Extend PositionWithMorpho to include id for Table component
 type PositionWithId = PositionWithMorpho & { id: string };
@@ -93,11 +94,6 @@ const formatBTC = (value: bigint) => {
     const collateralUSD = (Number(collateral) / 1e8) * btcPrice;
     const borrowUSD = Number(borrowAssets) / 1e6;
     return (borrowUSD / collateralUSD) * 100;
-  };
-
-  const formatLLTV = (lltv: bigint) => {
-    const lltvNumber = Number(lltv) / 1e16;
-    return `${lltvNumber.toFixed(1)}%`;
   };
 
   const columns: ColumnProps<PositionWithId>[] = [
