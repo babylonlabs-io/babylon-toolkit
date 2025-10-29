@@ -75,16 +75,14 @@ export function PositionOverview() {
     id: position.positionId,
   }));
 
-// Helper functions for formatting
-const formatUSDC = (value: bigint) => {
-  return (Number(value) / 1e6).toFixed(2);
-};
-
-const formatBTC = (value: bigint) => {
-  return (Number(value) / 1e8).toFixed(8);
-};
-
   // Helper functions for formatting
+  const formatUSDC = (value: bigint) => {
+    return (Number(value) / 1e6).toFixed(2);
+  };
+
+  const formatBTC = (value: bigint) => {
+    return (Number(value) / 1e8).toFixed(8);
+  };
   const calculateLTV = (
     borrowAssets: bigint,
     collateral: bigint,
