@@ -5,13 +5,13 @@ import { createStorage } from "wagmi";
 
 import { setSharedWagmiConfig } from "./sharedConfig";
 
-interface AppKitModalConfig {
+export interface AppKitModalConfig {
     projectId?: string;
-    metadata?: {
-        name?: string;
-        description?: string;
-        url?: string;
-        icons?: string[];
+    metadata: {
+        name: string;
+        description: string;
+        url: string;
+        icons: string[];
     };
     themeMode?: "light" | "dark";
     themeVariables?: {
@@ -36,33 +36,21 @@ let wagmiAdapter: WagmiAdapter | null = null;
 /**
  * Initialize AppKit modal and wagmi configuration
  * This should be called once at the application level
+ * @param config - Configuration including required metadata for app branding
  */
-export function initializeAppKitModal(config?: AppKitModalConfig) {
+export function initializeAppKitModal(config: AppKitModalConfig) {
     // Don't reinitialize if already initialized
     if (appKitModal && wagmiAdapter) {
         return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig };
     }
 
     // Get project ID from config or environment
-    const projectId = config?.projectId ||
+    const projectId = config.projectId ||
         (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined) ||
         "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
 
-    // Get metadata URL dynamically
-    const getMetadataUrl = () => {
-        if (typeof window !== "undefined") {
-            return window.location.origin;
-        }
-        return config?.metadata?.url || "https://btcstaking.babylonlabs.io";
-    };
-
-    // AppKit metadata configuration - ensure all required fields
-    const metadata = {
-        name: config?.metadata?.name || "Babylon Staking",
-        description: config?.metadata?.description || "Babylon Staking - Secure Bitcoin Staking Platform",
-        url: config?.metadata?.url || getMetadataUrl(),
-        icons: config?.metadata?.icons || ["https://btcstaking.babylonlabs.io/favicon.ico"],
-    };
+    // Use metadata directly from config (now required)
+    const metadata = config.metadata;
 
     // Define networks for AppKit - use minimal network configuration
     const networks = config?.networks || [

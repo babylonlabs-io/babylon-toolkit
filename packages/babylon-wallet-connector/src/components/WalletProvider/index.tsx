@@ -6,7 +6,7 @@ import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
-import { initializeAppKitModal } from "@/core/wallets/eth/appkit/appKitModal";
+import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
 import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
@@ -22,6 +22,7 @@ interface WalletProviderProps {
   onError?: (e: Error) => void;
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  appKitConfig?: AppKitModalConfig;
 }
 
 export function WalletProvider({
@@ -35,6 +36,7 @@ export function WalletProvider({
   onError,
   disabledWallets,
   requiredChains,
+  appKitConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
@@ -42,17 +44,18 @@ export function WalletProvider({
   useEffect(() => {
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");
-      if (hasETH) {
+      if (hasETH && appKitConfig) {
         initializeAppKitModal({
+          ...appKitConfig,
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
     } catch (error) {
       // Non-fatal; ETH flow will fallback to direct WalletConnect in provider
-       
+
       console.error("Failed to initialize AppKit modal:", error);
     }
-  }, [config, theme]);
+  }, [config, theme, appKitConfig]);
 
   // Listen for requests to open the AppKit modal (triggered by ETH connector)
   useAppKitOpenListener();

@@ -5,6 +5,7 @@ import {
 import {
   WalletProvider,
   createWalletConfig,
+  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -28,6 +29,25 @@ export const VaultWalletConnectionProvider = ({
     [],
   );
 
+  const appKitConfig: AppKitModalConfig = useMemo(
+    () => ({
+      metadata: {
+        name: "Babylon Vault",
+        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://staking.vault-devnet.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+    }),
+    [],
+  );
+
   const onError = useCallback((error: Error) => {
     if (error?.message?.includes("rejected")) {
       return;
@@ -43,6 +63,7 @@ export const VaultWalletConnectionProvider = ({
       context={context}
       onError={onError}
       requiredChains={["BTC", "ETH"]}
+      appKitConfig={appKitConfig}
     >
       {children}
     </WalletProvider>
