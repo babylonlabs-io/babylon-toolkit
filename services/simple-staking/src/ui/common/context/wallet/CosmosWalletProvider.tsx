@@ -20,7 +20,6 @@ import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useSentryUser } from "@/ui/common/hooks/useSentryUser";
-import { redactTelemetry } from "@/ui/common/utils/telemetry";
 import { createBbnAminoTypes } from "@/ui/common/utils/wallet/amino";
 import { createBbnRegistry } from "@/ui/common/utils/wallet/bbnRegistry";
 
@@ -127,7 +126,7 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
         updateUser({ babylonAddress: bech32Address });
 
         logger.info("Babylon wallet connected", {
-          babylonAddress: redactTelemetry(bech32Address),
+          babylonAddress: bech32Address,
           walletName: walletNameStr || "Unknown Wallet",
           chainId,
         });
@@ -139,7 +138,7 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
             retryAction: () => connectCosmos(provider),
           },
           metadata: {
-            babylonAddress: redactTelemetry(cosmosBech32Address),
+            babylonAddress: cosmosBech32Address,
             walletName,
           },
         });

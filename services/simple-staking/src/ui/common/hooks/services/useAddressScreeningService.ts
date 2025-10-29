@@ -6,7 +6,6 @@ import {
   getBtcAddressScreeningResult,
   setBtcAddressScreeningResult,
 } from "../../utils/local_storage/addressScreeningStorage";
-import { redactTelemetry } from "../../utils/telemetry";
 import { useLogger } from "../useLogger";
 
 export function useAddressScreeningService() {
@@ -29,14 +28,14 @@ export function useAddressScreeningService() {
         setBtcAddressScreeningResult(btcAddress, failedRiskAssessment);
 
         logger.info("Address screening completed", {
-          btcAddress: redactTelemetry(btcAddress),
+          btcAddress,
           failedRiskAssessment,
         });
 
         return failedRiskAssessment;
       } catch (error: any) {
         logger.error(error, {
-          data: { btcAddress: redactTelemetry(btcAddress) },
+          data: { btcAddress },
         });
         return false; // Default to safe
       }
