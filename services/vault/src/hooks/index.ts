@@ -10,6 +10,10 @@ export type {
   UseDepositFlowParams,
   UseDepositFlowReturn,
 } from "./useDepositFlow";
+export { useMarkets } from "./useMarkets";
+export type { UseMarketsResult } from "./useMarkets";
 export { usePeginRequests } from "./usePeginRequests";
 export type { UsePeginRequestsResult } from "./usePeginRequests";
+export { useVaults, useVault } from "./useVaults";
+export type { UseVaultsResult, UseVaultResult } from "./useVaults";
 export { useVaultPositions } from "./useVaultPositions";
