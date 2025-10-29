@@ -10,6 +10,7 @@ import { useNavigate } from "react-router";
 
 import type { MorphoMarket } from "../clients/vault-api/types";
 import { useMarkets } from "../hooks/useMarkets";
+import { formatLLTV } from "../utils/formatting";
 
 export function MarketOverview() {
   const isMobile = useIsMobile();
@@ -41,12 +42,6 @@ export function MarketOverview() {
       </div>
     );
   }
-
-  // Helper function to format LLTV from wei to percentage
-  const formatLLTV = (lltv: string) => {
-    const lltvNumber = Number(lltv) / 1e16; // Convert from wei to percentage
-    return `${lltvNumber.toFixed(1)}%`;
-  };
 
   // Helper function to truncate address
   const truncateAddress = (address: string) => {
