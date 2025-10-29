@@ -78,6 +78,9 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)
 - `NEXT_PUBLIC_CANONICAL` - Canonical URL for the application
 - `NEXT_PUBLIC_REPLAYS_RATE` - Sentry Session Replays sample rate (0.0 to 1.0)
+- `NEXT_PUBLIC_REDACT_TELEMETRY` - Redact wallet addresses/public keys in telemetry logs
+  - Default: `true` (recommended for privacy)
+  - Set to `false` only for local debugging to see full identifiers in Sentry
 
 ### Sentry Configuration (Optional)
 
