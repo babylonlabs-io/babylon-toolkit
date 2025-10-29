@@ -30,10 +30,6 @@ export function MarketDetail() {
     staleTime: 30000, // 30 seconds
   });
 
-  // Log the marketId and data for debugging
-  console.log("MarketDetail - marketId:", marketId);
-  console.log("MarketDetail - marketData:", marketData);
-
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showRepayReviewModal, setShowRepayReviewModal] = useState(false);
@@ -48,18 +44,12 @@ export function MarketDetail() {
   const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
   const handleBack = () => {
-    navigate("/vault");
+    navigate("/");
   };
 
   // Helper function to format bigint values to USDC (6 decimals)
   const formatUSDC = (value: bigint) => {
     return Number(value) / 1e6;
-  };
-
-  // Helper function to format bigint values to BTC (8 decimals)
-  // Note: Currently unused but available for future BTC-related calculations
-  const formatBTC = (value: bigint) => {
-    return Number(value) / 1e8;
   };
 
   // Dynamic data from market service (with fallbacks)

@@ -7,33 +7,57 @@ import {
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
+import { useETHWallet } from "@babylonlabs-io/wallet-connector";
 
-import type { Position } from "../types/position";
+import { useUserPositions } from "../hooks/useUserPositions";
+import type { PositionWithMorpho } from "../services/position";
 
-// Hardcoded position data
-const HARDCODED_POSITIONS: Position[] = [
-  {
-    id: "1",
-    loan: "BTC/USDC",
-    lltv: "70%",
-    liquidationLtv: "500M USDC ($500m)",
-    borrowRate: "5.37%",
-    health: "77.4%",
-  },
-];
+// Extend PositionWithMorpho to include id for Table component
+type PositionWithId = PositionWithMorpho & { id: string };
 
 export function PositionOverview() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const positions = HARDCODED_POSITIONS;
+  const { address } = useETHWallet();
 
-  const handlePositionClick = (position: Position | null) => {
+  // Fetch real position data from API
+  const { positions, loading, error } = useUserPositions(address as `0x${string}` | undefined);
+
+  const handlePositionClick = (position: PositionWithId | null) => {
     if (position) {
       // Navigate to market detail with repay tab
-      navigate(`/market/${position.id}?tab=repay`);
+      navigate(`/market/${position.marketData.id}?tab=repay`);
     }
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="py-8 text-center text-sm text-accent-secondary">
+        Loading positions...
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="py-8 text-center text-sm text-red-500">
+        Error loading positions: {error.message}
+      </div>
+    );
+  }
+
+  // No wallet connected
+  if (!address) {
+    return (
+      <div className="py-8 text-center text-sm text-accent-secondary">
+        Please connect your wallet to view positions
+      </div>
+    );
+  }
+
+  // No positions
   if (positions.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-accent-secondary">
@@ -42,11 +66,38 @@ export function PositionOverview() {
     );
   }
 
-  const columns: ColumnProps<Position>[] = [
+  // Transform positions to include id for Table component
+  const positionsWithId: PositionWithId[] = positions.map(position => ({
+    ...position,
+    id: position.positionId
+  }));
+
+  // Helper functions for formatting
+  const formatUSDC = (value: bigint) => {
+    return (Number(value) / 1e6).toFixed(2);
+  };
+
+  const formatBTC = (value: bigint) => {
+    return (Number(value) / 1e8).toFixed(8);
+  };
+
+  const calculateLTV = (borrowAssets: bigint, collateral: bigint, btcPrice: number) => {
+    if (collateral === 0n) return 0;
+    const collateralUSD = Number(collateral) / 1e8 * btcPrice;
+    const borrowUSD = Number(borrowAssets) / 1e6;
+    return (borrowUSD / collateralUSD) * 100;
+  };
+
+  const formatLLTV = (lltv: bigint) => {
+    const lltvNumber = Number(lltv) / 1e16;
+    return `${lltvNumber.toFixed(1)}%`;
+  };
+
+  const columns: ColumnProps<PositionWithId>[] = [
     {
-      key: "loan",
-      header: "Loan",
-      render: (_value: unknown, row: Position) => (
+      key: "market",
+      header: "Market",
+      render: (_value: unknown, _row: PositionWithId) => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
@@ -63,7 +114,7 @@ export function PositionOverview() {
             />
           </AvatarGroup>
           <span className="text-sm font-medium text-accent-primary">
-            {row.loan}
+            BTC/USDC
           </span>
         </div>
       ),
@@ -71,39 +122,40 @@ export function PositionOverview() {
     {
       key: "ltv",
       header: "LTV",
-      render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.lltv}</span>
-      ),
-    },
-    {
-      key: "liquidationLtv",
-      header: "Liquidation LTV",
-      render: (_value: unknown, row: Position) => {
-        const parts = row.liquidationLtv.split(" ");
-        const mainText = parts.slice(0, 2).join(" ");
-        const subText = parts.slice(2).join(" ");
+      render: (_value: unknown, row: PositionWithId) => {
+        const ltv = calculateLTV(row.morphoPosition.borrowAssets, row.morphoPosition.collateral, row.btcPriceUSD);
         return (
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-accent-primary">{mainText}</span>
-            {subText && (
-              <span className="text-sm text-accent-secondary">{subText}</span>
-            )}
-          </div>
+          <span className="text-sm text-accent-primary">
+            {ltv.toFixed(1)}%
+          </span>
         );
       },
     },
     {
-      key: "borrowRate",
-      header: "Borrow Rate",
-      render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.borrowRate}</span>
+      key: "liquidationLtv",
+      header: "Liquidation LTV",
+      render: (_value: unknown, row: PositionWithId) => (
+        <span className="text-sm text-accent-primary">
+          {formatLLTV(row.marketData.lltv)}
+        </span>
       ),
     },
     {
-      key: "health",
-      header: "Health",
-      render: (_value: unknown, row: Position) => (
-        <span className="text-sm text-accent-primary">{row.health}</span>
+      key: "borrowed",
+      header: "Borrowed",
+      render: (_value: unknown, row: PositionWithId) => (
+        <span className="text-sm text-accent-primary">
+          {formatUSDC(row.morphoPosition.borrowAssets)} USDC
+        </span>
+      ),
+    },
+    {
+      key: "collateral",
+      header: "Collateral",
+      render: (_value: unknown, row: PositionWithId) => (
+        <span className="text-sm text-accent-primary">
+          {formatBTC(row.morphoPosition.collateral)} BTC
+        </span>
       ),
     },
   ];
@@ -112,41 +164,25 @@ export function PositionOverview() {
     <>
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
-          {positions.map((position) => {
-            const parts = position.liquidationLtv.split(" ");
-            const mainText = parts.slice(0, 2).join(" ");
-            const subText = parts.slice(2).join(" ");
+          {positionsWithId.map((position) => {
+            const ltv = calculateLTV(position.morphoPosition.borrowAssets, position.morphoPosition.collateral, position.btcPriceUSD);
             return (
               <div
-                key={position.id}
+                key={position.positionId}
                 onClick={() => handlePositionClick(position)}
                 className="cursor-pointer"
               >
                 <VaultDetailCard
-                  id={position.id}
+                  id={position.positionId}
                   title={{
                     icons: ["/images/btc.png", "/images/usdc.png"],
-                    text: position.loan,
+                    text: "BTC/USDC",
                   }}
                   details={[
-                    { label: "LLTV", value: position.lltv },
-                    {
-                      label: "Liquidation LTV",
-                      value: (
-                        <div className="flex flex-col items-end">
-                          <span className="text-sm text-accent-primary">
-                            {mainText}
-                          </span>
-                          {subText && (
-                            <span className="text-sm text-accent-secondary">
-                              {subText}
-                            </span>
-                          )}
-                        </div>
-                      ),
-                    },
-                    { label: "Borrow Rate", value: position.borrowRate },
-                    { label: "Health", value: position.health },
+                    { label: "LTV", value: `${ltv.toFixed(1)}%` },
+                    { label: "Liquidation LTV", value: formatLLTV(position.marketData.lltv) },
+                    { label: "Borrowed", value: `${formatUSDC(position.morphoPosition.borrowAssets)} USDC` },
+                    { label: "Collateral", value: `${formatBTC(position.morphoPosition.collateral)} BTC` },
                   ]}
                 />
               </div>
@@ -156,7 +192,7 @@ export function PositionOverview() {
       ) : (
         <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
           <Table
-            data={positions}
+            data={positionsWithId}
             columns={columns}
             fluid
             onRowSelect={handlePositionClick}
