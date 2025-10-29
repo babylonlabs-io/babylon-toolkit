@@ -3,25 +3,25 @@
  * This provides more accurate position data for a specific market
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { useQuery } from "@tanstack/react-query";
 import type { Address } from "viem";
 
-import { Morpho } from "../clients/eth-contract";
 import type { MorphoUserPosition } from "../clients/eth-contract";
+import { Morpho } from "../clients/eth-contract";
 
 /**
  * Result interface for useUserMarketPosition hook
  */
 export interface UseUserMarketPositionResult {
-    /** User's position in the market */
-    position: MorphoUserPosition | null;
-    /** Loading state - true while fetching data */
-    loading: boolean;
-    /** Error state - contains error if fetch failed */
-    error: Error | null;
-    /** Function to manually refetch data */
-    refetch: () => Promise<void>;
+  /** User's position in the market */
+  position: MorphoUserPosition | null;
+  /** Loading state - true while fetching data */
+  loading: boolean;
+  /** Error state - contains error if fetch failed */
+  error: Error | null;
+  /** Function to manually refetch data */
+  refetch: () => Promise<void>;
 }
 
 /**
@@ -32,40 +32,40 @@ export interface UseUserMarketPositionResult {
  * @returns Object containing position data, loading state, error state, and refetch function
  */
 export function useUserMarketPosition(
-    marketId: string | undefined,
-    proxyAddress?: Address
+  marketId: string | undefined,
+  proxyAddress?: Address,
 ): UseUserMarketPositionResult {
-    const { address } = useETHWallet();
+  const { address } = useETHWallet();
 
-    const {
-        data: position,
-        isLoading,
-        error,
-        refetch
-    } = useQuery<MorphoUserPosition | null>({
-        queryKey: ["userMarketPosition", marketId, proxyAddress || address],
-        queryFn: async () => {
-            if (!marketId || (!proxyAddress && !address)) return null;
+  const {
+    data: position,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<MorphoUserPosition | null>({
+    queryKey: ["userMarketPosition", marketId, proxyAddress || address],
+    queryFn: async () => {
+      if (!marketId || (!proxyAddress && !address)) return null;
 
-            // Use provided proxy address or fall back to wallet address
-            const userProxyAddress = proxyAddress || (address as Address);
+      // Use provided proxy address or fall back to wallet address
+      const userProxyAddress = proxyAddress || (address as Address);
 
-            return await Morpho.getUserPosition(marketId, userProxyAddress);
-        },
-        enabled: !!marketId && (!!proxyAddress || !!address),
-        retry: 2,
-        staleTime: 30000, // 30 seconds
-    });
+      return await Morpho.getUserPosition(marketId, userProxyAddress);
+    },
+    enabled: !!marketId && (!!proxyAddress || !!address),
+    retry: 2,
+    staleTime: 30000, // 30 seconds
+  });
 
-    // Wrap refetch to return Promise<void>
-    const wrappedRefetch = async () => {
-        await refetch();
-    };
+  // Wrap refetch to return Promise<void>
+  const wrappedRefetch = async () => {
+    await refetch();
+  };
 
-    return {
-        position: position ?? null,
-        loading: isLoading,
-        error: error as Error | null,
-        refetch: wrappedRefetch,
-    };
+  return {
+    position: position ?? null,
+    loading: isLoading,
+    error: error as Error | null,
+    refetch: wrappedRefetch,
+  };
 }

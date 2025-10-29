@@ -41,8 +41,14 @@ export function useUserPositions(
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["userPositions", connectedAddress, CONTRACTS.VAULT_CONTROLLER],
     queryFn: () => {
-      console.log("useUserPositions: Fetching positions for address", { connectedAddress, vaultController: CONTRACTS.VAULT_CONTROLLER });
-      return getUserPositionsWithMorpho(connectedAddress!, CONTRACTS.VAULT_CONTROLLER);
+      console.log("useUserPositions: Fetching positions for address", {
+        connectedAddress,
+        vaultController: CONTRACTS.VAULT_CONTROLLER,
+      });
+      return getUserPositionsWithMorpho(
+        connectedAddress!,
+        CONTRACTS.VAULT_CONTROLLER,
+      );
     },
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
@@ -71,7 +77,7 @@ export function useUserPositions(
     );
 
     return filtered;
-  }, [data, connectedAddress]);
+  }, [data]);
 
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {

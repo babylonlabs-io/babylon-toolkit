@@ -8,8 +8,8 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
-import { useMarkets } from "../hooks/useMarkets";
 import type { MorphoMarket } from "../clients/vault-api/types";
+import { useMarkets } from "../hooks/useMarkets";
 
 export function MarketOverview() {
   const isMobile = useIsMobile();
@@ -58,7 +58,7 @@ export function MarketOverview() {
       key: "id",
       header: "Market ID",
       render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary font-mono">
+        <span className="font-mono text-sm text-accent-primary">
           {truncateAddress(row.id)}
         </span>
       ),
@@ -66,7 +66,7 @@ export function MarketOverview() {
     {
       key: "loan",
       header: "Market",
-      render: (_value: unknown, _row: MorphoMarket) => (
+      render: () => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
@@ -90,21 +90,25 @@ export function MarketOverview() {
       key: "lltv",
       header: "LLTV",
       render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary">{formatLLTV(row.lltv)}</span>
+        <span className="text-sm text-accent-primary">
+          {formatLLTV(row.lltv)}
+        </span>
       ),
     },
     {
       key: "created_block",
       header: "Created Block",
       render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary">{row.created_block.toLocaleString()}</span>
+        <span className="text-sm text-accent-primary">
+          {row.created_block.toLocaleString()}
+        </span>
       ),
     },
     {
       key: "oracle",
       header: "Oracle",
       render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary font-mono">
+        <span className="font-mono text-sm text-accent-primary">
           {truncateAddress(row.oracle)}
         </span>
       ),
@@ -113,7 +117,7 @@ export function MarketOverview() {
       key: "irm",
       header: "IRM",
       render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary font-mono">
+        <span className="font-mono text-sm text-accent-primary">
           {truncateAddress(row.irm)}
         </span>
       ),
@@ -144,7 +148,10 @@ export function MarketOverview() {
                   details={[
                     { label: "Market ID", value: truncateAddress(market.id) },
                     { label: "LLTV", value: formatLLTV(market.lltv) },
-                    { label: "Created Block", value: market.created_block.toLocaleString() },
+                    {
+                      label: "Created Block",
+                      value: market.created_block.toLocaleString(),
+                    },
                     { label: "Oracle", value: truncateAddress(market.oracle) },
                     { label: "IRM", value: truncateAddress(market.irm) },
                   ]}

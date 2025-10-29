@@ -1,9 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { getOraclePrice, convertOraclePriceToUSD } from "../clients/eth-contract/oracle/query";
+import {
+  convertOraclePriceToUSD,
+  getOraclePrice,
+} from "../clients/eth-contract/oracle/query";
+
 import { useMarkets } from "./useMarkets";
 
 export interface UseBTCPriceResult {
@@ -19,14 +23,16 @@ export interface UseBTCPriceResult {
  */
 export function useBTCPrice(): UseBTCPriceResult {
   const { address } = useETHWallet();
-  const { markets, loading: isMarketsLoading, error: marketsError } = useMarkets();
+  const {
+    markets,
+    loading: isMarketsLoading,
+    error: marketsError,
+  } = useMarkets();
 
   // Find the first market with an oracle (BTC/USDC market)
   const btcMarket = useMemo(() => {
-    return markets.find(market => 
-      market.collateral_token && 
-      market.oracle && 
-      market.loan_token
+    return markets.find(
+      (market) => market.collateral_token && market.oracle && market.loan_token,
     );
   }, [markets]);
 
@@ -34,7 +40,7 @@ export function useBTCPrice(): UseBTCPriceResult {
     data: btcPriceUSD,
     isLoading: isPriceLoading,
     error: priceError,
-    refetch: refetchPrice
+    refetch: refetchPrice,
   } = useQuery<number>({
     queryKey: ["btcPrice", btcMarket?.oracle, address],
     queryFn: async () => {

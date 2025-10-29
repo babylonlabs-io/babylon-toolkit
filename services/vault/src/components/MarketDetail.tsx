@@ -1,5 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+
+import { useMarketDetailData } from "../hooks/useMarketDetailData";
+import { blockToDateString, estimateDateFromBlock } from "../utils/blockUtils";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
@@ -7,8 +10,6 @@ import { LoanCard } from "./LoanCard";
 import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
-import { useMarketDetailData } from "../hooks/useMarketDetailData";
-import { blockToDateString, estimateDateFromBlock } from "../utils/blockUtils";
 
 export function MarketDetail() {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ export function MarketDetail() {
     btcBalance,
     btcPriceUSD,
     loading: isMarketLoading,
-    error: marketError
+    error: marketError,
   } = useMarketDetailData(marketId);
 
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -59,7 +60,10 @@ export function MarketDetail() {
           return;
         }
       } catch (error) {
-        console.warn("Failed to fetch actual block timestamp, using estimation:", error);
+        console.warn(
+          "Failed to fetch actual block timestamp, using estimation:",
+          error,
+        );
       }
 
       // Fallback to estimation if actual block fetch fails
@@ -96,10 +100,14 @@ export function MarketDetail() {
       ? Number(marketConfig.lltv) / 1e16 // Convert from 18 decimals to percentage
       : 70;
 
-  const currentLoanAmount = userPosition ? formatUSDC(userPosition.borrowAssets) : 0;
-  const currentCollateralAmount = userPosition ? formatBTC(userPosition.collateral) : 0;
+  const currentLoanAmount = userPosition
+    ? formatUSDC(userPosition.borrowAssets)
+    : 0;
+  const currentCollateralAmount = userPosition
+    ? formatBTC(userPosition.collateral)
+    : 0;
 
-  console.log(marketConfig)
+  console.log(marketConfig);
 
   // Format LLTV value from API (18 decimals to percentage)
   const formatLLTV = (lltvString: string) => {
@@ -115,7 +123,7 @@ export function MarketDetail() {
       label: "Liquidation LTV",
       value: marketConfig
         ? `${formatLLTV(marketConfig.lltv)}%`
-        : `${liquidationLtv.toFixed(1)}%`
+        : `${liquidationLtv.toFixed(1)}%`,
     },
     {
       label: "Oracle price",
@@ -123,47 +131,60 @@ export function MarketDetail() {
     },
     {
       label: "Created on",
-      value: creationDate
+      value: creationDate,
     },
     {
       label: "Utilization",
-      value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "Unknown"
+      value: marketData
+        ? `${marketData.utilizationPercent.toFixed(2)}%`
+        : "Unknown",
     },
-    ...(marketConfig ? [
-      { label: "Oracle Address", value: marketConfig.oracle },
-      { label: "IRM Address", value: marketConfig.irm },
-    ] : []),
+    ...(marketConfig
+      ? [
+          { label: "Oracle Address", value: marketConfig.oracle },
+          { label: "IRM Address", value: marketConfig.irm },
+        ]
+      : []),
   ];
 
   // Create position data for the user's current position
-  const positionData = userPosition ? [
-    { label: "Current Loan", value: `${currentLoanAmount.toLocaleString()} USDC` },
-    { label: "Current Collateral", value: `${currentCollateralAmount.toFixed(8)} BTC` },
-    { label: "Market", value: "BTC/USDC" },
-    {
-      label: "Current LTV",
-      value: currentCollateralAmount > 0
-        ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
-        : "0%"
-    },
-    {
-      label: "Liquidation LTV",
-      value: marketConfig
-        ? `${formatLLTV(marketConfig.lltv)}%`
-        : `${liquidationLtv.toFixed(1)}%`
-    },
-  ] : [
-    { label: "Current Loan", value: "0 USDC" },
-    { label: "Current Collateral", value: "0 BTC" },
-    { label: "Market", value: "BTC/USDC" },
-    { label: "Current LTV", value: "0%" },
-    {
-      label: "Liquidation LTV",
-      value: marketConfig
-        ? `${formatLLTV(marketConfig.lltv)}%`
-        : `${liquidationLtv.toFixed(1)}%`
-    },
-  ];
+  const positionData = userPosition
+    ? [
+        {
+          label: "Current Loan",
+          value: `${currentLoanAmount.toLocaleString()} USDC`,
+        },
+        {
+          label: "Current Collateral",
+          value: `${currentCollateralAmount.toFixed(8)} BTC`,
+        },
+        { label: "Market", value: "BTC/USDC" },
+        {
+          label: "Current LTV",
+          value:
+            currentCollateralAmount > 0
+              ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
+              : "0%",
+        },
+        {
+          label: "Liquidation LTV",
+          value: marketConfig
+            ? `${formatLLTV(marketConfig.lltv)}%`
+            : `${liquidationLtv.toFixed(1)}%`,
+        },
+      ]
+    : [
+        { label: "Current Loan", value: "0 USDC" },
+        { label: "Current Collateral", value: "0 BTC" },
+        { label: "Market", value: "BTC/USDC" },
+        { label: "Current LTV", value: "0%" },
+        {
+          label: "Liquidation LTV",
+          value: marketConfig
+            ? `${formatLLTV(marketConfig.lltv)}%`
+            : `${liquidationLtv.toFixed(1)}%`,
+        },
+      ];
 
   const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
     setLastBorrowData({ collateral: collateralAmount, borrow: borrowAmount });
@@ -240,10 +261,26 @@ export function MarketDetail() {
           marketPair="BTC / USDC"
           btcIcon="/images/btc.png"
           usdcIcon="/images/usdc.png"
-          totalMarketSize={marketData ? `$${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M` : "$525.40M"}
-          totalMarketSizeSubtitle={marketData ? `${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M USDC` : "525.40M USDC"}
-          totalLiquidity={marketData ? `$${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M` : "$182.60M"}
-          totalLiquiditySubtitle={marketData ? `${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M USDC` : "182.6M USDC"}
+          totalMarketSize={
+            marketData
+              ? `$${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M`
+              : "$525.40M"
+          }
+          totalMarketSizeSubtitle={
+            marketData
+              ? `${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M USDC`
+              : "525.40M USDC"
+          }
+          totalLiquidity={
+            marketData
+              ? `$${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M`
+              : "$182.60M"
+          }
+          totalLiquiditySubtitle={
+            marketData
+              ? `${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M USDC`
+              : "182.6M USDC"
+          }
           borrowRate="?"
           attributes={marketAttributes}
           positions={positionData}

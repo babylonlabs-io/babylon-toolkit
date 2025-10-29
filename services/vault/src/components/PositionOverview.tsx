@@ -6,8 +6,8 @@ import {
   VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useNavigate } from "react-router";
 import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { useNavigate } from "react-router";
 
 import { useUserPositions } from "../hooks/useUserPositions";
 import type { PositionWithMorpho } from "../services/position";
@@ -21,7 +21,9 @@ export function PositionOverview() {
   const { address } = useETHWallet();
 
   // Fetch real position data from API
-  const { positions, loading, error } = useUserPositions(address as `0x${string}` | undefined);
+  const { positions, loading, error } = useUserPositions(
+    address as `0x${string}` | undefined,
+  );
 
   const handlePositionClick = (position: PositionWithId | null) => {
     if (position) {
@@ -67,9 +69,9 @@ export function PositionOverview() {
   }
 
   // Transform positions to include id for Table component
-  const positionsWithId: PositionWithId[] = positions.map(position => ({
+  const positionsWithId: PositionWithId[] = positions.map((position) => ({
     ...position,
-    id: position.positionId
+    id: position.positionId,
   }));
 
   // Helper functions for formatting
@@ -81,9 +83,13 @@ export function PositionOverview() {
     return (Number(value) / 1e8).toFixed(8);
   };
 
-  const calculateLTV = (borrowAssets: bigint, collateral: bigint, btcPrice: number) => {
+  const calculateLTV = (
+    borrowAssets: bigint,
+    collateral: bigint,
+    btcPrice: number,
+  ) => {
     if (collateral === 0n) return 0;
-    const collateralUSD = Number(collateral) / 1e8 * btcPrice;
+    const collateralUSD = (Number(collateral) / 1e8) * btcPrice;
     const borrowUSD = Number(borrowAssets) / 1e6;
     return (borrowUSD / collateralUSD) * 100;
   };
@@ -97,7 +103,7 @@ export function PositionOverview() {
     {
       key: "market",
       header: "Market",
-      render: (_value: unknown, _row: PositionWithId) => (
+      render: () => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
@@ -123,11 +129,13 @@ export function PositionOverview() {
       key: "ltv",
       header: "LTV",
       render: (_value: unknown, row: PositionWithId) => {
-        const ltv = calculateLTV(row.morphoPosition.borrowAssets, row.morphoPosition.collateral, row.btcPriceUSD);
+        const ltv = calculateLTV(
+          row.morphoPosition.borrowAssets,
+          row.morphoPosition.collateral,
+          row.btcPriceUSD,
+        );
         return (
-          <span className="text-sm text-accent-primary">
-            {ltv.toFixed(1)}%
-          </span>
+          <span className="text-sm text-accent-primary">{ltv.toFixed(1)}%</span>
         );
       },
     },
@@ -165,7 +173,11 @@ export function PositionOverview() {
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {positionsWithId.map((position) => {
-            const ltv = calculateLTV(position.morphoPosition.borrowAssets, position.morphoPosition.collateral, position.btcPriceUSD);
+            const ltv = calculateLTV(
+              position.morphoPosition.borrowAssets,
+              position.morphoPosition.collateral,
+              position.btcPriceUSD,
+            );
             return (
               <div
                 key={position.positionId}
@@ -180,9 +192,18 @@ export function PositionOverview() {
                   }}
                   details={[
                     { label: "LTV", value: `${ltv.toFixed(1)}%` },
-                    { label: "Liquidation LTV", value: formatLLTV(position.marketData.lltv) },
-                    { label: "Borrowed", value: `${formatUSDC(position.morphoPosition.borrowAssets)} USDC` },
-                    { label: "Collateral", value: `${formatBTC(position.morphoPosition.collateral)} BTC` },
+                    {
+                      label: "Liquidation LTV",
+                      value: formatLLTV(position.marketData.lltv),
+                    },
+                    {
+                      label: "Borrowed",
+                      value: `${formatUSDC(position.morphoPosition.borrowAssets)} USDC`,
+                    },
+                    {
+                      label: "Collateral",
+                      value: `${formatBTC(position.morphoPosition.collateral)} BTC`,
+                    },
                   ]}
                 />
               </div>
