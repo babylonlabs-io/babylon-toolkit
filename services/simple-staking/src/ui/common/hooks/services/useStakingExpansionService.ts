@@ -344,11 +344,25 @@ export function useStakingExpansionService() {
           const originalDelegation = await getDelegationV2(
             delegation.previousStakingTxHashHex,
           );
+
+          // Critical security check: API failure returns null, which would cause
+          // the expansion to proceed with incorrect transaction hex, creating a
+          // malformed transaction. We must halt execution on API failure.
           if (!originalDelegation) {
-            throw new Error(
-              `Failed to fetch original delegation data for ${delegation.previousStakingTxHashHex}. Cannot proceed with extension.`,
+            throw new ClientError(
+              ERROR_CODES.DELEGATION_LOGIC_ERROR,
+              `Failed to fetch original delegation data for ${delegation.previousStakingTxHashHex}. This is required to build a valid expansion transaction. Cannot proceed with expansion.`,
             );
           }
+
+          // Validate that the original delegation has the required transaction hex
+          if (!originalDelegation.stakingTxHex) {
+            throw new ClientError(
+              ERROR_CODES.MISSING_DATA_ERROR,
+              `Original delegation ${delegation.previousStakingTxHashHex} is missing staking_tx_hex. Cannot proceed with expansion.`,
+            );
+          }
+
           previousStakingTxHex = originalDelegation.stakingTxHex;
           previousStakingInput = {
             finalityProviderPksNoCoordHex:
@@ -356,6 +370,16 @@ export function useStakingExpansionService() {
             stakingAmountSat: originalDelegation.stakingAmount,
             stakingTimelock: originalDelegation.stakingTimelock,
           };
+
+          // Defense-in-depth: Verify that we're not using the same transaction
+          // as both the previous and current transaction, which would create
+          // an invalid expansion transaction
+          if (previousStakingTxHex === delegation.stakingTxHex) {
+            throw new ClientError(
+              ERROR_CODES.DELEGATION_LOGIC_ERROR,
+              `Critical error: Previous and current staking transactions are identical. This would create a malformed expansion transaction. This likely indicates a data integrity issue.`,
+            );
+          }
         }
 
         // Create expansion input data
