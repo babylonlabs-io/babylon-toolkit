@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
@@ -8,8 +7,7 @@ import { LoanCard } from "./LoanCard";
 import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
-import { Morpho } from "../clients/eth-contract";
-import type { MorphoMarketSummary } from "../clients/eth-contract";
+import { useMarketDetailData } from "../hooks/useMarketDetailData";
 
 export function MarketDetail() {
   const navigate = useNavigate();
@@ -17,18 +15,16 @@ export function MarketDetail() {
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get("tab") || "borrow";
 
-  // Fetch market data using Morpho client contract calls directly
+  // Fetch comprehensive market detail data
   const {
-    data: marketData,
-    isLoading: isMarketLoading,
+    marketData,
+    marketConfig,
+    userPosition,
+    btcBalance,
+    btcPriceUSD,
+    loading: isMarketLoading,
     error: marketError
-  } = useQuery<MorphoMarketSummary>({
-    queryKey: ["marketData", marketId],
-    queryFn: () => Morpho.getMarketWithData(marketId!),
-    enabled: !!marketId,
-    retry: 2,
-    staleTime: 30000, // 30 seconds
-  });
+  } = useMarketDetailData(marketId);
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -52,13 +48,38 @@ export function MarketDetail() {
     return Number(value) / 1e6;
   };
 
-  // Dynamic data from market service (with fallbacks)
-  const maxCollateral = 10.0; // This would come from user's BTC balance
-  const maxBorrow = marketData ? formatUSDC(marketData.totalSupplyAssets) : 100000;
-  const btcPrice = 112694.16; // This would come from oracle price feed
-  const liquidationLtv = marketData ? marketData.lltvPercent : 70;
-  const currentLoanAmount = 788859; // This would come from user's position
-  const currentCollateralAmount = 10.0; // This would come from user's position
+  // Helper function to format bigint values to BTC (8 decimals)
+  const formatBTC = (value: bigint) => {
+    return Number(value) / 1e8;
+  };
+
+  // Real data from API and wallet
+  const maxCollateral = formatBTC(btcBalance);
+  const maxBorrow = marketData ? formatUSDC(marketData.totalSupplyAssets) : 0;
+  const btcPrice = btcPriceUSD;
+
+  // Get LLTV from market data (contract) or market config (API)
+  const liquidationLtv = marketData
+    ? marketData.lltvPercent
+    : marketConfig
+      ? Number(marketConfig.lltv) / 1e16 // Convert from 18 decimals to percentage
+      : 70;
+
+  const currentLoanAmount = userPosition ? formatUSDC(userPosition.borrowAssets) : 0;
+  const currentCollateralAmount = userPosition ? formatBTC(userPosition.collateral) : 0;
+
+  // Format creation date from block number
+  const formatCreationDate = (_createdBlock: number) => {
+    // This is a simplified calculation - in reality you'd need to fetch the block timestamp
+    // For now, we'll use a placeholder
+    return "2025-10-14"; // TODO: Fetch actual block timestamp
+  };
+
+  // Format LLTV value from API (18 decimals to percentage)
+  const formatLLTV = (lltvString: string) => {
+    const lltvNumber = Number(lltvString);
+    return (lltvNumber / 1e16).toFixed(1); // Convert from 18 decimals to percentage
+  };
 
   const marketAttributes = [
     { label: "Market ID", value: marketId || "Unknown" },
@@ -66,16 +87,55 @@ export function MarketDetail() {
     { label: "Loan", value: "USDC" },
     {
       label: "Liquidation LTV",
-      value: marketData ? `${marketData.lltvPercent.toFixed(1)}%` : "70%"
+      value: marketConfig
+        ? `${formatLLTV(marketConfig.lltv)}%`
+        : `${liquidationLtv.toFixed(1)}%`
     },
     {
       label: "Oracle price",
       value: `BTC / USDC = ${btcPrice.toLocaleString()}`,
     },
-    { label: "Created on", value: "2025-10-14" },
+    {
+      label: "Created on",
+      value: marketConfig ? formatCreationDate(marketConfig.created_block) : "Unknown"
+    },
     {
       label: "Utilization",
-      value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "90.58%"
+      value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "Unknown"
+    },
+    ...(marketConfig ? [
+      { label: "Oracle Address", value: marketConfig.oracle },
+      { label: "IRM Address", value: marketConfig.irm },
+    ] : []),
+  ];
+
+  // Create position data for the user's current position
+  const positionData = userPosition ? [
+    { label: "Current Loan", value: `${currentLoanAmount.toLocaleString()} USDC` },
+    { label: "Current Collateral", value: `${currentCollateralAmount.toFixed(8)} BTC` },
+    { label: "Market", value: "BTC/USDC" },
+    {
+      label: "Current LTV",
+      value: currentCollateralAmount > 0
+        ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
+        : "0%"
+    },
+    {
+      label: "Liquidation LTV",
+      value: marketConfig
+        ? `${formatLLTV(marketConfig.lltv)}%`
+        : `${liquidationLtv.toFixed(1)}%`
+    },
+  ] : [
+    { label: "Current Loan", value: "0 USDC" },
+    { label: "Current Collateral", value: "0 BTC" },
+    { label: "Market", value: "BTC/USDC" },
+    { label: "Current LTV", value: "0%" },
+    {
+      label: "Liquidation LTV",
+      value: marketConfig
+        ? `${formatLLTV(marketConfig.lltv)}%`
+        : `${liquidationLtv.toFixed(1)}%`
     },
   ];
 
@@ -137,9 +197,21 @@ export function MarketDetail() {
 
   // Loading state
   if (isMarketLoading) {
-    return "Loading...";
+    return (
+      <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+            <p className="text-sm text-accent-secondary">Loading market data...</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
+  console.log({ marketAttributes })
+
+  // Error state
   if (marketError) {
     return null;
   }
@@ -159,6 +231,7 @@ export function MarketDetail() {
           totalLiquiditySubtitle={marketData ? `${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M USDC` : "182.6M USDC"}
           borrowRate="6.25%"
           attributes={marketAttributes}
+          positions={positionData}
         />
 
         {/* Right Side: Loan Card */}
