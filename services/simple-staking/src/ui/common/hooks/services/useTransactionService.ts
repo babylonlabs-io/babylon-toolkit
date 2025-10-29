@@ -2,6 +2,10 @@ import { Transaction } from "bitcoinjs-lib";
 import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import type {
+  BtcStakingExpansionInputs,
+  BtcStakingInputs,
+} from "@/ui/common/types/stakingInputs";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
@@ -9,6 +13,7 @@ import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useAppState } from "@/ui/common/state";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getTxInfo, getTxMerkleProof } from "@/ui/common/utils/mempool_api";
+import { validateStakingManagerInputs } from "@/ui/common/utils/validateStakingManagerInputs";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
 import { DELEGATIONS_V2_KEY } from "../client/api/useDelegationsV2";
@@ -20,11 +25,6 @@ export type {
   BtcStakingExpansionInputs,
   BtcStakingInputs,
 } from "@/ui/common/types/stakingInputs";
-import type {
-  BtcStakingExpansionInputs,
-  BtcStakingInputs,
-} from "@/ui/common/types/stakingInputs";
-import { validateStakingManagerInputs } from "@/ui/common/utils/validateStakingManagerInputs";
 
 export const useTransactionService = () => {
   const queryClient = useQueryClient();

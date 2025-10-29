@@ -5,6 +5,7 @@ import {
 import { Transaction } from "bitcoinjs-lib";
 import { useCallback, useMemo } from "react";
 
+import type { BtcStakingInputs } from "@/ui/common/types/stakingInputs";
 import { getUnbondingEligibility } from "@/ui/common/api/getUnbondingEligibility";
 import { postUnbonding } from "@/ui/common/api/postUnbonding";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -19,7 +20,6 @@ import { validateV1StakingManagerInputs } from "@/ui/common/utils/validateV1Stak
 import { useNetworkFees } from "../client/api/useNetworkFees";
 
 import { useStakingManagerService } from "./useStakingManagerService";
-import type { BtcStakingInputs } from "@/ui/common/types/stakingInputs";
 
 export function useV1TransactionService() {
   const { publicKeyNoCoord, address: btcAddress, pushTx } = useBTCWallet();

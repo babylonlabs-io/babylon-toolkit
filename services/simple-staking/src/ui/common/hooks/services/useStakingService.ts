@@ -144,7 +144,6 @@ export function useStakingService() {
     async (delegation: DelegationV2) => {
       setProcessing(true);
       try {
-
         const {
           finalityProviderBtcPksHex,
           stakingAmount,
