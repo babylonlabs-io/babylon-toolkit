@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
@@ -8,6 +8,7 @@ import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
 import { useMarketDetailData } from "../hooks/useMarketDetailData";
+import { blockToDateString, estimateDateFromBlock } from "../utils/blockUtils";
 
 export function MarketDetail() {
   const navigate = useNavigate();
@@ -39,6 +40,36 @@ export function MarketDetail() {
   });
   const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
+  // State for creation date
+  const [creationDate, setCreationDate] = useState<string>("Loading...");
+
+  // Fetch creation date when marketConfig changes
+  useEffect(() => {
+    const fetchCreationDate = async () => {
+      if (!marketConfig?.created_block) {
+        setCreationDate("Unknown");
+        return;
+      }
+
+      try {
+        // First try to get the actual block timestamp
+        const actualDate = await blockToDateString(marketConfig.created_block);
+        if (actualDate !== "Unknown") {
+          setCreationDate(actualDate);
+          return;
+        }
+      } catch (error) {
+        console.warn("Failed to fetch actual block timestamp, using estimation:", error);
+      }
+
+      // Fallback to estimation if actual block fetch fails
+      const estimatedDate = estimateDateFromBlock(marketConfig.created_block);
+      setCreationDate(estimatedDate);
+    };
+
+    fetchCreationDate();
+  }, [marketConfig?.created_block]);
+
   const handleBack = () => {
     navigate("/");
   };
@@ -68,12 +99,7 @@ export function MarketDetail() {
   const currentLoanAmount = userPosition ? formatUSDC(userPosition.borrowAssets) : 0;
   const currentCollateralAmount = userPosition ? formatBTC(userPosition.collateral) : 0;
 
-  // Format creation date from block number
-  const formatCreationDate = (_createdBlock: number) => {
-    // This is a simplified calculation - in reality you'd need to fetch the block timestamp
-    // For now, we'll use a placeholder
-    return "2025-10-14"; // TODO: Fetch actual block timestamp
-  };
+  console.log(marketConfig)
 
   // Format LLTV value from API (18 decimals to percentage)
   const formatLLTV = (lltvString: string) => {
@@ -97,7 +123,7 @@ export function MarketDetail() {
     },
     {
       label: "Created on",
-      value: marketConfig ? formatCreationDate(marketConfig.created_block) : "Unknown"
+      value: creationDate
     },
     {
       label: "Utilization",
