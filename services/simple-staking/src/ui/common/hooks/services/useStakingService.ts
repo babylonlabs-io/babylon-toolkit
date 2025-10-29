@@ -19,6 +19,7 @@ import {
   DelegationV2,
 } from "@/ui/common/types/delegationsV2";
 import { retry } from "@/ui/common/utils";
+import { btcToSatoshi } from "@/ui/common/utils/btc";
 
 import { useBbnTransaction } from "../client/rpc/mutation/useBbnTransaction";
 
@@ -46,7 +47,7 @@ export function useStakingService() {
     }: Omit<FormFields, "feeAmount">) => {
       const eoiInput = {
         finalityProviderPksNoCoordHex: finalityProviders || [],
-        stakingAmountSat: amount,
+        stakingAmountSat: btcToSatoshi(amount),
         stakingTimelock: term,
         feeRate: feeRate,
       };
