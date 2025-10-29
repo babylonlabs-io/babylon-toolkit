@@ -21,5 +21,7 @@ export { useMarketDetailData } from "./useMarketDetailData";
 export type { UseMarketDetailDataResult } from "./useMarketDetailData";
 export { useBTCBalance } from "./useBTCBalance";
 export type { UseBTCBalanceResult } from "./useBTCBalance";
+export { useBTCPrice } from "./useBTCPrice";
+export type { UseBTCPriceResult } from "./useBTCPrice";
 export { useUserMarketPosition } from "./useUserMarketPosition";
 export type { UseUserMarketPositionResult } from "./useUserMarketPosition";

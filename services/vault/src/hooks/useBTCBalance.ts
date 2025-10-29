@@ -4,8 +4,10 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { useBTCWallet } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
+
+import { calculateBalance, useUTXOs } from "./useUTXOs";
 
 /**
  * Result interface for useBTCBalance hook
@@ -33,27 +35,24 @@ export interface UseBTCBalanceResult {
  * @returns Object containing BTC balance, loading state, error state, and refetch function
  */
 export function useBTCBalance(): UseBTCBalanceResult {
-    const { address } = useETHWallet();
+    const { address: btcAddress } = useBTCWallet();
+    const { confirmedUTXOs, isLoading: isUTXOsLoading, error: utxosError } = useUTXOs(btcAddress);
 
-    // Placeholder implementation - in reality this would fetch from BTC wallet
+    // Calculate real BTC balance from UTXOs
+    const btcBalance = useMemo(() => {
+        if (!confirmedUTXOs) return 0n;
+        return BigInt(calculateBalance(confirmedUTXOs));
+    }, [confirmedUTXOs]);
+
+    // Use a simple query wrapper for consistency with other hooks
     const {
-        data: btcBalance,
-        isLoading,
-        error,
+        isLoading: isQueryLoading,
+        error: queryError,
         refetch
     } = useQuery<bigint>({
-        queryKey: ["btcBalance", address],
-        queryFn: async () => {
-            // TODO: Implement actual BTC balance fetching
-            // This would typically involve:
-            // 1. Getting the user's BTC address from their wallet
-            // 2. Querying the Bitcoin network for their balance
-            // 3. Converting to satoshis
-
-            // For now, return a placeholder value
-            return 10n * 10n ** 8n; // 10 BTC in satoshis
-        },
-        enabled: !!address,
+        queryKey: ["btcBalance", btcAddress],
+        queryFn: async () => btcBalance,
+        enabled: !!btcAddress,
         retry: 2,
         staleTime: 60000, // 1 minute
     });
@@ -72,8 +71,8 @@ export function useBTCBalance(): UseBTCBalanceResult {
     return {
         btcBalance: btcBalance || 0n,
         btcBalanceFormatted,
-        loading: isLoading,
-        error: error as Error | null,
+        loading: isUTXOsLoading || isQueryLoading,
+        error: (utxosError || queryError) as Error | null,
         refetch: wrappedRefetch,
     };
 }

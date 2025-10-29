@@ -197,19 +197,8 @@ export function MarketDetail() {
 
   // Loading state
   if (isMarketLoading) {
-    return (
-      <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-            <p className="text-sm text-accent-secondary">Loading market data...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return null;
   }
-
-  console.log({ marketAttributes })
 
   // Error state
   if (marketError) {
@@ -229,7 +218,7 @@ export function MarketDetail() {
           totalMarketSizeSubtitle={marketData ? `${(formatUSDC(marketData.totalSupplyAssets) / 1e6).toFixed(2)}M USDC` : "525.40M USDC"}
           totalLiquidity={marketData ? `$${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M` : "$182.60M"}
           totalLiquiditySubtitle={marketData ? `${(formatUSDC(marketData.totalBorrowAssets) / 1e6).toFixed(2)}M USDC` : "182.6M USDC"}
-          borrowRate="6.25%"
+          borrowRate="?"
           attributes={marketAttributes}
           positions={positionData}
         />
