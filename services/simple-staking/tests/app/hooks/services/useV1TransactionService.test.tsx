@@ -11,6 +11,14 @@ jest.mock("@uidotdev/usehooks", () => ({
   useDebounce: jest.fn((value) => value),
 }));
 
+// Mock nanoevents (ESM-only module) to avoid Jest parsing issues
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({
+    on: jest.fn(),
+    emit: jest.fn(),
+  })),
+}));
+
 // Mock the @babylonlabs-io/btc-staking-ts library
 jest.mock("@babylonlabs-io/btc-staking-ts", () => ({
   getUnbondingTxStakerSignature: jest
@@ -35,6 +43,8 @@ jest.mock("@babylonlabs-io/wallet-connector", () => ({
 
 import { act, renderHook } from "@testing-library/react";
 import { Transaction } from "bitcoinjs-lib";
+import { ERROR_CODES } from "@/ui/common/errors";
+import { getUnbondingTxStakerSignature } from "@babylonlabs-io/btc-staking-ts";
 
 import { getUnbondingEligibility } from "@/ui/common/api/getUnbondingEligibility";
 import { postUnbonding } from "@/ui/common/api/postUnbonding";
@@ -127,7 +137,7 @@ describe("useV1TransactionService", () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
 
     // Mock useBTCWallet
     (useBTCWallet as jest.Mock).mockReturnValue({
@@ -165,6 +175,16 @@ describe("useV1TransactionService", () => {
     (useStakingManagerService as jest.Mock).mockReturnValue({
       createBtcStakingManager: mockCreateBtcStakingManager,
     });
+    // Restore default manager method implementations after reset
+    mockBtcStakingManager.createPartialSignedBtcUnbondingTransaction.mockResolvedValue({
+      transaction: mockSignedUnbondingTx,
+    });
+    mockBtcStakingManager.createSignedBtcWithdrawEarlyUnbondedTransaction.mockResolvedValue(
+      mockWithdrawalTx,
+    );
+    mockBtcStakingManager.createSignedBtcWithdrawStakingExpiredTransaction.mockResolvedValue(
+      mockWithdrawalTx,
+    );
     mockCreateBtcStakingManager.mockReturnValue(mockBtcStakingManager);
 
     // Mock Transaction.fromHex
@@ -190,6 +210,35 @@ describe("useV1TransactionService", () => {
 
     // Mock postUnbonding
     (postUnbonding as jest.Mock).mockResolvedValue(true);
+
+    // Restore transaction mock behaviors after reset
+    (mockStakingTx.getId as jest.Mock).mockReturnValue(mockStakingTxId);
+    (mockStakingTx.toHex as jest.Mock).mockReturnValue(mockStakingTxHex);
+
+    (mockEarlyUnbondingTx.getId as jest.Mock).mockReturnValue(
+      mockUnbondingTxId,
+    );
+    (mockEarlyUnbondingTx.toHex as jest.Mock).mockReturnValue(
+      mockUnbondingTxHex,
+    );
+
+    (mockSignedUnbondingTx.getId as jest.Mock).mockReturnValue(
+      mockUnbondingTxId,
+    );
+    (mockSignedUnbondingTx.toHex as jest.Mock).mockReturnValue(
+      mockUnbondingTxHex,
+    );
+    (mockSignedUnbondingTx.virtualSize as jest.Mock).mockReturnValue(200);
+
+    (mockWithdrawalTx.transaction.toHex as jest.Mock).mockReturnValue(
+      "mock-withdrawal-tx-hex",
+    );
+    (mockWithdrawalTx.transaction.virtualSize as jest.Mock).mockReturnValue(200);
+
+    // Restore signature mock return after reset
+    (getUnbondingTxStakerSignature as jest.Mock).mockReturnValue(
+      mockStakerSignatureHex,
+    );
   });
 
   describe("submitUnbondingTx", () => {
@@ -236,6 +285,12 @@ describe("useV1TransactionService", () => {
         mockUnbondingTxId,
         mockUnbondingTxHex,
       );
+
+      // Verify signature function is used and manager created
+      expect(getUnbondingTxStakerSignature).toHaveBeenCalledWith(
+        mockSignedUnbondingTx,
+      );
+      expect(mockCreateBtcStakingManager).toHaveBeenCalledTimes(1);
     });
 
     it("should throw an error when transaction is not eligible for unbonding", async () => {
@@ -303,6 +358,116 @@ describe("useV1TransactionService", () => {
       ).toHaveBeenCalled();
       // Don't need to check postUnbonding here since we manually triggered it in the mock
     });
+
+    it("should throw initialization error when manager is not initialized", async () => {
+      mockCreateBtcStakingManager.mockReturnValue(null);
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toMatchObject({
+        errorCode: ERROR_CODES.INITIALIZATION_ERROR,
+        message: expect.stringContaining("BTC Staking Manager not initialized"),
+      });
+    });
+
+    it("should throw initialization error when staker info is missing", async () => {
+      (useBTCWallet as jest.Mock).mockReturnValue({
+        publicKeyNoCoord: "",
+        address: "",
+        pushTx: mockPushTx,
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toMatchObject({
+        errorCode: ERROR_CODES.INITIALIZATION_ERROR,
+        message: expect.stringContaining("Staker info not initialized"),
+      });
+    });
+
+    it("should throw initialization error when staking params are not loaded", async () => {
+      (useAppState as jest.Mock).mockReturnValue({
+        networkInfo: {
+          params: { bbnStakingParams: { versions: [] } },
+        },
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toMatchObject({
+        errorCode: ERROR_CODES.INITIALIZATION_ERROR,
+        message: expect.stringContaining("Staking params not loaded"),
+      });
+    });
+
+    it("should surface input validation errors from validateStakingInput", async () => {
+      (validateStakingInput as jest.Mock).mockImplementation(() => {
+        throw new Error("invalid input");
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toThrow("invalid input");
+    });
+
+    it("should wrap postUnbonding errors with ClientError and correct code", async () => {
+      (postUnbonding as jest.Mock).mockRejectedValue(new Error("Server error"));
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toMatchObject({
+        errorCode: ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,
+      });
+    });
+
+    it("should surface hex parsing failures and stop before API calls", async () => {
+      (Transaction.fromHex as jest.Mock).mockImplementation(() => {
+        throw new Error("bad hex");
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitUnbondingTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toThrow("bad hex");
+
+      expect(getUnbondingEligibility).not.toHaveBeenCalled();
+      expect(postUnbonding).not.toHaveBeenCalled();
+    });
   });
 
   describe("submitWithdrawalTx", () => {
@@ -351,6 +516,9 @@ describe("useV1TransactionService", () => {
       expect(mockPushTx).toHaveBeenCalledWith(
         mockWithdrawalTx.transaction.toHex(),
       );
+
+      // Manager created exactly once
+      expect(mockCreateBtcStakingManager).toHaveBeenCalledTimes(1);
     });
 
     it("should successfully submit a withdrawal transaction for early unbonding", async () => {
@@ -399,6 +567,98 @@ describe("useV1TransactionService", () => {
       expect(mockPushTx).toHaveBeenCalledWith(
         mockWithdrawalTx.transaction.toHex(),
       );
+
+      // Manager created exactly once
+      expect(mockCreateBtcStakingManager).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not push when txFeeSafetyCheck throws", async () => {
+      (txFeeSafetyCheck as jest.Mock).mockImplementation(() => {
+        throw new Error("fee too high");
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitWithdrawalTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toThrow("fee too high");
+
+      expect(mockPushTx).not.toHaveBeenCalled();
+    });
+
+    it("should surface manager errors and avoid downstream calls (expired path)", async () => {
+      mockBtcStakingManager.createSignedBtcWithdrawStakingExpiredTransaction.mockRejectedValue(
+        new Error("create failed"),
+      );
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitWithdrawalTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        ),
+      ).rejects.toThrow("create failed");
+
+      expect(txFeeSafetyCheck).not.toHaveBeenCalled();
+      expect(mockPushTx).not.toHaveBeenCalled();
+    });
+
+    it("should use defaultFeeRate from mempool wiring", async () => {
+      (getFeeRateFromMempool as jest.Mock).mockReturnValue({
+        defaultFeeRate: 123,
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await act(async () => {
+        await result.current.submitWithdrawalTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+        );
+      });
+
+      expect(
+        mockBtcStakingManager.createSignedBtcWithdrawStakingExpiredTransaction,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          address: "mock-btc-address",
+          publicKeyNoCoordHex: "mock-public-key-no-coord",
+        }),
+        mockStakingInput,
+        mockParamVersion,
+        expect.any(Object),
+        123,
+      );
+    });
+
+    it("should surface hex parsing errors and avoid downstream calls (early path)", async () => {
+      (Transaction.fromHex as jest.Mock).mockImplementation(() => {
+        throw new Error("bad hex");
+      });
+
+      const { result } = renderHook(() => useV1TransactionService());
+
+      await expect(
+        result.current.submitWithdrawalTx(
+          mockStakingInput,
+          mockStakingHeight,
+          mockStakingTxHex,
+          mockEarlyUnbondingTxHex,
+        ),
+      ).rejects.toThrow("bad hex");
+
+      expect(
+        mockBtcStakingManager.createSignedBtcWithdrawEarlyUnbondedTransaction,
+      ).not.toHaveBeenCalled();
+      expect(txFeeSafetyCheck).not.toHaveBeenCalled();
+      expect(mockPushTx).not.toHaveBeenCalled();
     });
   });
 });

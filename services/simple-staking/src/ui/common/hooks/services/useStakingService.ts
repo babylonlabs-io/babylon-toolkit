@@ -19,7 +19,6 @@ import {
   DelegationV2,
 } from "@/ui/common/types/delegationsV2";
 import { retry } from "@/ui/common/utils";
-import { btcToSatoshi } from "@/ui/common/utils/btc";
 
 import { useBbnTransaction } from "../client/rpc/mutation/useBbnTransaction";
 
@@ -47,7 +46,7 @@ export function useStakingService() {
     }: Omit<FormFields, "feeAmount">) => {
       const eoiInput = {
         finalityProviderPksNoCoordHex: finalityProviders || [],
-        stakingAmountSat: btcToSatoshi(amount),
+        stakingAmountSat: amount,
         stakingTimelock: term,
         feeRate: feeRate,
       };
@@ -66,6 +65,7 @@ export function useStakingService() {
 
   const createEOI = useCallback(
     async ({ finalityProviders, amount, term, feeRate }: FormFields) => {
+      setProcessing(true);
       try {
         const eoiInput = {
           finalityProviderPksNoCoordHex: finalityProviders || [],
@@ -73,7 +73,6 @@ export function useStakingService() {
           stakingTimelock: term,
           feeRate: feeRate,
         };
-        setProcessing(true);
         const { stakingTxHash, signedBabylonTx } = await createDelegationEoi(
           eoiInput,
           feeRate,
@@ -101,7 +100,6 @@ export function useStakingService() {
         setVerifiedDelegation(delegation as DelegationV2);
         refetchDelegations();
         goToStep(StakingStep.VERIFIED);
-        setProcessing(false);
       } catch (error: any) {
         const metadata = {
           userPublicKey: publicKeyNoCoord,
@@ -121,6 +119,8 @@ export function useStakingService() {
           metadata,
         });
         reset();
+      } finally {
+        setProcessing(false);
       }
     },
     [
@@ -142,8 +142,8 @@ export function useStakingService() {
 
   const stakeDelegation = useCallback(
     async (delegation: DelegationV2) => {
+      setProcessing(true);
       try {
-        setProcessing(true);
 
         const {
           finalityProviderBtcPksHex,
@@ -190,6 +190,8 @@ export function useStakingService() {
             babylonAddress: bech32Address,
           },
         });
+      } finally {
+        setProcessing(false);
       }
     },
     [
