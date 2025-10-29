@@ -27,6 +27,7 @@ import {
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
+import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import { useCombinedRewardsService } from "@/ui/common/hooks/services/useCombinedRewardsService";
 import {
   ClaimStatus,
@@ -89,49 +90,10 @@ function RewardsPageContent() {
   );
 
   // Calculate co-staking amount split from BTC rewards using API APR ratios
-  const { coStakingAmountBaby, baseBtcRewardBaby } = useMemo(() => {
-    // If co-staking APR data not available, return base values
-    if (!rawAprData || !rawAprData.current) {
-      return {
-        coStakingAmountBaby: 0,
-        baseBtcRewardBaby: btcRewardBaby,
-      };
-    }
-
-    const { co_staking_apr, btc_staking_apr, total_apr } = rawAprData.current;
-
-    // If no co-staking APR, all BTC rewards are base BTC rewards
-    // Guard against division by zero and invalid numbers
-    if (
-      co_staking_apr === 0 ||
-      total_apr === 0 ||
-      !Number.isFinite(total_apr) ||
-      total_apr < 0
-    ) {
-      return {
-        coStakingAmountBaby: 0,
-        baseBtcRewardBaby: btcRewardBaby,
-      };
-    }
-
-    // Calculate split based on APR ratios from API
-    const coStakingRatio = co_staking_apr / total_apr;
-    const btcStakingRatio = btc_staking_apr / total_apr;
-
-    const coStakingAmount = maxDecimals(
-      btcRewardBaby * coStakingRatio,
-      MAX_DECIMALS,
-    );
-    const baseBtcAmount = maxDecimals(
-      btcRewardBaby * btcStakingRatio,
-      MAX_DECIMALS,
-    );
-
-    return {
-      coStakingAmountBaby: coStakingAmount,
-      baseBtcRewardBaby: baseBtcAmount,
-    };
-  }, [btcRewardBaby, rawAprData]);
+  const { coStakingAmountBaby, baseBtcRewardBaby } = useMemo(
+    () => calculateCoStakingAmount(btcRewardBaby, rawAprData),
+    [btcRewardBaby, rawAprData],
+  );
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [claimingBtc, setClaimingBtc] = useState(false);
