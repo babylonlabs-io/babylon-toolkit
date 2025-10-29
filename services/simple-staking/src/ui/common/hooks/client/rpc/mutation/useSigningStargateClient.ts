@@ -53,7 +53,7 @@ export const useSigningStargateClient = () => {
         "",
       );
     },
-    [signingStargateClient, bech32Address, logger],
+    [signingStargateClient, bech32Address],
   );
 
   /**
