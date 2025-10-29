@@ -47,7 +47,7 @@ export function VaultOverviewPanel() {
   }, [confirmedUTXOs]);
 
   // Fetch BTC price from oracle
-  const { btcPriceUSD, loading: isBTCPriceLoading, error: btcPriceError } = useBTCPrice();
+  const { btcPriceUSD } = useBTCPrice();
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();

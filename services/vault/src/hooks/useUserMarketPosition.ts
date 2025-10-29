@@ -63,7 +63,7 @@ export function useUserMarketPosition(
     };
 
     return {
-        position,
+        position: position ?? null,
         loading: isLoading,
         error: error as Error | null,
         refetch: wrappedRefetch,
