@@ -66,7 +66,6 @@ export function useStakingService() {
 
   const createEOI = useCallback(
     async ({ finalityProviders, amount, term, feeRate }: FormFields) => {
-      setProcessing(true);
       try {
         const eoiInput = {
           finalityProviderPksNoCoordHex: finalityProviders || [],
@@ -74,6 +73,7 @@ export function useStakingService() {
           stakingTimelock: term,
           feeRate: feeRate,
         };
+        setProcessing(true);
         const { stakingTxHash, signedBabylonTx } = await createDelegationEoi(
           eoiInput,
           feeRate,
@@ -143,8 +143,9 @@ export function useStakingService() {
 
   const stakeDelegation = useCallback(
     async (delegation: DelegationV2) => {
-      setProcessing(true);
       try {
+        setProcessing(true);
+
         const {
           finalityProviderBtcPksHex,
           stakingAmount,
