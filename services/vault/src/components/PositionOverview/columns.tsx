@@ -18,7 +18,9 @@ export const positionColumns: ColumnProps<Position>[] = [
           size="small"
           variant="circular"
         />
-        <span className="text-sm text-accent-primary">{row.borrowedAmount}</span>
+        <span className="text-sm text-accent-primary">
+          {row.borrowedAmount}
+        </span>
       </div>
     ),
   },

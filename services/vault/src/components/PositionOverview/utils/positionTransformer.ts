@@ -1,3 +1,5 @@
+import { formatUnits } from "viem";
+
 import type { PositionWithMorpho } from "../../../services/position";
 import type { Position } from "../../../types/position";
 
@@ -11,11 +13,11 @@ export function transformPosition(positionData: PositionWithMorpho): Position {
   const collateral = morphoPosition.collateral;
 
   // vBTC uses 18 decimals (not 8!)
-  const btcAmountNum = Number(collateral) / 1e18;
+  const btcAmountNum = Number(formatUnits(collateral, 18));
   const collateralValueUSD = btcAmountNum * btcPriceUSD;
 
   // USDC has 6 decimals
-  const borrowedValueUSD = Number(borrowAssets) / Math.pow(10, 6);
+  const borrowedValueUSD = Number(formatUnits(borrowAssets, 6));
 
   // Current LTV = (borrowed / collateral) * 100
   const currentLTV =
@@ -24,11 +26,14 @@ export function transformPosition(positionData: PositionWithMorpho): Position {
       : 0;
 
   // Morpho stores LLTV with 18 decimals (1e18 = 100%)
-  const liquidationLTV = Math.round(Number(marketData.lltv) / 1e16);
+  const liquidationLTV = Math.round(Number(formatUnits(marketData.lltv, 16)));
 
-  // Health = (liquidationLTV / currentLTV) * 100
+  // Health Factor (Aave-style): liquidationLTV / currentLTV
+  // Health Factor < 1.0 means position can be liquidated
+  // Health Factor > 1.0 means position is safe (higher is safer)
+  // Example: HF = 1.69 means position is 1.69x above minimum safe level
   const healthFactor =
-    currentLTV > 0 ? Math.round((liquidationLTV / currentLTV) * 100) : 100;
+    currentLTV > 0 ? (liquidationLTV / currentLTV).toFixed(2) : "∞";
 
   const borrowRate = `${marketData.utilizationPercent.toFixed(2)}%`;
 
@@ -45,6 +50,6 @@ export function transformPosition(positionData: PositionWithMorpho): Position {
     lltv: `${currentLTV}%`,
     liquidationLtv: `${liquidationLTV}%`,
     borrowRate,
-    health: `${healthFactor}%`,
+    health: healthFactor,
   };
 }
