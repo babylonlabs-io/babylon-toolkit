@@ -319,10 +319,11 @@ export async function withdrawCollateralFromPosition(
 }
 
 /**
- * Redeem BTC vault as depositor (withdraw BTC back to user's account)
+ * Depositor redeems BTC vault (withdraw BTC back to depositor's account)
  *
- * This unlocks and withdraws the BTC collateral from an available vault back to the user's Bitcoin address.
- * Can only be called by the depositor on vaults that are in "Available" status (not locked in a position).
+ * This unlocks and withdraws the BTC collateral from an available vault back to the depositor's Bitcoin address.
+ * Can only be called on vaults that are in "Available" status (not locked in a position).
+ * The redeemer public key (vault provider's BTC key) is automatically inferred from the vault.
  *
  * Emits VaultRedeemable event which signals the vault system to release the BTC.
  *
