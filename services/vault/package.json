@@ -15,8 +15,8 @@
     "sort-imports": "eslint --fix ."
   },
   "dependencies": {
-    "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
+    "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
@@ -48,6 +48,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.20",
@@ -71,7 +72,6 @@
     "tailwindcss": "^3.4.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
-    "@typescript-eslint/eslint-plugin": "^8.44.1",
     "vite": "^6.3.5",
     "vite-plugin-environment": "^1.1.3",
     "vite-plugin-node-polyfills": "^0.23.0",

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 
-import { blockToDateString, estimateDateFromBlock } from "../../../utils/blockUtils";
 import { useMarketDetailData } from "../../../hooks/useMarketDetailData";
+import {
+  blockToDateString,
+  estimateDateFromBlock,
+} from "../../../utils/blockUtils";
 
 export function useMarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
@@ -53,22 +56,30 @@ export function useMarketDetail() {
     return 70;
   }, [marketData, marketConfig]);
 
-  const currentLoanAmount = userPosition ? formatUSDC(userPosition.borrowAssets) : 0;
-  const currentCollateralAmount = userPosition ? formatBTC(userPosition.collateral) : 0;
+  const currentLoanAmount = userPosition
+    ? formatUSDC(userPosition.borrowAssets)
+    : 0;
+  const currentCollateralAmount = userPosition
+    ? formatBTC(userPosition.collateral)
+    : 0;
 
   const formatLLTV = (lltvString: string) => {
     const lltvNumber = Number(lltvString);
     return (lltvNumber / 1e16).toFixed(1);
   };
 
-  const marketAttributes = useMemo(() => {
+  const marketAttributes = useMemo<
+    Array<{ label: string; value: string }>
+  >(() => {
     return [
       { label: "Market ID", value: marketId || "Unknown" },
       { label: "Collateral", value: "BTC" },
       { label: "Loan", value: "USDC" },
       {
         label: "Liquidation LTV",
-        value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
       },
       {
         label: "Oracle price",
@@ -77,18 +88,27 @@ export function useMarketDetail() {
       { label: "Created on", value: creationDate },
       {
         label: "Utilization",
-        value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "Unknown",
+        value: marketData
+          ? `${marketData.utilizationPercent.toFixed(2)}%`
+          : "Unknown",
       },
       ...(marketConfig
         ? [
-            { label: "Oracle Address", value: marketConfig.oracle },
-            { label: "IRM Address", value: marketConfig.irm },
+            { label: "Oracle Address", value: String(marketConfig.oracle) },
+            { label: "IRM Address", value: String(marketConfig.irm) },
           ]
         : []),
     ];
-  }, [marketId, marketConfig, liquidationLtv, btcPrice, creationDate, marketData]);
+  }, [
+    marketId,
+    marketConfig,
+    liquidationLtv,
+    btcPrice,
+    creationDate,
+    marketData,
+  ]);
 
-  const positionData = useMemo(() => {
+  const positionData = useMemo<Array<{ label: string; value: string }>>(() => {
     if (!userPosition) {
       return [
         { label: "Current Loan", value: "0 USDC" },
@@ -97,7 +117,9 @@ export function useMarketDetail() {
         { label: "Current LTV", value: "0%" },
         {
           label: "Liquidation LTV",
-          value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+          value: marketConfig
+            ? `${formatLLTV(marketConfig.lltv)}%`
+            : `${liquidationLtv.toFixed(1)}%`,
         },
       ];
     }
@@ -106,13 +128,21 @@ export function useMarketDetail() {
         ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
         : "0%";
     return [
-      { label: "Current Loan", value: `${currentLoanAmount.toLocaleString()} USDC` },
-      { label: "Current Collateral", value: `${currentCollateralAmount.toFixed(8)} BTC` },
+      {
+        label: "Current Loan",
+        value: `${currentLoanAmount.toLocaleString()} USDC`,
+      },
+      {
+        label: "Current Collateral",
+        value: `${currentCollateralAmount.toFixed(8)} BTC`,
+      },
       { label: "Market", value: "BTC/USDC" },
       { label: "Current LTV", value: currentLtv },
       {
         label: "Liquidation LTV",
-        value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
       },
     ];
   }, [
@@ -145,5 +175,3 @@ export function useMarketDetail() {
     positionData,
   } as const;
 }
-
-

@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { useMarketDetail } from "./MarketDetails/hooks/useMarketDetail";
-
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
 import { LoanCard } from "./LoanCard";
+import { useMarketDetail } from "./MarketDetails/hooks/useMarketDetail";
 import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
