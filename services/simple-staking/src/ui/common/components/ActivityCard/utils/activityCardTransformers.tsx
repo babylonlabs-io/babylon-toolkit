@@ -171,7 +171,7 @@ export function transformDelegationToVerifiedExpansionCard(
       ),
     },
     {
-      label: "Expansion Type",
+      label: "Extension Type",
       value:
         operationType === EXPANSION_OPERATIONS.RENEW_TIMELOCK
           ? "Timelock Renewal"

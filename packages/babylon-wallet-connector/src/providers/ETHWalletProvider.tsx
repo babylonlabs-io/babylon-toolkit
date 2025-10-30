@@ -8,9 +8,11 @@ import {
   useState,
   type PropsWithChildren,
 } from "react";
+import { WagmiProvider } from "wagmi";
 
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
+import { hasSharedWagmiConfig, getSharedWagmiConfig } from "@/core/wallets/eth/appkit/sharedConfig";
 
 export interface ETHWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
@@ -41,7 +43,7 @@ export interface ETHWalletProviderProps extends PropsWithChildren {
 export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string>();
-  
+
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
 
@@ -142,18 +144,28 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     [address],
   );
 
+  const wagmiConfig = hasSharedWagmiConfig() 
+    ? getSharedWagmiConfig() 
+    : null;
+
+  if (!wagmiConfig) {
+    return <>{children}</>;
+  }
+
   return (
-    <ETHWalletContext.Provider
-      value={{
-        loading,
-        connected,
-        address,
-        disconnect,
-        open,
-      }}
-    >
-      {children}
-    </ETHWalletContext.Provider>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount>
+      <ETHWalletContext.Provider
+        value={{
+          loading,
+          connected,
+          address,
+          disconnect,
+          open,
+        }}
+      >
+        {children}
+      </ETHWalletContext.Provider>
+    </WagmiProvider>
   );
 };
 

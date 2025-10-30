@@ -1,6 +1,6 @@
 // Morpho Protocol - Read operations (queries)
 
-import type { Address } from "viem";
+import { formatUnits, type Address } from "viem";
 
 import { CONTRACTS } from "../../../config/contracts";
 import { ethClient } from "../client";
@@ -120,7 +120,7 @@ export async function getMarketWithData(
   const totalBorrow = state.totalBorrowAssets;
   const utilization =
     totalSupply > 0n ? Number((totalBorrow * 10000n) / totalSupply) / 100 : 0;
-  const lltvPercent = Number(params.lltv) / 1e16;
+  const lltvPercent = Number(formatUnits(params.lltv, 16));
 
   return {
     id: typeof id === "bigint" ? id.toString() : id,

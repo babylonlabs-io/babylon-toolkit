@@ -1,6 +1,7 @@
 export interface Position {
   id: string;
-  loan: string;
+  borrowedAmount: string;
+  market: string;
   lltv: string;
   liquidationLtv: string;
   borrowRate: string;

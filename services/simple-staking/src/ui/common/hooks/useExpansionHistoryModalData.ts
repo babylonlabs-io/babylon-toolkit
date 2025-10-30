@@ -45,7 +45,7 @@ export function useExpansionHistoryModalData({
       const stepLabel =
         index === totalExpansions - 1
           ? "Original Stake"
-          : `Expansion ${totalExpansions - index - 1}`;
+          : `Extension ${totalExpansions - index - 1}`;
       // Options for expansion history: no expansion section, hide expansion completely
       const options = {
         showExpansionSection: false,

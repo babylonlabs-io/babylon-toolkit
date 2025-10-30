@@ -8,9 +8,10 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
-import type { MorphoMarket } from "../clients/vault-api/types";
-import { useMarkets } from "../hooks/useMarkets";
-import { formatLLTV } from "../utils/formatting";
+import type { Market } from "../types/market";
+
+// Hardcoded market data
+const HARDCODED_MARKETS: Market[] = [];
 
 export function MarketOverview() {
   const isMobile = useIsMobile();
@@ -119,42 +120,93 @@ export function MarketOverview() {
     },
   ];
 
+  // Show empty state when no data
+  if (markets.length === 0) {
+    return (
+      <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+        <div className="flex min-h-[200px] items-center justify-center px-8 py-16 text-center text-sm text-accent-secondary">
+          Markets will appear here.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
-          {markets.length === 0 ? (
-            <div className="py-8 text-center text-sm text-accent-secondary">
-              No markets available
-            </div>
-          ) : (
-            markets.map((market) => (
-              <div
+          {markets.map((market) => {
+            const marketSizeParts = market.marketSize.split(" ");
+            const marketSizeMain = marketSizeParts.slice(0, 2).join(" ");
+            const marketSizeSub = marketSizeParts.slice(2).join(" ");
+
+            const liquidityParts = market.totalLiquidity.split(" ");
+            const liquidityMain = liquidityParts.slice(0, 2).join(" ");
+            const liquiditySub = liquidityParts.slice(2).join(" ");
+
+            return (
+              <VaultDetailCard
                 key={market.id}
-                onClick={() => handleMarketClick(market)}
-                className="cursor-pointer"
-              >
-                <VaultDetailCard
-                  id={market.id}
-                  title={{
-                    icons: ["/images/btc.png", "/images/usdc.png"],
-                    text: "BTC/USDC",
-                  }}
-                  details={[
-                    { label: "Market ID", value: truncateAddress(market.id) },
-                    { label: "LLTV", value: formatLLTV(market.lltv) },
-                    {
-                      label: "Created Block",
-                      value: market.created_block.toLocaleString(),
-                    },
-                    { label: "Oracle", value: truncateAddress(market.oracle) },
-                    { label: "IRM", value: truncateAddress(market.irm) },
-                  ]}
-                  actions={[]}
-                />
-              </div>
-            ))
-          )}
+                id={market.id}
+                title={{
+                  icons: ["/images/btc.png", "/images/usdc.png"],
+                  text: market.loan,
+                }}
+                details={[
+                  { label: "Curator", value: market.curator },
+                  { label: "LLTV", value: market.lltv },
+                  {
+                    label: "Total Market Size",
+                    value: (
+                      <div className="flex flex-col items-end">
+                        <span className="text-sm text-accent-primary">
+                          {marketSizeMain}
+                        </span>
+                        {marketSizeSub && (
+                          <span className="text-sm text-accent-secondary">
+                            {marketSizeSub}
+                          </span>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    label: "Total Liquidity",
+                    value: (
+                      <div className="flex flex-col items-end">
+                        <span className="text-sm text-accent-primary">
+                          {liquidityMain}
+                        </span>
+                        {liquiditySub && (
+                          <span className="text-sm text-accent-secondary">
+                            {liquiditySub}
+                          </span>
+                        )}
+                      </div>
+                    ),
+                  },
+                  { label: "Borrow Rate", value: market.rate },
+                  {
+                    label: "Trusted by",
+                    value: (
+                      <AvatarGroup size="small" max={3}>
+                        {market.trustedBy.map((url, idx) => (
+                          <Avatar
+                            key={idx}
+                            url={url}
+                            alt=""
+                            size="small"
+                            variant="circular"
+                          />
+                        ))}
+                      </AvatarGroup>
+                    ),
+                  },
+                ]}
+                actions={[]}
+              />
+            );
+          })}
         </div>
       ) : (
         <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
@@ -162,7 +214,7 @@ export function MarketOverview() {
             data={markets}
             columns={columns}
             fluid
-            onRowSelect={handleMarketClick}
+            onRowClick={(market: Market) => navigate(`/market/${market.id}`)}
           />
         </div>
       )}

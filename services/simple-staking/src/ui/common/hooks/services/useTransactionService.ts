@@ -544,7 +544,7 @@ export const useTransactionService = () => {
       stakingExpansionInput: BtcStakingExpansionInputs,
       feeRate: number,
     ): number => {
-      logger.info("Estimating staking expansion fee", {
+      logger.info("Estimating staking extension fee", {
         feeRate,
       });
       const btcStakingManager = createBtcStakingManager();
@@ -699,7 +699,7 @@ export const useTransactionService = () => {
       if (actualTxHashHex !== expectedTxHashHex) {
         const clientError = new ClientError(
           ERROR_CODES.VALIDATION_ERROR,
-          `Staking expansion transaction hash mismatch, expected ${expectedTxHashHex} but got ${actualTxHashHex}`,
+          `Staking extension transaction hash mismatch, expected ${expectedTxHashHex} but got ${actualTxHashHex}`,
         );
         logger.error(clientError, {
           data: {
@@ -726,7 +726,7 @@ export const useTransactionService = () => {
       }
 
       logger.info(
-        "Broadcasting signed staking expansion transaction",
+        "Broadcasting signed staking extension transaction",
         logContext,
       );
 

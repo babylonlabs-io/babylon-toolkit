@@ -60,3 +60,10 @@ export const getDisabledWallets = (): string[] => {
     []
   );
 };
+
+// shouldRedactTelemetry controls whether sensitive wallet identifiers (addresses, public keys)
+// are redacted in telemetry logs sent to Sentry.
+// Default: true (redact for privacy). Set to "false" only for local debugging.
+export const shouldRedactTelemetry = (): boolean => {
+  return process.env.NEXT_PUBLIC_REDACT_TELEMETRY !== "false";
+};

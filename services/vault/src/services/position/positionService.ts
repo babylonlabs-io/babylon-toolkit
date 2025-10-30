@@ -167,3 +167,48 @@ export async function getUserPositionsWithMorpho(
 
   return positionsWithMorpho;
 }
+
+/**
+ * Get a single position by position ID with full Morpho data
+ *
+ * @param positionId - Position ID (hex string)
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @returns Position with Morpho data, or null if not found
+ */
+export async function getSinglePositionWithMorpho(
+  positionId: Hex,
+  vaultControllerAddress: Address,
+): Promise<PositionWithMorpho | null> {
+  // Step 1: Fetch position data
+  const positions = await VaultController.getPositionsBulk(
+    vaultControllerAddress,
+    [positionId],
+  );
+
+  if (positions.length === 0) {
+    return null;
+  }
+
+  const position = positions[0];
+  const marketId = position.marketId.toString();
+
+  // Step 2: Fetch market data and Morpho position in parallel
+  const [marketData, morphoPosition] = await Promise.all([
+    Morpho.getMarketWithData(marketId),
+    Morpho.getUserPosition(marketId, position.proxyContract),
+  ]);
+
+  // Step 3: Fetch BTC price from oracle
+  const oraclePrice = await MorphoOracle.getOraclePrice(
+    marketData.oracle as Address,
+  );
+  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+
+  return {
+    positionId,
+    position,
+    morphoPosition,
+    marketData,
+    btcPriceUSD,
+  };
+}

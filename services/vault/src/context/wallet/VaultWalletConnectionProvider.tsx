@@ -12,8 +12,6 @@ import {
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 
-import { AppKitProvider } from "@/components/AppKitProvider";
-
 const context = typeof window !== "undefined" ? window : {};
 
 /**
@@ -72,11 +70,9 @@ export const VaultWalletConnectionProvider = ({
       requiredChains={["BTC", "ETH"]}
       appKitConfig={appKitConfig}
     >
-      <AppKitProvider>
-        <BTCWalletProvider>
-          <ETHWalletProvider>{children}</ETHWalletProvider>
-        </BTCWalletProvider>
-      </AppKitProvider>
+      <BTCWalletProvider>
+        <ETHWalletProvider>{children}</ETHWalletProvider>
+      </BTCWalletProvider>
     </WalletProvider>
   );
 };

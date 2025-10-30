@@ -8,14 +8,12 @@ import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
 import { LoanCard } from "./LoanCard";
 import { MarketInfo } from "./MarketInfo";
-import { RepayReviewModal } from "./RepayReviewModal";
-import { RepaySuccessModal } from "./RepaySuccessModal";
 
 export function MarketDetail() {
   const navigate = useNavigate();
   const { marketId } = useParams<{ marketId: string }>();
   const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get("tab") || "borrow";
+  const defaultTab = searchParams.get("tab") || "borrow"; // Default to borrow for new positions
 
   // Fetch comprehensive market detail data
   const {
@@ -30,16 +28,13 @@ export function MarketDetail() {
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [showRepayReviewModal, setShowRepayReviewModal] = useState(false);
   const [showBorrowSuccessModal, setShowBorrowSuccessModal] = useState(false);
-  const [showRepaySuccessModal, setShowRepaySuccessModal] = useState(false);
 
-  // Store last borrow/repay values for modals
+  // Store last borrow values for modals
   const [lastBorrowData, setLastBorrowData] = useState({
     collateral: 0,
     borrow: 0,
   });
-  const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
 
   // State for creation date
   const [creationDate, setCreationDate] = useState<string>("Loading...");
@@ -141,65 +136,54 @@ export function MarketDetail() {
     },
     ...(marketConfig
       ? [
-          { label: "Oracle Address", value: marketConfig.oracle },
-          { label: "IRM Address", value: marketConfig.irm },
-        ]
+        { label: "Oracle Address", value: marketConfig.oracle },
+        { label: "IRM Address", value: marketConfig.irm },
+      ]
       : []),
   ];
 
   // Create position data for the user's current position
   const positionData = userPosition
     ? [
-        {
-          label: "Current Loan",
-          value: `${currentLoanAmount.toLocaleString()} USDC`,
-        },
-        {
-          label: "Current Collateral",
-          value: `${currentCollateralAmount.toFixed(8)} BTC`,
-        },
-        { label: "Market", value: "BTC/USDC" },
-        {
-          label: "Current LTV",
-          value:
-            currentCollateralAmount > 0
-              ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
-              : "0%",
-        },
-        {
-          label: "Liquidation LTV",
-          value: marketConfig
-            ? `${formatLLTV(marketConfig.lltv)}%`
-            : `${liquidationLtv.toFixed(1)}%`,
-        },
-      ]
+      {
+        label: "Current Loan",
+        value: `${currentLoanAmount.toLocaleString()} USDC`,
+      },
+      {
+        label: "Current Collateral",
+        value: `${currentCollateralAmount.toFixed(8)} BTC`,
+      },
+      { label: "Market", value: "BTC/USDC" },
+      {
+        label: "Current LTV",
+        value:
+          currentCollateralAmount > 0
+            ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
+            : "0%",
+      },
+      {
+        label: "Liquidation LTV",
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
+      },
+    ]
     : [
-        { label: "Current Loan", value: "0 USDC" },
-        { label: "Current Collateral", value: "0 BTC" },
-        { label: "Market", value: "BTC/USDC" },
-        { label: "Current LTV", value: "0%" },
-        {
-          label: "Liquidation LTV",
-          value: marketConfig
-            ? `${formatLLTV(marketConfig.lltv)}%`
-            : `${liquidationLtv.toFixed(1)}%`,
-        },
-      ];
+      { label: "Current Loan", value: "0 USDC" },
+      { label: "Current Collateral", value: "0 BTC" },
+      { label: "Market", value: "BTC/USDC" },
+      { label: "Current LTV", value: "0%" },
+      {
+        label: "Liquidation LTV",
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
+      },
+    ];
 
   const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
     setLastBorrowData({ collateral: collateralAmount, borrow: borrowAmount });
     setShowReviewModal(true);
-  };
-
-  const handleRepay = (
-    repayAmount: number,
-    withdrawCollateralAmount: number,
-  ) => {
-    setLastRepayData({
-      repay: repayAmount,
-      withdraw: withdrawCollateralAmount,
-    });
-    setShowRepayReviewModal(true);
   };
 
   const handleConfirmBorrow = async () => {
@@ -215,20 +199,7 @@ export function MarketDetail() {
     }
   };
 
-  const handleConfirmRepay = async () => {
-    setProcessing(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setShowRepayReviewModal(false);
-      setShowRepaySuccessModal(true);
-    } catch {
-      // Handle error silently
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  // Calculate LTV for modals
+  // Calculate LTV for borrow modal
   const borrowLtv =
     lastBorrowData.collateral === 0
       ? 0
@@ -286,7 +257,7 @@ export function MarketDetail() {
           positions={positionData}
         />
 
-        {/* Right Side: Loan Card */}
+        {/* Right Side: Loan Card (Borrow only for new positions) */}
         <div className="top-24">
           <LoanCard
             defaultTab={defaultTab}
@@ -297,12 +268,11 @@ export function MarketDetail() {
             onBorrow={handleBorrow}
             currentLoanAmount={currentLoanAmount}
             currentCollateralAmount={currentCollateralAmount}
-            onRepay={handleRepay}
           />
         </div>
       </div>
 
-      {/* Modals remain in parent for state management */}
+      {/* Borrow Modals */}
       <BorrowReviewModal
         open={showReviewModal}
         onClose={() => setShowReviewModal(false)}
@@ -327,43 +297,11 @@ export function MarketDetail() {
         processing={processing}
       />
 
-      <RepayReviewModal
-        open={showRepayReviewModal}
-        onClose={() => setShowRepayReviewModal(false)}
-        onConfirm={handleConfirmRepay}
-        repayAmount={lastRepayData.repay}
-        repaySymbol="USDC"
-        repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USDC`}
-        withdrawAmount={lastRepayData.withdraw}
-        withdrawSymbol="BTC"
-        withdrawUsdValue={`$${(
-          lastRepayData.withdraw * btcPrice
-        ).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USD`}
-        ltv={repayLtv}
-        liquidationLtv={liquidationLtv}
-        processing={processing}
-      />
-
       <BorrowSuccessModal
         open={showBorrowSuccessModal}
         onClose={() => setShowBorrowSuccessModal(false)}
         borrowAmount={lastBorrowData.borrow}
         borrowSymbol="USDC"
-      />
-
-      <RepaySuccessModal
-        open={showRepaySuccessModal}
-        onClose={() => setShowRepaySuccessModal(false)}
-        repayAmount={lastRepayData.repay}
-        withdrawAmount={lastRepayData.withdraw}
-        repaySymbol="USDC"
-        withdrawSymbol="BTC"
       />
     </div>
   );

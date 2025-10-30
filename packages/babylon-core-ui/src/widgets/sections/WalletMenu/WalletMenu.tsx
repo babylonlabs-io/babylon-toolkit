@@ -2,10 +2,6 @@ import React, { useState, useCallback } from "react";
 import { Menu } from "../../../components/Menu";
 import { WalletDisconnectButton } from "../../../components/Button";
 import { WalletMenuCard, WalletBalanceData } from "./components/WalletMenuCard";
-import { WalletMenuSettingItem } from "./components/WalletMenuSettingItem";
-import { WalletMenuInfoItem } from "./components/WalletMenuInfoItem";
-import { UsingInscriptionIcon, LinkWalletIcon, BitcoinPublicKeyIcon, InfoIcon } from "../../../components/Icons";
-import { ThemedIcon } from "../../../components/Icons/ThemedIcon";
 import { useCopy } from "../../../hooks/useCopy";
 import { twJoin } from "tailwind-merge";
 
@@ -13,16 +9,10 @@ export type WalletChain = "BTC" | "BBN" | "ETH";
 
 export interface WalletMenuProps {
   trigger: React.ReactNode;
-  btcAddress: string;
-  bbnAddress: string;
+  btcAddress?: string;
+  bbnAddress?: string;
   ethAddress?: string;
   selectedWallets: Partial<Record<WalletChain, { name: string; icon: string }>>;
-  ordinalsExcluded: boolean;
-  linkedDelegationsVisibility: boolean;
-  onIncludeOrdinals: () => void;
-  onExcludeOrdinals: () => void;
-  onDisplayLinkedDelegations: (value: boolean) => void;
-  publicKeyNoCoord: string;
   onDisconnect: () => void;
   forceOpen?: boolean;
   onOpenChange?: (isOpen: boolean) => void;
@@ -37,6 +27,9 @@ export interface WalletMenuProps {
   balancesLoading?: boolean;
   hasUnconfirmedTransactions?: boolean;
   formatBalance?: (amount: number, coinSymbol: string) => string;
+
+  // Optional settings section (for presets to customize)
+  settingsSection?: React.ReactNode;
 
   // Optional overrides and configuration
   className?: string;
@@ -54,12 +47,6 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   bbnAddress,
   ethAddress,
   selectedWallets,
-  ordinalsExcluded,
-  linkedDelegationsVisibility,
-  onIncludeOrdinals,
-  onExcludeOrdinals,
-  onDisplayLinkedDelegations,
-  publicKeyNoCoord,
   onDisconnect,
   forceOpen = false,
   onOpenChange,
@@ -72,6 +59,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   balancesLoading = false,
   hasUnconfirmedTransactions = false,
   formatBalance,
+  settingsSection,
   className,
   mobileMode = "dialog",
   copy,
@@ -160,40 +148,8 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
           )}
         </div>
 
-        <div className="flex flex-col w-full bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
-          <WalletMenuSettingItem
-            icon={<ThemedIcon variant="primary" background rounded><UsingInscriptionIcon /></ThemedIcon>}
-            title="Using Inscriptions"
-            status={ordinalsExcluded ? "Off" : "On"}
-            value={!ordinalsExcluded}
-            onChange={(value) =>
-              value ? onIncludeOrdinals() : onExcludeOrdinals()
-            }
-          />
-
-          <WalletMenuSettingItem
-            icon={<ThemedIcon variant="primary" background rounded><LinkWalletIcon /></ThemedIcon>}
-            title={<>
-              Linked Wallet
-              <br className="hidden md:block" />
-              <span className="md:hidden"> </span>Stakes
-            </>}
-            status={linkedDelegationsVisibility ? "On" : "Off"}
-            value={linkedDelegationsVisibility}
-            onChange={onDisplayLinkedDelegations}
-            tooltip="Linked Wallet Stakes show all stakes created with the same Bitcoin wallet, even if different BABY wallets were used. It helps you track and manage them in one place."
-            infoIcon={<InfoIcon size={14} variant="secondary" />}
-          />
-
-          <WalletMenuInfoItem
-            title="Bitcoin Public Key"
-            value={publicKeyNoCoord}
-            isCopied={isCopied("publicKey")}
-            onCopy={() => copyToClipboard("publicKey", publicKeyNoCoord)}
-            icon={<ThemedIcon variant="primary" background rounded><BitcoinPublicKeyIcon /></ThemedIcon>}
-            className="rounded-b-lg rounded-t-none md:rounded-none"
-          />
-        </div>
+        {/* Optional settings section (provided by presets) */}
+        {settingsSection}
 
         {/* Disconnect Button */}
         <div className="pt-2">

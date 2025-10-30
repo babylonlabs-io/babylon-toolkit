@@ -4,13 +4,14 @@
  * Orchestrates transaction operations for positions (borrowing, repaying, adding collateral).
  */
 
-import type {
-  Address,
-  Chain,
-  Hash,
-  Hex,
-  TransactionReceipt,
-  WalletClient,
+import {
+  formatUnits,
+  type Address,
+  type Chain,
+  type Hash,
+  type Hex,
+  type TransactionReceipt,
+  type WalletClient,
 } from "viem";
 
 import type { MarketParams } from "../../clients/eth-contract";
@@ -161,9 +162,9 @@ function validatePositionHealth(
   btcPriceUSD: number,
   liquidationLTV: number,
 ): void {
-  const collateralBTC = Number(collateral) / 1e18; // vBTC has 18 decimals
+  const collateralBTC = Number(formatUnits(collateral, 18)); // vBTC has 18 decimals
   const collateralValueUSD = collateralBTC * btcPriceUSD;
-  const debtValueUSD = Number(borrowAssets) / 1e6; // USDC has 6 decimals
+  const debtValueUSD = Number(formatUnits(borrowAssets, 6)); // USDC has 6 decimals
   const currentLTV =
     collateralValueUSD > 0 ? debtValueUSD / collateralValueUSD : Infinity;
 
@@ -192,7 +193,11 @@ function calculateRepayAmount(borrowAssets: bigint): bigint {
 }
 
 /**
- * Repay all debt from position
+ * Repay ALL debt from position (full repayment)
+ *
+ * This function repays the entire debt with a buffer to account for interest accrual
+ * between transaction submission and execution. Use this when user clicks "Max" or
+ * wants to fully close their position.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
@@ -201,7 +206,7 @@ function calculateRepayAmount(borrowAssets: bigint): bigint {
  * @param marketId - Market ID
  * @returns Transaction hash and receipt
  */
-export async function repayDebt(
+export async function repayDebtFull(
   walletClient: WalletClient,
   chain: Chain,
   vaultControllerAddress: Address,
@@ -237,7 +242,7 @@ export async function repayDebt(
     marketData.oracle as Address,
   );
   const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
-  const liquidationLTV = Number(marketData.lltv) / 1e18;
+  const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
 
@@ -262,6 +267,100 @@ export async function repayDebt(
     throw new Error(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
         `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
+        `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
+    );
+  }
+}
+
+/**
+ * Repay PARTIAL debt from position (specific amount)
+ *
+ * This function repays an exact amount specified by the user (no buffer added).
+ * Use this when user selects a specific amount via slider, not the full amount.
+ *
+ * Note: This does NOT add a buffer for interest accrual. The exact amount specified
+ * will be repaid. User must have sufficient USDC balance for the exact amount.
+ *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param positionId - Position ID
+ * @param marketId - Market ID
+ * @param repayAmount - Exact amount to repay (in loan token units, e.g., USDC with 6 decimals)
+ * @returns Transaction hash and receipt
+ */
+export async function repayDebtPartial(
+  walletClient: WalletClient,
+  chain: Chain,
+  vaultControllerAddress: Address,
+  positionId: string,
+  marketId: string | bigint,
+  repayAmount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const marketParams = await Morpho.getBasicMarketParams(marketId);
+
+  // Fetch position data
+  const positions = await VaultController.getPositionsBulk(
+    vaultControllerAddress,
+    [positionId as Hex],
+  );
+  if (positions.length === 0) {
+    throw new Error("Position not found");
+  }
+
+  const proxyContract = positions[0].proxyContract;
+  const position = await Morpho.getUserPosition(marketId, proxyContract);
+
+  if (position.borrowShares === 0n) {
+    throw new Error("No debt to repay - position already fully paid");
+  }
+
+  const { borrowAssets, collateral } = position;
+
+  // Validate repay amount
+  if (repayAmount <= 0n) {
+    throw new Error("Repay amount must be greater than 0");
+  }
+
+  if (repayAmount > borrowAssets) {
+    throw new Error(
+      `Repay amount (${Number(formatUnits(repayAmount, 6)).toFixed(6)} USDC) ` +
+        `exceeds current debt (${Number(formatUnits(borrowAssets, 6)).toFixed(6)} USDC). ` +
+        `Use repayDebtFull() for full repayment.`,
+    );
+  }
+
+  // Validate position state
+  validatePositionCollateral(collateral, borrowAssets);
+
+  // Fetch market data and validate position health BEFORE repayment
+  const marketData = await Morpho.getMarketWithData(marketId);
+  const oraclePrice = await MorphoOracle.getOraclePrice(
+    marketData.oracle as Address,
+  );
+  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+  const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
+
+  validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
+
+  // Execute partial repayment (no buffer added - exact amount)
+  try {
+    const result = await VaultControllerTx.repayFromPosition(
+      walletClient,
+      chain,
+      vaultControllerAddress,
+      marketParams,
+      repayAmount,
+    );
+
+    return {
+      transactionHash: result.transactionHash,
+      receipt: result.receipt,
+    };
+  } catch (error) {
+    throw new Error(
+      `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
+        `Required amount: ${Number(formatUnits(repayAmount, 6)).toFixed(6)} USDC. ` +
         `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
     );
   }

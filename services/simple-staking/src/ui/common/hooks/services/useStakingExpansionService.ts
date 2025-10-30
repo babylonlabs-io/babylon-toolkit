@@ -126,7 +126,7 @@ export function useStakingExpansionService() {
       if (!validateExpansionFormData(formData)) {
         throw new ClientError(
           ERROR_CODES.VALIDATION_ERROR,
-          "Invalid expansion form data provided",
+          "Invalid extension form data provided",
         );
       }
 
@@ -165,7 +165,7 @@ export function useStakingExpansionService() {
       } catch (error) {
         throw new ClientError(
           ERROR_CODES.STAKING_EXPANSION_FEE_ERROR,
-          "Failed to calculate expansion fee",
+          "Failed to calculate extension fee",
           { cause: error },
         );
       }
@@ -308,13 +308,13 @@ export function useStakingExpansionService() {
         // Validate that we have the required transaction data from the API
         if (!delegation.stakingTxHex) {
           throw new Error(
-            "Missing staking_tx_hex from verified delegation. Cannot proceed with expansion.",
+            "Missing staking_tx_hex from verified delegation. Cannot proceed with extension.",
           );
         }
 
         if (!delegation.stakingTxHashHex) {
           throw new Error(
-            "Missing staking_tx_hash_hex from verified delegation. Cannot proceed with expansion.",
+            "Missing staking_tx_hash_hex from verified delegation. Cannot proceed with extension.",
           );
         }
 
@@ -327,7 +327,7 @@ export function useStakingExpansionService() {
           covenantExpansionSignatures.length === 0
         ) {
           throw new Error(
-            "No covenant expansion signatures found in delegation. Make sure the expansion EOI was verified by Babylon.",
+            "No covenant extension signatures found in delegation. Make sure the extension EOI was verified by Babylon.",
           );
         }
 
@@ -346,7 +346,7 @@ export function useStakingExpansionService() {
           );
           if (!originalDelegation) {
             throw new Error(
-              `Failed to fetch original delegation data for ${delegation.previousStakingTxHashHex}. Cannot proceed with expansion.`,
+              `Failed to fetch original delegation data for ${delegation.previousStakingTxHashHex}. Cannot proceed with extension.`,
             );
           }
           previousStakingTxHex = originalDelegation.stakingTxHex;
