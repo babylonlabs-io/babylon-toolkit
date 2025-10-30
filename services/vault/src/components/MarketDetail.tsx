@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
+import { useMarketDetailViewModel } from "../features/market-detail/useMarketDetailViewModel";
+
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
 import { LoanCard } from "./LoanCard";
 import { MarketInfo } from "./MarketInfo";
 import { RepayReviewModal } from "./RepayReviewModal";
 import { RepaySuccessModal } from "./RepaySuccessModal";
-import { useMarketDetailViewModel } from "../features/market-detail/useMarketDetailViewModel";
 
 export function MarketDetail() {
   const navigate = useNavigate();
@@ -35,8 +36,14 @@ export function MarketDetail() {
   const [showBorrowSuccessModal, setShowBorrowSuccessModal] = useState(false);
   const [showRepaySuccessModal, setShowRepaySuccessModal] = useState(false);
 
-  const [lastBorrowData, setLastBorrowData] = useState({ collateral: 0, borrow: 0 });
-  const [lastRepayData, setLastRepayData] = useState({ repay: 0, withdraw: 0 });
+  const [lastBorrowData, setLastBorrowData] = useState({
+    collateral: 0,
+    borrow: 0,
+  });
+  const [lastRepayData, setLastRepayData] = useState({
+    repay: 0,
+    withdraw: 0,
+  });
 
   const handleBack = () => navigate("/");
 
@@ -45,8 +52,14 @@ export function MarketDetail() {
     setShowReviewModal(true);
   };
 
-  const handleRepay = (repayAmount: number, withdrawCollateralAmount: number) => {
-    setLastRepayData({ repay: repayAmount, withdraw: withdrawCollateralAmount });
+  const handleRepay = (
+    repayAmount: number,
+    withdrawCollateralAmount: number,
+  ) => {
+    setLastRepayData({
+      repay: repayAmount,
+      withdraw: withdrawCollateralAmount,
+    });
     setShowRepayReviewModal(true);
   };
 
@@ -79,11 +92,18 @@ export function MarketDetail() {
   }, [lastBorrowData.borrow, lastBorrowData.collateral, btcPrice]);
 
   const repayLtv = useMemo(() => {
-    const remainingCollateral = currentCollateralAmount - lastRepayData.withdraw;
+    const remainingCollateral =
+      currentCollateralAmount - lastRepayData.withdraw;
     if (remainingCollateral === 0) return 0;
     const remainingLoan = currentLoanAmount - lastRepayData.repay;
     return (remainingLoan / (remainingCollateral * btcPrice)) * 100;
-  }, [currentCollateralAmount, lastRepayData.withdraw, currentLoanAmount, lastRepayData.repay, btcPrice]);
+  }, [
+    currentCollateralAmount,
+    lastRepayData.withdraw,
+    currentLoanAmount,
+    lastRepayData.repay,
+    btcPrice,
+  ]);
 
   if (isMarketLoading) return null;
   if (marketError) return null;

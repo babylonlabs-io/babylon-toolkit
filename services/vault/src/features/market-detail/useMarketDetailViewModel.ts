@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 
 import { useMarketDetailData } from "../../hooks/useMarketDetailData";
-import { blockToDateString, estimateDateFromBlock } from "../../utils/blockUtils";
+import {
+  blockToDateString,
+  estimateDateFromBlock,
+} from "../../utils/blockUtils";
 
 export function useMarketDetailViewModel() {
   const { marketId } = useParams<{ marketId: string }>();
@@ -53,8 +56,12 @@ export function useMarketDetailViewModel() {
     return 70;
   }, [marketData, marketConfig]);
 
-  const currentLoanAmount = userPosition ? formatUSDC(userPosition.borrowAssets) : 0;
-  const currentCollateralAmount = userPosition ? formatBTC(userPosition.collateral) : 0;
+  const currentLoanAmount = userPosition
+    ? formatUSDC(userPosition.borrowAssets)
+    : 0;
+  const currentCollateralAmount = userPosition
+    ? formatBTC(userPosition.collateral)
+    : 0;
 
   const formatLLTV = (lltvString: string) => {
     const lltvNumber = Number(lltvString);
@@ -68,17 +75,36 @@ export function useMarketDetailViewModel() {
       { label: "Loan", value: "USDC" },
       {
         label: "Liquidation LTV",
-        value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
       },
-      { label: "Oracle price", value: `BTC / USDC = ${btcPrice.toLocaleString()}` },
+      {
+        label: "Oracle price",
+        value: `BTC / USDC = ${btcPrice.toLocaleString()}`,
+      },
       { label: "Created on", value: creationDate },
       {
         label: "Utilization",
-        value: marketData ? `${marketData.utilizationPercent.toFixed(2)}%` : "Unknown",
+        value: marketData
+          ? `${marketData.utilizationPercent.toFixed(2)}%`
+          : "Unknown",
       },
-      ...(marketConfig ? [{ label: "Oracle Address", value: marketConfig.oracle }, { label: "IRM Address", value: marketConfig.irm }] : []),
+      ...(marketConfig
+        ? [
+            { label: "Oracle Address", value: marketConfig.oracle },
+            { label: "IRM Address", value: marketConfig.irm },
+          ]
+        : []),
     ];
-  }, [marketId, marketConfig, liquidationLtv, btcPrice, creationDate, marketData]);
+  }, [
+    marketId,
+    marketConfig,
+    liquidationLtv,
+    btcPrice,
+    creationDate,
+    marketData,
+  ]);
 
   const positionData = useMemo(() => {
     if (!userPosition) {
@@ -95,19 +121,36 @@ export function useMarketDetailViewModel() {
     }
     const currentLtv =
       currentCollateralAmount > 0
-        ? `${((currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100).toFixed(1)}%`
+        ? `${(
+            (currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100
+          ).toFixed(1)}%`
         : "0%";
     return [
-      { label: "Current Loan", value: `${currentLoanAmount.toLocaleString()} USDC` },
-      { label: "Current Collateral", value: `${currentCollateralAmount.toFixed(8)} BTC` },
+      {
+        label: "Current Loan",
+        value: `${currentLoanAmount.toLocaleString()} USDC`,
+      },
+      {
+        label: "Current Collateral",
+        value: `${currentCollateralAmount.toFixed(8)} BTC`,
+      },
       { label: "Market", value: "BTC/USDC" },
       { label: "Current LTV", value: currentLtv },
       {
         label: "Liquidation LTV",
-        value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+        value: marketConfig
+          ? `${formatLLTV(marketConfig.lltv)}%`
+          : `${liquidationLtv.toFixed(1)}%`,
       },
     ];
-  }, [userPosition, currentCollateralAmount, currentLoanAmount, btcPrice, marketConfig, liquidationLtv]);
+  }, [
+    userPosition,
+    currentCollateralAmount,
+    currentLoanAmount,
+    btcPrice,
+    marketConfig,
+    liquidationLtv,
+  ]);
 
   return {
     // loading / error

@@ -78,10 +78,10 @@ export function useMarketDetailData(
 
     return position
       ? {
-        collateral: position.morphoPosition.collateral,
-        borrowAssets: position.morphoPosition.borrowAssets,
-        borrowShares: position.morphoPosition.borrowShares,
-      }
+          collateral: position.morphoPosition.collateral,
+          borrowAssets: position.morphoPosition.borrowAssets,
+          borrowShares: position.morphoPosition.borrowShares,
+        }
       : null;
   }, [allPositions, marketId]);
 
