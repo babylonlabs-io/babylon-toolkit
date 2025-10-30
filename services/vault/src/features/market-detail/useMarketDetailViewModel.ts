@@ -92,9 +92,9 @@ export function useMarketDetailViewModel() {
       },
       ...(marketConfig
         ? [
-            { label: "Oracle Address", value: marketConfig.oracle },
-            { label: "IRM Address", value: marketConfig.irm },
-          ]
+          { label: "Oracle Address", value: marketConfig.oracle },
+          { label: "IRM Address", value: marketConfig.irm },
+        ]
         : []),
     ];
   }, [
@@ -124,8 +124,8 @@ export function useMarketDetailViewModel() {
     const currentLtv =
       currentCollateralAmount > 0
         ? `${(
-            (currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100
-          ).toFixed(1)}%`
+          (currentLoanAmount / (currentCollateralAmount * btcPrice)) * 100
+        ).toFixed(1)}%`
         : "0%";
     return [
       {
