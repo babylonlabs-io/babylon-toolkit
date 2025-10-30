@@ -4,8 +4,8 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
 
-import { createQueryClient } from "@/config/queryClient";
 import { NotificationContainer } from "@/components/NotificationContainer";
+import { createQueryClient } from "@/config/queryClient";
 import { VaultWalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
