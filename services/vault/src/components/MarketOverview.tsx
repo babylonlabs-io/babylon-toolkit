@@ -137,8 +137,11 @@ export function MarketOverview() {
                 <VaultDetailCard
                   id={market.id}
                   title={{
-                    icons: ["/images/btc.png", "/images/usdc.png"],
-                    text: "BTC/USDC",
+                    icons: [
+                      market.loan_token.icon ?? `/images/${market.loan_token.symbol.toLowerCase()}.png`,
+                      market.collateral_token.icon ?? `/images/${market.collateral_token.symbol.toLowerCase()}.png`,
+                    ],
+                    text: `${market.loan_token.symbol}/${market.collateral_token.symbol}`,
                   }}
                   details={[
                     { label: "Market ID", value: truncateAddress(market.id) },
