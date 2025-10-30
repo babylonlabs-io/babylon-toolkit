@@ -98,6 +98,11 @@ jobs:
           NEXT_PUBLIC_FF_PHASE_3: ${{ vars.NEXT_PUBLIC_FF_PHASE_3 }}
           NEXT_PUBLIC_FF_CO_STAKING: ${{ vars.NEXT_PUBLIC_FF_CO_STAKING }}
           NEXT_PUBLIC_FF_TIMELOCK_RENEWAL: ${{ vars.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL }}
+          # Vault Feature Flags
+          NEXT_PUBLIC_TBV_BTC_VAULT: "0x6044e2e56c1f56ee48360f6f7c25ee6d4b258024"
+          NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER: "0x181682c59dffd39bffad3106f4307727007dc22c"
+          NEXT_PUBLIC_TBV_VAULT_CONTROLLER: "0x7ffc418ababfefc9e7d05368ad331efb84d04db8"
+          NEXT_PUBLIC_TBV_MORPHO: ${{ vars.NEXT_PUBLIC_TBV_MORPHO }}
 
       - name: Generate sha256sum checksum
         run: |
