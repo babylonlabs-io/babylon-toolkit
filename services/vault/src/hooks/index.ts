@@ -20,6 +20,8 @@ export { useMarkets } from "./useMarkets";
 export type { UseMarketsResult } from "./useMarkets";
 export { usePeginRequests } from "./usePeginRequests";
 export type { UsePeginRequestsResult } from "./usePeginRequests";
+export { useUserMarketPosition } from "./useUserMarketPosition";
+export type { UseUserMarketPositionResult } from "./useUserMarketPosition";
 export { useSinglePosition } from "./useSinglePosition";
 export type { UseSinglePositionResult } from "./useSinglePosition";
 export { useVaultPositions } from "./useVaultPositions";

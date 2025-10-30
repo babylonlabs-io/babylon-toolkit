@@ -41,10 +41,6 @@ export function useUserPositions(
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["userPositions", connectedAddress, CONTRACTS.VAULT_CONTROLLER],
     queryFn: () => {
-      console.log("useUserPositions: Fetching positions for address", {
-        connectedAddress,
-        vaultController: CONTRACTS.VAULT_CONTROLLER,
-      });
       return getUserPositionsWithMorpho(
         connectedAddress!,
         CONTRACTS.VAULT_CONTROLLER,
