@@ -115,7 +115,9 @@ export function useMarketDetailViewModel() {
         { label: "Current LTV", value: "0%" },
         {
           label: "Liquidation LTV",
-          value: marketConfig ? `${formatLLTV(marketConfig.lltv)}%` : `${liquidationLtv.toFixed(1)}%`,
+          value: marketConfig
+            ? `${formatLLTV(marketConfig.lltv)}%`
+            : `${liquidationLtv.toFixed(1)}%`,
         },
       ];
     }
@@ -174,5 +176,3 @@ export function useMarketDetailViewModel() {
 
   } as const;
 }
-
-
