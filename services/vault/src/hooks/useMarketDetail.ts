@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 
+import { blockToDateString, estimateDateFromBlock } from "../utils/blockUtils";
 import { useMarketDetailData } from "./useMarketDetailData";
-import {
-    blockToDateString,
-    estimateDateFromBlock,
-} from "../utils/blockUtils";
 
 export function useMarketDetail() {
     const { marketId } = useParams<{ marketId: string }>();
