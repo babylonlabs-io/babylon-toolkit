@@ -8,3 +8,7 @@ export { WalletMenuInfoItem } from './components';
 export type { WalletMenuSettingItemProps } from './components';
 export type { WalletMenuCardProps, WalletBalanceData } from './components';
 export type { WalletMenuInfoItemProps } from './components';
+
+// Presets
+export { BtcEthWalletMenu, BtcBabyWalletMenu, BabyWalletMenu } from './presets';
+export type { BtcEthWalletMenuProps, BtcBabyWalletMenuProps, BabyWalletMenuProps } from './presets';
