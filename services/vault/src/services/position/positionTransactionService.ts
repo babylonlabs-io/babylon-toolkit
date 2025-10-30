@@ -45,7 +45,6 @@ export interface AddCollateralResult {
  * @param chain - Chain configuration
  * @param vaultControllerAddress - BTCVaultController contract address
  * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketId - Morpho market ID
  * @param borrowAmount - Optional amount to borrow (in loan token units). If provided and > 0, borrows from position.
  * @returns Transaction result with market parameters and optional position ID
@@ -55,7 +54,6 @@ export async function addCollateralWithMarketId(
   chain: Chain,
   vaultControllerAddress: Address,
   pegInTxHashes: Hex[],
-  depositorBtcPubkey: Hex,
   marketId: string | bigint,
   borrowAmount?: bigint,
 ): Promise<AddCollateralResult> {
@@ -70,7 +68,6 @@ export async function addCollateralWithMarketId(
         chain,
         vaultControllerAddress,
         pegInTxHashes,
-        depositorBtcPubkey,
         marketParams,
         borrowAmount,
       );
@@ -87,7 +84,6 @@ export async function addCollateralWithMarketId(
         chain,
         vaultControllerAddress,
         pegInTxHashes,
-        depositorBtcPubkey,
         marketParams,
       );
 
