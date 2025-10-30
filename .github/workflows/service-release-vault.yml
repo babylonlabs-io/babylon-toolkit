@@ -96,6 +96,7 @@ jobs:
           NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
           # Wallet Configuration
           NEXT_PUBLIC_DISABLED_WALLETS: ${{ vars.NEXT_PUBLIC_DISABLED_WALLETS }}
+          NEXT_PUBLIC_REDACT_TELEMETRY: ${{ vars.NEXT_PUBLIC_REDACT_TELEMETRY }}
           # Sentry Configuration
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
@@ -226,6 +227,7 @@ jobs:
           NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
           # Wallet Configuration
           NEXT_PUBLIC_DISABLED_WALLETS: ${{ vars.NEXT_PUBLIC_DISABLED_WALLETS }}
+          NEXT_PUBLIC_REDACT_TELEMETRY: ${{ vars.NEXT_PUBLIC_REDACT_TELEMETRY }}
           # Sentry Configuration
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
