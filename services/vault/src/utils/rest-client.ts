@@ -1,3 +1,5 @@
+import { ApiError, ErrorCode, NetworkError } from "./errors/types";
+
 /**
  * Generic REST API HTTP Client
  *
@@ -13,15 +15,38 @@ export interface RestClientConfig {
   headers?: Record<string, string>;
 }
 
-export class RestClientError extends Error {
+export class RestClientError extends ApiError {
   constructor(
-    public status: number,
+    status: number,
     message: string,
-    public response?: string,
+    response?: string,
   ) {
-    super(message);
+    const code = getErrorCodeFromStatus(status);
+    super(message, status, code, response);
     this.name = "RestClientError";
   }
+}
+
+function getErrorCodeFromStatus(status: number): ErrorCode {
+  if (status === 0) {
+    return ErrorCode.NETWORK_ERROR;
+  }
+  if (status === 408) {
+    return ErrorCode.API_TIMEOUT;
+  }
+  if (status === 401 || status === 403) {
+    return ErrorCode.API_UNAUTHORIZED;
+  }
+  if (status === 404) {
+    return ErrorCode.API_NOT_FOUND;
+  }
+  if (status >= 500) {
+    return ErrorCode.API_SERVER_ERROR;
+  }
+  if (status >= 400) {
+    return ErrorCode.API_CLIENT_ERROR;
+  }
+  return ErrorCode.API_ERROR;
 }
 
 /**
@@ -84,11 +109,12 @@ export class RestClient {
             `Request timeout after ${this.timeout}ms`,
           );
         }
-        // Re-throw RestClientError
         if (error instanceof RestClientError) {
           throw error;
         }
-        // Network errors
+        if (error instanceof NetworkError) {
+          throw error;
+        }
         throw new RestClientError(0, `Network error: ${error.message}`);
       }
       throw new RestClientError(0, "Unknown error occurred during API request");
