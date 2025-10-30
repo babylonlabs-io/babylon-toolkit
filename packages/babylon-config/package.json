@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@babylonlabs-io/wallet-connector": "workspace:*",
-    "viem": "^2.38.2"
+    "viem": "2.38.2"
   },
   "devDependencies": {
     "typescript": "^5.8.3"

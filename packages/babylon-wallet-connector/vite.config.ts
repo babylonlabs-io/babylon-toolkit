@@ -38,6 +38,10 @@ export default defineConfig({
         // Issues linking with Next.js
         // "@keystonehq/keystone-sdk",
         "@keystonehq/sdk",
+        // @reown packages that use viem internally
+        "@reown/appkit",
+        "@reown/appkit-adapter-wagmi",
+        /^@reown\//, // Match all @reown/* packages
       ],
       output: {
         sourcemapExcludeSources: false,
