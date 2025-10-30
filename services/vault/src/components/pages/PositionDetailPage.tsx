@@ -184,9 +184,8 @@ export function PositionDetailPage() {
         // Full repayment - use repayDebtFull with buffer
         // Buffer accounts for interest accrual between tx submission and execution
         // This ensures the position is completely closed even if interest accrues
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await repayDebtFull(
-          walletClient as any,
+          walletClient,
           chain,
           CONTRACTS.VAULT_CONTROLLER,
           positionId!,
@@ -198,9 +197,8 @@ export function PositionDetailPage() {
         // Convert USDC amount to bigint (6 decimals)
         const repayAmountBigint = parseUnits(lastRepayData.repay.toString(), 6);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await repayDebtPartial(
-          walletClient as any,
+          walletClient,
           chain,
           CONTRACTS.VAULT_CONTROLLER,
           positionId!,
@@ -213,9 +211,8 @@ export function PositionDetailPage() {
       // Note: The contract withdraws ALL available collateral (not a specific amount)
       // TODO: The UI shows a withdrawal amount slider, but the contract doesn't support partial withdrawal
       if (lastRepayData.withdraw > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await withdrawCollateralFromPosition(
-          walletClient as any,
+          walletClient,
           chain,
           CONTRACTS.VAULT_CONTROLLER,
           marketId,
