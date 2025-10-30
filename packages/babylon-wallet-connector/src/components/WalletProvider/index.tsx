@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type PropsWithChildren } from "react";
+import { useMemo, type PropsWithChildren } from "react";
 
 import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
@@ -40,8 +40,9 @@ export function WalletProvider({
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Ensure AppKit is initialized once when ETH chain is enabled
-  useEffect(() => {
+  // Initialize AppKit synchronously before render when ETH chain is enabled
+  // This ensures wagmi config is available before children (ETHWalletProvider) mount
+  useMemo(() => {
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");
       if (hasETH && appKitConfig) {
@@ -50,10 +51,7 @@ export function WalletProvider({
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
-    } catch (error) {
-      // Non-fatal; ETH flow will fallback to direct WalletConnect in provider
-
-      console.error("Failed to initialize AppKit modal:", error);
+    } catch {
     }
   }, [config, theme, appKitConfig]);
 
