@@ -51,6 +51,7 @@ export function WalletProvider({
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
+    // eslint-disable-next-line no-empty
     } catch {
     }
   }, [config, theme, appKitConfig]);

@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useAppState } from "../../state/AppState";
 
 interface ConnectProps {
   loading?: boolean;
@@ -28,6 +29,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const { selectedWallets } = useWidgetState();
+  const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
   const isConnected = useMemo(
     () => btcConnected && ethConnected,
@@ -87,6 +89,9 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
           ethAddress={ethAddress}
           selectedWallets={transformedWallets}
           publicKeyNoCoord={publicKeyNoCoord}
+          ordinalsExcluded={ordinalsExcluded}
+          onIncludeOrdinals={includeOrdinals}
+          onExcludeOrdinals={excludeOrdinals}
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}

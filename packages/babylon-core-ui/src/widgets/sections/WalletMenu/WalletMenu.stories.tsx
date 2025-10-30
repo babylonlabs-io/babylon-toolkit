@@ -50,6 +50,7 @@ const mockWalletData = {
 export const BtcEth: StoryObj = {
   name: "BtcEthWalletMenu (Vault)",
   render: () => {
+    const [ordinalsExcluded, setOrdinalsExcluded] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     const trigger = (
@@ -82,7 +83,7 @@ export const BtcEth: StoryObj = {
       <div className="space-y-4 p-4">
         <h3 className="text-lg font-semibold">BtcEthWalletMenu - For Vault (BTC + ETH)</h3>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Includes: BTC card, ETH card, Bitcoin Public Key. No BTC staking settings.
+          Includes: BTC card, ETH card, Using Inscriptions toggle, Bitcoin Public Key.
         </p>
         <BtcEthWalletMenu
           trigger={trigger}
@@ -90,6 +91,9 @@ export const BtcEth: StoryObj = {
           ethAddress={mockWalletData.ethAddress}
           selectedWallets={mockWalletData.selectedWallets}
           publicKeyNoCoord={mockWalletData.publicKeyNoCoord}
+          ordinalsExcluded={ordinalsExcluded}
+          onIncludeOrdinals={() => setOrdinalsExcluded(false)}
+          onExcludeOrdinals={() => setOrdinalsExcluded(true)}
           onDisconnect={() => console.log("Disconnect wallets")}
           onOpenChange={setIsMenuOpen}
           btcBalances={mockWalletData.btcBalances}

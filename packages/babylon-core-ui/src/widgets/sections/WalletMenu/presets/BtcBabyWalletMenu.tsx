@@ -48,7 +48,7 @@ export const BtcBabyWalletMenu: React.FC<BtcBabyWalletMenuProps> = ({
   const copyToClipboard = copy?.copyToClipboard ?? internalCopy;
 
   const settingsSection = (
-    <div className="flex flex-col w-full bg-[#F9F9F9] dark:bg-[#2F2F2F] rounded-lg md:bg-transparent md:dark:bg-transparent md:border-none md:gap-8">
+    <div className="flex flex-col w-full bg-neutral-100 rounded-lg md:bg-transparent md:border-none md:gap-8">
       <WalletMenuSettingItem
         icon={<ThemedIcon variant="primary" background rounded><UsingInscriptionIcon /></ThemedIcon>}
         title="Using Inscriptions"
