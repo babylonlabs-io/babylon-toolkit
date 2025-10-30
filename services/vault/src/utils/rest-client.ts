@@ -112,9 +112,6 @@ export class RestClient {
         if (error instanceof RestClientError) {
           throw error;
         }
-        if (error instanceof NetworkError) {
-          throw error;
-        }
         throw new RestClientError(0, `Network error: ${error.message}`);
       }
       throw new RestClientError(0, "Unknown error occurred during API request");
