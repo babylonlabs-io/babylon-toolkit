@@ -85,7 +85,6 @@ export async function submitPeginRequest(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
  * @returns Transaction hash, receipt, and position ID
  */
@@ -94,7 +93,6 @@ export async function addCollateralToPosition(
   chain: Chain,
   contractAddress: Address,
   vaultIds: Hex[],
-  depositorBtcPubkey: Hex,
   marketParams: MarketParams,
 ): Promise<{
   transactionHash: Hash;
@@ -108,7 +106,7 @@ export async function addCollateralToPosition(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "addCollateralToPosition",
-      args: [vaultIds, depositorBtcPubkey, marketParams],
+      args: [vaultIds, marketParams],
       chain,
       account: walletClient.account!,
     });
@@ -146,7 +144,6 @@ export async function addCollateralToPosition(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction hash and receipt
@@ -156,7 +153,6 @@ export async function addCollateralToPositionAndBorrow(
   chain: Chain,
   contractAddress: Address,
   vaultIds: Hex[],
-  depositorBtcPubkey: Hex,
   marketParams: MarketParams,
   borrowAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
@@ -167,7 +163,7 @@ export async function addCollateralToPositionAndBorrow(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "addCollateralToPositionAndBorrow",
-      args: [vaultIds, depositorBtcPubkey, marketParams, borrowAmount],
+      args: [vaultIds, marketParams, borrowAmount],
       chain,
       account: walletClient.account!,
     });
@@ -323,10 +319,10 @@ export async function withdrawCollateralFromPosition(
 }
 
 /**
- * Redeem BTC vault (withdraw BTC back to user's account)
+ * Redeem BTC vault as depositor (withdraw BTC back to user's account)
  *
  * This unlocks and withdraws the BTC collateral from an available vault back to the user's Bitcoin address.
- * Can only be called on vaults that are in "Available" status (not locked in a position).
+ * Can only be called by the depositor on vaults that are in "Available" status (not locked in a position).
  *
  * Emits VaultRedeemable event which signals the vault system to release the BTC.
  *
@@ -334,15 +330,13 @@ export async function withdrawCollateralFromPosition(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
- * @param redeemerPKs - Array of redeemer public keys (x-only, 32 bytes each)
  * @returns Transaction hash and receipt
  */
-export async function redeemBTCVault(
+export async function depositorRedeemBTCVault(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
   pegInTxHash: Hex,
-  redeemerPKs: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
 
@@ -350,8 +344,8 @@ export async function redeemBTCVault(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: "redeemBTCVault",
-      args: [pegInTxHash, redeemerPKs],
+      functionName: "depositorRedeemBTCVault",
+      args: [pegInTxHash],
       chain,
       account: walletClient.account!,
     });
