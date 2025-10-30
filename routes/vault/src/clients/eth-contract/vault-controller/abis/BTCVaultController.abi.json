@@ -131,11 +131,6 @@
         "internalType": "bytes32[]"
       },
       {
-        "name": "btcPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
         "name": "marketParams",
         "type": "tuple",
         "internalType": "struct MarketParams",
@@ -185,11 +180,6 @@
         "name": "pegInTxHashes",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
-      },
-      {
-        "name": "btcPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
       },
       {
         "name": "marketParams",
@@ -292,6 +282,19 @@
         "internalType": "uint256"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "depositorRedeemBTCVault",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -634,24 +637,6 @@
   },
   {
     "type": "function",
-    "name": "redeemBTCVault",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "redeemerPKs",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "renounceRole",
     "inputs": [
       {
@@ -724,7 +709,7 @@
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -1093,27 +1078,12 @@
   },
   {
     "type": "error",
-    "name": "EmptyRedeemerKeys",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InclusionProofVerificationFailed",
     "inputs": []
   },
   {
     "type": "error",
     "name": "InvalidAmount",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidBTCPublicKey",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidParticipantsList",
     "inputs": []
   },
   {
