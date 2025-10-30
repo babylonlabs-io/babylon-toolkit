@@ -4,13 +4,14 @@
  * Orchestrates transaction operations for positions (borrowing, repaying, adding collateral).
  */
 
-import type {
-  Address,
-  Chain,
-  Hash,
-  Hex,
-  TransactionReceipt,
-  WalletClient,
+import {
+  formatUnits,
+  type Address,
+  type Chain,
+  type Hash,
+  type Hex,
+  type TransactionReceipt,
+  type WalletClient,
 } from "viem";
 
 import type { MarketParams } from "../../clients/eth-contract";
@@ -161,9 +162,9 @@ function validatePositionHealth(
   btcPriceUSD: number,
   liquidationLTV: number,
 ): void {
-  const collateralBTC = Number(collateral) / 1e18; // vBTC has 18 decimals
+  const collateralBTC = Number(formatUnits(collateral, 18)); // vBTC has 18 decimals
   const collateralValueUSD = collateralBTC * btcPriceUSD;
-  const debtValueUSD = Number(borrowAssets) / 1e6; // USDC has 6 decimals
+  const debtValueUSD = Number(formatUnits(borrowAssets, 6)); // USDC has 6 decimals
   const currentLTV =
     collateralValueUSD > 0 ? debtValueUSD / collateralValueUSD : Infinity;
 
@@ -237,7 +238,7 @@ export async function repayDebt(
     marketData.oracle as Address,
   );
   const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
-  const liquidationLTV = Number(marketData.lltv) / 1e18;
+  const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
 
