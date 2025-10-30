@@ -43,7 +43,7 @@ export interface ETHWalletProviderProps extends PropsWithChildren {
 export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string>();
-  
+
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
 

@@ -29,6 +29,8 @@ export default defineConfig({
         "react-dom",
         "react/jsx-runtime",
         "tailwind-merge",
+        "wagmi",
+        "viem",
         "@cosmjs/stargate",
         "@babylonlabs-io/core-ui",
         // "bitcoinjs-lib",
@@ -36,6 +38,10 @@ export default defineConfig({
         // Issues linking with Next.js
         // "@keystonehq/keystone-sdk",
         "@keystonehq/sdk",
+        // @reown packages that use viem internally
+        "@reown/appkit",
+        "@reown/appkit-adapter-wagmi",
+        /^@reown\//, // Match all @reown/* packages
       ],
       output: {
         sourcemapExcludeSources: false,

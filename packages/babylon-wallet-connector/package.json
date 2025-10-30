@@ -67,9 +67,7 @@
     "buffer": "6.0.3",
     "nanoevents": "9.1.0",
     "usehooks-ts": "^3.1.1",
-    "uuid": "11.1.0",
-    "viem": "^2.38.2",
-    "wagmi": "^2.18.1"
+    "uuid": "11.1.0"
   },
   "files": [
     "dist"
@@ -77,7 +75,9 @@
   "peerDependencies": {
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "tailwind-merge": "2.5.4"
+    "tailwind-merge": "2.5.4",
+    "viem": "2.38.2",
+    "wagmi": "2.18.1"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.9",
