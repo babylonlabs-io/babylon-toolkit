@@ -32,7 +32,12 @@ export function MarketInfo({
   totalLiquiditySubtitle,
   borrowRate,
   attributes,
-  positions = [],
+  positions = [
+    { label: "Loan", value: "788,859 USDC" },
+    { label: "Market", value: "BTC/USDC" },
+    { label: "LTV", value: "65.8%" },
+    { label: "Liquidation LTV", value: "70%" },
+  ],
 }: MarketInfoProps) {
   return (
     <div className="space-y-6">

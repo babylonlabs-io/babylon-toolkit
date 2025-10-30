@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "../context/wallet";
-import { useBTCPrice } from "../hooks/useBTCPrice";
 import { calculateBalance, useUTXOs } from "../hooks/useUTXOs";
 import { useVaultProviders } from "../hooks/useVaultProviders";
 import {
@@ -45,9 +44,6 @@ export function VaultOverviewPanel() {
   const btcBalanceSat = useMemo(() => {
     return BigInt(calculateBalance(confirmedUTXOs || []));
   }, [confirmedUTXOs]);
-
-  // Fetch BTC price from oracle
-  const { btcPriceUSD } = useBTCPrice();
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();
@@ -200,10 +196,6 @@ export function VaultOverviewPanel() {
             open
             onClose={resetRedeem}
             onRedeem={handleRedeem}
-            availableBalance={btcBalanceSat}
-            btcPrice={btcPriceUSD}
-            currencyIcon="/images/btc.png"
-            currencyName="Bitcoin"
           />
         )}
         {redeemStep === VaultRedeemStep.REVIEW && (
@@ -304,10 +296,6 @@ export function VaultOverviewPanel() {
           open
           onClose={resetRedeem}
           onRedeem={handleRedeem}
-          availableBalance={btcBalanceSat}
-          btcPrice={btcPriceUSD}
-          currencyIcon="/images/btc.png"
-          currencyName="Bitcoin"
         />
       )}
       {redeemStep === VaultRedeemStep.REVIEW && (

@@ -18,20 +18,16 @@ interface RedeemCollateralModalProps {
   open: boolean;
   onClose: () => void;
   onRedeem: (amount: bigint) => void;
-  availableBalance: bigint;
-  btcPrice: number;
-  currencyIcon?: string;
-  currencyName?: string;
+  availableBalance?: bigint;
+  btcPrice?: number;
 }
 
 export function RedeemCollateralModal({
   open,
   onClose,
   onRedeem,
-  availableBalance,
-  btcPrice,
-  currencyIcon = "/images/btc.png",
-  currencyName = "Bitcoin",
+  availableBalance = 1000000000n, // Default 10 BTC in satoshis
+  btcPrice = 112694.16,
 }: RedeemCollateralModalProps) {
   const [redeemAmount, setRedeemAmount] = useState(0);
 
@@ -80,8 +76,8 @@ export function RedeemCollateralModal({
 
         <AmountSlider
           amount={redeemAmount}
-          currencyIcon={currencyIcon}
-          currencyName={currencyName}
+          currencyIcon="/images/btc.png"
+          currencyName="Bitcoin"
           balanceDetails={{
             balance: availableBtc,
             symbol: "BTC",

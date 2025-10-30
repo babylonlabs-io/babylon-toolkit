@@ -40,12 +40,8 @@ export function useUserPositions(
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["userPositions", connectedAddress, CONTRACTS.VAULT_CONTROLLER],
-    queryFn: () => {
-      return getUserPositionsWithMorpho(
-        connectedAddress!,
-        CONTRACTS.VAULT_CONTROLLER,
-      );
-    },
+    queryFn: () =>
+      getUserPositionsWithMorpho(connectedAddress!, CONTRACTS.VAULT_CONTROLLER),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
@@ -62,17 +58,13 @@ export function useUserPositions(
   // 1. Active borrowing (borrowShares > 0) - can repay/borrow more
   // 2. Collateral only (borrowShares = 0, collateral > 0) - can withdraw
   const activePositions = useMemo(() => {
-    if (!data) {
-      return [];
-    }
+    if (!data) return [];
 
-    const filtered = data.filter(
+    return data.filter(
       (position) =>
         position.morphoPosition.borrowShares > 0n ||
         position.morphoPosition.collateral > 0n,
     );
-
-    return filtered;
   }, [data]);
 
   // Wrap refetch to return Promise<void> for backward compatibility

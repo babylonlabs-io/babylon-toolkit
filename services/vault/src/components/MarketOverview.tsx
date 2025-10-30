@@ -16,53 +16,20 @@ const HARDCODED_MARKETS: Market[] = [];
 export function MarketOverview() {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const markets: Market[] = HARDCODED_MARKETS;
 
-  // Fetch real market data from API
-  const { markets, loading, error } = useMarkets();
-
-  const handleMarketClick = (market: MorphoMarket | null) => {
-    if (market) {
-      navigate(`/market/${market.id}`);
-    }
-  };
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="py-8 text-center text-sm text-accent-secondary">
-        Loading markets...
-      </div>
-    );
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="py-8 text-center text-sm text-red-500">
-        Error loading markets: {error.message}
-      </div>
-    );
-  }
-
-  // Helper function to truncate address
-  const truncateAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const columns: ColumnProps<MorphoMarket>[] = [
+  const columns: ColumnProps<Market>[] = [
     {
-      key: "id",
-      header: "Market ID",
-      render: (_value: unknown, row: MorphoMarket) => (
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateAddress(row.id)}
-        </span>
+      key: "curator",
+      header: "Curator",
+      render: (_value: unknown, row: Market) => (
+        <span className="text-sm text-accent-primary">{row.curator}</span>
       ),
     },
     {
       key: "loan",
-      header: "Market",
-      render: () => (
+      header: "Loan",
+      render: (_value: unknown, row: Market) => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
@@ -78,44 +45,73 @@ export function MarketOverview() {
               variant="circular"
             />
           </AvatarGroup>
-          <span className="text-sm text-accent-primary">BTC/USDC</span>
+          <span className="text-sm text-accent-primary">{row.loan}</span>
         </div>
       ),
     },
     {
       key: "lltv",
       header: "LLTV",
-      render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary">
-          {formatLLTV(row.lltv)}
-        </span>
+      render: (_value: unknown, row: Market) => (
+        <span className="text-sm text-accent-primary">{row.lltv}</span>
       ),
     },
     {
-      key: "created_block",
-      header: "Created Block",
-      render: (_value: unknown, row: MorphoMarket) => (
-        <span className="text-sm text-accent-primary">
-          {row.created_block.toLocaleString()}
-        </span>
+      key: "marketSize",
+      header: "Total Market Size",
+      render: (_value: unknown, row: Market) => {
+        const parts = row.marketSize.split(" ");
+        const mainText = parts.slice(0, 2).join(" ");
+        const subText = parts.slice(2).join(" ");
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-accent-primary">{mainText}</span>
+            {subText && (
+              <span className="text-sm text-accent-secondary">{subText}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "totalLiquidity",
+      header: "Total Liquidity",
+      render: (_value: unknown, row: Market) => {
+        const parts = row.totalLiquidity.split(" ");
+        const mainText = parts.slice(0, 2).join(" ");
+        const subText = parts.slice(2).join(" ");
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-accent-primary">{mainText}</span>
+            {subText && (
+              <span className="text-sm text-accent-secondary">{subText}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "rate",
+      header: "Borrow Rate",
+      render: (_value: unknown, row: Market) => (
+        <span className="text-sm text-accent-primary">{row.rate}</span>
       ),
     },
     {
-      key: "oracle",
-      header: "Oracle",
-      render: (_value: unknown, row: MorphoMarket) => (
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateAddress(row.oracle)}
-        </span>
-      ),
-    },
-    {
-      key: "irm",
-      header: "IRM",
-      render: (_value: unknown, row: MorphoMarket) => (
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateAddress(row.irm)}
-        </span>
+      key: "trustedBy",
+      header: "Trusted by",
+      render: (_value: unknown, row: Market) => (
+        <AvatarGroup size="small" max={3}>
+          {row.trustedBy.map((url, idx) => (
+            <Avatar
+              key={idx}
+              url={url}
+              alt=""
+              size="small"
+              variant="circular"
+            />
+          ))}
+        </AvatarGroup>
       ),
     },
   ];
