@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { useMarketDetailViewModel } from "../features/market-detail/useMarketDetailViewModel";
+import { useMarketDetail } from "../hooks/useMarketDetail";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
@@ -27,7 +27,7 @@ export function MarketDetail() {
     positionData,
     maxCollateral,
     maxBorrow,
-  } = useMarketDetailViewModel();
+  } = useMarketDetail();
 
   // UI state and handlers kept in component
   const [showReviewModal, setShowReviewModal] = useState(false);
