@@ -29,6 +29,8 @@ export default defineConfig({
         "react-dom",
         "react/jsx-runtime",
         "tailwind-merge",
+        "wagmi",
+        "viem",
         "@cosmjs/stargate",
         "@babylonlabs-io/core-ui",
         // "bitcoinjs-lib",
