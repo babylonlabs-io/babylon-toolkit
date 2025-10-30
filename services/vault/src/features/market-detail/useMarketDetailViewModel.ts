@@ -4,9 +4,6 @@ import { useParams } from "react-router";
 import { useMarketDetailData } from "../../hooks/useMarketDetailData";
 import { blockToDateString, estimateDateFromBlock } from "../../utils/blockUtils";
 
-type BorrowData = { collateral: number; borrow: number };
-type RepayData = { repay: number; withdraw: number };
-
 export function useMarketDetailViewModel() {
   const { marketId } = useParams<{ marketId: string }>();
 
