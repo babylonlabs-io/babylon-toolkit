@@ -71,10 +71,6 @@ export function useMarketDetailData(
   // Find the position for this specific market
   const userPosition = useMemo(() => {
     if (!marketId || !allPositions) {
-      console.log("useMarketDetailData: No marketId or positions", {
-        marketId,
-        allPositions,
-      });
       return null;
     }
 
@@ -82,10 +78,10 @@ export function useMarketDetailData(
 
     return position
       ? {
-          collateral: position.morphoPosition.collateral,
-          borrowAssets: position.morphoPosition.borrowAssets,
-          borrowShares: position.morphoPosition.borrowShares,
-        }
+        collateral: position.morphoPosition.collateral,
+        borrowAssets: position.morphoPosition.borrowAssets,
+        borrowShares: position.morphoPosition.borrowShares,
+      }
       : null;
   }, [allPositions, marketId]);
 
