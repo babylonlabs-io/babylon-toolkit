@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
-import { useMarketDetail } from "../hooks/useMarketDetail";
+import { useMarketDetail } from "./MarketDetails/hooks/useMarketDetail";
 
 import { BorrowReviewModal } from "./BorrowReviewModal";
 import { BorrowSuccessModal } from "./BorrowSuccessModal";
