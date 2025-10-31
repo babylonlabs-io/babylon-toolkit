@@ -1,31 +1,41 @@
 /**
  * Local Storage utilities for pending peg-in transactions
  *
- * Similar to simple-staking's delegation storage pattern:
- * - Store pending peg-ins in localStorage
- * - Merge with API data when available
- * - Remove from localStorage when confirmed on-chain
+ * Purpose:
+ * - Store pending deposits temporarily until they appear on-chain
+ * - Show immediate feedback to users after deposit submission
+ * - Auto-cleanup once transaction is confirmed on blockchain
+ *
+ * Cleanup Strategy:
+ * - Remove when transaction exists in contract (contract = source of truth)
+ * - Remove when older than 24 hours (stale data)
+ * - Keep only transactions not yet on blockchain
  */
 
 export interface PendingPeginRequest {
-  id: string; // Unique identifier (BTC tx hash or temporary ID)
-  btcTxHash?: string; // BTC transaction hash (once available)
-  amount: string; // BTC amount as string to avoid BigInt serialization issues
-  providers: string[]; // Selected vault provider IDs
-  ethAddress: string; // ETH address that initiated the peg-in
-  btcAddress: string; // BTC address used
+  id: string; // Peg-in ID (pegin tx hash)
   timestamp: number; // When the peg-in was initiated
   status: "pending" | "payout_signed" | "confirming" | "confirmed";
+  amount?: string; // Amount in BTC (formatted for display)
+  providerId?: string; // Vault provider's Ethereum address
 }
 
 const STORAGE_KEY_PREFIX = "vault-pending-pegins";
-const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup stale items
 
 /**
  * Get storage key for a specific address
  */
 function getStorageKey(ethAddress: string): string {
   return `${STORAGE_KEY_PREFIX}-${ethAddress}`;
+}
+
+/**
+ * Normalize transaction ID to ensure it has 0x prefix
+ * This handles legacy data that might not have the prefix
+ */
+function normalizeTransactionId(id: string): string {
+  return id.startsWith("0x") ? id : `0x${id}`;
 }
 
 /**
@@ -40,8 +50,26 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     if (!stored) return [];
 
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
-    return parsed;
-  } catch {
+
+    // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
+    const normalized = parsed.map((pegin) => ({
+      ...pegin,
+      id: normalizeTransactionId(pegin.id),
+    }));
+
+    // Check if any IDs were normalized (legacy data)
+    const hasLegacyData = parsed.some(
+      (pegin, index) => pegin.id !== normalized[index].id,
+    );
+
+    // If we normalized any legacy data, save it back to localStorage
+    if (hasLegacyData) {
+      localStorage.setItem(key, JSON.stringify(normalized));
+    }
+
+    return normalized;
+  } catch (error) {
+    console.error("[peginStorage] Failed to parse pending pegins:", error);
     return [];
   }
 }
@@ -58,8 +86,8 @@ export function savePendingPegins(
   try {
     const key = getStorageKey(ethAddress);
     localStorage.setItem(key, JSON.stringify(pegins));
-  } catch {
-    // Silent failure - localStorage might be unavailable
+  } catch (error) {
+    console.error("[peginStorage] Failed to save pending pegins:", error);
   }
 }
 
@@ -72,13 +100,31 @@ export function addPendingPegin(
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
 
+  // Normalize the ID to ensure it has 0x prefix
+  const normalizedId = normalizeTransactionId(pegin.id);
+
+  // Check if this pegin already exists
+  const existingPeginIndex = existingPegins.findIndex(
+    (p) => p.id === normalizedId,
+  );
+
   const newPegin: PendingPeginRequest = {
     ...pegin,
+    id: normalizedId, // Use normalized ID
     timestamp: Date.now(),
     status: "pending",
   };
 
-  const updatedPegins = [...existingPegins, newPegin];
+  let updatedPegins: PendingPeginRequest[];
+  if (existingPeginIndex >= 0) {
+    // Update existing pegin
+    updatedPegins = [...existingPegins];
+    updatedPegins[existingPeginIndex] = newPegin;
+  } else {
+    // Add new pegin
+    updatedPegins = [...existingPegins, newPegin];
+  }
+
   savePendingPegins(ethAddress, updatedPegins);
 }
 
@@ -87,7 +133,8 @@ export function addPendingPegin(
  */
 export function removePendingPegin(ethAddress: string, peginId: string): void {
   const existingPegins = getPendingPegins(ethAddress);
-  const updatedPegins = existingPegins.filter((p) => p.id !== peginId);
+  const normalizedId = normalizeTransactionId(peginId);
+  const updatedPegins = existingPegins.filter((p) => p.id !== normalizedId);
   savePendingPegins(ethAddress, updatedPegins);
 }
 
@@ -101,44 +148,58 @@ export function updatePeginStatus(
   btcTxHash?: string,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
+  const normalizedId = normalizeTransactionId(peginId);
   const updatedPegins = existingPegins.map((p) =>
-    p.id === peginId ? { ...p, status, ...(btcTxHash && { btcTxHash }) } : p,
+    p.id === normalizedId
+      ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
+      : p,
   );
   savePendingPegins(ethAddress, updatedPegins);
 }
 
 /**
- * Filter and clean up old pending peg-ins.
- * Removes peg-ins that exist on blockchain OR exceeded max duration.
+ * Filter and clean up old pending peg-ins
  *
- * IMPORTANT: localStorage is a temporary placeholder until blockchain confirms the transaction.
- * - NOT on blockchain yet: Keep in localStorage (show pending state to user)
- * - ON blockchain (any presence): Remove from localStorage (blockchain is source of truth)
- * - Older than 24 hours: Remove from localStorage (cleanup stale data)
+ * Removes items from localStorage if:
+ * 1. Transaction exists on blockchain (any status) - contract is source of truth
+ * 2. Older than 24 hours - cleanup stale items
+ *
+ * Keeps items only if they're not yet on blockchain (still pending confirmation)
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
-  confirmedPegins: Array<{ id: string }>,
+  confirmedPegins: Array<{ id: string; status: number }>,
 ): PendingPeginRequest[] {
   const now = Date.now();
 
-  // Create a set of confirmed pegin IDs for quick lookup
-  const confirmedPeginIds = new Set(confirmedPegins.map((p) => p.id));
+  // Normalize confirmed pegin IDs to ensure they have 0x prefix
+  const normalizedConfirmedPegins = confirmedPegins.map((p) => ({
+    id: normalizeTransactionId(p.id),
+    status: p.status,
+  }));
 
   return pendingPegins.filter((pegin) => {
-    // If this pegin exists on blockchain (any status), remove from localStorage
-    // Blockchain data is now the source of truth
-    if (confirmedPeginIds.has(pegin.id)) {
-      return false;
-    }
+    // Normalize the pending pegin ID as well (should already be normalized, but just in case)
+    const normalizedPeginId = normalizeTransactionId(pegin.id);
 
-    // Remove if exceeded max duration
+    // Remove if exceeded max duration (24 hours)
     const age = now - pegin.timestamp;
     if (age > MAX_PENDING_DURATION) {
       return false;
     }
 
-    // Keep in localStorage (not yet on blockchain)
+    // Check if pegin exists on blockchain (using normalized IDs)
+    const confirmedPegin = normalizedConfirmedPegins.find(
+      (p) => p.id === normalizedPeginId,
+    );
+
+    // If it exists on blockchain, remove from localStorage
+    // The contract is now the source of truth - no need to keep in localStorage anymore
+    if (confirmedPegin) {
+      return false;
+    }
+
+    // Keep in localStorage only if not yet on blockchain
     return true;
   });
 }
@@ -152,7 +213,7 @@ export function clearPendingPegins(ethAddress: string): void {
   try {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
-  } catch {
-    // Silent failure - localStorage might be unavailable
+  } catch (error) {
+    console.error("[peginStorage] Failed to clear pending pegins:", error);
   }
 }

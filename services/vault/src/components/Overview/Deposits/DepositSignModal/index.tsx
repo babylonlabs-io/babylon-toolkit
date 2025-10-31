@@ -51,11 +51,8 @@ export function CollateralDepositSignModal({
         if (depositorEthAddress) {
           addPendingPegin(depositorEthAddress, {
             id: ethTxHash,
-            btcTxHash: btcTxid,
             amount: amount.toString(),
-            providers: selectedProviders,
-            ethAddress: depositorEthAddress,
-            btcAddress: "", // Will be populated when needed
+            providerId: selectedProviders[0], // Use first selected provider
           });
         }
 
