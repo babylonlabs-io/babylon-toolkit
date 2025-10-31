@@ -87,25 +87,6 @@ export class ContractError extends Error {
   }
 }
 
-export class NetworkError extends Error {
-  public readonly code: ErrorCode;
-  public readonly context?: Record<string, unknown>;
-
-  constructor(
-    message: string,
-    code: ErrorCode = ErrorCode.NETWORK_ERROR,
-    options?: Omit<BaseErrorOptions, "code">,
-  ) {
-    super(message);
-    this.name = "NetworkError";
-    this.code = code;
-    this.context = options?.context;
-    if (options?.cause) {
-      this.cause = options.cause;
-    }
-  }
-}
-
 export class WalletError extends Error {
   public readonly code: ErrorCode;
   public readonly walletType?: string;

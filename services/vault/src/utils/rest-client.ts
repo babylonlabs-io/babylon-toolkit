@@ -1,4 +1,4 @@
-import { ApiError, ErrorCode, NetworkError } from "./errors/types";
+import { ApiError, ErrorCode } from "./errors/types";
 
 /**
  * Generic REST API HTTP Client
