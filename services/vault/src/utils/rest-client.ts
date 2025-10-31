@@ -16,11 +16,7 @@ export interface RestClientConfig {
 }
 
 export class RestClientError extends ApiError {
-  constructor(
-    status: number,
-    message: string,
-    response?: string,
-  ) {
+  constructor(status: number, message: string, response?: string) {
     const code = getErrorCodeFromStatus(status);
     super(message, status, code, response);
     this.name = "RestClientError";

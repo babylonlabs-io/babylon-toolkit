@@ -174,10 +174,7 @@ export async function addCollateralToPositionAndBorrow(
       receipt,
     };
   } catch (error) {
-    throw mapViemErrorToContractError(
-      error,
-      "add collateral and borrow",
-    );
+    throw mapViemErrorToContractError(error, "add collateral and borrow");
   }
 }
 
