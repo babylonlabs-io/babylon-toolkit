@@ -28,6 +28,8 @@ export interface UseMarketDetailDataResult {
   marketConfig: MorphoMarket | null;
   /** User's position in this market (if any) */
   userPosition: {
+    positionId: string;
+    marketId: string;
     collateral: bigint;
     borrowAssets: bigint;
     borrowShares: bigint;
@@ -78,6 +80,8 @@ export function useMarketDetailData(
 
     return position
       ? {
+          positionId: position.positionId,
+          marketId: position.position.marketId,
           collateral: position.morphoPosition.collateral,
           borrowAssets: position.morphoPosition.borrowAssets,
           borrowShares: position.morphoPosition.borrowShares,

@@ -1,6 +1,16 @@
-import { useMemo, useState } from "react";
+/**
+ * Market Detail Page
+ *
+ * Handles both:
+ * 1. Browse markets and open new positions (when user has no position)
+ * 2. Manage existing positions (when user has a position for this market)
+ *
+ * The page automatically detects if the user has a position for this market.
+ */
+
 import { useNavigate, useSearchParams } from "react-router";
 
+import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
 import { LoanCard } from "../../shared/LoanCard";
 import { BorrowReviewModal } from "../../shared/LoanCard/Borrow/ReviewModal";
 import { BorrowSuccessModal } from "../../shared/LoanCard/Borrow/SuccessModal";
@@ -9,104 +19,102 @@ import { RepaySuccessModal } from "../../shared/LoanCard/Repay/SuccessModal";
 import { MarketInfo } from "../Info";
 
 import { useMarketDetail } from "./hooks/useMarketDetail";
+import { useMarketDetailModals } from "./hooks/useMarketDetailModals";
+import { useTransactionHandlers } from "./hooks/useTransactionHandlers";
 
 export function MarketDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get("tab") || "borrow";
 
+  // Fetch market data and user's position (if exists)
   const {
     isMarketLoading,
     marketError,
-    marketData,
     btcPrice,
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    marketAttributes,
-    positionData,
     maxCollateral,
     maxBorrow,
+    marketAttributes,
+    positionData,
+    userPosition,
+    marketDisplayValues,
+    refetch,
   } = useMarketDetail();
 
-  // UI state and handlers kept in component
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [showRepayReviewModal, setShowRepayReviewModal] = useState(false);
-  const [showBorrowSuccessModal, setShowBorrowSuccessModal] = useState(false);
-  const [showRepaySuccessModal, setShowRepaySuccessModal] = useState(false);
+  // Check if user has a position for this market
+  const hasPosition = !!userPosition;
 
-  const [lastBorrowData, setLastBorrowData] = useState({
-    collateral: 0,
-    borrow: 0,
+  // Default tab based on whether user has a position:
+  // - Has position → default to "repay"
+  // - No position → default to "borrow"
+  const defaultTab =
+    searchParams.get("tab") || (hasPosition ? "repay" : "borrow");
+
+  // Modal state management
+  const {
+    showBorrowReviewModal,
+    showBorrowSuccessModal,
+    lastBorrowData,
+    openBorrowReview,
+    closeBorrowReview,
+    showBorrowSuccess,
+    closeBorrowSuccess,
+    showRepayReviewModal,
+    showRepaySuccessModal,
+    lastRepayData,
+    openRepayReview,
+    closeRepayReview,
+    showRepaySuccess,
+    closeRepaySuccess,
+    processing,
+    setProcessing,
+  } = useMarketDetailModals();
+
+  // Transaction handlers
+  const { handleConfirmBorrow, handleConfirmRepay } = useTransactionHandlers({
+    hasPosition,
+    userPosition,
+    currentLoanAmount,
+    refetch,
+    onBorrowSuccess: showBorrowSuccess,
+    onRepaySuccess: showRepaySuccess,
+    setProcessing,
   });
-  const [lastRepayData, setLastRepayData] = useState({
-    repay: 0,
-    withdraw: 0,
+
+  // LTV calculations
+  const { borrowLtv, repayLtv } = useLtvCalculations({
+    borrowData: lastBorrowData,
+    repayData: lastRepayData,
+    btcPrice,
+    currentLoanAmount,
+    currentCollateralAmount,
   });
 
   const handleBack = () => navigate("/");
 
-  const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
-    setLastBorrowData({ collateral: collateralAmount, borrow: borrowAmount });
-    setShowReviewModal(true);
-  };
+  // Show loading state
+  if (isMarketLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center text-sm text-accent-secondary">
+          Loading market data...
+        </div>
+      </div>
+    );
+  }
 
-  const handleRepay = (
-    repayAmount: number,
-    withdrawCollateralAmount: number,
-  ) => {
-    setLastRepayData({
-      repay: repayAmount,
-      withdraw: withdrawCollateralAmount,
-    });
-    setShowRepayReviewModal(true);
-  };
-
-  const handleConfirmBorrow = async () => {
-    setProcessing(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setShowReviewModal(false);
-      setShowBorrowSuccessModal(true);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleConfirmRepay = async () => {
-    setProcessing(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setShowRepayReviewModal(false);
-      setShowRepaySuccessModal(true);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const borrowLtv = useMemo(() => {
-    return lastBorrowData.collateral === 0
-      ? 0
-      : (lastBorrowData.borrow / (lastBorrowData.collateral * btcPrice)) * 100;
-  }, [lastBorrowData.borrow, lastBorrowData.collateral, btcPrice]);
-
-  const repayLtv = useMemo(() => {
-    const remainingCollateral =
-      currentCollateralAmount - lastRepayData.withdraw;
-    if (remainingCollateral === 0) return 0;
-    const remainingLoan = currentLoanAmount - lastRepayData.repay;
-    return (remainingLoan / (remainingCollateral * btcPrice)) * 100;
-  }, [
-    currentCollateralAmount,
-    lastRepayData.withdraw,
-    currentLoanAmount,
-    lastRepayData.repay,
-    btcPrice,
-  ]);
-
-  if (isMarketLoading) return null;
-  if (marketError) return null;
+  // Show error state
+  if (marketError) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center text-sm text-accent-secondary">
+          Market not found
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
@@ -117,27 +125,11 @@ export function MarketDetail() {
           marketPair="BTC / USDC"
           btcIcon="/images/btc.png"
           usdcIcon="/images/usdc.png"
-          totalMarketSize={
-            marketData
-              ? `$${(Number(marketData.totalSupplyAssets) / 1e12).toFixed(2)}M`
-              : "?"
-          }
-          totalMarketSizeSubtitle={
-            marketData
-              ? `${(Number(marketData.totalSupplyAssets) / 1e12).toFixed(2)}M USDC`
-              : "?"
-          }
-          totalLiquidity={
-            marketData
-              ? `$${(Number(marketData.totalBorrowAssets) / 1e12).toFixed(2)}M`
-              : "?"
-          }
-          totalLiquiditySubtitle={
-            marketData
-              ? `${(Number(marketData.totalBorrowAssets) / 1e12).toFixed(2)}M USDC`
-              : "?"
-          }
-          borrowRate="?"
+          totalMarketSize={marketDisplayValues.totalMarketSize}
+          totalMarketSizeSubtitle={marketDisplayValues.totalMarketSizeSubtitle}
+          totalLiquidity={marketDisplayValues.totalLiquidity}
+          totalLiquiditySubtitle={marketDisplayValues.totalLiquiditySubtitle}
+          borrowRate={marketDisplayValues.borrowRate}
           attributes={marketAttributes}
           positions={positionData}
         />
@@ -150,18 +142,18 @@ export function MarketDetail() {
             maxBorrow={maxBorrow}
             btcPrice={btcPrice}
             liquidationLtv={liquidationLtv}
-            onBorrow={handleBorrow}
+            onBorrow={openBorrowReview}
             currentLoanAmount={currentLoanAmount}
             currentCollateralAmount={currentCollateralAmount}
-            onRepay={handleRepay}
+            onRepay={openRepayReview}
           />
         </div>
       </div>
 
-      {/* Modals remain in parent for state management */}
+      {/* Borrow Modals */}
       <BorrowReviewModal
-        open={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
+        open={showBorrowReviewModal}
+        onClose={closeBorrowReview}
         onConfirm={handleConfirmBorrow}
         collateralAmount={lastBorrowData.collateral}
         collateralSymbol="BTC"
@@ -183,10 +175,20 @@ export function MarketDetail() {
         processing={processing}
       />
 
+      <BorrowSuccessModal
+        open={showBorrowSuccessModal}
+        onClose={closeBorrowSuccess}
+        borrowAmount={lastBorrowData.borrow}
+        borrowSymbol="USDC"
+      />
+
+      {/* Repay Modals */}
       <RepayReviewModal
         open={showRepayReviewModal}
-        onClose={() => setShowRepayReviewModal(false)}
-        onConfirm={handleConfirmRepay}
+        onClose={closeRepayReview}
+        onConfirm={() =>
+          handleConfirmRepay(lastRepayData.repay, lastRepayData.withdraw)
+        }
         repayAmount={lastRepayData.repay}
         repaySymbol="USDC"
         repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, {
@@ -206,16 +208,9 @@ export function MarketDetail() {
         processing={processing}
       />
 
-      <BorrowSuccessModal
-        open={showBorrowSuccessModal}
-        onClose={() => setShowBorrowSuccessModal(false)}
-        borrowAmount={lastBorrowData.borrow}
-        borrowSymbol="USDC"
-      />
-
       <RepaySuccessModal
         open={showRepaySuccessModal}
-        onClose={() => setShowRepaySuccessModal(false)}
+        onClose={closeRepaySuccess}
         repayAmount={lastRepayData.repay}
         withdrawAmount={lastRepayData.withdraw}
         repaySymbol="USDC"
