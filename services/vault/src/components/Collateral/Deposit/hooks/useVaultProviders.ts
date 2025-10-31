@@ -13,8 +13,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import type { VaultProvider } from "../clients/vault-api";
-import { vaultApiClient } from "../clients/vault-api";
+import type { VaultProvider } from "../../../../clients/vault-api";
+import { vaultApiClient } from "../../../../clients/vault-api";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
@@ -62,7 +62,7 @@ export function useVaultProviders(): UseVaultProvidersResult {
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
       if (!data) return undefined;
-      return data.find((p) => p.id.toLowerCase() === address.toLowerCase());
+      return data.find((p: VaultProvider) => p.id.toLowerCase() === address.toLowerCase());
     },
     [data],
   );

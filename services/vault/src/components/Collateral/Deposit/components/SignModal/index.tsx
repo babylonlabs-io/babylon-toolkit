@@ -11,7 +11,7 @@ import {
 import { useEffect } from "react";
 import type { Address } from "viem";
 
-import { addPendingPegin } from "../../../../storage/peginStorage";
+import { addPendingPegin } from "../../storage/peginStorage";
 
 import { useDepositFlow } from "./hooks/useDepositFlow";
 
@@ -47,15 +47,10 @@ export function CollateralDepositSignModal({
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
       onSuccess: (btcTxid, ethTxHash) => {
-        // Store pegin in localStorage for tracking
+        // Store pegin in localStorage for tracking (minimal data - full data refetched from blockchain)
         if (depositorEthAddress) {
           addPendingPegin(depositorEthAddress, {
             id: ethTxHash,
-            btcTxHash: btcTxid,
-            amount: amount.toString(),
-            providers: selectedProviders,
-            ethAddress: depositorEthAddress,
-            btcAddress: "", // Will be populated when needed
           });
         }
 

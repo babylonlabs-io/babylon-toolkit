@@ -7,10 +7,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import type { Address } from "viem";
 
-import { CONTRACTS } from "../config/contracts";
-import { getPeginRequestsWithDetails } from "../services/vault/vaultQueryService";
-import type { VaultActivity } from "../types";
-import { transformPeginToActivity } from "../utils/peginTransformers";
+import { CONTRACTS } from "../../../../config/contracts";
+import { getPeginRequestsWithDetails } from "../../../../services/vault/vaultQueryService";
+import type { VaultActivity } from "../../../../types";
+import { transformPeginToActivity } from "../../../../utils/peginTransformers";
+import { ONE_MINUTE } from "@/constants";
 
 /**
  * Result interface for usePeginRequests hook
@@ -59,8 +60,8 @@ export function usePeginRequests({
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
-    // Poll every 30 seconds to track peg-in status updates
-    refetchInterval: 30000,
+    // Poll every minute to track peg-in status updates
+    refetchInterval: ONE_MINUTE,
   });
 
   // Trigger refetch when wallet connects (address changes from undefined to a value)

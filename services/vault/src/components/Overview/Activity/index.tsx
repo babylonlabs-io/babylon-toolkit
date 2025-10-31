@@ -5,22 +5,53 @@ import {
   VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
-import type { Activity } from "../../../types/activity";
-
-// Hardcoded activity data
-const HARDCODED_ACTIVITIES: Activity[] = [];
+import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
+import { ContractStatus } from "../../../models/peginStateMachine";
+import type { Activity, VaultActivity } from "../../../types/activity";
 
 export function Activity() {
   const isMobile = useIsMobile();
   const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const isConnected = btcConnected && ethConnected;
 
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
-  const activities: Activity[] = HARDCODED_ACTIVITIES;
+
+  // Fetch real activity data
+  const { activities: vaultActivities } = useVaultDeposits(
+    ethAddress as `0x${string}` | undefined,
+  );
+
+  // Transform VaultActivity to Activity format for display
+  const activities: Activity[] = useMemo(() => {
+    return vaultActivities.map((activity: VaultActivity) => {
+      const contractStatus = activity.contractStatus ?? ContractStatus.PENDING;
+
+      // Determine activity type based on contract status
+      let type: Activity["type"] = "Deposit";
+      if (contractStatus === ContractStatus.IN_POSITION) {
+        type = "Borrow";
+      } else if (contractStatus === ContractStatus.EXPIRED) {
+        type = "Withdraw";
+      } else {
+        // PENDING, VERIFIED, AVAILABLE
+        type = "Deposit";
+      }
+
+      return {
+        id: activity.id,
+        date: activity.timestamp
+          ? new Date(activity.timestamp).toLocaleDateString()
+          : new Date().toLocaleDateString(),
+        type,
+        amount: `${activity.collateral.amount} ${activity.collateral.symbol}`,
+        transactionHash: activity.txHash || activity.id,
+      };
+    });
+  }, [vaultActivities]);
 
   const handleCopyHash = (hash: string) => {
     navigator.clipboard.writeText(hash);

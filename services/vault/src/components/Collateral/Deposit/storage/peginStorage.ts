@@ -1,19 +1,13 @@
 /**
  * Local Storage utilities for pending peg-in transactions
  *
- * Similar to simple-staking's delegation storage pattern:
  * - Store pending peg-ins in localStorage
  * - Merge with API data when available
  * - Remove from localStorage when confirmed on-chain
  */
 
 export interface PendingPeginRequest {
-  id: string; // Unique identifier (BTC tx hash or temporary ID)
-  btcTxHash?: string; // BTC transaction hash (once available)
-  amount: string; // BTC amount as string to avoid BigInt serialization issues
-  providers: string[]; // Selected vault provider IDs
-  ethAddress: string; // ETH address that initiated the peg-in
-  btcAddress: string; // BTC address used
+  id: string; // Peg-in ID (pegin tx hash)
   timestamp: number; // When the peg-in was initiated
   status: "pending" | "payout_signed" | "confirming" | "confirmed";
 }
@@ -41,7 +35,8 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
     return parsed;
-  } catch {
+  } catch (error) {
+    console.error("[peginStorage] Failed to parse pending pegins:", error);
     return [];
   }
 }
@@ -58,8 +53,8 @@ export function savePendingPegins(
   try {
     const key = getStorageKey(ethAddress);
     localStorage.setItem(key, JSON.stringify(pegins));
-  } catch {
-    // Silent failure - localStorage might be unavailable
+  } catch (error) {
+    console.error("[peginStorage] Failed to save pending pegins:", error);
   }
 }
 
@@ -108,37 +103,33 @@ export function updatePeginStatus(
 }
 
 /**
- * Filter and clean up old pending peg-ins.
- * Removes peg-ins that exist on blockchain OR exceeded max duration.
- *
- * IMPORTANT: localStorage is a temporary placeholder until blockchain confirms the transaction.
- * - NOT on blockchain yet: Keep in localStorage (show pending state to user)
- * - ON blockchain (any presence): Remove from localStorage (blockchain is source of truth)
- * - Older than 24 hours: Remove from localStorage (cleanup stale data)
+ * Filter and clean up old pending peg-ins
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
-  confirmedPegins: Array<{ id: string }>,
+  confirmedPegins: Array<{ id: string; status: number }>,
 ): PendingPeginRequest[] {
   const now = Date.now();
 
-  // Create a set of confirmed pegin IDs for quick lookup
-  const confirmedPeginIds = new Set(confirmedPegins.map((p) => p.id));
-
   return pendingPegins.filter((pegin) => {
-    // If this pegin exists on blockchain (any status), remove from localStorage
-    // Blockchain data is now the source of truth
-    if (confirmedPeginIds.has(pegin.id)) {
-      return false;
-    }
-
-    // Remove if exceeded max duration
+    // Remove if exceeded max duration (24 hours)
     const age = now - pegin.timestamp;
     if (age > MAX_PENDING_DURATION) {
       return false;
     }
 
-    // Keep in localStorage (not yet on blockchain)
+    // Check if pegin exists on blockchain
+    const confirmedPegin = confirmedPegins.find((p) => p.id === pegin.id);
+
+    // If on blockchain with status >= 2 (Available/InPosition/Expired), remove from localStorage
+    // At this point, blockchain is the complete source of truth - no more user actions needed
+    if (confirmedPegin && confirmedPegin.status >= 2) {
+      return false;
+    }
+
+    // Keep in localStorage for:
+    // 1. Not yet on blockchain (still pending submission)
+    // 2. Status 0 or 1 (tracking intermediate user actions: payout_signed, confirming, etc.)
     return true;
   });
 }
@@ -152,7 +143,7 @@ export function clearPendingPegins(ethAddress: string): void {
   try {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
-  } catch {
-    // Silent failure - localStorage might be unavailable
+  } catch (error) {
+    console.error("[peginStorage] Failed to clear pending pegins:", error);
   }
 }

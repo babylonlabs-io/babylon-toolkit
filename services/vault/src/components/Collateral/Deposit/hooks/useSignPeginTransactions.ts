@@ -9,10 +9,9 @@
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
-import { signAndSubmitPayoutSignatures } from "../services/vault/vaultPayoutSignatureService";
-
+import type { ClaimerTransactions } from "../../../../clients/vault-provider-rpc/types";
 import { useVaultProviders } from "./useVaultProviders";
+import { signAndSubmitPayoutSignatures } from "../../../../services/vault/vaultPayoutSignatureService";
 
 export interface SignPeginTransactionsParams {
   /** Peg-in transaction ID */
@@ -82,7 +81,7 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
 
         // Extract liquidator BTC pubkeys from vault provider
         const liquidatorBtcPubkeys =
-          provider.liquidators?.map((liq) => liq.btc_pub_key) || [];
+          provider.liquidators?.map((liq: { btc_pub_key: string }) => liq.btc_pub_key) || [];
 
         // Delegate to service layer (state-unaware, reusable business logic)
         await signAndSubmitPayoutSignatures({

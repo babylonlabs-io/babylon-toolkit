@@ -8,7 +8,7 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
-import { satoshiToBtcNumber } from "../../../../utils/btcConversion";
+import { satoshiToBtcNumber } from "../../../../../utils/btcConversion";
 
 interface VaultProvider {
   id: string;

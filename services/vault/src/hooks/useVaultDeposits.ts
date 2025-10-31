@@ -1,8 +1,8 @@
 import type { Hex } from "viem";
 
-import { usePeginStorage } from "../storage/usePeginStorage";
+import { usePeginStorage } from "../components/Collateral/Deposit/storage/usePeginStorage";
 
-import { usePeginRequests } from "./usePeginRequests";
+import { usePeginRequests } from "../components/Collateral/Deposit/hooks/usePeginRequests";
 
 /**
  * Hook to manage vault deposits data fetching

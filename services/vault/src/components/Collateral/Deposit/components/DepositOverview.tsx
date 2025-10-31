@@ -12,17 +12,19 @@ import {
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
 
-import { useBTCWallet, useETHWallet } from "../../../context/wallet";
-import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
-import { getPeginState } from "../../../models/peginStateMachine";
-import type { VaultActivity } from "../../../types/activity";
-import type { Deposit } from "../../../types/vault";
-
+import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
+import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
+import { getPeginState } from "../../../../models/peginStateMachine";
+import type { VaultActivity } from "../../../../types/activity";
+import type { Deposit } from "../../../../types/vault";
 import {
   useVaultDepositState,
   VaultDepositStep,
-} from "./state/VaultDepositState";
-import { useVaultRedeemState, VaultRedeemStep } from "./state/VaultRedeemState";
+} from "../state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../../Redeem/state/VaultRedeemState";
 
 function EmptyState({
   onDeposit,
@@ -157,10 +159,10 @@ export function DepositOverview() {
       key: "status",
       header: "Status",
       render: (_value: unknown, row: Deposit) => {
-        const statusMap = {
-          Available: "inactive" as const,
-          Pending: "pending" as const,
-          "In Use": "active" as const,
+        const statusMap: Record<"Available" | "Pending" | "In Use", "inactive" | "pending" | "active"> = {
+          Available: "inactive",
+          Pending: "pending",
+          "In Use": "active",
         };
         return (
           <StatusBadge status={statusMap[row.status]} label={row.status} />
@@ -198,10 +200,10 @@ export function DepositOverview() {
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {deposits.map((deposit) => {
-            const statusMap = {
-              Available: "inactive" as const,
-              Pending: "pending" as const,
-              "In Use": "active" as const,
+            const statusMap: Record<"Available" | "Pending" | "In Use", "inactive" | "pending" | "active"> = {
+              Available: "inactive",
+              Pending: "pending",
+              "In Use": "active",
             };
             return (
               <VaultDetailCard
@@ -263,3 +265,4 @@ export function DepositOverview() {
     </div>
   );
 }
+

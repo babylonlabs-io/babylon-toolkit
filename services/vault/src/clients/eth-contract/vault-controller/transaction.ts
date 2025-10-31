@@ -9,6 +9,7 @@ import {
   type WalletClient,
 } from "viem";
 
+import { estimateGasWithBuffer } from "../../../utils/eth/gasEstimation";
 import { ethClient } from "../client";
 
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
@@ -48,6 +49,17 @@ export async function submitPeginRequest(
   const publicClient = ethClient.getPublicClient();
 
   try {
+    // Estimate gas with standard buffer multiplier (10% buffer)
+    // This accounts for estimation inaccuracies and state changes
+    // between estimation and execution
+    const gasLimit = await estimateGasWithBuffer(publicClient, {
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: "submitPeginRequest",
+      args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
+      account: walletClient.account!,
+    });
+
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
@@ -55,6 +67,7 @@ export async function submitPeginRequest(
       args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
       chain,
       account: walletClient.account!,
+      gas: gasLimit,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({

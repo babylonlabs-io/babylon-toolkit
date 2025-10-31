@@ -9,14 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
-import { VaultProviderRpcApi } from "../clients/vault-provider-rpc";
+import { VaultProviderRpcApi } from "../../../../clients/vault-provider-rpc";
 import type {
   ClaimerTransactions,
   RequestClaimAndPayoutTransactionsResponse,
-} from "../clients/vault-provider-rpc/types";
-import { stripHexPrefix } from "../utils/btc";
-
+} from "../../../../clients/vault-provider-rpc/types";
 import { useVaultProviders } from "./useVaultProviders";
+import { stripHexPrefix } from "../../../../utils/btc";
 
 export interface PendingPeginTx {
   /** Peg-in transaction ID */
