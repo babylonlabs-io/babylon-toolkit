@@ -144,7 +144,6 @@ export function useMarketDetail() {
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
   const formatBTC = (value: bigint) => Number(value) / 1e8;
 
-  const maxBorrow = marketData ? formatUSDC(marketData.totalSupplyAssets) : 0;
   const btcPrice = btcPriceUSD;
 
   const liquidationLtv = useMemo(() => {
@@ -173,6 +172,10 @@ export function useMarketDetail() {
     const lltvNumber = Number(lltvString);
     return (lltvNumber / 1e16).toFixed(1);
   };
+
+  // NOTE: maxBorrow is now calculated dynamically in useBorrowState based on collateral slider value
+  // This allows real-time updates as user adjusts collateral amount
+  // Formula: Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100))
 
   const marketAttributes = useMemo<
     Array<{ label: string; value: string }>
@@ -298,7 +301,6 @@ export function useMarketDetail() {
     marketConfig,
     userPosition,
     btcPrice,
-    maxBorrow,
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,

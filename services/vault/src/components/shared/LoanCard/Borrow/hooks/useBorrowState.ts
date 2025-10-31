@@ -3,7 +3,7 @@
  * Handles state and calculations for the borrow flow
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
   amountsToSliderSteps,
@@ -19,6 +19,7 @@ export interface AvailableVault {
 
 export interface UseBorrowStateProps {
   btcPrice: number;
+  liquidationLtv: number;
   /** Available vaults with status AVAILABLE (status 2) */
   availableVaults?: AvailableVault[];
 }
@@ -35,16 +36,24 @@ export interface UseBorrowStateResult {
   // Computed values
   collateralSteps: Array<{ value: number }>;
   maxCollateralFromVaults: number; // Maximum possible collateral from vault combinations
+  maxBorrowAmount: number; // Maximum borrow based on collateral * LLTV
   ltv: number;
   collateralValueUSD: number;
 }
 
 export function useBorrowState({
   btcPrice,
+  liquidationLtv,
   availableVaults = [],
 }: UseBorrowStateProps): UseBorrowStateResult {
   const [collateralAmount, setCollateralAmount] = useState(0);
   const [borrowAmount, setBorrowAmount] = useState(0);
+
+  // Reset borrow amount when collateral changes
+  // This prevents invalid states where borrow amount exceeds new max after reducing collateral
+  useEffect(() => {
+    setBorrowAmount(0);
+  }, [collateralAmount]);
 
   // Calculate maximum collateral from available vaults (sum of all vaults)
   const maxCollateralFromVaults = useMemo(() => {
@@ -94,6 +103,12 @@ export function useBorrowState({
     return (borrowAmount / collateralValueUSD) * 100;
   }, [collateralAmount, borrowAmount, collateralValueUSD]);
 
+  // Calculate maximum borrow amount based on collateral slider value * LLTV
+  // This updates dynamically as user adjusts collateral slider
+  const maxBorrowAmount = useMemo(() => {
+    return Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100));
+  }, [collateralAmount, btcPrice, liquidationLtv]);
+
   return {
     collateralAmount,
     borrowAmount,
@@ -101,6 +116,7 @@ export function useBorrowState({
     setBorrowAmount,
     collateralSteps,
     maxCollateralFromVaults,
+    maxBorrowAmount,
     ltv,
     collateralValueUSD,
   };

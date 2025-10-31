@@ -34,7 +34,6 @@ export function MarketDetail() {
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    maxBorrow,
     availableVaults,
     marketAttributes,
     positionData,
@@ -139,7 +138,6 @@ export function MarketDetail() {
         <div className="top-24">
           <LoanCard
             defaultTab={defaultTab}
-            maxBorrow={maxBorrow}
             btcPrice={btcPrice}
             liquidationLtv={liquidationLtv}
             onBorrow={openBorrowReview}

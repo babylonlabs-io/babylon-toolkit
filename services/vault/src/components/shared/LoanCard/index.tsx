@@ -13,7 +13,6 @@ export interface LoanCardProps {
   defaultTab?: string;
 
   // Borrow flow props
-  maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
@@ -28,7 +27,6 @@ export interface LoanCardProps {
 
 export function LoanCard({
   defaultTab = "borrow",
-  maxBorrow,
   btcPrice,
   liquidationLtv,
   onBorrow,
@@ -49,7 +47,6 @@ export function LoanCard({
             label: "Borrow",
             content: (
               <Borrow
-                maxBorrow={maxBorrow}
                 btcPrice={btcPrice}
                 liquidationLtv={liquidationLtv}
                 onBorrow={onBorrow}

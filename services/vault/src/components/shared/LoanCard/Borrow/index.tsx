@@ -11,7 +11,6 @@ import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
 
 export interface BorrowProps {
-  maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
@@ -20,7 +19,6 @@ export interface BorrowProps {
 }
 
 export function Borrow({
-  maxBorrow,
   btcPrice,
   liquidationLtv,
   onBorrow,
@@ -33,9 +31,10 @@ export function Borrow({
     setBorrowAmount,
     collateralSteps,
     maxCollateralFromVaults,
+    maxBorrowAmount,
     ltv,
     collateralValueUSD,
-  } = useBorrowState({ btcPrice, availableVaults });
+  } = useBorrowState({ btcPrice, liquidationLtv, availableVaults });
 
   const isDisabled = collateralAmount === 0 || borrowAmount === 0;
 
@@ -90,21 +89,21 @@ export function Borrow({
             setBorrowAmount(parseFloat(e.target.value) || 0)
           }
           balanceDetails={{
-            balance: maxBorrow.toLocaleString(),
+            balance: maxBorrowAmount.toLocaleString(),
             symbol: "USDC",
             displayUSD: false,
           }}
           sliderValue={borrowAmount}
           sliderMin={0}
-          sliderMax={maxBorrow}
-          sliderStep={maxBorrow / 1000}
+          sliderMax={maxBorrowAmount}
+          sliderStep={maxBorrowAmount / 1000}
           onSliderChange={setBorrowAmount}
           sliderVariant="rainbow"
           leftField={{
             label: "Max",
-            value: `${maxBorrow.toLocaleString()} USDC`,
+            value: `${maxBorrowAmount.toLocaleString()} USDC`,
           }}
-          onMaxClick={() => setBorrowAmount(maxBorrow)}
+          onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
           rightField={{
             value: `$${borrowAmount.toLocaleString(undefined, {
               minimumFractionDigits: 2,
