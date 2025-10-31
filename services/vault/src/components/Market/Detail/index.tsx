@@ -18,9 +18,9 @@ import { RepayReviewModal } from "../../shared/LoanCard/Repay/ReviewModal";
 import { RepaySuccessModal } from "../../shared/LoanCard/Repay/SuccessModal";
 import { MarketInfo } from "../Info";
 
+import { useBorrowRepayModals } from "./hooks/useBorrowRepayModals";
+import { useBorrowRepayTransactions } from "./hooks/useBorrowRepayTransactions";
 import { useMarketDetail } from "./hooks/useMarketDetail";
-import { useMarketDetailModals } from "./hooks/useMarketDetailModals";
-import { useTransactionHandlers } from "./hooks/useTransactionHandlers";
 
 export function MarketDetail() {
   const navigate = useNavigate();
@@ -70,18 +70,19 @@ export function MarketDetail() {
     closeRepaySuccess,
     processing,
     setProcessing,
-  } = useMarketDetailModals();
+  } = useBorrowRepayModals();
 
   // Transaction handlers
-  const { handleConfirmBorrow, handleConfirmRepay } = useTransactionHandlers({
-    hasPosition,
-    userPosition,
-    currentLoanAmount,
-    refetch,
-    onBorrowSuccess: showBorrowSuccess,
-    onRepaySuccess: showRepaySuccess,
-    setProcessing,
-  });
+  const { handleConfirmBorrow, handleConfirmRepay } =
+    useBorrowRepayTransactions({
+      hasPosition,
+      userPosition,
+      currentLoanAmount,
+      refetch,
+      onBorrowSuccess: showBorrowSuccess,
+      onRepaySuccess: showRepaySuccess,
+      setProcessing,
+    });
 
   // LTV calculations
   const { borrowLtv, repayLtv } = useLtvCalculations({

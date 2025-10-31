@@ -12,7 +12,7 @@ import {
   withdrawCollateralFromPosition,
 } from "../../../../services/position/positionTransactionService";
 
-interface UseTransactionHandlersProps {
+interface UseBorrowRepayTransactionsProps {
   hasPosition: boolean;
   userPosition: {
     positionId: string;
@@ -28,7 +28,7 @@ interface UseTransactionHandlersProps {
   setProcessing: (processing: boolean) => void;
 }
 
-export interface UseTransactionHandlersResult {
+export interface UseBorrowRepayTransactionsResult {
   handleConfirmBorrow: () => Promise<void>;
   handleConfirmRepay: (
     repayAmount: number,
@@ -39,7 +39,7 @@ export interface UseTransactionHandlersResult {
 /**
  * Handles borrow and repay transaction logic
  */
-export function useTransactionHandlers({
+export function useBorrowRepayTransactions({
   hasPosition,
   userPosition,
   currentLoanAmount,
@@ -47,7 +47,7 @@ export function useTransactionHandlers({
   onBorrowSuccess,
   onRepaySuccess,
   setProcessing,
-}: UseTransactionHandlersProps): UseTransactionHandlersResult {
+}: UseBorrowRepayTransactionsProps): UseBorrowRepayTransactionsResult {
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
 

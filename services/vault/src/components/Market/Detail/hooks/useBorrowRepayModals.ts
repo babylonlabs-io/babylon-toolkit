@@ -1,6 +1,6 @@
 /**
- * Hook for managing Market Detail modal states
- * Handles borrow and repay modal flows
+ * Hook for managing borrow and repay modal states
+ * Handles borrow and repay transaction modal flows
  */
 
 import { useState } from "react";
@@ -15,7 +15,7 @@ interface RepayData {
   withdraw: number;
 }
 
-export interface UseMarketDetailModalsResult {
+export interface UseBorrowRepayModalsResult {
   // Borrow modal state
   showBorrowReviewModal: boolean;
   showBorrowSuccessModal: boolean;
@@ -42,7 +42,7 @@ export interface UseMarketDetailModalsResult {
 /**
  * Manages modal states for borrow and repay flows
  */
-export function useMarketDetailModals(): UseMarketDetailModalsResult {
+export function useBorrowRepayModals(): UseBorrowRepayModalsResult {
   // Borrow modal state
   const [showBorrowReviewModal, setShowBorrowReviewModal] = useState(false);
   const [showBorrowSuccessModal, setShowBorrowSuccessModal] = useState(false);
