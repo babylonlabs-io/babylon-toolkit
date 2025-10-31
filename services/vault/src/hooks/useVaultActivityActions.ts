@@ -1,8 +1,5 @@
 /**
  * Custom hook for managing vault activity actions
- *
- * Extracts business logic for broadcasting and signing from VaultActivityCard
- * to improve separation of concerns and testability.
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
@@ -83,7 +80,6 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       activityId,
       activityAmount,
       activityProviders,
-      connectedAddress,
       pendingPegin,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -148,15 +144,10 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         updatePendingPeginStatus(activityId, nextStatus, txId);
       } else if (addPendingPegin && nextStatus) {
         // Case 2: NO localStorage entry (cross-device) - create full peg-in entry
-        const btcAddress = btcConnector?.connectedWallet?.account?.address;
-
         addPendingPegin({
           id: activityId,
           amount: activityAmount,
-          providers: activityProviders.map((p) => p.id),
-          ethAddress: connectedAddress,
-          btcAddress: btcAddress || "",
-          btcTxHash: txId,
+          providerId: activityProviders[0]?.id, // Use first provider ID
           status: nextStatus,
         });
       }

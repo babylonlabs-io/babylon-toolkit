@@ -1,190 +1,143 @@
 /**
- * Hook for managing peg-in local storage
+ * React hook for managing pending peg-in storage
  *
- * Similar to simple-staking's useDelegationStorage pattern:
- * - Merges pending peg-ins from localStorage with confirmed peg-ins from API
- * - Automatically removes confirmed peg-ins from localStorage
- * - Cleans up old pending peg-ins
+ * Combines confirmed peg-ins from the API with pending peg-ins from localStorage.
+ * Provides helpers to add/update pending peg-ins and automatically cleans up
+ * confirmed transactions from localStorage.
  */
 
 import { useCallback, useEffect, useMemo } from "react";
-import { useLocalStorage } from "usehooks-ts";
 
-import { bitcoinIcon } from "../assets";
+import type { VaultActivity } from "../types/activity";
+
 import {
-  type PendingPeginRequest,
+  addPendingPegin as addPendingPeginToStorage,
   filterPendingPegins,
-} from "../storage/peginStorage";
-import type { VaultActivity } from "../types";
+  getPendingPegins,
+  type PendingPeginRequest,
+  savePendingPegins,
+  updatePeginStatus as updatePendingPeginStatusInStorage,
+} from "./peginStorage";
 
-interface UsePeginStorageParams {
+export interface UsePeginStorageParams {
+  /** Connected Ethereum address */
   ethAddress: string;
-  confirmedPegins: VaultActivity[]; // Peg-ins from API/blockchain
+  /** Confirmed peg-ins from API */
+  confirmedPegins: VaultActivity[];
 }
 
+export interface UsePeginStorageResult {
+  /** All activities (pending + confirmed, merged and deduplicated) */
+  allActivities: VaultActivity[];
+  /** Pending peg-ins from localStorage */
+  pendingPegins: PendingPeginRequest[];
+  /** Add a new pending peg-in to localStorage */
+  addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
+  /** Update status of a pending peg-in in localStorage */
+  updatePendingPeginStatus: (
+    peginId: string,
+    status: PendingPeginRequest["status"],
+  ) => void;
+}
+
+/**
+ * Hook to manage pending peg-in storage
+ *
+ * @param params - Hook parameters
+ * @returns Storage management functions and merged activities
+ */
 export function usePeginStorage({
   ethAddress,
   confirmedPegins,
-}: UsePeginStorageParams) {
-  const storageKey = `vault-pending-pegins-${ethAddress}`;
+}: UsePeginStorageParams): UsePeginStorageResult {
+  // Get pending peg-ins from localStorage
+  const pendingPegins = useMemo(() => {
+    if (!ethAddress) return [];
+    return getPendingPegins(ethAddress);
+  }, [ethAddress]);
 
-  // Store pending peg-ins in localStorage
-  const [pendingPegins = [], setPendingPegins] = useLocalStorage<
-    PendingPeginRequest[]
-  >(storageKey, []);
-
-  // Create a map of confirmed peg-in IDs for quick lookup
-  const confirmedPeginMap = useMemo(() => {
-    return confirmedPegins.reduce(
-      (acc, pegin) => ({
-        ...acc,
-        [pegin.id]: pegin,
-      }),
-      {} as Record<string, VaultActivity>,
-    );
-  }, [confirmedPegins]);
-
-  // Sync: Remove pending peg-ins that appear on blockchain
-  // localStorage is cleaned up once the pegin is confirmed on blockchain (any status)
+  // Clean up old pending peg-ins on mount and when confirmed pegins change
   useEffect(() => {
     if (!ethAddress) return;
 
-    // Extract IDs from confirmed pegins for filtering
-    const confirmedPeginIds = confirmedPegins.map((p) => ({ id: p.id }));
+    // Filter and clean up old pending peg-ins (older than 24 hours and confirmed ones)
     const filteredPegins = filterPendingPegins(
       pendingPegins,
-      confirmedPeginIds,
+      confirmedPegins.map((p) => ({
+        id: p.id,
+        status: p.contractStatus ?? 0,
+      })),
     );
 
-    // Only update if something changed
+    // Save filtered pegins back to localStorage if anything changed
     if (filteredPegins.length !== pendingPegins.length) {
-      setPendingPegins(filteredPegins);
+      savePendingPegins(ethAddress, filteredPegins);
     }
-  }, [ethAddress, confirmedPegins, pendingPegins, setPendingPegins]);
+  }, [ethAddress, confirmedPegins, pendingPegins]);
 
-  // Convert pending peg-ins to VaultActivity format
-  // Note: pendingPegins are already filtered by useEffect above - items are removed
-  // from localStorage as soon as they appear on blockchain (any status)
-  const pendingActivities: VaultActivity[] = useMemo(() => {
-    return pendingPegins.map((pegin: PendingPeginRequest) => {
-      const confirmedPegin = confirmedPeginMap[pegin.id];
+  // Merge pending and confirmed activities
+  const allActivities = useMemo(() => {
+    // Create a map of confirmed activities by ID for quick lookup
+    const confirmedMap = new Map(confirmedPegins.map((p) => [p.id, p]));
 
-      // Determine pending message based on localStorage + blockchain status
-      let pendingMessage =
-        "Your peg-in is being processed. This can take up to ~5 hours while Bitcoin confirmations and provider acknowledgements complete.";
-
-      if (pegin.status === "confirming") {
-        pendingMessage =
-          "BTC transaction broadcast. Waiting for Bitcoin network confirmations (~5 hours).";
-      } else if (confirmedPegin?.contractStatus === 1) {
-        // Verified status - no warning message needed
-        pendingMessage = "";
-      }
-
-      return {
-        id: pegin.id,
-        txHash: confirmedPegin?.txHash, // Use blockchain tx hash if available
+    // Convert pending peg-ins to VaultActivity format
+    const pendingActivities: VaultActivity[] = pendingPegins
+      .filter((pending) => !confirmedMap.has(pending.id))
+      .map((pending) => ({
+        id: pending.id,
         collateral: {
-          amount: pegin.amount,
+          amount: pending.amount || "0", // Use stored amount from localStorage
           symbol: "BTC",
-          icon: bitcoinIcon,
         },
-        // Contract status from blockchain (if available)
-        // Note: Display status is derived from this via peginStateMachine
-        contractStatus: confirmedPegin?.contractStatus,
-        providers:
-          confirmedPegin?.providers ||
-          pegin.providers.map((id: string) => ({
-            id,
-            name: id,
-            icon: undefined,
-          })),
-        action: undefined,
-        // Don't show warning for Verified status (contractStatus === 1)
-        isPending: confirmedPegin?.contractStatus !== 1,
-        pendingMessage: pendingMessage || undefined,
-        morphoPosition: undefined,
-        borrowingData: undefined,
-        marketData: undefined,
-        positionDate: undefined,
-      };
+        providers: pending.providerId
+          ? [
+              {
+                id: pending.providerId,
+                name: "Vault Provider", // Name will be fetched from contract later
+                icon: "",
+              },
+            ]
+          : [],
+        contractStatus: 0, // Pending status
+        isPending: true,
+        pendingMessage: "Transaction pending confirmation...",
+        timestamp: pending.timestamp,
+      }));
+
+    // Combine and sort by timestamp (newest first)
+    return [...pendingActivities, ...confirmedPegins].sort((a, b) => {
+      const aTime = a.timestamp || 0;
+      const bTime = b.timestamp || 0;
+      return bTime - aTime;
     });
-  }, [pendingPegins, confirmedPeginMap]);
+  }, [pendingPegins, confirmedPegins]);
 
-  // Merge pending and confirmed activities (remove duplicates)
-  // localStorage entries are shown until blockchain status >= 2
-  const allActivities: VaultActivity[] = useMemo(() => {
-    // Build set of pending pegin IDs (these are shown from localStorage)
-    const pendingIds = new Set(pendingActivities.map((p) => p.id));
-
-    // Only show confirmed pegins if NOT in localStorage
-    // (localStorage is source of truth until status >= 2)
-    const filteredConfirmed = confirmedPegins.filter(
-      (p) => !pendingIds.has(p.id),
-    );
-
-    return [...pendingActivities, ...filteredConfirmed];
-  }, [pendingActivities, confirmedPegins]);
-
-  // Add a new pending peg-in
-  // Accepts optional status parameter to support creating entries with 'confirming' status
-  // (used when broadcasting BTC from cross-device without localStorage)
+  // Add pending peg-in
   const addPendingPegin = useCallback(
     (pegin: Omit<PendingPeginRequest, "timestamp">) => {
       if (!ethAddress) return;
-
-      const newPegin: PendingPeginRequest = {
-        ...pegin,
-        timestamp: Date.now(),
-        // Use provided status or default to 'pending' if not specified
-        status: pegin.status || "pending",
-      };
-
-      setPendingPegins((prev: PendingPeginRequest[]) => [...prev, newPegin]);
+      addPendingPeginToStorage(ethAddress, {
+        id: pegin.id,
+        amount: pegin.amount,
+        providerId: pegin.providerId,
+      });
     },
-    [ethAddress, setPendingPegins],
+    [ethAddress],
   );
 
-  // Remove a pending peg-in manually
-  const removePendingPegin = useCallback(
-    (peginId: string) => {
-      setPendingPegins((prev: PendingPeginRequest[]) =>
-        prev.filter((p: PendingPeginRequest) => p.id !== peginId),
-      );
-    },
-    [setPendingPegins],
-  );
-
-  // Clear all pending peg-ins
-  const clearPendingPegins = useCallback(() => {
-    setPendingPegins([]);
-  }, [setPendingPegins]);
-
-  // Update pending pegin status (for BTC broadcast confirmation)
+  // Update pending peg-in status
   const updatePendingPeginStatus = useCallback(
-    (
-      peginId: string,
-      status: PendingPeginRequest["status"],
-      btcTxHash?: string,
-    ) => {
-      setPendingPegins((prev: PendingPeginRequest[]) =>
-        prev.map((p: PendingPeginRequest) =>
-          p.id === peginId
-            ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
-            : p,
-        ),
-      );
+    (peginId: string, status: PendingPeginRequest["status"]) => {
+      if (!ethAddress) return;
+      updatePendingPeginStatusInStorage(ethAddress, peginId, status);
     },
-    [setPendingPegins],
+    [ethAddress],
   );
 
   return {
     allActivities,
     pendingPegins,
-    pendingActivities,
     addPendingPegin,
-    removePendingPegin,
-    clearPendingPegins,
     updatePendingPeginStatus,
   };
 }
