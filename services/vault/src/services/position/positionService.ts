@@ -169,6 +169,41 @@ export async function getUserPositionsWithMorpho(
 }
 
 /**
+ * Get a user's vault position for a specific market with position ID
+ * Returns VaultController position data with the correct positionId
+ *
+ * @param userAddress - User's Ethereum address
+ * @param marketId - Market ID (hex string with or without 0x prefix, or bigint)
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @returns Object containing position data and positionId, or null if position doesn't exist
+ */
+export async function getUserVaultPosition(
+  userAddress: Address,
+  marketId: string | bigint,
+  vaultControllerAddress: Address,
+): Promise<{ position: MarketPosition; positionId: Hex } | null> {
+  // TODO: Update BTCVaultController contract to return positionId in getPosition() response
+  // This will eliminate the need for a separate getPositionKey() call
+  const [position, positionId] = await Promise.all([
+    VaultController.getPosition(vaultControllerAddress, userAddress, marketId),
+    VaultController.getPositionKey(
+      vaultControllerAddress,
+      userAddress,
+      marketId,
+    ),
+  ]);
+
+  if (!position) {
+    return null;
+  }
+
+  return {
+    position,
+    positionId,
+  };
+}
+
+/**
  * Get a single position by position ID with full Morpho data
  *
  * @param positionId - Position ID (hex string)

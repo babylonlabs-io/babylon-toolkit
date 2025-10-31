@@ -1,25 +1,122 @@
+import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
+import type { Address } from "viem";
 
-import { useMarketDetailData } from "../../../../hooks/useMarketDetailData";
+import { CONTRACTS } from "../../../../config/contracts";
+import { useBTCPrice } from "../../../../hooks/useBTCPrice";
+import { useMarkets } from "../../../../hooks/useMarkets";
+import type { MorphoMarketSummary } from "../../../../services/market/marketService";
+import { getMarketData } from "../../../../services/market/marketService";
+import { getUserVaultPosition } from "../../../../services/position";
+import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
   blockToDateString,
   estimateDateFromBlock,
 } from "../../../../utils/blockUtils";
 
+export interface AvailableVault {
+  txHash: string;
+  amountSatoshis: bigint;
+}
+
 export function useMarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
+  const { address } = useETHWallet();
 
+  // Fetch BTC price from oracle
   const {
-    marketData,
-    marketConfig,
-    userPosition,
-    btcBalance,
     btcPriceUSD,
-    loading: isMarketLoading,
+    loading: isBTCPriceLoading,
+    error: btcPriceError,
+  } = useBTCPrice();
+
+  // Fetch markets from API
+  const {
+    markets,
+    loading: isMarketsLoading,
+    error: marketsError,
+  } = useMarkets();
+
+  // Fetch user's position for this specific market
+  const {
+    data: marketPosition,
+    isLoading: isPositionLoading,
+    error: positionError,
+    refetch: refetchPosition,
+  } = useQuery({
+    queryKey: ["userPosition", address, marketId, CONTRACTS.VAULT_CONTROLLER],
+    queryFn: () =>
+      getUserVaultPosition(
+        address as Address,
+        marketId!,
+        CONTRACTS.VAULT_CONTROLLER,
+      ),
+    enabled: !!address && !!marketId,
+    retry: 2,
+    staleTime: 30000,
+  });
+
+  // Fetch market data from Morpho contracts
+  const {
+    data: marketData,
+    isLoading: isMarketLoading,
     error: marketError,
-    refetch,
-  } = useMarketDetailData(marketId);
+    refetch: refetchMarketData,
+  } = useQuery<MorphoMarketSummary>({
+    queryKey: ["marketData", marketId],
+    queryFn: () => getMarketData(marketId!),
+    enabled: !!marketId,
+    retry: 2,
+    staleTime: 30000,
+  });
+
+  // Find the specific market configuration
+  const marketConfig = useMemo(() => {
+    if (!markets || !marketId) return null;
+    return markets.find((market) => market.id === marketId) || null;
+  }, [markets, marketId]);
+
+  // Fetch available collaterals (vaults with status AVAILABLE)
+  const {
+    data: availableCollaterals,
+    isLoading: isCollateralsLoading,
+    error: collateralsError,
+    refetch: refetchCollaterals,
+  } = useQuery({
+    queryKey: ["availableCollaterals", address],
+    queryFn: () =>
+      getAvailableCollaterals(address as Address, CONTRACTS.BTC_VAULTS_MANAGER),
+    enabled: !!address,
+    retry: 2,
+    staleTime: 30000,
+  });
+
+  // Convert available collaterals to AvailableVault format
+  const availableVaults: AvailableVault[] = useMemo(() => {
+    if (!availableCollaterals) return [];
+    return availableCollaterals.map((collateral) => ({
+      txHash: collateral.txHash,
+      amountSatoshis: collateral.amountSatoshis,
+    }));
+  }, [availableCollaterals]);
+
+  // Combine loading states
+  const loading =
+    isMarketLoading ||
+    isMarketsLoading ||
+    isPositionLoading ||
+    isBTCPriceLoading ||
+    isCollateralsLoading;
+
+  // Combine errors
+  const error =
+    marketError ||
+    marketsError ||
+    positionError ||
+    btcPriceError ||
+    collateralsError;
 
   const [creationDate, setCreationDate] = useState<string>("Loading...");
 
@@ -47,7 +144,6 @@ export function useMarketDetail() {
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
   const formatBTC = (value: bigint) => Number(value) / 1e8;
 
-  const maxCollateral = formatBTC(btcBalance);
   const maxBorrow = marketData ? formatUSDC(marketData.totalSupplyAssets) : 0;
   const btcPrice = btcPriceUSD;
 
@@ -57,12 +153,21 @@ export function useMarketDetail() {
     return 70;
   }, [marketData, marketConfig]);
 
-  const currentLoanAmount = userPosition
-    ? formatUSDC(userPosition.borrowAssets)
+  const currentLoanAmount = marketPosition
+    ? formatUSDC(marketPosition.position.totalBorrowed)
     : 0;
-  const currentCollateralAmount = userPosition
-    ? formatBTC(userPosition.collateral)
+  const currentCollateralAmount = marketPosition
+    ? formatBTC(marketPosition.position.totalCollateral)
     : 0;
+
+  // Extract only what's needed for transactions (positionId + marketId)
+  const userPosition = useMemo(() => {
+    if (!marketPosition) return null;
+    return {
+      positionId: marketPosition.positionId,
+      marketId: marketPosition.position.marketId,
+    };
+  }, [marketPosition]);
 
   const formatLLTV = (lltvString: string) => {
     const lltvNumber = Number(lltvString);
@@ -112,7 +217,7 @@ export function useMarketDetail() {
   const positionData = useMemo<
     Array<{ label: string; value: string }> | undefined
   >(() => {
-    if (!userPosition) {
+    if (!marketPosition) {
       return undefined;
     }
     const currentLtv =
@@ -138,7 +243,7 @@ export function useMarketDetail() {
       },
     ];
   }, [
-    userPosition,
+    marketPosition,
     currentCollateralAmount,
     currentLoanAmount,
     btcPrice,
@@ -174,21 +279,30 @@ export function useMarketDetail() {
     };
   }, [marketData]);
 
+  // Refetch data that changes after user transactions (borrow/repay)
+  const refetch = async () => {
+    await Promise.all([
+      refetchPosition(), // User's position changes
+      refetchCollaterals(), // Available vaults change
+      refetchMarketData(), // Market totals change slightly
+    ]);
+  };
+
   return {
     // loading / error
-    isMarketLoading,
-    marketError,
+    isMarketLoading: loading,
+    marketError: error as Error | null,
 
     // data
     marketData,
     marketConfig,
     userPosition,
     btcPrice,
-    maxCollateral,
     maxBorrow,
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
+    availableVaults,
 
     // derived view
     marketAttributes,

@@ -6,17 +6,19 @@
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
 
 import { Borrow } from "./Borrow";
+import type { AvailableVault } from "./Borrow/hooks/useBorrowState";
 import { Repay } from "./Repay";
 
 export interface LoanCardProps {
   defaultTab?: string;
 
   // Borrow flow props
-  maxCollateral: number;
   maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  /** Available vaults with status AVAILABLE (status 2) */
+  availableVaults?: AvailableVault[];
 
   // Repay flow props
   currentLoanAmount: number;
@@ -26,11 +28,11 @@ export interface LoanCardProps {
 
 export function LoanCard({
   defaultTab = "borrow",
-  maxCollateral,
   maxBorrow,
   btcPrice,
   liquidationLtv,
   onBorrow,
+  availableVaults,
   currentLoanAmount,
   currentCollateralAmount,
   onRepay,
@@ -47,11 +49,11 @@ export function LoanCard({
             label: "Borrow",
             content: (
               <Borrow
-                maxCollateral={maxCollateral}
                 maxBorrow={maxBorrow}
                 btcPrice={btcPrice}
                 liquidationLtv={liquidationLtv}
                 onBorrow={onBorrow}
+                availableVaults={availableVaults}
               />
             ),
           },

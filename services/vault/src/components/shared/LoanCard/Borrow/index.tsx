@@ -7,22 +7,24 @@ import { AmountSlider, Button } from "@babylonlabs-io/core-ui";
 
 import { LoanSummaryCard } from "../../LoanSummaryCard";
 
+import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
 
 export interface BorrowProps {
-  maxCollateral: number;
   maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  /** Available vaults with status AVAILABLE (status 2) */
+  availableVaults?: AvailableVault[];
 }
 
 export function Borrow({
-  maxCollateral,
   maxBorrow,
   btcPrice,
   liquidationLtv,
   onBorrow,
+  availableVaults,
 }: BorrowProps) {
   const {
     collateralAmount,
@@ -30,9 +32,10 @@ export function Borrow({
     setCollateralAmount,
     setBorrowAmount,
     collateralSteps,
+    maxCollateralFromVaults,
     ltv,
     collateralValueUSD,
-  } = useBorrowState({ maxCollateral, btcPrice });
+  } = useBorrowState({ btcPrice, availableVaults });
 
   const isDisabled = collateralAmount === 0 || borrowAmount === 0;
 
@@ -48,14 +51,14 @@ export function Borrow({
           currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
           balanceDetails={{
-            balance: maxCollateral.toFixed(4),
+            balance: maxCollateralFromVaults.toFixed(4),
             symbol: "BTC",
             displayUSD: false,
           }}
           sliderValue={collateralAmount}
           sliderMin={0}
-          sliderMax={maxCollateral}
-          sliderStep={maxCollateral / 1000}
+          sliderMax={maxCollateralFromVaults}
+          sliderStep={maxCollateralFromVaults / 1000}
           sliderSteps={collateralSteps}
           onSliderChange={setCollateralAmount}
           onSliderStepsChange={() => {
@@ -64,9 +67,9 @@ export function Borrow({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${maxCollateral.toFixed(4)} BTC`,
+            value: `${maxCollateralFromVaults.toFixed(4)} BTC`,
           }}
-          onMaxClick={() => setCollateralAmount(maxCollateral)}
+          onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
           rightField={{
             value: `$${collateralValueUSD.toLocaleString(undefined, {
               minimumFractionDigits: 2,

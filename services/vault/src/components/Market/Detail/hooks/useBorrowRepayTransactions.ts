@@ -17,9 +17,6 @@ interface UseBorrowRepayTransactionsProps {
   userPosition: {
     positionId: string;
     marketId: string;
-    collateral: bigint;
-    borrowAssets: bigint;
-    borrowShares: bigint;
   } | null;
   currentLoanAmount: number;
   refetch: () => Promise<void>;
