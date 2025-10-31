@@ -23,9 +23,11 @@ export function Position() {
   // Fetch and transform position data
   const { positions, loading, ethAddress } = usePositionData();
 
-  // Navigate to position detail page (defaults to repay tab)
+  // Navigate to market detail page with position context (defaults to repay tab)
   const handlePositionClick = (position: Position) => {
-    navigate(`/position/${position.id}?tab=repay`);
+    navigate(
+      `/market/${position.marketId}?positionId=${position.id}&tab=repay`,
+    );
   };
 
   // Loading state

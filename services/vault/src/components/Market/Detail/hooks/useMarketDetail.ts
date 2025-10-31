@@ -18,6 +18,7 @@ export function useMarketDetail() {
     btcPriceUSD,
     loading: isMarketLoading,
     error: marketError,
+    refetch,
   } = useMarketDetailData(marketId);
 
   const [creationDate, setCreationDate] = useState<string>("Loading...");
@@ -108,20 +109,11 @@ export function useMarketDetail() {
     marketData,
   ]);
 
-  const positionData = useMemo<Array<{ label: string; value: string }>>(() => {
+  const positionData = useMemo<
+    Array<{ label: string; value: string }> | undefined
+  >(() => {
     if (!userPosition) {
-      return [
-        { label: "Current Loan", value: "0 USDC" },
-        { label: "Current Collateral", value: "0 BTC" },
-        { label: "Market", value: "BTC/USDC" },
-        { label: "Current LTV", value: "0%" },
-        {
-          label: "Liquidation LTV",
-          value: marketConfig
-            ? `${formatLLTV(marketConfig.lltv)}%`
-            : `${liquidationLtv.toFixed(1)}%`,
-        },
-      ];
+      return undefined;
     }
     const currentLtv =
       currentCollateralAmount > 0
@@ -154,6 +146,34 @@ export function useMarketDetail() {
     liquidationLtv,
   ]);
 
+  // Format market display values
+  const marketDisplayValues = useMemo(() => {
+    if (!marketData) {
+      return {
+        totalMarketSize: "?",
+        totalMarketSizeSubtitle: "?",
+        totalLiquidity: "?",
+        totalLiquiditySubtitle: "?",
+        borrowRate: "?",
+      };
+    }
+
+    const totalSupplyM = (Number(marketData.totalSupplyAssets) / 1e12).toFixed(
+      2,
+    );
+    const totalBorrowM = (Number(marketData.totalBorrowAssets) / 1e12).toFixed(
+      2,
+    );
+
+    return {
+      totalMarketSize: `$${totalSupplyM}M`,
+      totalMarketSizeSubtitle: `${totalSupplyM}M USDC`,
+      totalLiquidity: `$${totalBorrowM}M`,
+      totalLiquiditySubtitle: `${totalBorrowM}M USDC`,
+      borrowRate: "?",
+    };
+  }, [marketData]);
+
   return {
     // loading / error
     isMarketLoading,
@@ -173,5 +193,9 @@ export function useMarketDetail() {
     // derived view
     marketAttributes,
     positionData,
+    marketDisplayValues,
+
+    // actions
+    refetch,
   } as const;
 }

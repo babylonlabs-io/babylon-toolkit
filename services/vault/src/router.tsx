@@ -3,7 +3,6 @@ import { Route, Routes } from "react-router";
 
 import { MarketDetail as MarketDetailPage } from "./components/Market/Detail";
 import { Overview } from "./components/Overview";
-import { PositionDetailPage } from "./components/Position/Detail";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
 import { VaultStats } from "./components/shared/VaultStats";
@@ -25,7 +24,6 @@ export const Router = () => {
           }
         />
         <Route path="market/:marketId" element={<MarketDetailPage />} />
-        <Route path="position/:positionId" element={<PositionDetailPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
