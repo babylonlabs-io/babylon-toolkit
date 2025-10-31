@@ -11,7 +11,8 @@ import {
 import { useEffect } from "react";
 import type { Address } from "viem";
 
-import { addPendingPegin } from "../../../../storage/peginStorage";
+import type { StoredProvider } from "../../../../components/Collateral/Deposit/storage/peginStorage";
+import { addPendingPegin } from "../../../../components/Collateral/Deposit/storage/peginStorage";
 
 import { useDepositFlow } from "./hooks/useDepositFlow";
 
@@ -23,8 +24,10 @@ interface CollateralDepositSignModalProps {
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
+  selectedProviderInfo?: StoredProvider; // Provider information for localStorage
   vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
   liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
+  onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
 }
 
 export function CollateralDepositSignModal({
@@ -35,8 +38,10 @@ export function CollateralDepositSignModal({
   btcWalletProvider,
   depositorEthAddress,
   selectedProviders,
+  selectedProviderInfo,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
+  onRefetchActivities,
 }: CollateralDepositSignModalProps) {
   const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
     {
@@ -47,13 +52,29 @@ export function CollateralDepositSignModal({
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
       onSuccess: (btcTxid, ethTxHash) => {
-        // Store pegin in localStorage for tracking
+        // Store pegin in localStorage for tracking with amount and provider info
+        // IMPORTANT: Use btcTxid as the ID because the contract uses BTC tx hash as the vault ID
         if (depositorEthAddress) {
+          // Convert amount from satoshis to BTC for storage
+          const amountInBTC = (Number(amount) / 100000000).toString();
+          
+          // Ensure btcTxid has 0x prefix to match contract data
+          const btcTxidWithPrefix = btcTxid.startsWith("0x")
+            ? btcTxid
+            : `0x${btcTxid}`;
+          
           addPendingPegin(depositorEthAddress, {
-            id: ethTxHash,
-            amount: amount.toString(),
-            providerId: selectedProviders[0], // Use first selected provider
+            id: btcTxidWithPrefix, // Use BTC transaction ID with 0x prefix
+            amount: amountInBTC,
+            provider: selectedProviderInfo || {
+              id: selectedProviders[0], // Fallback to provider ID if info not provided
+            },
           });
+          
+          // Trigger refetch to immediately show the pending deposit
+          if (onRefetchActivities) {
+            onRefetchActivities();
+          }
         }
 
         // Call parent success handler

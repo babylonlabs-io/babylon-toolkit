@@ -5,6 +5,7 @@ import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
+import { useVaultDeposits } from "../../hooks/useVaultDeposits";
 import { useVaultProviders } from "../../hooks/useVaultProviders";
 
 import { Activity } from "./Activity";
@@ -47,6 +48,9 @@ export function Overview() {
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();
+  
+  // Get refetch function from useVaultDeposits to trigger refresh after deposit
+  const { refetchActivities } = useVaultDeposits(ethAddress);
 
   // Deposit flow state
   const {
@@ -89,6 +93,24 @@ export function Overview() {
     return {
       selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || "",
       liquidatorBtcPubkeys: liquidators,
+    };
+  }, [selectedProviders, providers]);
+
+  // Get selected provider info for localStorage
+  const selectedProviderInfo = useMemo(() => {
+    if (selectedProviders.length === 0 || providers.length === 0) {
+      return undefined;
+    }
+    const provider = providers.find(
+      (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
+    );
+    if (!provider) return undefined;
+    
+    // Map VaultProvider to StoredProvider format
+    return {
+      id: provider.id,
+      // Note: VaultProvider doesn't have name/icon from API yet
+      // These can be added later when provider metadata is available
     };
   }, [selectedProviders, providers]);
 
@@ -179,8 +201,10 @@ export function Overview() {
               btcWalletProvider={btcWalletProvider}
               depositorEthAddress={ethAddress}
               selectedProviders={selectedProviders}
+              selectedProviderInfo={selectedProviderInfo}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+              onRefetchActivities={refetchActivities}
             />
           )}
           {depositStep === VaultDepositStep.SUCCESS && (
@@ -272,19 +296,21 @@ export function Overview() {
             providers={selectedProviders}
           />
         )}
-        {depositStep === VaultDepositStep.SIGN && (
-          <CollateralDepositSignModal
-            open
-            onClose={resetDeposit}
-            onSuccess={handleDepositSignSuccess}
-            amount={depositAmount}
-            btcWalletProvider={btcWalletProvider}
-            depositorEthAddress={ethAddress}
-            selectedProviders={selectedProviders}
-            vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-            liquidatorBtcPubkeys={liquidatorBtcPubkeys}
-          />
-        )}
+      {depositStep === VaultDepositStep.SIGN && (
+        <CollateralDepositSignModal
+          open
+          onClose={resetDeposit}
+          onSuccess={handleDepositSignSuccess}
+          amount={depositAmount}
+          btcWalletProvider={btcWalletProvider}
+          depositorEthAddress={ethAddress}
+          selectedProviders={selectedProviders}
+          selectedProviderInfo={selectedProviderInfo}
+          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+          onRefetchActivities={refetchActivities}
+        />
+      )}
         {depositStep === VaultDepositStep.SUCCESS && (
           <CollateralDepositSuccessModal
             open
