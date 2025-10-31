@@ -23,6 +23,7 @@ import {
   VaultControllerTx,
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
+import { ContractError } from "../../utils/errors";
 
 /**
  * Result of adding collateral to position (with optional borrowing)
@@ -260,10 +261,17 @@ export async function repayDebtFull(
       receipt: result.receipt,
     };
   } catch (error) {
-    throw new Error(
+    if (error instanceof ContractError) {
+      throw error;
+    }
+    throw new ContractError(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
         `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
         `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
+      undefined,
+      undefined,
+      undefined,
+      { cause: error },
     );
   }
 }
@@ -354,10 +362,17 @@ export async function repayDebtPartial(
       receipt: result.receipt,
     };
   } catch (error) {
-    throw new Error(
+    if (error instanceof ContractError) {
+      throw error;
+    }
+    throw new ContractError(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
         `Required amount: ${Number(formatUnits(repayAmount, 6)).toFixed(6)} USDC. ` +
         `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
+      undefined,
+      undefined,
+      undefined,
+      { cause: error },
     );
   }
 }

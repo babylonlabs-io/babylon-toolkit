@@ -9,6 +9,7 @@ import {
   type WalletClient,
 } from "viem";
 
+import { mapViemErrorToContractError } from "../../../utils/errors";
 import { ethClient } from "../client";
 
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
@@ -66,9 +67,7 @@ export async function submitPeginRequest(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to submit pegin request: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "submit pegin request");
   }
 }
 
@@ -126,9 +125,7 @@ export async function addCollateralToPosition(
       positionId,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to add collateral to position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "add collateral to position");
   }
 }
 
@@ -177,8 +174,9 @@ export async function addCollateralToPositionAndBorrow(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to add collateral and borrow: ${error instanceof Error ? error.message : "Unknown error"}`,
+    throw mapViemErrorToContractError(
+      error,
+      "add collateral and borrow",
     );
   }
 }
@@ -226,9 +224,7 @@ export async function repayFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "repay from position");
   }
 }
 
@@ -270,9 +266,7 @@ export async function borrowFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to borrow from position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "borrow from position");
   }
 }
 
@@ -312,8 +306,9 @@ export async function withdrawCollateralFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to withdraw collateral from position: ${error instanceof Error ? error.message : "Unknown error"}`,
+    throw mapViemErrorToContractError(
+      error,
+      "withdraw collateral from position",
     );
   }
 }
@@ -360,8 +355,6 @@ export async function depositorRedeemBTCVault(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to redeem BTC vault: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "redeem BTC vault");
   }
 }
