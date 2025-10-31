@@ -14,4 +14,3 @@ export { usePeginRequests } from "./usePeginRequests";
 export type { UsePeginRequestsResult } from "./usePeginRequests";
 export { useSinglePosition } from "./useSinglePosition";
 export type { UseSinglePositionResult } from "./useSinglePosition";
-export { useVaultPositions } from "./useVaultPositions";

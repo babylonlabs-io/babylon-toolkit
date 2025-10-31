@@ -2,10 +2,9 @@ import { useInscriptionProvider } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 
+import { VaultDepositState } from "../components/Collateral/Deposit/state/VaultDepositState";
+import { VaultRedeemState } from "../components/Collateral/Redeem/state/VaultRedeemState";
 import { createStateUtils } from "../utils/createStateUtils";
-
-import { VaultDepositState } from "./VaultDepositState";
-import { VaultRedeemState } from "./VaultRedeemState";
 
 export interface AppState {
   theme?: string;

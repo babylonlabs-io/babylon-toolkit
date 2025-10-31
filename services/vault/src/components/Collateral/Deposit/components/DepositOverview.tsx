@@ -9,24 +9,30 @@ import {
   VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import { useMemo, useState } from "react";
 
-import { useBTCWallet, useETHWallet } from "../context/wallet";
+import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
+import { getPeginState } from "../../../../models/peginStateMachine";
+import type { VaultActivity } from "../../../../types/activity";
+import type { Deposit } from "../../../../types/vault";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../../Redeem/state/VaultRedeemState";
+import { useVaultDeposits } from "../hooks/useVaultDeposits";
 import {
   useVaultDepositState,
   VaultDepositStep,
 } from "../state/VaultDepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../state/VaultRedeemState";
-import type { Deposit } from "../types/vault";
 
-// Hardcoded deposit data
-// TODO: Replace with useVaultPositions when wallet providers are integrated
-const HARDCODED_DEPOSITS: Deposit[] = [];
-
-function EmptyState({ onDeposit }: { onDeposit: () => void }) {
+function EmptyState({
+  onDeposit,
+  isConnected,
+}: {
+  onDeposit: () => void;
+  isConnected: boolean;
+}) {
   return (
     <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
       <div className="flex min-h-[200px] items-center justify-center p-6">
@@ -37,7 +43,9 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
               Deposit BTC Trustlessly
             </h4>
             <p className="text-sm text-accent-secondary">
-              Your deposit will appear here once confirmed.
+              {isConnected
+                ? "Your deposit will appear here once confirmed."
+                : "Connect your wallet to start depositing BTC."}
             </p>
           </div>
           <div className="mt-6">
@@ -46,9 +54,9 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
               size="medium"
               rounded
               onClick={onDeposit}
-              aria-label="Add deposit"
+              aria-label={isConnected ? "Add deposit" : "Connect wallet"}
             >
-              Deposit
+              {isConnected ? "Deposit" : "Connect Wallet"}
             </Button>
           </div>
         </div>
@@ -60,10 +68,33 @@ function EmptyState({ onDeposit }: { onDeposit: () => void }) {
 export function DepositOverview() {
   const isMobile = useIsMobile();
   const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const isConnected = btcConnected && ethConnected;
+  const { open: openWalletModal } = useWalletConnect();
 
-  const deposits = HARDCODED_DEPOSITS;
+  // Fetch real deposit data
+  const { activities } = useVaultDeposits(
+    ethAddress as `0x${string}` | undefined,
+  );
+
+  // Transform VaultActivity to Deposit format
+  const deposits: Deposit[] = useMemo(() => {
+    return activities.map((activity: VaultActivity) => {
+      // Get state from state machine
+      const state = getPeginState(activity.contractStatus ?? 0);
+
+      return {
+        id: activity.id,
+        amount: parseFloat(activity.collateral.amount),
+        vaultProvider: {
+          name: activity.providers[0]?.name || "Unknown Provider",
+          icon: activity.providers[0]?.icon || "",
+        },
+        status: state.displayLabel as "Available" | "Pending" | "In Use",
+      };
+    });
+  }, [activities]);
+
   const [selectedDepositIds, setSelectedDepositIds] = useState<
     Array<string | number>
   >([]);
@@ -71,7 +102,13 @@ export function DepositOverview() {
   const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
 
   const handleDeposit = () => {
-    goToDepositStep(VaultDepositStep.FORM);
+    if (!isConnected) {
+      // Open wallet connection modal
+      openWalletModal();
+    } else {
+      // Already connected, open deposit modal directly
+      goToDepositStep(VaultDepositStep.FORM);
+    }
   };
 
   const handleRedeem = () => {
@@ -83,7 +120,7 @@ export function DepositOverview() {
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || deposits.length === 0) {
-    return <EmptyState onDeposit={handleDeposit} />;
+    return <EmptyState onDeposit={handleDeposit} isConnected={isConnected} />;
   }
 
   const columns: ColumnProps<Deposit>[] = [
@@ -143,9 +180,9 @@ export function DepositOverview() {
           size="medium"
           rounded
           onClick={handleDeposit}
-          aria-label="Deposit BTC"
+          aria-label={isConnected ? "Deposit BTC" : "Connect wallet to deposit"}
         >
-          Deposit
+          {isConnected ? "Deposit" : "Connect Wallet"}
         </Button>
         <Button
           variant="outlined"

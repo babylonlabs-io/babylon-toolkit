@@ -5,11 +5,11 @@ import { usePeginStorage } from "../storage/usePeginStorage";
 import { usePeginRequests } from "./usePeginRequests";
 
 /**
- * Hook to manage vault positions data fetching
+ * Hook to manage vault deposits data fetching
  * Only responsible for data - UI modal states and action handlers are managed by parent components
  * Wallet connections are managed by parent components
  */
-export function useVaultPositions(connectedAddress: Hex | undefined) {
+export function useVaultDeposits(connectedAddress: Hex | undefined) {
   const { activities: confirmedActivities, refetch } = usePeginRequests({
     connectedAddress,
   });

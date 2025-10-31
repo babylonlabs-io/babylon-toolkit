@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
-import { createStateUtils } from "../utils/createStateUtils";
+import { createStateUtils } from "../../../../utils/createStateUtils";
 
-export enum VaultDepositStep {
+export enum VaultRedeemStep {
   IDLE = "idle",
   FORM = "form",
   REVIEW = "review",
@@ -10,48 +10,44 @@ export enum VaultDepositStep {
   SUCCESS = "success",
 }
 
-interface VaultDepositState {
-  step: VaultDepositStep | undefined;
+interface VaultRedeemState {
+  step: VaultRedeemStep | undefined;
   processing: boolean;
-  depositAmount: bigint;
-  selectedProviders: string[];
+  redeemDepositIds: string[];
   btcTxid: string;
   ethTxHash: string;
-  goToStep: (step: VaultDepositStep) => void;
-  setDepositData: (amount: bigint, providers: string[]) => void;
+  goToStep: (step: VaultRedeemStep) => void;
+  setRedeemData: (depositIds: string[]) => void;
   setTransactionHashes: (btcTxid: string, ethTxHash: string) => void;
   reset: () => void;
 }
 
-const { StateProvider, useState: useVaultDepositState } =
-  createStateUtils<VaultDepositState>({
+const { StateProvider, useState: useVaultRedeemState } =
+  createStateUtils<VaultRedeemState>({
     step: undefined,
     processing: false,
-    depositAmount: 0n,
-    selectedProviders: [],
+    redeemDepositIds: [],
     btcTxid: "",
     ethTxHash: "",
     goToStep: () => {},
-    setDepositData: () => {},
+    setRedeemData: () => {},
     setTransactionHashes: () => {},
     reset: () => {},
   });
 
-export function VaultDepositState({ children }: PropsWithChildren) {
-  const [step, setStep] = useState<VaultDepositStep>();
-  const [depositAmount, setDepositAmount] = useState(0n);
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+export function VaultRedeemState({ children }: PropsWithChildren) {
+  const [step, setStep] = useState<VaultRedeemStep>();
+  const [redeemDepositIds, setRedeemDepositIds] = useState<string[]>([]);
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  const goToStep = useCallback((newStep: VaultDepositStep) => {
+  const goToStep = useCallback((newStep: VaultRedeemStep) => {
     setStep(newStep);
   }, []);
 
-  const setDepositData = useCallback((amount: bigint, providers: string[]) => {
-    setDepositAmount(amount);
-    setSelectedProviders(providers);
+  const setRedeemData = useCallback((depositIds: string[]) => {
+    setRedeemDepositIds(depositIds);
   }, []);
 
   const setTransactionHashes = useCallback((btc: string, eth: string) => {
@@ -61,8 +57,7 @@ export function VaultDepositState({ children }: PropsWithChildren) {
 
   const reset = useCallback(() => {
     setStep(undefined);
-    setDepositAmount(0n);
-    setSelectedProviders([]);
+    setRedeemDepositIds([]);
     setBtcTxid("");
     setEthTxHash("");
     setProcessing(false);
@@ -72,24 +67,22 @@ export function VaultDepositState({ children }: PropsWithChildren) {
     () => ({
       step,
       processing,
-      depositAmount,
-      selectedProviders,
+      redeemDepositIds,
       btcTxid,
       ethTxHash,
       goToStep,
-      setDepositData,
+      setRedeemData,
       setTransactionHashes,
       reset,
     }),
     [
       step,
       processing,
-      depositAmount,
-      selectedProviders,
+      redeemDepositIds,
       btcTxid,
       ethTxHash,
       goToStep,
-      setDepositData,
+      setRedeemData,
       setTransactionHashes,
       reset,
     ],
@@ -98,4 +91,4 @@ export function VaultDepositState({ children }: PropsWithChildren) {
   return <StateProvider value={context}>{children}</StateProvider>;
 }
 
-export { useVaultDepositState };
+export { useVaultRedeemState };
