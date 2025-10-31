@@ -45,6 +45,7 @@ export function transformPosition(positionData: PositionWithMorpho): Position {
 
   return {
     id: positionId,
+    marketId: positionData.position.marketId,
     borrowedAmount,
     market: "BTC/USDC",
     lltv: `${currentLTV}%`,
