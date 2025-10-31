@@ -4,9 +4,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { VaultApiClient } from "../clients/vault-api";
-import { getVaultApiUrl } from "../clients/vault-api/config";
-import type { MorphoMarket } from "../clients/vault-api/types";
+import type { MorphoMarket } from "../services/market/marketService";
+import { getMarkets } from "../services/market/marketService";
 
 /**
  * Result interface for useMarkets hook
@@ -28,13 +27,10 @@ export interface UseMarketsResult {
  * @returns Object containing markets array, loading state, error state, and refetch function
  */
 export function useMarkets(): UseMarketsResult {
-  // Use React Query to fetch data from API
+  // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["markets"],
-    queryFn: async () => {
-      const client = new VaultApiClient(getVaultApiUrl());
-      return client.getMarkets();
-    },
+    queryFn: () => getMarkets(),
     retry: 2,
     staleTime: 60000, // 1 minute
   });

@@ -7,22 +7,25 @@ import { AmountSlider, Button } from "@babylonlabs-io/core-ui";
 
 import { LoanSummaryCard } from "../../LoanSummaryCard";
 
+import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
 
 export interface BorrowProps {
-  maxCollateral: number;
-  maxBorrow: number;
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  /** Available vaults with status AVAILABLE (status 2) */
+  availableVaults?: AvailableVault[];
+  /** Available liquidity in the market (in USDC) */
+  availableLiquidity: number;
 }
 
 export function Borrow({
-  maxCollateral,
-  maxBorrow,
   btcPrice,
   liquidationLtv,
   onBorrow,
+  availableVaults,
+  availableLiquidity,
 }: BorrowProps) {
   const {
     collateralAmount,
@@ -30,11 +33,26 @@ export function Borrow({
     setCollateralAmount,
     setBorrowAmount,
     collateralSteps,
+    maxCollateralFromVaults,
+    maxBorrowAmount,
     ltv,
     collateralValueUSD,
-  } = useBorrowState({ maxCollateral, btcPrice });
+  } = useBorrowState({ btcPrice, liquidationLtv, availableVaults });
 
-  const isDisabled = collateralAmount === 0 || borrowAmount === 0;
+  const hasInsufficientLiquidity = borrowAmount > availableLiquidity;
+  const isDisabled =
+    collateralAmount === 0 || borrowAmount === 0 || hasInsufficientLiquidity;
+
+  // Determine button text based on state
+  const getButtonText = () => {
+    if (hasInsufficientLiquidity) {
+      return `Insufficient liquidity (${availableLiquidity.toLocaleString()} USDC available)`;
+    }
+    if (collateralAmount === 0 || borrowAmount === 0) {
+      return "Enter an amount";
+    }
+    return "Borrow";
+  };
 
   return (
     <div className="space-y-4">
@@ -48,14 +66,14 @@ export function Borrow({
           currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
           balanceDetails={{
-            balance: maxCollateral.toFixed(4),
+            balance: maxCollateralFromVaults.toFixed(4),
             symbol: "BTC",
             displayUSD: false,
           }}
           sliderValue={collateralAmount}
           sliderMin={0}
-          sliderMax={maxCollateral}
-          sliderStep={maxCollateral / 1000}
+          sliderMax={maxCollateralFromVaults}
+          sliderStep={maxCollateralFromVaults / 1000}
           sliderSteps={collateralSteps}
           onSliderChange={setCollateralAmount}
           onSliderStepsChange={() => {
@@ -64,9 +82,9 @@ export function Borrow({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${maxCollateral.toFixed(4)} BTC`,
+            value: `${maxCollateralFromVaults.toFixed(4)} BTC`,
           }}
-          onMaxClick={() => setCollateralAmount(maxCollateral)}
+          onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
           rightField={{
             value: `$${collateralValueUSD.toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -87,21 +105,21 @@ export function Borrow({
             setBorrowAmount(parseFloat(e.target.value) || 0)
           }
           balanceDetails={{
-            balance: maxBorrow.toLocaleString(),
+            balance: maxBorrowAmount.toLocaleString(),
             symbol: "USDC",
             displayUSD: false,
           }}
           sliderValue={borrowAmount}
           sliderMin={0}
-          sliderMax={maxBorrow}
-          sliderStep={maxBorrow / 1000}
+          sliderMax={maxBorrowAmount}
+          sliderStep={maxBorrowAmount / 1000}
           onSliderChange={setBorrowAmount}
           sliderVariant="rainbow"
           leftField={{
             label: "Max",
-            value: `${maxBorrow.toLocaleString()} USDC`,
+            value: `${maxBorrowAmount.toLocaleString()} USDC`,
           }}
-          onMaxClick={() => setBorrowAmount(maxBorrow)}
+          onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
           rightField={{
             value: `$${borrowAmount.toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -128,7 +146,7 @@ export function Borrow({
         disabled={isDisabled}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
       >
-        {isDisabled ? "Enter an amount" : "Borrow"}
+        {getButtonText()}
       </Button>
     </div>
   );

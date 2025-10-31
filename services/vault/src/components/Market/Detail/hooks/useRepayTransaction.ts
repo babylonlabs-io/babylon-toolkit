@@ -1,5 +1,6 @@
 /**
- * Hook for borrow and repay transaction handlers
+ * Hook for repay transaction handler
+ * Handles the repay flow logic and transaction execution
  */
 
 import { parseUnits } from "viem";
@@ -12,24 +13,19 @@ import {
   withdrawCollateralFromPosition,
 } from "../../../../services/position/positionTransactionService";
 
-interface UseBorrowRepayTransactionsProps {
+interface UseRepayTransactionProps {
   hasPosition: boolean;
   userPosition: {
     positionId: string;
     marketId: string;
-    collateral: bigint;
-    borrowAssets: bigint;
-    borrowShares: bigint;
   } | null;
   currentLoanAmount: number;
   refetch: () => Promise<void>;
-  onBorrowSuccess: () => void;
   onRepaySuccess: () => void;
   setProcessing: (processing: boolean) => void;
 }
 
-export interface UseBorrowRepayTransactionsResult {
-  handleConfirmBorrow: () => Promise<void>;
+export interface UseRepayTransactionResult {
   handleConfirmRepay: (
     repayAmount: number,
     withdrawAmount: number,
@@ -37,32 +33,18 @@ export interface UseBorrowRepayTransactionsResult {
 }
 
 /**
- * Handles borrow and repay transaction logic
+ * Handles repay transaction logic
  */
-export function useBorrowRepayTransactions({
+export function useRepayTransaction({
   hasPosition,
   userPosition,
   currentLoanAmount,
   refetch,
-  onBorrowSuccess,
   onRepaySuccess,
   setProcessing,
-}: UseBorrowRepayTransactionsProps): UseBorrowRepayTransactionsResult {
+}: UseRepayTransactionProps): UseRepayTransactionResult {
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
-
-  const handleConfirmBorrow = async () => {
-    setProcessing(true);
-    try {
-      // TODO: Implement real borrow logic
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      onBorrowSuccess();
-    } catch {
-      // Handle error silently
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const handleConfirmRepay = async (
     repayAmount: number,
@@ -143,7 +125,6 @@ export function useBorrowRepayTransactions({
   };
 
   return {
-    handleConfirmBorrow,
     handleConfirmRepay,
   };
 }

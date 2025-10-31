@@ -3,6 +3,7 @@
 import { type Abi, type Address, type Hex } from "viem";
 
 import { ethClient } from "../client";
+import { normalizeMarketId } from "../morpho/utils";
 import { executeMulticall } from "../multicall-helpers";
 
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
@@ -79,6 +80,104 @@ export async function getUserPositions(
     throw new Error(
       `Failed to get user positions: ${error instanceof Error ? error.message : "Unknown error"}`,
     );
+  }
+}
+
+/**
+ * Get the position ID (key) for a user in a specific market
+ * This is a pure function that calculates the position ID from depositor + marketId
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param userAddress - User's Ethereum address
+ * @param marketId - Market ID (bytes32, with or without 0x prefix)
+ * @returns Position ID (bytes32)
+ */
+export async function getPositionKey(
+  contractAddress: Address,
+  userAddress: Address,
+  marketId: string | bigint,
+): Promise<Hex> {
+  const publicClient = ethClient.getPublicClient();
+
+  // Normalize market ID to ensure it has 0x prefix
+  const normalizedMarketId = normalizeMarketId(marketId);
+
+  const positionId = await publicClient.readContract({
+    address: contractAddress,
+    abi: BTCVaultControllerABI,
+    functionName: "getPositionKey",
+    args: [userAddress, normalizedMarketId],
+  });
+
+  return positionId as Hex;
+}
+
+/**
+ * Get a single position for a user in a specific market
+ * This is more efficient than fetching all positions when you only need one
+ *
+ * @param contractAddress - BTCVaultController contract address
+ * @param userAddress - User's Ethereum address
+ * @param marketId - Market ID (bytes32, with or without 0x prefix)
+ * @returns Market position or null if position doesn't exist
+ */
+export async function getPosition(
+  contractAddress: Address,
+  userAddress: Address,
+  marketId: string | bigint,
+): Promise<MarketPosition | null> {
+  try {
+    const publicClient = ethClient.getPublicClient();
+
+    // Normalize market ID to ensure it has 0x prefix
+    const normalizedMarketId = normalizeMarketId(marketId);
+
+    const result = await publicClient.readContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: "getPosition",
+      args: [userAddress, normalizedMarketId],
+    });
+
+    // Type assertion for the result tuple
+    type PositionResult = {
+      depositor: DepositorStruct;
+      marketId: Hex;
+      proxyContract: Address;
+      pegInTxHashes: Hex[];
+      totalCollateral: bigint;
+      totalBorrowed: bigint;
+      lastUpdateTimestamp: bigint;
+    };
+
+    const position = result as PositionResult;
+
+    // Check if position exists (proxyContract should not be zero address)
+    if (
+      position.proxyContract === "0x0000000000000000000000000000000000000000"
+    ) {
+      return null;
+    }
+
+    return {
+      depositor: {
+        ethAddress: position.depositor.ethAddress as Address,
+        btcPubKey: position.depositor.btcPubKey as Hex,
+      },
+      marketId: position.marketId,
+      proxyContract: position.proxyContract,
+      pegInTxHashes: position.pegInTxHashes,
+      totalCollateral: position.totalCollateral,
+      totalBorrowed: position.totalBorrowed,
+      lastUpdateTimestamp: position.lastUpdateTimestamp,
+    };
+  } catch (error) {
+    // Position doesn't exist or error fetching
+    console.error(
+      `Failed to get position for user ${userAddress} in market ${marketId}:`,
+      error,
+    );
+    return null;
   }
 }
 
