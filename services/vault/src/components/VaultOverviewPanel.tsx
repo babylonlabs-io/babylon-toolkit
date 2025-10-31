@@ -6,17 +6,17 @@ import type { Address } from "viem";
 import { useBTCWallet, useETHWallet } from "../context/wallet";
 import { calculateBalance, useUTXOs } from "../hooks/useUTXOs";
 import { useVaultProviders } from "../hooks/useVaultProviders";
+
+import { ActivityOverview } from "./ActivityOverview";
+import { DepositOverview } from "./Collateral/Deposit/components/DepositOverview";
 import {
   useVaultDepositState,
   VaultDepositStep,
-} from "../state/VaultDepositState";
+} from "./Collateral/Deposit/state/VaultDepositState";
 import {
   useVaultRedeemState,
   VaultRedeemStep,
-} from "../state/VaultRedeemState";
-
-import { ActivityOverview } from "./ActivityOverview";
-import { DepositOverview } from "./DepositOverview";
+} from "./Collateral/Redeem/state/VaultRedeemState";
 import { MarketOverview } from "./MarketOverview";
 import { PositionOverview } from "./PositionOverview";
 import {

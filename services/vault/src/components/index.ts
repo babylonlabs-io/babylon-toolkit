@@ -1,6 +1,6 @@
 export { ActivityOverview } from "./ActivityOverview";
 export { BorrowReviewModal } from "./BorrowReviewModal";
-export { DepositOverview } from "./DepositOverview";
+export { DepositOverview } from "./Collateral/Deposit/components/DepositOverview";
 export { LoanCard } from "./LoanCard";
 export { LoanSummaryCard } from "./LoanSummaryCard";
 export { MarketDetail as MarketDetailPage } from "./MarketDetail";
