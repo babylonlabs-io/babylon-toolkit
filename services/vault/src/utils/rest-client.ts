@@ -31,6 +31,16 @@ function getErrorCodeFromStatus(status: number): ErrorCode {
   if (status === 0) {
     return ErrorCode.NETWORK_ERROR;
   }
+  if (status >= 200 && status < 300) {
+    throw new Error(
+      `getErrorCodeFromStatus called with success status code: ${status}. This function should only be called with error status codes.`,
+    );
+  }
+  if (status >= 300 && status < 400) {
+    throw new Error(
+      `getErrorCodeFromStatus called with redirect status code: ${status}. This function should only be called with error status codes.`,
+    );
+  }
   if (status === 408) {
     return ErrorCode.API_TIMEOUT;
   }
