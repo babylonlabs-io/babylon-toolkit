@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import {
   btcNumberToSatoshi,
   satoshiToBtcNumber,
-} from "../../../../../utils/btcConversion";
+} from "../../../../utils/btcConversion";
 
 interface RedeemCollateralModalProps {
   open: boolean;

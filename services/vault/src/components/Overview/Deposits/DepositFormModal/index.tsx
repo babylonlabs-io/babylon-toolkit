@@ -12,11 +12,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
-import { useVaultProviders } from "../../../../../hooks/useVaultProviders";
+import { useVaultProviders } from "../../../../hooks/useVaultProviders";
 import {
   btcStringToSatoshi,
   satoshiToBtcNumber,
-} from "../../../../../utils/btcConversion";
+} from "../../../../utils/btcConversion";
 
 interface CollateralDepositModalProps {
   open: boolean;

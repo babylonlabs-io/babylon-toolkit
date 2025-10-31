@@ -11,7 +11,7 @@ import {
 import { useEffect } from "react";
 import type { Address } from "viem";
 
-import { addPendingPegin } from "../../../../../storage/peginStorage";
+import { addPendingPegin } from "../../../../storage/peginStorage";
 
 import { useDepositFlow } from "./hooks/useDepositFlow";
 

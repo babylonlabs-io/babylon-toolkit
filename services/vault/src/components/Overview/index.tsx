@@ -6,27 +6,29 @@ import type { Address } from "viem";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
 import { useVaultProviders } from "../../hooks/useVaultProviders";
-import {
-  useVaultDepositState,
-  VaultDepositStep,
-} from "../../state/VaultDepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../../state/VaultRedeemState";
 
 import { Activity } from "./Activity";
+import { DepositOverview } from "./Deposits";
+import { CollateralDepositModal } from "./Deposits/DepositFormModal";
+import { CollateralDepositReviewModal } from "./Deposits/DepositReviewModal";
+import { CollateralDepositSignModal } from "./Deposits/DepositSignModal";
+import { CollateralDepositSuccessModal } from "./Deposits/DepositSuccessModal";
+import { RedeemCollateralModal } from "./Deposits/RedeemFormModal";
+import { RedeemCollateralReviewModal } from "./Deposits/RedeemReviewModal";
+import { RedeemCollateralSignModal } from "./Deposits/RedeemSignModal";
+import { RedeemCollateralSuccessModal } from "./Deposits/RedeemSuccessModal";
+import {
+  useVaultDepositState,
+  VaultDepositState,
+  VaultDepositStep,
+} from "./Deposits/state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemState,
+  VaultRedeemStep,
+} from "./Deposits/state/VaultRedeemState";
 import { Market } from "./Market";
 import { Position } from "./Position";
-import { DepositOverview } from "./Vault/DepositFlow";
-import { CollateralDepositModal } from "./Vault/DepositFlow/FormModal";
-import { CollateralDepositReviewModal } from "./Vault/DepositFlow/ReviewModal";
-import { CollateralDepositSignModal } from "./Vault/DepositFlow/SignModal";
-import { CollateralDepositSuccessModal } from "./Vault/DepositFlow/SuccessModal";
-import { RedeemCollateralModal } from "./Vault/RedeemFlow/FormModal";
-import { RedeemCollateralReviewModal } from "./Vault/RedeemFlow/ReviewModal";
-import { RedeemCollateralSignModal } from "./Vault/RedeemFlow/SignModal";
-import { RedeemCollateralSuccessModal } from "./Vault/RedeemFlow/SuccessModal";
 
 export function Overview() {
   const isMobile = useIsMobile();
@@ -123,30 +125,133 @@ export function Overview() {
 
   if (!isMobile) {
     return (
-      <>
+      <VaultDepositState>
+        <VaultRedeemState>
+          <Card>
+            <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+              Deposits
+            </h3>
+            <DepositOverview />
+          </Card>
+          <Card>
+            <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+              Your Positions
+            </h3>
+            <Position />
+          </Card>
+          <Card>
+            <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+              Markets
+            </h3>
+            <Market />
+          </Card>
+          <Card>
+            <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+              Activity
+            </h3>
+            <Activity />
+          </Card>
+
+          {/* Deposit Modal Flow */}
+          {depositStep === VaultDepositStep.FORM && (
+            <CollateralDepositModal
+              open
+              onClose={resetDeposit}
+              onDeposit={handleDeposit}
+              btcBalance={btcBalanceSat}
+            />
+          )}
+          {depositStep === VaultDepositStep.REVIEW && (
+            <CollateralDepositReviewModal
+              open
+              onClose={resetDeposit}
+              onConfirm={handleDepositReviewConfirm}
+              amount={depositAmount}
+              providers={selectedProviders}
+            />
+          )}
+          {depositStep === VaultDepositStep.SIGN && (
+            <CollateralDepositSignModal
+              open
+              onClose={resetDeposit}
+              onSuccess={handleDepositSignSuccess}
+              amount={depositAmount}
+              btcWalletProvider={btcWalletProvider}
+              depositorEthAddress={ethAddress}
+              selectedProviders={selectedProviders}
+              vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+              liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+            />
+          )}
+          {depositStep === VaultDepositStep.SUCCESS && (
+            <CollateralDepositSuccessModal
+              open
+              onClose={resetDeposit}
+              amount={depositAmount}
+            />
+          )}
+
+          {/* Redeem Modal Flow */}
+          {redeemStep === VaultRedeemStep.FORM && (
+            <RedeemCollateralModal
+              open
+              onClose={resetRedeem}
+              onRedeem={handleRedeem}
+            />
+          )}
+          {redeemStep === VaultRedeemStep.REVIEW && (
+            <RedeemCollateralReviewModal
+              open
+              onClose={resetRedeem}
+              onConfirm={handleRedeemReviewConfirm}
+              depositIds={redeemDepositIds}
+            />
+          )}
+          {redeemStep === VaultRedeemStep.SIGN && (
+            <RedeemCollateralSignModal
+              open
+              onClose={resetRedeem}
+              onSuccess={handleRedeemSignSuccess}
+              depositIds={redeemDepositIds}
+            />
+          )}
+          {redeemStep === VaultRedeemStep.SUCCESS && (
+            <RedeemCollateralSuccessModal open onClose={resetRedeem} />
+          )}
+        </VaultRedeemState>
+      </VaultDepositState>
+    );
+  }
+
+  return (
+    <VaultDepositState>
+      <VaultRedeemState>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
-            Deposits
-          </h3>
-          <DepositOverview />
-        </Card>
-        <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
-            Your Positions
-          </h3>
-          <Position />
-        </Card>
-        <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
-            Markets
-          </h3>
-          <Market />
-        </Card>
-        <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
-            Activity
-          </h3>
-          <Activity />
+          <Tabs
+            items={[
+              {
+                id: "deposits",
+                label: "Deposits",
+                content: <DepositOverview />,
+              },
+              {
+                id: "positions",
+                label: "Positions",
+                content: <Position />,
+              },
+              {
+                id: "markets",
+                label: "Markets",
+                content: <Market />,
+              },
+              {
+                id: "activity",
+                label: "Activity",
+                content: <Activity />,
+              },
+            ]}
+            defaultActiveTab="deposits"
+          />
         </Card>
 
         {/* Deposit Modal Flow */}
@@ -215,106 +320,7 @@ export function Overview() {
         {redeemStep === VaultRedeemStep.SUCCESS && (
           <RedeemCollateralSuccessModal open onClose={resetRedeem} />
         )}
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Card>
-        <Tabs
-          items={[
-            {
-              id: "deposits",
-              label: "Deposits",
-              content: <DepositOverview />,
-            },
-            {
-              id: "positions",
-              label: "Positions",
-              content: <Position />,
-            },
-            {
-              id: "markets",
-              label: "Markets",
-              content: <Market />,
-            },
-            {
-              id: "activity",
-              label: "Activity",
-              content: <Activity />,
-            },
-          ]}
-          defaultActiveTab="deposits"
-        />
-      </Card>
-
-      {/* Deposit Modal Flow */}
-      {depositStep === VaultDepositStep.FORM && (
-        <CollateralDepositModal
-          open
-          onClose={resetDeposit}
-          onDeposit={handleDeposit}
-          btcBalance={btcBalanceSat}
-        />
-      )}
-      {depositStep === VaultDepositStep.REVIEW && (
-        <CollateralDepositReviewModal
-          open
-          onClose={resetDeposit}
-          onConfirm={handleDepositReviewConfirm}
-          amount={depositAmount}
-          providers={selectedProviders}
-        />
-      )}
-      {depositStep === VaultDepositStep.SIGN && (
-        <CollateralDepositSignModal
-          open
-          onClose={resetDeposit}
-          onSuccess={handleDepositSignSuccess}
-          amount={depositAmount}
-          btcWalletProvider={btcWalletProvider}
-          depositorEthAddress={ethAddress}
-          selectedProviders={selectedProviders}
-          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
-        />
-      )}
-      {depositStep === VaultDepositStep.SUCCESS && (
-        <CollateralDepositSuccessModal
-          open
-          onClose={resetDeposit}
-          amount={depositAmount}
-        />
-      )}
-
-      {/* Redeem Modal Flow */}
-      {redeemStep === VaultRedeemStep.FORM && (
-        <RedeemCollateralModal
-          open
-          onClose={resetRedeem}
-          onRedeem={handleRedeem}
-        />
-      )}
-      {redeemStep === VaultRedeemStep.REVIEW && (
-        <RedeemCollateralReviewModal
-          open
-          onClose={resetRedeem}
-          onConfirm={handleRedeemReviewConfirm}
-          depositIds={redeemDepositIds}
-        />
-      )}
-      {redeemStep === VaultRedeemStep.SIGN && (
-        <RedeemCollateralSignModal
-          open
-          onClose={resetRedeem}
-          onSuccess={handleRedeemSignSuccess}
-          depositIds={redeemDepositIds}
-        />
-      )}
-      {redeemStep === VaultRedeemStep.SUCCESS && (
-        <RedeemCollateralSuccessModal open onClose={resetRedeem} />
-      )}
-    </>
+      </VaultRedeemState>
+    </VaultDepositState>
   );
 }

@@ -12,19 +12,17 @@ import {
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
 
-import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
-import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
-import { getPeginState } from "../../../../models/peginStateMachine";
+import { useBTCWallet, useETHWallet } from "../../../context/wallet";
+import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
+import { getPeginState } from "../../../models/peginStateMachine";
+import type { VaultActivity } from "../../../types/activity";
+import type { Deposit } from "../../../types/vault";
+
 import {
   useVaultDepositState,
   VaultDepositStep,
-} from "../../../../state/VaultDepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../../../../state/VaultRedeemState";
-import type { VaultActivity } from "../../../../types/activity";
-import type { Deposit } from "../../../../types/vault";
+} from "./state/VaultDepositState";
+import { useVaultRedeemState, VaultRedeemStep } from "./state/VaultRedeemState";
 
 function EmptyState({
   onDeposit,

@@ -8,8 +8,8 @@
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
 
-import { useUTXOs } from "../../../../../../hooks/useUTXOs";
-import { createProofOfPossession } from "../../../../../../services/vault/vaultProofOfPossessionService";
+import { useUTXOs } from "../../../../../hooks/useUTXOs";
+import { createProofOfPossession } from "../../../../../services/vault/vaultProofOfPossessionService";
 // import { processPublicKeyToXOnly } from "../../../utils/btcUtils";
 // import { estimatePeginFee } from "../../../utils/fee/peginFee";
 
