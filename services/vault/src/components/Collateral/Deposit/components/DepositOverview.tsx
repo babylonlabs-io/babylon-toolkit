@@ -12,17 +12,20 @@ import {
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
 
-import { useBTCWallet, useETHWallet } from "../../../context/wallet";
-import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
-import { getPeginState } from "../../../models/peginStateMachine";
-import type { VaultActivity } from "../../../types/activity";
-import type { Deposit } from "../../../types/vault";
-
+import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
+import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
+import { getPeginState } from "../../../../models/peginStateMachine";
+import type { VaultActivity } from "../../../../types/activity";
+import type { Deposit } from "../../../../types/vault";
 import {
   useVaultDepositState,
   VaultDepositStep,
-} from "./state/VaultDepositState";
-import { useVaultRedeemState, VaultRedeemStep } from "./state/VaultRedeemState";
+} from "../state/VaultDepositState";
+// TODO: Uncomment when redeem flow is ready
+// import {
+//   useVaultRedeemState,
+//   VaultRedeemStep,
+// } from "../../Redeem/state/VaultRedeemState";
 
 function EmptyState({
   onDeposit,
@@ -97,7 +100,8 @@ export function DepositOverview() {
     Array<string | number>
   >([]);
   const { goToStep: goToDepositStep } = useVaultDepositState();
-  const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
+  // TODO: Uncomment when redeem flow is ready
+  // const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
 
   const handleDeposit = () => {
     if (!isConnected) {
@@ -109,12 +113,13 @@ export function DepositOverview() {
     }
   };
 
-  const handleRedeem = () => {
-    if (selectedDepositIds.length > 0) {
-      setRedeemData(selectedDepositIds as string[]);
-      goToRedeemStep(VaultRedeemStep.FORM);
-    }
-  };
+  // TODO: Uncomment when redeem flow is ready
+  // const handleRedeem = () => {
+  //   if (selectedDepositIds.length > 0) {
+  //     setRedeemData(selectedDepositIds as string[]);
+  //     goToRedeemStep(VaultRedeemStep.FORM);
+  //   }
+  // };
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || deposits.length === 0) {
@@ -157,10 +162,13 @@ export function DepositOverview() {
       key: "status",
       header: "Status",
       render: (_value: unknown, row: Deposit) => {
-        const statusMap = {
-          Available: "inactive" as const,
-          Pending: "pending" as const,
-          "In Use": "active" as const,
+        const statusMap: Record<
+          "Available" | "Pending" | "In Use",
+          "inactive" | "pending" | "active"
+        > = {
+          Available: "inactive",
+          Pending: "pending",
+          "In Use": "active",
         };
         return (
           <StatusBadge status={statusMap[row.status]} label={row.status} />
@@ -182,7 +190,8 @@ export function DepositOverview() {
         >
           {isConnected ? "Deposit" : "Connect Wallet"}
         </Button>
-        <Button
+        {/* TODO: Uncomment when redeem flow is ready */}
+        {/* <Button
           variant="outlined"
           size="medium"
           rounded
@@ -191,17 +200,20 @@ export function DepositOverview() {
           aria-label="Redeem selected deposits"
         >
           Redeem
-        </Button>
+        </Button> */}
       </div>
 
       {/* Desktop: Deposits Table, Mobile: Deposit Cards */}
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
           {deposits.map((deposit) => {
-            const statusMap = {
-              Available: "inactive" as const,
-              Pending: "pending" as const,
-              "In Use": "active" as const,
+            const statusMap: Record<
+              "Available" | "Pending" | "In Use",
+              "inactive" | "pending" | "active"
+            > = {
+              Available: "inactive",
+              Pending: "pending",
+              "In Use": "active",
             };
             return (
               <VaultDetailCard

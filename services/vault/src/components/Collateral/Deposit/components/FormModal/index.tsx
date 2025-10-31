@@ -12,11 +12,12 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
-import { useVaultProviders } from "../../../../hooks/useVaultProviders";
+import type { VaultProvider } from "../../../../../clients/vault-api";
 import {
   btcStringToSatoshi,
   satoshiToBtcNumber,
-} from "../../../../utils/btcConversion";
+} from "../../../../../utils/btcConversion";
+import { useVaultProviders } from "../../hooks/useVaultProviders";
 
 interface CollateralDepositModalProps {
   open: boolean;
@@ -182,7 +183,7 @@ export function CollateralDepositModal({
                 </Text>
               </div>
             ) : (
-              vaultProviders.map((provider) => {
+              vaultProviders.map((provider: VaultProvider) => {
                 const shortId =
                   provider.id.length > 14
                     ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`

@@ -12,10 +12,19 @@
  * - Keep only transactions not yet on blockchain
  */
 
+/**
+ * Provider information stored in localStorage
+ * Minimal set needed for UI display
+ */
+export interface StoredProvider {
+  id: string; // Vault provider's Ethereum address
+  name?: string; // Provider display name (if available)
+  icon?: string; // Provider icon URL (if available)
+}
+
 export interface PendingPeginRequest {
-  id: string; // Peg-in ID (pegin tx hash)
+  id: string; // BTC txid (with 0x prefix)
   timestamp: number; // When the peg-in was initiated
-  status: "pending" | "payout_signed" | "confirming" | "confirmed";
   amount?: string; // Amount in BTC (formatted for display)
   providerId?: string; // Vault provider's Ethereum address
 }
@@ -76,6 +85,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 
 /**
  * Save pending peg-ins to localStorage
+ * If pegins array is empty, delete the entire key instead of storing empty array
  */
 export function savePendingPegins(
   ethAddress: string,
@@ -85,7 +95,13 @@ export function savePendingPegins(
 
   try {
     const key = getStorageKey(ethAddress);
-    localStorage.setItem(key, JSON.stringify(pegins));
+
+    // If no pegins left, delete the entire key
+    if (pegins.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(pegins));
+    }
   } catch (error) {
     console.error("[peginStorage] Failed to save pending pegins:", error);
   }
@@ -93,37 +109,28 @@ export function savePendingPegins(
 
 /**
  * Add a new pending peg-in to localStorage
+ * Prevents duplicates: if txid already exists, removes old entry before adding new one
  */
 export function addPendingPegin(
   ethAddress: string,
-  pegin: Omit<PendingPeginRequest, "timestamp" | "status">,
+  pegin: Omit<PendingPeginRequest, "timestamp">,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
 
   // Normalize the ID to ensure it has 0x prefix
   const normalizedId = normalizeTransactionId(pegin.id);
 
-  // Check if this pegin already exists
-  const existingPeginIndex = existingPegins.findIndex(
-    (p) => p.id === normalizedId,
-  );
+  // Remove existing pegin with same txid to prevent duplicates
+  const filteredPegins = existingPegins.filter((p) => p.id !== normalizedId);
 
   const newPegin: PendingPeginRequest = {
     ...pegin,
     id: normalizedId, // Use normalized ID
     timestamp: Date.now(),
-    status: "pending",
   };
 
-  let updatedPegins: PendingPeginRequest[];
-  if (existingPeginIndex >= 0) {
-    // Update existing pegin
-    updatedPegins = [...existingPegins];
-    updatedPegins[existingPeginIndex] = newPegin;
-  } else {
-    // Add new pegin
-    updatedPegins = [...existingPegins, newPegin];
-  }
+  // Add new pegin
+  const updatedPegins = [...filteredPegins, newPegin];
 
   savePendingPegins(ethAddress, updatedPegins);
 }
@@ -140,21 +147,13 @@ export function removePendingPegin(ethAddress: string, peginId: string): void {
 
 /**
  * Update status of a pending peg-in
+ * Note: Status field has been removed from PendingPeginRequest.
+ * This function is kept for backwards compatibility but does nothing.
+ * @deprecated Use removePendingPegin instead when transaction is confirmed
  */
-export function updatePeginStatus(
-  ethAddress: string,
-  peginId: string,
-  status: PendingPeginRequest["status"],
-  btcTxHash?: string,
-): void {
-  const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(peginId);
-  const updatedPegins = existingPegins.map((p) =>
-    p.id === normalizedId
-      ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
-      : p,
-  );
-  savePendingPegins(ethAddress, updatedPegins);
+export function updatePeginStatus(): void {
+  // No-op: status field has been removed from PendingPeginRequest
+  // Transactions are either pending in localStorage or confirmed on-chain (removed from localStorage)
 }
 
 /**

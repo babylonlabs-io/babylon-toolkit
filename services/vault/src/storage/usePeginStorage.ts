@@ -16,7 +16,6 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
   savePendingPegins,
-  updatePeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
 
 export interface UsePeginStorageParams {
@@ -33,11 +32,6 @@ export interface UsePeginStorageResult {
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
   addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
-  /** Update status of a pending peg-in in localStorage */
-  updatePendingPeginStatus: (
-    peginId: string,
-    status: PendingPeginRequest["status"],
-  ) => void;
 }
 
 /**
@@ -125,19 +119,9 @@ export function usePeginStorage({
     [ethAddress],
   );
 
-  // Update pending peg-in status
-  const updatePendingPeginStatus = useCallback(
-    (peginId: string, status: PendingPeginRequest["status"]) => {
-      if (!ethAddress) return;
-      updatePendingPeginStatusInStorage(ethAddress, peginId, status);
-    },
-    [ethAddress],
-  );
-
   return {
     allActivities,
     pendingPegins,
     addPendingPegin,
-    updatePendingPeginStatus,
   };
 }

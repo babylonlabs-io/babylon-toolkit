@@ -11,9 +11,9 @@ import {
 import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import { useDepositFlow } from "../../../../components/Collateral/Deposit/components/SignModal/hooks/useDepositFlow";
-import type { StoredProvider } from "../../../../storage/peginStorage";
-import { addPendingPegin } from "../../../../storage/peginStorage";
+import { addPendingPegin } from "../../../../../storage/peginStorage";
+
+import { useDepositFlow } from "./hooks/useDepositFlow";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
@@ -23,10 +23,8 @@ interface CollateralDepositSignModalProps {
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
-  selectedProviderInfo?: StoredProvider; // Provider information for localStorage
   vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
   liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
-  onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
 }
 
 export function CollateralDepositSignModal({
@@ -37,11 +35,10 @@ export function CollateralDepositSignModal({
   btcWalletProvider,
   depositorEthAddress,
   selectedProviders,
-  selectedProviderInfo,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
-  onRefetchActivities,
 }: CollateralDepositSignModalProps) {
+  // Track if flow has been executed to prevent duplicate executions
   const hasExecutedRef = useRef(false);
 
   const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
@@ -52,28 +49,12 @@ export function CollateralDepositSignModal({
       selectedProviders,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
-      onSuccess: (btcTxid: string, ethTxHash: string) => {
-        // Store pegin in localStorage for tracking with amount and provider info
-        // IMPORTANT: Use btcTxid as the ID because the contract uses BTC tx hash as the vault ID
+      onSuccess: (btcTxid, ethTxHash) => {
+        // Store pegin in localStorage for tracking (minimal data - full data refetched from blockchain)
         if (depositorEthAddress) {
-          // Convert amount from satoshis to BTC for storage
-          const amountInBTC = (Number(amount) / 100000000).toString();
-
-          // Ensure btcTxid has 0x prefix to match contract data
-          const btcTxidWithPrefix = btcTxid.startsWith("0x")
-            ? btcTxid
-            : `0x${btcTxid}`;
-
           addPendingPegin(depositorEthAddress, {
-            id: btcTxidWithPrefix, // Use BTC transaction ID with 0x prefix
-            amount: amountInBTC,
-            providerId: selectedProviderInfo?.id || selectedProviders[0], // Fallback to provider ID if info not provided
+            id: ethTxHash,
           });
-
-          // Trigger refetch to immediately show the pending deposit
-          if (onRefetchActivities) {
-            onRefetchActivities();
-          }
         }
 
         // Call parent success handler
