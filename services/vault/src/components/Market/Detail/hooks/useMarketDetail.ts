@@ -159,6 +159,14 @@ export function useMarketDetail() {
     ? formatBTC(marketPosition.position.totalCollateral)
     : 0;
 
+  // Calculate available liquidity for borrowing (in USDC)
+  const availableLiquidity = useMemo(() => {
+    if (!marketData) return 0;
+    return formatUSDC(
+      marketData.totalSupplyAssets - marketData.totalBorrowAssets,
+    );
+  }, [marketData]);
+
   // Extract only what's needed for transactions (positionId + marketId)
   const userPosition = useMemo(() => {
     if (!marketPosition) return null;
@@ -305,6 +313,7 @@ export function useMarketDetail() {
     currentLoanAmount,
     currentCollateralAmount,
     availableVaults,
+    availableLiquidity,
 
     // derived view
     marketAttributes,

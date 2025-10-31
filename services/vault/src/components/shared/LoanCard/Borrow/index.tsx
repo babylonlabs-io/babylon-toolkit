@@ -16,6 +16,8 @@ export interface BorrowProps {
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
   /** Available vaults with status AVAILABLE (status 2) */
   availableVaults?: AvailableVault[];
+  /** Available liquidity in the market (in USDC) */
+  availableLiquidity: number;
 }
 
 export function Borrow({
@@ -23,6 +25,7 @@ export function Borrow({
   liquidationLtv,
   onBorrow,
   availableVaults,
+  availableLiquidity,
 }: BorrowProps) {
   const {
     collateralAmount,
@@ -36,7 +39,20 @@ export function Borrow({
     collateralValueUSD,
   } = useBorrowState({ btcPrice, liquidationLtv, availableVaults });
 
-  const isDisabled = collateralAmount === 0 || borrowAmount === 0;
+  const hasInsufficientLiquidity = borrowAmount > availableLiquidity;
+  const isDisabled =
+    collateralAmount === 0 || borrowAmount === 0 || hasInsufficientLiquidity;
+
+  // Determine button text based on state
+  const getButtonText = () => {
+    if (hasInsufficientLiquidity) {
+      return `Insufficient liquidity (${availableLiquidity.toLocaleString()} USDC available)`;
+    }
+    if (collateralAmount === 0 || borrowAmount === 0) {
+      return "Enter an amount";
+    }
+    return "Borrow";
+  };
 
   return (
     <div className="space-y-4">
@@ -130,7 +146,7 @@ export function Borrow({
         disabled={isDisabled}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
       >
-        {isDisabled ? "Enter an amount" : "Borrow"}
+        {getButtonText()}
       </Button>
     </div>
   );

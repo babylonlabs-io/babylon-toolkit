@@ -49,3 +49,47 @@ export function amountsToSliderSteps(
     value: Number(amountSatoshis) / 1e8, // Convert satoshis to BTC for display
   }));
 }
+
+/**
+ * Find vaults (by index) that sum to the target amount in satoshis
+ * Uses a greedy algorithm to select vaults
+ *
+ * @param vaultAmounts - Array of vault amounts in satoshis
+ * @param targetSatoshis - Target amount in satoshis
+ * @returns Array of vault indices that sum to the target amount, or null if not possible
+ */
+export function findVaultIndicesForAmount(
+  vaultAmounts: bigint[],
+  targetSatoshis: bigint,
+): number[] | null {
+  if (targetSatoshis === 0n) {
+    return []; // No vaults needed for 0 collateral
+  }
+
+  // Create array of [index, amount] pairs
+  const vaults = vaultAmounts.map((amount, index) => ({ index, amount }));
+
+  // Sort by amount descending (greedy approach: use larger vaults first)
+  vaults.sort((a, b) =>
+    a.amount > b.amount ? -1 : a.amount < b.amount ? 1 : 0,
+  );
+
+  const selected: number[] = [];
+  let remaining = targetSatoshis;
+
+  for (const vault of vaults) {
+    if (remaining === 0n) break;
+
+    if (vault.amount <= remaining) {
+      selected.push(vault.index);
+      remaining -= vault.amount;
+    }
+  }
+
+  // Check if we found an exact match
+  if (remaining === 0n) {
+    return selected.sort((a, b) => a - b); // Return indices in original order
+  }
+
+  return null; // No exact combination found
+}

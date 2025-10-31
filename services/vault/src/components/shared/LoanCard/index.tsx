@@ -18,6 +18,8 @@ export interface LoanCardProps {
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
   /** Available vaults with status AVAILABLE (status 2) */
   availableVaults?: AvailableVault[];
+  /** Available liquidity in the market (in USDC) */
+  availableLiquidity: number;
 
   // Repay flow props
   currentLoanAmount: number;
@@ -31,6 +33,7 @@ export function LoanCard({
   liquidationLtv,
   onBorrow,
   availableVaults,
+  availableLiquidity,
   currentLoanAmount,
   currentCollateralAmount,
   onRepay,
@@ -51,6 +54,7 @@ export function LoanCard({
                 liquidationLtv={liquidationLtv}
                 onBorrow={onBorrow}
                 availableVaults={availableVaults}
+                availableLiquidity={availableLiquidity}
               />
             ),
           },

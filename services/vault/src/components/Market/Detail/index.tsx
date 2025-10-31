@@ -8,7 +8,7 @@
  * The page automatically detects if the user has a position for this market.
  */
 
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
 import { LoanCard } from "../../shared/LoanCard";
@@ -19,12 +19,15 @@ import { RepaySuccessModal } from "../../shared/LoanCard/Repay/SuccessModal";
 import { MarketInfo } from "../Info";
 
 import { useBorrowRepayModals } from "./hooks/useBorrowRepayModals";
-import { useBorrowRepayTransactions } from "./hooks/useBorrowRepayTransactions";
+import { useBorrowTransaction } from "./hooks/useBorrowTransaction";
 import { useMarketDetail } from "./hooks/useMarketDetail";
+import { useRepayTransaction } from "./hooks/useRepayTransaction";
 
 export function MarketDetail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const { marketId } = useParams<{ marketId: string }>();
 
   // Fetch market data and user's position (if exists)
   const {
@@ -35,6 +38,7 @@ export function MarketDetail() {
     currentLoanAmount,
     currentCollateralAmount,
     availableVaults,
+    availableLiquidity,
     marketAttributes,
     positionData,
     userPosition,
@@ -71,17 +75,26 @@ export function MarketDetail() {
     setProcessing,
   } = useBorrowRepayModals();
 
-  // Transaction handlers
-  const { handleConfirmBorrow, handleConfirmRepay } =
-    useBorrowRepayTransactions({
-      hasPosition,
-      userPosition,
-      currentLoanAmount,
-      refetch,
-      onBorrowSuccess: showBorrowSuccess,
-      onRepaySuccess: showRepaySuccess,
-      setProcessing,
-    });
+  // Borrow transaction handler
+  const { handleConfirmBorrow } = useBorrowTransaction({
+    hasPosition,
+    marketId,
+    availableVaults,
+    lastBorrowData,
+    refetch,
+    onBorrowSuccess: showBorrowSuccess,
+    setProcessing,
+  });
+
+  // Repay transaction handler
+  const { handleConfirmRepay } = useRepayTransaction({
+    hasPosition,
+    userPosition,
+    currentLoanAmount,
+    refetch,
+    onRepaySuccess: showRepaySuccess,
+    setProcessing,
+  });
 
   // LTV calculations
   const { borrowLtv, repayLtv } = useLtvCalculations({
@@ -142,6 +155,7 @@ export function MarketDetail() {
             liquidationLtv={liquidationLtv}
             onBorrow={openBorrowReview}
             availableVaults={availableVaults}
+            availableLiquidity={availableLiquidity}
             currentLoanAmount={currentLoanAmount}
             currentCollateralAmount={currentCollateralAmount}
             onRepay={openRepayReview}
