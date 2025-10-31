@@ -2,8 +2,6 @@ import { useInscriptionProvider } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
 
-import { VaultDepositState } from "../components/Collateral/Deposit/state/VaultDepositState";
-import { VaultRedeemState } from "../components/Collateral/Redeem/state/VaultRedeemState";
 import { createStateUtils } from "../utils/createStateUtils";
 
 export interface AppState {
@@ -50,17 +48,7 @@ export function AppState({ children }: PropsWithChildren) {
     [theme, setTheme, ordinalsExcluded, includeOrdinals, excludeOrdinals],
   );
 
-  // Wrap children with vault-specific state providers
-  const stateTree = useMemo(
-    () => (
-      <VaultDepositState>
-        <VaultRedeemState>{children}</VaultRedeemState>
-      </VaultDepositState>
-    ),
-    [children],
-  );
-
-  return <StateProvider value={context}>{stateTree}</StateProvider>;
+  return <StateProvider value={context}>{children}</StateProvider>;
 }
 
 export const useAppState = useApplicationState;
