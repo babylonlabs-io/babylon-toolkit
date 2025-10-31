@@ -15,11 +15,9 @@ import { useCallback, useMemo, type PropsWithChildren } from "react";
 const context = typeof window !== "undefined" ? window : {};
 
 /**
- * VaultWalletConnectionProvider
+ * WalletConnectionProvider
  */
-export const VaultWalletConnectionProvider = ({
-  children,
-}: PropsWithChildren) => {
+export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { theme } = useTheme();
 
   const config = useMemo(

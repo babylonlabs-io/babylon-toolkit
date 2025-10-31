@@ -4,9 +4,9 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
 
-import { NotificationContainer } from "@/components/NotificationContainer";
+import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
-import { VaultWalletConnectionProvider } from "@/context/wallet";
+import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
 function Providers({ children }: React.PropsWithChildren) {
@@ -29,9 +29,9 @@ function Providers({ children }: React.PropsWithChildren) {
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
-                <VaultWalletConnectionProvider>
+                <WalletConnectionProvider>
                   <AppState>{children}</AppState>
-                </VaultWalletConnectionProvider>
+                </WalletConnectionProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"
                   initialIsOpen={false}
