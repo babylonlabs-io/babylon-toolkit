@@ -15,7 +15,6 @@ export function mapViemErrorToContractError(
 ): ContractError {
   const errorMessage = error instanceof Error ? error.message : "Unknown error";
   const errorName = error instanceof Error ? error.name : "UnknownError";
-
   let code: ErrorCode = ErrorCode.CONTRACT_EXECUTION_FAILED;
   let reason: string | undefined;
   let transactionHash: string | undefined;
