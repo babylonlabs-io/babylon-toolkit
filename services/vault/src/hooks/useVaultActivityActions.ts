@@ -6,14 +6,13 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
 import { CONTRACTS } from "../config/contracts";
-import { getNextLocalStatus, PeginAction } from "../models/peginStateMachine";
+import type { ClaimerTransactions } from "../types";
+// Note: getNextLocalStatus removed since status tracking is deprecated
+import { useSignPeginTransactions } from "../components/Overview/Deposits/hooks/useSignPeginTransactions";
 import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import { stripHexPrefix } from "../utils/btc";
-
-import { useSignPeginTransactions } from "./useSignPeginTransactions";
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -21,12 +20,11 @@ export interface BroadcastPeginParams {
   activityProviders: Array<{ id: string }>;
   connectedAddress: string;
   pendingPegin?: PendingPeginRequest;
-  updatePendingPeginStatus?: (
-    peginId: string,
-    status: PendingPeginRequest["status"],
-    btcTxHash?: string,
+  addPendingPegin?: (
+    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+      status?: PendingPeginRequest["status"];
+    },
   ) => void;
-  addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
 }
@@ -37,10 +35,6 @@ export interface SignPayoutParams {
   depositorBtcPubkey: string;
   transactions: ClaimerTransactions[];
   activityId: string;
-  updatePendingPeginStatus?: (
-    peginId: string,
-    status: PendingPeginRequest["status"],
-  ) => void;
   onRefetchActivities?: () => void;
 }
 
@@ -81,7 +75,6 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       activityAmount,
       activityProviders,
       pendingPegin,
-      updatePendingPeginStatus,
       addPendingPegin,
       onRefetchActivities,
       onShowSuccessModal,
@@ -125,7 +118,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       }
 
       // Broadcast the transaction (UTXO will be derived from mempool API)
-      const txId = await broadcastPeginTransaction({
+      await broadcastPeginTransaction({
         unsignedTxHex,
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
@@ -133,22 +126,19 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         depositorBtcPubkey,
       });
 
-      // Update or create localStorage entry with broadcast results
-      // Use state machine to determine next status
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
-
-      if (pendingPegin && updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update status and BTC tx hash
-        updatePendingPeginStatus(activityId, nextStatus, txId);
-      } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device) - create full peg-in entry
+      // Update localStorage entry if it exists, or create new one
+      // Note: Status field has been removed, so we don't track local status anymore
+      if (pendingPegin) {
+        // Case 1: localStorage entry EXISTS - no need to update since status tracking is deprecated
+        // Entry will be automatically cleaned up when transaction is confirmed
+      } else if (addPendingPegin) {
+        // Case 2: NO localStorage entry - create peg-in entry with amount
         addPendingPegin({
           id: activityId,
           amount: activityAmount,
-          providerId: activityProviders[0]?.id, // Use first provider ID
-          status: nextStatus,
+          providerId: activityProviders.map((p) => p.id), // provider IDs
+          status: "pending",
+          btcTxHash: unsignedTxHex,
         });
       }
 
@@ -174,8 +164,7 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       vaultProviderAddress,
       depositorBtcPubkey,
       transactions,
-      activityId,
-      updatePendingPeginStatus,
+      // activityId: _activityId,
       onRefetchActivities,
     } = params;
 
@@ -200,13 +189,8 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         },
       });
 
-      // Update localStorage status using state machine
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
-      );
-      if (updatePendingPeginStatus && nextStatus) {
-        updatePendingPeginStatus(activityId, nextStatus);
-      }
+      // Note: Status tracking is deprecated - localStorage entry will be automatically
+      // cleaned up when transaction is confirmed via filterPendingPegins
 
       // Refetch activities after successful submission
       if (onRefetchActivities) {

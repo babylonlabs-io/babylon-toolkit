@@ -1,21 +1,33 @@
 /**
  * useDepositFlow Hook
  *
- * Manages the deposit (peg-in) submission flow state and orchestration.
- * Integrates with committed service layer and properly handles wallet clients.
+ * Orchestrates the complete deposit submission flow:
+ * 1. Proof of possession (BIP-322 signature)
+ * 2. Create unsigned BTC transaction via WASM
+ * 3. Submit to smart contract (ETH transaction)
+ *
+ * This hook is called from SignModal and handles
+ * the business logic layer between UI and services.
  */
 
+import { getETHChain } from "@babylonlabs-io/config";
+import {
+  getSharedWagmiConfig,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
+import { getWalletClient } from "wagmi/actions";
 
+import { CONTRACTS } from "../../../../../config/contracts";
+import { LOCAL_PEGIN_CONFIG } from "../../../../../config/pegin";
 import { useUTXOs } from "../../../../../hooks/useUTXOs";
 import { createProofOfPossession } from "../../../../../services/vault/vaultProofOfPossessionService";
-// import { processPublicKeyToXOnly } from "../../../utils/btcUtils";
-// import { estimatePeginFee } from "../../../utils/fee/peginFee";
+import { submitPeginRequest } from "../../../../../services/vault/vaultTransactionService";
+import { processPublicKeyToXOnly } from "../../../../../utils/btc";
 
 /**
  * BTC wallet provider interface
- * Defines the minimal interface needed from BTC wallet for deposit flow
  */
 interface BtcWalletProvider {
   signMessage: (
@@ -23,172 +35,192 @@ interface BtcWalletProvider {
     type: "ecdsa" | "bip322-simple",
   ) => Promise<string>;
   getPublicKeyHex: () => Promise<string>;
-  getAddress: () => Promise<string>;
 }
 
 export interface UseDepositFlowParams {
-  /** Amount to deposit in satoshis (bigint) */
   amount: bigint;
-  /** BTC wallet provider */
-  btcWalletProvider: BtcWalletProvider | null;
-  /** Depositor's ETH address */
+  btcWalletProvider: BtcWalletProvider;
   depositorEthAddress: Address | undefined;
-  /** Selected vault provider ETH addresses */
   selectedProviders: string[];
-  /** Selected vault provider's BTC public key (from API) */
   vaultProviderBtcPubkey: string;
-  /** Liquidator BTC public keys (from API) */
   liquidatorBtcPubkeys: string[];
-  /** Callback on successful deposit - TODO: Re-enable when wallet providers added */
-  onSuccess?: (btcTxid: string, ethTxHash: string, btcTxHex: string) => void;
+  onSuccess: (btcTxid: string, ethTxHash: string) => void;
 }
 
 export interface UseDepositFlowReturn {
-  /** Execute the deposit flow */
   executeDepositFlow: () => Promise<void>;
-  /** Current step in the flow (1-3) */
   currentStep: number;
-  /** Whether the flow is processing */
   processing: boolean;
-  /** Error message if flow failed */
   error: string | null;
 }
 
 /**
- * Hook to manage the deposit submission flow
+ * Hook to orchestrate deposit flow execution
  *
- * Flow:
- * 1. Create proof of possession (sign ETH address with BTC key)
- * 2. Build and submit pegin transaction to Vault Controller
- * 3. Complete and call success callback
+ * Manages:
+ * - Step 1: Proof of possession (BTC signature)
+ * - Step 2: WASM transaction creation + ETH submission
+ * - Step 3: Complete
+ *
+ * @param params - Deposit parameters
+ * @returns Execution function and state
  */
-export function useDepositFlow({
-  amount,
-  btcWalletProvider,
-  depositorEthAddress,
-  selectedProviders,
-  vaultProviderBtcPubkey,
-  liquidatorBtcPubkeys,
-  // onSuccess - TODO: Re-enable when wallet providers added
-}: UseDepositFlowParams): UseDepositFlowReturn {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [btcAddress, setBtcAddress] = useState<string | undefined>(undefined);
-
-  // Fetch UTXOs for the BTC wallet (will be undefined initially until address is set)
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
-
-  const executeDepositFlow = useCallback(async () => {
-    setProcessing(true);
-    setError(null);
-
-    try {
-      // Validate prerequisites
-      if (!btcWalletProvider) {
-        throw new Error("BTC wallet not connected");
-      }
-      if (!depositorEthAddress) {
-        throw new Error("ETH wallet not connected");
-      }
-      if (selectedProviders.length === 0) {
-        throw new Error("No vault provider selected");
-      }
-      if (!vaultProviderBtcPubkey) {
-        throw new Error("Vault provider BTC public key not available");
-      }
-      if (!liquidatorBtcPubkeys || liquidatorBtcPubkeys.length === 0) {
-        throw new Error("Liquidators not available");
-      }
-
-      // Get BTC address from provider
-      const address = await btcWalletProvider.getAddress();
-      if (!address) {
-        throw new Error("BTC address not available");
-      }
-      setBtcAddress(address);
-
-      // Step 1: Create proof of possession
-      setCurrentStep(1);
-
-      await createProofOfPossession({
-        ethAddress: depositorEthAddress,
-        btcAddress: address,
-        signMessage: (message: string) =>
-          btcWalletProvider.signMessage(message, "bip322-simple"),
-      });
-
-      // Step 2: Prepare and submit transaction
-      setCurrentStep(2);
-
-      // TODO: Re-enable when wallet providers are added
-      // Get depositor's BTC public key and convert to x-only format
-      // const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-      // const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
-
-      // TODO: Use estimatePeginFee from utils/fee/peginFee.ts
-      // Select suitable UTXO and estimate fee dynamically
-      // const feeRate = await getFeeRate(); // Fetch current network fee rate
-      // const estimatedFee = estimatePeginFee(pegInAmountSats, [selectedUTXO], feeRate);
-      // const requiredAmount = pegInAmountSats + estimatedFee;
-      // const selectedUTXO = selectUTXOForPegin(confirmedUTXOs, requiredAmount);
-
-      // if (!selectedUTXO) {
-      //   throw new Error(
-      //     `No suitable UTXO found. Required: ${requiredAmount} sats. Please ensure you have enough confirmed BTC.`,
-      //   );
-      // }
-
-      // Submit to smart contract with provider and liquidator data from API
-      throw new Error(
-        "Wallet providers not yet integrated. This feature will be available soon.",
-      );
-
-      // const result = await submitPeginRequest(
-      //   walletClient,
-      //   chain,
-      //   CONTRACTS.VAULT_CONTROLLER,
-      //   depositorBtcPubkey,
-      //   pegInAmountSats,
-      //   {
-      //     fundingTxid: selectedUTXO.txid,
-      //     fundingVout: selectedUTXO.vout,
-      //     fundingValue: BigInt(selectedUTXO.value),
-      //     fundingScriptPubkey: selectedUTXO.scriptPubKey,
-      //   },
-      //   selectedProvider,
-      //   vaultProviderBtcPubkey,
-      //   liquidatorBtcPubkeys,
-      // );
-
-      // TODO: Re-enable when wallet providers are added
-      // Step 3: Complete
-      // setCurrentStep(3);
-      // setProcessing(false);
-
-      // // Call success callback
-      // if (onSuccess) {
-      //   onSuccess(result.btcTxid, result.transactionHash, result.btcTxHex);
-      // }
-    } catch (err) {
-      const error =
-        err instanceof Error
-          ? err
-          : new Error("Unknown error occurred during deposit flow");
-
-      setError(error.message);
-      setProcessing(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
+export function useDepositFlow(
+  params: UseDepositFlowParams,
+): UseDepositFlowReturn {
+  const {
     amount,
     btcWalletProvider,
     depositorEthAddress,
     selectedProviders,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
+    onSuccess,
+  } = params;
+
+  // Use useState instead of useRef to trigger re-renders
+  const [currentStep, setCurrentStep] = useState(1);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Get BTC address from wallet provider
+  const btcConnector = useChainConnector("BTC");
+  const btcAddress = btcConnector?.connectedWallet?.account?.address;
+
+  // Fetch UTXOs
+  const {
     confirmedUTXOs,
-    currentStep,
+    isLoading: isUTXOsLoading,
+    error: utxoError,
+  } = useUTXOs(btcAddress);
+
+  const executeDepositFlow = useCallback(async () => {
+    try {
+      setProcessing(true);
+      setError(null);
+
+      // Validation checks
+      if (!btcAddress) {
+        throw new Error("BTC wallet not connected");
+      }
+      if (!depositorEthAddress) {
+        throw new Error("ETH wallet not connected");
+      }
+      if (amount <= 0n) {
+        throw new Error("Invalid deposit amount");
+      }
+      if (selectedProviders.length === 0) {
+        throw new Error("No providers selected");
+      }
+      if (isUTXOsLoading) {
+        throw new Error("Loading UTXOs...");
+      }
+      if (utxoError) {
+        throw new Error(`Failed to load UTXOs: ${utxoError}`);
+      }
+      if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+        throw new Error("No confirmed UTXOs available");
+      }
+
+      // ====================================================================
+      // STEP 1: Create proof of possession (BIP-322 signature)
+      // ====================================================================
+      setCurrentStep(1);
+
+      await createProofOfPossession({
+        ethAddress: depositorEthAddress,
+        btcAddress,
+        signMessage: (message: string) =>
+          btcWalletProvider.signMessage(message, "bip322-simple"),
+      });
+
+      // ====================================================================
+      // STEP 2: Create WASM transaction + Submit to smart contract
+      // ====================================================================
+      setCurrentStep(2);
+
+      // Get depositor's BTC public key
+      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+
+      // Process vault provider and liquidator keys (remove 0x prefix if present)
+      const processedVaultProviderKey = vaultProviderBtcPubkey.startsWith("0x")
+        ? vaultProviderBtcPubkey.slice(2)
+        : vaultProviderBtcPubkey;
+
+      const processedLiquidatorKeys = liquidatorBtcPubkeys.map((key) =>
+        key.startsWith("0x") ? key.slice(2) : key,
+      );
+
+      // Get ETH wallet client
+      const ethChain = getETHChain();
+      const ethWalletClient = await getWalletClient(getSharedWagmiConfig(), {
+        chainId: ethChain.id,
+      });
+
+      if (!ethWalletClient) {
+        throw new Error("Failed to get ETH wallet client");
+      }
+
+      // Select first suitable UTXO
+      const requiredAmount =
+        amount + BigInt(LOCAL_PEGIN_CONFIG.btcTransactionFee);
+      const selectedUTXO = confirmedUTXOs.find(
+        (utxo: { value: number }) => utxo.value >= requiredAmount,
+      );
+
+      if (!selectedUTXO) {
+        throw new Error(
+          `No suitable UTXO found. You need at least ${Number(requiredAmount) / 100000000} BTC (including transaction fee).`,
+        );
+      }
+
+      // Prepare UTXO params for service
+      const utxoParams = {
+        fundingTxid: selectedUTXO.txid,
+        fundingVout: selectedUTXO.vout,
+        fundingValue: BigInt(selectedUTXO.value),
+        fundingScriptPubkey: selectedUTXO.scriptPubKey,
+      };
+
+      // Submit peg-in request (creates WASM tx + submits ETH tx)
+      const result = await submitPeginRequest(
+        ethWalletClient,
+        ethChain,
+        CONTRACTS.VAULT_CONTROLLER,
+        depositorBtcPubkey,
+        amount,
+        utxoParams,
+        selectedProviders[0] as Address,
+        processedVaultProviderKey,
+        processedLiquidatorKeys,
+      );
+
+      // ====================================================================
+      // STEP 3: Complete
+      // ====================================================================
+      setCurrentStep(3);
+
+      // Call success callback with transaction hashes
+      onSuccess(result.btcTxid, result.transactionHash);
+
+      setProcessing(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      setProcessing(false);
+    }
+  }, [
+    amount,
+    btcAddress,
+    btcWalletProvider,
+    confirmedUTXOs,
+    depositorEthAddress,
+    isUTXOsLoading,
+    liquidatorBtcPubkeys,
+    onSuccess,
+    selectedProviders,
+    utxoError,
+    vaultProviderBtcPubkey,
   ]);
 
   return {

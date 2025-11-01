@@ -5,4 +5,5 @@ export * from "./vaultPeginBroadcastService";
 export * from "./vaultProofOfPossessionService";
 export * from "./vaultProviderService";
 export * from "./vaultQueryService";
+export * from "./vaultRpcService";
 export * from "./vaultTransactionService";

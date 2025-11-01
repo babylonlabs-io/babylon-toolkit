@@ -83,7 +83,7 @@ export interface VaultActivity {
   /** Market ID (for repay/borrow operations) */
   marketId?: string;
 
-  /** Timestamp (for sorting/ordering) */
+  /** Timestamp (for sorting/ordering) - milliseconds since epoch */
   timestamp?: number;
 }
 

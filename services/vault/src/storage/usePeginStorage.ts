@@ -16,7 +16,6 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
   savePendingPegins,
-  updatePeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
 
 export interface UsePeginStorageParams {
@@ -32,11 +31,10 @@ export interface UsePeginStorageResult {
   /** Pending peg-ins from localStorage */
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
-  addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
-  /** Update status of a pending peg-in in localStorage */
-  updatePendingPeginStatus: (
-    peginId: string,
-    status: PendingPeginRequest["status"],
+  addPendingPegin: (
+    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+      status?: PendingPeginRequest["status"];
+    },
   ) => void;
 }
 
@@ -90,13 +88,11 @@ export function usePeginStorage({
           symbol: "BTC",
         },
         providers: pending.providerId
-          ? [
-              {
-                id: pending.providerId,
-                name: "Vault Provider", // Name will be fetched from contract later
-                icon: "",
-              },
-            ]
+          ? pending.providerId.map((id) => ({
+              id,
+              name: "Vault Provider", // Name will be fetched from contract later
+              icon: "",
+            }))
           : [],
         contractStatus: 0, // Pending status
         isPending: true,
@@ -114,22 +110,19 @@ export function usePeginStorage({
 
   // Add pending peg-in
   const addPendingPegin = useCallback(
-    (pegin: Omit<PendingPeginRequest, "timestamp">) => {
+    (
+      pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+        status?: PendingPeginRequest["status"];
+      },
+    ) => {
       if (!ethAddress) return;
       addPendingPeginToStorage(ethAddress, {
         id: pegin.id,
         amount: pegin.amount,
         providerId: pegin.providerId,
+        status: pegin.status, // Pass through status if provided
+        btcTxHash: pegin.btcTxHash, // Pass through btcTxHash if provided
       });
-    },
-    [ethAddress],
-  );
-
-  // Update pending peg-in status
-  const updatePendingPeginStatus = useCallback(
-    (peginId: string, status: PendingPeginRequest["status"]) => {
-      if (!ethAddress) return;
-      updatePendingPeginStatusInStorage(ethAddress, peginId, status);
     },
     [ethAddress],
   );
@@ -138,6 +131,5 @@ export function usePeginStorage({
     allActivities,
     pendingPegins,
     addPendingPegin,
-    updatePendingPeginStatus,
   };
 }
