@@ -1,11 +1,13 @@
 /**
  * Custom React hooks for vault operations
  *
- * Note: Component-specific hooks have been moved to live next to their components.
- * This directory now only contains truly shared/reusable hooks.
+ * - Deposit/Peg-in hooks: components/Collateral/Deposit/hooks/
+ * - Redeem hooks: components/Collateral/Redeem/hooks/ (when implemented)
+ *
  */
 
-export { usePeginRequests } from "./usePeginRequests";
-export type { UsePeginRequestsResult } from "./usePeginRequests";
+export { useBtcPublicKey } from "./useBtcPublicKey";
 export { useSinglePosition } from "./useSinglePosition";
 export type { UseSinglePositionResult } from "./useSinglePosition";
+export { useUserPositions } from "./useUserPositions";
+export { useUTXOs } from "./useUTXOs";

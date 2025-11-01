@@ -6,7 +6,7 @@
  */
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import { Psbt, Transaction, initEccLib, payments } from "bitcoinjs-lib";
+import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 
 import {
   createPayoutConnector,
@@ -187,34 +187,29 @@ export async function signPayoutTransaction(
     }
 
     // Try to extract from finalized transaction witness (for finalized PSBT)
-    // eslint-disable-next-line no-useless-catch
-    try {
-      const tx = signedPsbt.extractTransaction();
-      const witness = tx.ins[0].witness;
+    const tx = signedPsbt.extractTransaction();
+    const witness = tx.ins[0].witness;
 
-      if (!witness || witness.length === 0) {
-        throw new Error("No witness data in signed transaction");
+    if (!witness || witness.length === 0) {
+      throw new Error("No witness data in signed transaction");
+    }
+
+    // For Taproot script path spend: [sig1] [sig2] ... [sigN] [script] [control_block]
+    const depositorSig = witness[0];
+
+    // Remove sighash flag byte if present
+    if (depositorSig.length === 64) {
+      return depositorSig.toString("hex");
+    } else if (depositorSig.length === 65) {
+      const sighashFlag = depositorSig[64];
+      if (sighashFlag !== 0x01 && sighashFlag !== 0x00) {
+        throw new Error(
+          `Unexpected sighash flag: 0x${sighashFlag.toString(16)}`,
+        );
       }
-
-      // For Taproot script path spend: [sig1] [sig2] ... [sigN] [script] [control_block]
-      const depositorSig = witness[0];
-
-      // Remove sighash flag byte if present
-      if (depositorSig.length === 64) {
-        return depositorSig.toString("hex");
-      } else if (depositorSig.length === 65) {
-        const sighashFlag = depositorSig[64];
-        if (sighashFlag !== 0x01 && sighashFlag !== 0x00) {
-          throw new Error(
-            `Unexpected sighash flag: 0x${sighashFlag.toString(16)}`,
-          );
-        }
-        return depositorSig.subarray(0, 64).toString("hex");
-      } else {
-        throw new Error(`Unexpected signature length: ${depositorSig.length}`);
-      }
-    } catch (extractError) {
-      throw extractError;
+      return depositorSig.subarray(0, 64).toString("hex");
+    } else {
+      throw new Error(`Unexpected signature length: ${depositorSig.length}`);
     }
   } catch (error) {
     if (error instanceof Error) {

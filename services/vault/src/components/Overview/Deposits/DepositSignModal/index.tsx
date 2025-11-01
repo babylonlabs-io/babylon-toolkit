@@ -8,23 +8,26 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { Address } from "viem";
-
-import { addPendingPegin } from "../../../../storage/peginStorage";
 
 import { useDepositFlow } from "./hooks/useDepositFlow";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (btcTxid: string, ethTxHash: string) => void;
+  onSuccess: (
+    btcTxid: string,
+    ethTxHash: string,
+    depositorBtcPubkey: string,
+  ) => void;
   amount: bigint; // in satoshis
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
   liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
+  onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
 }
 
 export function CollateralDepositSignModal({
@@ -37,7 +40,12 @@ export function CollateralDepositSignModal({
   selectedProviders,
   vaultProviderBtcPubkey,
   liquidatorBtcPubkeys,
+  onRefetchActivities,
 }: CollateralDepositSignModalProps) {
+  // Track previous open state to detect transitions
+  const prevOpenRef = useRef(false);
+  const hasExecutedRef = useRef(false);
+
   const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
     {
       amount,
@@ -46,27 +54,43 @@ export function CollateralDepositSignModal({
       selectedProviders,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
-      onSuccess: (btcTxid, ethTxHash) => {
-        // Store pegin in localStorage for tracking
-        if (depositorEthAddress) {
-          addPendingPegin(depositorEthAddress, {
-            id: ethTxHash,
-            amount: amount.toString(),
-            providerId: selectedProviders[0], // Use first selected provider
-          });
+      modalOpen: open, // Pass modal open state to control Step 3 auto-signing
+      onSuccess: (
+        btcTxid: string,
+        ethTxHash: string,
+        depositorBtcPubkey: string,
+      ) => {
+        // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
+        // and after Step 3 (PAYOUT_SIGNED)
+
+        // Trigger refetch to immediately show the updated deposit
+        if (onRefetchActivities) {
+          onRefetchActivities();
         }
 
-        // Call parent success handler
-        onSuccess(btcTxid, ethTxHash);
+        // Call parent success handler with depositor BTC pubkey
+        onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
       },
     },
   );
 
-  // Execute flow when modal opens
+  // Execute flow once when modal transitions from closed to open
   useEffect(() => {
-    if (open && !processing && !error) {
+    const justOpened = open && !prevOpenRef.current;
+    if (justOpened && !hasExecutedRef.current) {
+      // Mark as executed immediately to prevent duplicate calls (React 18 Strict Mode)
+      hasExecutedRef.current = true;
       executeDepositFlow();
     }
+
+    // Reset execution flag when modal closes
+    if (!open && prevOpenRef.current) {
+      hasExecutedRef.current = false;
+    }
+
+    // Update previous open state
+    prevOpenRef.current = open;
+    // executeDepositFlow is intentionally not in deps - we only want to execute on modal open transition
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -83,7 +107,7 @@ export function CollateralDepositSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Please wait while we process your deposit
+          Please complete the required signing steps to begin your BTC deposit.
         </Text>
 
         <div className="flex flex-col items-start gap-4 py-4">
@@ -91,10 +115,10 @@ export function CollateralDepositSignModal({
             Sign proof of possession
           </Step>
           <Step step={2} currentStep={currentStep}>
-            Sign & broadcast collateral deposit request to Vault Controller
+            Sign & submit peg-in request to Ethereum
           </Step>
           <Step step={3} currentStep={currentStep}>
-            Complete
+            Sign Payout Transactions
           </Step>
         </div>
 

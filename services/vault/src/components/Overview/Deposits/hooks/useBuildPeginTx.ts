@@ -20,8 +20,11 @@ import { useState } from "react";
 import {
   buildPeginPsbt,
   getNetwork,
-} from "../utils/transaction/buildPeginPsbt";
-import { selectUtxosForPegin, type UTXO } from "../utils/utxo/selectUtxos";
+} from "../../../../utils/transaction/buildPeginPsbt";
+import {
+  selectUtxosForPegin,
+  type UTXO,
+} from "../../../../utils/utxo/selectUtxos";
 
 export interface UseBuildPeginTxParams {
   /** X-only public key of the depositor (hex encoded) */

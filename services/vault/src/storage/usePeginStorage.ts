@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
+import type { LocalStorageStatus } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
 
 import {
@@ -16,7 +17,7 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
   savePendingPegins,
-  updatePeginStatus as updatePendingPeginStatusInStorage,
+  updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
 
 export interface UsePeginStorageParams {
@@ -33,10 +34,11 @@ export interface UsePeginStorageResult {
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
   addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
-  /** Update status of a pending peg-in in localStorage */
+  /** Update status of a pending peg-in, optionally with btcTxHash */
   updatePendingPeginStatus: (
     peginId: string,
-    status: PendingPeginRequest["status"],
+    status: LocalStorageStatus,
+    btcTxHash?: string,
   ) => void;
 }
 
@@ -89,10 +91,10 @@ export function usePeginStorage({
           amount: pending.amount || "0", // Use stored amount from localStorage
           symbol: "BTC",
         },
-        providers: pending.providerId
+        providers: pending.providerIds
           ? [
               {
-                id: pending.providerId,
+                id: pending.providerIds?.join(",") || "",
                 name: "Vault Provider", // Name will be fetched from contract later
                 icon: "",
               },
@@ -119,7 +121,11 @@ export function usePeginStorage({
       addPendingPeginToStorage(ethAddress, {
         id: pegin.id,
         amount: pegin.amount,
-        providerId: pegin.providerId,
+        providerIds: pegin.providerIds,
+        status: pegin.status,
+        btcTxHash: pegin.btcTxHash,
+        unsignedTxHex: pegin.unsignedTxHex,
+        selectedUTXOs: pegin.selectedUTXOs,
       });
     },
     [ethAddress],
@@ -127,9 +133,9 @@ export function usePeginStorage({
 
   // Update pending peg-in status
   const updatePendingPeginStatus = useCallback(
-    (peginId: string, status: PendingPeginRequest["status"]) => {
+    (peginId: string, status: LocalStorageStatus, btcTxHash?: string) => {
       if (!ethAddress) return;
-      updatePendingPeginStatusInStorage(ethAddress, peginId, status);
+      updatePendingPeginStatusInStorage(ethAddress, peginId, status, btcTxHash);
     },
     [ethAddress],
   );

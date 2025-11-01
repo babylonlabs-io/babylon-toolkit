@@ -30,15 +30,16 @@ export function CollateralDepositSuccessModal({
           variant="h4"
           className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
         >
-          BTC Deposit Successful
+          Deposit Request Submitted
         </Heading>
 
         <Text
           variant="body1"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your deposit has been recorded and is now awaiting confirmation on the
-          Bitcoin network. This usually takes up to 5 hours.
+          Your deposit request has been sent. Vault Providers are preparing
+          transactions to secure your BTC, and you'll be asked to sign
+          additional Bitcoin transactions once they're ready.
         </Text>
       </DialogBody>
 

@@ -1,8 +1,7 @@
 import type { Hex } from "viem";
 
+import { usePeginRequests } from "../components/Overview/Deposits/hooks/usePeginRequests";
 import { usePeginStorage } from "../storage/usePeginStorage";
-
-import { usePeginRequests } from "./usePeginRequests";
 
 /**
  * Hook to manage vault deposits data fetching
@@ -14,12 +13,7 @@ export function useVaultDeposits(connectedAddress: Hex | undefined) {
     connectedAddress,
   });
 
-  const {
-    allActivities,
-    pendingPegins,
-    addPendingPegin,
-    updatePendingPeginStatus,
-  } = usePeginStorage({
+  const { allActivities, pendingPegins, addPendingPegin } = usePeginStorage({
     ethAddress: connectedAddress || "",
     confirmedPegins: confirmedActivities,
   });
@@ -29,6 +23,5 @@ export function useVaultDeposits(connectedAddress: Hex | undefined) {
     pendingPegins,
     refetchActivities: refetch,
     addPendingPegin,
-    updatePendingPeginStatus,
   };
 }

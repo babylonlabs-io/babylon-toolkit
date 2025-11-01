@@ -4,8 +4,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import type { MorphoMarket } from "../services/market/marketService";
-import { getMarkets } from "../services/market/marketService";
+import { getMarkets } from "../services/market";
+import type { MorphoMarket } from "../types";
 
 /**
  * Result interface for useMarkets hook
@@ -30,7 +30,9 @@ export function useMarkets(): UseMarketsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["markets"],
-    queryFn: () => getMarkets(),
+    queryFn: async () => {
+      return getMarkets();
+    },
     retry: 2,
     staleTime: 60000, // 1 minute
   });
