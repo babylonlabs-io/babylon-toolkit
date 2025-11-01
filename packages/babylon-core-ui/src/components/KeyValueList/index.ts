@@ -1,3 +1,3 @@
 export { KeyValueList } from "./KeyValueList";
-export type { KeyValueListProps, KeyValueItem } from "./KeyValueList";
+export type { KeyValueListProps, KeyValueItem, KeyValueListTextSize } from "./KeyValueList";
 

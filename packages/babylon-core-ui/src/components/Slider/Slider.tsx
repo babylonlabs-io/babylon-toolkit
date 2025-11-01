@@ -15,7 +15,7 @@ export interface SliderProps {
   steps?: SliderStep[] | number;
   maxStepCount?: number;
   onChange: (value: number) => void;
-  onStepsChange?: (selectedSteps: number[]) => void; // Called when steps is array - returns cumulative selection
+  onStepsChange?: (selectedSteps: number[]) => void;
   variant?: "primary" | "success" | "warning" | "error" | "rainbow";
   activeColor?: string;
   className?: string;
@@ -114,8 +114,6 @@ export function Slider({
       onChange(newValue);
     }
   };
-
-  console.log({value, className, fillPercentage, step, computedSteps})
 
   return (
     <div className="relative w-full">

@@ -21,6 +21,10 @@
     @apply size-10;
   }
 
+  &-xlarge {
+    @apply size-16;
+  }
+
   &-circular {
     @apply rounded-full;
   }

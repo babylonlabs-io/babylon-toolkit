@@ -62,8 +62,8 @@ export function MarketInfo({
         <span className="text-sm">Dashboard</span>
       </Button>
 
-      <div className="flex items-center gap-3">
-        <AvatarGroup size="large">
+      <div className="flex items-center gap-6">
+        <AvatarGroup size="xlarge">
           <Avatar url={btcIcon} alt="BTC" size="large" variant="circular" />
           <Avatar url={usdcIcon} alt="USDC" size="large" variant="circular" />
         </AvatarGroup>

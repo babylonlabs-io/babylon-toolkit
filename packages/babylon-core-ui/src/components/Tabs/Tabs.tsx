@@ -34,7 +34,6 @@ export const Tabs = ({
 
   const activeTab = controlledActiveTab ?? internalActiveTab;
 
-  // Synchronizes the internal active tab state with the controlledActiveTab prop.
   useEffect(() => {
     if (controlledActiveTab !== undefined) {
       setInternalActiveTab(controlledActiveTab);
@@ -51,12 +50,11 @@ export const Tabs = ({
 
   const activeContent = items.find((item) => item.id === activeTab)?.content;
 
-  // Variant-specific styles
   const isSimple = variant === "simple";
 
   return (
     <div className={twMerge("w-full", className)}>
-      <div className="mb-6 flex w-full gap-2" role="tablist">
+      <div className="mb-6 flex w-full gap-6" role="tablist">
         {items.map((item) => (
           <button
             key={item.id}
@@ -69,7 +67,7 @@ export const Tabs = ({
               "transition-colors duration-200",
               isSimple
                 ? twMerge(
-                    "px-4 py-2 text-lg font-normal",
+                    "text-lg font-normal pb-4",
                     activeTab === item.id
                       ? "text-accent-primary"
                       : "text-accent-secondary",
@@ -88,9 +86,8 @@ export const Tabs = ({
         ))}
       </div>
       
-      {/* Divider for simple variant */}
       {isSimple && (
-        <div className="w-full h-[1px] bg-secondary-strokeDark mb-6 -mt-6" />
+        <div className="w-full h-[1px] bg-secondary-strokeDark mb-6 -mt-6 opacity-30" />
       )}
 
       {keepMounted ? (
