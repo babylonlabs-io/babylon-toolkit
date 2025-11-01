@@ -49,6 +49,7 @@ function OverviewContent() {
     step: depositStep,
     depositAmount,
     selectedProviders,
+    // btcTxid,
     goToStep: goToDepositStep,
     setDepositData,
     setTransactionHashes: setDepositTransactionHashes,
@@ -82,25 +83,6 @@ function OverviewContent() {
     };
   }, [selectedProviders, providers]);
 
-  // Get selected provider info for localStorage
-  const selectedProviderInfo = useMemo(() => {
-    if (selectedProviders.length === 0 || providers.length === 0) {
-      return undefined;
-    }
-    const provider = providers.find(
-      (p: VaultProvider) =>
-        p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
-    );
-    if (!provider) return undefined;
-
-    // Map VaultProvider to StoredProvider format
-    return {
-      id: provider.id,
-      // Note: VaultProvider doesn't have name/icon from API yet
-      // These can be added later when provider metadata is available
-    };
-  }, [selectedProviders, providers]);
-
   // Deposit flow handlers
   const handleDeposit = (amount: bigint, providers: string[]) => {
     setDepositData(amount, providers);
@@ -113,6 +95,7 @@ function OverviewContent() {
 
   const handleDepositSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setDepositTransactionHashes(btcTxid, ethTxHash);
+    // All 3 steps complete - go directly to success modal
     goToDepositStep(VaultDepositStep.SUCCESS);
   };
 
@@ -171,7 +154,6 @@ function OverviewContent() {
             btcWalletProvider={btcWalletProvider}
             depositorEthAddress={ethAddress}
             selectedProviders={selectedProviders}
-            selectedProviderInfo={selectedProviderInfo}
             vaultProviderBtcPubkey={selectedProviderBtcPubkey}
             liquidatorBtcPubkeys={liquidatorBtcPubkeys}
             onRefetchActivities={refetchActivities}
@@ -184,39 +166,9 @@ function OverviewContent() {
             amount={depositAmount}
           />
         )}
-
-        {/* TODO: Uncomment when redeem flow is ready */}
-        {/* Redeem Modal Flow */}
-        {/* {redeemStep === VaultRedeemStep.FORM && (
-            <RedeemCollateralModal
-              open
-              onClose={resetRedeem}
-              onRedeem={handleRedeem}
-            />
-          )}
-          {redeemStep === VaultRedeemStep.REVIEW && (
-            <RedeemCollateralReviewModal
-              open
-              onClose={resetRedeem}
-              onConfirm={handleRedeemReviewConfirm}
-              depositIds={redeemDepositIds}
-            />
-          )}
-          {redeemStep === VaultRedeemStep.SIGN && (
-            <RedeemCollateralSignModal
-              open
-              onClose={resetRedeem}
-              onSuccess={handleRedeemSignSuccess}
-              depositIds={redeemDepositIds}
-            />
-          )}
-          {redeemStep === VaultRedeemStep.SUCCESS && (
-            <RedeemCollateralSuccessModal open onClose={resetRedeem} />
-          )} */}
       </>
     );
   }
-
   return (
     <>
       <Card>
@@ -274,7 +226,6 @@ function OverviewContent() {
           btcWalletProvider={btcWalletProvider}
           depositorEthAddress={ethAddress}
           selectedProviders={selectedProviders}
-          selectedProviderInfo={selectedProviderInfo}
           vaultProviderBtcPubkey={selectedProviderBtcPubkey}
           liquidatorBtcPubkeys={liquidatorBtcPubkeys}
           onRefetchActivities={refetchActivities}
@@ -287,35 +238,6 @@ function OverviewContent() {
           amount={depositAmount}
         />
       )}
-
-      {/* TODO: Uncomment when redeem flow is ready */}
-      {/* Redeem Modal Flow */}
-      {/* {redeemStep === VaultRedeemStep.FORM && (
-          <RedeemCollateralModal
-            open
-            onClose={resetRedeem}
-            onRedeem={handleRedeem}
-          />
-        )}
-        {redeemStep === VaultRedeemStep.REVIEW && (
-          <RedeemCollateralReviewModal
-            open
-            onClose={resetRedeem}
-            onConfirm={handleRedeemReviewConfirm}
-            depositIds={redeemDepositIds}
-          />
-        )}
-        {redeemStep === VaultRedeemStep.SIGN && (
-          <RedeemCollateralSignModal
-            open
-            onClose={resetRedeem}
-            onSuccess={handleRedeemSignSuccess}
-            depositIds={redeemDepositIds}
-          />
-        )}
-        {redeemStep === VaultRedeemStep.SUCCESS && (
-          <RedeemCollateralSuccessModal open onClose={resetRedeem} />
-        )} */}
     </>
   );
 }
@@ -323,10 +245,7 @@ function OverviewContent() {
 export function Overview() {
   return (
     <VaultDepositState>
-      {/* TODO: Uncomment when redeem flow is ready */}
-      {/* <VaultRedeemState> */}
       <OverviewContent />
-      {/* </VaultRedeemState> */}
     </VaultDepositState>
   );
 }

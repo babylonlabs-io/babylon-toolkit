@@ -147,7 +147,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Ready to Sign",
+      displayLabel: "Signing required",
       displayVariant: "pending",
       availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
     };
@@ -194,7 +194,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "In Position",
+      displayLabel: "In Use",
       displayVariant: "active",
       availableActions: [PeginAction.NONE],
       message:
