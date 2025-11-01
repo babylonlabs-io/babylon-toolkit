@@ -21,11 +21,6 @@ import {
   useVaultDepositState,
   VaultDepositStep,
 } from "../state/VaultDepositState";
-// TODO: Uncomment when redeem flow is ready
-// import {
-//   useVaultRedeemState,
-//   VaultRedeemStep,
-// } from "../../Redeem/state/VaultRedeemState";
 
 function EmptyState({
   onDeposit,
@@ -100,8 +95,6 @@ export function DepositOverview() {
     Array<string | number>
   >([]);
   const { goToStep: goToDepositStep } = useVaultDepositState();
-  // TODO: Uncomment when redeem flow is ready
-  // const { goToStep: goToRedeemStep, setRedeemData } = useVaultRedeemState();
 
   const handleDeposit = () => {
     if (!isConnected) {
@@ -112,14 +105,6 @@ export function DepositOverview() {
       goToDepositStep(VaultDepositStep.FORM);
     }
   };
-
-  // TODO: Uncomment when redeem flow is ready
-  // const handleRedeem = () => {
-  //   if (selectedDepositIds.length > 0) {
-  //     setRedeemData(selectedDepositIds as string[]);
-  //     goToRedeemStep(VaultRedeemStep.FORM);
-  //   }
-  // };
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || deposits.length === 0) {

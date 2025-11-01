@@ -9,11 +9,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
-import { VaultProviderRpcApi } from "../../../../clients/vault-provider-rpc";
+import { VaultProviderRpcApi } from "../../../../services/vault";
 import type {
   ClaimerTransactions,
   RequestClaimAndPayoutTransactionsResponse,
-} from "../../../../clients/vault-provider-rpc/types";
+} from "../../../../types";
 import { stripHexPrefix } from "../../../../utils/btc";
 
 import { useVaultProviders } from "./useVaultProviders";

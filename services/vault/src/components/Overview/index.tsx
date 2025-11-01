@@ -7,30 +7,19 @@ import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
 import { useVaultDeposits } from "../../hooks/useVaultDeposits";
 import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
-import { DepositOverview } from "./Deposits/DepositOverview";
+
+import { Activity } from "./Activity";
 import { CollateralDepositModal } from "./Deposits/DepositFormModal";
+import { DepositOverview } from "./Deposits/DepositOverview";
 import { CollateralDepositReviewModal } from "./Deposits/DepositReviewModal";
+import { CollateralDepositSignModal } from "./Deposits/DepositSignModal";
 import { CollateralDepositSuccessModal } from "./Deposits/DepositSuccessModal";
 import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
-// TODO: Uncomment when redeem flow is ready
-// import { RedeemCollateralModal } from "../Collateral/Redeem/components/FormModal";
-// import { RedeemCollateralReviewModal } from "../Collateral/Redeem/components/ReviewModal";
-// import { RedeemCollateralSignModal } from "../Collateral/Redeem/components/SignModal";
-// import { RedeemCollateralSuccessModal } from "../Collateral/Redeem/components/SuccessModal";
 import {
   useVaultDepositState,
   VaultDepositState,
   VaultDepositStep,
 } from "./Deposits/state/VaultDepositState";
-
-import { Activity } from "./Activity";
-import { CollateralDepositSignModal } from "./Deposits/DepositSignModal";
-// TODO: Uncomment when redeem flow is ready
-// import {
-//   useVaultRedeemState,
-//   VaultRedeemState,
-//   VaultRedeemStep,
-// } from "../Collateral/Redeem/state/VaultRedeemState";
 import { Market } from "./Market";
 import { Position } from "./Position";
 
@@ -65,16 +54,6 @@ function OverviewContent() {
     setTransactionHashes: setDepositTransactionHashes,
     reset: resetDeposit,
   } = useVaultDepositState();
-
-  // TODO: Uncomment when redeem flow is ready
-  // Redeem flow state
-  // const {
-  //   step: redeemStep,
-  //   redeemDepositIds,
-  //   goToStep: goToRedeemStep,
-  //   setTransactionHashes: setRedeemTransactionHashes,
-  //   reset: resetRedeem,
-  // } = useVaultRedeemState();
 
   // Get selected provider's BTC public key and liquidators from API data
   const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
@@ -136,23 +115,6 @@ function OverviewContent() {
     setDepositTransactionHashes(btcTxid, ethTxHash);
     goToDepositStep(VaultDepositStep.SUCCESS);
   };
-
-  // TODO: Uncomment when redeem flow is ready
-  // Redeem flow handlers
-  // const handleRedeem = () => {
-  //   // Proceed to review
-  //   // Note: The RedeemCollateralModal now uses a simple amount input
-  //   goToRedeemStep(VaultRedeemStep.REVIEW);
-  // };
-
-  // const handleRedeemReviewConfirm = () => {
-  //   goToRedeemStep(VaultRedeemStep.SIGN);
-  // };
-
-  // const handleRedeemSignSuccess = (btcTxid: string, ethTxHash: string) => {
-  //   setRedeemTransactionHashes(btcTxid, ethTxHash);
-  //   goToRedeemStep(VaultRedeemStep.SUCCESS);
-  // };
 
   if (!isMobile) {
     return (

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { VaultApiClient } from "../clients/vault-api";
 import { getVaultApiUrl } from "../clients/vault-api/config";
-import type { Vault } from "../clients/vault-api/types";
+import type { Vault } from "../types";
 
 /**
  * Result interface for useVaults hook

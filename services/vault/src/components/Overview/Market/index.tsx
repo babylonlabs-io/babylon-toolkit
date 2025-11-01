@@ -8,8 +8,8 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
-import type { MorphoMarket } from "../../../clients/vault-api/types";
 import { useMarkets } from "../../../hooks/useMarkets";
+import type { MorphoMarket } from "../../../types";
 import { formatLLTV } from "../../../utils/formatting";
 
 export function Market() {

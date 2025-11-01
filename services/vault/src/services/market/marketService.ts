@@ -80,6 +80,19 @@ export async function getMarkets(): Promise<MorphoMarket[]> {
 }
 
 /**
+ * Get a specific market by ID from vault-indexer API
+ *
+ * @param marketId - Market ID to fetch
+ * @returns Market information or null if not found
+ */
+export async function getMarketById(
+  marketId: string,
+): Promise<MorphoMarket | null> {
+  const markets = await getMarkets();
+  return markets.find((market) => market.id === marketId) || null;
+}
+
+/**
  * Validate a single market against on-chain Morpho contract
  *
  * @param market - Market to validate

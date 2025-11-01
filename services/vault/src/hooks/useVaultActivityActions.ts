@@ -6,8 +6,8 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
 import { CONTRACTS } from "../config/contracts";
+import type { ClaimerTransactions } from "../types";
 // Note: getNextLocalStatus removed since status tracking is deprecated
 import { useSignPeginTransactions } from "../components/Overview/Deposits/hooks/useSignPeginTransactions";
 import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
