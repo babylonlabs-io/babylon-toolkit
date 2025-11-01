@@ -42,15 +42,9 @@ export function Slider({
     return ((value - min) / (max - min)) * 100;
   }, [value, min, max]);
 
-  const isArrayMode = useMemo(() => {
-    return Array.isArray(steps);
-  }, [steps]);
-
   const computedSteps = useMemo(() => {
-    if (!steps) return undefined;
-    
     if (typeof steps === 'number') {
-      // Generate evenly distributed steps
+      // Generate evenly distributed steps (including max, but we'll filter it out later)
       const count = Math.min(steps, maxStepCount);
       const stepSize = (max - min) / (count - 1);
       return Array.from({ length: count }, (_, i) => ({
@@ -58,31 +52,46 @@ export function Slider({
       }));
     }
     
-    // Array provided - use actual values
-    return steps.slice(0, maxStepCount);
-  }, [steps, min, max, maxStepCount]);
+    if (Array.isArray(steps)) {
+      // Array provided - use actual values
+      return steps.slice(0, maxStepCount);
+    }
+    
+    // No steps provided - generate 5 default steps evenly distributed (not including max)
+    const defaultStepCount = 5;
+    const stepSize = (max - min) / defaultStepCount;
+    return Array.from({ length: defaultStepCount }, (_, i) => ({
+      value: min + (stepSize * i)
+    }));
+  }, [steps, min, max, maxStepCount, step]);
 
-  // For rendering dots - exclude first and last
+  // For rendering dots - filter out steps at min and max values
   const visibleSteps = useMemo(() => {
-    if (!computedSteps || computedSteps.length <= 2) return [];
-    return computedSteps.slice(1, -1); // Remove first and last
-  }, [computedSteps]);
+    if (!computedSteps) return [];
+    return computedSteps.filter(step => step.value > min && step.value < max);
+  }, [computedSteps, min, max]);
 
-  // Generate CSS background pattern for step dots (excluding first and last)
-  const stepDotsBackground = useMemo(() => {
-    if (!visibleSteps || visibleSteps.length === 0) return '';
-    
-    const dots = visibleSteps.map((stepItem) => {
-      const position = ((stepItem.value - min) / (max - min)) * 100;
-      return `radial-gradient(circle at ${position}% center, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.4) 4px, transparent 4px)`;
-    });
-    
-    return dots.join(', ');
-  }, [visibleSteps, min, max]);
+  // Calculate the actual step size to use for the input element
+  const inputStep = useMemo(() => {
+    if (Array.isArray(steps) && computedSteps && computedSteps.length > 1) {
+      // Find the minimum difference between consecutive steps
+      const stepValues = computedSteps.map(s => s.value).sort((a, b) => a - b);
+      let minDiff = Infinity;
+      for (let i = 1; i < stepValues.length; i++) {
+        const diff = stepValues[i] - stepValues[i - 1];
+        if (diff > 0 && diff < minDiff) {
+          minDiff = diff;
+        }
+      }
+      // Return the smallest step or a very small value to allow any position
+      return minDiff !== Infinity ? minDiff : step;
+    }
+    return step;
+  }, [steps, computedSteps, step]);
 
   const handleChange = (newValue: number) => {
-    if (computedSteps && computedSteps.length > 0) {
-      // Find nearest step and snap to it
+    if (Array.isArray(steps) && computedSteps && computedSteps.length > 0) {
+      // Array mode: snap to nearest step and call onStepsChange
       const nearest = computedSteps.reduce((prev, curr) => {
         return Math.abs(curr.value - newValue) < Math.abs(prev.value - newValue)
           ? curr
@@ -90,8 +99,7 @@ export function Slider({
       });
       onChange(nearest.value);
       
-      // Array mode: call onStepsChange with cumulative selection
-      if (isArrayMode && onStepsChange && computedSteps) {
+      if (onStepsChange && computedSteps) {
         const currentIndex = computedSteps.findIndex(s => s.value === nearest.value);
         if (currentIndex !== -1) {
           // Return all steps from beginning up to and including current
@@ -102,9 +110,12 @@ export function Slider({
         }
       }
     } else {
+      // Default behavior: allow smooth sliding without snapping
       onChange(newValue);
     }
   };
+
+  console.log({value, className, fillPercentage, step, computedSteps})
 
   return (
     <div className="relative w-full">
@@ -112,7 +123,7 @@ export function Slider({
         type="range"
         min={min}
         max={max}
-        step={step}
+        step={inputStep}
         value={value}
         onChange={(e) => handleChange(parseFloat(e.target.value))}
         disabled={disabled}
@@ -121,15 +132,37 @@ export function Slider({
           `bbn-slider-${variant}`,
           showFill && "bbn-slider-filled",
           disabled && "bbn-slider-disabled",
-          visibleSteps && visibleSteps.length > 0 && "bbn-slider-with-steps",
+          visibleSteps.length > 0 && "bbn-slider-with-steps",
           className
         )}
         style={{
           "--slider-fill": `${fillPercentage}%`,
           "--slider-active-color": activeColor,
-          "--step-dots-background": stepDotsBackground,
         } as React.CSSProperties}
       />
+      
+      {/* Step markers - white circles for each step */}
+      {visibleSteps.length > 0 && (
+        <div
+          className="absolute left-0 right-0 pointer-events-none z-10"
+          style={{ top: "calc(50% - 1px)" }}
+        >
+          {visibleSteps.map((stepItem, index) => {
+            const position = ((stepItem.value - min) / (max - min)) * 100;
+            return (
+              <div
+                key={index}
+                className="absolute rounded-full bg-white"
+                style={{
+                  width: '4px',
+                  height: '4px',
+                  left: `calc(${position}% - 1px)`,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
       
       {/* Rainbow mask overlay - shows stroke-dark for unreached portions */}
       {variant === "rainbow" && (

@@ -23,7 +23,7 @@ export const Default: Story = {
       <div className="w-[600px]">
         <AmountSlider
           amount={amount}
-          currencyIcon="/btc.png"
+          currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
           onAmountChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
           balanceDetails={{
@@ -63,7 +63,7 @@ export const RainbowVariant: Story = {
       <div className="w-[600px]">
         <AmountSlider
           amount={amount}
-          currencyIcon="/usdc.png"
+          currencyIcon="/images/usdc.png"
           currencyName="USDC"
           onAmountChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
           balanceDetails={{
@@ -102,7 +102,7 @@ export const WithCustomActiveColor: Story = {
       <div className="w-[600px]">
         <AmountSlider
           amount={amount}
-          currencyIcon="/btc.png"
+          currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
           onAmountChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
           sliderValue={amount}
@@ -117,6 +117,56 @@ export const WithCustomActiveColor: Story = {
             value: "5.0000 BTC",
           }}
           onMaxClick={() => setAmount(5)}
+        />
+      </div>
+    );
+  },
+};
+
+export const WithSteps: Story = {
+  render: () => {
+    const [amount, setAmount] = useState(0);
+    const [_, setSelectedSteps] = useState<number[]>([]);
+    
+    const steps = [
+      { value: 0, label: "0%" },
+      { value: 1.25, label: "25%" },
+      { value: 2.5, label: "50%" },
+      { value: 3.75, label: "75%" },
+      { value: 5, label: "100%" },
+    ];
+    
+    return (
+      <div className="w-[600px]">
+        <AmountSlider
+          amount={amount}
+          currencyIcon="/images/btc.png"
+          currencyName="Bitcoin"
+          onAmountChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+          balanceDetails={{
+            balance: 5.0,
+            symbol: "BTC",
+            price: 112694.16,
+            displayUSD: true,
+          }}
+          sliderValue={amount}
+          sliderMin={0}
+          sliderMax={5}
+          sliderSteps={steps}
+          onSliderChange={setAmount}
+          onSliderStepsChange={setSelectedSteps}
+          sliderVariant="primary"
+          leftField={{
+            label: "Max",
+            value: "5.0000 BTC",
+          }}
+          onMaxClick={() => setAmount(5)}
+          rightField={{
+            value: `$${(amount * 112694.16).toLocaleString('en-US', { 
+              minimumFractionDigits: 2, 
+              maximumFractionDigits: 2 
+            })} USD`,
+          }}
         />
       </div>
     );

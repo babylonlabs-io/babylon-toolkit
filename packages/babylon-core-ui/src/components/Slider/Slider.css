@@ -43,26 +43,22 @@
       );
     }
     
-    /* With step indicators */
+    /* With step indicators - same background as without steps since dots are rendered separately */
     &.bbn-slider-with-steps.bbn-slider-filled::-webkit-slider-runnable-track {
-      background: 
-        var(--step-dots-background),
-        linear-gradient(to right,
-          var(--slider-active-color, #ff7c2a) 0%,
-          var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
-          var(--slider-inactive-color) var(--slider-fill, 0%),
-          var(--slider-inactive-color) 100%
-        );
+      background: linear-gradient(to right,
+        var(--slider-active-color, #ff7c2a) 0%,
+        var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
+        var(--slider-inactive-color) var(--slider-fill, 0%),
+        var(--slider-inactive-color) 100%
+      );
     }
     &.bbn-slider-with-steps.bbn-slider-filled::-moz-range-track {
-      background: 
-        var(--step-dots-background),
-        linear-gradient(to right,
-          var(--slider-active-color, #ff7c2a) 0%,
-          var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
-          var(--slider-inactive-color) var(--slider-fill, 0%),
-          var(--slider-inactive-color) 100%
-        );
+      background: linear-gradient(to right,
+        var(--slider-active-color, #ff7c2a) 0%,
+        var(--slider-active-color, #ff7c2a) var(--slider-fill, 0%),
+        var(--slider-inactive-color) var(--slider-fill, 0%),
+        var(--slider-inactive-color) 100%
+      );
     }
   }
 
