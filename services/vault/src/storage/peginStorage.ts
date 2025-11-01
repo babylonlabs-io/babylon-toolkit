@@ -2,15 +2,23 @@
  * Local Storage utilities for pending peg-in transactions
  *
  * Purpose:
- * - Store pending deposits temporarily until they appear on-chain
+ * - Store pending deposits temporarily until they reach Available state (contract status 2+)
+ * - Track user actions through localStorage status field
  * - Show immediate feedback to users after deposit submission
- * - Auto-cleanup once transaction is confirmed on blockchain
+ * - Auto-cleanup based on peginStateMachine shouldRemoveFromLocalStorage logic
  *
  * Cleanup Strategy:
- * - Remove when transaction exists in contract (contract = source of truth)
+ * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
+ * - Remove entries for contract status 2+ (AVAILABLE, IN_POSITION, EXPIRED)
  * - Remove when older than 24 hours (stale data)
- * - Keep only transactions not yet on blockchain
+ * - Status field tracks user actions: pending → payout_signed → confirming
  */
+
+import {
+  LocalStorageStatus,
+  shouldRemoveFromLocalStorage,
+  type ContractStatus,
+} from "../models/peginStateMachine";
 
 /**
  * Provider information stored in localStorage
@@ -25,10 +33,19 @@ export interface StoredProvider {
 export interface PendingPeginRequest {
   id: string; // Peg-in ID (pegin tx hash)
   timestamp: number; // When the peg-in was initiated
-  status: "pending" | "payout_signed" | "confirming" | "confirmed";
   amount?: string; // Amount in BTC (formatted for display)
-  providerId?: string[]; // Vault provider's Ethereum addresses
-  btcTxHash?: string; // BTC transaction hash (optional)
+  providerIds?: string[]; // Vault provider's Ethereum addresses
+  status?: LocalStorageStatus; // Track user actions (pending, payout_signed, confirming)
+  btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
+  // Fields for cross-device broadcasting support
+  unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting later)
+  selectedUTXOs?: Array<{
+    // UTXOs used in the transaction
+    txid: string;
+    vout: number;
+    value: string; // Store as string for JSON serialization
+    scriptPubKey: string;
+  }>;
 }
 
 const STORAGE_KEY_PREFIX = "vault-pending-pegins";
@@ -63,28 +80,14 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
 
     // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
-    // Also normalize providerId from string to array (handles legacy data)
-    const normalized = parsed.map((pegin) => {
-      const normalizedPegin: PendingPeginRequest = {
-        ...pegin,
-        id: normalizeTransactionId(pegin.id),
-        // Migrate providerId from string to array if needed
-        providerId:
-          pegin.providerId === undefined
-            ? undefined
-            : Array.isArray(pegin.providerId)
-              ? pegin.providerId
-              : [pegin.providerId as unknown as string], // Legacy: was string, now array
-      };
-      return normalizedPegin;
-    });
+    const normalized = parsed.map((pegin) => ({
+      ...pegin,
+      id: normalizeTransactionId(pegin.id),
+    }));
 
-    // Check if any IDs or providerIds were normalized (legacy data)
+    // Check if any IDs were normalized (legacy data)
     const hasLegacyData = parsed.some(
-      (pegin, index) =>
-        pegin.id !== normalized[index].id ||
-        (typeof pegin.providerId === "string" &&
-          Array.isArray(normalized[index].providerId)),
+      (pegin, index) => pegin.id !== normalized[index].id,
     );
 
     // If we normalized any legacy data, save it back to localStorage
@@ -126,12 +129,11 @@ export function savePendingPegins(
 /**
  * Add a new pending peg-in to localStorage
  * Prevents duplicates: if txid already exists, removes old entry before adding new one
+ * Status defaults to LocalStorageStatus.PENDING if not provided
  */
 export function addPendingPegin(
   ethAddress: string,
-  pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
-    status?: PendingPeginRequest["status"];
-  },
+  pegin: Omit<PendingPeginRequest, "timestamp">,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
 
@@ -144,7 +146,7 @@ export function addPendingPegin(
   const newPegin: PendingPeginRequest = {
     ...pegin,
     id: normalizedId, // Use normalized ID
-    status: pegin.status || "pending", // Default to "pending" if not provided
+    status: pegin.status || LocalStorageStatus.PENDING, // Default to PENDING
     timestamp: Date.now(),
   };
 
@@ -166,31 +168,37 @@ export function removePendingPegin(ethAddress: string, peginId: string): void {
 
 /**
  * Update status of a pending peg-in
+ * Used to track user actions through the peg-in flow
+ * Optionally updates btcTxHash when broadcasting to Bitcoin
  */
-export function updatePeginStatus(
+export function updatePendingPeginStatus(
   ethAddress: string,
   peginId: string,
-  status: PendingPeginRequest["status"],
+  status: LocalStorageStatus,
   btcTxHash?: string,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
   const normalizedId = normalizeTransactionId(peginId);
-  const updatedPegins = existingPegins.map((p) =>
-    p.id === normalizedId
-      ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
-      : p,
+
+  const updatedPegins = existingPegins.map((pegin) =>
+    pegin.id === normalizedId
+      ? { ...pegin, status, ...(btcTxHash && { btcTxHash }) }
+      : pegin,
   );
+
   savePendingPegins(ethAddress, updatedPegins);
 }
 
 /**
  * Filter and clean up old pending peg-ins
  *
- * Removes items from localStorage if:
- * 1. Transaction exists on blockchain (any status) - contract is source of truth
- * 2. Older than 24 hours - cleanup stale items
+ * Uses peginStateMachine.shouldRemoveFromLocalStorage() for cleanup logic:
+ * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
+ * - Remove entries for contract status 2+ (AVAILABLE, IN_POSITION, EXPIRED)
+ * - Remove entries older than 24 hours (stale data)
+ * - Remove when contract status has progressed beyond local status
  *
- * Keeps items only if they're not yet on blockchain (still pending confirmation)
+ * This ensures localStorage stays in sync with the state machine
  */
 export function filterPendingPegins(
   pendingPegins: PendingPeginRequest[],
@@ -201,7 +209,7 @@ export function filterPendingPegins(
   // Normalize confirmed pegin IDs to ensure they have 0x prefix
   const normalizedConfirmedPegins = confirmedPegins.map((p) => ({
     id: normalizeTransactionId(p.id),
-    status: p.status,
+    status: p.status as ContractStatus,
   }));
 
   return pendingPegins.filter((pegin) => {
@@ -219,14 +227,19 @@ export function filterPendingPegins(
       (p) => p.id === normalizedPeginId,
     );
 
-    // If it exists on blockchain, remove from localStorage
-    // The contract is now the source of truth - no need to keep in localStorage anymore
-    if (confirmedPegin) {
-      return false;
+    // If it doesn't exist on blockchain yet, keep it in localStorage
+    if (!confirmedPegin) {
+      return true;
     }
 
-    // Keep in localStorage only if not yet on blockchain
-    return true;
+    // If it exists on blockchain, use peginStateMachine to determine if we should remove it
+    // This handles the logic for keeping status 0-1 and removing status 2+
+    if (pegin.status && confirmedPegin) {
+      return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
+    }
+
+    // If no status in localStorage, remove it if on blockchain (legacy behavior)
+    return false;
   });
 }
 

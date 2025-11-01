@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo } from "react";
 
+import type { LocalStorageStatus } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
 
 import {
@@ -16,6 +17,7 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
   savePendingPegins,
+  updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
 
 export interface UsePeginStorageParams {
@@ -31,10 +33,12 @@ export interface UsePeginStorageResult {
   /** Pending peg-ins from localStorage */
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
-  addPendingPegin: (
-    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
-      status?: PendingPeginRequest["status"];
-    },
+  addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
+  /** Update status of a pending peg-in, optionally with btcTxHash */
+  updatePendingPeginStatus: (
+    peginId: string,
+    status: LocalStorageStatus,
+    btcTxHash?: string,
   ) => void;
 }
 
@@ -87,12 +91,14 @@ export function usePeginStorage({
           amount: pending.amount || "0", // Use stored amount from localStorage
           symbol: "BTC",
         },
-        providers: pending.providerId
-          ? pending.providerId.map((id) => ({
-              id,
-              name: "Vault Provider", // Name will be fetched from contract later
-              icon: "",
-            }))
+        providers: pending.providerIds
+          ? [
+              {
+                id: pending.providerIds?.join(",") || "",
+                name: "Vault Provider", // Name will be fetched from contract later
+                icon: "",
+              },
+            ]
           : [],
         contractStatus: 0, // Pending status
         isPending: true,
@@ -110,19 +116,26 @@ export function usePeginStorage({
 
   // Add pending peg-in
   const addPendingPegin = useCallback(
-    (
-      pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
-        status?: PendingPeginRequest["status"];
-      },
-    ) => {
+    (pegin: Omit<PendingPeginRequest, "timestamp">) => {
       if (!ethAddress) return;
       addPendingPeginToStorage(ethAddress, {
         id: pegin.id,
         amount: pegin.amount,
-        providerId: pegin.providerId,
-        status: pegin.status, // Pass through status if provided
-        btcTxHash: pegin.btcTxHash, // Pass through btcTxHash if provided
+        providerIds: pegin.providerIds,
+        status: pegin.status,
+        btcTxHash: pegin.btcTxHash,
+        unsignedTxHex: pegin.unsignedTxHex,
+        selectedUTXOs: pegin.selectedUTXOs,
       });
+    },
+    [ethAddress],
+  );
+
+  // Update pending peg-in status
+  const updatePendingPeginStatus = useCallback(
+    (peginId: string, status: LocalStorageStatus, btcTxHash?: string) => {
+      if (!ethAddress) return;
+      updatePendingPeginStatusInStorage(ethAddress, peginId, status, btcTxHash);
     },
     [ethAddress],
   );
@@ -131,5 +144,6 @@ export function usePeginStorage({
     allActivities,
     pendingPegins,
     addPendingPegin,
+    updatePendingPeginStatus,
   };
 }

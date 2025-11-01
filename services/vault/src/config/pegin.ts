@@ -41,4 +41,5 @@ export const LOCAL_PEGIN_CONFIG = {
    * TODO: calculate dynamically based on the tx size
    */
   btcTransactionFee: 10_000n,
+  defaultFeeRate: 100, // sat/vbyte - reasonable default for most conditions
 };

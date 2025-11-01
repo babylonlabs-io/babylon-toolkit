@@ -6,6 +6,7 @@
  *
  */
 
+export { useBtcPublicKey } from "./useBtcPublicKey";
 export { useSinglePosition } from "./useSinglePosition";
 export type { UseSinglePositionResult } from "./useSinglePosition";
 export { useUserPositions } from "./useUserPositions";
