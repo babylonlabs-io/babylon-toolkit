@@ -1,5 +1,5 @@
 // Required for msw
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { TextDecoder, TextEncoder } from "util";
 
@@ -33,20 +33,20 @@ Object.defineProperty(global, "crypto", {
 
 // Define handlers
 const handlers = [
-  rest.get("*", (req, res, ctx) => {
-    return res(ctx.json({}));
+  http.get("*", () => {
+    return HttpResponse.json({});
   }),
-  rest.post("*", (req, res, ctx) => {
-    return res(ctx.json({}));
+  http.post("*", () => {
+    return HttpResponse.json({});
   }),
-  rest.put("*", (req, res, ctx) => {
-    return res(ctx.json({}));
+  http.put("*", () => {
+    return HttpResponse.json({});
   }),
-  rest.delete("*", (req, res, ctx) => {
-    return res(ctx.json({}));
+  http.delete("*", () => {
+    return HttpResponse.json({});
   }),
-  rest.patch("*", (req, res, ctx) => {
-    return res(ctx.json({}));
+  http.patch("*", () => {
+    return HttpResponse.json({});
   }),
 ];
 
