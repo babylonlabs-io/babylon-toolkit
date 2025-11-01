@@ -11,9 +11,10 @@ import {
 import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import { useDepositFlow } from "../../../../components/Collateral/Deposit/components/SignModal/hooks/useDepositFlow";
 import type { StoredProvider } from "../../../../storage/peginStorage";
 import { addPendingPegin } from "../../../../storage/peginStorage";
+
+import { useDepositFlow } from "./hooks/useDepositFlow";
 
 interface CollateralDepositSignModalProps {
   open: boolean;

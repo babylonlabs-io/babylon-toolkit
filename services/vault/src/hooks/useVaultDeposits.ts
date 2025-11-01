@@ -1,6 +1,6 @@
 import type { Hex } from "viem";
 
-import { usePeginRequests } from "../components/Collateral/Deposit/hooks/usePeginRequests";
+import { usePeginRequests } from "../components/Overview/Deposits/hooks/usePeginRequests";
 import { usePeginStorage } from "../storage/usePeginStorage";
 
 /**

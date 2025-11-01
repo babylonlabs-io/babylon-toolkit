@@ -13,8 +13,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import type { VaultProvider } from "../../../../clients/vault-api";
 import { vaultApiClient } from "../../../../clients/vault-api";
+import type { VaultProvider } from "../../../../types/vaultProvider";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */

@@ -7,11 +7,11 @@ import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
 import { useVaultDeposits } from "../../hooks/useVaultDeposits";
 import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
-import { DepositOverview } from "../Collateral/Deposit/components/DepositOverview";
-import { CollateralDepositModal } from "../Collateral/Deposit/components/FormModal";
-import { CollateralDepositReviewModal } from "../Collateral/Deposit/components/ReviewModal";
-import { CollateralDepositSuccessModal } from "../Collateral/Deposit/components/SuccessModal";
-import { useVaultProviders } from "../Collateral/Deposit/hooks/useVaultProviders";
+import { DepositOverview } from "./Deposits/DepositOverview";
+import { CollateralDepositModal } from "./Deposits/DepositFormModal";
+import { CollateralDepositReviewModal } from "./Deposits/DepositReviewModal";
+import { CollateralDepositSuccessModal } from "./Deposits/DepositSuccessModal";
+import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
 // TODO: Uncomment when redeem flow is ready
 // import { RedeemCollateralModal } from "../Collateral/Redeem/components/FormModal";
 // import { RedeemCollateralReviewModal } from "../Collateral/Redeem/components/ReviewModal";
@@ -21,7 +21,7 @@ import {
   useVaultDepositState,
   VaultDepositState,
   VaultDepositStep,
-} from "../Collateral/Deposit/state/VaultDepositState";
+} from "./Deposits/state/VaultDepositState";
 
 import { Activity } from "./Activity";
 import { CollateralDepositSignModal } from "./Deposits/DepositSignModal";

@@ -19,12 +19,12 @@ import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { CONTRACTS } from "../../../../../../config/contracts";
-import { LOCAL_PEGIN_CONFIG } from "../../../../../../config/pegin";
-import { useUTXOs } from "../../../../../../hooks/useUTXOs";
-import { createProofOfPossession } from "../../../../../../services/vault/vaultProofOfPossessionService";
-import { submitPeginRequest } from "../../../../../../services/vault/vaultTransactionService";
-import { processPublicKeyToXOnly } from "../../../../../../utils/btc";
+import { CONTRACTS } from "../../../../../config/contracts";
+import { LOCAL_PEGIN_CONFIG } from "../../../../../config/pegin";
+import { useUTXOs } from "../../../../../hooks/useUTXOs";
+import { createProofOfPossession } from "../../../../../services/vault/vaultProofOfPossessionService";
+import { submitPeginRequest } from "../../../../../services/vault/vaultTransactionService";
+import { processPublicKeyToXOnly } from "../../../../../utils/btc";
 
 /**
  * BTC wallet provider interface
@@ -166,7 +166,7 @@ export function useDepositFlow(
       const requiredAmount =
         amount + BigInt(LOCAL_PEGIN_CONFIG.btcTransactionFee);
       const selectedUTXO = confirmedUTXOs.find(
-        (utxo) => utxo.value >= requiredAmount,
+        (utxo: { value: number }) => utxo.value >= requiredAmount,
       );
 
       if (!selectedUTXO) {

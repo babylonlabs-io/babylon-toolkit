@@ -9,7 +9,7 @@ import type { Hex } from "viem";
 import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
 import { CONTRACTS } from "../config/contracts";
 // Note: getNextLocalStatus removed since status tracking is deprecated
-import { useSignPeginTransactions } from "../components/Collateral/Deposit/hooks/useSignPeginTransactions";
+import { useSignPeginTransactions } from "../components/Overview/Deposits/hooks/useSignPeginTransactions";
 import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import { stripHexPrefix } from "../utils/btc";
