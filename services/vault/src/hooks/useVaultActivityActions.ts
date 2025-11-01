@@ -20,7 +20,11 @@ export interface BroadcastPeginParams {
   activityProviders: Array<{ id: string }>;
   connectedAddress: string;
   pendingPegin?: PendingPeginRequest;
-  addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
+  addPendingPegin?: (
+    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+      status?: PendingPeginRequest["status"];
+    },
+  ) => void;
   onRefetchActivities: () => void;
   onShowSuccessModal: () => void;
 }
@@ -128,11 +132,13 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
         // Case 1: localStorage entry EXISTS - no need to update since status tracking is deprecated
         // Entry will be automatically cleaned up when transaction is confirmed
       } else if (addPendingPegin) {
-        // Case 2: NO localStorage entry (cross-device) - create peg-in entry with amount
+        // Case 2: NO localStorage entry - create peg-in entry with amount
         addPendingPegin({
           id: activityId,
           amount: activityAmount,
-          providerId: activityProviders[0]?.id, // Use first provider ID
+          providerId: activityProviders.map((p) => p.id), // provider IDs
+          status: "pending",
+          btcTxHash: unsignedTxHex,
         });
       }
 

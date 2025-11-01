@@ -23,10 +23,12 @@ export interface StoredProvider {
 }
 
 export interface PendingPeginRequest {
-  id: string; // BTC txid (with 0x prefix)
+  id: string; // Peg-in ID (pegin tx hash)
   timestamp: number; // When the peg-in was initiated
+  status: "pending" | "payout_signed" | "confirming" | "confirmed";
   amount?: string; // Amount in BTC (formatted for display)
-  providerId?: string; // Vault provider's Ethereum address
+  providerId?: string[]; // Vault provider's Ethereum addresses
+  btcTxHash?: string; // BTC transaction hash (optional)
 }
 
 const STORAGE_KEY_PREFIX = "vault-pending-pegins";
@@ -61,14 +63,28 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
 
     // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
-    const normalized = parsed.map((pegin) => ({
-      ...pegin,
-      id: normalizeTransactionId(pegin.id),
-    }));
+    // Also normalize providerId from string to array (handles legacy data)
+    const normalized = parsed.map((pegin) => {
+      const normalizedPegin: PendingPeginRequest = {
+        ...pegin,
+        id: normalizeTransactionId(pegin.id),
+        // Migrate providerId from string to array if needed
+        providerId:
+          pegin.providerId === undefined
+            ? undefined
+            : Array.isArray(pegin.providerId)
+              ? pegin.providerId
+              : [pegin.providerId as unknown as string], // Legacy: was string, now array
+      };
+      return normalizedPegin;
+    });
 
-    // Check if any IDs were normalized (legacy data)
+    // Check if any IDs or providerIds were normalized (legacy data)
     const hasLegacyData = parsed.some(
-      (pegin, index) => pegin.id !== normalized[index].id,
+      (pegin, index) =>
+        pegin.id !== normalized[index].id ||
+        (typeof pegin.providerId === "string" &&
+          Array.isArray(normalized[index].providerId)),
     );
 
     // If we normalized any legacy data, save it back to localStorage
@@ -113,7 +129,9 @@ export function savePendingPegins(
  */
 export function addPendingPegin(
   ethAddress: string,
-  pegin: Omit<PendingPeginRequest, "timestamp">,
+  pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+    status?: PendingPeginRequest["status"];
+  },
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
 
@@ -126,6 +144,7 @@ export function addPendingPegin(
   const newPegin: PendingPeginRequest = {
     ...pegin,
     id: normalizedId, // Use normalized ID
+    status: pegin.status || "pending", // Default to "pending" if not provided
     timestamp: Date.now(),
   };
 
@@ -147,13 +166,21 @@ export function removePendingPegin(ethAddress: string, peginId: string): void {
 
 /**
  * Update status of a pending peg-in
- * Note: Status field has been removed from PendingPeginRequest.
- * This function is kept for backwards compatibility but does nothing.
- * @deprecated Use removePendingPegin instead when transaction is confirmed
  */
-export function updatePeginStatus(): void {
-  // No-op: status field has been removed from PendingPeginRequest
-  // Transactions are either pending in localStorage or confirmed on-chain (removed from localStorage)
+export function updatePeginStatus(
+  ethAddress: string,
+  peginId: string,
+  status: PendingPeginRequest["status"],
+  btcTxHash?: string,
+): void {
+  const existingPegins = getPendingPegins(ethAddress);
+  const normalizedId = normalizeTransactionId(peginId);
+  const updatedPegins = existingPegins.map((p) =>
+    p.id === normalizedId
+      ? { ...p, status, ...(btcTxHash && { btcTxHash }) }
+      : p,
+  );
+  savePendingPegins(ethAddress, updatedPegins);
 }
 
 /**

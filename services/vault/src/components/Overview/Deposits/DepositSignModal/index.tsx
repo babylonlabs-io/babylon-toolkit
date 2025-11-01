@@ -68,7 +68,9 @@ export function CollateralDepositSignModal({
           addPendingPegin(depositorEthAddress, {
             id: btcTxidWithPrefix, // Use BTC transaction ID with 0x prefix
             amount: amountInBTC,
-            providerId: selectedProviderInfo?.id || selectedProviders[0], // Fallback to provider ID if info not provided
+            providerId: selectedProviderInfo?.id
+              ? [selectedProviderInfo.id]
+              : selectedProviders, // Use array of provider IDs
           });
 
           // Trigger refetch to immediately show the pending deposit

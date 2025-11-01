@@ -31,7 +31,11 @@ export interface UsePeginStorageResult {
   /** Pending peg-ins from localStorage */
   pendingPegins: PendingPeginRequest[];
   /** Add a new pending peg-in to localStorage */
-  addPendingPegin: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
+  addPendingPegin: (
+    pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+      status?: PendingPeginRequest["status"];
+    },
+  ) => void;
 }
 
 /**
@@ -84,13 +88,11 @@ export function usePeginStorage({
           symbol: "BTC",
         },
         providers: pending.providerId
-          ? [
-              {
-                id: pending.providerId,
-                name: "Vault Provider", // Name will be fetched from contract later
-                icon: "",
-              },
-            ]
+          ? pending.providerId.map((id) => ({
+              id,
+              name: "Vault Provider", // Name will be fetched from contract later
+              icon: "",
+            }))
           : [],
         contractStatus: 0, // Pending status
         isPending: true,
@@ -108,12 +110,18 @@ export function usePeginStorage({
 
   // Add pending peg-in
   const addPendingPegin = useCallback(
-    (pegin: Omit<PendingPeginRequest, "timestamp">) => {
+    (
+      pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+        status?: PendingPeginRequest["status"];
+      },
+    ) => {
       if (!ethAddress) return;
       addPendingPeginToStorage(ethAddress, {
         id: pegin.id,
         amount: pegin.amount,
         providerId: pegin.providerId,
+        status: pegin.status, // Pass through status if provided
+        btcTxHash: pegin.btcTxHash, // Pass through btcTxHash if provided
       });
     },
     [ethAddress],
