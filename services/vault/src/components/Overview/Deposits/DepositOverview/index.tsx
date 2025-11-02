@@ -36,7 +36,7 @@ function EmptyState({
   isConnected: boolean;
 }) {
   return (
-    <div className="max-h-[500px] rounded-2xl dark:bg-primary-main overflow-x-auto overflow-y-auto bg-primary-contrast">
+    <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-primary-contrast dark:bg-primary-main">
       <div className="flex min-h-[200px] items-center justify-center p-6">
         <div className="flex flex-col items-center">
           <img
@@ -46,7 +46,10 @@ function EmptyState({
             style={{ height: 100, width: 100, marginTop: 24 }}
           />
           <div className="flex flex-col gap-2 text-center">
-            <h4 className="text-lg text-accent-primary" style={{ letterSpacing: "0.15px" }}>
+            <h4
+              className="text-lg text-accent-primary"
+              style={{ letterSpacing: "0.15px" }}
+            >
               Deposit BTC Trustlessly
             </h4>
             <p className="text-sm text-accent-secondary">

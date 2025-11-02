@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import {
   Avatar,
   AvatarGroup,
@@ -8,6 +6,7 @@ import {
   MarketStatCard,
   Tabs,
 } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 interface MarketInfoProps {
   onBack: () => void;
@@ -60,7 +59,7 @@ export function MarketInfo({
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-        </svg> 
+        </svg>
         <span className="text-base">Dashboard</span>
       </Button>
 

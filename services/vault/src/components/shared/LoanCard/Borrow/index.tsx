@@ -58,7 +58,7 @@ export function Borrow({
 
   return (
     <div>
-      <h3 className="text-[24px] font-normal text-accent-primary mb-4">
+      <h3 className="mb-4 text-[24px] font-normal text-accent-primary">
         Collateral
       </h3>
       <SubSection>
@@ -96,48 +96,50 @@ export function Borrow({
         />
       </SubSection>
 
-      <h3 className="text-[24px] font-normal text-accent-primary mb-4 mt-6">Borrow</h3>
+      <h3 className="mb-4 mt-6 text-[24px] font-normal text-accent-primary">
+        Borrow
+      </h3>
       <div className="flex flex-col gap-2">
-      <SubSection>
-        <AmountSlider
-          amount={borrowAmount}
-          currencyIcon="/images/usdc.png"
-          currencyName="USDC"
-          onAmountChange={(e) =>
-            setBorrowAmount(parseFloat(e.target.value) || 0)
-          }
-          balanceDetails={{
-            balance: maxBorrowAmount.toLocaleString(),
-            symbol: "USDC",
-            displayUSD: false,
-          }}
-          sliderValue={borrowAmount}
-          sliderMin={0}
-          sliderMax={maxBorrowAmount}
-          sliderStep={maxBorrowAmount / 1000}
-          onSliderChange={setBorrowAmount}
-          sliderVariant={theme === "dark" ? "rainbow" : "primary"}
-          leftField={{
-            label: "Max",
-            value: `${maxBorrowAmount.toLocaleString()} USDC`,
-          }}
-          onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
-          rightField={{
-            value: `$${borrowAmount.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} USD`,
-          }}
-          sliderActiveColor="#0B53BF"
-        />
-      </SubSection>
+        <SubSection>
+          <AmountSlider
+            amount={borrowAmount}
+            currencyIcon="/images/usdc.png"
+            currencyName="USDC"
+            onAmountChange={(e) =>
+              setBorrowAmount(parseFloat(e.target.value) || 0)
+            }
+            balanceDetails={{
+              balance: maxBorrowAmount.toLocaleString(),
+              symbol: "USDC",
+              displayUSD: false,
+            }}
+            sliderValue={borrowAmount}
+            sliderMin={0}
+            sliderMax={maxBorrowAmount}
+            sliderStep={maxBorrowAmount / 1000}
+            onSliderChange={setBorrowAmount}
+            sliderVariant={theme === "dark" ? "rainbow" : "primary"}
+            leftField={{
+              label: "Max",
+              value: `${maxBorrowAmount.toLocaleString()} USDC`,
+            }}
+            onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
+            rightField={{
+              value: `$${borrowAmount.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USD`,
+            }}
+            sliderActiveColor="#0B53BF"
+          />
+        </SubSection>
 
-      <LoanSummaryCard
-        collateralAmount={collateralAmount}
-        loanAmount={borrowAmount}
-        ltv={ltv}
-        liquidationLtv={liquidationLtv}
-      />
+        <LoanSummaryCard
+          collateralAmount={collateralAmount}
+          loanAmount={borrowAmount}
+          ltv={ltv}
+          liquidationLtv={liquidationLtv}
+        />
       </div>
 
       <Button

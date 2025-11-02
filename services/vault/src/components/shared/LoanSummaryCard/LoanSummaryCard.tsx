@@ -38,7 +38,12 @@ export function LoanSummaryCard({
 
   return (
     <SubSection className="w-full flex-col">
-      <KeyValueList items={items} showDivider={false} className="w-full" textSize='small' />
+      <KeyValueList
+        items={items}
+        showDivider={false}
+        className="w-full"
+        textSize="small"
+      />
     </SubSection>
   );
 }

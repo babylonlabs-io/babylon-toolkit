@@ -42,7 +42,7 @@ export function Position() {
   // Empty state
   if (positions.length === 0) {
     return (
-      <div className="py-10 text-center text-sm text-accent-secondary rounded-2xl dark:bg-primary-main bg-primary-contrast">
+      <div className="rounded-2xl bg-primary-contrast py-10 text-center text-sm text-accent-secondary dark:bg-primary-main">
         {ethAddress
           ? "Your positions will appear here."
           : "Connect wallet to view positions"}
