@@ -1,10 +1,10 @@
 {
-  "speed": 0.00007,
-  "amplitude": 0.35,
+  "speed": 1,
+  "amplitude": 0.40,
   "frequency": 1,
-  "waveAmplitude": 0.45,
+  "waveAmplitude": 0.55,
   "strokeWidth": 0,
-  "waveCount": 3,
+  "waveCount": 8,
   "showFill": true,
   "floatSpeed": 0.1,
   "colors": [
@@ -16,12 +16,25 @@
     {
       "stops": [
         {
-          "color": "#8683B4",
-          "offset": 22
+          "color": "transparent",
+          "offset": 73
         },
         {
+          "color": "#8E3C75",
+          "offset": 100
+        }
+      ],
+      "direction": "horizontal"
+    },
+    {
+      "stops": [
+        {
           "color": "transparent",
-          "offset": 85
+          "offset": 42
+        },
+        {
+          "color": "#593899",
+          "offset": 100
         }
       ],
       "direction": "horizontal"
@@ -30,7 +43,7 @@
       "stops": [
         {
           "color": "#8E3C75",
-          "offset": 0
+          "offset": 10
         },
         {
           "color": "transparent",
@@ -42,7 +55,7 @@
     {
       "stops": [
         {
-          "color": "#8E3C75",
+          "color": "#525DF4",
           "offset": 0
         },
         {
@@ -54,54 +67,219 @@
     }
   ],
   "backgroundColor": "#040402",
-  "waveOpacity": 0.42,
+  "waveOpacity": 1,
   "waves": [
     {
       "startY": 66,
       "endY": 83,
-      "inverted": false,
-      "startX": 80,
-      "endX": 10,
+      "inverted": true,
+      "startX": 50,
+      "endX": 30,
       "direction": "vertical",
-      "strokeWidth": 0,
+      "strokeWidth": 1,
       "strokeWidthStops": [
         {
           "width": 0,
-          "offset": 39
+          "offset": 10
         },
         {
           "width": 1,
-          "offset": 100
+          "offset": 50
         },
         {
-          "width": 1,
-          "offset": 100
+          "width": 0,
+          "offset": 95
         }
       ],
       "blurType": "gaussian",
-      "blurAmount": 1
+      "blurAmount": 0.5,
+      "hidden": false,
+      "color": "#A15D87",
+      "fillColor": {
+        "stops": [],
+        "opacity": 0.56
+      }
     },
     {
       "startY": 33.33333333333333,
       "endY": 33.33333333333333,
-      "inverted": true,
-      "startX": 49,
-      "endX": 0,
+      "inverted": false,
+      "startX": 50,
+      "endX": 30,
       "direction": "vertical",
-      "strokeWidth": 0,
+      "strokeWidth": 20,
+      "strokeWidthStops": [
+        {
+          "width": 1,
+          "offset": 0
+        },
+        {
+          "width": 15,
+          "offset": 50
+        },
+        {
+          "width": 0,
+          "offset": 100
+        }
+      ],
       "blurType": "gaussian",
-      "blurAmount": 1
+      "blurAmount": 11.5,
+      "maskBy": 0,
+      "anchorTo": 0,
+      "hidden": false,
+      "color": "#A15D87",
+      "fillColor": {
+        "stops": [],
+        "opacity": 1
+      }
     },
     {
       "startY": 75,
       "endY": 66.66666666666666,
       "inverted": false,
-      "startX": 100,
+      "startX": 110,
       "endX": 46,
       "direction": "vertical",
-      "strokeWidth": 0,
+      "strokeWidth": 7.5,
+      "hidden": true,
+      "color": "#FF0000",
+      "fillColor": {
+        "stops": [],
+        "opacity": 1
+      }
+    },
+    {
+      "startY": 100,
+      "endY": 46,
+      "inverted": false,
+      "startX": 113,
+      "endX": 35,
+      "direction": "vertical",
+      "strokeWidth": 50,
       "blurType": "gaussian",
-      "blurAmount": 1
+      "blurAmount": 21.5,
+      "maskBy": 2,
+      "anchorTo": 2,
+      "hidden": false,
+      "color": {
+        "stops": [
+          {
+            "color": "#853677",
+            "offset": 0
+          },
+          {
+            "color": "transparent",
+            "offset": 100
+          }
+        ],
+        "direction": "vertical"
+      },
+      "fillColor": {
+        "stops": []
+      }
+    },
+    {
+      "startY": 100,
+      "endY": 46,
+      "inverted": false,
+      "startX": 94,
+      "endX": 53,
+      "direction": "vertical",
+      "strokeWidth": 15.5,
+      "blurType": "gaussian",
+      "blurAmount": 26.5,
+      "maskBy": 2,
+      "anchorTo": 2,
+      "hidden": false,
+      "fillColor": {
+        "stops": [],
+        "opacity": 1
+      }
+    },
+    {
+      "startY": 50,
+      "endY": 30,
+      "inverted": false,
+      "startX": 30,
+      "endX": 29,
+      "direction": "vertical",
+      "strokeWidth": 20,
+      "blurType": "gaussian",
+      "blurAmount": 49.5,
+      "maskBy": 0,
+      "anchorTo": 0,
+      "hidden": false,
+      "fillColor": {
+        "color": "transparent",
+        "opacity": 1
+      }
+    },
+    {
+      "startY": 100,
+      "endY": 100,
+      "inverted": false,
+      "startX": 132,
+      "endX": 22,
+      "direction": "vertical",
+      "strokeWidth": 50,
+      "blurType": "gaussian",
+      "blurAmount": 27,
+      "maskBy": 2,
+      "anchorTo": 2,
+      "hidden": false,
+      "color": {
+        "stops": [
+          {
+            "color": "#8E94EC",
+            "offset": 0
+          },
+          {
+            "color": "transparent",
+            "offset": 100
+          }
+        ],
+        "direction": "vertical"
+      },
+      "fillColor": {
+        "stops": [],
+        "opacity": 0.48
+      }
+    },
+    {
+      "startY": 100,
+      "endY": 100,
+      "inverted": false,
+      "startX": 140,
+      "endX": 8,
+      "direction": "vertical",
+      "strokeWidth": 50,
+      "blurType": "gaussian",
+      "blurAmount": 27,
+      "maskBy": 2,
+      "anchorTo": 2,
+      "hidden": false,
+      "color": {
+        "stops": [
+          {
+            "color": "transparent",
+            "offset": 0
+          },
+          {
+            "color": "#8E94EC",
+            "offset": 100
+          },
+          {
+            "color": "transparent",
+            "offset": 100
+          }
+        ],
+        "direction": "vertical"
+      },
+      "fillColor": {
+        "stops": [],
+        "opacity": 1
+      }
     }
-  ]
+  ],
+  "paused": false
 }

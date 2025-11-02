@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { Curve } from "./Curve";
 import { Position } from "./types";
-import { useWaveAnimation } from "./useWaveAnimation";
 import { useAnimatedValues } from "./useAnimatedValues";
 import type { FillColor, GradientConfig, WaveConfig, StrokeWidthStop, AnimatedValue } from "./WaveBackgroundControls";
 
@@ -24,6 +23,7 @@ interface WaveBackgroundProps {
   waves?: WaveConfig[];
   backgroundColor?: string;
   waveOpacity?: number;
+  paused?: boolean;
   onAnimatedValuesChange?: (values: {
     speed: number;
     amplitude: number;
@@ -59,6 +59,7 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
   waves: waveConfigs,
   backgroundColor,
   waveOpacity = 1,
+  paused = false,
   onAnimatedValuesChange,
 }) => {
   const animatedValues = useAnimatedValues({
@@ -68,6 +69,8 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
     waveAmplitude: typeof waveAmplitude === "object" ? waveAmplitude : waveAmplitude,
     strokeWidth: strokeWidth,
     floatSpeed: floatSpeed,
+    waveCount: waveCount,
+    paused: paused,
     waves: waveConfigs?.map(w => ({
       startY: w.startY,
       endY: w.endY,
@@ -76,6 +79,10 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
       strokeWidth: w.strokeWidth,
     })),
   });
+  
+  if (animatedValues.waves.length > 0 && Math.floor((animatedValues.waves[0]?.[1] || 0) * 1000) % 100 === 0) {
+    console.log("[WaveBackground] Render - waves[0]:", animatedValues.waves[0], "speed:", typeof speed === "number" ? speed : animatedValues.speed);
+  }
 
   const currentSpeed = typeof speed === "number" ? speed : animatedValues.speed;
   const currentAmplitude = typeof amplitude === "number" ? amplitude : animatedValues.amplitude;
@@ -118,29 +125,47 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
       prev.frequency !== newValues.frequency ||
       prev.waveAmplitude !== newValues.waveAmplitude ||
       prev.strokeWidth !== newValues.strokeWidth ||
-      JSON.stringify(prev.waveValues) !== JSON.stringify(newValues.waveValues)
+      prev.waveValues?.length !== newValues.waveValues?.length ||
+      (newValues.waveValues && prev.waveValues && newValues.waveValues.some((val, idx) => {
+        const prevVal = prev.waveValues?.[idx];
+        return !prevVal ||
+          prevVal.startY !== val.startY ||
+          prevVal.endY !== val.endY ||
+          prevVal.startX !== val.startX ||
+          prevVal.endX !== val.endX ||
+          prevVal.strokeWidth !== val.strokeWidth;
+      }))
     ) {
       previousValuesRef.current = newValues;
       onAnimatedValuesChange(newValues);
     }
   }, [onAnimatedValuesChange, currentSpeed, currentAmplitude, currentFrequency, currentWaveAmplitude, currentStrokeWidth, animatedValues.waveValues]);
 
-  const waves = useWaveAnimation({
-    waveCount,
-    speed: currentSpeed,
-    amplitude: currentAmplitude,
-    frequency: currentFrequency,
-  });
+  const waves = animatedValues.waves || [];
 
   const svgViewBox = useMemo(() => {
     return "0 0 1000 1000";
   }, []);
 
+  const wavePositionsRef = React.useRef<Position[]>([]);
+  const wavePositionsKeysRef = React.useRef<string>("");
   const wavePositions = useMemo(() => {
-    return waves.map((_, index) => {
+    const animatedWaveValues = animatedValues.waveValues;
+    const positionsKey = `${waves.length}-${animatedWaveValues?.map(w => 
+      w ? `${w.startY ?? ''},${w.endY ?? ''},${w.startX ?? ''},${w.endX ?? ''}` : ''
+    ).join('|')}`;
+    
+    if (positionsKey === wavePositionsKeysRef.current && wavePositionsRef.current.length === waves.length) {
+      return wavePositionsRef.current;
+    }
+    
+    const newPositions: Position[] = [];
+    waves.forEach((_, index) => {
       const waveConfig = waveConfigs?.[index];
       const direction = waveConfig?.direction || "horizontal";
-      const animatedWave = animatedValues.waveValues?.[index];
+      const animatedWave = animatedWaveValues?.[index];
+      
+      let position: Position;
       
       if (direction === "vertical") {
         let startX: number;
@@ -160,7 +185,7 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
           endX = startX;
         }
         
-        return {
+        position = {
           x: [startX, endX] as [number, number],
           y: [0, 1000] as [number, number],
         };
@@ -182,30 +207,62 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
           endY = startY;
         }
         
-        return {
+        position = {
           x: [0, 1000] as [number, number],
           y: [startY, endY] as [number, number],
         };
       }
+      
+      newPositions.push(position);
     });
+    
+    wavePositionsRef.current = newPositions;
+    wavePositionsKeysRef.current = positionsKey;
+    return newPositions;
   }, [waves, waveCount, waveConfigs, animatedValues.waveValues]);
 
   const gradients = useMemo(() => {
-    if (!fillColors) return [];
+    const allGradients: Array<{ id: string; config: GradientConfig; direction: "vertical" | "horizontal" }> = [];
     
-    return fillColors.map((fill, index) => {
-      if (typeof fill === "string") return null;
-      
-      const gradientId = `gradient-${index}`;
-      const direction: "vertical" | "horizontal" = fill.direction || "vertical";
-      
-      return {
-        id: gradientId,
-        config: fill,
-        direction,
-      };
-    }).filter((g): g is { id: string; config: GradientConfig; direction: "vertical" | "horizontal" } => g !== null);
-  }, [fillColors]);
+    if (fillColors) {
+      fillColors.forEach((fill, index) => {
+        if (typeof fill === "object" && fill !== null && "stops" in fill) {
+          const gradientId = `gradient-global-fill-${index}`;
+          const direction: "vertical" | "horizontal" = fill.direction || "vertical";
+          allGradients.push({
+            id: gradientId,
+            config: fill,
+            direction,
+          });
+        }
+      });
+    }
+    
+    if (waveConfigs) {
+      waveConfigs.forEach((waveConfig, waveIndex) => {
+        if (waveConfig?.fillColor && typeof waveConfig.fillColor === "object" && "stops" in waveConfig.fillColor) {
+          const gradientId = `gradient-wave-fill-${waveIndex}`;
+          const direction: "vertical" | "horizontal" = waveConfig.fillColor.direction || "vertical";
+          allGradients.push({
+            id: gradientId,
+            config: waveConfig.fillColor,
+            direction,
+          });
+        }
+        if (waveConfig?.color && typeof waveConfig.color === "object" && "stops" in waveConfig.color) {
+          const gradientId = `gradient-wave-line-${waveIndex}`;
+          const direction: "vertical" | "horizontal" = waveConfig.color.direction || "vertical";
+          allGradients.push({
+            id: gradientId,
+            config: waveConfig.color,
+            direction,
+          });
+        }
+      });
+    }
+    
+    return allGradients;
+  }, [fillColors, waveConfigs]);
 
   const bgColor = useMemo(() => {
     if (!backgroundColor) return undefined;
@@ -215,6 +272,69 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
     return backgroundColor;
   }, [backgroundColor]);
 
+  const maskWaves = useMemo(() => {
+    if (!waveConfigs) return [];
+    const maskIndices = new Set<number>();
+    waveConfigs.forEach((config, index) => {
+      if (config.maskBy !== undefined && config.maskBy >= 0 && config.maskBy < waveConfigs.length) {
+        maskIndices.add(config.maskBy);
+      }
+    });
+    return Array.from(maskIndices);
+  }, [waveConfigs]);
+
+  const maskPaths = useMemo(() => {
+    return maskWaves.map((maskIndex) => {
+      if (maskIndex < 0 || maskIndex >= waves.length) return null;
+      const maskWave = waves[maskIndex];
+      const maskWaveConfig = waveConfigs?.[maskIndex];
+      const maskDirection = maskWaveConfig?.direction || "horizontal";
+      const maskInverted = maskWaveConfig?.inverted || false;
+      const maskPosition = wavePositions[maskIndex];
+      
+      const [x0, x1] = maskPosition.x;
+      const [y0, y1] = maskPosition.y;
+      const xRange = x1 - x0;
+      const yRange = y1 - y0;
+      
+      if (maskDirection === "vertical") {
+        const startX = x0;
+        const endX = x1;
+        const startY = y0;
+        const endY = y1;
+        const fillTargetX = maskInverted ? 0 : 1000;
+        
+        const waveAmplitudePixels = 1000 * currentWaveAmplitude;
+        const baseX = (startX + endX) / 2;
+        
+        const cy1 = y0 + maskWave[0] * yRange;
+        const cx1 = baseX + (maskWave[1] - 0.5) * waveAmplitudePixels;
+        const cy2 = y0 + maskWave[2] * yRange;
+        const cx2 = baseX + (maskWave[3] - 0.5) * waveAmplitudePixels;
+        
+        const curvePath = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
+        return `${curvePath} L${fillTargetX},${endY} L${fillTargetX},${startY} Z`;
+      } else {
+        const startX = x0;
+        const endX = x1;
+        const startY = y0;
+        const endY = y1;
+        const fillTargetY = maskInverted ? 0 : 1000;
+        
+        const waveAmplitudePixels = 1000 * currentWaveAmplitude;
+        const baseY = (startY + endY) / 2;
+        
+        const cx1 = x0 + maskWave[0] * xRange;
+        const cy1 = baseY + (maskWave[1] - 0.5) * waveAmplitudePixels;
+        const cx2 = x0 + maskWave[2] * xRange;
+        const cy2 = baseY + (maskWave[3] - 0.5) * waveAmplitudePixels;
+        
+        const curvePath = `M${startX},${startY} C${cx1},${cy1} ${cx2},${cy2} ${endX},${endY}`;
+        return `${curvePath} L${endX},${fillTargetY} L${startX},${fillTargetY} Z`;
+      }
+    });
+  }, [maskWaves, waves, waveConfigs, wavePositions, currentWaveAmplitude]);
+
   return (
     <svg
       className={className}
@@ -222,7 +342,7 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
       height={height}
       viewBox={svgViewBox}
       preserveAspectRatio="none"
-      style={{ display: "block" }}
+      style={{ display: "block", willChange: "transform", transform: "translateZ(0)" }}
     >
       {bgColor && (
         <rect
@@ -261,9 +381,22 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
           if (waveConfig.blurType === "gaussian") {
             if (!waveConfig.blurAmount) return null;
             const blurStdDev = waveConfig.blurAmount;
+            // For Gaussian blur, we need padding of at least 3x stdDeviation to prevent clipping
+            // The SVG viewBox is 1000x1000, so calculate padding in user space
+            const padding = Math.max(blurStdDev * 4, 50);
             return (
-              <filter key={filterId} id={filterId}>
-                <feGaussianBlur stdDeviation={blurStdDev} />
+              <filter 
+                key={filterId} 
+                id={filterId}
+                x={-padding}
+                y={-padding}
+                width={1000 + padding * 2}
+                height={1000 + padding * 2}
+                filterUnits="userSpaceOnUse"
+                colorInterpolationFilters="sRGB"
+                primitiveUnits="userSpaceOnUse"
+              >
+                <feGaussianBlur stdDeviation={blurStdDev} edgeMode="wrap" />
               </filter>
             );
           } else if (waveConfig.blurType === "radial") {
@@ -289,26 +422,90 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
           }
           return null;
         })}
+        {maskWaves.map((maskIndex, idx) => {
+          const maskId = `wave-mask-${maskIndex}`;
+          const maskPath = maskPaths[idx];
+          if (!maskPath) return null;
+          
+          return (
+            <mask key={maskId} id={maskId} maskUnits="userSpaceOnUse">
+              <rect width="1000" height="1000" fill="black" />
+              <path
+                d={maskPath}
+                fill="white"
+              />
+            </mask>
+          );
+        })}
       </defs>
-      <g transform="translate(500, 500) scale(1.1) translate(-500, -500)">
-        {waves.map((wave, index) => {
-        const color = colors[index % colors.length];
-        const fill = fillColors
-          ? fillColors[index % fillColors.length]
-          : color;
-        
-        let fillValue: string;
-        if (typeof fill === "string") {
-          fillValue = fill;
-        } else {
-          const gradientId = `gradient-${index}`;
-          fillValue = `url(#${gradientId})`;
+      <g transform="translate(500, 500) scale(1.1) translate(-500, -500)" style={{ willChange: "transform" }}>
+        {useMemo(() => waves.map((wave, index) => {
+        const waveConfig = waveConfigs?.[index];
+        if (waveConfig?.hidden) {
+          return null;
         }
         
-        const waveConfig = waveConfigs?.[index];
+        const colorConfig = waveConfig?.color ?? colors[index % colors.length];
+        const fill = waveConfig?.fillColor ?? (fillColors
+          ? fillColors[index % fillColors.length]
+          : (typeof colorConfig === "string" ? colorConfig : undefined));
+        
+        let colorValue: string;
+        if (typeof colorConfig === "string") {
+          colorValue = colorConfig;
+        } else if (colorConfig && typeof colorConfig === "object") {
+          if ("stops" in colorConfig) {
+            const gradientId = `gradient-wave-line-${index}`;
+            colorValue = `url(#${gradientId})`;
+          } else if ("color" in colorConfig) {
+            colorValue = colorConfig.color;
+          } else {
+            colorValue = colorConfig as unknown as string;
+          }
+        } else {
+          colorValue = colorConfig as unknown as string;
+        }
+        
+        let fillValue: string;
+        let fillOpacity: number | undefined;
+        
+        if (typeof fill === "string") {
+          fillValue = fill;
+        } else if (fill && typeof fill === "object") {
+          if ("stops" in fill) {
+            let gradientId: string;
+            if (waveConfig?.fillColor && typeof waveConfig.fillColor === "object" && "stops" in waveConfig.fillColor) {
+              gradientId = `gradient-wave-fill-${index}`;
+            } else {
+              const globalFillIndex = fillColors ? fillColors.findIndex(f => f === fill) : -1;
+              gradientId = globalFillIndex >= 0 ? `gradient-global-fill-${globalFillIndex}` : `gradient-global-fill-${index % (fillColors?.length || 1)}`;
+            }
+            fillValue = `url(#${gradientId})`;
+            fillOpacity = fill.opacity;
+          } else if ("color" in fill) {
+            fillValue = fill.color;
+            fillOpacity = fill.opacity;
+          } else {
+            fillValue = fill as unknown as string;
+          }
+        } else {
+          fillValue = fill as unknown as string;
+        }
+        
+        const effectiveOpacity = fillOpacity !== undefined 
+          ? fillOpacity * waveOpacity 
+          : waveOpacity;
+        
         const inverted = waveConfig?.inverted || false;
         const direction = waveConfig?.direction || "horizontal";
         const animatedWave = animatedValues.waveValues?.[index];
+        
+        const anchorIndex = waveConfig?.anchorTo;
+        const anchorWave = anchorIndex !== undefined && anchorIndex >= 0 && anchorIndex < waves.length
+          ? waves[anchorIndex]
+          : null;
+        
+        const waveValue = anchorWave || wave;
         
         let waveStrokeWidth: number;
         if (animatedWave?.strokeWidth !== undefined) {
@@ -324,15 +521,18 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
         const blurType = waveConfig?.blurType || "none";
         const blurAmount = waveConfig?.blurAmount;
         const filterId = (blurType !== "none" && blurAmount) ? `blur-filter-${index}` : undefined;
+        const maskId = waveConfig?.maskBy !== undefined && waveConfig.maskBy >= 0 && waveConfig.maskBy < waves.length
+          ? `wave-mask-${waveConfig.maskBy}`
+          : undefined;
 
         return (
           <Curve
             key={index}
-            color={color}
+            color={colorValue}
             fillColor={fillValue}
             width={waveStrokeWidth}
             strokeWidthStops={waveStrokeWidthStops}
-            value={wave}
+            value={waveValue}
             position={wavePositions[index]}
             waveAmplitude={currentWaveAmplitude}
             showFill={showFill}
@@ -341,10 +541,11 @@ export const WaveBackground: React.FC<WaveBackgroundProps> = ({
             blurType={blurType}
             blurAmount={blurAmount}
             filterId={filterId}
-            opacity={waveOpacity}
+            opacity={effectiveOpacity}
+            maskId={maskId}
           />
         );
-      })}
+      }).filter(Boolean), [waves, colors, fillColors, waveConfigs, animatedValues.waveValues, wavePositions, currentWaveAmplitude, currentStrokeWidth, strokeWidth, strokeWidthStops, showFill, waveOpacity])}
       </g>
     </svg>
   );

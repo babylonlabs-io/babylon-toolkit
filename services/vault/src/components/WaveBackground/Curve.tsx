@@ -20,6 +20,19 @@ interface CurveProps {
   blurAmount?: number; // Blur amount
   filterId?: string; // Unique filter ID for this wave
   opacity?: number; // Opacity for the wave (0-1)
+  maskId?: string; // SVG mask ID to apply to this wave
+}
+
+function areArraysEqual(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function arePositionsEqual(a: Position, b: Position): boolean {
+  return areArraysEqual(a.x, b.x) && areArraysEqual(a.y, b.y);
 }
 
 export const Curve: React.FC<CurveProps> = memo(function Curve({
@@ -38,6 +51,7 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
   blurAmount: _blurAmount = 5,
   filterId,
   opacity = 1,
+  maskId,
 }) {
   const { x, y } = usePosition(position);
 
@@ -131,7 +145,7 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
 
     const sortedStops = [...strokeWidthStops].sort((a, b) => a.offset - b.offset);
     const segments: Array<{ path: string; strokeWidth: number }> = [];
-    const numSegments = 100;
+    const numSegments = 20;
 
     const [x0, x1] = position.x;
     const [y0, y1] = position.y;
@@ -139,58 +153,49 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
     const yRange = y1 - y0;
     const waveAmplitudePixels = 1000 * waveAmplitude;
 
+    let sx: number, sy: number, ex: number, ey: number, cx1: number, cy1: number, cx2: number, cy2: number;
+
+    if (direction === "vertical") {
+      const startX = x(0);
+      const endX = x(1);
+      const baseX = (startX + endX) / 2;
+      
+      sx = startX;
+      sy = y(0);
+      ex = endX;
+      ey = y(1);
+      
+      cy1 = y0 + value[0] * yRange;
+      cx1 = baseX + (value[1] - 0.5) * waveAmplitudePixels;
+      cy2 = y0 + value[2] * yRange;
+      cx2 = baseX + (value[3] - 0.5) * waveAmplitudePixels;
+    } else {
+      const startY = y(0);
+      const endY = y(1);
+      const baseY = (startY + endY) / 2;
+
+      sx = x(0);
+      sy = startY;
+      ex = x(1);
+      ey = endY;
+
+      cx1 = x0 + value[0] * xRange;
+      cy1 = baseY + (value[1] - 0.5) * waveAmplitudePixels;
+      cx2 = x0 + value[2] * xRange;
+      cy2 = baseY + (value[3] - 0.5) * waveAmplitudePixels;
+    }
+
     const getPointOnBezier = (t: number) => {
-      if (direction === "vertical") {
-        const startX = x(0);
-        const endX = x(1);
-        const baseX = (startX + endX) / 2;
-        
-        const cy1 = y0 + value[0] * yRange;
-        const cx1 = baseX + (value[1] - 0.5) * waveAmplitudePixels;
-        const cy2 = y0 + value[2] * yRange;
-        const cx2 = baseX + (value[3] - 0.5) * waveAmplitudePixels;
-
-        const sx = startX;
-        const sy = y(0);
-        const ex = endX;
-        const ey = y(1);
-        
-        const mt = 1 - t;
-        const mt2 = mt * mt;
-        const mt3 = mt2 * mt;
-        const t2 = t * t;
-        const t3 = t2 * t;
-        
-        return {
-          x: mt3 * sx + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * ex,
-          y: mt3 * sy + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * ey,
-        };
-      } else {
-        const startY = y(0);
-        const endY = y(1);
-        const baseY = (startY + endY) / 2;
-
-        const cx1 = x0 + value[0] * xRange;
-        const cy1 = baseY + (value[1] - 0.5) * waveAmplitudePixels;
-        const cx2 = x0 + value[2] * xRange;
-        const cy2 = baseY + (value[3] - 0.5) * waveAmplitudePixels;
-
-        const sx = x(0);
-        const sy = startY;
-        const ex = x(1);
-        const ey = endY;
-        
-        const mt = 1 - t;
-        const mt2 = mt * mt;
-        const mt3 = mt2 * mt;
-        const t2 = t * t;
-        const t3 = t2 * t;
-        
-        return {
-          x: mt3 * sx + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * ex,
-          y: mt3 * sy + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * ey,
-        };
-      }
+      const mt = 1 - t;
+      const mt2 = mt * mt;
+      const mt3 = mt2 * mt;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      
+      return {
+        x: mt3 * sx + 3 * mt2 * t * cx1 + 3 * mt * t2 * cx2 + t3 * ex,
+        y: mt3 * sy + 3 * mt2 * t * cy1 + 3 * mt * t2 * cy2 + t3 * ey,
+      };
     };
 
     const getWidthAtOffset = (offset: number): number => {
@@ -231,6 +236,7 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
   }, [strokeWidthStops, position, value, x, y, waveAmplitude, direction]);
 
   const filterUrl = blurType !== "none" && filterId ? `url(#${filterId})` : undefined;
+  const maskUrl = maskId ? `url(#${maskId})` : undefined;
 
   return (
     <>
@@ -240,7 +246,10 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
           fill={fillColor}
           d={curveData.fillPath}
           filter={filterUrl}
+          mask={maskUrl}
           opacity={opacity}
+          shapeRendering="optimizeSpeed"
+          style={{ imageRendering: "auto" }}
         />
       )}
       {/* SOLID LINE: The curve line on top */}
@@ -253,7 +262,10 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
             strokeWidth={segment.strokeWidth}
             d={segment.path}
             filter={filterUrl}
+            mask={maskUrl}
             opacity={opacity}
+            shapeRendering="geometricPrecision"
+            style={{ imageRendering: "auto" }}
           />
         ))
       ) : (
@@ -263,10 +275,41 @@ export const Curve: React.FC<CurveProps> = memo(function Curve({
           strokeWidth={width}
           d={curveData.curvePath}
           filter={filterUrl}
+          mask={maskUrl}
           opacity={opacity}
+          shapeRendering="optimizeSpeed"
+          style={{ imageRendering: "auto" }}
         />
       )}
     </>
   );
+}, (prevProps, nextProps) => {
+  if (prevProps.color !== nextProps.color) return false;
+  if (prevProps.fillColor !== nextProps.fillColor) return false;
+  if (prevProps.width !== nextProps.width) return false;
+  if (prevProps.opacity !== nextProps.opacity) return false;
+  if (prevProps.showFill !== nextProps.showFill) return false;
+  if (prevProps.inverted !== nextProps.inverted) return false;
+  if (prevProps.direction !== nextProps.direction) return false;
+  if (prevProps.blurType !== nextProps.blurType) return false;
+  if (prevProps.blurAmount !== nextProps.blurAmount) return false;
+  if (prevProps.filterId !== nextProps.filterId) return false;
+  if (prevProps.maskId !== nextProps.maskId) return false;
+  if (prevProps.waveAmplitude !== nextProps.waveAmplitude) return false;
+  if (prevProps.bottomY !== nextProps.bottomY) return false;
+  
+  if (!areArraysEqual(prevProps.value, nextProps.value)) return false;
+  if (!arePositionsEqual(prevProps.position, nextProps.position)) return false;
+  
+  if (prevProps.strokeWidthStops?.length !== nextProps.strokeWidthStops?.length) return false;
+  if (prevProps.strokeWidthStops && nextProps.strokeWidthStops) {
+    for (let i = 0; i < prevProps.strokeWidthStops.length; i++) {
+      const prev = prevProps.strokeWidthStops[i];
+      const next = nextProps.strokeWidthStops[i];
+      if (prev.offset !== next.offset || prev.width !== next.width) return false;
+    }
+  }
+  
+  return true;
 });
 

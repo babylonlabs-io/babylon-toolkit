@@ -15,7 +15,6 @@ import {
   WaveBackgroundControls,
   DEFAULT_CONFIG,
   type WaveBackgroundConfig,
-  type AnimatedValue,
 } from "../WaveBackground/WaveBackgroundControls";
 import { useKonamiCode } from "../WaveBackground/useKonamiCode";
 import { randomizeConfig } from "../WaveBackground/randomizeConfig";
@@ -24,6 +23,7 @@ export default function RootLayout() {
   const { theme, setTheme } = useTheme();
   const [showControls, setShowControls] = useState(false);
   const isKonamiActivated = useKonamiCode();
+  const [whaleModeActive, setWhaleModeActive] = useState(false);
   const [currentValues, setCurrentValues] = useState<{
     speed: number;
     amplitude: number;
@@ -38,6 +38,11 @@ export default function RootLayout() {
     }>;
   }>();
   const [config, setConfig] = useState<WaveBackgroundConfig>({ ...DEFAULT_CONFIG });
+
+  const handleActivateWhaleMode = () => {
+    setConfig((currentConfig) => randomizeConfig(currentConfig));
+    setWhaleModeActive(true);
+  };
 
   return (
     <div
@@ -63,9 +68,10 @@ export default function RootLayout() {
         waves={config.waves}
         backgroundColor={config.backgroundColor}
         waveOpacity={config.waveOpacity}
+        paused={config.paused}
         onAnimatedValuesChange={setCurrentValues}
       />
-      {showControls && (
+      {isKonamiActivated && showControls && (
         <WaveBackgroundControls
           config={config}
           onChange={setConfig}
@@ -73,13 +79,29 @@ export default function RootLayout() {
           currentValues={currentValues}
         />
       )}
-      {!showControls && (
-        <button
-          onClick={() => setShowControls(true)}
-          className="fixed bottom-4 right-4 z-50 rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-gray-800"
-        >
-          Open Controls
-        </button>
+      {isKonamiActivated && (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
+          {whaleModeActive ? (
+            <div className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg">
+              🐋 Whale Mode Active
+            </div>
+          ) : (
+            <button
+              onClick={handleActivateWhaleMode}
+              className="rounded-lg bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-lg hover:bg-blue-600 transition-colors"
+            >
+              🐋 Activate Whale Mode
+            </button>
+          )}
+          {!showControls && (
+            <button
+              onClick={() => setShowControls(true)}
+              className="rounded-lg bg-white px-4 py-2 shadow-lg dark:bg-gray-800"
+            >
+              Open Controls
+            </button>
+          )}
+        </div>
       )}
       <div className="flex min-h-svh flex-col">
         <Header
