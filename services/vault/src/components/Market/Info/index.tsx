@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import {
   Avatar,
   AvatarGroup,
@@ -17,7 +19,7 @@ interface MarketInfoProps {
   totalLiquidity: string;
   totalLiquiditySubtitle: string;
   borrowRate: string;
-  attributes: Array<{ label: string; value: string }>;
+  attributes: Array<{ label: string; value: string | ReactNode }>;
   positions?: Array<{ label: string; value: string }>;
 }
 
