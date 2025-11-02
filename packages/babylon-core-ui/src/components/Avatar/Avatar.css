@@ -6,7 +6,7 @@
   }
 
   &-tiny {
-    @apply size-[1.125rem];
+    @apply size-4;
   }
 
   &-small {

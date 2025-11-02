@@ -55,83 +55,78 @@ export function Borrow({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Collateral Section */}
-      <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">
-          Collateral
-        </h3>
-        <SubSection>
-          <AmountSlider
-            amount={collateralAmount}
-            currencyIcon="/images/btc.png"
-            currencyName="Bitcoin"
-            balanceDetails={{
-              balance: maxCollateralFromVaults.toFixed(4),
-              symbol: "BTC",
-              displayUSD: false,
-            }}
-            sliderValue={collateralAmount}
-            sliderMin={0}
-            sliderMax={maxCollateralFromVaults}
-            sliderStep={maxCollateralFromVaults / 1000}
-            sliderSteps={collateralSteps}
-            onSliderChange={setCollateralAmount}
-            onSliderStepsChange={() => {
-              // Handle cumulative step selection here
-            }}
-            sliderVariant="primary"
-            leftField={{
-              label: "Max",
-              value: `${maxCollateralFromVaults.toFixed(4)} BTC`,
-            }}
-            onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
-            rightField={{
-              value: `$${collateralValueUSD.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USD`,
-            }}
-          />
-        </SubSection>
-      </div>
+    <div>
+      <h3 className="text-[24px] font-normal text-accent-primary mb-4">
+        Collateral
+      </h3>
+      <SubSection>
+        <AmountSlider
+          amount={collateralAmount}
+          currencyIcon="/images/btc.png"
+          currencyName="Bitcoin"
+          balanceDetails={{
+            balance: maxCollateralFromVaults.toFixed(4),
+            symbol: "BTC",
+            displayUSD: false,
+          }}
+          sliderValue={collateralAmount}
+          sliderMin={0}
+          sliderMax={maxCollateralFromVaults}
+          sliderStep={maxCollateralFromVaults / 1000}
+          sliderSteps={collateralSteps}
+          onSliderChange={setCollateralAmount}
+          onSliderStepsChange={() => {
+            // Handle cumulative step selection here
+          }}
+          sliderVariant="primary"
+          leftField={{
+            label: "Max",
+            value: `${maxCollateralFromVaults.toFixed(4)} BTC`,
+          }}
+          onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
+          rightField={{
+            value: `$${collateralValueUSD.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} USD`,
+          }}
+        />
+      </SubSection>
 
-      {/* Borrow Section */}
-      <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">Borrow</h3>
-        <SubSection>
-          <AmountSlider
-            amount={borrowAmount}
-            currencyIcon="/images/usdc.png"
-            currencyName="USDC"
-            onAmountChange={(e) =>
-              setBorrowAmount(parseFloat(e.target.value) || 0)
-            }
-            balanceDetails={{
-              balance: maxBorrowAmount.toLocaleString(),
-              symbol: "USDC",
-              displayUSD: false,
-            }}
-            sliderValue={borrowAmount}
-            sliderMin={0}
-            sliderMax={maxBorrowAmount}
-            sliderStep={maxBorrowAmount / 1000}
-            onSliderChange={setBorrowAmount}
-            sliderVariant="rainbow"
-            leftField={{
-              label: "Max",
-              value: `${maxBorrowAmount.toLocaleString()} USDC`,
-            }}
-            onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
-            rightField={{
-              value: `$${borrowAmount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USD`,
-            }}
-          />
-        </SubSection>
-      </div>
+      <h3 className="text-[24px] font-normal text-accent-primary mb-4 mt-6">Borrow</h3>
+      <div className="flex flex-col gap-2">
+      <SubSection>
+        <AmountSlider
+          amount={borrowAmount}
+          currencyIcon="/images/usdc.png"
+          currencyName="USDC"
+          onAmountChange={(e) =>
+            setBorrowAmount(parseFloat(e.target.value) || 0)
+          }
+          balanceDetails={{
+            balance: maxBorrowAmount.toLocaleString(),
+            symbol: "USDC",
+            displayUSD: false,
+          }}
+          sliderValue={borrowAmount}
+          sliderMin={0}
+          sliderMax={maxBorrowAmount}
+          sliderStep={maxBorrowAmount / 1000}
+          onSliderChange={setBorrowAmount}
+          sliderVariant="rainbow"
+          leftField={{
+            label: "Max",
+            value: `${maxBorrowAmount.toLocaleString()} USDC`,
+          }}
+          onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
+          rightField={{
+            value: `$${borrowAmount.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })} USD`,
+          }}
+        />
+      </SubSection>
 
       <LoanSummaryCard
         collateralAmount={collateralAmount}
@@ -139,14 +134,16 @@ export function Borrow({
         ltv={ltv}
         liquidationLtv={liquidationLtv}
       />
+      </div>
 
       <Button
         variant="contained"
-        color="primary"
+        color="secondary"
         size="large"
         fluid
         disabled={isDisabled}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
+        className="mt-6"
       >
         {getButtonText()}
       </Button>

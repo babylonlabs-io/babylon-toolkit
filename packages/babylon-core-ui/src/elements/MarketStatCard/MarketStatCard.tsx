@@ -10,8 +10,8 @@ export function MarketStatCard({ title, amount, subtitle }: MarketStatCardProps)
   const { value, unit } = splitAmountUnit(amount);
 
   return (
-    <div className="flex flex-col gap-1">
-      <p className="text-[12px] font-normal text-accent-secondary">
+    <div className="flex flex-col gap-[2px]">
+      <p className="text-[12px] font-normal text-accent-secondary" style={{ letterSpacing: "0.4px" }}>
         {title}
       </p>
       <div className="flex items-baseline gap-0.5">
@@ -25,7 +25,7 @@ export function MarketStatCard({ title, amount, subtitle }: MarketStatCardProps)
         )}
       </div>
       {subtitle && (
-        <p className="text-[14px] font-normal text-accent-secondary">
+        <p className="text-[14px] font-normal text-accent-primary">
           {subtitle}
         </p>
       )}

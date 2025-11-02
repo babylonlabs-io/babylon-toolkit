@@ -85,29 +85,30 @@ export function MarketInfo({
         />
         <MarketStatCard title="Borrow Rate" amount={borrowRate} />
       </div>
-
-      <Tabs
-        variant="simple"
-        items={[
-          {
-            id: "market-attributes",
-            label: "Market Attributes",
-            content: <KeyValueList items={attributes} showDivider={false} />,
-          },
-          ...(positions
-            ? [
-                {
-                  id: "positions",
-                  label: "Positions",
-                  content: (
-                    <KeyValueList items={positions} showDivider={false} />
-                  ),
-                },
-              ]
-            : []),
-        ]}
-        defaultActiveTab="market-attributes"
-      />
+      <div className="!mt-[62px]">
+        <Tabs
+          variant="simple"
+          items={[
+            {
+              id: "market-attributes",
+              label: "Market Attributes",
+              content: <KeyValueList items={attributes} showDivider={false} />,
+            },
+            ...(positions
+              ? [
+                  {
+                    id: "positions",
+                    label: "Positions",
+                    content: (
+                      <KeyValueList items={positions} showDivider={false} />
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+          defaultActiveTab="market-attributes"
+        />
+      </div>
     </div>
   );
 }
