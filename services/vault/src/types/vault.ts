@@ -1,3 +1,5 @@
+import type { PeginDisplayLabel } from "../models/peginStateMachine";
+
 export interface VaultData {
   supplyTVL: number;
   borrowTVL: number;
@@ -12,14 +14,5 @@ export interface Deposit {
     name: string;
     icon: string;
   };
-  status:
-    | "Available"
-    | "Pending"
-    | "In Use"
-    | "Signing required"
-    | "Ready to Sign"
-    | "Processing"
-    | "Verified"
-    | "Pending Bitcoin Confirmations"
-    | "Expired";
+  status: PeginDisplayLabel;
 }

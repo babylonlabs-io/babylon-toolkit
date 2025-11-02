@@ -1,6 +1,8 @@
 import {
-  AmountSlider,
+  Avatar,
+  AvatarGroup,
   Button,
+  Checkbox,
   DialogBody,
   DialogFooter,
   DialogHeader,
@@ -9,114 +11,123 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
-import {
-  btcNumberToSatoshi,
-  satoshiToBtcNumber,
-} from "../../../../utils/btcConversion";
+import type { Deposit } from "../../../../types/vault";
 
 interface RedeemCollateralModalProps {
   open: boolean;
   onClose: () => void;
-  onRedeem: (amount: bigint) => void;
-  availableBalance?: bigint;
-  btcPrice?: number;
+  onNext: (depositIds: string[]) => void;
+  deposits: Deposit[];
 }
 
 export function RedeemCollateralModal({
   open,
   onClose,
-  onRedeem,
-  availableBalance = 1000000000n, // Default 10 BTC in satoshis
-  btcPrice = 112694.16,
+  onNext,
+  deposits,
 }: RedeemCollateralModalProps) {
-  const [redeemAmount, setRedeemAmount] = useState(0);
+  const [selectedDepositIds, setSelectedDepositIds] = useState<string[]>([]);
 
-  const availableBtc = useMemo(
-    () => satoshiToBtcNumber(availableBalance),
-    [availableBalance],
-  );
+  // Filter only "Available" deposits
+  const availableDeposits = useMemo(() => {
+    return deposits.filter((d) => d.status === "Available");
+  }, [deposits]);
 
-  // Hardcoded redeem step array for demonstration
-  // Values represent BTC amounts
-  const redeemSteps = useMemo(() => {
-    return [
-      { value: 0 },
-      { value: availableBtc * 0.2 },
-      { value: availableBtc * 0.4 },
-      { value: availableBtc * 0.6 },
-      { value: availableBtc * 0.8 },
-      { value: availableBtc },
-    ];
-  }, [availableBtc]);
+  const handleClose = () => {
+    setSelectedDepositIds([]);
+    onClose();
+  };
 
-  const handleRedeem = () => {
-    if (redeemAmount > 0) {
-      const amountSats = btcNumberToSatoshi(redeemAmount);
-      onRedeem(amountSats);
+  const handleNext = () => {
+    if (selectedDepositIds.length > 0) {
+      onNext(selectedDepositIds);
     }
   };
 
-  const handleClose = () => {
-    setRedeemAmount(0);
-    onClose();
+  const toggleSelection = (depositId: string) => {
+    setSelectedDepositIds((prev) =>
+      prev.includes(depositId)
+        ? prev.filter((id) => id !== depositId)
+        : [...prev, depositId],
+    );
   };
 
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
       <DialogHeader
-        title="Redeem BTC"
+        title="Redeem"
         onClose={handleClose}
         className="text-accent-primary"
       />
 
-      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 text-accent-primary sm:px-6">
+      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto text-accent-primary">
         <Text variant="body2" className="text-accent-secondary">
-          Enter the amount of BTC you want to redeem back to your wallet.
+          Select the BTC amount you want to redeem back to your wallet.
         </Text>
 
-        <AmountSlider
-          amount={redeemAmount}
-          currencyIcon="/images/btc.png"
-          currencyName="Bitcoin"
-          balanceDetails={{
-            balance: availableBtc,
-            symbol: "BTC",
-            price: btcPrice,
-            displayUSD: false,
-          }}
-          sliderValue={redeemAmount}
-          sliderMin={0}
-          sliderMax={availableBtc}
-          sliderStep={availableBtc / 1000}
-          sliderSteps={redeemSteps}
-          onSliderChange={setRedeemAmount}
-          onSliderStepsChange={() => {
-            // Handle cumulative step selection here
-          }}
-          sliderVariant="primary"
-          leftField={{
-            label: "Max",
-            value: `${availableBtc.toFixed(4)} BTC`,
-          }}
-          onMaxClick={() => setRedeemAmount(availableBtc)}
-          rightField={{
-            value: `$${(redeemAmount * btcPrice).toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} USD`,
-          }}
-        />
+        {availableDeposits.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <img
+              src="/images/btc.png"
+              alt="Bitcoin"
+              className="mb-4 h-16 w-16"
+            />
+            <Text variant="body2" className="center text-accent-secondary">
+              No deposits in use to redeem.
+            </Text>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {availableDeposits.map((deposit, index) => {
+              const isSelected = selectedDepositIds.includes(deposit.id);
+
+              return (
+                <div
+                  key={deposit.id}
+                  className={`flex cursor-pointer items-center justify-between gap-4 px-0 py-4 transition-colors ${
+                    index % 2 === 0
+                      ? "bg-secondary-highlight/50 hover:bg-secondary-highlight"
+                      : "bg-transparent hover:bg-secondary-highlight/50"
+                  }`}
+                  onClick={() => toggleSelection(deposit.id)}
+                >
+                  <div className="flex flex-1 items-center gap-3 px-4">
+                    <AvatarGroup size="medium">
+                      <Avatar
+                        url="/images/btc.png"
+                        alt="BTC"
+                        size="medium"
+                        variant="circular"
+                      />
+                    </AvatarGroup>
+                    <Text variant="body1" className="font-medium">
+                      {deposit.amount} BTC
+                    </Text>
+                  </div>
+                  <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isSelected}
+                      onChange={() => toggleSelection(deposit.id)}
+                      variant="default"
+                      showLabel={false}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </DialogBody>
 
-      <DialogFooter className="flex items-center justify-end px-4 pb-6 sm:px-6">
+      <DialogFooter className="flex items-center justify-end pb-6">
         <Button
           variant="contained"
           color="primary"
-          onClick={handleRedeem}
-          disabled={redeemAmount === 0}
+          onClick={handleNext}
+          disabled={selectedDepositIds.length === 0}
           className="text-sm sm:text-base"
         >
-          {redeemAmount === 0 ? "Enter an amount" : "Redeem"}
+          Next
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

@@ -9,7 +9,7 @@ import {
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
@@ -19,6 +19,8 @@ import { getPeginState } from "../../../../models/peginStateMachine";
 import { usePeginStorage } from "../../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../../types/activity";
 import type { Deposit } from "../../../../types/vault";
+import { BroadcastSignModal } from "../BroadcastSignModal";
+import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { DepositTableRowActions } from "../DepositTableRow";
 import { useDepositRowPolling } from "../hooks/useDepositRowPolling";
 import { usePayoutSignModal } from "../hooks/usePayoutSignModal";
@@ -27,6 +29,10 @@ import {
   useVaultDepositState,
   VaultDepositStep,
 } from "../state/VaultDepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../state/VaultRedeemState";
 
 function EmptyState({
   onDeposit,
@@ -109,12 +115,14 @@ function ActionCell({
   btcPublicKey,
   pendingPegins,
   onSignClick,
+  onBroadcastClick,
 }: {
   activity: VaultActivity;
   deposit: Deposit;
   btcPublicKey?: string;
   pendingPegins: any[];
   onSignClick: (depositId: string, transactions: any[]) => void;
+  onBroadcastClick: (depositId: string) => void;
 }) {
   const pendingPegin = pendingPegins.find((p) => p.id === deposit.id);
 
@@ -125,6 +133,7 @@ function ActionCell({
       btcPublicKey={btcPublicKey}
       pendingPegin={pendingPegin}
       onSignClick={onSignClick}
+      onBroadcastClick={onBroadcastClick}
     />
   );
 }
@@ -136,20 +145,26 @@ function DepositMobileCard({
   btcPublicKey,
   pendingPegins,
   onSignClick,
+  onBroadcastClick,
 }: {
   deposit: Deposit;
   activity: VaultActivity;
   btcPublicKey?: string;
   pendingPegins: any[];
   onSignClick: (depositId: string, transactions: any[]) => void;
+  onBroadcastClick: (depositId: string) => void;
 }) {
   const pendingPegin = pendingPegins.find((p) => p.id === deposit.id);
-  const { peginState, shouldShowSignButton, transactions } =
-    useDepositRowPolling({
-      activity,
-      btcPublicKey,
-      pendingPegin,
-    });
+  const {
+    peginState,
+    shouldShowSignButton,
+    shouldShowBroadcastButton,
+    transactions,
+  } = useDepositRowPolling({
+    activity,
+    btcPublicKey,
+    pendingPegin,
+  });
   const status = peginState.displayLabel;
 
   const statusMap: Record<string, "inactive" | "pending" | "active"> = {
@@ -194,11 +209,17 @@ function DepositMobileCard({
         },
       ]}
       actions={
-        shouldShowSignButton ? [{ name: "Sign", action: "sign" }] : undefined
+        shouldShowSignButton
+          ? [{ name: "Sign", action: "sign" }]
+          : shouldShowBroadcastButton
+            ? [{ name: "Sign & Broadcast", action: "broadcast" }]
+            : undefined
       }
       onAction={(id, action) => {
         if (action === "sign" && transactions) {
           onSignClick(id, transactions);
+        } else if (action === "broadcast") {
+          onBroadcastClick(id);
         }
       }}
     />
@@ -239,7 +260,38 @@ export function DepositOverview() {
     onSuccess: refetchActivities,
   });
 
+  // Manage broadcast modal state
+  const [broadcastingActivity, setBroadcastingActivity] =
+    useState<VaultActivity | null>(null);
+  const [broadcastSuccessOpen, setBroadcastSuccessOpen] = useState(false);
+
+  // Broadcast modal handlers
+  const handleBroadcastClick = useCallback(
+    (depositId: string) => {
+      const activity = allActivities.find((a) => a.id === depositId);
+      if (activity) {
+        setBroadcastingActivity(activity);
+      }
+    },
+    [allActivities],
+  );
+
+  const handleBroadcastClose = useCallback(() => {
+    setBroadcastingActivity(null);
+  }, []);
+
+  const handleBroadcastSuccess = useCallback(() => {
+    setBroadcastingActivity(null);
+    setBroadcastSuccessOpen(true);
+    refetchActivities(); // Trigger refetch to update status
+  }, [refetchActivities]);
+
+  const handleBroadcastSuccessClose = useCallback(() => {
+    setBroadcastSuccessOpen(false);
+  }, []);
+
   const { goToStep: goToDepositStep } = useVaultDepositState();
+  const { goToStep: goToRedeemStep } = useVaultRedeemState();
 
   const handleDeposit = () => {
     if (!isConnected) {
@@ -248,6 +300,12 @@ export function DepositOverview() {
     } else {
       // Already connected, open deposit modal directly
       goToDepositStep(VaultDepositStep.FORM);
+    }
+  };
+
+  const handleRedeem = () => {
+    if (isConnected) {
+      goToRedeemStep(VaultRedeemStep.FORM);
     }
   };
 
@@ -264,7 +322,7 @@ export function DepositOverview() {
           name: activity.providers[0]?.name || "Unknown Provider",
           icon: activity.providers[0]?.icon || "",
         },
-        status: state.displayLabel as "Available" | "Pending" | "In Use",
+        status: state.displayLabel,
       };
     });
   }, [allActivities]);
@@ -333,6 +391,7 @@ export function DepositOverview() {
             btcPublicKey={btcPublicKey}
             pendingPegins={pendingPegins}
             onSignClick={handleSignClick}
+            onBroadcastClick={handleBroadcastClick}
           />
         );
       },
@@ -341,7 +400,7 @@ export function DepositOverview() {
 
   return (
     <div className="relative">
-      {/* Header with Deposit button */}
+      {/* Header with Deposit and Redeem buttons */}
       <div className="mb-4 flex items-center justify-end gap-2">
         <Button
           variant="outlined"
@@ -351,6 +410,16 @@ export function DepositOverview() {
           aria-label={isConnected ? "Deposit BTC" : "Connect wallet to deposit"}
         >
           {isConnected ? "Deposit" : "Connect Wallet"}
+        </Button>
+        <Button
+          variant="outlined"
+          size="medium"
+          rounded
+          onClick={handleRedeem}
+          aria-label="Redeem BTC"
+          disabled={!isConnected}
+        >
+          Redeem
         </Button>
       </div>
 
@@ -367,6 +436,7 @@ export function DepositOverview() {
                 btcPublicKey={btcPublicKey}
                 pendingPegins={pendingPegins}
                 onSignClick={handleSignClick}
+                onBroadcastClick={handleBroadcastClick}
               />
             );
           })}
@@ -389,6 +459,24 @@ export function DepositOverview() {
           onSuccess={handlePayoutSignSuccess}
         />
       )}
+
+      {/* Broadcast Sign Modal - Opens when clicking Sign & Broadcast button */}
+      {broadcastingActivity && ethAddress && (
+        <BroadcastSignModal
+          open={!!broadcastingActivity}
+          onClose={handleBroadcastClose}
+          activity={broadcastingActivity}
+          depositorEthAddress={ethAddress}
+          onSuccess={handleBroadcastSuccess}
+        />
+      )}
+
+      {/* Broadcast Success Modal - Shows after successful broadcast */}
+      <BroadcastSuccessModal
+        open={broadcastSuccessOpen}
+        onClose={handleBroadcastSuccessClose}
+        amount={broadcastingActivity?.collateral.amount || "0"}
+      />
     </div>
   );
 }

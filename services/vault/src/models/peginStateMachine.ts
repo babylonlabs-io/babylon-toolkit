@@ -66,6 +66,21 @@ export enum DaemonStatus {
 // ============================================================================
 
 /**
+ * All possible display labels for peg-in states
+ * These are the labels shown to users in the UI
+ */
+export type PeginDisplayLabel =
+  | "Pending"
+  | "Signing required"
+  | "Processing"
+  | "Verified"
+  | "Pending Bitcoin Confirmations"
+  | "Available"
+  | "In Use"
+  | "Expired"
+  | "Unknown";
+
+/**
  * Unified peg-in state combining all sources
  */
 export interface PeginState {
@@ -74,7 +89,7 @@ export interface PeginState {
   /** Local storage status (temporary, off-chain) */
   localStatus?: LocalStorageStatus;
   /** Display label for UI */
-  displayLabel: string;
+  displayLabel: PeginDisplayLabel;
   /** Display variant for styling */
   displayVariant: "pending" | "active" | "inactive";
   /** Available user actions */
