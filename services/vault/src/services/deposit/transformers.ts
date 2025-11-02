@@ -155,10 +155,26 @@ export function parseBtcToSatoshis(btcAmount: string): bigint {
   // Remove any non-numeric characters except decimal
   const cleanAmount = btcAmount.replace(/[^0-9.]/g, '');
   
+  // Validate input: must not be empty, must contain at most one decimal point
+  if (
+    !cleanAmount ||
+    cleanAmount === '.' ||
+    (cleanAmount.match(/\./g) || []).length > 1
+  ) {
+    return 0n;
+  }
+  
   // Handle decimal places
   const [whole, decimal = ''] = cleanAmount.split('.');
+  // If whole is empty (e.g., ".5"), treat as "0"
+  const safeWhole = whole === '' ? '0' : whole;
   const paddedDecimal = decimal.padEnd(8, '0').slice(0, 8);
-  const satoshis = whole + paddedDecimal;
+  const satoshis = safeWhole + paddedDecimal;
+  
+  // Validate satoshis is a valid integer string
+  if (!/^\d+$/.test(satoshis)) {
+    return 0n;
+  }
   
   return BigInt(satoshis);
 }
