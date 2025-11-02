@@ -31,6 +31,7 @@
     "react-toastify": "10.0.6",
     "react-tooltip": "5.29.1",
     "tailwind-merge": "2.5.4",
+    "three": "^0.181.0",
     "usehooks-ts": "^3.1.1",
     "viem": "2.38.2",
     "wagmi": "2.18.1"
@@ -48,6 +49,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.181.0",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@typescript-eslint/parser": "^8.44.1",
     "@vitejs/plugin-react": "^4.4.1",
