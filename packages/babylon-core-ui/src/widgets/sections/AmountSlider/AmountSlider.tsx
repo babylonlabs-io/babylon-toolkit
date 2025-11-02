@@ -142,7 +142,7 @@ export function AmountSlider({
             disabled={disabled}
             className="flex items-center gap-2 text-accent-secondary hover:text-accent-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="cursor-pointer rounded bg-secondary-strokeLight px-2 py-0.5 text-xs hover:opacity-90">
+            <span className="cursor-pointer rounded-[8px] border border-gray-300 bg-transparent px-2 py-0.5 text-xs tracking-[0.4px] hover:opacity-90 dark:border-[#2F2F2F] dark:bg-[#2F2F2F]">
               Max
             </span>
             <span>{leftField.value}</span>

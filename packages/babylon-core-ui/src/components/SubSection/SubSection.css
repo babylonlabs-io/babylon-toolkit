@@ -6,6 +6,11 @@
   @apply bg-secondary-highlight;
 }
 
+:root.dark .bbn-subsection-contained,
+:root[data-mode="dark"] .bbn-subsection-contained {
+  @apply bg-primary-main;
+}
+
 .bbn-subsection-outlined {
   @apply border border-current;
 }
