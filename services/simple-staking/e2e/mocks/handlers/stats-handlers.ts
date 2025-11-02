@@ -1,4 +1,4 @@
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 
 const mockStatsV2 = {
   active_tvl: 3238664649941,
@@ -107,29 +107,25 @@ const mockFinalityProviders = [
 ];
 
 export const statsHandlers = [
-  rest.get("/v2/stats*", (req, res, ctx) => {
-    return res(ctx.json({ data: mockStatsV2 }));
+  http.get("/v2/stats*", () => {
+    return HttpResponse.json({ data: mockStatsV2 });
   }),
 
-  rest.get("/v2/prices*", (req, res, ctx) => {
-    return res(ctx.json({ data: mockPrices }));
+  http.get("/v2/prices*", () => {
+    return HttpResponse.json({ data: mockPrices });
   }),
 
-  rest.get("/v1/finality-providers*", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        data: mockFinalityProviders,
-        pagination: { next_key: "", total: `${mockFinalityProviders.length}` },
-      }),
-    );
+  http.get("/v1/finality-providers*", () => {
+    return HttpResponse.json({
+      data: mockFinalityProviders,
+      pagination: { next_key: "", total: `${mockFinalityProviders.length}` },
+    });
   }),
 
-  rest.get("/v2/finality-providers*", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        data: mockFinalityProviders,
-        pagination: { next_key: "", total: `${mockFinalityProviders.length}` },
-      }),
-    );
+  http.get("/v2/finality-providers*", () => {
+    return HttpResponse.json({
+      data: mockFinalityProviders,
+      pagination: { next_key: "", total: `${mockFinalityProviders.length}` },
+    });
   }),
 ];

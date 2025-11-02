@@ -1,15 +1,13 @@
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 
 export const utilityHandlers = [
-  rest.get("/address/screening*", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        data: {
-          btc_address: {
-            risk: "low",
-          },
+  http.get("/address/screening*", () => {
+    return HttpResponse.json({
+      data: {
+        btc_address: {
+          risk: "low",
         },
-      }),
-    );
+      },
+    });
   }),
 ];

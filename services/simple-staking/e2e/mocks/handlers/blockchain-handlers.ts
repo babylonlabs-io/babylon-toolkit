@@ -1,26 +1,17 @@
 import { incentivequery } from "@babylonlabs-io/babylon-proto-ts";
 import { QueryBalanceResponse } from "cosmjs-types/cosmos/bank/v1beta1/query.js";
-import {
-  type ResponseComposition,
-  type RestContext,
-  type RestRequest,
-  rest,
-} from "msw";
+import { http, HttpResponse, type HttpHandler } from "msw";
 
 import { MOCK_VALUES } from "./constants";
 
-type QueryHandler = (
-  req: RestRequest,
-  res: ResponseComposition,
-  ctx: RestContext,
-) => any;
+type QueryHandler = ({ request }: { request: Request }) => Response;
 
 interface QueryStrategy {
   pattern: RegExp | string;
   handler: QueryHandler;
 }
 
-const handleRewardGauges: QueryHandler = (req, res, ctx) => {
+const handleRewardGauges: QueryHandler = ({ request }) => {
   try {
     const mockResponse = incentivequery.QueryRewardGaugesResponse.fromPartial({
       rewardGauges: {
@@ -36,32 +27,30 @@ const handleRewardGauges: QueryHandler = (req, res, ctx) => {
 
     const base64Value = Buffer.from(encoded).toString("base64");
 
-    return res(
-      ctx.json({
-        jsonrpc: "2.0",
-        id: -1,
-        result: {
-          response: {
-            code: 0,
-            log: "",
-            info: "",
-            index: "0",
-            key: null,
-            value: base64Value,
-            proof_ops: null,
-            height: "0",
-            codespace: "",
-          },
+    return HttpResponse.json({
+      jsonrpc: "2.0",
+      id: -1,
+      result: {
+        response: {
+          code: 0,
+          log: "",
+          info: "",
+          index: "0",
+          key: null,
+          value: base64Value,
+          proof_ops: null,
+          height: "0",
+          codespace: "",
         },
-      }),
-    );
+      },
+    });
   } catch (error) {
     console.error("Failed to build mock RewardGauges response", error);
-    return req.passthrough();
+    return fetch(request);
   }
 };
 
-const handleBankBalance: QueryHandler = (req, res, ctx) => {
+const handleBankBalance: QueryHandler = ({ request }) => {
   try {
     const mockResp = QueryBalanceResponse.fromPartial({
       balance: { denom: "ubbn", amount: MOCK_VALUES.BBN_BALANCE },
@@ -70,28 +59,26 @@ const handleBankBalance: QueryHandler = (req, res, ctx) => {
     const encoded = QueryBalanceResponse.encode(mockResp).finish();
     const base64Value = Buffer.from(encoded).toString("base64");
 
-    return res(
-      ctx.json({
-        jsonrpc: "2.0",
-        id: -1,
-        result: {
-          response: {
-            code: 0,
-            log: "",
-            info: "",
-            index: "0",
-            key: null,
-            value: base64Value,
-            proof_ops: null,
-            height: "0",
-            codespace: "",
-          },
+    return HttpResponse.json({
+      jsonrpc: "2.0",
+      id: -1,
+      result: {
+        response: {
+          code: 0,
+          log: "",
+          info: "",
+          index: "0",
+          key: null,
+          value: base64Value,
+          proof_ops: null,
+          height: "0",
+          codespace: "",
         },
-      }),
-    );
+      },
+    });
   } catch (error) {
     console.error("Failed to build mock Bank Balance response", error);
-    return req.passthrough();
+    return fetch(request);
   }
 };
 
@@ -108,8 +95,8 @@ const queryStrategies: QueryStrategy[] = [
 ];
 
 export const blockchainHandlers = [
-  rest.get(/.*\/abci_query$/, (req, res, ctx) => {
-    const url = new URL(req.url.href);
+  http.get(/.*\/abci_query$/, ({ request }) => {
+    const url = new URL(request.url);
     let pathParam = url.searchParams.get("path");
 
     if (pathParam) {
@@ -128,11 +115,11 @@ export const blockchainHandlers = [
             ? pathParam.includes(strategy.pattern)
             : strategy.pattern.test(pathParam)
         ) {
-          return strategy.handler(req, res, ctx);
+          return strategy.handler({ request });
         }
       }
     }
 
-    return req.passthrough();
+    return fetch(request);
   }),
 ];
