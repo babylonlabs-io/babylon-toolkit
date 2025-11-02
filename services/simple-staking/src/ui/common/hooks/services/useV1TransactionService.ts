@@ -1,27 +1,25 @@
 import {
-  BabylonBtcStakingManager,
   getUnbondingTxStakerSignature,
   TransactionResult,
-  VersionedStakingParams,
 } from "@babylonlabs-io/btc-staking-ts";
 import { Transaction } from "bitcoinjs-lib";
 import { useCallback, useMemo } from "react";
 
+import type { BtcStakingInputs } from "@/ui/common/types/stakingInputs";
 import { getUnbondingEligibility } from "@/ui/common/api/getUnbondingEligibility";
 import { postUnbonding } from "@/ui/common/api/postUnbonding";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useAppState } from "@/ui/common/state";
-import { validateStakingInput } from "@/ui/common/utils/delegations";
 import { txFeeSafetyCheck } from "@/ui/common/utils/delegations/fee";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getBbnParamByBtcHeight } from "@/ui/common/utils/params";
+import { validateV1StakingManagerInputs } from "@/ui/common/utils/validateV1StakingManagerInputs";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
 
 import { useStakingManagerService } from "./useStakingManagerService";
-import { BtcStakingInputs } from "./useTransactionService";
 
 export function useV1TransactionService() {
   const { publicKeyNoCoord, address: btcAddress, pushTx } = useBTCWallet();
@@ -62,7 +60,7 @@ export function useV1TransactionService() {
       stakingTxHex: string,
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      validateV1StakingManagerInputs(
         btcStakingManager,
         stakingInput,
         stakerBtcInfo,
@@ -156,7 +154,7 @@ export function useV1TransactionService() {
       });
 
       const btcStakingManager = createBtcStakingManager();
-      validateCommonInputs(
+      validateV1StakingManagerInputs(
         btcStakingManager,
         stakingInput,
         stakerBtcInfo,
@@ -213,43 +211,3 @@ export function useV1TransactionService() {
     submitWithdrawalTx,
   };
 }
-
-/**
- * Validate the common inputs
- * @param btcStakingManager - The BTC Staking Manager
- * @param stakingInput - The staking inputs (e.g. amount, timelock, etc.)
- * @param stakerInfo - The staker info (e.g. address, public key, etc.)
- */
-const validateCommonInputs = (
-  btcStakingManager: BabylonBtcStakingManager | null,
-  stakingInput: BtcStakingInputs,
-  stakerBtcInfo: { address: string; publicKeyNoCoordHex: string },
-  versionedParams?: VersionedStakingParams[],
-  logger?: ReturnType<typeof useLogger>,
-) => {
-  validateStakingInput(stakingInput);
-  if (!btcStakingManager) {
-    const clientError = new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "BTC Staking Manager not initialized",
-    );
-    logger?.warn(clientError.message);
-    throw clientError;
-  }
-  if (!stakerBtcInfo.address || !stakerBtcInfo.publicKeyNoCoordHex) {
-    const clientError = new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "Staker info not initialized",
-    );
-    logger?.warn(clientError.message);
-    throw clientError;
-  }
-  if (!versionedParams?.length) {
-    const clientError = new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "Staking params not loaded",
-    );
-    logger?.warn(clientError.message);
-    throw clientError;
-  }
-};

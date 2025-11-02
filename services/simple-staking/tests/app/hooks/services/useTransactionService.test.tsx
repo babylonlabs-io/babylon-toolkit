@@ -1,13 +1,17 @@
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Transaction } from "bitcoinjs-lib";
+import type { ReactNode } from "react";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useNetworkFees } from "@/ui/common/hooks/client/api/useNetworkFees";
 import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
+import { DELEGATIONS_V2_KEY } from "@/ui/common/hooks/client/api/useDelegationsV2";
 import { useStakingManagerService } from "@/ui/common/hooks/services/useStakingManagerService";
 import {
   BtcStakingInputs,
+  BtcStakingExpansionInputs,
   useTransactionService,
 } from "@/ui/common/hooks/services/useTransactionService";
 import { useAppState } from "@/ui/common/state";
@@ -109,6 +113,9 @@ describe("useTransactionService", () => {
     createSignedBtcWithdrawEarlyUnbondedTransaction: jest.fn(),
     createSignedBtcWithdrawStakingExpiredTransaction: jest.fn(),
     createSignedBtcWithdrawSlashingTransaction: jest.fn(),
+    stakingExpansionRegistrationBabylonTransaction: jest.fn(),
+    estimateBtcStakingExpansionFee: jest.fn(),
+    createSignedBtcStakingExpansionTransaction: jest.fn(),
   };
 
   // Mock transaction and other values
@@ -123,15 +130,25 @@ describe("useTransactionService", () => {
     3,
     "mock-script-pubkey",
   );
-  const mockTipHeader = { height: 800000 };
+  const mockTipHeight = 800000;
   const mockBech32Address = "mock-bech32-address";
   const mockSignedBabylonTx = "mock-signed-babylon-tx";
   const mockPushTx = jest.fn();
   const mockRefetchUTXOs = jest.fn();
   const mockEventCallback = jest.fn();
+  let mockRefetchBtcTip: jest.Mock;
+  let queryClient: QueryClient;
+  let wrapper: ({ children }: { children: ReactNode }) => JSX.Element;
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    queryClient = new QueryClient();
+    wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    mockRefetchBtcTip = jest.fn().mockResolvedValue({ data: mockTipHeight });
 
     // Mock useStakingManagerService
     (useStakingManagerService as jest.Mock).mockReturnValue({
@@ -149,7 +166,7 @@ describe("useTransactionService", () => {
 
     // Mock useBbnQuery
     (useBbnQuery as jest.Mock).mockReturnValue({
-      btcTipQuery: { data: mockTipHeader },
+      btcTipQuery: { data: mockTipHeight, refetch: mockRefetchBtcTip },
     });
 
     // Mock useBTCWallet
@@ -197,6 +214,10 @@ describe("useTransactionService", () => {
     });
   });
 
+  afterEach(() => {
+    queryClient.clear();
+  });
+
   describe("createDelegationEoi", () => {
     it("should create a delegation EOI successfully", async () => {
       // Mock the response from the staking manager
@@ -207,7 +228,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call the function
       let eoi;
@@ -224,7 +245,7 @@ describe("useTransactionService", () => {
       ).toHaveBeenCalledWith(
         mockStakerInfo,
         mockStakingInputs,
-        mockTipHeader.height,
+        mockTipHeight,
         mockAvailableUTXOs,
         mockFeeRate,
         mockBech32Address,
@@ -235,6 +256,14 @@ describe("useTransactionService", () => {
       });
     });
 
+    it("calls refetchBtcTip before creating EOI", async () => {
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await act(async () => {
+        await result.current.createDelegationEoi(mockStakingInputs, mockFeeRate);
+      });
+      expect(mockRefetchBtcTip).toHaveBeenCalled();
+    });
+
     it("should throw error when UTXOs not initialized", async () => {
       // Mock useAppState to return undefined UTXOs
       (useAppState as jest.Mock).mockReturnValue({
@@ -242,7 +271,7 @@ describe("useTransactionService", () => {
         refetchUTXOs: mockRefetchUTXOs,
       });
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call the function and expect it to throw
       await expect(
@@ -256,7 +285,7 @@ describe("useTransactionService", () => {
       // Mock the response from the staking manager
       mockBtcStakingManager.estimateBtcStakingFee.mockReturnValue(5000);
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call the function
       const fee = result.current.estimateStakingFee(
@@ -267,12 +296,23 @@ describe("useTransactionService", () => {
       // Check the results
       expect(mockBtcStakingManager.estimateBtcStakingFee).toHaveBeenCalledWith(
         mockStakerInfo,
-        mockTipHeader.height,
+        mockTipHeight,
         mockStakingInputs,
         mockAvailableUTXOs,
         mockFeeRate,
       );
       expect(fee).toBe(5000);
+    });
+
+    it("throws when UTXOs not initialized", () => {
+      (useAppState as jest.Mock).mockReturnValue({
+        availableUTXOs: undefined,
+        refetchUTXOs: jest.fn(),
+      });
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      expect(() =>
+        result.current.estimateStakingFee(mockStakingInputs, mockFeeRate),
+      ).toThrow("Available UTXOs not initialized");
     });
   });
 
@@ -286,7 +326,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockStakingTxHex = "mock-staking-tx-hex";
       const mockStakingHeight = 790000;
 
@@ -326,6 +366,28 @@ describe("useTransactionService", () => {
         signedBabylonTx: mockSignedBabylonTx,
       });
     });
+
+    it("calls refetchBtcTip before transitioning", async () => {
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await act(async () => {
+        await result.current.transitionPhase1Delegation(
+          "hex",
+          123,
+          mockStakingInputs,
+        );
+      });
+      expect(mockRefetchBtcTip).toHaveBeenCalled();
+    });
+
+    it("propagates inclusion-proof errors", async () => {
+      jest
+        .spyOn(mempoolAPI, "getTxMerkleProof")
+        .mockRejectedValueOnce(new Error("boom"));
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await expect(
+        result.current.transitionPhase1Delegation("hex", 123, mockStakingInputs),
+      ).rejects.toThrow("boom");
+    });
   });
 
   describe("submitStakingTx", () => {
@@ -335,7 +397,7 @@ describe("useTransactionService", () => {
         mockTransaction,
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockUnSignedStakingTxHex = "mock-unsigned-staking-tx-hex";
 
@@ -376,7 +438,7 @@ describe("useTransactionService", () => {
         differentTx,
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockUnSignedStakingTxHex = "mock-unsigned-staking-tx-hex";
 
@@ -396,6 +458,136 @@ describe("useTransactionService", () => {
       expect(mockPushTx).not.toHaveBeenCalled();
       expect(mockRefetchUTXOs).not.toHaveBeenCalled();
     });
+
+    it("invalidates delegations after success", async () => {
+      (mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock).mockResolvedValue(
+        mockTransaction,
+      );
+      const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await act(async () => {
+        await result.current.submitStakingTx(
+          mockStakingInputs,
+          1,
+          mockTxId,
+          "hex",
+        );
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: [DELEGATIONS_V2_KEY] });
+    });
+
+    it("throws and does not invalidate when pushTx fails", async () => {
+      (mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock).mockResolvedValue(
+        mockTransaction,
+      );
+      const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
+      mockPushTx.mockRejectedValueOnce(new Error("broadcast failed"));
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await expect(
+        result.current.submitStakingTx(mockStakingInputs, 1, mockTxId, "hex"),
+      ).rejects.toThrow("broadcast failed");
+      expect(invalidateSpy).not.toHaveBeenCalled();
+      expect(mockRefetchUTXOs).not.toHaveBeenCalled();
+    });
+
+    it("throws when UTXOs not initialized", async () => {
+      (useAppState as jest.Mock).mockReturnValue({
+        availableUTXOs: undefined,
+        refetchUTXOs: jest.fn(),
+      });
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await expect(
+        result.current.submitStakingTx(mockStakingInputs, 1, mockTxId, "hex"),
+      ).rejects.toThrow("Available UTXOs not initialized");
+    });
+  });
+
+  describe("expansion flows", () => {
+    const baseExpansion: BtcStakingExpansionInputs = {
+      finalityProviderPksNoCoordHex: ["hex"],
+      stakingAmountSat: 1000,
+      stakingTimelock: 100,
+      previousStakingTxHex: "prev-hex",
+      previousStakingParamsVersion: 1,
+      previousStakingInput: {
+        finalityProviderPksNoCoordHex: ["hex"],
+        stakingAmountSat: 1000,
+        stakingTimelock: 100,
+      },
+    };
+
+    it("createStakingExpansionEoi works and calls refetchBtcTip", async () => {
+      (mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction as jest.Mock).mockResolvedValue(
+        { stakingTx: mockTransaction, signedBabylonTx: mockSignedBabylonTx },
+      );
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await act(async () => {
+        await result.current.createStakingExpansionEoi(baseExpansion, 5);
+      });
+      expect(mockRefetchBtcTip).toHaveBeenCalled();
+      expect(
+        mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction,
+      ).toHaveBeenCalled();
+    });
+
+    it("estimateStakingExpansionFee returns value", () => {
+      (mockBtcStakingManager.estimateBtcStakingExpansionFee as jest.Mock).mockReturnValue(777);
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      const fee = result.current.estimateStakingExpansionFee(baseExpansion, 5);
+      expect(fee).toBe(777);
+    });
+
+    it("submitStakingExpansionTx refetches UTXOs", async () => {
+      (mockBtcStakingManager.createSignedBtcStakingExpansionTransaction as jest.Mock).mockResolvedValue(
+        mockTransaction,
+      );
+      const refetchSpy = jest.fn();
+      (useAppState as jest.Mock).mockReturnValue({
+        availableUTXOs: mockAvailableUTXOs,
+        refetchUTXOs: refetchSpy,
+      });
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await act(async () => {
+        await result.current.submitStakingExpansionTx(
+          baseExpansion,
+          1,
+          mockTxId,
+          "hex",
+          [{ btcPkHex: "pk", sigHex: "sig" }],
+        );
+      });
+      expect(refetchSpy).toHaveBeenCalled();
+    });
+
+    it("createStakingExpansionEoi throws when UTXOs loading", async () => {
+      (useAppState as jest.Mock).mockReturnValue({
+        availableUTXOs: mockAvailableUTXOs,
+        refetchUTXOs: jest.fn(),
+        isLoading: true,
+      });
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      await expect(
+        result.current.createStakingExpansionEoi(baseExpansion, 5),
+      ).rejects.toThrow("Wallet UTXOs are still loading");
+    });
+
+    it("estimateStakingExpansionFee throws when UTXOs empty", () => {
+      (useAppState as jest.Mock).mockReturnValue({
+        availableUTXOs: [],
+        refetchUTXOs: jest.fn(),
+      });
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      expect(() =>
+        result.current.estimateStakingExpansionFee(baseExpansion, 5),
+      ).toThrow("No available UTXOs found");
+    });
+  });
+
+  describe("tipHeight", () => {
+    it("exposes tipHeight from btcTipQuery", () => {
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
+      expect(result.current.tipHeight).toBe(mockTipHeight);
+    });
   });
 
   describe("submitUnbondingTx", () => {
@@ -407,7 +599,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockStakingTxHex = "mock-staking-tx-hex";
       const mockUnbondingTxHex = "mock-unbonding-tx-hex";
@@ -452,7 +644,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockEarlyUnbondingTxHex = "mock-early-unbonding-tx-hex";
 
@@ -490,7 +682,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockStakingTxHex = "mock-staking-tx-hex";
 
@@ -528,7 +720,7 @@ describe("useTransactionService", () => {
         },
       );
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
       const mockParamVersion = 1;
       const mockSlashingTxHex = "mock-slashing-tx-hex";
 
@@ -566,7 +758,7 @@ describe("useTransactionService", () => {
         off: jest.fn(),
       });
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call any function that uses validateCommonInputs
       expect(() => {
@@ -577,10 +769,10 @@ describe("useTransactionService", () => {
     it("should throw error when tip height is 0", () => {
       // Mock useBbnQuery to return 0 height
       (useBbnQuery as jest.Mock).mockReturnValue({
-        btcTipQuery: { data: { height: 0 } },
+        btcTipQuery: { data: 0, refetch: jest.fn() },
       });
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call any function that uses validateCommonInputs
       expect(() => {
@@ -596,7 +788,7 @@ describe("useTransactionService", () => {
         pushTx: mockPushTx,
       });
 
-      const { result } = renderHook(() => useTransactionService());
+      const { result } = renderHook(() => useTransactionService(), { wrapper });
 
       // Call any function that uses validateCommonInputs
       expect(() => {

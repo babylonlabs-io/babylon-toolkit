@@ -11,6 +11,11 @@ jest.mock("@uidotdev/usehooks", () => ({
   useDebounce: jest.fn((value) => value),
 }));
 
+// Mock ESM dependency to prevent node_modules ESM parsing
+jest.mock("@babylonlabs-io/btc-staking-ts", () => ({
+  BabylonBtcStakingManager: jest.fn(() => ({})),
+}));
+
 import { act, renderHook } from "@testing-library/react";
 
 import { getDelegationV2 } from "@/ui/common/api/getDelegationsV2";
@@ -39,20 +44,24 @@ jest.mock("@/ui/common/state/DelegationV2State");
 jest.mock("@/ui/common/state/StakingState");
 jest.mock("@/ui/common/utils", () => ({
   retry: jest.fn(),
-  btcToSatoshi: (value: number) => value * 100000000, // Mock satoshi conversion
+}));
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({
+    on: jest.fn(),
+    emit: jest.fn(),
+  })),
 }));
 
 describe("useStakingService", () => {
   // Mock data
+  const mockAmountSat = 120000000; // satoshi
   const mockFormData = {
     finalityProviders: ["mock-finality-provider"],
-    amount: 1.2, // BTC
+    amount: mockAmountSat, // satoshi
     term: 10000, // blocks
     feeRate: 5,
     feeAmount: 5000, // satoshi
   };
-
-  const mockAmountSat = 120000000; // 1.2 BTC in satoshi
   const mockStakingTxHash = "mock-staking-tx-hash";
   const mockSignedBabylonTx = "mock-signed-babylon-tx";
 
@@ -145,7 +154,7 @@ describe("useStakingService", () => {
     (getDelegationV2 as jest.Mock).mockResolvedValue(mockDelegation);
 
     // Mock retry utility
-    (retry as jest.Mock).mockImplementation((fn) => {
+    (retry as jest.Mock).mockImplementation(async (fn) => {
       return fn();
     });
 
@@ -154,6 +163,9 @@ describe("useStakingService", () => {
       stakingTxHash: mockStakingTxHash,
       signedBabylonTx: mockSignedBabylonTx,
     });
+
+    mockSendBbnTx.mockResolvedValue(undefined);
+    mockSubmitStakingTx.mockResolvedValue(undefined);
   });
 
   describe("calculateFeeAmount", () => {
@@ -162,7 +174,7 @@ describe("useStakingService", () => {
 
       const fee = result.current.calculateFeeAmount({
         finalityProviders: mockFormData.finalityProviders,
-        amount: mockFormData.amount,
+        amount: 1.2, // BTC input for fee estimation
         term: mockFormData.term,
         feeRate: mockFormData.feeRate,
       });
@@ -181,7 +193,7 @@ describe("useStakingService", () => {
       expect(fee).toBe(5000);
     });
 
-    it("should handle errors and return 0", () => {
+    it("should throw when fee estimation fails", () => {
       mockEstimateStakingFee.mockImplementation(() => {
         throw new Error("Test error");
       });
@@ -191,7 +203,7 @@ describe("useStakingService", () => {
       expect(() => {
         result.current.calculateFeeAmount({
           finalityProviders: mockFormData.finalityProviders,
-          amount: mockFormData.amount,
+          amount: 1.2, // BTC input
           term: mockFormData.term,
           feeRate: mockFormData.feeRate,
         });
@@ -224,7 +236,7 @@ describe("useStakingService", () => {
       expect(mockCreateDelegationEoi).toHaveBeenCalledWith(
         {
           finalityProviderPksNoCoordHex: mockFormData.finalityProviders,
-          stakingAmountSat: mockFormData.amount,
+          stakingAmountSat: mockAmountSat,
           stakingTimelock: mockFormData.term,
           feeRate: mockFormData.feeRate,
         },
@@ -247,7 +259,18 @@ describe("useStakingService", () => {
       expect(mockSetVerifiedDelegation).toHaveBeenCalledWith(mockDelegation);
       expect(mockRefetchDelegations).toHaveBeenCalled();
       expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.VERIFIED);
-      expect(mockSetProcessing).toHaveBeenCalledWith(false);
+      const [, predicate] = (retry as jest.Mock).mock.calls[0];
+      const pendingDelegation = {
+        state: DelegationV2StakingState.INTERMEDIATE_PENDING_VERIFICATION,
+      } as DelegationV2;
+
+      expect(typeof predicate).toBe("function");
+      expect(predicate(mockDelegation)).toBe(true);
+      expect(predicate(pendingDelegation)).toBe(false);
+
+      expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
+      expect(mockSetProcessing).toHaveBeenCalledTimes(2);
     });
 
     it("should handle errors during EOI creation", async () => {
@@ -271,6 +294,38 @@ describe("useStakingService", () => {
         },
       });
       expect(mockReset).toHaveBeenCalled();
+      expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
+      expect(mockGoToStep).not.toHaveBeenCalledWith(StakingStep.VERIFYING);
+    });
+
+    it("should handle failures when sending the Babylon transaction", async () => {
+      const mockError = new Error("Failed to send BBN transaction");
+      mockSendBbnTx.mockRejectedValueOnce(mockError);
+
+      const { result } = renderHook(() => useStakingService());
+
+      await act(async () => {
+        await result.current.createEOI(mockFormData);
+      });
+
+      expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
+      expect(mockCreateDelegationEoi).toHaveBeenCalled();
+      expect(mockSendBbnTx).toHaveBeenCalledWith(mockSignedBabylonTx);
+      expect(mockHandleError).toHaveBeenCalledWith({
+        error: mockError,
+        metadata: {
+          userPublicKey: "mock-public-key-no-coord",
+          btcAddress: "mock-btc-address",
+          babylonAddress: "mock-bech32-address",
+        },
+      });
+      expect(mockReset).toHaveBeenCalled();
+      expect(retry).not.toHaveBeenCalled();
+      expect(getDelegationV2).not.toHaveBeenCalled();
+      expect(mockRefetchDelegations).not.toHaveBeenCalled();
+      expect(mockGoToStep).not.toHaveBeenCalledWith(StakingStep.VERIFIED);
     });
   });
 
@@ -303,6 +358,9 @@ describe("useStakingService", () => {
 
       expect(mockReset).toHaveBeenCalled();
       expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
+      expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
+      expect(mockSetProcessing).toHaveBeenCalledTimes(2);
     });
 
     it("should handle errors during delegation staking", async () => {
@@ -330,32 +388,46 @@ describe("useStakingService", () => {
           babylonAddress: "mock-bech32-address",
         },
       });
+      expect(mockUpdateDelegationStatus).not.toHaveBeenCalled();
+      expect(mockGoToStep).not.toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
+      expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
     });
-  });
 
-  describe("subscribeToSigningSteps", () => {
-    it("should subscribe to signing steps and update current step", () => {
-      const mockCallback = jest.fn();
+    it("should retry staking when retryAction is invoked", async () => {
+      const mockError = new Error("Failed to submit staking transaction");
+      mockSubmitStakingTx.mockRejectedValueOnce(mockError);
 
-      // Mock the implementation of subscribeToSigningSteps
-      mockSubscribeToSigningSteps.mockImplementation((callback) => {
-        mockCallback.mockImplementation(callback);
-        return () => {};
+      const { result } = renderHook(() => useStakingService());
+
+      await act(async () => {
+        await result.current.stakeDelegation(mockDelegation);
       });
 
-      renderHook(() => useStakingService());
+      const handleErrorArgs = mockHandleError.mock.calls
+        .map(([arg]) => arg)
+        .find((arg) => arg?.displayOptions?.retryAction);
 
-      // Verify subscription was registered
-      expect(mockSubscribeToSigningSteps).toHaveBeenCalled();
+      expect(handleErrorArgs).toBeDefined();
 
-      // Simulate a signing step event
-      mockCallback("staking-slashing");
+      const retryAction = handleErrorArgs?.displayOptions?.retryAction as
+        | (() => Promise<void>)
+        | undefined;
+      expect(typeof retryAction).toBe("function");
 
-      // Verify the step was updated
-      expect(mockGoToStep).toHaveBeenCalledWith(
-        StakingStep.EOI_STAKING_SLASHING,
-        undefined,
+      mockSubmitStakingTx.mockResolvedValueOnce(undefined);
+
+      await act(async () => {
+        await retryAction!();
+      });
+
+      expect(mockSubmitStakingTx).toHaveBeenCalledTimes(2);
+      expect(mockUpdateDelegationStatus).toHaveBeenCalledWith(
+        mockDelegation.stakingTxHashHex,
+        DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
       );
+      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
+      expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
     });
   });
 });

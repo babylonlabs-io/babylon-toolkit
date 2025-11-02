@@ -101,7 +101,6 @@ export function useStakingService() {
         setVerifiedDelegation(delegation as DelegationV2);
         refetchDelegations();
         goToStep(StakingStep.VERIFIED);
-        setProcessing(false);
       } catch (error: any) {
         const metadata = {
           userPublicKey: publicKeyNoCoord,
@@ -121,6 +120,8 @@ export function useStakingService() {
           metadata,
         });
         reset();
+      } finally {
+        setProcessing(false);
       }
     },
     [
@@ -190,6 +191,8 @@ export function useStakingService() {
             babylonAddress: bech32Address,
           },
         });
+      } finally {
+        setProcessing(false);
       }
     },
     [
