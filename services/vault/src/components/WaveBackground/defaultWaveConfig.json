@@ -1,5 +1,5 @@
 {
-  "speed": 1,
+  "speed": 0.1,
   "amplitude": 0.40,
   "frequency": 1,
   "waveAmplitude": 0.55,
