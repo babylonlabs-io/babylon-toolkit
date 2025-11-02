@@ -1,5 +1,5 @@
 export const MobileLogo: React.FC = () => (
-  <a href="/vault">
+  <a href="/">
     <svg
       width="41"
       height="40"

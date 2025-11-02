@@ -3,7 +3,7 @@
 }
 
 .bbn-subsection-contained {
-  @apply bg-primary-main;
+  @apply bg-secondary-highlight;
 }
 
 .bbn-subsection-outlined {

@@ -132,7 +132,7 @@ export function MarketDetail() {
 
   return (
     <Container className="pb-6">
-      <div className="grid grid-cols-2 items-start gap-6 max-md:grid-cols-1">
+      <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
         {/* Left Side: Market Info */}
         <MarketInfo
           onBack={handleBack}

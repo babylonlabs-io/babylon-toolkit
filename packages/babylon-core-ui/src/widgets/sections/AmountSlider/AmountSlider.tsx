@@ -34,6 +34,7 @@ export interface AmountSliderProps {
   onSliderStepsChange?: (selectedSteps: number[]) => void; // Called when sliderSteps is array
   sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
   sliderActiveColor?: string;
+  sliderBackgroundColor?: string;
   
   // Bottom fields
   leftField?: BottomField;
@@ -60,6 +61,7 @@ export function AmountSlider({
   onSliderStepsChange,
   sliderVariant = "primary",
   sliderActiveColor,
+  sliderBackgroundColor,
   leftField,
   rightField,
   onMaxClick,
@@ -73,6 +75,16 @@ export function AmountSlider({
       e.preventDefault();
     }
   };
+
+  // Determine the background color
+  // If sliderBackgroundColor is explicitly provided, use it
+  // Otherwise, if sliderActiveColor is provided, generate a lighter version
+  // Otherwise, don't apply any custom background
+  const backgroundColor = sliderBackgroundColor
+    ? sliderBackgroundColor
+    : sliderActiveColor
+      ? `color-mix(in srgb, ${sliderActiveColor} 20%, white)`
+      : undefined;
 
   return (
     <div className={twJoin("flex w-full flex-col gap-4", className)}>
@@ -95,18 +107,30 @@ export function AmountSlider({
       </div>
 
       {/* Row 2: Slider */}
-      <Slider
-        value={sliderValue}
-        min={sliderMin}
-        max={sliderMax}
-        step={sliderStep}
-        steps={sliderSteps}
-        onChange={onSliderChange}
-        onStepsChange={onSliderStepsChange}
-        variant={sliderVariant}
-        activeColor={sliderActiveColor}
-        disabled={disabled}
-      />
+      <div
+        className={twJoin(
+          backgroundColor &&
+            "[&_.bbn-slider]:[--slider-inactive-color:var(--slider-bg-color)] dark:[&_.bbn-slider]:[--slider-inactive-color:#5a5a5a]"
+        )}
+        style={
+          backgroundColor
+            ? ({ "--slider-bg-color": backgroundColor } as React.CSSProperties)
+            : undefined
+        }
+      >
+        <Slider
+          value={sliderValue}
+          min={sliderMin}
+          max={sliderMax}
+          step={sliderStep}
+          steps={sliderSteps}
+          onChange={onSliderChange}
+          onStepsChange={onSliderStepsChange}
+          variant={sliderVariant}
+          activeColor={sliderActiveColor}
+          disabled={disabled}
+        />
+      </div>
 
       {/* Row 3: Max button + Balance | USD Value */}
       <div className="flex items-center justify-between text-sm">

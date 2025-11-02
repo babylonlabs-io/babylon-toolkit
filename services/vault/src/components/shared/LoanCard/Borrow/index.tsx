@@ -4,6 +4,7 @@
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
+import { useTheme } from "next-themes";
 
 import { LoanSummaryCard } from "../../LoanSummaryCard";
 
@@ -27,6 +28,7 @@ export function Borrow({
   availableVaults,
   availableLiquidity,
 }: BorrowProps) {
+  const { theme } = useTheme();
   const {
     collateralAmount,
     borrowAmount,
@@ -90,6 +92,7 @@ export function Borrow({
               maximumFractionDigits: 2,
             })} USD`,
           }}
+          sliderActiveColor="#CE6533"
         />
       </SubSection>
 
@@ -113,7 +116,7 @@ export function Borrow({
           sliderMax={maxBorrowAmount}
           sliderStep={maxBorrowAmount / 1000}
           onSliderChange={setBorrowAmount}
-          sliderVariant="rainbow"
+          sliderVariant={theme === "dark" ? "rainbow" : "primary"}
           leftField={{
             label: "Max",
             value: `${maxBorrowAmount.toLocaleString()} USDC`,
@@ -125,6 +128,7 @@ export function Borrow({
               maximumFractionDigits: 2,
             })} USD`,
           }}
+          sliderActiveColor="#0B53BF"
         />
       </SubSection>
 

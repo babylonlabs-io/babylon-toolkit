@@ -173,3 +173,197 @@ export const WithSteps: Story = {
   },
 };
 
+export const WithCustomBackgroundColor: Story = {
+  render: () => {
+    const [amount1, setAmount1] = useState(0);
+    const [amount2, setAmount2] = useState(0);
+    const [amount3, setAmount3] = useState(0);
+    const [amount4, setAmount4] = useState(0);
+    const [amount5, setAmount5] = useState(0);
+    
+    return (
+      <div className="w-[600px] space-y-8">
+        <div>
+          <h3 className="mb-4 text-sm font-medium text-accent-secondary">
+            Default (no custom colors)
+          </h3>
+          <AmountSlider
+            amount={amount1}
+            currencyIcon="/images/btc.png"
+            currencyName="Bitcoin"
+            onAmountChange={(e) => setAmount1(parseFloat(e.target.value) || 0)}
+            balanceDetails={{
+              balance: 10.0,
+              symbol: "BTC",
+              price: 112694.16,
+              displayUSD: true,
+            }}
+            sliderValue={amount1}
+            sliderMin={0}
+            sliderMax={10}
+            sliderStep={0.01}
+            onSliderChange={setAmount1}
+            sliderVariant="primary"
+            leftField={{
+              label: "Max",
+              value: "10.0000 BTC",
+            }}
+            onMaxClick={() => setAmount1(10)}
+            rightField={{
+              value: `$${(amount1 * 112694.16).toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })} USD`,
+            }}
+          />
+        </div>
+        
+        <div>
+          <h3 className="mb-4 text-sm font-medium text-accent-secondary">
+            Blue active color (#1976D2) - lighter background auto-generated (only in light mode)
+          </h3>
+          <AmountSlider
+            amount={amount2}
+            currencyIcon="/images/btc.png"
+            currencyName="Bitcoin"
+            onAmountChange={(e) => setAmount2(parseFloat(e.target.value) || 0)}
+            balanceDetails={{
+              balance: 10.0,
+              symbol: "BTC",
+              price: 112694.16,
+              displayUSD: true,
+            }}
+            sliderValue={amount2}
+            sliderMin={0}
+            sliderMax={10}
+            sliderStep={0.01}
+            onSliderChange={setAmount2}
+            sliderVariant="primary"
+            sliderActiveColor="#1976D2"
+            leftField={{
+              label: "Max",
+              value: "10.0000 BTC",
+            }}
+            onMaxClick={() => setAmount2(10)}
+            rightField={{
+              value: `$${(amount2 * 112694.16).toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })} USD`,
+            }}
+          />
+        </div>
+        
+        <div>
+          <h3 className="mb-4 text-sm font-medium text-accent-secondary">
+            Green active color (#2E7D32) - lighter background auto-generated (only in light mode)
+          </h3>
+          <AmountSlider
+            amount={amount3}
+            currencyIcon="/images/btc.png"
+            currencyName="Bitcoin"
+            onAmountChange={(e) => setAmount3(parseFloat(e.target.value) || 0)}
+            balanceDetails={{
+              balance: 10.0,
+              symbol: "BTC",
+              price: 112694.16,
+              displayUSD: true,
+            }}
+            sliderValue={amount3}
+            sliderMin={0}
+            sliderMax={10}
+            sliderStep={0.01}
+            onSliderChange={setAmount3}
+            sliderVariant="primary"
+            sliderActiveColor="#2E7D32"
+            leftField={{
+              label: "Max",
+              value: "10.0000 BTC",
+            }}
+            onMaxClick={() => setAmount3(10)}
+            rightField={{
+              value: `$${(amount3 * 112694.16).toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })} USD`,
+            }}
+          />
+        </div>
+        
+        <div>
+          <h3 className="mb-4 text-sm font-medium text-accent-secondary">
+            Explicit background color override (#E3F2FD) - only applies in light mode
+          </h3>
+          <AmountSlider
+            amount={amount4}
+            currencyIcon="/images/btc.png"
+            currencyName="Bitcoin"
+            onAmountChange={(e) => setAmount4(parseFloat(e.target.value) || 0)}
+            balanceDetails={{
+              balance: 10.0,
+              symbol: "BTC",
+              price: 112694.16,
+              displayUSD: true,
+            }}
+            sliderValue={amount4}
+            sliderMin={0}
+            sliderMax={10}
+            sliderStep={0.01}
+            onSliderChange={setAmount4}
+            sliderVariant="primary"
+            sliderActiveColor="#1976D2"
+            sliderBackgroundColor="#E3F2FD"
+            leftField={{
+              label: "Max",
+              value: "10.0000 BTC",
+            }}
+            onMaxClick={() => setAmount4(10)}
+            rightField={{
+              value: `$${(amount4 * 112694.16).toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })} USD`,
+            }}
+          />
+        </div>
+        
+        <div>
+          <h3 className="mb-4 text-sm font-medium text-accent-secondary">
+            Purple active color (#7B1FA2) - lighter background auto-generated (only in light mode)
+          </h3>
+          <AmountSlider
+            amount={amount5}
+            currencyIcon="/images/btc.png"
+            currencyName="Bitcoin"
+            onAmountChange={(e) => setAmount5(parseFloat(e.target.value) || 0)}
+            balanceDetails={{
+              balance: 10.0,
+              symbol: "BTC",
+              price: 112694.16,
+              displayUSD: true,
+            }}
+            sliderValue={amount5}
+            sliderMin={0}
+            sliderMax={10}
+            sliderStep={0.01}
+            onSliderChange={setAmount5}
+            sliderVariant="primary"
+            sliderActiveColor="#7B1FA2"
+            leftField={{
+              label: "Max",
+              value: "10.0000 BTC",
+            }}
+            onMaxClick={() => setAmount5(10)}
+            rightField={{
+              value: `$${(amount5 * 112694.16).toLocaleString('en-US', { 
+                minimumFractionDigits: 2, 
+                maximumFractionDigits: 2 
+              })} USD`,
+            }}
+          />
+        </div>
+      </div>
+    );
+  },
+};
+
