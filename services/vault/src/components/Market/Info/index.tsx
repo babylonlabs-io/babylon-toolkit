@@ -40,7 +40,7 @@ export function MarketInfo({
         variant="ghost"
         color="primary"
         size="medium"
-        className="flex items-center gap-2 !px-2"
+        className="flex items-center gap-3 !px-2"
         onClick={onBack}
         aria-label="Back to dashboard"
       >
@@ -58,8 +58,8 @@ export function MarketInfo({
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-        </svg>
-        <span className="text-sm">Dashboard</span>
+        </svg> 
+        <span className="text-base">Dashboard</span>
       </Button>
 
       <div className="flex items-center gap-6">

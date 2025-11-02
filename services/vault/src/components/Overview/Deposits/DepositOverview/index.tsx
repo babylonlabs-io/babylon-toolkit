@@ -36,12 +36,17 @@ function EmptyState({
   isConnected: boolean;
 }) {
   return (
-    <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+    <div className="max-h-[500px] rounded-2xl dark:bg-primary-main overflow-x-auto overflow-y-auto bg-primary-contrast">
       <div className="flex min-h-[200px] items-center justify-center p-6">
         <div className="flex flex-col items-center">
-          <img src="/images/btc.png" alt="Bitcoin" className="mb-4 h-16 w-16" />
+          <img
+            src="/images/btc.svg"
+            alt="Bitcoin"
+            className="mb-4"
+            style={{ height: 100, width: 100, marginTop: 24 }}
+          />
           <div className="flex flex-col gap-2 text-center">
-            <h4 className="text-lg font-semibold text-accent-primary">
+            <h4 className="text-lg text-accent-primary" style={{ letterSpacing: "0.15px" }}>
               Deposit BTC Trustlessly
             </h4>
             <p className="text-sm text-accent-secondary">
@@ -50,7 +55,7 @@ function EmptyState({
                 : "Connect your wallet to start depositing BTC."}
             </p>
           </div>
-          <div className="mt-6">
+          <div className="mt-8">
             <Button
               variant="outlined"
               size="medium"
