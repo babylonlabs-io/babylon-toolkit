@@ -9,7 +9,6 @@ import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
 import { depositService } from "../../services/deposit";
-import { useUTXOs } from "../useUTXOs";
 import type { DepositTransactionData } from "../../services/deposit";
 
 export interface CreateDepositTransactionParams {
@@ -141,7 +140,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   
   // Submit transaction to blockchain
   const submitTransaction = useCallback(async (
-    txData: DepositTransactionData
+    _txData: DepositTransactionData
   ): Promise<TransactionResult> => {
     setIsSubmitting(true);
     

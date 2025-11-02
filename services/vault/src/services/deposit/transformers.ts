@@ -75,23 +75,23 @@ export function transformStatusToLabel(
   localStatus?: LocalStorageStatus
 ): PeginDisplayLabel {
   // Local status takes precedence for user feedback
-  if (localStatus === LocalStorageStatus.BROADCASTING_BTC) {
-    return "Broadcasting";
+  if (localStatus === LocalStorageStatus.CONFIRMING) {
+    return "Pending Bitcoin Confirmations";
   }
-  if (localStatus === LocalStorageStatus.PAYOUT_SIGNING_REQUIRED) {
-    return "Sign Payout";
+  if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
+    return "Processing";
   }
   
   // Map contract status to display label
   switch (contractStatus) {
     case ContractStatus.PENDING:
-      return "Pending ACKs";
+      return "Pending";
     case ContractStatus.VERIFIED:
-      return "Broadcast Required";
+      return "Verified";
     case ContractStatus.AVAILABLE:
       return "Available";
     case ContractStatus.IN_POSITION:
-      return "In Position";
+      return "In Use";
     case ContractStatus.EXPIRED:
       return "Expired";
     default:

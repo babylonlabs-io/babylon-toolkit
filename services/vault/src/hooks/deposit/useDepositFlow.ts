@@ -160,7 +160,7 @@ export function useDepositFlow(
       
       // Step 3: Submit transaction
       setStep('submitting');
-      const submitResult = await transaction.submitTransaction(txResult.data);
+      const submitResult = await transaction.submitTransaction(txResult.data!);
       
       if (!submitResult.success) {
         throw new Error(submitResult.error);
@@ -178,7 +178,7 @@ export function useDepositFlow(
       
       return submitResult.data;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       setStep('complete');
       
       // Invalidate relevant queries

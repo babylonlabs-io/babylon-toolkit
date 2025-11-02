@@ -16,7 +16,6 @@ import type {
 import { useUTXOs } from "../useUTXOs";
 
 // Constants
-const MIN_DEPOSIT_SATS = 10000n; // 0.0001 BTC
 const MAX_DEPOSIT_SATS = 21000000_00000000n; // 21M BTC (theoretical max)
 
 export interface UseDepositValidationResult {
