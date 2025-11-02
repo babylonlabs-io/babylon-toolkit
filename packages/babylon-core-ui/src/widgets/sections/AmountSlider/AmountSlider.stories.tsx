@@ -126,7 +126,7 @@ export const WithCustomActiveColor: Story = {
 export const WithSteps: Story = {
   render: () => {
     const [amount, setAmount] = useState(0);
-    const [_, setSelectedSteps] = useState<number[]>([]);
+    const [, setSelectedSteps] = useState<number[]>([]);
     
     const steps = [
       { value: 0, label: "0%" },
