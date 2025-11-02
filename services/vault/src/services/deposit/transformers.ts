@@ -142,8 +142,16 @@ export function formatSatoshisToBtc(
   satoshis: bigint,
   decimals: number = 8
 ): string {
-  const btc = Number(satoshis) / 100_000_000;
-  return btc.toFixed(decimals).replace(/\.?0+$/, '');
+  const SATOSHIS_PER_BTC = 100_000_000n;
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const fraction = satoshis % SATOSHIS_PER_BTC;
+  
+  // Get fractional part as string, pad with leading zeros to 8 digits
+  let fractionStr = fraction.toString().padStart(8, '0').slice(0, decimals);
+  // Remove trailing zeros from fractional part
+  fractionStr = fractionStr.replace(/0+$/, '');
+  
+  return fractionStr.length > 0 ? `${whole.toString()}.${fractionStr}` : whole.toString();
 }
 
 /**
