@@ -1,3 +1,4 @@
+import { getETHChain } from "@babylonlabs-io/config";
 import {
   Button,
   DialogBody,
@@ -8,25 +9,29 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
+import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useEffect, useState } from "react";
+import type { Hex, WalletClient } from "viem";
+import { getWalletClient } from "wagmi/actions";
+
+import { CONTRACTS } from "../../../../config";
+import { redeemVaults } from "../../../../services/vault/vaultTransactionService";
+import type { VaultActivity } from "../../../../types/activity";
 
 interface RedeemCollateralSignModalProps {
   open: boolean;
   onClose: () => void;
-  onSuccess: (btcTxid: string, ethTxHash: string) => void;
+  onSuccess: (ethTxHash: string) => void;
+  activities: VaultActivity[];
   depositIds: string[];
-  btcConnector?: unknown; // for future implementation
-  btcAddress?: string;
-  depositorEthAddress?: string;
 }
-
-// Helper to delay for UI feedback
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export function RedeemCollateralSignModal({
   open,
   onClose,
   onSuccess,
+  activities,
+  depositIds,
 }: RedeemCollateralSignModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
@@ -49,44 +54,61 @@ export function RedeemCollateralSignModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // TODO: Replace with wallet integration
-  const executeRedeemFlow = async () => {
+  const executeRedeemFlow = useCallback(async () => {
     setProcessing(true);
+    setError(null);
+
     try {
-      // Step 1: Simulate proof of possession
+      // Step 1: Get wallet client
       setCurrentStep(1);
-      await delay(2000);
+      const ethChain = getETHChain();
+      const ethWalletClient = await getWalletClient(getSharedWagmiConfig(), {
+        chainId: ethChain.id,
+      });
 
-      // Step 2: Simulate transaction submission
+      if (!ethWalletClient) {
+        throw new Error("Ethereum wallet not connected");
+      }
+
+      // Step 2: Get peg-in transaction hashes from activities
       setCurrentStep(2);
-      await delay(2000);
+      const pegInTxHashes = activities
+        .filter((a) => depositIds.includes(a.id))
+        .map((a) => (a.txHash || a.id) as Hex)
+        .filter((hash): hash is Hex => !!hash);
 
-      // Step 3: Simulate validation
+      if (pegInTxHashes.length === 0) {
+        throw new Error("No valid transaction hashes found for redemption");
+      }
+
+      // Step 3: Execute redemption transactions
       setCurrentStep(3);
-      await delay(2000);
+      const results = await redeemVaults(
+        ethWalletClient as WalletClient,
+        ethChain,
+        CONTRACTS.VAULT_CONTROLLER,
+        pegInTxHashes,
+      );
 
       // Step 4: Complete
       setCurrentStep(4);
-      await delay(1000);
-
       setProcessing(false);
 
-      // Call success callback with mock transaction IDs
-      const mockBtcTxid = `mock-btc-txid-${Date.now()}`;
-      const mockEthTxHash = `0x${Math.random().toString(16).substr(2, 64)}`;
+      // Get the first transaction hash for success callback
+      const firstTxHash = results[0]?.transactionHash || "";
 
-      onSuccess(mockBtcTxid, mockEthTxHash);
+      onSuccess(firstTxHash);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       setProcessing(false);
     }
-  };
+  }, [activities, depositIds, onSuccess]);
 
   return (
-    <ResponsiveDialog open={open} onClose={onClose}>
+    <ResponsiveDialog open={open} onClose={!processing ? onClose : undefined}>
       <DialogHeader
-        title="Redemption in Progress"
-        onClose={onClose}
+        title="Sign Transaction"
+        onClose={!processing ? onClose : undefined}
         className="text-accent-primary"
       />
 
@@ -100,13 +122,13 @@ export function RedeemCollateralSignModal({
 
         <div className="flex flex-col items-start gap-4 py-4">
           <Step step={1} currentStep={currentStep}>
-            Sign proof of possession
+            Connecting wallet
           </Step>
           <Step step={2} currentStep={currentStep}>
-            Sign & broadcast redemption request to Vault Controller
+            Preparing transactions ({depositIds.length} deposits)
           </Step>
           <Step step={3} currentStep={currentStep}>
-            Validating
+            Executing redemptions
           </Step>
           <Step step={4} currentStep={currentStep}>
             Complete
@@ -117,7 +139,7 @@ export function RedeemCollateralSignModal({
         {error && (
           <div className="bg-error/10 rounded-lg p-4">
             <Text variant="body2" className="text-error text-sm">
-              Error: {error}
+              {error}
             </Text>
           </div>
         )}

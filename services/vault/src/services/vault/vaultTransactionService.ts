@@ -139,3 +139,60 @@ export async function submitPeginRequest(
     fee: actualFee,
   };
 }
+
+/**
+ * Redeem multiple BTC vaults (withdraw BTC back to user's account)
+ *
+ * This function:
+ * 1. Validates all vaults are in Available status (status === 2)
+ * 2. Executes redeem transaction for each vault sequentially
+ * 3. If ANY redemption fails, throws error (all-or-nothing approach)
+ *
+ * Note: The depositor initiates redemption, but the vault provider is the one
+ * who can actually claim the BTC on the Bitcoin network.
+ *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @param pegInTxHashes - Array of peg-in transaction hashes (vault IDs) to redeem
+ * @returns Array of transaction hashes and receipts for each redemption
+ * @throws Error if any vault is not in Available status or if any transaction fails
+ */
+export async function redeemVaults(
+  walletClient: WalletClient,
+  chain: Chain,
+  vaultControllerAddress: Address,
+  pegInTxHashes: Hex[],
+): Promise<Array<{ transactionHash: Hex; pegInTxHash: Hex; error?: string }>> {
+  const results: Array<{
+    transactionHash: Hex;
+    pegInTxHash: Hex;
+    error?: string;
+  }> = [];
+
+  // Execute redemptions sequentially
+  // If any fails, throw error immediately (fail-entire operation)
+  for (const pegInTxHash of pegInTxHashes) {
+    try {
+      const result = await VaultControllerTx.depositorRedeemBTCVault(
+        walletClient,
+        chain,
+        vaultControllerAddress,
+        pegInTxHash,
+      );
+
+      results.push({
+        transactionHash: result.transactionHash,
+        pegInTxHash,
+      });
+    } catch (error) {
+      // On any error, throw immediately with context
+      throw new Error(
+        `Failed to redeem vault ${pegInTxHash}: ${error instanceof Error ? error.message : "Unknown error"}. ` +
+          `${results.length} of ${pegInTxHashes.length} vaults were successfully redeemed before this error.`,
+      );
+    }
+  }
+
+  return results;
+}
