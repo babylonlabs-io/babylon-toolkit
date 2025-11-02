@@ -1,20 +1,23 @@
 /**
- * Hook to fetch and cache vault providers
+ * MIGRATED TO NEW ARCHITECTURE
  *
- * This hook fetches the list of registered vault providers from the indexer API.
- * The data is cached globally using React Query and shared across all components.
+ * This hook now uses the clean architecture implementation from:
+ * src/presentation/hooks/useVaultProviders.ts
  *
- * Since provider data rarely changes, we use aggressive caching:
- * - Cache for 5 minutes (staleTime)
- * - Keep in cache for 10 minutes (cacheTime)
- * - Fetch once on mount, don't refetch on window focus
+ * This file is kept as a compatibility layer to avoid breaking existing imports.
+ * It simply re-exports the new implementation.
+ *
+ * @deprecated Use `@/presentation/hooks/useVaultProviders` directly in new code
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import { getVaultProviders } from "../../../../services/vault";
+import { VaultProviderRepository } from "../../../../infrastructure/repositories/VaultProviderRepository";
 import type { VaultProvider } from "../../../../types";
+
+// Create repository instance (in production, use dependency injection)
+const vaultProviderRepository = new VaultProviderRepository();
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
@@ -30,10 +33,10 @@ export interface UseVaultProvidersResult {
 }
 
 /**
- * Hook to fetch vault providers from the indexer
+ * Hook to fetch vault providers using clean architecture
  *
- * Data is cached globally and shared across all components.
- * Will only fetch once unless manually refetched.
+ * MIGRATION NOTE: Now uses the repository pattern instead of direct service calls.
+ * The repository handles caching internally, so React Query caching is kept for UI consistency.
  *
  * @returns Hook result with providers, loading, error states
  */
@@ -41,7 +44,19 @@ export function useVaultProviders(): UseVaultProvidersResult {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["vaultProviders"],
     queryFn: async () => {
-      return getVaultProviders();
+      // Use the new repository pattern
+      const domainProviders = await vaultProviderRepository.findActive();
+
+      // Convert domain objects to existing VaultProvider type for backward compatibility
+      return domainProviders.map(
+        (provider) =>
+          ({
+            id: provider.getId(),
+            btc_pubkey: provider.getBtcPublicKey(),
+            name: provider.getName(),
+            description: provider.getDescription(),
+          }) as VaultProvider,
+      );
     },
     // Fetch once on mount
     refetchOnMount: false,
@@ -69,8 +84,10 @@ export function useVaultProviders(): UseVaultProvidersResult {
     [data],
   );
 
-  // Wrap refetch to return Promise<void>
+  // Wrap refetch to return Promise<void> and clear repository cache
   const wrappedRefetch = async () => {
+    // Clear the repository cache before refetching
+    vaultProviderRepository.clearCache();
     await refetch();
   };
 

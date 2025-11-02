@@ -3,7 +3,7 @@ export * from "./vaultBtcTransactionService";
 export * from "./vaultPayoutSignatureService";
 export * from "./vaultPeginBroadcastService";
 export * from "./vaultProofOfPossessionService";
-export * from "./vaultProviderService";
+// MIGRATED: vaultProviderService -> infrastructure/repositories/VaultProviderRepository
 export * from "./vaultQueryService";
 export * from "./vaultRpcService";
 export * from "./vaultTransactionService";
