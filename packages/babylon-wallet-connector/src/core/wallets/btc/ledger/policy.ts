@@ -1,33 +1,21 @@
 import Transport from "@ledgerhq/hw-transport";
 import {
-  computeLeafHash,
   slashingPathPolicy,
-  SlashingPolicy,
-  StakingTxPolicy,
   stakingTxPolicy,
-  timelockPathPolicy,
-  TimelockPolicy,
+  withdrawPathPolicy,
   unbondingPathPolicy,
-  UnbondingPolicy,
   WalletPolicy,
-} from "@tomo-inc/ledger-bitcoin-babylon";
+} from "ledger-bitcoin-babylon-boilerplate";
 
-import { Action, Contract, Network } from "@/core/types";
+import { Action, Contract } from "@/core/types";
 import { ActionName } from "@/core/utils/action";
 import { BABYLON_SIGNING_CONTRACTS } from "@/core/utils/contracts";
 import { sortPkHexes } from "@/core/utils/sortPkHexes";
 
-export const UNBONDING_POLICY: UnbondingPolicy = "Unbonding";
-export const SLASHING_POLICY: SlashingPolicy = "Consent to slashing";
-export const UNBONDING_SLASHING_POLICY: SlashingPolicy = "Consent to unbonding slashing";
-export const STAKING_POLICY: StakingTxPolicy = "Staking transaction";
-export const WITHDRAWAL_POLICY: TimelockPolicy = "Withdraw";
 
 export const getPolicyForTransaction = async (
   transport: Transport,
-  network: Network,
   derivationPath: string,
-  psbtBase64: string,
   {
     contracts,
     action,
@@ -36,19 +24,31 @@ export const getPolicyForTransaction = async (
     action: Action;
   },
 ): Promise<WalletPolicy> => {
-  const isTestnet = network !== Network.MAINNET;
+  derivationPath = derivationPath + "/0/0"; // Append the last two levels for address index
+  console.log("Full Derivation Path:", derivationPath);
+  // Convert derivation path to taproot (purpose 86)
+  // const convertToTaprootPath = (path: string): string => {
+  //   // Split the path and replace the purpose (first part after m/) with 86'
+  //   const parts = path.split('/');
+  //   if (parts.length > 1) {
+  //     parts[1] = "86'"; // Set purpose to 86' for taproot
+  //   }
+  //   return parts.join('/');
+  // };
 
+  // const taprootPath = convertToTaprootPath(derivationPath);
+  //console.log("Using derivation path for policy:", taprootPath);
   switch (action.name) {
     case ActionName.SIGN_BTC_STAKING_TRANSACTION:
-      return getStakingPolicy(contracts, derivationPath, transport, isTestnet);
+      return getStakingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_UNBONDING_TRANSACTION:
-      return getUnbondingPolicy(contracts, derivationPath, transport, isTestnet, psbtBase64);
+      return getUnbondingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_SLASHING_TRANSACTION:
-      return getSlashingPolicy(contracts, derivationPath, transport, isTestnet, psbtBase64);
+      return getSlashingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_UNBONDING_SLASHING_TRANSACTION:
-      return getUnbondingSlashingPolicy(contracts, derivationPath, transport, isTestnet, psbtBase64);
+      return getUnbondingSlashingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_WITHDRAW_TRANSACTION:
-      return getWithdrawPolicy(contracts, derivationPath, psbtBase64, transport, isTestnet);
+      return getWithdrawPolicy(contracts, derivationPath, transport);
     default:
       throw new Error(`Unknown action: ${action.name}`);
   }
@@ -58,7 +58,6 @@ export const getStakingPolicy = (
   signingContracts: Contract[],
   derivationPath: string,
   transport: Transport,
-  isTestnet: boolean,
 ): Promise<WalletPolicy> => {
   const stakingContract = signingContracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.STAKING);
   if (!stakingContract) {
@@ -68,7 +67,6 @@ export const getStakingPolicy = (
   const { finalityProviders, covenantThreshold, covenantPks, stakingDuration } = stakingContract.params;
 
   return stakingTxPolicy({
-    policyName: STAKING_POLICY,
     transport,
     params: {
       finalityProviders: finalityProviders as string[],
@@ -77,7 +75,6 @@ export const getStakingPolicy = (
       timelockBlocks: stakingDuration as number,
     },
     derivationPath,
-    isTestnet,
   });
 };
 
@@ -85,35 +82,25 @@ export const getUnbondingPolicy = (
   contracts: Contract[],
   derivationPath: string,
   transport: Transport,
-  isTestnet: boolean,
-  psbtBase64: string,
 ): Promise<WalletPolicy> => {
   const unbondingContract = contracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.UNBONDING);
   if (!unbondingContract) {
     throw new Error("Unbonding contract is required");
   }
 
-  const leafHash = computeLeafHash(psbtBase64);
-  if (!leafHash) {
-    throw new Error("Could not compute leaf hash");
-  }
-
   const { finalityProviders, covenantThreshold, covenantPks, unbondingTimeBlocks, unbondingFeeSat } =
     unbondingContract.params;
 
   return unbondingPathPolicy({
-    policyName: UNBONDING_POLICY,
     transport,
     params: {
       finalityProviders: finalityProviders as string[],
       covenantThreshold: covenantThreshold as number,
       covenantPks: sortPkHexes(covenantPks as string[]),
-      leafHash,
       timelockBlocks: unbondingTimeBlocks as number,
       unbondingFeeSat: unbondingFeeSat as number,
     },
     derivationPath,
-    isTestnet,
   });
 };
 
@@ -121,8 +108,6 @@ export const getSlashingPolicy = (
   contracts: Contract[],
   derivationPath: string,
   transport: Transport,
-  isTestnet: boolean,
-  psbtBase64: string,
 ): Promise<WalletPolicy> => {
   const slashingContract = contracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.SLASHING);
   if (!slashingContract) {
@@ -143,16 +128,9 @@ export const getSlashingPolicy = (
 
   const { slashingPkScriptHex } = slashingBurnContract.params;
 
-  const leafHash = computeLeafHash(psbtBase64);
-  if (!leafHash) {
-    throw new Error("Could not compute leaf hash");
-  }
-
   return slashingPathPolicy({
-    policyName: SLASHING_POLICY,
     transport,
     params: {
-      leafHash,
       timelockBlocks: unbondingTimeBlocks as number,
       finalityProviders: finalityProviders as string[],
       covenantThreshold: covenantThreshold as number,
@@ -161,7 +139,6 @@ export const getSlashingPolicy = (
       slashingFeeSat: slashingFeeSat as number,
     },
     derivationPath,
-    isTestnet,
   });
 };
 
@@ -169,8 +146,6 @@ export const getUnbondingSlashingPolicy = (
   contracts: Contract[],
   derivationPath: string,
   transport: Transport,
-  isTestnet: boolean,
-  psbtBase64: string,
 ): Promise<WalletPolicy> => {
   const slashingContract = contracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.SLASHING);
   if (!slashingContract) {
@@ -191,16 +166,9 @@ export const getUnbondingSlashingPolicy = (
 
   const { slashingPkScriptHex } = slashingBurnContract.params;
 
-  const leafHash = computeLeafHash(psbtBase64);
-  if (!leafHash) {
-    throw new Error("Could not compute leaf hash");
-  }
-
   return slashingPathPolicy({
-    policyName: UNBONDING_SLASHING_POLICY,
     transport,
     params: {
-      leafHash,
       timelockBlocks: unbondingTimeBlocks as number,
       finalityProviders: finalityProviders as string[],
       covenantThreshold: covenantThreshold as number,
@@ -209,16 +177,13 @@ export const getUnbondingSlashingPolicy = (
       slashingFeeSat: slashingFeeSat as number,
     },
     derivationPath,
-    isTestnet,
   });
 };
 
 const getWithdrawPolicy = (
   contracts: Contract[],
   derivationPath: string,
-  psbtBase64: string,
   transport: Transport,
-  isTestnet: boolean,
 ): Promise<WalletPolicy> => {
   const withdrawContract = contracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.WITHDRAW);
   if (!withdrawContract) {
@@ -227,19 +192,11 @@ const getWithdrawPolicy = (
 
   const { timelockBlocks } = withdrawContract.params;
 
-  const leafHash = computeLeafHash(psbtBase64);
-  if (!leafHash) {
-    throw new Error("Could not compute leaf hash");
-  }
-
-  return timelockPathPolicy({
-    policyName: WITHDRAWAL_POLICY,
+  return withdrawPathPolicy({
     transport,
     params: {
-      leafHash,
       timelockBlocks: timelockBlocks as number,
     },
     derivationPath,
-    isTestnet,
   });
 };
