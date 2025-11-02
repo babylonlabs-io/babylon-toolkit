@@ -19,9 +19,8 @@ export default function RootLayout() {
     <div
       className={twJoin(
         "relative h-full min-h-svh w-full",
-        !isMobile
-          ? "dark:app-bg app-bg bg-cover bg-fixed bg-center bg-no-repeat"
-          : "",
+        "dark:app-bg app-bg bg-cover bg-center bg-no-repeat",
+        !isMobile ? "bg-fixed" : "",
       )}
     >
       <div className="flex min-h-svh flex-col">

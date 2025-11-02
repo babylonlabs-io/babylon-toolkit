@@ -3,7 +3,8 @@
  * Handles the borrow flow UI - add collateral and borrow against it
  */
 
-import { AmountSlider, Button } from "@babylonlabs-io/core-ui";
+import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
+import { useTheme } from "next-themes";
 
 import { LoanSummaryCard } from "../../LoanSummaryCard";
 
@@ -27,6 +28,7 @@ export function Borrow({
   availableVaults,
   availableLiquidity,
 }: BorrowProps) {
+  const { theme } = useTheme();
   const {
     collateralAmount,
     borrowAmount,
@@ -55,12 +57,11 @@ export function Borrow({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Collateral Section */}
-      <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">
-          Collateral
-        </h3>
+    <div>
+      <h3 className="mb-4 text-[24px] font-normal text-accent-primary">
+        Collateral
+      </h3>
+      <SubSection>
         <AmountSlider
           amount={collateralAmount}
           currencyIcon="/images/btc.png"
@@ -91,60 +92,64 @@ export function Borrow({
               maximumFractionDigits: 2,
             })} USD`,
           }}
+          sliderActiveColor="#CE6533"
+        />
+      </SubSection>
+
+      <h3 className="mb-4 mt-6 text-[24px] font-normal text-accent-primary">
+        Borrow
+      </h3>
+      <div className="flex flex-col gap-2">
+        <SubSection>
+          <AmountSlider
+            amount={borrowAmount}
+            currencyIcon="/images/usdc.png"
+            currencyName="USDC"
+            onAmountChange={(e) =>
+              setBorrowAmount(parseFloat(e.target.value) || 0)
+            }
+            balanceDetails={{
+              balance: maxBorrowAmount.toLocaleString(),
+              symbol: "USDC",
+              displayUSD: false,
+            }}
+            sliderValue={borrowAmount}
+            sliderMin={0}
+            sliderMax={maxBorrowAmount}
+            sliderStep={maxBorrowAmount / 1000}
+            onSliderChange={setBorrowAmount}
+            sliderVariant={theme === "dark" ? "rainbow" : "primary"}
+            leftField={{
+              label: "Max",
+              value: `${maxBorrowAmount.toLocaleString()} USDC`,
+            }}
+            onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
+            rightField={{
+              value: `$${borrowAmount.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })} USD`,
+            }}
+            sliderActiveColor="#0B53BF"
+          />
+        </SubSection>
+
+        <LoanSummaryCard
+          collateralAmount={collateralAmount}
+          loanAmount={borrowAmount}
+          ltv={ltv}
+          liquidationLtv={liquidationLtv}
         />
       </div>
 
-      {/* Borrow Section */}
-      <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">Borrow</h3>
-        <AmountSlider
-          amount={borrowAmount}
-          currencyIcon="/images/usdc.png"
-          currencyName="USDC"
-          onAmountChange={(e) =>
-            setBorrowAmount(parseFloat(e.target.value) || 0)
-          }
-          balanceDetails={{
-            balance: maxBorrowAmount.toLocaleString(),
-            symbol: "USDC",
-            displayUSD: false,
-          }}
-          sliderValue={borrowAmount}
-          sliderMin={0}
-          sliderMax={maxBorrowAmount}
-          sliderStep={maxBorrowAmount / 1000}
-          onSliderChange={setBorrowAmount}
-          sliderVariant="rainbow"
-          leftField={{
-            label: "Max",
-            value: `${maxBorrowAmount.toLocaleString()} USDC`,
-          }}
-          onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
-          rightField={{
-            value: `$${borrowAmount.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })} USD`,
-          }}
-        />
-      </div>
-
-      {/* Summary Card */}
-      <LoanSummaryCard
-        collateralAmount={collateralAmount}
-        loanAmount={borrowAmount}
-        ltv={ltv}
-        liquidationLtv={liquidationLtv}
-      />
-
-      {/* Action Button */}
       <Button
         variant="contained"
-        color="primary"
+        color="secondary"
         size="large"
         fluid
         disabled={isDisabled}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
+        className="mt-6"
       >
         {getButtonText()}
       </Button>

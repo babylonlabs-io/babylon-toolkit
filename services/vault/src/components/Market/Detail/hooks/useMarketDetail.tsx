@@ -1,5 +1,7 @@
+import { Avatar } from "@babylonlabs-io/core-ui";
 import { useETHWallet } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import type { Address } from "viem";
@@ -186,12 +188,38 @@ export function useMarketDetail() {
   // Formula: Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100))
 
   const marketAttributes = useMemo<
-    Array<{ label: string; value: string }>
+    Array<{ label: string; value: string | ReactNode }>
   >(() => {
     return [
       { label: "Market ID", value: marketId || "Unknown" },
-      { label: "Collateral", value: "BTC" },
-      { label: "Loan", value: "USDC" },
+      {
+        label: "Collateral",
+        value: (
+          <div className="flex items-center gap-[4px]">
+            <Avatar
+              url="/images/btc.png"
+              alt="BTC"
+              size="tiny"
+              variant="circular"
+            />
+            <span>BTC</span>
+          </div>
+        ),
+      },
+      {
+        label: "Loan",
+        value: (
+          <div className="flex items-center gap-[4px]">
+            <Avatar
+              url="/images/usdc.png"
+              alt="USDC"
+              size="tiny"
+              variant="circular"
+            />
+            <span>USDC</span>
+          </div>
+        ),
+      },
       {
         label: "Liquidation LTV",
         value: marketConfig

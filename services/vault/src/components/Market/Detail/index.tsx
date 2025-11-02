@@ -8,6 +8,7 @@
  * The page automatically detects if the user has a position for this market.
  */
 
+import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
@@ -130,8 +131,8 @@ export function MarketDetail() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1200px] px-4 pb-6">
-      <div className="grid grid-cols-2 items-start gap-6">
+    <Container className="pb-6">
+      <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
         {/* Left Side: Market Info */}
         <MarketInfo
           onBack={handleBack}
@@ -229,6 +230,6 @@ export function MarketDetail() {
         repaySymbol="USDC"
         withdrawSymbol="BTC"
       />
-    </div>
+    </Container>
   );
 }

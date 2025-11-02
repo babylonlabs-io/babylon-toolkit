@@ -7,7 +7,7 @@ export interface AvatarProps extends PropsWithChildren {
   url?: string;
   className?: string;
   style?: CSSProperties;
-  size?: "tiny" | "small" | "medium" | "large";
+  size?: "tiny" | "small" | "medium" | "large" | "xlarge";
   variant?: "circular" | "rounded" | "square";
 }
 

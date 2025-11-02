@@ -1,5 +1,5 @@
 .bbn-btn {
-  @apply rounded tracking-0.4 transition-all duration-200;
+  @apply rounded-md tracking-0.4 transition-all duration-200;
 
   &-fluid {
     @apply w-full;

@@ -1,5 +1,5 @@
 export const SmallLogo: React.FC = () => (
-  <a href="/vault">
+  <a href="/">
     <svg
       width="164"
       height="40"

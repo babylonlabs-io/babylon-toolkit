@@ -86,10 +86,8 @@ export function Activity() {
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || activities.length === 0) {
     return (
-      <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
-        <div className="flex min-h-[200px] items-center justify-center px-8 py-16 text-center text-sm text-accent-secondary">
-          Your transactions will be shown here
-        </div>
+      <div className="rounded-2xl bg-primary-contrast py-10 text-center text-sm text-accent-secondary dark:bg-primary-main">
+        Your transactions will be shown here.
       </div>
     );
   }

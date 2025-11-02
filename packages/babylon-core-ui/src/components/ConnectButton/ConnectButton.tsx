@@ -16,7 +16,7 @@ export const ConnectButton: React.FC<ConnectButtonProps> = ({
   loading = false,
   connected = false,
   onClick,
-  text = "Connect Wallet",
+  text = "Connect",
   loadingText = "Loading...",
   className,
   disabled = false,
@@ -30,6 +30,7 @@ export const ConnectButton: React.FC<ConnectButtonProps> = ({
       size="large"
       className={className || "h-[2.5rem] min-h-[2.5rem] rounded-full px-6 py-2 text-base text-white md:rounded"}
       onClick={onClick}
+      color="secondary"
       disabled={disabled || loading}
       data-testid="connect-wallet-button"
     >

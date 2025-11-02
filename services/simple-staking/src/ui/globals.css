@@ -44,7 +44,7 @@ input[type="number"] {
     background-image: url("/background-light.webp");
   }
   .dark .app-bg {
-    background-image: url("/background-dark.webp");
+    background-image: url("/background-dark.svg");
   }
 }
 

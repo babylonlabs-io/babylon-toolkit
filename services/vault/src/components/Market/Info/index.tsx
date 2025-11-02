@@ -6,6 +6,7 @@ import {
   MarketStatCard,
   Tabs,
 } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 interface MarketInfoProps {
   onBack: () => void;
@@ -17,7 +18,7 @@ interface MarketInfoProps {
   totalLiquidity: string;
   totalLiquiditySubtitle: string;
   borrowRate: string;
-  attributes: Array<{ label: string; value: string }>;
+  attributes: Array<{ label: string; value: string | ReactNode }>;
   positions?: Array<{ label: string; value: string }>;
 }
 
@@ -40,7 +41,7 @@ export function MarketInfo({
         variant="ghost"
         color="primary"
         size="medium"
-        className="flex items-center gap-2 !px-2"
+        className="flex items-center gap-3 !px-2"
         onClick={onBack}
         aria-label="Back to dashboard"
       >
@@ -59,11 +60,11 @@ export function MarketInfo({
             strokeLinejoin="round"
           />
         </svg>
-        <span className="text-sm">Dashboard</span>
+        <span className="text-base">Dashboard</span>
       </Button>
 
-      <div className="flex items-center gap-3">
-        <AvatarGroup size="large">
+      <div className="flex items-center gap-6">
+        <AvatarGroup size="xlarge">
           <Avatar url={btcIcon} alt="BTC" size="large" variant="circular" />
           <Avatar url={usdcIcon} alt="USDC" size="large" variant="circular" />
         </AvatarGroup>
@@ -85,29 +86,30 @@ export function MarketInfo({
         />
         <MarketStatCard title="Borrow Rate" amount={borrowRate} />
       </div>
-
-      <Tabs
-        variant="simple"
-        items={[
-          {
-            id: "market-attributes",
-            label: "Market Attributes",
-            content: <KeyValueList items={attributes} showDivider={false} />,
-          },
-          ...(positions
-            ? [
-                {
-                  id: "positions",
-                  label: "Positions",
-                  content: (
-                    <KeyValueList items={positions} showDivider={false} />
-                  ),
-                },
-              ]
-            : []),
-        ]}
-        defaultActiveTab="market-attributes"
-      />
+      <div className="!mt-[62px]">
+        <Tabs
+          variant="simple"
+          items={[
+            {
+              id: "market-attributes",
+              label: "Market Attributes",
+              content: <KeyValueList items={attributes} showDivider={false} />,
+            },
+            ...(positions
+              ? [
+                  {
+                    id: "positions",
+                    label: "Positions",
+                    content: (
+                      <KeyValueList items={positions} showDivider={false} />
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+          defaultActiveTab="market-attributes"
+        />
+      </div>
     </div>
   );
 }
