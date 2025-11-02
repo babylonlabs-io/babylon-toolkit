@@ -1,0 +1,2 @@
+export { WaveBackground } from "./WaveBackground";
+

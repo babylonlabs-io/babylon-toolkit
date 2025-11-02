@@ -1,0 +1,107 @@
+{
+  "speed": 0.00007,
+  "amplitude": 0.35,
+  "frequency": 1,
+  "waveAmplitude": 0.45,
+  "strokeWidth": 0,
+  "waveCount": 3,
+  "showFill": true,
+  "floatSpeed": 0.1,
+  "colors": [
+    "#8683B4",
+    "#8E3C75",
+    "#8E3C75"
+  ],
+  "fillColors": [
+    {
+      "stops": [
+        {
+          "color": "#8683B4",
+          "offset": 22
+        },
+        {
+          "color": "transparent",
+          "offset": 85
+        }
+      ],
+      "direction": "horizontal"
+    },
+    {
+      "stops": [
+        {
+          "color": "#8E3C75",
+          "offset": 0
+        },
+        {
+          "color": "transparent",
+          "offset": 100
+        }
+      ],
+      "direction": "vertical"
+    },
+    {
+      "stops": [
+        {
+          "color": "#8E3C75",
+          "offset": 0
+        },
+        {
+          "color": "transparent",
+          "offset": 100
+        }
+      ],
+      "direction": "vertical"
+    }
+  ],
+  "backgroundColor": "#040402",
+  "waveOpacity": 0.42,
+  "waves": [
+    {
+      "startY": 66,
+      "endY": 83,
+      "inverted": false,
+      "startX": 80,
+      "endX": 10,
+      "direction": "vertical",
+      "strokeWidth": 0,
+      "strokeWidthStops": [
+        {
+          "width": 0,
+          "offset": 39
+        },
+        {
+          "width": 1,
+          "offset": 100
+        },
+        {
+          "width": 1,
+          "offset": 100
+        }
+      ],
+      "blurType": "gaussian",
+      "blurAmount": 1
+    },
+    {
+      "startY": 33.33333333333333,
+      "endY": 33.33333333333333,
+      "inverted": true,
+      "startX": 49,
+      "endX": 0,
+      "direction": "vertical",
+      "strokeWidth": 0,
+      "blurType": "gaussian",
+      "blurAmount": 1
+    },
+    {
+      "startY": 75,
+      "endY": 66.66666666666666,
+      "inverted": false,
+      "startX": 100,
+      "endX": 46,
+      "direction": "vertical",
+      "strokeWidth": 0,
+      "blurType": "gaussian",
+      "blurAmount": 1
+    }
+  ]
+}
