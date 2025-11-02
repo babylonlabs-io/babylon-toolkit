@@ -12,6 +12,10 @@
 
 import { Button } from "@babylonlabs-io/core-ui";
 
+import {
+  getPrimaryActionButton,
+  PeginAction,
+} from "../../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { Deposit } from "../../../types/vault";
@@ -29,6 +33,8 @@ interface DepositTableRowData {
   pendingPegin?: PendingPeginRequest;
   /** Callback when sign button clicked - passes transactions */
   onSignClick: (depositId: string, transactions: any[]) => void;
+  /** Callback when broadcast button clicked */
+  onBroadcastClick?: (depositId: string) => void;
 }
 
 /**
@@ -43,27 +49,52 @@ export function DepositTableRowActions({
   btcPublicKey,
   pendingPegin,
   onSignClick,
+  onBroadcastClick,
 }: DepositTableRowData) {
   // Poll for payout transactions at row level
-  const { shouldShowSignButton, loading, transactions } = useDepositRowPolling({
+  const { peginState, loading, transactions } = useDepositRowPolling({
     activity,
     btcPublicKey,
     pendingPegin,
   });
 
-  // Don't show button if no action available
-  if (!shouldShowSignButton) {
+  const actionButton = getPrimaryActionButton(peginState);
+
+  if (!actionButton) {
     return null;
   }
 
-  return (
-    <Button
-      size="small"
-      variant="contained"
-      onClick={() => onSignClick(deposit.id, transactions || [])}
-      disabled={loading || !transactions}
-    >
-      {loading ? "Loading..." : "Sign"}
-    </Button>
-  );
+  const { label, action } = actionButton;
+
+  switch (action) {
+    case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
+      return (
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => onSignClick(deposit.id, transactions || [])}
+          disabled={loading || !transactions}
+        >
+          {loading ? "Loading..." : label}
+        </Button>
+      );
+
+    case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
+      if (!onBroadcastClick) return null;
+      return (
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => onBroadcastClick(deposit.id)}
+        >
+          {label}
+        </Button>
+      );
+
+    case PeginAction.REDEEM:
+      return null;
+
+    default:
+      return null;
+  }
 }

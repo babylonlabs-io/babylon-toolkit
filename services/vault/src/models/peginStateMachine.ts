@@ -243,7 +243,7 @@ export function getPrimaryActionButton(state: PeginState): {
 } | null {
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
     return {
-      label: "Sign Payout Transactions",
+      label: "Sign",
       action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     };
   }
@@ -252,7 +252,7 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Sign & Broadcast to Bitcoin",
+      label: "Broadcast",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }

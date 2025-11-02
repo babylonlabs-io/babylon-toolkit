@@ -47,6 +47,8 @@ export interface UseDepositRowPollingResult {
   peginState: ReturnType<typeof getPeginState>;
   /** Whether to show "Sign" button in table */
   shouldShowSignButton: boolean;
+  /** Whether to show "Broadcast" button in table */
+  shouldShowBroadcastButton: boolean;
   /** Contract status for the deposit */
   contractStatus: ContractStatus;
   /** Local storage status (if any) */
@@ -117,6 +119,15 @@ export function useDepositRowPolling(
     [peginState.availableActions],
   );
 
+  // Determine if "Broadcast" button should be shown
+  const shouldShowBroadcastButton = useMemo(
+    () =>
+      peginState.availableActions.includes(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      ),
+    [peginState.availableActions],
+  );
+
   return {
     transactions,
     loading,
@@ -124,6 +135,7 @@ export function useDepositRowPolling(
     isReady,
     peginState,
     shouldShowSignButton,
+    shouldShowBroadcastButton,
     contractStatus,
     localStatus,
   };
