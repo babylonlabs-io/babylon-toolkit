@@ -81,7 +81,7 @@ vi.mock('@tanstack/react-query', async () => {
           refetch: vi.fn(),
         };
       }
-      return actual.useQuery(options);
+      return (actual as any).useQuery(options);
     }),
   };
 });

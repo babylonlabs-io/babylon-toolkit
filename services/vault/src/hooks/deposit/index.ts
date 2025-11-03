@@ -22,6 +22,13 @@ export type {
   UseDepositTransactionResult,
 } from "./useDepositTransaction";
 
+// New hooks for migration
+export { useDepositForm } from "./useDepositForm";
+export type { UseDepositFormResult, DepositFormData } from "./useDepositForm";
+
+export { useDepositState, DepositStep as DepositStateStep } from "./useDepositState";
+export type { UseDepositStateResult, DepositStateData } from "./useDepositState";
+
 // Compatibility layer for migration
 export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
 export type { 
