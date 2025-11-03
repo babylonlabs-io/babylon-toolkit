@@ -7,53 +7,79 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
-interface BorrowSuccessModalProps {
+interface TransactionSuccessModalProps {
   open: boolean;
   onClose: () => void;
   borrowAmount: number;
   borrowSymbol: string;
+  collateralAmount: number;
 }
 
 /**
- * BorrowSuccessModal - Success celebration modal after borrow completion
+ * TransactionSuccessModal - Success celebration modal for borrow/collateral operations
  *
- * Displays:
- * - Mascot image (celebrating)
- * - "Borrow Successful" heading
- * - Borrowed amount confirmation
- * - "Done" button to close
+ * Shows different messages based on the operation type:
+ * - Only collateral: "Collateral Added Successfully"
+ * - Only borrow: "Borrow Successful"
+ * - Both: "Transaction Successful"
  */
-export function BorrowSuccessModal({
+export function TransactionSuccessModal({
   open,
   onClose,
   borrowAmount,
   borrowSymbol,
-}: BorrowSuccessModalProps) {
-  // Format amount with commas for readability
-  const formattedAmount = borrowAmount.toLocaleString("en-US", {
+  collateralAmount,
+}: TransactionSuccessModalProps) {
+  // Determine operation type
+  const hasCollateral = collateralAmount > 0;
+  const hasBorrow = borrowAmount > 0;
+
+  // Format amounts with commas for readability
+  const formattedBorrow = borrowAmount.toLocaleString("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
+  const formattedCollateral = collateralAmount.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 8,
+  });
+
+  // Determine heading and message based on operation
+  let heading: string;
+  let message: string;
+  let icon: string;
+
+  if (hasCollateral && !hasBorrow) {
+    // Only added collateral
+    heading = "Collateral Added Successfully";
+    message = `${formattedCollateral} BTC has been added to your position as collateral.`;
+    icon = "/images/btc.png";
+  } else if (!hasCollateral && hasBorrow) {
+    // Only borrowed
+    heading = "Borrow Successful";
+    message = `${formattedBorrow} ${borrowSymbol} has been borrowed and is now available in your wallet.`;
+    icon = "/images/usdc.png";
+  } else {
+    // Both collateral and borrow
+    heading = "Transaction Successful";
+    message = `${formattedCollateral} BTC collateral added and ${formattedBorrow} ${borrowSymbol} borrowed successfully.`;
+    icon = "/images/btc.png";
+  }
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
-        <img
-          src="/images/usdc.png"
-          alt="USDC"
-          className="mx-auto mb-6 h-24 w-24"
-        />
+        <img src={icon} alt="Success" className="mx-auto mb-6 h-24 w-24" />
 
         <Heading variant="h4" className="mb-4 text-xl sm:text-2xl">
-          Borrow Successful
+          {heading}
         </Heading>
 
         <Text
           variant="body1"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          {formattedAmount} {borrowSymbol} has been borrowed and is now
-          available in your wallet.
+          {message}
         </Text>
       </DialogBody>
 

@@ -26,9 +26,15 @@ export function useBorrowUI({
   const hasInsufficientLiquidity = borrowAmount > availableLiquidity;
   const hasNoCollateral =
     collateralAmount === 0 && currentCollateralAmount === 0;
+  const hasNewCollateral = collateralAmount > 0;
 
+  // Allow either:
+  // 1. Adding collateral only (collateralAmount > 0, borrowAmount = 0)
+  // 2. Borrowing with collateral (borrowAmount > 0, collateralAmount >= 0 || currentCollateralAmount > 0)
   const isDisabled =
-    borrowAmount === 0 || hasInsufficientLiquidity || hasNoCollateral;
+    (borrowAmount === 0 && !hasNewCollateral) || // Must have at least new collateral OR borrow amount
+    hasInsufficientLiquidity ||
+    (borrowAmount > 0 && hasNoCollateral); // If borrowing, must have collateral
 
   const buttonText = useMemo(() => {
     if (hasInsufficientLiquidity) {
@@ -37,8 +43,11 @@ export function useBorrowUI({
     if (hasNoCollateral && borrowAmount > 0) {
       return "Add collateral to borrow";
     }
+    if (borrowAmount === 0 && hasNewCollateral) {
+      return "Top Up Collateral";
+    }
     if (borrowAmount === 0) {
-      return "Enter borrow amount";
+      return "Enter borrow amount or add collateral";
     }
     return "Borrow";
   }, [
@@ -46,6 +55,7 @@ export function useBorrowUI({
     hasNoCollateral,
     borrowAmount,
     availableLiquidity,
+    hasNewCollateral,
   ]);
 
   return {
