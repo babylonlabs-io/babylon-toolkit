@@ -8,6 +8,7 @@ import { useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import {
+  approveLoanTokenForRepay,
   repayDebtFull,
   repayDebtPartial,
   withdrawCollateralFromPosition,
@@ -66,7 +67,12 @@ export function useRepayTransaction({
         const isFullRepayment =
           Math.abs(repayAmount - currentLoanAmount) < tolerance;
 
-        // Step 1: Repay debt
+        // Step 1: Approve USDC spending (if repaying)
+        if (repayAmount > 0) {
+          await approveLoanTokenForRepay(walletClient, chain, marketId);
+        }
+
+        // Step 2: Repay debt
         if (isFullRepayment) {
           await repayDebtFull(
             walletClient,
@@ -88,7 +94,7 @@ export function useRepayTransaction({
           );
         }
 
-        // Step 2: Withdraw collateral if user requested it
+        // Step 3: Withdraw collateral if user requested it
         if (withdrawAmount > 0) {
           await withdrawCollateralFromPosition(
             walletClient,
@@ -98,7 +104,7 @@ export function useRepayTransaction({
           );
         }
 
-        // Refetch position data to update UI
+        // Step 4: Refetch position data to update UI
         await refetch();
 
         // Success - show success modal

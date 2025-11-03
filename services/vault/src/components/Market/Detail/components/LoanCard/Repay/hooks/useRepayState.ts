@@ -3,7 +3,7 @@
  * Handles state and calculations for the repay flow
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface UseRepayStateProps {
   currentLoanAmount: number;
@@ -35,6 +35,19 @@ export function useRepayState({
 }: UseRepayStateProps): UseRepayStateResult {
   const [repayAmount, setRepayAmount] = useState(0);
   const [withdrawCollateralAmount, setWithdrawCollateralAmount] = useState(0);
+
+  // Reset both sliders when loan amount changes (after refetch from successful repay)
+  // This automatically resets after transaction completes
+  useEffect(() => {
+    setRepayAmount(0);
+    setWithdrawCollateralAmount(0);
+  }, [currentLoanAmount]);
+
+  // Reset both sliders when collateral amount changes (after refetch from successful withdraw)
+  useEffect(() => {
+    setRepayAmount(0);
+    setWithdrawCollateralAmount(0);
+  }, [currentCollateralAmount]);
 
   // Generate withdraw collateral slider steps (0%, 20%, 40%, 60%, 80%, 100%)
   const withdrawCollateralSteps = useMemo(() => {

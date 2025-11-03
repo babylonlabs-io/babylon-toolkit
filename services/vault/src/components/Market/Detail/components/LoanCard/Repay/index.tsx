@@ -35,6 +35,21 @@ export function Repay({
 
   const isDisabled = repayAmount === 0 && withdrawCollateralAmount === 0;
 
+  // Determine button text based on selected actions
+  const hasRepay = repayAmount > 0;
+  const hasWithdraw = withdrawCollateralAmount > 0;
+
+  let buttonText: string;
+  if (isDisabled) {
+    buttonText = "Enter an amount";
+  } else if (hasRepay && hasWithdraw) {
+    buttonText = "Repay and Withdraw";
+  } else if (hasRepay) {
+    buttonText = "Repay";
+  } else {
+    buttonText = "Withdraw Collateral";
+  }
+
   return (
     <div className="space-y-4">
       {/* Repay Section */}
@@ -134,7 +149,7 @@ export function Repay({
         disabled={isDisabled}
         onClick={() => onRepay(repayAmount, withdrawCollateralAmount)}
       >
-        {isDisabled ? "Enter an amount" : "Repay and Withdraw"}
+        {buttonText}
       </Button>
     </div>
   );
