@@ -1,10 +1,10 @@
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 
 import { MOCK_VALUES } from "./constants";
 
 export const btcHandlers = [
   // Mempool API handlers
-  rest.get("*/api/address/*/utxo", (req, res, ctx) => {
+  http.get("*/api/address/*/utxo", () => {
     const response = [
       {
         txid: "txid1",
@@ -15,26 +15,22 @@ export const btcHandlers = [
         },
       },
     ];
-    return res(ctx.json(response));
+    return HttpResponse.json(response);
   }),
 
-  rest.get("*/api/v1/validate-address/*", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        isvalid: true,
-        scriptPubKey: "0014abcdef1234567890abcdef1234567890abcdef12",
-      }),
-    );
+  http.get("*/api/v1/validate-address/*", () => {
+    return HttpResponse.json({
+      isvalid: true,
+      scriptPubKey: "0014abcdef1234567890abcdef1234567890abcdef12",
+    });
   }),
 
-  rest.get("*/api/address/*", (req, res, ctx) => {
-    return res(
-      ctx.json({
-        chain_stats: {
-          funded_txo_sum: Number.parseInt(MOCK_VALUES.STAKABLE_BTC),
-          spent_txo_sum: 0,
-        },
-      }),
-    );
+  http.get("*/api/address/*", () => {
+    return HttpResponse.json({
+      chain_stats: {
+        funded_txo_sum: Number.parseInt(MOCK_VALUES.STAKABLE_BTC),
+        spent_txo_sum: 0,
+      },
+    });
   }),
 ];

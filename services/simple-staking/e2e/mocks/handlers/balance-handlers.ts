@@ -1,39 +1,39 @@
-import { rest } from "msw";
+import { http, HttpResponse } from "msw";
 
 import { MOCK_VALUES } from "./constants";
 
 export const balanceHandlers = [
-  rest.get("/v2/balances*", (req, res, ctx) => {
+  http.get("/v2/balances*", () => {
     const response = {
       balance: {
         bbn: MOCK_VALUES.BBN_BALANCE,
         stakable_btc: MOCK_VALUES.STAKABLE_BTC,
       },
     };
-    return res(ctx.json(response));
+    return HttpResponse.json(response);
   }),
 
-  rest.get("/v2/staked*", (req, res, ctx) => {
+  http.get("/v2/staked*", () => {
     const response = {
       staked: {
         btc: MOCK_VALUES.STAKED_BTC,
         delegated_btc: MOCK_VALUES.STAKED_BTC,
       },
     };
-    return res(ctx.json(response));
+    return HttpResponse.json(response);
   }),
 
-  rest.get("/v2/stakable-btc*", (req, res, ctx) => {
+  http.get("/v2/stakable-btc*", () => {
     const response = {
       balance: MOCK_VALUES.STAKABLE_BTC,
     };
-    return res(ctx.json(response));
+    return HttpResponse.json(response);
   }),
 
-  rest.get("/v2/rewards*", (req, res, ctx) => {
+  http.get("/v2/rewards*", () => {
     const response = {
       rewards: MOCK_VALUES.REWARDS,
     };
-    return res(ctx.json(response));
+    return HttpResponse.json(response);
   }),
 ];
