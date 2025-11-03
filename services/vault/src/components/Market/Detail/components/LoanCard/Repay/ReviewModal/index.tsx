@@ -32,15 +32,24 @@ export function RepayReviewModal({
   ltv,
   processing = false,
 }: RepayReviewModalProps) {
-  const { btcPrice, liquidationLtv } = useMarketDetailContext();
+  const {
+    btcPrice,
+    liquidationLtv,
+    currentLoanAmount,
+    currentCollateralAmount,
+  } = useMarketDetailContext();
 
   const [acknowledged, setAcknowledged] = useState(false);
 
-  // Format USD values
+  // Calculate remaining amounts after transaction
+  const remainingLoanAmount = currentLoanAmount - repayData.repay;
+  const remainingCollateral = currentCollateralAmount - repayData.withdraw;
+
+  // Format USD values for action amounts
   const repayUsdValue = `$${repayData.repay.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  })} USDC`;
+  })} USD`;
   const withdrawUsdValue = `$${(repayData.withdraw * btcPrice).toLocaleString(
     undefined,
     {
@@ -48,6 +57,21 @@ export function RepayReviewModal({
       maximumFractionDigits: 2,
     },
   )} USD`;
+
+  // Format USD values for remaining amounts
+  const remainingLoanUsdValue = `$${remainingLoanAmount.toLocaleString(
+    undefined,
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )} USD`;
+  const remainingCollateralUsdValue = `$${(
+    remainingCollateral * btcPrice
+  ).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USD`;
 
   const handleClose = () => {
     setAcknowledged(false);
@@ -59,17 +83,36 @@ export function RepayReviewModal({
     onConfirm(repayData.repay, repayData.withdraw);
   };
 
+  // Build review fields showing both action amounts and resulting state
   const reviewFields = [
+    // Show repay amount if repaying
+    ...(repayData.repay > 0
+      ? [
+          {
+            label: "Repayment Amount",
+            value: `${repayData.repay.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${repayUsdValue})`,
+          },
+        ]
+      : []),
+    // Show withdraw amount if withdrawing
+    ...(repayData.withdraw > 0
+      ? [
+          {
+            label: "Withdraw Collateral",
+            value: `${repayData.withdraw.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${withdrawUsdValue})`,
+          },
+        ]
+      : []),
     {
-      label: "Repayment Amount",
-      value: `${repayData.repay.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${repayUsdValue})`,
+      label: "Remaining Loan Amount",
+      value: `${remainingLoanAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${remainingLoanUsdValue})`,
     },
     {
-      label: "Withdraw Collateral",
-      value: `${repayData.withdraw.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${withdrawUsdValue})`,
+      label: "Remaining Collateral",
+      value: `${remainingCollateral.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${remainingCollateralUsdValue})`,
     },
     {
-      label: "LTV",
+      label: "New LTV",
       value: `${ltv.toFixed(2)}%`,
     },
     {

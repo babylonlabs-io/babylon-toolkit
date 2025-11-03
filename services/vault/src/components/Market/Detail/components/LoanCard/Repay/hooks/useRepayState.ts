@@ -3,7 +3,7 @@
  * Handles state and calculations for the repay flow
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface UseRepayStateProps {
   currentLoanAmount: number;
@@ -21,6 +21,7 @@ export interface UseRepayStateResult {
   setWithdrawCollateralAmount: (amount: number) => void;
 
   // Computed values
+  canWithdrawCollateral: boolean;
   withdrawCollateralSteps: Array<{ value: number }>;
   ltv: number;
   remainingCollateral: number;
@@ -36,27 +37,46 @@ export function useRepayState({
   const [repayAmount, setRepayAmount] = useState(0);
   const [withdrawCollateralAmount, setWithdrawCollateralAmount] = useState(0);
 
-  // Generate withdraw collateral slider steps (0%, 20%, 40%, 60%, 80%, 100%)
-  const withdrawCollateralSteps = useMemo(() => {
-    return [
-      { value: 0 },
-      { value: currentCollateralAmount * 0.2 },
-      { value: currentCollateralAmount * 0.4 },
-      { value: currentCollateralAmount * 0.6 },
-      { value: currentCollateralAmount * 0.8 },
-      { value: currentCollateralAmount },
-    ];
+  // Reset both sliders when loan amount changes (after refetch from successful repay)
+  // This automatically resets after transaction completes
+  useEffect(() => {
+    setRepayAmount(0);
+    setWithdrawCollateralAmount(0);
+  }, [currentLoanAmount]);
+
+  // Reset both sliders when collateral amount changes (after refetch from successful withdraw)
+  useEffect(() => {
+    setRepayAmount(0);
+    setWithdrawCollateralAmount(0);
   }, [currentCollateralAmount]);
 
-  // Calculate remaining values after repay/withdraw
-  const remainingCollateral = useMemo(
-    () => currentCollateralAmount - withdrawCollateralAmount,
-    [currentCollateralAmount, withdrawCollateralAmount],
-  );
-
+  // Calculate remaining loan after repayment
   const remainingLoan = useMemo(
     () => currentLoanAmount - repayAmount,
     [currentLoanAmount, repayAmount],
+  );
+
+  // User can only withdraw ALL collateral when fully repaying
+  const canWithdrawCollateral = useMemo(() => {
+    return remainingLoan <= 0;
+  }, [remainingLoan]);
+
+  // Auto-reset withdraw amount if user reduces repay amount below full
+  useEffect(() => {
+    if (!canWithdrawCollateral && withdrawCollateralAmount > 0) {
+      setWithdrawCollateralAmount(0);
+    }
+  }, [canWithdrawCollateral, withdrawCollateralAmount]);
+
+  // Generate withdraw collateral slider steps (only 0 or all)
+  const withdrawCollateralSteps = useMemo(() => {
+    return [{ value: 0 }, { value: currentCollateralAmount }];
+  }, [currentCollateralAmount]);
+
+  // Calculate remaining collateral after withdraw
+  const remainingCollateral = useMemo(
+    () => currentCollateralAmount - withdrawCollateralAmount,
+    [currentCollateralAmount, withdrawCollateralAmount],
   );
 
   // Calculate withdraw collateral value in USD
@@ -78,6 +98,7 @@ export function useRepayState({
     withdrawCollateralAmount,
     setRepayAmount,
     setWithdrawCollateralAmount,
+    canWithdrawCollateral,
     withdrawCollateralSteps,
     ltv,
     remainingCollateral,

@@ -159,7 +159,7 @@ export async function getPosition(
       return null;
     }
 
-    return {
+    const positionData = {
       depositor: {
         ethAddress: position.depositor.ethAddress as Address,
         btcPubKey: position.depositor.btcPubKey as Hex,
@@ -171,6 +171,8 @@ export async function getPosition(
       totalBorrowed: position.totalBorrowed,
       lastUpdateTimestamp: position.lastUpdateTimestamp,
     };
+
+    return positionData;
   } catch (error) {
     // Position doesn't exist or error fetching
     console.error(
