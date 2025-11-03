@@ -52,9 +52,9 @@ export function useVaultProviders(): UseVaultProvidersResult {
         (provider) =>
           ({
             id: provider.getId(),
-            btc_pubkey: provider.getBtcPublicKey(),
-            name: provider.getName(),
-            description: provider.getDescription(),
+            btc_pub_key: provider.getBtcPublicKey(),
+            url: "",
+            liquidators: [],
           }) as VaultProvider,
       );
     },

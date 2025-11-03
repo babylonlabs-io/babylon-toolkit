@@ -7,6 +7,7 @@
 import { Button, Card } from "@babylonlabs-io/core-ui";
 
 import { useETHWallet } from "../../../context/wallet";
+import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 import { useDepositList } from "../../hooks/useDepositList";
 
 export function DepositListExample() {
@@ -80,7 +81,7 @@ export function DepositListExample() {
                   </div>
                   {deposit.canRedeem && (
                     <Button
-                      size="sm"
+                      size="small"
                       className="mt-2"
                       onClick={() => {
                         // This would trigger the redeem flow
@@ -110,7 +111,7 @@ export function DepositListExample() {
 
         {pagination.hasMore && (
           <div className="mt-4 text-center">
-            <Button onClick={loadMore} disabled={isLoading} variant="outline">
+            <Button onClick={loadMore} disabled={isLoading} variant="outlined">
               {isLoading
                 ? "Loading..."
                 : `Load More (${pagination.total - deposits.length} remaining)`}

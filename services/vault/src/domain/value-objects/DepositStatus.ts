@@ -79,6 +79,14 @@ export class DepositStatus {
     );
   }
 
+  equals(other: DepositStatus): boolean {
+    return (
+      this.state === other.state &&
+      this.confirmations === other.confirmations &&
+      this.requiredConfirmations === other.requiredConfirmations
+    );
+  }
+
   static pending(): DepositStatus {
     return new DepositStatus(DepositState.PENDING);
   }

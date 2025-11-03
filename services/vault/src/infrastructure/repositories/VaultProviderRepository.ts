@@ -25,9 +25,9 @@ export class VaultProviderRepository implements IVaultProviderRepository {
       (provider) =>
         new VaultProvider(
           provider.id,
-          provider.btc_pubkey,
-          provider.name || "Unknown Provider",
-          provider.description,
+          provider.btc_pub_key,
+          provider.url || "Unknown Provider",
+          undefined,
         ),
     );
 
