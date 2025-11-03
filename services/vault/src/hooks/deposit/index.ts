@@ -21,3 +21,10 @@ export type {
   TransactionResult,
   UseDepositTransactionResult,
 } from "./useDepositTransaction";
+
+// Compatibility layer for migration
+export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
+export type { 
+  UseDepositFlowParams as UseDepositFlowCompatParams,
+  UseDepositFlowReturn as UseDepositFlowCompatReturn
+} from "./useDepositFlowCompat";
