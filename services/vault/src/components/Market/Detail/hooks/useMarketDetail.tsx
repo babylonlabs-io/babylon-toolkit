@@ -302,19 +302,53 @@ export function useMarketDetail() {
       };
     }
 
-    const totalSupplyM = (Number(marketData.totalSupplyAssets) / 1e12).toFixed(
-      2,
-    );
-    const totalBorrowM = (Number(marketData.totalBorrowAssets) / 1e12).toFixed(
-      2,
-    );
+    // Convert from USDC raw units (6 decimals) to actual USDC
+    const totalSupplyUSDC = Number(marketData.totalSupplyAssets) / 1e6;
+    const totalBorrowUSDC = Number(marketData.totalBorrowAssets) / 1e6;
+    const availableLiquidityUSDC = totalSupplyUSDC - totalBorrowUSDC;
+
+    // Format based on size - show actual USDC if less than $10k, otherwise show in millions
+    const formatCurrency = (valueUSDC: number) => {
+      if (valueUSDC < 10000) {
+        // Less than $10k - show actual USDC amount
+        return {
+          display: `$${valueUSDC.toFixed(2)}`,
+          subtitle: `${valueUSDC.toFixed(2)} USDC`,
+        };
+      } else {
+        // $10k or more - show in millions
+        const valueM = (valueUSDC / 1e6).toFixed(2);
+        return {
+          display: `$${valueM}M`,
+          subtitle: `${valueM}M USDC`,
+        };
+      }
+    };
+
+    const totalSupplyFormatted = formatCurrency(totalSupplyUSDC);
+    const availableLiquidityFormatted = formatCurrency(availableLiquidityUSDC);
+
+    // Calculate estimated borrow APR based on utilization
+    // This is a simplified estimation - actual rate depends on IRM contract
+    const estimatedBorrowAPR = (() => {
+      const utilization = marketData.utilizationPercent;
+      // Basic linear interpolation for estimation
+      if (utilization < 80) {
+        // Base rate 2% + utilization * 0.15 (up to 14% at 80% utilization)
+        return (2 + utilization * 0.15).toFixed(2) + "%";
+      } else {
+        // Above 80%, rate increases more steeply
+        // 14% + (utilization - 80) * 1.0 (up to 34% at 100% utilization)
+        return (14 + (utilization - 80) * 1.0).toFixed(2) + "%";
+      }
+    })();
 
     return {
-      totalMarketSize: `$${totalSupplyM}M`,
-      totalMarketSizeSubtitle: `${totalSupplyM}M USDC`,
-      totalLiquidity: `$${totalBorrowM}M`,
-      totalLiquiditySubtitle: `${totalBorrowM}M USDC`,
-      borrowRate: "?",
+      totalMarketSize: totalSupplyFormatted.display,
+      totalMarketSizeSubtitle: totalSupplyFormatted.subtitle,
+      totalLiquidity: availableLiquidityFormatted.display,
+      totalLiquiditySubtitle: availableLiquidityFormatted.subtitle,
+      borrowRate: estimatedBorrowAPR,
     };
   }, [marketData]);
 
