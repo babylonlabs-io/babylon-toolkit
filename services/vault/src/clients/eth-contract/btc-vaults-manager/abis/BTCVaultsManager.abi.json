@@ -23,6 +23,11 @@
         "name": "_vaultsController",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "_registrationDepositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "nonpayable"
@@ -239,6 +244,11 @@
         "name": "positionId",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "providerBtcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -409,6 +419,60 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserVaults",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "pegInTxHashes",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      },
+      {
+        "name": "depositors",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "depositorBtcPubKeys",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      },
+      {
+        "name": "unsignedPegInTxs",
+        "type": "bytes[]",
+        "internalType": "bytes[]"
+      },
+      {
+        "name": "amounts",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      },
+      {
+        "name": "vaultProviders",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "statuses",
+        "type": "uint8[]",
+        "internalType": "enum BTCVaultsManager.BTCVaultStatus[]"
+      },
+      {
+        "name": "positionIds",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
       }
     ],
     "stateMutability": "view"
@@ -695,6 +759,25 @@
   },
   {
     "type": "function",
+    "name": "providerDeposits",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "registeredProviders",
     "inputs": [
       {
@@ -708,6 +791,19 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registrationDepositAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -759,7 +855,7 @@
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -774,6 +870,19 @@
         "name": "account",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRegistrationDepositAmount",
+    "inputs": [
+      {
+        "name": "_registrationDepositAmount",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -1043,6 +1152,11 @@
   {
     "type": "error",
     "name": "ProviderNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RefundFailed",
     "inputs": []
   },
   {

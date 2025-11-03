@@ -8,6 +8,7 @@ import {
   type WalletClient,
 } from "viem";
 
+import { mapViemErrorToContractError } from "../../../utils/errors";
 import { ethClient } from "../client";
 
 /**
@@ -63,8 +64,6 @@ export async function approveERC20(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to approve ERC20: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "approve ERC20");
   }
 }

@@ -1,9 +1,14 @@
 .bbn-subsection {
-  @apply flex rounded p-4 text-accent-primary;
+  @apply flex rounded-lg p-6 text-accent-primary;
 }
 
 .bbn-subsection-contained {
   @apply bg-secondary-highlight;
+}
+
+:root.dark .bbn-subsection-contained,
+:root[data-mode="dark"] .bbn-subsection-contained {
+  @apply bg-primary-main;
 }
 
 .bbn-subsection-outlined {

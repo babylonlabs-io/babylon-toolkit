@@ -167,3 +167,83 @@ export async function getUserPositionsWithMorpho(
 
   return positionsWithMorpho;
 }
+
+/**
+ * Get a user's vault position for a specific market with position ID
+ * Returns VaultController position data with the correct positionId
+ *
+ * @param userAddress - User's Ethereum address
+ * @param marketId - Market ID (hex string with or without 0x prefix, or bigint)
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @returns Object containing position data and positionId, or null if position doesn't exist
+ */
+export async function getUserVaultPosition(
+  userAddress: Address,
+  marketId: string | bigint,
+  vaultControllerAddress: Address,
+): Promise<{ position: MarketPosition; positionId: Hex } | null> {
+  // TODO: Update BTCVaultController contract to return positionId in getPosition() response
+  // This will eliminate the need for a separate getPositionKey() call
+  const [position, positionId] = await Promise.all([
+    VaultController.getPosition(vaultControllerAddress, userAddress, marketId),
+    VaultController.getPositionKey(
+      vaultControllerAddress,
+      userAddress,
+      marketId,
+    ),
+  ]);
+
+  if (!position) {
+    return null;
+  }
+
+  return {
+    position,
+    positionId,
+  };
+}
+
+/**
+ * Get a single position by position ID with full Morpho data
+ *
+ * @param positionId - Position ID (hex string)
+ * @param vaultControllerAddress - BTCVaultController contract address
+ * @returns Position with Morpho data, or null if not found
+ */
+export async function getSinglePositionWithMorpho(
+  positionId: Hex,
+  vaultControllerAddress: Address,
+): Promise<PositionWithMorpho | null> {
+  // Step 1: Fetch position data
+  const positions = await VaultController.getPositionsBulk(
+    vaultControllerAddress,
+    [positionId],
+  );
+
+  if (positions.length === 0) {
+    return null;
+  }
+
+  const position = positions[0];
+  const marketId = position.marketId.toString();
+
+  // Step 2: Fetch market data and Morpho position in parallel
+  const [marketData, morphoPosition] = await Promise.all([
+    Morpho.getMarketWithData(marketId),
+    Morpho.getUserPosition(marketId, position.proxyContract),
+  ]);
+
+  // Step 3: Fetch BTC price from oracle
+  const oraclePrice = await MorphoOracle.getOraclePrice(
+    marketData.oracle as Address,
+  );
+  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+
+  return {
+    positionId,
+    position,
+    morphoPosition,
+    marketData,
+    btcPriceUSD,
+  };
+}

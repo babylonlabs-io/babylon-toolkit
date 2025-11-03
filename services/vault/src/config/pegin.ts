@@ -3,6 +3,7 @@
  */
 
 import { getBTCNetwork, type BTCNetwork } from "@babylonlabs-io/config";
+import { Network } from "@babylonlabs-io/wallet-connector";
 
 /**
  * WASM network format (different from standard Bitcoin network names)
@@ -15,13 +16,14 @@ type WASMNetwork = "bitcoin" | "testnet" | "regtest";
  */
 function toWASMNetwork(network: BTCNetwork): WASMNetwork {
   switch (network) {
-    case "mainnet":
+    case Network.MAINNET:
       return "bitcoin";
-    case "signet":
-    case "testnet":
+    case Network.SIGNET:
+    case Network.TESTNET:
       return "testnet";
-    case "regtest":
-      return "regtest";
+    default:
+      // Default to testnet for any unknown network
+      return "testnet";
   }
 }
 
@@ -39,4 +41,5 @@ export const LOCAL_PEGIN_CONFIG = {
    * TODO: calculate dynamically based on the tx size
    */
   btcTransactionFee: 10_000n,
+  defaultFeeRate: 100, // sat/vbyte - reasonable default for most conditions
 };

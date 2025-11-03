@@ -22,7 +22,9 @@ export function useOrdinals(
 
   const fetchOrdinals = async (): Promise<InscriptionIdentifier[]> => {
     if (address) {
-      logger.info("Fetching ordinals for address", { btcAddress: address });
+      logger.info("Fetching ordinals for address", {
+        btcAddress: address,
+      });
     }
     try {
       const inscriptions = await Promise.race([

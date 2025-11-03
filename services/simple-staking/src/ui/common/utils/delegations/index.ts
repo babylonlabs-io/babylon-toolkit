@@ -115,7 +115,7 @@ const VALIDATORS: Partial<Record<DelegationState, Validator>> = {
 
     if (!valid) {
       const errorMessage = isExpansion
-        ? "This expansion is now invalid as the funding UTXO has already been used"
+        ? "This extension is now invalid as the funding UTXO has already been used"
         : "This stake is now invalid as the UTXO has already been used";
 
       return {

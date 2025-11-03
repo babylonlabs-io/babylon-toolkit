@@ -102,8 +102,8 @@ export async function getPeginRequestsWithDetails(
 export interface AvailableCollateral {
   /** Transaction hash of the pegin request (also serves as vault ID) */
   txHash: Hex;
-  /** Amount of BTC deposited */
-  amount: string;
+  /** Amount in satoshis */
+  amountSatoshis: bigint;
   /** Token symbol (e.g., "BTC") */
   symbol: string;
   /** Token icon URL */
@@ -147,7 +147,7 @@ export async function getAvailableCollaterals(
     .filter(({ peginRequest }) => peginRequest.status === 2)
     .map(({ txHash, peginRequest }) => ({
       txHash,
-      amount: (Number(peginRequest.amount) / 1e8).toFixed(8), // Convert satoshis to BTC
+      amountSatoshis: peginRequest.amount, // Keep as satoshis (bigint) for precision
       symbol: "BTC",
       icon: undefined, // Will be set by UI layer if needed
     }));

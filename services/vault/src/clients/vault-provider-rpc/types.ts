@@ -2,7 +2,6 @@
  * Type definitions for vault provider RPC API
  *
  * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/crates/vaultd/src/rpc/types.rs
- * Last synced: 2025-10-16
  */
 
 // ============================================================================

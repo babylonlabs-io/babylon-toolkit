@@ -5,6 +5,9 @@
  * - Fetching markets from vault-indexer API
  * - Validating markets against on-chain Morpho contract
  * - Getting market data and user positions
+ *
+ * This service acts as the single source of truth for market-related operations.
+ * All hooks should import from this service, never directly from clients.
  */
 
 import type { Address } from "viem";
@@ -20,6 +23,24 @@ import {
   getVaultApiUrl,
 } from "../../clients/vault-api/config";
 import type { MorphoMarket } from "../../clients/vault-api/types";
+
+/**
+ * Market summary data from Morpho contract
+ * Re-exported from eth-contract client
+ */
+export type { MorphoMarketSummary } from "../../clients/eth-contract";
+
+/**
+ * User position in a Morpho market
+ * Re-exported from eth-contract client
+ */
+export type { MorphoUserPosition } from "../../clients/eth-contract";
+
+/**
+ * Market configuration from vault-indexer API
+ * Re-exported from vault-api client
+ */
+export type { MorphoMarket } from "../../clients/vault-api/types";
 
 /**
  * Market with validation status
@@ -56,6 +77,19 @@ export interface MarketsWithValidationResult {
 export async function getMarkets(): Promise<MorphoMarket[]> {
   const client = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
   return client.getMarkets();
+}
+
+/**
+ * Get a specific market by ID from vault-indexer API
+ *
+ * @param marketId - Market ID to fetch
+ * @returns Market information or null if not found
+ */
+export async function getMarketById(
+  marketId: string,
+): Promise<MorphoMarket | null> {
+  const markets = await getMarkets();
+  return markets.find((market) => market.id === marketId) || null;
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   type WalletClient,
 } from "viem";
 
+import { mapViemErrorToContractError } from "../../../utils/errors";
 import { ethClient } from "../client";
 
 import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
@@ -66,9 +67,7 @@ export async function submitPeginRequest(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to submit pegin request: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "submit pegin request");
   }
 }
 
@@ -85,7 +84,6 @@ export async function submitPeginRequest(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
  * @returns Transaction hash, receipt, and position ID
  */
@@ -94,7 +92,6 @@ export async function addCollateralToPosition(
   chain: Chain,
   contractAddress: Address,
   vaultIds: Hex[],
-  depositorBtcPubkey: Hex,
   marketParams: MarketParams,
 ): Promise<{
   transactionHash: Hash;
@@ -108,7 +105,7 @@ export async function addCollateralToPosition(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "addCollateralToPosition",
-      args: [vaultIds, depositorBtcPubkey, marketParams],
+      args: [vaultIds, marketParams],
       chain,
       account: walletClient.account!,
     });
@@ -128,9 +125,7 @@ export async function addCollateralToPosition(
       positionId,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to add collateral to position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "add collateral to position");
   }
 }
 
@@ -146,7 +141,6 @@ export async function addCollateralToPosition(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes)
  * @param marketParams - Morpho market parameters
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction hash and receipt
@@ -156,7 +150,6 @@ export async function addCollateralToPositionAndBorrow(
   chain: Chain,
   contractAddress: Address,
   vaultIds: Hex[],
-  depositorBtcPubkey: Hex,
   marketParams: MarketParams,
   borrowAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
@@ -167,7 +160,7 @@ export async function addCollateralToPositionAndBorrow(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "addCollateralToPositionAndBorrow",
-      args: [vaultIds, depositorBtcPubkey, marketParams, borrowAmount],
+      args: [vaultIds, marketParams, borrowAmount],
       chain,
       account: walletClient.account!,
     });
@@ -181,9 +174,7 @@ export async function addCollateralToPositionAndBorrow(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to add collateral and borrow: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "add collateral and borrow");
   }
 }
 
@@ -230,9 +221,7 @@ export async function repayFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "repay from position");
   }
 }
 
@@ -274,9 +263,7 @@ export async function borrowFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to borrow from position: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "borrow from position");
   }
 }
 
@@ -316,17 +303,19 @@ export async function withdrawCollateralFromPosition(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to withdraw collateral from position: ${error instanceof Error ? error.message : "Unknown error"}`,
+    throw mapViemErrorToContractError(
+      error,
+      "withdraw collateral from position",
     );
   }
 }
 
 /**
- * Redeem BTC vault (withdraw BTC back to user's account)
+ * Depositor redeems BTC vault (withdraw BTC back to depositor's account)
  *
- * This unlocks and withdraws the BTC collateral from an available vault back to the user's Bitcoin address.
+ * This unlocks and withdraws the BTC collateral from an available vault back to the depositor's Bitcoin address.
  * Can only be called on vaults that are in "Available" status (not locked in a position).
+ * The redeemer public key (vault provider's BTC key) is automatically inferred from the vault.
  *
  * Emits VaultRedeemable event which signals the vault system to release the BTC.
  *
@@ -334,15 +323,13 @@ export async function withdrawCollateralFromPosition(
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
  * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
- * @param redeemerPKs - Array of redeemer public keys (x-only, 32 bytes each)
  * @returns Transaction hash and receipt
  */
-export async function redeemBTCVault(
+export async function depositorRedeemBTCVault(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
   pegInTxHash: Hex,
-  redeemerPKs: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const publicClient = ethClient.getPublicClient();
 
@@ -350,8 +337,8 @@ export async function redeemBTCVault(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultControllerABI,
-      functionName: "redeemBTCVault",
-      args: [pegInTxHash, redeemerPKs],
+      functionName: "depositorRedeemBTCVault",
+      args: [pegInTxHash],
       chain,
       account: walletClient.account!,
     });
@@ -365,8 +352,6 @@ export async function redeemBTCVault(
       receipt,
     };
   } catch (error) {
-    throw new Error(
-      `Failed to redeem BTC vault: ${error instanceof Error ? error.message : "Unknown error"}`,
-    );
+    throw mapViemErrorToContractError(error, "redeem BTC vault");
   }
 }

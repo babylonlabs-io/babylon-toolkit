@@ -89,6 +89,10 @@ Sentry.init({
       event.fingerprint = ["{{ default }}", exception?.code];
     }
 
+    // Wallet identifiers are redacted at the source (logging points)
+    // using redactTelemetry() before they reach Sentry, so no additional
+    // filtering is needed here.
+
     return event;
   },
 });

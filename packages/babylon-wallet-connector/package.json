@@ -46,6 +46,7 @@
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@keplr-wallet/provider-extension": "0.12.272",
     "@keplr-wallet/types": "0.12.272",
@@ -55,8 +56,8 @@
     "@ledgerhq/hw-transport": "6.31.10",
     "@ledgerhq/hw-transport-webhid": "6.30.6",
     "@ledgerhq/hw-transport-webusb": "6.29.10",
-    "@reown/appkit": "^1.8.10",
-    "@reown/appkit-adapter-wagmi": "1.8.6",
+    "@reown/appkit": "1.8.12",
+    "@reown/appkit-adapter-wagmi": "1.8.12",
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
     "ledger-bitcoin-babylon-boilerplate": "0.1.7",
@@ -66,9 +67,7 @@
     "buffer": "6.0.3",
     "nanoevents": "9.1.0",
     "usehooks-ts": "^3.1.1",
-    "uuid": "11.1.0",
-    "viem": "^2.38.2",
-    "wagmi": "^2.18.1"
+    "uuid": "11.1.0"
   },
   "files": [
     "dist"
@@ -76,7 +75,9 @@
   "peerDependencies": {
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "tailwind-merge": "2.5.4"
+    "tailwind-merge": "2.5.4",
+    "viem": "2.38.2",
+    "wagmi": "2.18.1"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.9",

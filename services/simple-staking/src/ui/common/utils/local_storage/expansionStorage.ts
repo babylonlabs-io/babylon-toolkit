@@ -46,7 +46,7 @@ export function markExpansionAsBroadcasted(
 ): void {
   if (!publicKeyNoCoord) {
     console.warn(
-      "Cannot mark expansion as broadcasted: no public key provided",
+      "Cannot mark extension as broadcasted: no public key provided",
     );
     return;
   }
@@ -66,7 +66,7 @@ export function markExpansionAsBroadcasted(
     // Save back to localStorage
     localStorage.setItem(statusesKey, JSON.stringify(statuses));
   } catch (error) {
-    console.error("Failed to mark expansion as broadcasted:", error);
+    console.error("Failed to mark extension as broadcasted:", error);
   }
 }
 
@@ -105,7 +105,7 @@ export function getBroadcastedExpansions(
         DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
     );
   } catch (error) {
-    console.error("Failed to get broadcasted expansions:", error);
+    console.error("Failed to get broadcasted extension:", error);
     return [];
   }
 }
@@ -168,7 +168,7 @@ export function isExpansionBroadcasted(
       DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION
     );
   } catch (error) {
-    console.error("Failed to check if expansion is broadcasted:", error);
+    console.error("Failed to check if extension is broadcasted:", error);
     return false;
   }
 }

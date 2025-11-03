@@ -6,7 +6,7 @@
   }
 
   &-tiny {
-    @apply size-[1.125rem];
+    @apply size-4;
   }
 
   &-small {
@@ -19,6 +19,10 @@
 
   &-large {
     @apply size-10;
+  }
+
+  &-xlarge {
+    @apply size-16;
   }
 
   &-circular {

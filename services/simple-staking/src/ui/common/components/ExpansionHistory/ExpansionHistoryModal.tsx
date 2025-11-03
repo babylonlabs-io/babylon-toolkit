@@ -39,7 +39,7 @@ export function ExpansionHistoryModal({
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
-        title="Expansion History"
+        title="Extension History"
         onClose={onClose}
         className="text-accent-primary"
       />
@@ -48,7 +48,7 @@ export function ExpansionHistoryModal({
           {!hasExpansionHistory ? (
             <div className="py-8 text-center">
               <Text variant="body1" className="text-accent-secondary">
-                No expansion history found
+                No extension history found
               </Text>
             </div>
           ) : (

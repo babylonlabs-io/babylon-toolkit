@@ -6,6 +6,8 @@ import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
+import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
+import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -20,6 +22,7 @@ interface WalletProviderProps {
   onError?: (e: Error) => void;
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  appKitConfig?: AppKitModalConfig;
 }
 
 export function WalletProvider({
@@ -33,8 +36,28 @@ export function WalletProvider({
   onError,
   disabledWallets,
   requiredChains,
+  appKitConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
+
+  // Initialize AppKit synchronously before render when ETH chain is enabled
+  // This ensures wagmi config is available before children (ETHWalletProvider) mount
+  useMemo(() => {
+    try {
+      const hasETH = config?.some((c) => c.chain === "ETH");
+      if (hasETH && appKitConfig) {
+        initializeAppKitModal({
+          ...appKitConfig,
+          themeMode: theme === "dark" ? "dark" : "light",
+        });
+      }
+    // eslint-disable-next-line no-empty
+    } catch {
+    }
+  }, [config, theme, appKitConfig]);
+
+  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+  useAppKitOpenListener();
 
   return (
     <TomoConnectionProvider theme={theme} config={config}>

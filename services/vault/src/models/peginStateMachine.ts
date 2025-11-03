@@ -66,6 +66,21 @@ export enum DaemonStatus {
 // ============================================================================
 
 /**
+ * All possible display labels for peg-in states
+ * These are the labels shown to users in the UI
+ */
+export type PeginDisplayLabel =
+  | "Pending"
+  | "Signing required"
+  | "Processing"
+  | "Verified"
+  | "Pending Bitcoin Confirmations"
+  | "Available"
+  | "In Use"
+  | "Expired"
+  | "Unknown";
+
+/**
  * Unified peg-in state combining all sources
  */
 export interface PeginState {
@@ -74,7 +89,7 @@ export interface PeginState {
   /** Local storage status (temporary, off-chain) */
   localStatus?: LocalStorageStatus;
   /** Display label for UI */
-  displayLabel: string;
+  displayLabel: PeginDisplayLabel;
   /** Display variant for styling */
   displayVariant: "pending" | "active" | "inactive";
   /** Available user actions */
@@ -147,7 +162,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Ready to Sign",
+      displayLabel: "Signing required",
       displayVariant: "pending",
       availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
     };
@@ -160,7 +175,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: "Confirming",
+        displayLabel: "Pending Bitcoin Confirmations",
         displayVariant: "pending",
         availableActions: [PeginAction.NONE],
         message:
@@ -194,7 +209,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "In Position",
+      displayLabel: "In Use",
       displayVariant: "active",
       availableActions: [PeginAction.NONE],
       message:
@@ -243,7 +258,7 @@ export function getPrimaryActionButton(state: PeginState): {
 } | null {
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
     return {
-      label: "Sign Payout Transactions",
+      label: "Sign",
       action: PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     };
   }
@@ -252,7 +267,7 @@ export function getPrimaryActionButton(state: PeginState): {
     state.availableActions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)
   ) {
     return {
-      label: "Sign & Broadcast to Bitcoin",
+      label: "Broadcast",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
     };
   }

@@ -46,9 +46,6 @@ export const useSigningStargateClient = () => {
         );
         throw clientError;
       }
-      if (bech32Address) {
-        logger.info("Using Cosmos address for simulation", { bech32Address });
-      }
       return signingStargateClient.simulate(
         bech32Address,
         msgArr,
@@ -56,7 +53,7 @@ export const useSigningStargateClient = () => {
         "",
       );
     },
-    [signingStargateClient, bech32Address, logger],
+    [signingStargateClient, bech32Address],
   );
 
   /**
@@ -81,11 +78,6 @@ export const useSigningStargateClient = () => {
         );
         logger.error(clientError);
         throw clientError;
-      }
-      if (bech32Address) {
-        logger.info("Using Cosmos address for signAndBroadcast", {
-          bech32Address,
-        });
       }
       const res = await signingStargateClient.signAndBroadcast(
         bech32Address,

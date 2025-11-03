@@ -20,13 +20,13 @@ export function ExpansionPendingBanner({
       className={`bg-warning-surface border-warning-strokeLight mb-4 rounded border p-4 ${className}`}
     >
       <Text variant="body1" className="mb-2 font-medium text-accent-primary">
-        Stake Expansion Pending
+        Stake Extension Pending
       </Text>
       <Text variant="body2" className="text-accent-secondary">
-        Your stake expansion transaction has been forwarded to Bitcoin. It will
+        Your stake extension transaction has been forwarded to Bitcoin. It will
         be activated once it receives {confirmationDepth} Bitcoin block
         confirmations. Your original stake is still Active and you can find it
-        in the "Expansion History" tab.
+        in the "Extension History" tab.
       </Text>
     </div>
   );

@@ -1,3 +1,5 @@
+import type { PeginDisplayLabel } from "../models/peginStateMachine";
+
 export interface VaultData {
   supplyTVL: number;
   borrowTVL: number;
@@ -9,8 +11,10 @@ export interface Deposit {
   id: string;
   amount: number;
   vaultProvider: {
+    address: string;
     name: string;
     icon: string;
   };
-  status: "Available" | "Pending" | "In Use";
+  pegInTxHash: string;
+  status: PeginDisplayLabel;
 }

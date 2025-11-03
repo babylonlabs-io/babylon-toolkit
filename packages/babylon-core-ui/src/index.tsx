@@ -35,6 +35,12 @@ export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";
 export * from "./components/TopBanner";
 export * from "./components/Step";
+export * from "./components/Container";
+export * from "./components/Logo";
+export * from "./components/Nav";
+export * from "./components/Header";
+export * from "./components/Footer";
+export * from "./components/ConnectButton";
 
 export * from "./elements/FinalityProviderLogo";
 export * from "./elements/FinalityProviderItem";
