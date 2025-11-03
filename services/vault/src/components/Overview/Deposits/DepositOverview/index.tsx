@@ -19,6 +19,7 @@ import { getPeginState } from "../../../../models/peginStateMachine";
 import { usePeginStorage } from "../../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../../types/activity";
 import type { Deposit } from "../../../../types/vault";
+import { truncateAddress } from "../../../../utils/addressUtils";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { DepositTableRowActions } from "../DepositTableRow";
@@ -146,6 +147,32 @@ function ActionCell({
   );
 }
 
+// Helper component for copyable provider address
+function CopyableProviderAddress({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-2 text-sm text-accent-primary transition-colors hover:text-accent-secondary"
+      title={copied ? "Copied!" : "Click to copy address"}
+    >
+      <span>{truncateAddress(address)}</span>
+      {copied && <span className="text-xs text-green-500">✓</span>}
+    </button>
+  );
+}
+
 // Mobile card component with row polling
 function DepositMobileCard({
   deposit,
@@ -196,13 +223,17 @@ function DepositMobileCard({
       }}
       details={[
         {
-          label: "Vault Provider",
+          label: "Peg-In Tx",
+          value: <CopyableProviderAddress address={deposit.pegInTxHash} />,
+        },
+        {
+          label: "Vault",
           value: (
             <div className="flex items-center gap-2">
               <span className="text-base">{deposit.vaultProvider.icon}</span>
-              <span className="text-sm text-accent-primary">
-                {deposit.vaultProvider.name}
-              </span>
+              <CopyableProviderAddress
+                address={deposit.vaultProvider.address}
+              />
             </div>
           ),
         },
@@ -327,9 +358,11 @@ export function DepositOverview() {
         id: activity.id,
         amount: parseFloat(activity.collateral.amount),
         vaultProvider: {
+          address: activity.providers[0]?.id || "",
           name: activity.providers[0]?.name || "Unknown Provider",
           icon: activity.providers[0]?.icon || "",
         },
+        pegInTxHash: activity.txHash || activity.id,
         status: state.displayLabel,
       };
     });
@@ -361,14 +394,19 @@ export function DepositOverview() {
       ),
     },
     {
+      key: "pegInTxHash",
+      header: "Peg-In Tx",
+      render: (_value: unknown, row: Deposit) => (
+        <CopyableProviderAddress address={row.pegInTxHash} />
+      ),
+    },
+    {
       key: "vaultProvider",
-      header: "Vault Provider(s)",
+      header: "Vault(s)",
       render: (_value: unknown, row: Deposit) => (
         <div className="flex items-center gap-2">
           <span className="text-base">{row.vaultProvider.icon}</span>
-          <span className="text-sm text-accent-primary">
-            {row.vaultProvider.name}
-          </span>
+          <CopyableProviderAddress address={row.vaultProvider.address} />
         </div>
       ),
     },
