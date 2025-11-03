@@ -16,7 +16,7 @@ import { MarketInfo } from "../Info";
 
 import { LoanCard } from "./components/LoanCard";
 import { BorrowReviewModal } from "./components/LoanCard/Borrow/ReviewModal";
-import { BorrowSuccessModal } from "./components/LoanCard/Borrow/SuccessModal";
+import { TransactionSuccessModal } from "./components/LoanCard/Borrow/SuccessModal";
 import { RepayReviewModal } from "./components/LoanCard/Repay/ReviewModal";
 import { RepaySuccessModal } from "./components/LoanCard/Repay/SuccessModal";
 import { MarketDetailProvider } from "./context/MarketDetailContext";
@@ -180,11 +180,12 @@ export function MarketDetail() {
           ltv={borrowLtv}
           processing={processing}
         />
-        <BorrowSuccessModal
+        <TransactionSuccessModal
           open={showBorrowSuccessModal}
           onClose={closeBorrowSuccess}
           borrowAmount={lastBorrowData.borrow}
           borrowSymbol="USDC"
+          collateralAmount={lastBorrowData.collateral}
         />
 
         {/* Repay Modals */}
