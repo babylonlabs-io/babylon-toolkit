@@ -6,10 +6,10 @@
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 
-import { LoanSummaryCard } from "../../LoanSummaryCard";
-
+import { LoanSummaryCard } from "./LoanSummaryCard";
 import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
+import { useBorrowUI } from "./hooks/useBorrowUI";
 
 export interface BorrowProps {
   btcPrice: number;
@@ -19,6 +19,10 @@ export interface BorrowProps {
   availableVaults?: AvailableVault[];
   /** Available liquidity in the market (in USDC) */
   availableLiquidity: number;
+  /** Current collateral amount in position (BTC) */
+  currentCollateralAmount: number;
+  /** Current loan amount in position (USDC) */
+  currentLoanAmount: number;
 }
 
 export function Borrow({
@@ -27,6 +31,8 @@ export function Borrow({
   onBorrow,
   availableVaults,
   availableLiquidity,
+  currentCollateralAmount,
+  currentLoanAmount,
 }: BorrowProps) {
   const { theme } = useTheme();
   const {
@@ -39,22 +45,20 @@ export function Borrow({
     maxBorrowAmount,
     ltv,
     collateralValueUSD,
-  } = useBorrowState({ btcPrice, liquidationLtv, availableVaults });
+  } = useBorrowState({
+    btcPrice,
+    liquidationLtv,
+    availableVaults,
+    currentCollateralAmount,
+    currentLoanAmount,
+  });
 
-  const hasInsufficientLiquidity = borrowAmount > availableLiquidity;
-  const isDisabled =
-    collateralAmount === 0 || borrowAmount === 0 || hasInsufficientLiquidity;
-
-  // Determine button text based on state
-  const getButtonText = () => {
-    if (hasInsufficientLiquidity) {
-      return `Insufficient liquidity (${availableLiquidity.toLocaleString()} USDC available)`;
-    }
-    if (collateralAmount === 0 || borrowAmount === 0) {
-      return "Enter an amount";
-    }
-    return "Borrow";
-  };
+  const { isDisabled, buttonText } = useBorrowUI({
+    collateralAmount,
+    borrowAmount,
+    currentCollateralAmount,
+    availableLiquidity,
+  });
 
   return (
     <div>
@@ -135,8 +139,8 @@ export function Borrow({
         </SubSection>
 
         <LoanSummaryCard
-          collateralAmount={collateralAmount}
-          loanAmount={borrowAmount}
+          collateralAmount={currentCollateralAmount + collateralAmount}
+          loanAmount={currentLoanAmount + borrowAmount}
           ltv={ltv}
           liquidationLtv={liquidationLtv}
         />
@@ -151,7 +155,7 @@ export function Borrow({
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
         className="mt-6"
       >
-        {getButtonText()}
+        {buttonText}
       </Button>
     </div>
   );

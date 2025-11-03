@@ -5,8 +5,7 @@
 
 import { AmountSlider, Button } from "@babylonlabs-io/core-ui";
 
-import { RepaySummaryCard } from "../../RepaySummaryCard";
-
+import { RepaySummaryCard } from "./RepaySummaryCard";
 import { useRepayState } from "./hooks/useRepayState";
 
 export interface RepayProps {

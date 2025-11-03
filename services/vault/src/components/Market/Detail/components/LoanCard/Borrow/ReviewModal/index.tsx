@@ -10,19 +10,17 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
+import { useMarketDetailContext } from "../../../../context/MarketDetailContext";
+
 interface BorrowReviewModalProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  collateralAmount: number;
-  collateralSymbol: string;
-  collateralUsdValue: string;
-  borrowAmount: number;
-  borrowSymbol: string;
-  borrowUsdValue: string;
-  borrowApy: number;
+  borrowData: {
+    collateral: number;
+    borrow: number;
+  };
   ltv: number;
-  liquidationLtv: number;
   processing?: boolean;
 }
 
@@ -30,18 +28,28 @@ export function BorrowReviewModal({
   open,
   onClose,
   onConfirm,
-  collateralAmount,
-  collateralSymbol,
-  collateralUsdValue,
-  borrowAmount,
-  borrowSymbol,
-  borrowUsdValue,
-  borrowApy,
+  borrowData,
   ltv,
-  liquidationLtv,
   processing = false,
 }: BorrowReviewModalProps) {
+  const { btcPrice, liquidationLtv, currentCollateralAmount } =
+    useMarketDetailContext();
+
   const [acknowledged, setAcknowledged] = useState(false);
+
+  // Calculate total collateral and format values
+  const totalCollateral = currentCollateralAmount + borrowData.collateral;
+  const collateralUsdValue = `$${(totalCollateral * btcPrice).toLocaleString(
+    undefined,
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )} USD`;
+  const borrowUsdValue = `$${borrowData.borrow.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USD`;
 
   const handleClose = () => {
     setAcknowledged(false);
@@ -56,15 +64,15 @@ export function BorrowReviewModal({
   const reviewFields = [
     {
       label: "Collateral",
-      value: `${collateralAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} ${collateralSymbol} (${collateralUsdValue})`,
+      value: `${totalCollateral.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${collateralUsdValue})`,
     },
     {
       label: "Borrow",
-      value: `${borrowAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${borrowSymbol} (${borrowUsdValue})`,
+      value: `${borrowData.borrow.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${borrowUsdValue})`,
     },
     {
       label: "Borrow APY",
-      value: `${borrowApy.toFixed(2)}%`,
+      value: "6.25%",
     },
     {
       label: "LTV",

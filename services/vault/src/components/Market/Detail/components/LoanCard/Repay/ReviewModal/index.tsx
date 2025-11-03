@@ -10,18 +10,17 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
+import { useMarketDetailContext } from "../../../../context/MarketDetailContext";
+
 interface RepayReviewModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
-  repayAmount: number;
-  repaySymbol: string;
-  repayUsdValue: string;
-  withdrawAmount: number;
-  withdrawSymbol: string;
-  withdrawUsdValue: string;
+  onConfirm: (repayAmount: number, withdrawAmount: number) => void;
+  repayData: {
+    repay: number;
+    withdraw: number;
+  };
   ltv: number;
-  liquidationLtv: number;
   processing?: boolean;
 }
 
@@ -29,17 +28,26 @@ export function RepayReviewModal({
   open,
   onClose,
   onConfirm,
-  repayAmount,
-  repaySymbol,
-  repayUsdValue,
-  withdrawAmount,
-  withdrawSymbol,
-  withdrawUsdValue,
+  repayData,
   ltv,
-  liquidationLtv,
   processing = false,
 }: RepayReviewModalProps) {
+  const { btcPrice, liquidationLtv } = useMarketDetailContext();
+
   const [acknowledged, setAcknowledged] = useState(false);
+
+  // Format USD values
+  const repayUsdValue = `$${repayData.repay.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USDC`;
+  const withdrawUsdValue = `$${(repayData.withdraw * btcPrice).toLocaleString(
+    undefined,
+    {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
+  )} USD`;
 
   const handleClose = () => {
     setAcknowledged(false);
@@ -48,17 +56,17 @@ export function RepayReviewModal({
 
   const handleConfirm = () => {
     if (!acknowledged) return;
-    onConfirm();
+    onConfirm(repayData.repay, repayData.withdraw);
   };
 
   const reviewFields = [
     {
       label: "Repayment Amount",
-      value: `${repayAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${repaySymbol} (${repayUsdValue})`,
+      value: `${repayData.repay.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${repayUsdValue})`,
     },
     {
       label: "Withdraw Collateral",
-      value: `${withdrawAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} ${withdrawSymbol} (${withdrawUsdValue})`,
+      value: `${repayData.withdraw.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${withdrawUsdValue})`,
     },
     {
       label: "LTV",
