@@ -5,7 +5,3 @@ export { Activity } from "./Overview/Activity";
 export { DepositOverview } from "./Overview/Deposits/DepositOverview";
 export { Market } from "./Overview/Market";
 export { Position } from "./Overview/Position";
-export { LoanCard } from "./shared/LoanCard";
-export { LoanSummaryCard } from "./shared/LoanSummaryCard";
-export { RepaySummaryCard } from "./shared/RepaySummaryCard";
-export { VaultStats } from "./shared/VaultStats";

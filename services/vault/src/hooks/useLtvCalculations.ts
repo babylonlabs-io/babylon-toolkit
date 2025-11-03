@@ -34,10 +34,19 @@ export function useLtvCalculations({
   currentCollateralAmount,
 }: UseLtvCalculationsProps): UseLtvCalculationsResult {
   const borrowLtv = useMemo(() => {
-    return borrowData.collateral === 0
-      ? 0
-      : (borrowData.borrow / (borrowData.collateral * btcPrice)) * 100;
-  }, [borrowData.borrow, borrowData.collateral, btcPrice]);
+    // Calculate total collateral and total borrowed after the operation
+    const totalCollateral = currentCollateralAmount + borrowData.collateral;
+    const totalBorrowed = currentLoanAmount + borrowData.borrow;
+
+    if (totalCollateral === 0) return 0;
+    return (totalBorrowed / (totalCollateral * btcPrice)) * 100;
+  }, [
+    borrowData.borrow,
+    borrowData.collateral,
+    btcPrice,
+    currentCollateralAmount,
+    currentLoanAmount,
+  ]);
 
   const repayLtv = useMemo(() => {
     const remainingCollateral = currentCollateralAmount - repayData.withdraw;

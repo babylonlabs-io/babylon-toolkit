@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   amountsToSliderSteps,
   calculateSubsetSums,
-} from "../../../../../utils/subsetSum";
+} from "../../../../../../../utils/subsetSum";
 
 export interface AvailableVault {
   /** Amount in satoshis (bigint for precision) */
@@ -68,11 +68,18 @@ export function useBorrowState({
     setBorrowAmount(0);
   }, [collateralAmount]);
 
-  // Reset both sliders when available vaults change (after refetch from successful borrow)
+  // Reset both sliders when available vaults change (after refetch from successful borrow with new collateral)
   useEffect(() => {
     setCollateralAmount(0);
     setBorrowAmount(0);
   }, [availableVaults]);
+
+  // Reset both sliders when current loan amount changes (after refetch from successful borrow)
+  // This handles the case where user borrows from existing collateral without adding new vaults
+  useEffect(() => {
+    setCollateralAmount(0);
+    setBorrowAmount(0);
+  }, [currentLoanAmount]);
 
   // Calculate maximum collateral from available vaults (sum of all vaults)
   const maxCollateralFromVaults = useMemo(() => {
@@ -109,18 +116,27 @@ export function useBorrowState({
     return [{ value: 0 }];
   }, [availableVaults]);
 
-  // Calculate collateral value in USD
+  // Calculate collateral value in USD (only new collateral for display)
   const collateralValueUSD = useMemo(
     () => collateralAmount * btcPrice,
     [collateralAmount, btcPrice],
   );
 
   // Calculate LTV (Loan-to-Value ratio)
-  // LTV = (borrowed amount / collateral value) * 100
+  // LTV = (total borrowed / total collateral value) * 100
   const ltv = useMemo(() => {
-    if (collateralAmount === 0) return 0;
-    return (borrowAmount / collateralValueUSD) * 100;
-  }, [collateralAmount, borrowAmount, collateralValueUSD]);
+    const totalCollateral = currentCollateralAmount + collateralAmount;
+    const totalBorrowed = currentLoanAmount + borrowAmount;
+
+    if (totalCollateral === 0) return 0;
+    return (totalBorrowed / (totalCollateral * btcPrice)) * 100;
+  }, [
+    collateralAmount,
+    currentCollateralAmount,
+    borrowAmount,
+    currentLoanAmount,
+    btcPrice,
+  ]);
 
   // Calculate maximum borrow amount considering both new and existing collateral
   // This updates dynamically as user adjusts collateral slider

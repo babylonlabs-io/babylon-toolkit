@@ -5,7 +5,7 @@ import { MarketDetail as MarketDetailPage } from "./components/Market/Detail";
 import { Overview } from "./components/Overview";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
-import { VaultStats } from "./components/shared/VaultStats";
+import { VaultStats } from "./components/Overview/VaultStats";
 
 export const Router = () => {
   return (
