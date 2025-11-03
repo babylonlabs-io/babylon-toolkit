@@ -1,4 +1,4 @@
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, Text } from "@babylonlabs-io/core-ui";
 import { useETHWallet } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -9,9 +9,11 @@ import type { Address } from "viem";
 import { CONTRACTS } from "../../../../config/contracts";
 import { useBTCPrice } from "../../../../hooks/useBTCPrice";
 import { useMarkets } from "../../../../hooks/useMarkets";
+import { getMarketBorrowAPR } from "../../../../services/irm";
 import type { MorphoMarketSummary } from "../../../../services/market/marketService";
 import { getMarketData } from "../../../../services/market/marketService";
 import { getUserVaultPosition } from "../../../../services/position";
+import { getMarketTokenPairAsync } from "../../../../services/token";
 import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
   blockToDateString,
@@ -188,6 +190,25 @@ export function useMarketDetail() {
   // This allows real-time updates as user adjusts collateral amount
   // Formula: Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100))
 
+  // Fetch token metadata for the market (with async blockchain fetching)
+  const { data: tokenPair } = useQuery({
+    queryKey: [
+      "tokenPair",
+      marketConfig?.collateral_token,
+      marketConfig?.loan_token,
+    ],
+    queryFn: async () => {
+      if (!marketConfig) return null;
+
+      return getMarketTokenPairAsync(
+        marketConfig.collateral_token,
+        marketConfig.loan_token,
+      );
+    },
+    enabled: !!marketConfig,
+    staleTime: Infinity, // Token metadata doesn't change
+  });
+
   const marketAttributes = useMemo<
     Array<{ label: string; value: string | ReactNode }>
   >(() => {
@@ -198,12 +219,23 @@ export function useMarketDetail() {
         value: (
           <div className="flex items-center gap-[4px]">
             <Avatar
-              url="/images/btc.png"
-              alt="BTC"
+              {...(tokenPair?.collateral.icon
+                ? { url: tokenPair.collateral.icon }
+                : {})}
+              alt={tokenPair?.collateral.symbol || "???"}
               size="tiny"
               variant="circular"
-            />
-            <span>BTC</span>
+            >
+              {!tokenPair?.collateral.icon && (
+                <Text
+                  as="span"
+                  className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-[8px] font-medium text-accent-contrast"
+                >
+                  {tokenPair?.collateral.symbol?.charAt(0).toUpperCase() || "?"}
+                </Text>
+              )}
+            </Avatar>
+            <span>{tokenPair?.collateral.symbol || "Unknown"}</span>
           </div>
         ),
       },
@@ -212,12 +244,21 @@ export function useMarketDetail() {
         value: (
           <div className="flex items-center gap-[4px]">
             <Avatar
-              url="/images/usdc.png"
-              alt="USDC"
+              {...(tokenPair?.loan.icon ? { url: tokenPair.loan.icon } : {})}
+              alt={tokenPair?.loan.symbol || "???"}
               size="tiny"
               variant="circular"
-            />
-            <span>USDC</span>
+            >
+              {!tokenPair?.loan.icon && (
+                <Text
+                  as="span"
+                  className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-[8px] font-medium text-accent-contrast"
+                >
+                  {tokenPair?.loan.symbol?.charAt(0).toUpperCase() || "?"}
+                </Text>
+              )}
+            </Avatar>
+            <span>{tokenPair?.loan.symbol || "Unknown"}</span>
           </div>
         ),
       },
@@ -229,7 +270,9 @@ export function useMarketDetail() {
       },
       {
         label: "Oracle price",
-        value: `BTC / USDC = ${btcPrice.toLocaleString()}`,
+        value: tokenPair
+          ? `${tokenPair.collateral.symbol} / ${tokenPair.loan.symbol} = ${btcPrice.toLocaleString()}`
+          : `Price = ${btcPrice.toLocaleString()}`,
       },
       { label: "Created on", value: creationDate },
       {
@@ -252,6 +295,7 @@ export function useMarketDetail() {
     btcPrice,
     creationDate,
     marketData,
+    tokenPair,
   ]);
 
   const positionData = useMemo<
@@ -267,13 +311,13 @@ export function useMarketDetail() {
     return [
       {
         label: "Current Loan",
-        value: `${currentLoanAmount.toLocaleString()} USDC`,
+        value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "???"}}`,
       },
       {
         label: "Current Collateral",
-        value: `${currentCollateralAmount.toFixed(8)} BTC`,
+        value: `${currentCollateralAmount.toFixed(8)} ${tokenPair?.collateral.symbol || "???"}}`,
       },
-      { label: "Market", value: "BTC/USDC" },
+      { label: "Market", value: tokenPair?.pairName || "Unknown Market" },
       { label: "Current LTV", value: currentLtv },
       {
         label: "Liquidation LTV",
@@ -289,7 +333,47 @@ export function useMarketDetail() {
     btcPrice,
     marketConfig,
     liquidationLtv,
+    tokenPair,
   ]);
+
+  // Fetch actual borrow rate from IRM contract
+  const { data: actualBorrowAPR } = useQuery({
+    queryKey: [
+      "borrowAPR",
+      marketConfig?.irm,
+      // Convert BigInt to string for React Query serialization
+      marketData?.totalSupplyAssets.toString(),
+      marketData?.totalBorrowAssets.toString(),
+    ],
+    queryFn: async () => {
+      if (!marketConfig || !marketData) return null;
+
+      const marketParams = {
+        loanToken: marketConfig.loan_token as Address,
+        collateralToken: marketConfig.collateral_token as Address,
+        oracle: marketConfig.oracle as Address,
+        irm: marketConfig.irm as Address,
+        lltv: BigInt(marketConfig.lltv),
+      };
+
+      const marketState = {
+        totalSupplyAssets: marketData.totalSupplyAssets,
+        totalSupplyShares: marketData.totalSupplyShares,
+        totalBorrowAssets: marketData.totalBorrowAssets,
+        totalBorrowShares: marketData.totalBorrowShares,
+        lastUpdate: marketData.lastUpdate,
+        fee: marketData.fee,
+      };
+
+      return getMarketBorrowAPR(
+        marketConfig.irm as Address,
+        marketParams,
+        marketState,
+      );
+    },
+    enabled: !!marketConfig && !!marketData,
+    staleTime: 30000, // Refresh every 30 seconds
+  });
 
   // Format market display values
   const marketDisplayValues = useMemo(() => {
@@ -314,14 +398,14 @@ export function useMarketDetail() {
         // Less than $10k - show actual USDC amount
         return {
           display: `$${valueUSDC.toFixed(2)}`,
-          subtitle: `${valueUSDC.toFixed(2)} USDC`,
+          subtitle: `${valueUSDC.toFixed(2)} ${tokenPair?.loan.symbol || "USDC"}`,
         };
       } else {
         // $10k or more - show in millions
         const valueM = (valueUSDC / 1e6).toFixed(2);
         return {
           display: `$${valueM}M`,
-          subtitle: `${valueM}M USDC`,
+          subtitle: `${valueM}M ${tokenPair?.loan.symbol || "USDC"}`,
         };
       }
     };
@@ -329,29 +413,22 @@ export function useMarketDetail() {
     const totalSupplyFormatted = formatCurrency(totalSupplyUSDC);
     const availableLiquidityFormatted = formatCurrency(availableLiquidityUSDC);
 
-    // Calculate estimated borrow APR based on utilization
-    // This is a simplified estimation - actual rate depends on IRM contract
-    const estimatedBorrowAPR = (() => {
-      const utilization = marketData.utilizationPercent;
-      // Basic linear interpolation for estimation
-      if (utilization < 80) {
-        // Base rate 2% + utilization * 0.15 (up to 14% at 80% utilization)
-        return (2 + utilization * 0.15).toFixed(2) + "%";
-      } else {
-        // Above 80%, rate increases more steeply
-        // 14% + (utilization - 80) * 1.0 (up to 34% at 100% utilization)
-        return (14 + (utilization - 80) * 1.0).toFixed(2) + "%";
-      }
-    })();
+    // Use actual borrow APR from IRM if available, otherwise show loading or N/A
+    const borrowRateDisplay =
+      typeof actualBorrowAPR === "number"
+        ? `${actualBorrowAPR.toFixed(2)}%`
+        : actualBorrowAPR === null
+          ? "N/A"
+          : "Loading...";
 
     return {
       totalMarketSize: totalSupplyFormatted.display,
       totalMarketSizeSubtitle: totalSupplyFormatted.subtitle,
       totalLiquidity: availableLiquidityFormatted.display,
       totalLiquiditySubtitle: availableLiquidityFormatted.subtitle,
-      borrowRate: estimatedBorrowAPR,
+      borrowRate: borrowRateDisplay,
     };
-  }, [marketData]);
+  }, [marketData, actualBorrowAPR, tokenPair]);
 
   // Refetch data that changes after user transactions (borrow/repay)
   const refetch = async () => {
@@ -382,6 +459,7 @@ export function useMarketDetail() {
     marketAttributes,
     positionData,
     marketDisplayValues,
+    tokenPair,
 
     // actions
     refetch,

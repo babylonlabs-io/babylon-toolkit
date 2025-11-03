@@ -45,6 +45,7 @@ export function MarketDetail() {
     positionData,
     userPosition,
     marketDisplayValues,
+    tokenPair,
     refetch,
   } = useMarketDetail();
 
@@ -140,6 +141,7 @@ export function MarketDetail() {
         currentCollateralAmount,
         availableVaults,
         availableLiquidity,
+        tokenPair,
       }}
     >
       <Container className="pb-6">
@@ -147,9 +149,11 @@ export function MarketDetail() {
           {/* Left Side: Market Info */}
           <MarketInfo
             onBack={handleBack}
-            marketPair="BTC / USDC"
-            btcIcon="/images/btc.png"
-            usdcIcon="/images/usdc.png"
+            marketPair={tokenPair?.pairName || "Unknown Market"}
+            btcIcon={tokenPair?.collateral.icon}
+            usdcIcon={tokenPair?.loan.icon}
+            collateralSymbol={tokenPair?.collateral.symbol}
+            loanSymbol={tokenPair?.loan.symbol}
             totalMarketSize={marketDisplayValues.totalMarketSize}
             totalMarketSizeSubtitle={
               marketDisplayValues.totalMarketSizeSubtitle
@@ -184,7 +188,7 @@ export function MarketDetail() {
           open={showBorrowSuccessModal}
           onClose={closeBorrowSuccess}
           borrowAmount={lastBorrowData.borrow}
-          borrowSymbol="USDC"
+          borrowSymbol={tokenPair?.loan.symbol || "USDC"}
           collateralAmount={lastBorrowData.collateral}
         />
 
@@ -202,8 +206,8 @@ export function MarketDetail() {
           onClose={closeRepaySuccess}
           repayAmount={lastRepayData.repay}
           withdrawAmount={lastRepayData.withdraw}
-          repaySymbol="USDC"
-          withdrawSymbol="BTC"
+          repaySymbol={tokenPair?.loan.symbol || "USDC"}
+          withdrawSymbol={tokenPair?.collateral.symbol || "BTC"}
         />
       </Container>
     </MarketDetailProvider>

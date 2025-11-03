@@ -129,7 +129,11 @@ export async function getMarketWithData(
     oracle: params.oracle,
     lltv: params.lltv,
     totalSupplyAssets: state.totalSupplyAssets,
+    totalSupplyShares: state.totalSupplyShares,
     totalBorrowAssets: state.totalBorrowAssets,
+    totalBorrowShares: state.totalBorrowShares,
+    lastUpdate: state.lastUpdate,
+    fee: state.fee,
     utilizationPercent: utilization,
     lltvPercent,
   };

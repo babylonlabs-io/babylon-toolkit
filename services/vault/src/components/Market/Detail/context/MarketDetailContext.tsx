@@ -5,6 +5,8 @@
 
 import { createContext, useContext } from "react";
 
+import type { MarketTokenPair } from "../../../../services/token";
+
 import type { AvailableVault } from "../components/LoanCard/Borrow/hooks/useBorrowState";
 
 export interface MarketDetailContextValue {
@@ -14,6 +16,7 @@ export interface MarketDetailContextValue {
   currentCollateralAmount: number;
   availableVaults?: AvailableVault[];
   availableLiquidity: number;
+  tokenPair?: MarketTokenPair;
 }
 
 const MarketDetailContext = createContext<MarketDetailContextValue | null>(
