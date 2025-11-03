@@ -28,10 +28,15 @@ export function Repay({
     withdrawCollateralAmount,
     setRepayAmount,
     setWithdrawCollateralAmount,
+    canWithdrawCollateral,
     withdrawCollateralSteps,
     ltv,
     withdrawCollateralValueUSD,
-  } = useRepayState({ currentLoanAmount, currentCollateralAmount, btcPrice });
+  } = useRepayState({
+    currentLoanAmount,
+    currentCollateralAmount,
+    btcPrice,
+  });
 
   const isDisabled = repayAmount === 0 && withdrawCollateralAmount === 0;
 
@@ -90,13 +95,21 @@ export function Repay({
 
       {/* Withdraw Collateral Section */}
       <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">
-          Withdraw Collateral
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-[24px] font-normal text-accent-primary">
+            Withdraw Collateral
+          </h3>
+          {!canWithdrawCollateral && (
+            <span className="text-xs text-accent-secondary">
+              Repay all debt to withdraw
+            </span>
+          )}
+        </div>
         <AmountSlider
           amount={withdrawCollateralAmount}
           currencyIcon="/images/btc.png"
           currencyName="Bitcoin"
+          disabled={!canWithdrawCollateral}
           balanceDetails={{
             balance: currentCollateralAmount.toFixed(4),
             symbol: "BTC",
@@ -105,7 +118,7 @@ export function Repay({
           sliderValue={withdrawCollateralAmount}
           sliderMin={0}
           sliderMax={currentCollateralAmount}
-          sliderStep={currentCollateralAmount / 1000}
+          sliderStep={currentCollateralAmount}
           sliderSteps={withdrawCollateralSteps}
           onSliderChange={setWithdrawCollateralAmount}
           onSliderStepsChange={() => {

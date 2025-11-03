@@ -226,6 +226,57 @@ export async function repayFromPosition(
 }
 
 /**
+ * Repay debt directly to Morpho using shares
+ *
+ * This method is preferred for full repayment as it uses the exact borrow shares
+ * to calculate the precise repayment amount, avoiding issues with interest accrual
+ * between calculation and execution.
+ *
+ * For full repayment: set repayAmount=0 and shares=borrowShares
+ * For partial repayment: set repayAmount>0 and shares=0
+ *
+ * @param walletClient - Connected wallet client for signing transactions
+ * @param chain - Chain configuration
+ * @param contractAddress - BTCVaultController contract address
+ * @param marketParams - Morpho market parameters identifying the position
+ * @param repayAmount - Amount to repay (in loan token units, set to 0 when using shares)
+ * @param shares - Number of borrow shares to repay (set to borrowShares for full repayment)
+ * @returns Transaction hash and receipt
+ */
+export async function repayDirectlyToMorpho(
+  walletClient: WalletClient,
+  chain: Chain,
+  contractAddress: Address,
+  marketParams: MarketParams,
+  repayAmount: bigint,
+  shares: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const publicClient = ethClient.getPublicClient();
+
+  try {
+    const hash = await walletClient.writeContract({
+      address: contractAddress,
+      abi: BTCVaultControllerABI,
+      functionName: "repayDirectlyToMorpho",
+      args: [marketParams, repayAmount, shares],
+      chain,
+      account: walletClient.account!,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+    });
+
+    return {
+      transactionHash: hash,
+      receipt,
+    };
+  } catch (error) {
+    throw mapViemErrorToContractError(error, "repay directly to Morpho");
+  }
+}
+
+/**
  * Borrow more from an existing position
  *
  * @param walletClient - Connected wallet client for signing transactions

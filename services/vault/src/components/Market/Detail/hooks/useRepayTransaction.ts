@@ -110,11 +110,7 @@ export function useRepayTransaction({
         // Success - show success modal
         onRepaySuccess();
       } catch (error) {
-        // Show error to user
         console.error("Repayment failed:", error);
-        alert(
-          `Repayment failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
       } finally {
         setProcessing(false);
       }
