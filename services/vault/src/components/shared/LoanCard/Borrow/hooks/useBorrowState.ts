@@ -32,6 +32,7 @@ export interface UseBorrowStateResult {
   // Setters
   setCollateralAmount: (amount: number) => void;
   setBorrowAmount: (amount: number) => void;
+  resetAmounts: () => void;
 
   // Computed values
   collateralSteps: Array<{ value: number }>;
@@ -49,11 +50,23 @@ export function useBorrowState({
   const [collateralAmount, setCollateralAmount] = useState(0);
   const [borrowAmount, setBorrowAmount] = useState(0);
 
+  // Reset both amounts to 0
+  const resetAmounts = () => {
+    setCollateralAmount(0);
+    setBorrowAmount(0);
+  };
+
   // Reset borrow amount when collateral changes
   // This prevents invalid states where borrow amount exceeds new max after reducing collateral
   useEffect(() => {
     setBorrowAmount(0);
   }, [collateralAmount]);
+
+  // Reset both sliders when available vaults change (after refetch from successful borrow)
+  useEffect(() => {
+    setCollateralAmount(0);
+    setBorrowAmount(0);
+  }, [availableVaults]);
 
   // Calculate maximum collateral from available vaults (sum of all vaults)
   const maxCollateralFromVaults = useMemo(() => {
@@ -106,7 +119,12 @@ export function useBorrowState({
   // Calculate maximum borrow amount based on collateral slider value * LLTV
   // This updates dynamically as user adjusts collateral slider
   const maxBorrowAmount = useMemo(() => {
-    return Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100));
+    // Round to 2 decimal places (cents) instead of flooring to support small amounts
+    const maxBorrow =
+      Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100) * 100) /
+      100;
+
+    return maxBorrow;
   }, [collateralAmount, btcPrice, liquidationLtv]);
 
   return {
@@ -114,6 +132,7 @@ export function useBorrowState({
     borrowAmount,
     setCollateralAmount,
     setBorrowAmount,
+    resetAmounts,
     collateralSteps,
     maxCollateralFromVaults,
     maxBorrowAmount,
