@@ -144,7 +144,8 @@ export function useMarketDetail() {
   }, [marketConfig?.created_block]);
 
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
-  const formatBTC = (value: bigint) => Number(value) / 1e8;
+  // vaultBTC (ERC20) uses 18 decimals, not 8 like native BTC
+  const formatVaultBTC = (value: bigint) => Number(value) / 1e18;
 
   const btcPrice = btcPriceUSD;
 
@@ -158,7 +159,7 @@ export function useMarketDetail() {
     ? formatUSDC(marketPosition.position.totalBorrowed)
     : 0;
   const currentCollateralAmount = marketPosition
-    ? formatBTC(marketPosition.position.totalCollateral)
+    ? formatVaultBTC(marketPosition.position.totalCollateral)
     : 0;
 
   // Calculate available liquidity for borrowing (in USDC)

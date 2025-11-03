@@ -55,6 +55,8 @@ export function LoanCard({
                 onBorrow={onBorrow}
                 availableVaults={availableVaults}
                 availableLiquidity={availableLiquidity}
+                currentCollateralAmount={currentCollateralAmount}
+                currentLoanAmount={currentLoanAmount}
               />
             ),
           },

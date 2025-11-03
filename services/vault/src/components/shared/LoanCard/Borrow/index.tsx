@@ -19,6 +19,10 @@ export interface BorrowProps {
   availableVaults?: AvailableVault[];
   /** Available liquidity in the market (in USDC) */
   availableLiquidity: number;
+  /** Current collateral amount in position (BTC) */
+  currentCollateralAmount: number;
+  /** Current loan amount in position (USDC) */
+  currentLoanAmount: number;
 }
 
 export function Borrow({
@@ -27,6 +31,8 @@ export function Borrow({
   onBorrow,
   availableVaults,
   availableLiquidity,
+  currentCollateralAmount,
+  currentLoanAmount,
 }: BorrowProps) {
   const { theme } = useTheme();
   const {
@@ -39,7 +45,13 @@ export function Borrow({
     maxBorrowAmount,
     ltv,
     collateralValueUSD,
-  } = useBorrowState({ btcPrice, liquidationLtv, availableVaults });
+  } = useBorrowState({
+    btcPrice,
+    liquidationLtv,
+    availableVaults,
+    currentCollateralAmount,
+    currentLoanAmount,
+  });
 
   const hasInsufficientLiquidity = borrowAmount > availableLiquidity;
   const isDisabled =

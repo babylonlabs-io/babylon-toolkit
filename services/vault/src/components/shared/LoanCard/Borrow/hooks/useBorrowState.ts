@@ -22,6 +22,10 @@ export interface UseBorrowStateProps {
   liquidationLtv: number;
   /** Available vaults with status AVAILABLE (status 2) */
   availableVaults?: AvailableVault[];
+  /** Current collateral amount in position (BTC) */
+  currentCollateralAmount?: number;
+  /** Current loan amount in position (USDC) */
+  currentLoanAmount?: number;
 }
 
 export interface UseBorrowStateResult {
@@ -46,6 +50,8 @@ export function useBorrowState({
   btcPrice,
   liquidationLtv,
   availableVaults = [],
+  currentCollateralAmount = 0,
+  currentLoanAmount = 0,
 }: UseBorrowStateProps): UseBorrowStateResult {
   const [collateralAmount, setCollateralAmount] = useState(0);
   const [borrowAmount, setBorrowAmount] = useState(0);
@@ -116,16 +122,29 @@ export function useBorrowState({
     return (borrowAmount / collateralValueUSD) * 100;
   }, [collateralAmount, borrowAmount, collateralValueUSD]);
 
-  // Calculate maximum borrow amount based on collateral slider value * LLTV
+  // Calculate maximum borrow amount considering both new and existing collateral
   // This updates dynamically as user adjusts collateral slider
   const maxBorrowAmount = useMemo(() => {
-    // Round to 2 decimal places (cents) instead of flooring to support small amounts
-    const maxBorrow =
-      Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100) * 100) /
-      100;
+    // Total collateral = existing position collateral + new collateral from slider
+    const totalCollateral = currentCollateralAmount + collateralAmount;
 
-    return maxBorrow;
-  }, [collateralAmount, btcPrice, liquidationLtv]);
+    // Max total borrow based on all collateral
+    const maxTotalBorrow = totalCollateral * btcPrice * (liquidationLtv / 100);
+
+    // Max ADDITIONAL borrow = max total - what's already borrowed
+    const maxAdditionalBorrow = maxTotalBorrow - currentLoanAmount;
+
+    // Round to 2 decimal places (cents) and ensure non-negative
+    const result = Math.max(0, Math.floor(maxAdditionalBorrow * 100) / 100);
+
+    return result;
+  }, [
+    collateralAmount,
+    currentCollateralAmount,
+    currentLoanAmount,
+    btcPrice,
+    liquidationLtv,
+  ]);
 
   return {
     collateralAmount,
