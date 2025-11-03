@@ -10,6 +10,15 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      // Provide empty stubs for Node.js-only modules
+      ws: resolve(__dirname, "src/stubs/ws.ts"),
+    },
+  },
+  optimizeDeps: {
+    exclude: ["ws"],
+  },
   build: {
     outDir: "dist",
     sourcemap: true,
