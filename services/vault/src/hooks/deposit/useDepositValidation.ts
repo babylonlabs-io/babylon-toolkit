@@ -72,7 +72,8 @@ export function useDepositValidation(
           minDeposit,
           MAX_DEPOSIT_SATS,
         );
-      } catch (error) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (_error) {
         return {
           valid: false,
           error: "Invalid amount format",

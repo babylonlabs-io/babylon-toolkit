@@ -2,19 +2,19 @@
  * Tests for useDepositValidation hook
  */
 
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDepositValidation } from '../useDepositValidation';
+import { useDepositValidation } from "../useDepositValidation";
 
 // Mock the useUTXOs hook
-vi.mock('../../../hooks/useUTXOs', () => ({
+vi.mock("../../../hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
     confirmedUTXOs: [
-      { txid: '0x123', vout: 0, value: 100000, scriptPubKey: '0xabc' },
-      { txid: '0x456', vout: 1, value: 200000, scriptPubKey: '0xdef' },
+      { txid: "0x123", vout: 0, value: 100000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 200000, scriptPubKey: "0xdef" },
     ],
     isLoading: false,
     error: null,
@@ -22,17 +22,17 @@ vi.mock('../../../hooks/useUTXOs', () => ({
 }));
 
 // Mock useQuery for provider fetching
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query');
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual("@tanstack/react-query");
   return {
     ...actual,
     useQuery: vi.fn((options: any) => {
       // Mock provider query
-      if (options.queryKey?.includes('vaultProviders')) {
+      if (options.queryKey?.includes("vaultProviders")) {
         return {
           data: [
-            '0x1234567890abcdef1234567890abcdef12345678',
-            '0xabcdef1234567890abcdef1234567890abcdef12',
+            "0x1234567890abcdef1234567890abcdef12345678",
+            "0xabcdef1234567890abcdef1234567890abcdef12",
           ],
           isLoading: false,
           error: null,
@@ -47,7 +47,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-describe('useDepositValidation', () => {
+describe("useDepositValidation", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
@@ -59,65 +59,62 @@ describe('useDepositValidation', () => {
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
   };
 
-  describe('validateAmount', () => {
-    it('should validate valid amount', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+  describe("validateAmount", () => {
+    it("should validate valid amount", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('0.001');
-      
+      const validationResult = result.current.validateAmount("0.001");
+
       expect(validationResult.valid).toBe(true);
       expect(validationResult.error).toBeUndefined();
     });
 
-    it('should reject invalid amount format', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should reject invalid amount format", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('invalid');
-      
+      const validationResult = result.current.validateAmount("invalid");
+
       expect(validationResult.valid).toBe(false);
       // parseBtcToSatoshis returns 0n for invalid input, which then fails > 0 check
-      expect(validationResult.error).toContain('greater than zero');
+      expect(validationResult.error).toContain("greater than zero");
     });
 
-    it('should reject amount below minimum', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should reject amount below minimum", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('0.00001'); // Below minimum
-      
+      const validationResult = result.current.validateAmount("0.00001"); // Below minimum
+
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain('Minimum deposit');
+      expect(validationResult.error).toContain("Minimum deposit");
     });
 
-    it('should use dynamic minimum based on fees', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should use dynamic minimum based on fees", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
       expect(result.current.maxDeposit).toBe(21000000_00000000n);
     });
   });
 
-  describe('validateProviders', () => {
-    it.skip('should validate single provider selection', async () => {
+  describe("validateProviders", () => {
+    it.skip("should validate single provider selection", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       // Wait for providers to load
       await waitFor(() => {
@@ -131,11 +128,10 @@ describe('useDepositValidation', () => {
       expect(validationResult.valid).toBe(true);
     });
 
-    it('should reject empty provider selection', async () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should reject empty provider selection", async () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
@@ -144,62 +140,61 @@ describe('useDepositValidation', () => {
       const validationResult = result.current.validateProviders([]);
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error?.toLowerCase()).toContain('at least one');
+      expect(validationResult.error?.toLowerCase()).toContain("at least one");
     });
 
-    it.skip('should reject invalid provider', async () => {
+    it.skip("should reject invalid provider", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const validationResult = result.current.validateProviders([
-        '0xinvalidprovider',
+        "0xinvalidprovider",
       ]);
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain('Invalid vault provider');
+      expect(validationResult.error).toContain("Invalid vault provider");
     });
 
-    it.skip('should reject multiple providers', async () => {
+    it.skip("should reject multiple providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const validationResult = result.current.validateProviders(
-        result.current.availableProviders
+        result.current.availableProviders,
       );
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain('Multiple providers not yet supported');
+      expect(validationResult.error).toContain(
+        "Multiple providers not yet supported",
+      );
     });
   });
 
-  describe('validateDeposit', () => {
-    it.skip('should validate complete deposit with valid data', async () => {
+  describe("validateDeposit", () => {
+    it.skip("should validate complete deposit with valid data", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const formData = {
-        amount: '0.001',
+        amount: "0.001",
         selectedProviders: [result.current.availableProviders[0]],
       };
 
@@ -209,41 +204,39 @@ describe('useDepositValidation', () => {
       expect(validationResult.error).toBeUndefined();
     });
 
-    it.skip('should reject invalid amount in complete validation', async () => {
+    it.skip("should reject invalid amount in complete validation", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const formData = {
-        amount: '0.00001', // Below minimum
+        amount: "0.00001", // Below minimum
         selectedProviders: [result.current.availableProviders[0]],
       };
 
       const validationResult = await result.current.validateDeposit(formData);
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain('Minimum deposit');
+      expect(validationResult.error).toContain("Minimum deposit");
     });
 
-    it.skip('should check UTXOs when available', async () => {
+    it.skip("should check UTXOs when available", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const formData = {
-        amount: '0.002', // 200,000 sats
+        amount: "0.002", // 200,000 sats
         selectedProviders: [result.current.availableProviders[0]],
       };
 
@@ -253,10 +246,10 @@ describe('useDepositValidation', () => {
       // Total UTXOs value is 300,000 sats, so should be sufficient
     });
 
-    it.skip('should warn when no UTXOs available yet', async () => {
+    it.skip("should warn when no UTXOs available yet", async () => {
       // TODO: Requires proper provider API mocking
       // Mock no UTXOs
-      const useUTXOsMock = await import('../../../hooks/useUTXOs');
+      const useUTXOsMock = await import("../../../hooks/useUTXOs");
       vi.mocked(useUTXOsMock.useUTXOs).mockReturnValue({
         confirmedUTXOs: null,
         isLoading: false,
@@ -266,17 +259,16 @@ describe('useDepositValidation', () => {
         refetch: vi.fn(),
       } as any);
 
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
       });
 
       const formData = {
-        amount: '0.001',
+        amount: "0.001",
         selectedProviders: [result.current.availableProviders[0]],
       };
 
@@ -284,14 +276,15 @@ describe('useDepositValidation', () => {
 
       expect(validationResult.valid).toBe(true);
       expect(validationResult.warnings).toBeDefined();
-      expect(validationResult.warnings![0]).toContain('UTXO validation will be performed');
+      expect(validationResult.warnings![0]).toContain(
+        "UTXO validation will be performed",
+      );
     });
 
-    it('should handle validation errors gracefully', async () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should handle validation errors gracefully", async () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
@@ -299,7 +292,7 @@ describe('useDepositValidation', () => {
 
       // Force an error by passing invalid data
       const formData = {
-        amount: 'not-a-number',
+        amount: "not-a-number",
         selectedProviders: [],
       };
 
@@ -310,13 +303,12 @@ describe('useDepositValidation', () => {
     });
   });
 
-  describe('provider fetching', () => {
-    it.skip('should fetch available providers', async () => {
+  describe("provider fetching", () => {
+    it.skip("should fetch available providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(result.current.isLoadingProviders).toBe(false);
@@ -324,53 +316,49 @@ describe('useDepositValidation', () => {
 
       expect(result.current.availableProviders).toHaveLength(2);
       expect(result.current.availableProviders[0]).toBe(
-        '0x1234567890abcdef1234567890abcdef12345678'
+        "0x1234567890abcdef1234567890abcdef12345678",
       );
     });
 
-    it('should handle loading state', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should handle loading state", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
       // Initially might be loading
-      expect(typeof result.current.isLoadingProviders).toBe('boolean');
+      expect(typeof result.current.isLoadingProviders).toBe("boolean");
     });
   });
 
-  describe('edge cases', () => {
-    it('should handle undefined BTC address', () => {
-      const { result } = renderHook(
-        () => useDepositValidation(undefined),
-        { wrapper }
-      );
+  describe("edge cases", () => {
+    it("should handle undefined BTC address", () => {
+      const { result } = renderHook(() => useDepositValidation(undefined), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('0.001');
-      
+      const validationResult = result.current.validateAmount("0.001");
+
       expect(validationResult.valid).toBe(true);
     });
 
-    it('should handle very large amounts', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should handle very large amounts", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('21000001'); // More than max supply
-      
+      const validationResult = result.current.validateAmount("21000001"); // More than max supply
+
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain('Maximum deposit');
+      expect(validationResult.error).toContain("Maximum deposit");
     });
 
-    it('should handle negative amounts by stripping minus sign', () => {
-      const { result } = renderHook(
-        () => useDepositValidation('bc1qaddress'),
-        { wrapper }
-      );
+    it("should handle negative amounts by stripping minus sign", () => {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+        wrapper,
+      });
 
-      const validationResult = result.current.validateAmount('-0.001');
-      
+      const validationResult = result.current.validateAmount("-0.001");
+
       // parseBtcToSatoshis strips non-numeric chars including '-', so '-0.001' becomes '0.001'
       // 0.001 BTC = 100000 sats, which is valid
       expect(validationResult.valid).toBe(true);

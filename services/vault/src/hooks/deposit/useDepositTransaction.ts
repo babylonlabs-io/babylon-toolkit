@@ -142,6 +142,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
 
   // Submit transaction to blockchain
   const submitTransaction = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async (_txData: DepositTransactionData): Promise<TransactionResult> => {
       setIsSubmitting(true);
 

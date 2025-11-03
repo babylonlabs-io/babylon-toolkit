@@ -1,6 +1,6 @@
 /**
  * Compatibility layer for deposit flow migration
- * 
+ *
  * This hook provides the same API as the old useDepositFlow
  * while using the new architecture internally.
  */
@@ -17,11 +17,11 @@ import { getWalletClient } from "wagmi/actions";
 import { CONTRACTS } from "@/config/contracts";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { depositService } from "@/services/deposit";
 import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
-import { depositService } from "@/services/deposit";
 
 /**
  * BTC wallet provider interface
@@ -68,10 +68,10 @@ export interface UseDepositFlowReturn {
 
 /**
  * Hook to orchestrate deposit flow execution - Compatible with old API
- * 
+ *
  * This is a bridge between old and new architecture.
  * It maintains the old API while using new services internally.
- * 
+ *
  * @param params - Deposit parameters (old format)
  * @returns Execution function and state (old format)
  */
@@ -116,12 +116,12 @@ export function useDepositFlow(
       if (!depositorEthAddress) {
         throw new Error("ETH wallet not connected");
       }
-      
+
       // Use new validation service
       const amountValidation = depositService.validateDepositAmount(
         amount,
         10000n, // MIN_DEPOSIT
-        21000000_00000000n // MAX_DEPOSIT
+        21000000_00000000n, // MAX_DEPOSIT
       );
       if (!amountValidation.valid) {
         throw new Error(amountValidation.error);
@@ -130,7 +130,7 @@ export function useDepositFlow(
       if (selectedProviders.length === 0) {
         throw new Error("No providers selected");
       }
-      
+
       if (isUTXOsLoading) {
         throw new Error("Loading UTXOs...");
       }
@@ -143,7 +143,7 @@ export function useDepositFlow(
 
       // Step 2: Create proof of possession
       setCurrentStep(1);
-      
+
       await createProofOfPossession({
         ethAddress: depositorEthAddress,
         btcAddress,
@@ -180,7 +180,7 @@ export function useDepositFlow(
 
       // Use new service for fee calculation
       const fees = depositService.calculateDepositFees(amount, 1);
-      
+
       // Submit pegin request (using existing service)
       const result = await submitPeginRequest(
         walletClient,
@@ -217,14 +217,13 @@ export function useDepositFlow(
 
       // Step 4: Complete
       setCurrentStep(3);
-      
+
       // Call success callback
       onSuccess(btcTxid, ethTxHash, depositorBtcPubkey, {
         unsignedTxHex: result.btcTxHex,
         selectedUTXOs: result.selectedUTXOs,
         fee: result.fee,
       });
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);

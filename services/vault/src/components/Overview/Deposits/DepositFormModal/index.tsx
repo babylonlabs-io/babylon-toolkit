@@ -57,7 +57,8 @@ export function CollateralDepositModal({
 
   // Calculate USD value
   const amountUsd = useMemo(() => {
-    if (!btcPrice || !formData.amountBtc || formData.amountBtc === "0") return "";
+    if (!btcPrice || !formData.amountBtc || formData.amountBtc === "0")
+      return "";
     const btcNum = parseFloat(formData.amountBtc);
     if (isNaN(btcNum)) return "";
     const usdValue = btcNum * btcPrice;
@@ -67,7 +68,10 @@ export function CollateralDepositModal({
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
     // For now, only support single provider selection
-    setFormData({ selectedProvider: providerId === formData.selectedProvider ? '' : providerId });
+    setFormData({
+      selectedProvider:
+        providerId === formData.selectedProvider ? "" : providerId,
+    });
   };
 
   // Handler: Amount input change
@@ -86,7 +90,10 @@ export function CollateralDepositModal({
   const handleDeposit = () => {
     if (validateForm()) {
       // Use amount in satoshis from the hook
-      onDeposit(amountSats, formData.selectedProvider ? [formData.selectedProvider] : []);
+      onDeposit(
+        amountSats,
+        formData.selectedProvider ? [formData.selectedProvider] : [],
+      );
     }
   };
 
@@ -205,7 +212,7 @@ export function CollateralDepositModal({
 
       <DialogFooter className="flex items-center justify-between pb-6">
         <Text variant="body2" className="text-sm text-accent-secondary">
-          {formData.selectedProvider ? '1 Selected' : '0 Selected'}
+          {formData.selectedProvider ? "1 Selected" : "0 Selected"}
         </Text>
         <Button
           variant="contained"

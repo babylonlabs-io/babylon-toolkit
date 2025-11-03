@@ -12,6 +12,8 @@ import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
+import { DepositStateStep, useDepositState } from "@/hooks/deposit";
+
 import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
 import { useBtcPublicKey } from "../../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
@@ -26,7 +28,6 @@ import { DepositTableRowActions } from "../DepositTableRow";
 import { useDepositRowPolling } from "../hooks/useDepositRowPolling";
 import { usePayoutSignModal } from "../hooks/usePayoutSignModal";
 import { PayoutSignModal } from "../PayoutSignModal";
-import { useDepositState, DepositStateStep } from "@/hooks/deposit";
 import {
   useVaultRedeemState,
   VaultRedeemStep,

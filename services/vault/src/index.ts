@@ -1,28 +1,28 @@
 // Vault deposit flow UI components
 export * from "./assets";
 export * from "./components";
-export { 
+export * from "./config/pegin";
+export {
+  DepositStateStep,
   // Hooks
   useDepositFlow,
-  useDepositValidation,
-  useDepositTransaction,
+  useDepositFlow as useDepositFlowCompat,
   useDepositForm,
   useDepositState,
-  DepositStateStep,
-  useDepositFlow as useDepositFlowCompat,
+  useDepositTransaction,
+  useDepositValidation,
+  type CreateDepositTransactionParams,
   // Types
   type DepositFlowState,
-  type DepositStep,
-  type UseDepositFlowResult,
-  type UseDepositValidationResult,
-  type CreateDepositTransactionParams,
-  type TransactionResult,
-  type UseDepositTransactionResult,
-  type UseDepositFormResult,
-  type UseDepositStateResult,
   type DepositStateData,
+  type DepositStep,
+  type TransactionResult,
   type UseDepositFlowCompatParams,
   type UseDepositFlowCompatReturn,
+  type UseDepositFlowResult,
+  type UseDepositFormResult,
+  type UseDepositStateResult,
+  type UseDepositTransactionResult,
+  type UseDepositValidationResult,
 } from "./hooks/deposit";
 export * from "./services/deposit";
-export * from "./config/pegin";

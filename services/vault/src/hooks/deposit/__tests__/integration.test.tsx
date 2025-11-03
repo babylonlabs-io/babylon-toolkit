@@ -2,21 +2,21 @@
  * Integration tests for the complete deposit flow
  */
 
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDepositFlow } from '../useDepositFlow';
-import { useDepositValidation } from '../useDepositValidation';
-import { useDepositTransaction } from '../useDepositTransaction';
+import { useDepositFlow } from "../useDepositFlow";
+import { useDepositTransaction } from "../useDepositTransaction";
+import { useDepositValidation } from "../useDepositValidation";
 
 // Mock external dependencies
-vi.mock('@/hooks/useUTXOs', () => ({
+vi.mock("@/hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
     confirmedUTXOs: [
-      { txid: '0x123', vout: 0, value: 500000, scriptPubKey: '0xabc' },
-      { txid: '0x456', vout: 1, value: 300000, scriptPubKey: '0xdef' },
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
     ],
     isLoading: false,
     error: null,
@@ -24,13 +24,13 @@ vi.mock('@/hooks/useUTXOs', () => ({
 }));
 
 // Mock vault providers
-vi.mock('@/hooks/useVaultProviders', () => ({
+vi.mock("@/hooks/useVaultProviders", () => ({
   useVaultProviders: vi.fn(() => ({
     providers: [
       {
-        address: '0x1234567890abcdef1234567890abcdef12345678',
-        btc_pub_key: '0xproviderkey',
-        name: 'Test Provider',
+        address: "0x1234567890abcdef1234567890abcdef12345678",
+        btc_pub_key: "0xproviderkey",
+        name: "Test Provider",
       },
     ],
     isLoading: false,
@@ -38,44 +38,47 @@ vi.mock('@/hooks/useVaultProviders', () => ({
 }));
 
 // Mock transaction service
-vi.mock('@/services/vault/vaultTransactionService', () => ({
+vi.mock("@/services/vault/vaultTransactionService", () => ({
   submitPeginRequest: vi.fn().mockResolvedValue({
-    btcTxid: '0xmocktxid123',
-    transactionHash: '0xmockhash456',
-    btcTxHex: '0xmockhex',
+    btcTxid: "0xmocktxid123",
+    transactionHash: "0xmockhash456",
+    btcTxHex: "0xmockhex",
     selectedUTXOs: [
-      { txid: '0x123', vout: 0, value: 500000, scriptPubKey: '0xabc' },
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
     ],
     fee: 1000n,
   }),
 }));
 
 // Mock proof of possession
-vi.mock('@/services/vault/vaultProofOfPossessionService', () => ({
+vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock API calls for vault providers
-vi.mock('@/api/vaultIndexer', () => ({
+vi.mock("@/api/vaultIndexer", () => ({
   getVaultProviders: vi.fn().mockResolvedValue([
     {
-      address: '0x1234567890abcdef1234567890abcdef12345678',
-      btc_pub_key: '0xproviderkey',
-      name: 'Test Provider',
+      address: "0x1234567890abcdef1234567890abcdef12345678",
+      btc_pub_key: "0xproviderkey",
+      name: "Test Provider",
     },
   ]),
 }));
 
 // Mock useQuery to return mocked providers
-vi.mock('@tanstack/react-query', async () => {
-  const actual = await vi.importActual('@tanstack/react-query');
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual("@tanstack/react-query");
   return {
     ...actual,
     useQuery: vi.fn((options: any) => {
       // Mock provider query
-      if (options.queryKey && JSON.stringify(options.queryKey).includes('vaultProviders')) {
+      if (
+        options.queryKey &&
+        JSON.stringify(options.queryKey).includes("vaultProviders")
+      ) {
         return {
-          data: ['0x1234567890abcdef1234567890abcdef12345678'],
+          data: ["0x1234567890abcdef1234567890abcdef12345678"],
           isLoading: false,
           error: null,
           refetch: vi.fn(),
@@ -86,7 +89,7 @@ vi.mock('@tanstack/react-query', async () => {
   };
 });
 
-describe('Deposit Flow Integration', () => {
+describe("Deposit Flow Integration", () => {
   let queryClient: QueryClient;
 
   beforeEach(() => {
@@ -103,22 +106,24 @@ describe('Deposit Flow Integration', () => {
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
   };
 
-  describe('Complete deposit flow', () => {
-    it.skip('should execute full deposit flow from form to completion', async () => {
+  describe("Complete deposit flow", () => {
+    it.skip("should execute full deposit flow from form to completion", async () => {
       // TODO: Requires complex mocking of providers, WASM, and wallet interactions
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       // Step 1: Initialize deposit flow
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
-      expect(flowResult.current.state.step).toBe('idle');
+      expect(flowResult.current.state.step).toBe("idle");
       expect(flowResult.current.canSubmit).toBe(false);
 
       // Step 2: Start deposit
@@ -126,13 +131,13 @@ describe('Deposit Flow Integration', () => {
         flowResult.current.startDeposit();
       });
 
-      expect(flowResult.current.state.step).toBe('form');
+      expect(flowResult.current.state.step).toBe("form");
       expect(flowResult.current.canSubmit).toBe(true);
 
       // Step 3: Prepare form data
       const depositData = {
-        amount: '0.005', // 500,000 sats  
-        selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+        amount: "0.005", // 500,000 sats
+        selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       };
 
       // Step 4: Submit deposit
@@ -142,21 +147,21 @@ describe('Deposit Flow Integration', () => {
 
       // Check that flow progressed through states
       await waitFor(() => {
-        expect(flowResult.current.state.step).toBe('complete');
+        expect(flowResult.current.state.step).toBe("complete");
       });
 
       expect(flowResult.current.state.error).toBeNull();
       expect(flowResult.current.progress).toBe(100);
     });
 
-    it.skip('should handle validation errors during flow', async () => {
+    it.skip("should handle validation errors during flow", async () => {
       // TODO: Requires provider mocking
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
@@ -165,53 +170,54 @@ describe('Deposit Flow Integration', () => {
 
       // Submit with invalid amount
       const invalidData = {
-        amount: '0.00001', // Too small
-        selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+        amount: "0.00001", // Too small
+        selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       };
 
       await act(async () => {
         try {
           await flowResult.current.submitDeposit(invalidData);
-        } catch (error) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        } catch (_error) {
           // Expected to throw
         }
       });
 
-      expect(flowResult.current.state.step).toBe('error');
-      expect(flowResult.current.state.error).toContain('Minimum deposit');
+      expect(flowResult.current.state.step).toBe("error");
+      expect(flowResult.current.state.error).toContain("Minimum deposit");
     });
 
-    it('should handle cancellation during flow', async () => {
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+    it("should handle cancellation during flow", async () => {
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
         flowResult.current.startDeposit();
       });
 
-      expect(flowResult.current.state.step).toBe('form');
+      expect(flowResult.current.state.step).toBe("form");
 
       act(() => {
         flowResult.current.cancelDeposit();
       });
 
-      expect(flowResult.current.state.step).toBe('idle');
+      expect(flowResult.current.state.step).toBe("idle");
       expect(flowResult.current.state.formData).toBeNull();
     });
 
-    it.skip('should reset flow completely', async () => {
+    it.skip("should reset flow completely", async () => {
       // TODO: Requires provider mocking
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       // Start and progress through flow
@@ -220,8 +226,8 @@ describe('Deposit Flow Integration', () => {
       });
 
       const depositData = {
-        amount: '0.005',
-        selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+        amount: "0.005",
+        selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       };
 
       await act(async () => {
@@ -229,7 +235,7 @@ describe('Deposit Flow Integration', () => {
       });
 
       await waitFor(() => {
-        expect(flowResult.current.state.step).toBe('complete');
+        expect(flowResult.current.state.step).toBe("complete");
       });
 
       // Reset everything
@@ -237,7 +243,7 @@ describe('Deposit Flow Integration', () => {
         flowResult.current.reset();
       });
 
-      expect(flowResult.current.state.step).toBe('idle');
+      expect(flowResult.current.state.step).toBe("idle");
       expect(flowResult.current.state.formData).toBeNull();
       expect(flowResult.current.state.transactionData).toBeNull();
       expect(flowResult.current.state.error).toBeNull();
@@ -245,15 +251,15 @@ describe('Deposit Flow Integration', () => {
     });
   });
 
-  describe('Fee calculation integration', () => {
-    it.skip('should calculate fees based on deposit amount and UTXOs', async () => {
+  describe("Fee calculation integration", () => {
+    it.skip("should calculate fees based on deposit amount and UTXOs", async () => {
       // TODO: Implement estimatedFees calculation in useDepositFlow
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
@@ -263,25 +269,27 @@ describe('Deposit Flow Integration', () => {
       // Set form data to trigger fee calculation
       act(() => {
         flowResult.current.state.formData = {
-          amount: '0.005',
-          selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+          amount: "0.005",
+          selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
         };
       });
 
       // Fees should be calculated
       expect(flowResult.current.estimatedFees).toBeDefined();
-      expect(flowResult.current.estimatedFees?.btcNetworkFee).toBeGreaterThan(0n);
+      expect(flowResult.current.estimatedFees?.btcNetworkFee).toBeGreaterThan(
+        0n,
+      );
       expect(flowResult.current.estimatedFees?.protocolFee).toBe(500n); // 0.1% of 500,000
     });
   });
 
-  describe('Validation integration', () => {
-    it('should validate throughout the flow', async () => {
-      const btcAddress = 'bc1qtest123';
-      
+  describe("Validation integration", () => {
+    it("should validate throughout the flow", async () => {
+      const btcAddress = "bc1qtest123";
+
       const { result: validationResult } = renderHook(
         () => useDepositValidation(btcAddress),
-        { wrapper }
+        { wrapper },
       );
 
       // Wait for providers to load
@@ -290,7 +298,7 @@ describe('Deposit Flow Integration', () => {
       });
 
       // Test amount validation
-      const amountResult = validationResult.current.validateAmount('0.005');
+      const amountResult = validationResult.current.validateAmount("0.005");
       expect(amountResult.valid).toBe(true);
 
       // Test provider validation
@@ -301,35 +309,35 @@ describe('Deposit Flow Integration', () => {
 
       // Test complete validation
       const completeResult = await validationResult.current.validateDeposit({
-        amount: '0.005',
+        amount: "0.005",
         selectedProviders: [validationResult.current.availableProviders[0]],
       });
       expect(completeResult.valid).toBe(true);
     });
   });
 
-  describe('Transaction creation integration', () => {
-    it.skip('should create and submit transaction', async () => {
+  describe("Transaction creation integration", () => {
+    it.skip("should create and submit transaction", async () => {
       // TODO: This requires full WASM and wallet mocking
-      const { result: txResult } = renderHook(
-        () => useDepositTransaction(),
-        { wrapper }
-      );
+      const { result: txResult } = renderHook(() => useDepositTransaction(), {
+        wrapper,
+      });
 
       expect(txResult.current.isCreating).toBe(false);
       expect(txResult.current.isSubmitting).toBe(false);
 
       // Create transaction
       const createParams = {
-        amount: '0.005',
-        selectedProviders: ['0xProvider123'],
-        btcAddress: 'bc1qtest123',
-        ethAddress: '0xEthAddress123' as any,
+        amount: "0.005",
+        selectedProviders: ["0xProvider123"],
+        btcAddress: "bc1qtest123",
+        ethAddress: "0xEthAddress123" as any,
       };
 
       let txData: any;
       await act(async () => {
-        const result = await txResult.current.createDepositTransaction(createParams);
+        const result =
+          await txResult.current.createDepositTransaction(createParams);
         expect(result.success).toBe(true);
         txData = result.data;
       });
@@ -348,31 +356,31 @@ describe('Deposit Flow Integration', () => {
     });
   });
 
-  describe('Error recovery', () => {
-    it('should recover from network errors', async () => {
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+  describe("Error recovery", () => {
+    it("should recover from network errors", async () => {
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       // Simulate network error
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
       act(() => {
         flowResult.current.startDeposit();
       });
 
       // Force an error state
       act(() => {
-        flowResult.current.state.error = 'Network error';
-        flowResult.current.state.step = 'error';
+        flowResult.current.state.error = "Network error";
+        flowResult.current.state.step = "error";
       });
 
-      expect(flowResult.current.state.step).toBe('error');
-      expect(flowResult.current.state.error).toBe('Network error');
+      expect(flowResult.current.state.step).toBe("error");
+      expect(flowResult.current.state.error).toBe("Network error");
 
       // Reset and try again
       act(() => {
@@ -380,18 +388,18 @@ describe('Deposit Flow Integration', () => {
         flowResult.current.startDeposit();
       });
 
-      expect(flowResult.current.state.step).toBe('form');
+      expect(flowResult.current.state.step).toBe("form");
       expect(flowResult.current.state.error).toBeNull();
     });
 
-    it.skip('should preserve warnings during flow', async () => {
+    it.skip("should preserve warnings during flow", async () => {
       // TODO: Requires provider mocking
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       act(() => {
@@ -401,17 +409,17 @@ describe('Deposit Flow Integration', () => {
       // Add warnings
       act(() => {
         flowResult.current.state.warnings = [
-          'High network fees detected',
-          'Slow confirmation times expected',
+          "High network fees detected",
+          "Slow confirmation times expected",
         ];
       });
 
       expect(flowResult.current.state.warnings).toHaveLength(2);
-      
+
       // Warnings should persist through state changes
       const depositData = {
-        amount: '0.005',
-        selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+        amount: "0.005",
+        selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       };
 
       await act(async () => {
@@ -420,20 +428,20 @@ describe('Deposit Flow Integration', () => {
 
       // Check warnings are still there or cleared appropriately
       await waitFor(() => {
-        expect(flowResult.current.state.step).toBe('complete');
+        expect(flowResult.current.state.step).toBe("complete");
       });
     });
   });
 
-  describe('Progress tracking', () => {
-    it.skip('should track progress through deposit steps', async () => {
+  describe("Progress tracking", () => {
+    it.skip("should track progress through deposit steps", async () => {
       // TODO: Requires provider mocking
-      const btcAddress = 'bc1qtest123';
-      const ethAddress = '0xEthAddress123' as any;
+      const btcAddress = "bc1qtest123";
+      const ethAddress = "0xEthAddress123" as any;
 
       const { result: flowResult } = renderHook(
         () => useDepositFlow(btcAddress, ethAddress),
-        { wrapper }
+        { wrapper },
       );
 
       // Track progress at each step
@@ -445,12 +453,12 @@ describe('Deposit Flow Integration', () => {
       expect(flowResult.current.progress).toBe(10); // form
 
       const depositData = {
-        amount: '0.005',
-        selectedProviders: ['0x1234567890abcdef1234567890abcdef12345678'],
+        amount: "0.005",
+        selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       };
 
       const progressSteps: number[] = [];
-      
+
       // Mock to capture progress changes
       const originalSubmit = flowResult.current.submitDeposit;
       flowResult.current.submitDeposit = async (data) => {

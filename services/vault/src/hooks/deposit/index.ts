@@ -24,14 +24,20 @@ export type {
 
 // New hooks for migration
 export { useDepositForm } from "./useDepositForm";
-export type { UseDepositFormResult, DepositFormData } from "./useDepositForm";
+export type { DepositFormData, UseDepositFormResult } from "./useDepositForm";
 
-export { useDepositState, DepositStep as DepositStateStep } from "./useDepositState";
-export type { UseDepositStateResult, DepositStateData } from "./useDepositState";
+export {
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "./useDepositState";
+export type {
+  DepositStateData,
+  UseDepositStateResult,
+} from "./useDepositState";
 
 // Compatibility layer for migration
 export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
-export type { 
+export type {
   UseDepositFlowParams as UseDepositFlowCompatParams,
-  UseDepositFlowReturn as UseDepositFlowCompatReturn
+  UseDepositFlowReturn as UseDepositFlowCompatReturn,
 } from "./useDepositFlowCompat";

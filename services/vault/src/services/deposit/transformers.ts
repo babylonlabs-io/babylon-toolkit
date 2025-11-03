@@ -4,13 +4,14 @@
  */
 
 import type { Hex } from "viem";
+
+import {
+  ContractStatus,
+  LocalStorageStatus,
+  type PeginDisplayLabel,
+} from "../../models/peginStateMachine";
 import type { VaultActivity } from "../../types/activity";
 import type { UTXO } from "../vault/vaultTransactionService";
-import { 
-  ContractStatus, 
-  LocalStorageStatus,
-  type PeginDisplayLabel 
-} from "../../models/peginStateMachine";
 
 export interface DepositFormData {
   amount: string;
@@ -49,7 +50,7 @@ export function transformFormToTransactionData(
   utxoData: {
     selectedUTXOs: UTXO[];
     fee: bigint;
-  }
+  },
 ): DepositTransactionData {
   return {
     depositorBtcPubkey: walletData.btcPubkey,
@@ -60,7 +61,7 @@ export function transformFormToTransactionData(
     liquidatorBtcPubkeys: providerData.liquidatorPubkeys,
     selectedUTXOs: utxoData.selectedUTXOs,
     fee: utxoData.fee,
-    unsignedTxHex: "" // Will be filled by WASM
+    unsignedTxHex: "", // Will be filled by WASM
   };
 }
 
@@ -72,7 +73,7 @@ export function transformFormToTransactionData(
  */
 export function transformStatusToLabel(
   contractStatus: ContractStatus,
-  localStatus?: LocalStorageStatus
+  localStatus?: LocalStorageStatus,
 ): PeginDisplayLabel {
   // Local status takes precedence for user feedback
   if (localStatus === LocalStorageStatus.CONFIRMING) {
@@ -81,7 +82,7 @@ export function transformStatusToLabel(
   if (localStatus === LocalStorageStatus.PAYOUT_SIGNED) {
     return "Processing";
   }
-  
+
   // Map contract status to display label
   switch (contractStatus) {
     case ContractStatus.PENDING:
@@ -111,7 +112,7 @@ export function transformDepositToActivity(
     btcTxid: string;
     ethTxHash: Hex;
     timestamp: number;
-  }
+  },
 ): Partial<VaultActivity> {
   return {
     id: result.btcTxid,
@@ -119,16 +120,18 @@ export function transformDepositToActivity(
     collateral: {
       amount: txData.pegInAmount.toString(),
       symbol: "BTC",
-      icon: "/images/btc.svg"
+      icon: "/images/btc.svg",
     },
-    providers: [{
-      id: txData.vaultProviderAddress,
-      name: `Provider ${txData.vaultProviderAddress.slice(0, 6)}...`,
-      icon: undefined
-    }],
+    providers: [
+      {
+        id: txData.vaultProviderAddress,
+        name: `Provider ${txData.vaultProviderAddress.slice(0, 6)}...`,
+        icon: undefined,
+      },
+    ],
     contractStatus: ContractStatus.PENDING,
     isPending: true,
-    pendingMessage: "Waiting for provider acknowledgments"
+    pendingMessage: "Waiting for provider acknowledgments",
   };
 }
 
@@ -140,18 +143,20 @@ export function transformDepositToActivity(
  */
 export function formatSatoshisToBtc(
   satoshis: bigint,
-  decimals: number = 8
+  decimals: number = 8,
 ): string {
   const SATOSHIS_PER_BTC = 100_000_000n;
   const whole = satoshis / SATOSHIS_PER_BTC;
   const fraction = satoshis % SATOSHIS_PER_BTC;
-  
+
   // Get fractional part as string, pad with leading zeros to 8 digits
-  let fractionStr = fraction.toString().padStart(8, '0').slice(0, decimals);
+  let fractionStr = fraction.toString().padStart(8, "0").slice(0, decimals);
   // Remove trailing zeros from fractional part
-  fractionStr = fractionStr.replace(/0+$/, '');
-  
-  return fractionStr.length > 0 ? `${whole.toString()}.${fractionStr}` : whole.toString();
+  fractionStr = fractionStr.replace(/0+$/, "");
+
+  return fractionStr.length > 0
+    ? `${whole.toString()}.${fractionStr}`
+    : whole.toString();
 }
 
 /**
@@ -161,29 +166,29 @@ export function formatSatoshisToBtc(
  */
 export function parseBtcToSatoshis(btcAmount: string): bigint {
   // Remove any non-numeric characters except decimal
-  const cleanAmount = btcAmount.replace(/[^0-9.]/g, '');
-  
+  const cleanAmount = btcAmount.replace(/[^0-9.]/g, "");
+
   // Validate input: must not be empty, must contain at most one decimal point
   if (
     !cleanAmount ||
-    cleanAmount === '.' ||
+    cleanAmount === "." ||
     (cleanAmount.match(/\./g) || []).length > 1
   ) {
     return 0n;
   }
-  
+
   // Handle decimal places
-  const [whole, decimal = ''] = cleanAmount.split('.');
+  const [whole, decimal = ""] = cleanAmount.split(".");
   // If whole is empty (e.g., ".5"), treat as "0"
-  const safeWhole = whole === '' ? '0' : whole;
-  const paddedDecimal = decimal.padEnd(8, '0').slice(0, 8);
+  const safeWhole = whole === "" ? "0" : whole;
+  const paddedDecimal = decimal.padEnd(8, "0").slice(0, 8);
   const satoshis = safeWhole + paddedDecimal;
-  
+
   // Validate satoshis is a valid integer string
   if (!/^\d+$/.test(satoshis)) {
     return 0n;
   }
-  
+
   return BigInt(satoshis);
 }
 
@@ -197,7 +202,7 @@ export function transformApiUtxoToInternal(apiUtxo: any): UTXO {
     txid: apiUtxo.txid || apiUtxo.tx_id,
     vout: apiUtxo.vout || apiUtxo.output_index,
     value: apiUtxo.value || apiUtxo.amount,
-    scriptPubKey: apiUtxo.scriptPubKey || apiUtxo.script_pubkey
+    scriptPubKey: apiUtxo.scriptPubKey || apiUtxo.script_pubkey,
   };
 }
 
@@ -217,12 +222,12 @@ export function transformProviderForDisplay(provider: {
   displayName: string;
 } {
   const shortAddress = `${provider.address.slice(0, 6)}...${provider.address.slice(-4)}`;
-  
+
   return {
     id: provider.address,
     name: provider.name || shortAddress,
     btcPubkey: provider.btc_pub_key,
-    displayName: provider.name || `Provider ${shortAddress}`
+    displayName: provider.name || `Provider ${shortAddress}`,
   };
 }
 
@@ -232,7 +237,7 @@ export function transformProviderForDisplay(provider: {
  * @returns Progress percentage (0-100)
  */
 export function calculateDepositProgress(
-  currentStatus: ContractStatus
+  currentStatus: ContractStatus,
 ): number {
   switch (currentStatus) {
     case ContractStatus.PENDING:
@@ -256,24 +261,24 @@ export function calculateDepositProgress(
  * @returns User-friendly error message
  */
 export function transformErrorMessage(error: unknown): string {
-  if (typeof error === 'string') {
+  if (typeof error === "string") {
     return error;
   }
-  
+
   if (error instanceof Error) {
     // Handle specific error types
-    if (error.message.includes('insufficient')) {
-      return 'Insufficient balance for this transaction';
+    if (error.message.includes("insufficient")) {
+      return "Insufficient balance for this transaction";
     }
-    if (error.message.includes('rejected')) {
-      return 'Transaction was rejected';
+    if (error.message.includes("rejected")) {
+      return "Transaction was rejected";
     }
-    if (error.message.includes('timeout')) {
-      return 'Request timed out. Please try again';
+    if (error.message.includes("timeout")) {
+      return "Request timed out. Please try again";
     }
-    
+
     return error.message;
   }
-  
-  return 'An unexpected error occurred';
+
+  return "An unexpected error occurred";
 }

@@ -1,17 +1,17 @@
 /**
  * Deposit State Hook
- * 
+ *
  * Manages the overall deposit flow state using the new architecture.
  * Replaces the old VaultDepositState component.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState } from "react";
 
 export enum DepositStep {
-  FORM = 'form',
-  REVIEW = 'review',
-  SIGN = 'sign',
-  SUCCESS = 'success',
+  FORM = "form",
+  REVIEW = "review",
+  SIGN = "sign",
+  SUCCESS = "success",
 }
 
 export interface DepositStateData {
@@ -32,11 +32,15 @@ export interface UseDepositStateResult {
   ethTxHash: string;
   depositorBtcPubkey?: string;
   processing: boolean;
-  
+
   // Actions
   goToStep: (step: DepositStep) => void;
   setDepositData: (amount: bigint, providers: string[]) => void;
-  setTransactionHashes: (btcTxid: string, ethTxHash: string, depositorBtcPubkey?: string) => void;
+  setTransactionHashes: (
+    btcTxid: string,
+    ethTxHash: string,
+    depositorBtcPubkey?: string,
+  ) => void;
   setProcessing: (processing: boolean) => void;
   reset: () => void;
 }
@@ -49,45 +53,44 @@ export function useDepositState(): UseDepositStateResult {
     step: undefined,
     amount: 0n,
     selectedProviders: [],
-    btcTxid: '',
-    ethTxHash: '',
+    btcTxid: "",
+    ethTxHash: "",
     depositorBtcPubkey: undefined,
   });
-  
+
   const [processing, setProcessing] = useState(false);
 
   const goToStep = useCallback((step: DepositStep) => {
-    setState(prev => ({ ...prev, step }));
+    setState((prev) => ({ ...prev, step }));
   }, []);
 
   const setDepositData = useCallback((amount: bigint, providers: string[]) => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       amount,
       selectedProviders: providers,
     }));
   }, []);
 
-  const setTransactionHashes = useCallback((
-    btcTxid: string,
-    ethTxHash: string,
-    depositorBtcPubkey?: string
-  ) => {
-    setState(prev => ({
-      ...prev,
-      btcTxid,
-      ethTxHash,
-      depositorBtcPubkey,
-    }));
-  }, []);
+  const setTransactionHashes = useCallback(
+    (btcTxid: string, ethTxHash: string, depositorBtcPubkey?: string) => {
+      setState((prev) => ({
+        ...prev,
+        btcTxid,
+        ethTxHash,
+        depositorBtcPubkey,
+      }));
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     setState({
       step: undefined,
       amount: 0n,
       selectedProviders: [],
-      btcTxid: '',
-      ethTxHash: '',
+      btcTxid: "",
+      ethTxHash: "",
       depositorBtcPubkey: undefined,
     });
     setProcessing(false);
@@ -102,7 +105,7 @@ export function useDepositState(): UseDepositStateResult {
     ethTxHash: state.ethTxHash,
     depositorBtcPubkey: state.depositorBtcPubkey,
     processing,
-    
+
     // Actions
     goToStep,
     setDepositData,
