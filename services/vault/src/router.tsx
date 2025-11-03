@@ -3,9 +3,9 @@ import { Route, Routes } from "react-router";
 
 import { MarketDetail as MarketDetailPage } from "./components/Market/Detail";
 import { Overview } from "./components/Overview";
+import { VaultStats } from "./components/Overview/VaultStats";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
-import { VaultStats } from "./components/shared/VaultStats";
 
 export const Router = () => {
   return (

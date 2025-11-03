@@ -12,13 +12,14 @@ import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
-import { LoanCard } from "../../shared/LoanCard";
-import { BorrowReviewModal } from "../../shared/LoanCard/Borrow/ReviewModal";
-import { BorrowSuccessModal } from "../../shared/LoanCard/Borrow/SuccessModal";
-import { RepayReviewModal } from "../../shared/LoanCard/Repay/ReviewModal";
-import { RepaySuccessModal } from "../../shared/LoanCard/Repay/SuccessModal";
 import { MarketInfo } from "../Info";
 
+import { LoanCard } from "./components/LoanCard";
+import { BorrowReviewModal } from "./components/LoanCard/Borrow/ReviewModal";
+import { TransactionSuccessModal } from "./components/LoanCard/Borrow/SuccessModal";
+import { RepayReviewModal } from "./components/LoanCard/Repay/ReviewModal";
+import { RepaySuccessModal } from "./components/LoanCard/Repay/SuccessModal";
+import { MarketDetailProvider } from "./context/MarketDetailContext";
 import { useBorrowRepayModals } from "./hooks/useBorrowRepayModals";
 import { useBorrowTransaction } from "./hooks/useBorrowTransaction";
 import { useMarketDetail } from "./hooks/useMarketDetail";
@@ -131,105 +132,80 @@ export function MarketDetail() {
   }
 
   return (
-    <Container className="pb-6">
-      <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
-        {/* Left Side: Market Info */}
-        <MarketInfo
-          onBack={handleBack}
-          marketPair="BTC / USDC"
-          btcIcon="/images/btc.png"
-          usdcIcon="/images/usdc.png"
-          totalMarketSize={marketDisplayValues.totalMarketSize}
-          totalMarketSizeSubtitle={marketDisplayValues.totalMarketSizeSubtitle}
-          totalLiquidity={marketDisplayValues.totalLiquidity}
-          totalLiquiditySubtitle={marketDisplayValues.totalLiquiditySubtitle}
-          borrowRate={marketDisplayValues.borrowRate}
-          attributes={marketAttributes}
-          positions={positionData}
+    <MarketDetailProvider
+      value={{
+        btcPrice,
+        liquidationLtv,
+        currentLoanAmount,
+        currentCollateralAmount,
+        availableVaults,
+        availableLiquidity,
+      }}
+    >
+      <Container className="pb-6">
+        <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
+          {/* Left Side: Market Info */}
+          <MarketInfo
+            onBack={handleBack}
+            marketPair="BTC / USDC"
+            btcIcon="/images/btc.png"
+            usdcIcon="/images/usdc.png"
+            totalMarketSize={marketDisplayValues.totalMarketSize}
+            totalMarketSizeSubtitle={
+              marketDisplayValues.totalMarketSizeSubtitle
+            }
+            totalLiquidity={marketDisplayValues.totalLiquidity}
+            totalLiquiditySubtitle={marketDisplayValues.totalLiquiditySubtitle}
+            borrowRate={marketDisplayValues.borrowRate}
+            attributes={marketAttributes}
+            positions={positionData}
+          />
+
+          {/* Right Side: Loan Card */}
+          <div className="top-24">
+            <LoanCard
+              defaultTab={defaultTab}
+              onBorrow={openBorrowReview}
+              onRepay={openRepayReview}
+            />
+          </div>
+        </div>
+
+        {/* Borrow Modals */}
+        <BorrowReviewModal
+          open={showBorrowReviewModal}
+          onClose={closeBorrowReview}
+          onConfirm={handleConfirmBorrow}
+          borrowData={lastBorrowData}
+          ltv={borrowLtv}
+          processing={processing}
+        />
+        <TransactionSuccessModal
+          open={showBorrowSuccessModal}
+          onClose={closeBorrowSuccess}
+          borrowAmount={lastBorrowData.borrow}
+          borrowSymbol="USDC"
+          collateralAmount={lastBorrowData.collateral}
         />
 
-        {/* Right Side: Loan Card */}
-        <div className="top-24">
-          <LoanCard
-            defaultTab={defaultTab}
-            btcPrice={btcPrice}
-            liquidationLtv={liquidationLtv}
-            onBorrow={openBorrowReview}
-            availableVaults={availableVaults}
-            availableLiquidity={availableLiquidity}
-            currentLoanAmount={currentLoanAmount}
-            currentCollateralAmount={currentCollateralAmount}
-            onRepay={openRepayReview}
-          />
-        </div>
-      </div>
-
-      {/* Borrow Modals */}
-      <BorrowReviewModal
-        open={showBorrowReviewModal}
-        onClose={closeBorrowReview}
-        onConfirm={handleConfirmBorrow}
-        collateralAmount={lastBorrowData.collateral}
-        collateralSymbol="BTC"
-        collateralUsdValue={`$${(
-          lastBorrowData.collateral * btcPrice
-        ).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USD`}
-        borrowAmount={lastBorrowData.borrow}
-        borrowSymbol="USDC"
-        borrowUsdValue={`$${lastBorrowData.borrow.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USD`}
-        borrowApy={6.25}
-        ltv={borrowLtv}
-        liquidationLtv={liquidationLtv}
-        processing={processing}
-      />
-
-      <BorrowSuccessModal
-        open={showBorrowSuccessModal}
-        onClose={closeBorrowSuccess}
-        borrowAmount={lastBorrowData.borrow}
-        borrowSymbol="USDC"
-      />
-
-      {/* Repay Modals */}
-      <RepayReviewModal
-        open={showRepayReviewModal}
-        onClose={closeRepayReview}
-        onConfirm={() =>
-          handleConfirmRepay(lastRepayData.repay, lastRepayData.withdraw)
-        }
-        repayAmount={lastRepayData.repay}
-        repaySymbol="USDC"
-        repayUsdValue={`$${lastRepayData.repay.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USDC`}
-        withdrawAmount={lastRepayData.withdraw}
-        withdrawSymbol="BTC"
-        withdrawUsdValue={`$${(
-          lastRepayData.withdraw * btcPrice
-        ).toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} USD`}
-        ltv={repayLtv}
-        liquidationLtv={liquidationLtv}
-        processing={processing}
-      />
-
-      <RepaySuccessModal
-        open={showRepaySuccessModal}
-        onClose={closeRepaySuccess}
-        repayAmount={lastRepayData.repay}
-        withdrawAmount={lastRepayData.withdraw}
-        repaySymbol="USDC"
-        withdrawSymbol="BTC"
-      />
-    </Container>
+        {/* Repay Modals */}
+        <RepayReviewModal
+          open={showRepayReviewModal}
+          onClose={closeRepayReview}
+          onConfirm={handleConfirmRepay}
+          repayData={lastRepayData}
+          ltv={repayLtv}
+          processing={processing}
+        />
+        <RepaySuccessModal
+          open={showRepaySuccessModal}
+          onClose={closeRepaySuccess}
+          repayAmount={lastRepayData.repay}
+          withdrawAmount={lastRepayData.withdraw}
+          repaySymbol="USDC"
+          withdrawSymbol="BTC"
+        />
+      </Container>
+    </MarketDetailProvider>
   );
 }

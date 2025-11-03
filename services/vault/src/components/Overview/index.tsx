@@ -196,9 +196,11 @@ function OverviewContent() {
         id: activity.id,
         amount: parseFloat(activity.collateral.amount),
         vaultProvider: {
+          address: activity.providers[0]?.id || "",
           name: activity.providers[0]?.name || "Unknown Provider",
           icon: activity.providers[0]?.icon || "",
         },
+        pegInTxHash: activity.txHash || activity.id,
         status: state.displayLabel,
       };
     });
