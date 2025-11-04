@@ -99,6 +99,7 @@ export function MarketDetail() {
     hasPosition,
     userPosition,
     currentLoanAmount,
+    currentCollateralAmount,
     refetch,
     onRepaySuccess: showRepaySuccess,
     setProcessing,
