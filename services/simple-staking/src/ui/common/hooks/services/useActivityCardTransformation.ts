@@ -8,6 +8,7 @@ import {
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { ActionType } from "@/ui/common/hooks/services/useDelegationService";
 import { useExpansionVisibilityService } from "@/ui/common/hooks/services/useExpansionVisibilityService";
+import { useNetworkInfo } from "@/ui/common/hooks/client/api/useNetworkInfo";
 import {
   DelegationV2,
   DelegationWithFP,
@@ -41,16 +42,24 @@ export function useActivityCardTransformation(
   const { publicKeyNoCoord } = useBTCWallet();
   const { isBroadcastedExpansion } =
     useExpansionVisibilityService(publicKeyNoCoord);
+  const { data: networkInfo } = useNetworkInfo();
 
   return useMemo(() => {
     return delegations.map((delegation) => {
       // Check if this delegation is a broadcasted expansion
       const isBroadcasted = isBroadcastedExpansion(delegation);
 
+      const unbondingTime =
+        networkInfo?.params.bbnStakingParams.versions.find(
+          (v) => v.version === delegation.paramsVersion,
+        )?.unbondingTime ??
+        networkInfo?.params.bbnStakingParams.latestParam?.unbondingTime;
+
       // Transform delegation to activity card format
       const options: ActivityCardTransformOptions = {
         showExpansionSection: true,
         isBroadcastedExpansion: isBroadcasted,
+        unbondingTime: unbondingTime,
       };
       const cardData = transformDelegationToActivityCard(
         delegation,
@@ -93,5 +102,6 @@ export function useActivityCardTransformation(
     openConfirmationModal,
     isStakingManagerReady,
     isBroadcastedExpansion,
+    networkInfo,
   ]);
 }
