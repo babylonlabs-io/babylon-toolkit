@@ -5,7 +5,7 @@ on:
     branches:
       - "main"
       - "release/v1.x"
-      - "chore-push-to-new-aws-account"
+      - "deployment-improvement"
     tags:
       - "vault/*"
   workflow_dispatch:
