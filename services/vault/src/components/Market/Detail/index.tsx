@@ -141,7 +141,7 @@ export function MarketDetail() {
         currentCollateralAmount,
         availableVaults,
         availableLiquidity,
-        tokenPair,
+        tokenPair: tokenPair ?? undefined,
       }}
     >
       <Container className="pb-6">

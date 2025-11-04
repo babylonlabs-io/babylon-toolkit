@@ -6,7 +6,6 @@
 import { createContext, useContext } from "react";
 
 import type { MarketTokenPair } from "../../../../services/token";
-
 import type { AvailableVault } from "../components/LoanCard/Borrow/hooks/useBorrowState";
 
 export interface MarketDetailContextValue {

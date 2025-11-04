@@ -1,6 +1,6 @@
 /**
  * Interest Rate Model (IRM) Service
- * 
+ *
  * Fetches and calculates actual borrow rates from IRM contracts
  * instead of using hardcoded estimations.
  */
@@ -16,25 +16,29 @@ import { ethClient } from "../../clients/eth-contract/client";
 const IRM_ABI = [
   {
     inputs: [
-      { name: "marketParams", type: "tuple", 
+      {
+        name: "marketParams",
+        type: "tuple",
         components: [
           { name: "loanToken", type: "address" },
           { name: "collateralToken", type: "address" },
           { name: "oracle", type: "address" },
           { name: "irm", type: "address" },
-          { name: "lltv", type: "uint256" }
-        ]
+          { name: "lltv", type: "uint256" },
+        ],
       },
-      { name: "market", type: "tuple",
+      {
+        name: "market",
+        type: "tuple",
         components: [
           { name: "totalSupplyAssets", type: "uint128" },
           { name: "totalSupplyShares", type: "uint128" },
           { name: "totalBorrowAssets", type: "uint128" },
           { name: "totalBorrowShares", type: "uint128" },
           { name: "lastUpdate", type: "uint128" },
-          { name: "fee", type: "uint128" }
-        ]
-      }
+          { name: "fee", type: "uint128" },
+        ],
+      },
     ],
     name: "borrowRate",
     outputs: [{ name: "", type: "uint256" }],
@@ -43,9 +47,7 @@ const IRM_ABI = [
   },
   // Alternative method for simpler IRMs
   {
-    inputs: [
-      { name: "utilization", type: "uint256" }
-    ],
+    inputs: [{ name: "utilization", type: "uint256" }],
     name: "borrowRateView",
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
@@ -78,7 +80,7 @@ export interface MarketStateForIRM {
 
 /**
  * Fetch the current borrow rate from an IRM contract
- * 
+ *
  * @param irmAddress - Address of the IRM contract
  * @param marketParams - Market parameters
  * @param marketState - Current market state
@@ -93,23 +95,23 @@ export async function getBorrowRate(
 
   try {
     // Try the standard borrowRate method first
-    const rate = await publicClient.readContract({
+    const rate = (await publicClient.readContract({
       address: irmAddress,
       abi: IRM_ABI,
       functionName: "borrowRate",
-      args: [marketParams, marketState],
-    });
-    
-    return rate as bigint;
+      args: [marketParams as any, marketState as any],
+    })) as bigint;
+
+    return rate;
   } catch (error) {
     console.warn("Standard borrowRate method failed, trying fallback:", error);
-    
+
     // Fallback: Calculate utilization and use borrowRateView
     const utilization = calculateUtilization(
       marketState.totalSupplyAssets,
       marketState.totalBorrowAssets,
     );
-    
+
     try {
       const rate = await publicClient.readContract({
         address: irmAddress,
@@ -117,7 +119,7 @@ export async function getBorrowRate(
         functionName: "borrowRateView",
         args: [utilization],
       });
-      
+
       return rate as bigint;
     } catch (fallbackError) {
       console.error("Both IRM methods failed:", fallbackError);
@@ -129,7 +131,7 @@ export async function getBorrowRate(
 
 /**
  * Calculate market utilization
- * 
+ *
  * @param totalSupplyAssets - Total supplied assets
  * @param totalBorrowAssets - Total borrowed assets
  * @returns Utilization rate (with 18 decimals, 0 to 1e18)
@@ -139,14 +141,14 @@ export function calculateUtilization(
   totalBorrowAssets: bigint,
 ): bigint {
   if (totalSupplyAssets === 0n) return 0n;
-  
+
   // Return utilization with 18 decimals (0 to 1e18 for 0% to 100%)
   return (totalBorrowAssets * BigInt(1e18)) / totalSupplyAssets;
 }
 
 /**
  * Convert borrow rate from per-second to APR
- * 
+ *
  * @param borrowRatePerSecond - Borrow rate per second (18 decimals)
  * @returns Annual percentage rate (APR) as a percentage number
  */
@@ -154,17 +156,17 @@ export function convertBorrowRateToAPR(borrowRatePerSecond: bigint): number {
   // borrowRatePerSecond has 18 decimals
   // Multiply by seconds in a year (365.25 days)
   const secondsPerYear = 365.25 * 24 * 60 * 60;
-  
+
   // Convert to APR percentage
   // borrowRatePerSecond * secondsPerYear * 100 / 1e18
   const apr = (Number(borrowRatePerSecond) * secondsPerYear * 100) / 1e18;
-  
+
   return apr;
 }
 
 /**
  * Get borrow APR for a market
- * 
+ *
  * @param irmAddress - IRM contract address
  * @param marketParams - Market parameters
  * @param marketState - Market state
@@ -176,13 +178,17 @@ export async function getMarketBorrowAPR(
   marketState: MarketStateForIRM,
 ): Promise<number | null> {
   try {
-    const borrowRate = await getBorrowRate(irmAddress, marketParams, marketState);
-    
+    const borrowRate = await getBorrowRate(
+      irmAddress,
+      marketParams,
+      marketState,
+    );
+
     if (borrowRate === 0n) {
       // If we couldn't get the rate, return null
       return null;
     }
-    
+
     return convertBorrowRateToAPR(borrowRate);
   } catch (error) {
     console.error("Failed to get market borrow APR:", error);

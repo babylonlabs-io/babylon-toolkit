@@ -39,7 +39,7 @@ export function Borrow({
 }: BorrowProps) {
   const { theme } = useTheme();
   const { tokenPair } = useMarketDetailContext();
-  
+
   const {
     collateralAmount,
     borrowAmount,
@@ -75,7 +75,7 @@ export function Borrow({
           amount={collateralAmount}
           currencyIcon={getCurrencyIconWithFallback(
             tokenPair?.collateral.icon,
-            tokenPair?.collateral.symbol || "BTC"
+            tokenPair?.collateral.symbol || "BTC",
           )}
           currencyName={tokenPair?.collateral.name || "Collateral"}
           balanceDetails={{
@@ -117,7 +117,7 @@ export function Borrow({
             amount={borrowAmount}
             currencyIcon={getCurrencyIconWithFallback(
               tokenPair?.loan.icon,
-              tokenPair?.loan.symbol || "USDC"
+              tokenPair?.loan.symbol || "USDC",
             )}
             currencyName={tokenPair?.loan.name || "Loan Token"}
             onAmountChange={(e) =>

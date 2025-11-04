@@ -27,7 +27,7 @@ export function Repay({
   onRepay,
 }: RepayProps) {
   const { tokenPair } = useMarketDetailContext();
-  
+
   const {
     repayAmount,
     withdrawCollateralAmount,
@@ -69,7 +69,7 @@ export function Repay({
           amount={repayAmount}
           currencyIcon={getCurrencyIconWithFallback(
             tokenPair?.loan.icon,
-            tokenPair?.loan.symbol || "USDC"
+            tokenPair?.loan.symbol || "USDC",
           )}
           currencyName={tokenPair?.loan.name || "Loan Token"}
           onAmountChange={(e) =>
@@ -117,7 +117,7 @@ export function Repay({
           amount={withdrawCollateralAmount}
           currencyIcon={getCurrencyIconWithFallback(
             tokenPair?.collateral.icon,
-            tokenPair?.collateral.symbol || "BTC"
+            tokenPair?.collateral.symbol || "BTC",
           )}
           currencyName={tokenPair?.collateral.name || "Collateral"}
           disabled={!canWithdrawCollateral}

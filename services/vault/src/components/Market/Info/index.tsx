@@ -70,11 +70,11 @@ export function MarketInfo({
 
       <div className="flex items-center gap-6">
         <AvatarGroup size="xlarge">
-          <Avatar 
+          <Avatar
             {...(btcIcon ? { url: btcIcon } : {})}
-            alt={collateralSymbol} 
-            size="large" 
-            variant="circular" 
+            alt={collateralSymbol}
+            size="large"
+            variant="circular"
           >
             {!btcIcon && (
               <Text
@@ -85,11 +85,11 @@ export function MarketInfo({
               </Text>
             )}
           </Avatar>
-          <Avatar 
+          <Avatar
             {...(usdcIcon ? { url: usdcIcon } : {})}
-            alt={loanSymbol} 
-            size="large" 
-            variant="circular" 
+            alt={loanSymbol}
+            size="large"
+            variant="circular"
           >
             {!usdcIcon && (
               <Text

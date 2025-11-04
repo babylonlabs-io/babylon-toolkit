@@ -1,6 +1,6 @@
 /**
  * Token Service - Manages token metadata and configuration
- * 
+ *
  * Provides centralized access to token information including:
  * - Token symbols, names, and decimals
  * - Token icons and display configuration
@@ -116,7 +116,7 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
 
 /**
  * Fetch token metadata from blockchain
- * 
+ *
  * @param address - Token contract address
  * @returns Token metadata fetched from the contract
  */
@@ -168,7 +168,7 @@ const tokenMetadataCache = new Map<string, TokenMetadata>();
 /**
  * Get token metadata by address (async version that fetches from blockchain)
  * First checks cache, then registry, then fetches from blockchain
- * 
+ *
  * @param address - Token contract address
  * @returns Token metadata
  */
@@ -195,25 +195,22 @@ export async function getTokenMetadata(
 
   // 3. Fetch from blockchain
   console.log(
-    `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`
+    `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
   );
-  
+
   const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
   if (chainMetadata) {
     // Use special icons for common token symbols
     const icon = getIconForSymbol(chainMetadata.symbol);
-    
+
     const tokenMetadata: TokenMetadata = {
       ...chainMetadata,
       icon,
     };
 
     tokenMetadataCache.set(checksumAddress, tokenMetadata);
-    console.log(
-      `[TokenService] Fetched token metadata:`,
-      tokenMetadata
-    );
+    console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
     return tokenMetadata;
   }
 
@@ -238,7 +235,7 @@ export async function getTokenMetadata(
  */
 function getIconForSymbol(symbol: string): string | undefined {
   const symbolUpper = symbol.toUpperCase();
-  
+
   // Map common symbols to icon paths
   const iconMap: Record<string, string> = {
     BTC: "/images/btc.png",
@@ -258,7 +255,7 @@ function getIconForSymbol(symbol: string): string | undefined {
 /**
  * Get token metadata by address (sync version for immediate use)
  * Only checks cache and registry, doesn't fetch from blockchain
- * 
+ *
  * @param address - Token contract address
  * @returns Token metadata or null if not found
  */
@@ -295,7 +292,7 @@ export function getTokenByAddress(address: string): TokenMetadata | null {
 
 /**
  * Get token metadata for a market pair (async version - fetches from blockchain)
- * 
+ *
  * @param collateralAddress - Collateral token address
  * @param loanAddress - Loan token address
  * @returns Market token pair information
@@ -324,7 +321,7 @@ export async function getMarketTokenPairAsync(
 
 /**
  * Get token metadata for a market pair (sync version - uses cache/registry only)
- * 
+ *
  * @param collateralAddress - Collateral token address
  * @param loanAddress - Loan token address
  * @returns Market token pair information
@@ -360,7 +357,7 @@ export function getMarketTokenPair(
 
 /**
  * Format token amount based on decimals
- * 
+ *
  * @param amount - Raw token amount (as bigint)
  * @param decimals - Number of decimals for the token
  * @returns Formatted amount as number
@@ -371,7 +368,7 @@ export function formatTokenAmount(amount: bigint, decimals: number): number {
 
 /**
  * Parse token amount to raw units
- * 
+ *
  * @param amount - Human-readable amount
  * @param decimals - Number of decimals for the token
  * @returns Raw amount as bigint
@@ -382,7 +379,7 @@ export function parseTokenAmount(amount: number, decimals: number): bigint {
 
 /**
  * Get all supported tokens
- * 
+ *
  * @returns Array of all token metadata
  */
 export function getAllTokens(): TokenMetadata[] {
@@ -391,7 +388,7 @@ export function getAllTokens(): TokenMetadata[] {
 
 /**
  * Check if a token is supported
- * 
+ *
  * @param address - Token address to check
  * @returns True if token is in registry
  */
@@ -403,14 +400,14 @@ export function isTokenSupported(address: string): boolean {
 /**
  * Generate a data URI for a token icon fallback
  * Creates a circular SVG with the token's first letter
- * 
+ *
  * @param symbol - Token symbol
  * @returns Data URI for an SVG icon
  */
 export function generateTokenIconFallback(symbol: string): string {
   const letter = symbol?.charAt(0).toUpperCase() || "?";
   const color = "#CE6533"; // Use accent color
-  
+
   const svg = `
     <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
       <circle cx="20" cy="20" r="20" fill="${color}"/>
@@ -420,14 +417,14 @@ export function generateTokenIconFallback(symbol: string): string {
       </text>
     </svg>
   `.trim();
-  
+
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 /**
  * Get currency icon with fallback
  * Returns actual icon URL or generates a fallback SVG
- * 
+ *
  * @param icon - Icon URL (may be undefined)
  * @param symbol - Token symbol for fallback
  * @returns Icon URL or fallback data URI

@@ -114,7 +114,9 @@ export function CollateralDepositReviewModal({
 
     return providers.map((providerId) => {
       const provider = apiProviders.find((p) => p.id === providerId);
-      return provider || { id: providerId, name: providerId, icon: null };
+      return provider
+        ? { ...provider, name: provider.id }
+        : { id: providerId, name: providerId, icon: null };
     });
   }, [providers, apiProviders]);
 
