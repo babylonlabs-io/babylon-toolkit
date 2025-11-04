@@ -7,14 +7,16 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { formatEther } from "viem";
+import { useEstimateGas, useGasPrice } from "wagmi";
 
+import { CONTRACTS } from "../../../../config/contracts";
 import { satoshiToBtcNumber } from "../../../../utils/btcConversion";
-
-interface VaultProvider {
-  id: string;
-  name: string;
-  icon?: React.ReactNode;
-}
+import { estimatePeginFee } from "../../../../utils/fee/peginFee";
+import { getNetworkFees } from "../../../../utils/mempoolApi";
+import { useVaultProviders } from "../hooks/useVaultProviders";
 
 interface CollateralDepositReviewModalProps {
   open: boolean;
@@ -23,59 +25,8 @@ interface CollateralDepositReviewModalProps {
   amount: bigint;
   providers: string[];
   btcPrice?: number;
+  ethPrice?: number;
 }
-
-// Mock provider data matching CollateralDepositModal
-const VAULT_PROVIDERS: Record<string, VaultProvider> = {
-  "ironclad-btc": {
-    id: "ironclad-btc",
-    name: "Ironclad BTC",
-    icon: (
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          I
-        </Text>
-      </div>
-    ),
-  },
-  "atlas-custody": {
-    id: "atlas-custody",
-    name: "Atlas Custody",
-    icon: (
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          A
-        </Text>
-      </div>
-    ),
-  },
-  "stonewall-capital": {
-    id: "stonewall-capital",
-    name: "Stonewall Capital",
-    icon: (
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
-        <Text
-          variant="body2"
-          className="text-sm font-medium text-accent-contrast"
-        >
-          S
-        </Text>
-      </div>
-    ),
-  },
-};
-
-// Hardcoded fees as per requirements
-const BTC_FEE = 0.00000001;
-const BTC_FEE_USD = 10.2;
-const ETH_FEE = 0.001;
-const ETH_FEE_USD = 10.2;
 
 export function CollateralDepositReviewModal({
   open,
@@ -84,6 +35,7 @@ export function CollateralDepositReviewModal({
   amount,
   providers,
   btcPrice = 97833.68,
+  ethPrice = 3200, // Default ETH price
 }: CollateralDepositReviewModalProps) {
   // Convert satoshis to BTC for display
   const amountBtc = satoshiToBtcNumber(amount);
@@ -91,10 +43,82 @@ export function CollateralDepositReviewModal({
   // Calculate USD value
   const amountUsd = amountBtc * btcPrice;
 
-  // Get provider details
-  const selectedProviders = providers
-    .map((id) => VAULT_PROVIDERS[id])
-    .filter(Boolean);
+  // Fetch real vault providers from API
+  const { providers: apiProviders, loading: providersLoading } =
+    useVaultProviders();
+
+  // Fetch current BTC network fees
+  const { data: networkFees, isLoading: feesLoading } = useQuery({
+    queryKey: ["networkFees"],
+    queryFn: getNetworkFees,
+    enabled: open, // Only fetch when modal is open
+    staleTime: 30000, // Cache for 30 seconds
+    refetchInterval: 60000, // Refresh every minute while modal is open
+  });
+
+  // Estimate ETH gas for the transaction
+  const { data: gasEstimate } = useEstimateGas({
+    to: CONTRACTS.VAULT_CONTROLLER,
+    // Rough estimate for submitPeginRequest function
+    // Actual gas will be calculated at transaction time
+    data: "0x" as `0x${string}`, // Placeholder for actual function call
+  });
+
+  // Get current gas price
+  const { data: gasPrice } = useGasPrice();
+
+  // Calculate estimated BTC fee
+  const estimatedBtcFee = useMemo(() => {
+    if (!networkFees) return null;
+
+    // Use a rough UTXO estimate for fee calculation
+    // Assume we need 1 UTXO that covers amount + fee
+    const roughUtxo = { value: amount + 100000n }; // Add buffer for fee
+
+    try {
+      // Use halfHourFee for reasonable confirmation time
+      const feeInSats = estimatePeginFee(
+        amount,
+        [roughUtxo],
+        networkFees.halfHourFee,
+      );
+
+      return satoshiToBtcNumber(feeInSats);
+    } catch (error) {
+      console.error("Failed to estimate BTC fee:", error);
+      return null;
+    }
+  }, [networkFees, amount]);
+
+  // Calculate estimated ETH fee
+  const estimatedEthFee = useMemo(() => {
+    if (!gasEstimate || !gasPrice) return null;
+
+    // Add 20% buffer to gas estimate for safety
+    const gasWithBuffer = (gasEstimate * 120n) / 100n;
+    const feeInWei = gasWithBuffer * gasPrice;
+
+    return parseFloat(formatEther(feeInWei));
+  }, [gasEstimate, gasPrice]);
+
+  // Map selected provider IDs to actual provider data
+  const selectedProviders = useMemo(() => {
+    if (!apiProviders || apiProviders.length === 0) {
+      // Fallback to provider IDs if API data not available
+      return providers.map((id) => ({
+        id,
+        name: id,
+        icon: null,
+      }));
+    }
+
+    return providers.map((providerId) => {
+      const provider = apiProviders.find((p) => p.id === providerId);
+      return provider
+        ? { ...provider, name: provider.id }
+        : { id: providerId, name: providerId, icon: null };
+    });
+  }, [providers, apiProviders]);
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
@@ -135,12 +159,26 @@ export function CollateralDepositReviewModal({
             Vault Provider(s)
           </Text>
           <div className="flex flex-col items-end gap-3">
-            {selectedProviders.map((provider) => (
-              <div key={provider.id} className="flex items-center gap-3">
-                {provider.icon}
-                <Text variant="body1">{provider.name}</Text>
-              </div>
-            ))}
+            {providersLoading ? (
+              <Text variant="body2" className="text-accent-secondary">
+                Loading providers...
+              </Text>
+            ) : (
+              selectedProviders.map((provider) => (
+                <div key={provider.id} className="flex items-center gap-3">
+                  {/* Provider icon - using first letter as fallback */}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
+                    <Text
+                      variant="body2"
+                      className="text-sm font-medium text-accent-contrast"
+                    >
+                      {provider.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </div>
+                  <Text variant="body1">{provider.name}</Text>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -150,11 +188,43 @@ export function CollateralDepositReviewModal({
             Fees
           </Text>
           <div className="flex flex-col items-end gap-1">
-            <Text variant="body2">
-              {BTC_FEE} BTC (${BTC_FEE_USD.toFixed(2)})
-            </Text>
-            <Text variant="body2">
-              {ETH_FEE} ETH (${ETH_FEE_USD.toFixed(2)})
+            {/* BTC Fee */}
+            {feesLoading ? (
+              <Text variant="body2" className="text-accent-secondary">
+                Calculating BTC fee...
+              </Text>
+            ) : estimatedBtcFee !== null ? (
+              <div className="flex flex-col items-end">
+                <Text variant="body2">~{estimatedBtcFee.toFixed(8)} BTC</Text>
+                <Text variant="body2" className="text-accent-secondary">
+                  (${(estimatedBtcFee * btcPrice).toFixed(2)})
+                </Text>
+              </div>
+            ) : (
+              <Text variant="body2" className="text-accent-secondary">
+                BTC fee unavailable
+              </Text>
+            )}
+
+            {/* ETH Gas Fee */}
+            {estimatedEthFee !== null ? (
+              <div className="flex flex-col items-end">
+                <Text variant="body2">~{estimatedEthFee.toFixed(6)} ETH</Text>
+                <Text variant="body2" className="text-accent-secondary">
+                  (${(estimatedEthFee * ethPrice).toFixed(2)})
+                </Text>
+              </div>
+            ) : (
+              <Text variant="body2" className="text-accent-secondary">
+                ETH gas estimate pending...
+              </Text>
+            )}
+
+            <Text
+              variant="body2"
+              className="mt-1 text-xs text-accent-secondary"
+            >
+              * Final fees calculated at transaction time
             </Text>
           </div>
         </div>

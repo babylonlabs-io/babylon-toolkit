@@ -5,6 +5,9 @@
 
 import { AmountSlider, Button } from "@babylonlabs-io/core-ui";
 
+import { getCurrencyIconWithFallback } from "../../../../../../services/token";
+import { useMarketDetailContext } from "../../../context/MarketDetailContext";
+
 import { RepaySummaryCard } from "./RepaySummaryCard";
 import { useRepayState } from "./hooks/useRepayState";
 
@@ -23,17 +26,39 @@ export function Repay({
   liquidationLtv,
   onRepay,
 }: RepayProps) {
+  const { tokenPair } = useMarketDetailContext();
+
   const {
     repayAmount,
     withdrawCollateralAmount,
     setRepayAmount,
     setWithdrawCollateralAmount,
+    canWithdrawCollateral,
     withdrawCollateralSteps,
     ltv,
     withdrawCollateralValueUSD,
-  } = useRepayState({ currentLoanAmount, currentCollateralAmount, btcPrice });
+  } = useRepayState({
+    currentLoanAmount,
+    currentCollateralAmount,
+    btcPrice,
+  });
 
   const isDisabled = repayAmount === 0 && withdrawCollateralAmount === 0;
+
+  // Determine button text based on selected actions
+  const hasRepay = repayAmount > 0;
+  const hasWithdraw = withdrawCollateralAmount > 0;
+
+  let buttonText: string;
+  if (isDisabled) {
+    buttonText = "Enter an amount";
+  } else if (hasRepay && hasWithdraw) {
+    buttonText = "Repay and Withdraw";
+  } else if (hasRepay) {
+    buttonText = "Repay";
+  } else {
+    buttonText = "Withdraw Collateral";
+  }
 
   return (
     <div className="space-y-4">
@@ -42,14 +67,17 @@ export function Repay({
         <h3 className="text-[24px] font-normal text-accent-primary">Repay</h3>
         <AmountSlider
           amount={repayAmount}
-          currencyIcon="/images/usdc.png"
-          currencyName="USDC"
+          currencyIcon={getCurrencyIconWithFallback(
+            tokenPair.loan.icon,
+            tokenPair.loan.symbol,
+          )}
+          currencyName={tokenPair.loan.name}
           onAmountChange={(e) =>
             setRepayAmount(parseFloat(e.target.value) || 0)
           }
           balanceDetails={{
             balance: currentLoanAmount.toLocaleString(),
-            symbol: "USDC",
+            symbol: tokenPair.loan.symbol,
             displayUSD: false,
           }}
           sliderValue={repayAmount}
@@ -61,7 +89,7 @@ export function Repay({
           sliderActiveColor="#0B53BF"
           leftField={{
             label: "Max",
-            value: `${currentLoanAmount.toLocaleString()} USDC`,
+            value: `${currentLoanAmount.toLocaleString()} ${tokenPair.loan.symbol}`,
           }}
           onMaxClick={() => setRepayAmount(currentLoanAmount)}
           rightField={{
@@ -75,22 +103,33 @@ export function Repay({
 
       {/* Withdraw Collateral Section */}
       <div className="space-y-2">
-        <h3 className="text-[24px] font-normal text-accent-primary">
-          Withdraw Collateral
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-[24px] font-normal text-accent-primary">
+            Withdraw Collateral
+          </h3>
+          {!canWithdrawCollateral && (
+            <span className="text-xs text-accent-secondary">
+              Repay all debt to withdraw
+            </span>
+          )}
+        </div>
         <AmountSlider
           amount={withdrawCollateralAmount}
-          currencyIcon="/images/btc.png"
-          currencyName="Bitcoin"
+          currencyIcon={getCurrencyIconWithFallback(
+            tokenPair.collateral.icon,
+            tokenPair.collateral.symbol,
+          )}
+          currencyName={tokenPair.collateral.name}
+          disabled={!canWithdrawCollateral}
           balanceDetails={{
             balance: currentCollateralAmount.toFixed(4),
-            symbol: "BTC",
+            symbol: tokenPair.collateral.symbol,
             displayUSD: false,
           }}
           sliderValue={withdrawCollateralAmount}
           sliderMin={0}
           sliderMax={currentCollateralAmount}
-          sliderStep={currentCollateralAmount / 1000}
+          sliderStep={currentCollateralAmount}
           sliderSteps={withdrawCollateralSteps}
           onSliderChange={setWithdrawCollateralAmount}
           onSliderStepsChange={() => {
@@ -99,7 +138,7 @@ export function Repay({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${currentCollateralAmount.toFixed(4)} BTC`,
+            value: `${currentCollateralAmount.toFixed(4)} ${tokenPair.collateral.symbol}`,
           }}
           onMaxClick={() =>
             setWithdrawCollateralAmount(currentCollateralAmount)
@@ -116,6 +155,7 @@ export function Repay({
       {/* Summary Card */}
       <RepaySummaryCard
         currentLoanAmount={currentLoanAmount}
+        loanSymbol={tokenPair.loan.symbol}
         repayAmount={repayAmount}
         ltv={ltv}
         liquidationLtv={liquidationLtv}
@@ -134,7 +174,7 @@ export function Repay({
         disabled={isDisabled}
         onClick={() => onRepay(repayAmount, withdrawCollateralAmount)}
       >
-        {isDisabled ? "Enter an amount" : "Repay and Withdraw"}
+        {buttonText}
       </Button>
     </div>
   );

@@ -39,14 +39,23 @@ export function BorrowReviewModal({
 
   // Calculate total collateral and format values
   const totalCollateral = currentCollateralAmount + borrowData.collateral;
-  const collateralUsdValue = `$${(totalCollateral * btcPrice).toLocaleString(
-    undefined,
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    },
-  )} USD`;
+
+  // Format USD values for action amounts
+  const newCollateralUsdValue = `$${(
+    borrowData.collateral * btcPrice
+  ).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USD`;
   const borrowUsdValue = `$${borrowData.borrow.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} USD`;
+
+  // Format USD values for total amounts
+  const totalCollateralUsdValue = `$${(
+    totalCollateral * btcPrice
+  ).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} USD`;
@@ -61,21 +70,36 @@ export function BorrowReviewModal({
     onConfirm();
   };
 
+  // Build review fields showing both action amounts and resulting totals
   const reviewFields = [
+    // Show new collateral being added if adding > 0
+    ...(borrowData.collateral > 0
+      ? [
+          {
+            label: "New Collateral",
+            value: `${borrowData.collateral.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${newCollateralUsdValue})`,
+          },
+        ]
+      : []),
+    // Only show borrow fields if borrowing > 0
+    ...(borrowData.borrow > 0
+      ? [
+          {
+            label: "Borrow Amount",
+            value: `${borrowData.borrow.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${borrowUsdValue})`,
+          },
+          {
+            label: "Borrow APY",
+            value: "6.25%",
+          },
+        ]
+      : []),
     {
-      label: "Collateral",
-      value: `${totalCollateral.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${collateralUsdValue})`,
+      label: "Total Collateral",
+      value: `${totalCollateral.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })} BTC (${totalCollateralUsdValue})`,
     },
     {
-      label: "Borrow",
-      value: `${borrowData.borrow.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC (${borrowUsdValue})`,
-    },
-    {
-      label: "Borrow APY",
-      value: "6.25%",
-    },
-    {
-      label: "LTV",
+      label: "New LTV",
       value: `${ltv.toFixed(2)}%`,
     },
     {
