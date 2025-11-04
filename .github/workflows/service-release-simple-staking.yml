@@ -120,7 +120,7 @@ jobs:
 
       - name: Copy all index.html to fix path for btc, baby, rewards
         run: |
-          cd services/vault/dist
+          cd services/simple-staking/dist
           cp index.html btc
           cp index.html baby
           cp index.html rewards
