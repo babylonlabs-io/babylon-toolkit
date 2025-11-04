@@ -9,6 +9,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
+import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { MarketInfo } from "../Info";
@@ -24,7 +25,7 @@ import { useRepayTransaction } from "./hooks/useRepayTransaction";
 
 export function MarketDetail() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { marketId } = useParams<{ marketId: string }>();
 
@@ -52,8 +53,20 @@ export function MarketDetail() {
   // Default tab based on whether user has a position:
   // - Has position → default to "repay"
   // - No position → default to "borrow"
+  // If URL has ?tab=repay but no position exists, override to "borrow"
+  const urlTab = searchParams.get("tab");
   const defaultTab =
-    searchParams.get("tab") || (hasPosition ? "repay" : "borrow");
+    urlTab === "repay" && !hasPosition
+      ? "borrow" // Force borrow tab if repay was requested but no position
+      : urlTab || (hasPosition ? "repay" : "borrow");
+
+  // Clean up URL when position disappears after withdrawal
+  useEffect(() => {
+    if (urlTab === "repay" && !hasPosition) {
+      // Remove the tab parameter from URL to reflect that we're now on borrow tab
+      setSearchParams({}, { replace: true });
+    }
+  }, [urlTab, hasPosition, setSearchParams]);
 
   // Modal state management
   const {

@@ -4,6 +4,7 @@
  */
 
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
+import { useEffect, useState } from "react";
 
 import { useMarketDetailContext } from "../../context/MarketDetailContext";
 
@@ -35,6 +36,17 @@ export function LoanCard({
   // Show Repay tab if user has a position (has loan OR has collateral)
   // User might have repaid all debt but still have collateral to withdraw
   const hasPosition = currentLoanAmount > 0 || currentCollateralAmount > 0;
+
+  // Controlled tab state - ensures active tab is always valid
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // If repay tab is active but position disappears, switch to borrow
+  // This handles the case where position is withdrawn or cached data is invalidated
+  useEffect(() => {
+    if (activeTab === "repay" && !hasPosition) {
+      setActiveTab("borrow");
+    }
+  }, [hasPosition, activeTab]);
 
   return (
     <Card>
@@ -75,7 +87,8 @@ export function LoanCard({
               ]
             : []),
         ]}
-        defaultActiveTab={defaultTab}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
       />
     </Card>
   );
