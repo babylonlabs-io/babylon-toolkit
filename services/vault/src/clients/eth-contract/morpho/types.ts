@@ -13,8 +13,16 @@ export type MorphoMarketSummary = {
   lltv: bigint;
   /** Total assets supplied to the market */
   totalSupplyAssets: bigint;
+  /** Total supply shares (used for interest accrual) */
+  totalSupplyShares: bigint;
   /** Total assets borrowed from the market */
   totalBorrowAssets: bigint;
+  /** Total borrow shares (used for interest accrual) */
+  totalBorrowShares: bigint;
+  /** Last update timestamp */
+  lastUpdate: bigint;
+  /** Fee charged by the protocol */
+  fee: bigint;
   /** Utilization percentage (calculated: totalBorrow / totalSupply * 100) */
   utilizationPercent: number;
   /** LLTV as percentage (calculated: lltv / 1e16) */

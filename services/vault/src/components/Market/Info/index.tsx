@@ -5,14 +5,17 @@ import {
   KeyValueList,
   MarketStatCard,
   Tabs,
+  Text,
 } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 interface MarketInfoProps {
   onBack: () => void;
   marketPair: string;
-  btcIcon?: string;
-  usdcIcon?: string;
+  btcIcon?: string; // undefined will use Avatar fallback
+  usdcIcon?: string; // undefined will use Avatar fallback
+  collateralSymbol?: string; // Token symbol for Avatar fallback
+  loanSymbol?: string; // Token symbol for Avatar fallback
   totalMarketSize: string;
   totalMarketSizeSubtitle: string;
   totalLiquidity: string;
@@ -25,8 +28,10 @@ interface MarketInfoProps {
 export function MarketInfo({
   onBack,
   marketPair,
-  btcIcon = "/images/btc.png",
-  usdcIcon = "/images/usdc.png",
+  btcIcon,
+  usdcIcon,
+  collateralSymbol = "BTC",
+  loanSymbol = "USDC",
   totalMarketSize,
   totalMarketSizeSubtitle,
   totalLiquidity,
@@ -65,8 +70,36 @@ export function MarketInfo({
 
       <div className="flex items-center gap-6">
         <AvatarGroup size="xlarge">
-          <Avatar url={btcIcon} alt="BTC" size="large" variant="circular" />
-          <Avatar url={usdcIcon} alt="USDC" size="large" variant="circular" />
+          <Avatar
+            {...(btcIcon ? { url: btcIcon } : {})}
+            alt={collateralSymbol}
+            size="large"
+            variant="circular"
+          >
+            {!btcIcon && (
+              <Text
+                as="span"
+                className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-base font-medium text-accent-contrast"
+              >
+                {collateralSymbol?.charAt(0).toUpperCase() || "?"}
+              </Text>
+            )}
+          </Avatar>
+          <Avatar
+            {...(usdcIcon ? { url: usdcIcon } : {})}
+            alt={loanSymbol}
+            size="large"
+            variant="circular"
+          >
+            {!usdcIcon && (
+              <Text
+                as="span"
+                className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-base font-medium text-accent-contrast"
+              >
+                {loanSymbol?.charAt(0).toUpperCase() || "?"}
+              </Text>
+            )}
+          </Avatar>
         </AvatarGroup>
         <span className="text-[48px] font-normal text-accent-primary">
           {marketPair}

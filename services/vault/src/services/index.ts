@@ -3,6 +3,9 @@
 // Market services
 export * from "./market";
 
+// Token services
+export * from "./token";
+
 // Vault services
 export * from "./vault/vaultPayoutSignatureService";
 export * from "./vault/vaultPeginBroadcastService";

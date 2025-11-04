@@ -6,25 +6,29 @@ import {
 
 interface LoanSummaryCardProps {
   collateralAmount: number;
+  collateralSymbol?: string;
   loanAmount: number;
+  loanSymbol?: string;
   ltv: number;
   liquidationLtv: number;
 }
 
 export function LoanSummaryCard({
   collateralAmount,
+  collateralSymbol = "BTC",
   loanAmount,
+  loanSymbol = "USDC",
   ltv,
   liquidationLtv,
 }: LoanSummaryCardProps) {
   const items: KeyValueItem[] = [
     {
-      label: "Collateral (BTC)",
-      value: `${collateralAmount.toFixed(4)} BTC`,
+      label: `Collateral (${collateralSymbol})`,
+      value: `${collateralAmount.toFixed(4)} ${collateralSymbol}`,
     },
     {
-      label: "Loan (USDC)",
-      value: `${loanAmount.toLocaleString()} USDC`,
+      label: `Loan (${loanSymbol})`,
+      value: `${loanAmount.toLocaleString()} ${loanSymbol}`,
     },
     {
       label: "LTV",
