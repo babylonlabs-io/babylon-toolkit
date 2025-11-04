@@ -106,13 +106,37 @@ export function useMarketDetail() {
     }));
   }, [availableCollaterals]);
 
+  // Fetch token metadata for the market (with async blockchain fetching)
+  const {
+    data: tokenPair,
+    isLoading: isTokenPairLoading,
+    error: tokenPairError,
+  } = useQuery({
+    queryKey: [
+      "tokenPair",
+      marketConfig?.collateral_token,
+      marketConfig?.loan_token,
+    ],
+    queryFn: async () => {
+      if (!marketConfig) return null;
+
+      return getMarketTokenPairAsync(
+        marketConfig.collateral_token,
+        marketConfig.loan_token,
+      );
+    },
+    enabled: !!marketConfig,
+    staleTime: Infinity, // Token metadata doesn't change
+  });
+
   // Combine loading states
   const loading =
     isMarketLoading ||
     isMarketsLoading ||
     isPositionLoading ||
     isBTCPriceLoading ||
-    isCollateralsLoading;
+    isCollateralsLoading ||
+    isTokenPairLoading;
 
   // Combine errors
   const error =
@@ -120,7 +144,8 @@ export function useMarketDetail() {
     marketsError ||
     positionError ||
     btcPriceError ||
-    collateralsError;
+    collateralsError ||
+    tokenPairError;
 
   const [creationDate, setCreationDate] = useState<string>("Loading...");
 
@@ -189,25 +214,6 @@ export function useMarketDetail() {
   // NOTE: maxBorrow is now calculated dynamically in useBorrowState based on collateral slider value
   // This allows real-time updates as user adjusts collateral amount
   // Formula: Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100))
-
-  // Fetch token metadata for the market (with async blockchain fetching)
-  const { data: tokenPair } = useQuery({
-    queryKey: [
-      "tokenPair",
-      marketConfig?.collateral_token,
-      marketConfig?.loan_token,
-    ],
-    queryFn: async () => {
-      if (!marketConfig) return null;
-
-      return getMarketTokenPairAsync(
-        marketConfig.collateral_token,
-        marketConfig.loan_token,
-      );
-    },
-    enabled: !!marketConfig,
-    staleTime: Infinity, // Token metadata doesn't change
-  });
 
   const marketAttributes = useMemo<
     Array<{ label: string; value: string | ReactNode }>

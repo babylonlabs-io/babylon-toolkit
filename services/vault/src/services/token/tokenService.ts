@@ -72,7 +72,7 @@ export interface MarketTokenPair {
 // Known token configurations
 // In production, this should be fetched from a configuration service or API
 const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
-  // vBTC - Vault BTC (ERC20 representation)
+  // vBTC - Vault BTC (ERC20 representation) - Mainnet/Production
   "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3": {
     address: "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3" as Address,
     symbol: "BTC",
@@ -80,9 +80,25 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     decimals: 18, // vBTC uses 18 decimals on Ethereum
     icon: "/images/btc.png",
   },
-  // USDC
+  // vBTC - Vault BTC (ERC20 representation) - Devnet/Sepolia
+  "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024": {
+    address: "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024" as Address,
+    symbol: "BTC",
+    name: "Vault Bitcoin",
+    decimals: 18, // vBTC uses 18 decimals on Ethereum
+    icon: "/images/btc.png",
+  },
+  // USDC - Mainnet/Production
   "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85": {
     address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: "/images/usdc.png",
+  },
+  // USDC - Devnet/Sepolia (Mock)
+  "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238": {
+    address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as Address,
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
