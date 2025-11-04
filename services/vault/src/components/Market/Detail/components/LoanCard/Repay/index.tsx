@@ -17,6 +17,8 @@ export interface RepayProps {
   btcPrice: number;
   liquidationLtv: number;
   onRepay: (repayAmount: number, withdrawCollateralAmount: number) => void;
+  /** Processing state for button loading indicator */
+  processing?: boolean;
 }
 
 export function Repay({
@@ -25,6 +27,7 @@ export function Repay({
   btcPrice,
   liquidationLtv,
   onRepay,
+  processing = false,
 }: RepayProps) {
   const { tokenPair } = useMarketDetailContext();
 
@@ -171,10 +174,10 @@ export function Repay({
         color="primary"
         size="large"
         fluid
-        disabled={isDisabled}
+        disabled={isDisabled || processing}
         onClick={() => onRepay(repayAmount, withdrawCollateralAmount)}
       >
-        {buttonText}
+        {processing ? "Processing..." : buttonText}
       </Button>
     </div>
   );

@@ -26,6 +26,8 @@ export interface BorrowProps {
   currentCollateralAmount: number;
   /** Current loan amount in position (USDC) */
   currentLoanAmount: number;
+  /** Processing state for button loading indicator */
+  processing?: boolean;
 }
 
 export function Borrow({
@@ -36,6 +38,7 @@ export function Borrow({
   availableLiquidity,
   currentCollateralAmount,
   currentLoanAmount,
+  processing = false,
 }: BorrowProps) {
   const { theme } = useTheme();
   const { tokenPair } = useMarketDetailContext();
@@ -164,11 +167,11 @@ export function Borrow({
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled}
+        disabled={isDisabled || processing}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
         className="mt-6"
       >
-        {buttonText}
+        {processing ? "Processing..." : buttonText}
       </Button>
     </div>
   );

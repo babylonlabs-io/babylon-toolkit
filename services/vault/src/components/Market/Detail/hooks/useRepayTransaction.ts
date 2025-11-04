@@ -21,6 +21,7 @@ interface UseRepayTransactionProps {
     marketId: string;
   } | null;
   currentLoanAmount: number;
+  currentCollateralAmount: number;
   refetch: () => Promise<void>;
   onRepaySuccess: () => void;
   setProcessing: (processing: boolean) => void;
@@ -40,6 +41,7 @@ export function useRepayTransaction({
   hasPosition,
   userPosition,
   currentLoanAmount,
+  currentCollateralAmount,
   refetch,
   onRepaySuccess,
   setProcessing,
@@ -60,51 +62,100 @@ export function useRepayTransaction({
           throw new Error("Wallet not connected. Please connect your wallet.");
         }
 
+        // Validate at least one action is requested
+        if (repayAmount <= 0 && withdrawAmount <= 0) {
+          throw new Error("Please enter an amount to repay or withdraw.");
+        }
+
         const { positionId, marketId } = userPosition;
 
-        // Determine if this is a full or partial repayment
-        const tolerance = 0.01; // 0.01 USDC tolerance
-        const isFullRepayment =
-          Math.abs(repayAmount - currentLoanAmount) < tolerance;
+        // Validate there's collateral to withdraw
+        if (withdrawAmount > 0 && currentCollateralAmount <= 0) {
+          throw new Error(
+            "No collateral available to withdraw. The position has no collateral.",
+          );
+        }
 
-        // Step 1: Approve USDC spending (if repaying)
+        // Validate withdrawal: can only withdraw if there's no debt
+        // (or if repaying to zero in the same transaction)
+        if (withdrawAmount > 0 && currentLoanAmount > 0) {
+          const willRepayFull =
+            repayAmount > 0 && Math.abs(repayAmount - currentLoanAmount) < 0.01;
+
+          if (!willRepayFull) {
+            throw new Error(
+              "Cannot withdraw collateral while there's outstanding debt. " +
+                `Current debt: ${currentLoanAmount.toFixed(2)} USDC. ` +
+                "Please repay all debt first, then withdraw collateral.",
+            );
+          }
+        }
+
+        // Step 1: Repay debt (if user wants to repay)
         if (repayAmount > 0) {
+          // Approve USDC spending for repayment
           await approveLoanTokenForRepay(walletClient, chain, marketId);
+
+          // Determine if this is a full or partial repayment
+          const tolerance = 0.01; // 0.01 USDC tolerance
+          const isFullRepayment =
+            Math.abs(repayAmount - currentLoanAmount) < tolerance;
+
+          if (isFullRepayment) {
+            await repayDebtFull(
+              walletClient,
+              chain,
+              CONTRACTS.VAULT_CONTROLLER,
+              positionId as `0x${string}`,
+              marketId,
+            );
+          } else {
+            const repayAmountBigint = parseUnits(repayAmount.toString(), 6);
+
+            await repayDebtPartial(
+              walletClient,
+              chain,
+              CONTRACTS.VAULT_CONTROLLER,
+              positionId as `0x${string}`,
+              marketId,
+              repayAmountBigint,
+            );
+          }
         }
 
-        // Step 2: Repay debt
-        if (isFullRepayment) {
-          await repayDebtFull(
-            walletClient,
-            chain,
-            CONTRACTS.VAULT_CONTROLLER,
-            positionId as `0x${string}`,
-            marketId,
-          );
-        } else {
-          const repayAmountBigint = parseUnits(repayAmount.toString(), 6);
-
-          await repayDebtPartial(
-            walletClient,
-            chain,
-            CONTRACTS.VAULT_CONTROLLER,
-            positionId as `0x${string}`,
-            marketId,
-            repayAmountBigint,
-          );
-        }
-
-        // Step 3: Withdraw collateral if user requested it
+        // Step 2: Withdraw collateral (if user wants to withdraw)
         if (withdrawAmount > 0) {
-          await withdrawCollateralFromPosition(
-            walletClient,
-            chain,
-            CONTRACTS.VAULT_CONTROLLER,
-            marketId,
-          );
+          // Note: withdrawCollateralFromPosition withdraws ALL collateral
+          // The contract will revert if there's any outstanding debt
+          // We can only withdraw after debt is fully repaid
+
+          try {
+            await withdrawCollateralFromPosition(
+              walletClient,
+              chain,
+              CONTRACTS.VAULT_CONTROLLER,
+              marketId,
+            );
+          } catch (error) {
+            // Provide more helpful error message
+            if (error instanceof Error) {
+              const errorMessage = error.message.toLowerCase();
+              if (
+                errorMessage.includes("internal json-rpc error") ||
+                errorMessage.includes("execution reverted")
+              ) {
+                throw new Error(
+                  "Cannot withdraw collateral. This usually means there's still outstanding debt on the position. " +
+                    "Please ensure all debt is repaid before withdrawing collateral. " +
+                    "Note: Interest may have accrued between repayment and withdrawal.",
+                );
+              }
+            }
+            throw error;
+          }
         }
 
-        // Step 4: Refetch position data to update UI
+        // Step 3: Refetch position data to update UI
         await refetch();
 
         // Success - show success modal

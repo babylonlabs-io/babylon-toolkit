@@ -169,21 +169,25 @@ export async function getUserPositionsWithMorpho(
 }
 
 /**
- * Get a user's vault position for a specific market with position ID
- * Returns VaultController position data with the correct positionId
+ * Get user's position for a specific market
+ * Returns only the data needed for UI and transactions
  *
  * @param userAddress - User's Ethereum address
- * @param marketId - Market ID (hex string with or without 0x prefix, or bigint)
+ * @param marketId - Market ID
  * @param vaultControllerAddress - BTCVaultController contract address
- * @returns Object containing position data and positionId, or null if position doesn't exist
+ * @returns Position data with current loan/collateral from Morpho, or null if no position exists
  */
-export async function getUserVaultPosition(
+export async function getUserPositionForMarket(
   userAddress: Address,
   marketId: string | bigint,
   vaultControllerAddress: Address,
-): Promise<{ position: MarketPosition; positionId: Hex } | null> {
-  // TODO: Update BTCVaultController contract to return positionId in getPosition() response
-  // This will eliminate the need for a separate getPositionKey() call
+): Promise<{
+  positionId: Hex;
+  marketId: Hex;
+  currentLoan: bigint;
+  currentCollateral: bigint;
+} | null> {
+  // Get position from Vault Controller (contains positionId and proxy address)
   const [position, positionId] = await Promise.all([
     VaultController.getPosition(vaultControllerAddress, userAddress, marketId),
     VaultController.getPositionKey(
@@ -197,9 +201,16 @@ export async function getUserVaultPosition(
     return null;
   }
 
+  const morphoPosition = await Morpho.getUserPosition(
+    marketId,
+    position.proxyContract,
+  );
+
   return {
-    position,
     positionId,
+    marketId: position.marketId,
+    currentLoan: morphoPosition.borrowAssets,
+    currentCollateral: morphoPosition.collateral,
   };
 }
 
