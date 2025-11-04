@@ -69,50 +69,16 @@ export interface MarketTokenPair {
   pairName: string;
 }
 
-// Known token configurations
-// In production, this should be fetched from a configuration service or API
-const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
-  // vBTC - Vault BTC (ERC20 representation)
-  "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3": {
-    address: "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3" as Address,
-    symbol: "BTC",
-    name: "Vault Bitcoin",
-    decimals: 18, // vBTC uses 18 decimals on Ethereum
-    icon: "/images/btc.png",
-  },
-  // USDC
-  "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85": {
-    address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" as Address,
-    symbol: "USDC",
-    name: "USD Coin",
-    decimals: 6,
-    icon: "/images/usdc.png",
-  },
-  // USDT
-  "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
-    address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address,
-    symbol: "USDT",
-    name: "Tether USD",
-    decimals: 6,
-    icon: "/images/usdt.png",
-  },
-  // DAI
-  "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1": {
-    address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1" as Address,
-    symbol: "DAI",
-    name: "Dai Stablecoin",
-    decimals: 18,
-    icon: "/images/dai.png",
-  },
-  // WETH
-  "0x4200000000000000000000000000000000000006": {
-    address: "0x4200000000000000000000000000000000000006" as Address,
-    symbol: "WETH",
-    name: "Wrapped Ether",
-    decimals: 18,
-    icon: "/images/eth.png",
-  },
-};
+/**
+ * Cache for fetched token metadata (in-memory cache)
+ * This replaces the hardcoded TOKEN_REGISTRY to support any token dynamically
+ */
+const tokenMetadataCache = new Map<string, TokenMetadata>();
+
+/**
+ * Promise cache to prevent duplicate fetches for the same token
+ */
+const fetchPromiseCache = new Map<string, Promise<TokenMetadata>>();
 
 /**
  * Fetch token metadata from blockchain
@@ -161,13 +127,8 @@ async function fetchTokenMetadataFromChain(
 }
 
 /**
- * Cache for fetched token metadata (in-memory cache)
- */
-const tokenMetadataCache = new Map<string, TokenMetadata>();
-
-/**
- * Get token metadata by address (async version that fetches from blockchain)
- * First checks cache, then registry, then fetches from blockchain
+ * Get token metadata by address (fetches from blockchain dynamically)
+ * Uses cache for performance but always fetches unknown tokens from chain
  *
  * @param address - Token contract address
  * @returns Token metadata
@@ -186,47 +147,52 @@ export async function getTokenMetadata(
     return tokenMetadataCache.get(checksumAddress)!;
   }
 
-  // 2. Check registry
-  const registryToken = TOKEN_REGISTRY[checksumAddress];
-  if (registryToken) {
-    tokenMetadataCache.set(checksumAddress, registryToken);
-    return registryToken;
+  // 2. Check if we're already fetching this token
+  if (fetchPromiseCache.has(checksumAddress)) {
+    return fetchPromiseCache.get(checksumAddress)!;
   }
 
-  // 3. Fetch from blockchain
-  console.log(
-    `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
-  );
+  // 3. Create a new fetch promise
+  const fetchPromise = (async () => {
+    console.log(
+      `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
+    );
 
-  const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
+    const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
-  if (chainMetadata) {
-    // Use special icons for common token symbols
-    const icon = getIconForSymbol(chainMetadata.symbol);
+    if (chainMetadata) {
+      // Use special icons for common token symbols
+      const icon = getIconForSymbol(chainMetadata.symbol);
 
-    const tokenMetadata: TokenMetadata = {
-      ...chainMetadata,
-      icon,
+      const tokenMetadata: TokenMetadata = {
+        ...chainMetadata,
+        icon,
+      };
+
+      tokenMetadataCache.set(checksumAddress, tokenMetadata);
+      fetchPromiseCache.delete(checksumAddress); // Clean up promise cache
+      console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
+      return tokenMetadata;
+    }
+
+    // 4. Fallback to default if fetch fails
+    const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
+    const fallbackMetadata: TokenMetadata = {
+      address: checksumAddress as Address,
+      symbol: truncatedAddress,
+      name: `Unknown Token (${truncatedAddress})`,
+      decimals: 18,
+      // No icon - Avatar component will show fallback (initials)
+      icon: undefined,
     };
 
-    tokenMetadataCache.set(checksumAddress, tokenMetadata);
-    console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
-    return tokenMetadata;
-  }
+    tokenMetadataCache.set(checksumAddress, fallbackMetadata);
+    fetchPromiseCache.delete(checksumAddress); // Clean up promise cache
+    return fallbackMetadata;
+  })();
 
-  // 4. Fallback to default
-  const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
-  const fallbackMetadata: TokenMetadata = {
-    address: checksumAddress as Address,
-    symbol: truncatedAddress,
-    name: `Unknown Token (${truncatedAddress})`,
-    decimals: 18,
-    // No icon - Avatar component will show fallback (initials)
-    icon: undefined,
-  };
-
-  tokenMetadataCache.set(checksumAddress, fallbackMetadata);
-  return fallbackMetadata;
+  fetchPromiseCache.set(checksumAddress, fetchPromise);
+  return fetchPromise;
 }
 
 /**
@@ -254,10 +220,11 @@ function getIconForSymbol(symbol: string): string | undefined {
 
 /**
  * Get token metadata by address (sync version for immediate use)
- * Only checks cache and registry, doesn't fetch from blockchain
+ * Returns cached data if available, or a placeholder while fetching
+ * Triggers background fetch for unknown tokens
  *
  * @param address - Token contract address
- * @returns Token metadata or null if not found
+ * @returns Token metadata or placeholder
  */
 export function getTokenByAddress(address: string): TokenMetadata | null {
   if (!isAddress(address)) {
@@ -272,13 +239,16 @@ export function getTokenByAddress(address: string): TokenMetadata | null {
     return tokenMetadataCache.get(checksumAddress)!;
   }
 
-  // Check registry
-  const token = TOKEN_REGISTRY[checksumAddress];
-  if (token) {
-    return token;
-  }
+  // Trigger background fetch for unknown tokens
+  // This ensures the data will be available for next time
+  getTokenMetadata(checksumAddress).catch((error) => {
+    console.error(
+      `[TokenService] Background fetch failed for ${checksumAddress}:`,
+      error,
+    );
+  });
 
-  // Return a temporary placeholder
+  // Return a temporary placeholder while fetching
   const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
   return {
     address: checksumAddress as Address,
@@ -378,23 +348,41 @@ export function parseTokenAmount(amount: number, decimals: number): bigint {
 }
 
 /**
- * Get all supported tokens
+ * Get all cached tokens
+ * Note: This only returns tokens that have been fetched and cached
  *
- * @returns Array of all token metadata
+ * @returns Array of cached token metadata
  */
-export function getAllTokens(): TokenMetadata[] {
-  return Object.values(TOKEN_REGISTRY);
+export function getCachedTokens(): TokenMetadata[] {
+  return Array.from(tokenMetadataCache.values());
 }
 
 /**
- * Check if a token is supported
+ * Check if a token is already cached
  *
  * @param address - Token address to check
- * @returns True if token is in registry
+ * @returns True if token is in cache
  */
-export function isTokenSupported(address: string): boolean {
+export function isTokenCached(address: string): boolean {
   if (!isAddress(address)) return false;
-  return getAddress(address) in TOKEN_REGISTRY;
+  return tokenMetadataCache.has(getAddress(address));
+}
+
+/**
+ * Prefetch token metadata for multiple addresses
+ * Useful for preloading tokens when displaying a list
+ *
+ * @param addresses - Array of token addresses to prefetch
+ */
+export async function prefetchTokens(addresses: string[]): Promise<void> {
+  const validAddresses = addresses.filter(isAddress).map(getAddress);
+
+  // Fetch all uncached tokens in parallel
+  const fetchPromises = validAddresses
+    .filter((address) => !tokenMetadataCache.has(address))
+    .map((address) => getTokenMetadata(address));
+
+  await Promise.allSettled(fetchPromises);
 }
 
 /**
