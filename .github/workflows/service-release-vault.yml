@@ -248,6 +248,13 @@ jobs:
           NEXT_PUBLIC_FF_CO_STAKING: ${{ vars.NEXT_PUBLIC_FF_CO_STAKING }}
           NEXT_PUBLIC_FF_TIMELOCK_RENEWAL: ${{ vars.NEXT_PUBLIC_FF_TIMELOCK_RENEWAL }}
 
+      - name: Copy all index.html to fix path for btc, baby, rewards
+        run: |
+          cd services/vault/dist
+          cp index.html btc
+          cp index.html baby
+          cp index.html rewards
+
       - name: Generate sha256sum checksum
         run: |
           cd services/vault/dist
