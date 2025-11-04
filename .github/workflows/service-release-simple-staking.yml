@@ -121,9 +121,9 @@ jobs:
       - name: Copy all index.html to fix path for btc, baby, rewards
         run: |
           cd services/simple-staking/dist
-          cp index.html btc.html
-          cp index.html baby.html
-          cp index.html rewards.html
+          cp index.html btc
+          cp index.html baby
+          cp index.html rewards
 
       - name: Generate sha256sum checksum
         run: |
