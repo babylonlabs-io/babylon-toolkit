@@ -5,7 +5,6 @@ on:
     branches:
       - "main"
       - "release/v1.x"
-      - "deployment-improvement"
     tags:
       - "simple-staking/*"
   workflow_dispatch:
