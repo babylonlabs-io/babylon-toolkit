@@ -45,7 +45,9 @@ export function transformPosition(positionData: PositionWithMorpho): Position {
 
   return {
     id: positionId,
-    marketId: positionData.position.marketId,
+    // Normalize marketId - remove "0x" prefix to match API format
+    // Blockchain returns hex with 0x, but API uses plain hash
+    marketId: positionData.position.marketId.replace(/^0x/, ""),
     borrowedAmount,
     market: "BTC/USDC",
     lltv: `${currentLTV}%`,

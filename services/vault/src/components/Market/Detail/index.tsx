@@ -9,15 +9,13 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
+import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
-import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
 import { MarketInfo } from "../Info";
 
 import { LoanCard } from "./components/LoanCard";
-import { BorrowReviewModal } from "./components/LoanCard/Borrow/ReviewModal";
 import { TransactionSuccessModal } from "./components/LoanCard/Borrow/SuccessModal";
-import { RepayReviewModal } from "./components/LoanCard/Repay/ReviewModal";
 import { RepaySuccessModal } from "./components/LoanCard/Repay/SuccessModal";
 import { MarketDetailProvider } from "./context/MarketDetailContext";
 import { useBorrowRepayModals } from "./hooks/useBorrowRepayModals";
@@ -27,7 +25,7 @@ import { useRepayTransaction } from "./hooks/useRepayTransaction";
 
 export function MarketDetail() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { marketId } = useParams<{ marketId: string }>();
 
@@ -55,23 +53,31 @@ export function MarketDetail() {
   // Default tab based on whether user has a position:
   // - Has position → default to "repay"
   // - No position → default to "borrow"
+  // If URL has ?tab=repay but no position exists, override to "borrow"
+  const urlTab = searchParams.get("tab");
   const defaultTab =
-    searchParams.get("tab") || (hasPosition ? "repay" : "borrow");
+    urlTab === "repay" && !hasPosition
+      ? "borrow" // Force borrow tab if repay was requested but no position
+      : urlTab || (hasPosition ? "repay" : "borrow");
+
+  // Clean up URL when position disappears after withdrawal
+  useEffect(() => {
+    if (urlTab === "repay" && !hasPosition) {
+      // Remove the tab parameter from URL to reflect that we're now on borrow tab
+      setSearchParams({}, { replace: true });
+    }
+  }, [urlTab, hasPosition, setSearchParams]);
 
   // Modal state management
   const {
-    showBorrowReviewModal,
     showBorrowSuccessModal,
     lastBorrowData,
     openBorrowReview,
-    closeBorrowReview,
     showBorrowSuccess,
     closeBorrowSuccess,
-    showRepayReviewModal,
     showRepaySuccessModal,
     lastRepayData,
     openRepayReview,
-    closeRepayReview,
     showRepaySuccess,
     closeRepaySuccess,
     processing,
@@ -83,7 +89,6 @@ export function MarketDetail() {
     hasPosition,
     marketId,
     availableVaults,
-    lastBorrowData,
     refetch,
     onBorrowSuccess: showBorrowSuccess,
     setProcessing,
@@ -94,19 +99,32 @@ export function MarketDetail() {
     hasPosition,
     userPosition,
     currentLoanAmount,
+    currentCollateralAmount,
     refetch,
     onRepaySuccess: showRepaySuccess,
     setProcessing,
   });
 
-  // LTV calculations
-  const { borrowLtv, repayLtv } = useLtvCalculations({
-    borrowData: lastBorrowData,
-    repayData: lastRepayData,
-    btcPrice,
-    currentLoanAmount,
-    currentCollateralAmount,
-  });
+  // Direct transaction handlers (skip review modal)
+  const handleBorrowDirect = async (
+    collateralAmount: number,
+    borrowAmount: number,
+  ) => {
+    // Set the data for success modal display
+    openBorrowReview(collateralAmount, borrowAmount);
+    // Execute transaction immediately with the amounts
+    await handleConfirmBorrow(collateralAmount, borrowAmount);
+  };
+
+  const handleRepayDirect = async (
+    repayAmount: number,
+    withdrawAmount: number,
+  ) => {
+    // Set the data for success modal display
+    openRepayReview(repayAmount, withdrawAmount);
+    // Execute transaction immediately with the amounts
+    await handleConfirmRepay(repayAmount, withdrawAmount);
+  };
 
   const handleBack = () => navigate("/");
 
@@ -180,37 +198,20 @@ export function MarketDetail() {
           <div className="top-24">
             <LoanCard
               defaultTab={defaultTab}
-              onBorrow={openBorrowReview}
-              onRepay={openRepayReview}
+              onBorrow={handleBorrowDirect}
+              onRepay={handleRepayDirect}
+              processing={processing}
             />
           </div>
         </div>
 
-        {/* Borrow Modals */}
-        <BorrowReviewModal
-          open={showBorrowReviewModal}
-          onClose={closeBorrowReview}
-          onConfirm={handleConfirmBorrow}
-          borrowData={lastBorrowData}
-          ltv={borrowLtv}
-          processing={processing}
-        />
+        {/* Success Modals */}
         <TransactionSuccessModal
           open={showBorrowSuccessModal}
           onClose={closeBorrowSuccess}
           borrowAmount={lastBorrowData.borrow}
           borrowSymbol={tokenPair.loan.symbol}
           collateralAmount={lastBorrowData.collateral}
-        />
-
-        {/* Repay Modals */}
-        <RepayReviewModal
-          open={showRepayReviewModal}
-          onClose={closeRepayReview}
-          onConfirm={handleConfirmRepay}
-          repayData={lastRepayData}
-          ltv={repayLtv}
-          processing={processing}
         />
         <RepaySuccessModal
           open={showRepaySuccessModal}

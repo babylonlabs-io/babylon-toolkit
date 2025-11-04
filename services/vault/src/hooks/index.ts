@@ -9,5 +9,7 @@
 export { useBtcPublicKey } from "./useBtcPublicKey";
 export { useSinglePosition } from "./useSinglePosition";
 export type { UseSinglePositionResult } from "./useSinglePosition";
+export { useTokenPair } from "./useTokenPair";
+export type { UseTokenPairResult } from "./useTokenPair";
 export { useUserPositions } from "./useUserPositions";
 export { useUTXOs } from "./useUTXOs";
