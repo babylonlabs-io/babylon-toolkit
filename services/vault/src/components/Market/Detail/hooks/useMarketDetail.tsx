@@ -12,7 +12,7 @@ import { useMarkets } from "../../../../hooks/useMarkets";
 import { getMarketBorrowAPR } from "../../../../services/irm";
 import type { MorphoMarketSummary } from "../../../../services/market/marketService";
 import { getMarketData } from "../../../../services/market/marketService";
-import { getUserVaultPosition } from "../../../../services/position";
+import { getUserPositionWithRealTimeData } from "../../../../services/position";
 import { getMarketTokenPairAsync } from "../../../../services/token";
 import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
@@ -43,24 +43,48 @@ export function useMarketDetail() {
     error: marketsError,
   } = useMarkets();
 
-  // Fetch user's position for this specific market
+  // Fetch user's position with real-time data
+  // Single service call that handles both Vault Controller and Morpho data
   const {
-    data: marketPosition,
+    data: userPositionData,
     isLoading: isPositionLoading,
     error: positionError,
     refetch: refetchPosition,
   } = useQuery({
-    queryKey: ["userPosition", address, marketId, CONTRACTS.VAULT_CONTROLLER],
+    queryKey: [
+      "userPositionWithRealTimeData",
+      address,
+      marketId,
+      CONTRACTS.VAULT_CONTROLLER,
+    ],
     queryFn: () =>
-      getUserVaultPosition(
+      getUserPositionWithRealTimeData(
         address as Address,
         marketId!,
         CONTRACTS.VAULT_CONTROLLER,
       ),
     enabled: !!address && !!marketId,
     retry: 2,
-    staleTime: 30000,
+    staleTime: 10000, // Refresh every 10 seconds for real-time data
   });
+
+  // Extract the separate pieces for backwards compatibility
+  // Memoize to prevent unnecessary re-renders
+  const marketPosition = useMemo(
+    () =>
+      userPositionData
+        ? {
+            position: userPositionData.position,
+            positionId: userPositionData.positionId,
+          }
+        : null,
+    [userPositionData],
+  );
+
+  const morphoPosition = useMemo(
+    () => userPositionData?.morphoPosition,
+    [userPositionData],
+  );
 
   // Fetch market data from Morpho contracts
   const {
@@ -182,11 +206,14 @@ export function useMarketDetail() {
     return 70;
   }, [marketData, marketConfig]);
 
-  const currentLoanAmount = marketPosition
-    ? formatUSDC(marketPosition.position.totalBorrowed)
+  // Use REAL-TIME data from Morpho (source of truth)
+  // morphoPosition has the actual current debt including accrued interest
+  // This ensures we show the correct amount even if user repaid directly via Morpho
+  const currentLoanAmount = morphoPosition
+    ? formatUSDC(morphoPosition.borrowAssets)
     : 0;
-  const currentCollateralAmount = marketPosition
-    ? formatVaultBTC(marketPosition.position.totalCollateral)
+  const currentCollateralAmount = morphoPosition
+    ? formatVaultBTC(morphoPosition.collateral)
     : 0;
 
   // Calculate available liquidity for borrowing (in USDC)
@@ -317,11 +344,11 @@ export function useMarketDetail() {
     return [
       {
         label: "Current Loan",
-        value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "???"}}`,
+        value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "???"}`,
       },
       {
         label: "Current Collateral",
-        value: `${currentCollateralAmount.toFixed(8)} ${tokenPair?.collateral.symbol || "???"}}`,
+        value: `${currentCollateralAmount.toFixed(8)} ${tokenPair?.collateral.symbol || "???"}`,
       },
       { label: "Market", value: tokenPair?.pairName || "Unknown Market" },
       { label: "Current LTV", value: currentLtv },
@@ -443,7 +470,7 @@ export function useMarketDetail() {
   // Refetch data that changes after user transactions (borrow/repay)
   const refetch = async () => {
     await Promise.all([
-      refetchPosition(), // User's position changes
+      refetchPosition(), // Refetches both Vault Controller AND Morpho data
       refetchCollaterals(), // Available vaults change
       refetchMarketData(), // Market totals change slightly
     ]);

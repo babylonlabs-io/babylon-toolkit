@@ -14,12 +14,14 @@ export interface LoanCardProps {
   defaultTab?: string;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
   onRepay?: (repayAmount: number, withdrawCollateralAmount: number) => void;
+  processing?: boolean;
 }
 
 export function LoanCard({
   defaultTab = "borrow",
   onBorrow,
   onRepay,
+  processing = false,
 }: LoanCardProps) {
   const {
     btcPrice,
@@ -30,8 +32,9 @@ export function LoanCard({
     availableLiquidity,
   } = useMarketDetailContext();
 
-  // Only show Repay tab if user has an existing position (currentLoanAmount > 0)
-  const hasPosition = currentLoanAmount > 0;
+  // Show Repay tab if user has a position (has loan OR has collateral)
+  // User might have repaid all debt but still have collateral to withdraw
+  const hasPosition = currentLoanAmount > 0 || currentCollateralAmount > 0;
 
   return (
     <Card>
@@ -49,6 +52,7 @@ export function LoanCard({
                 availableLiquidity={availableLiquidity}
                 currentCollateralAmount={currentCollateralAmount}
                 currentLoanAmount={currentLoanAmount}
+                processing={processing}
               />
             ),
           },
@@ -64,6 +68,7 @@ export function LoanCard({
                       btcPrice={btcPrice}
                       liquidationLtv={liquidationLtv}
                       onRepay={onRepay!}
+                      processing={processing}
                     />
                   ),
                 },

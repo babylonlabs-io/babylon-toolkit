@@ -60,41 +60,46 @@ export function useRepayTransaction({
           throw new Error("Wallet not connected. Please connect your wallet.");
         }
 
+        // Validate at least one action is requested
+        if (repayAmount <= 0 && withdrawAmount <= 0) {
+          throw new Error("Please enter an amount to repay or withdraw.");
+        }
+
         const { positionId, marketId } = userPosition;
 
-        // Determine if this is a full or partial repayment
-        const tolerance = 0.01; // 0.01 USDC tolerance
-        const isFullRepayment =
-          Math.abs(repayAmount - currentLoanAmount) < tolerance;
-
-        // Step 1: Approve USDC spending (if repaying)
+        // Step 1: Repay debt (if user wants to repay)
         if (repayAmount > 0) {
+          // Approve USDC spending for repayment
           await approveLoanTokenForRepay(walletClient, chain, marketId);
+
+          // Determine if this is a full or partial repayment
+          const tolerance = 0.01; // 0.01 USDC tolerance
+          const isFullRepayment =
+            Math.abs(repayAmount - currentLoanAmount) < tolerance;
+
+          if (isFullRepayment) {
+            await repayDebtFull(
+              walletClient,
+              chain,
+              CONTRACTS.VAULT_CONTROLLER,
+              positionId as `0x${string}`,
+              marketId,
+            );
+          } else {
+            const repayAmountBigint = parseUnits(repayAmount.toString(), 6);
+
+            await repayDebtPartial(
+              walletClient,
+              chain,
+              CONTRACTS.VAULT_CONTROLLER,
+              positionId as `0x${string}`,
+              marketId,
+              repayAmountBigint,
+            );
+          }
         }
 
-        // Step 2: Repay debt
-        if (isFullRepayment) {
-          await repayDebtFull(
-            walletClient,
-            chain,
-            CONTRACTS.VAULT_CONTROLLER,
-            positionId as `0x${string}`,
-            marketId,
-          );
-        } else {
-          const repayAmountBigint = parseUnits(repayAmount.toString(), 6);
-
-          await repayDebtPartial(
-            walletClient,
-            chain,
-            CONTRACTS.VAULT_CONTROLLER,
-            positionId as `0x${string}`,
-            marketId,
-            repayAmountBigint,
-          );
-        }
-
-        // Step 3: Withdraw collateral if user requested it
+        // Step 2: Withdraw collateral (if user wants to withdraw)
         if (withdrawAmount > 0) {
           await withdrawCollateralFromPosition(
             walletClient,
@@ -104,7 +109,7 @@ export function useRepayTransaction({
           );
         }
 
-        // Step 4: Refetch position data to update UI
+        // Step 3: Refetch position data to update UI
         await refetch();
 
         // Success - show success modal

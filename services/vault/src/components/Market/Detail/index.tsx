@@ -11,13 +11,10 @@
 import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
-import { useLtvCalculations } from "../../../hooks/useLtvCalculations";
 import { MarketInfo } from "../Info";
 
 import { LoanCard } from "./components/LoanCard";
-import { BorrowReviewModal } from "./components/LoanCard/Borrow/ReviewModal";
 import { TransactionSuccessModal } from "./components/LoanCard/Borrow/SuccessModal";
-import { RepayReviewModal } from "./components/LoanCard/Repay/ReviewModal";
 import { RepaySuccessModal } from "./components/LoanCard/Repay/SuccessModal";
 import { MarketDetailProvider } from "./context/MarketDetailContext";
 import { useBorrowRepayModals } from "./hooks/useBorrowRepayModals";
@@ -60,18 +57,14 @@ export function MarketDetail() {
 
   // Modal state management
   const {
-    showBorrowReviewModal,
     showBorrowSuccessModal,
     lastBorrowData,
     openBorrowReview,
-    closeBorrowReview,
     showBorrowSuccess,
     closeBorrowSuccess,
-    showRepayReviewModal,
     showRepaySuccessModal,
     lastRepayData,
     openRepayReview,
-    closeRepayReview,
     showRepaySuccess,
     closeRepaySuccess,
     processing,
@@ -83,7 +76,6 @@ export function MarketDetail() {
     hasPosition,
     marketId,
     availableVaults,
-    lastBorrowData,
     refetch,
     onBorrowSuccess: showBorrowSuccess,
     setProcessing,
@@ -99,14 +91,26 @@ export function MarketDetail() {
     setProcessing,
   });
 
-  // LTV calculations
-  const { borrowLtv, repayLtv } = useLtvCalculations({
-    borrowData: lastBorrowData,
-    repayData: lastRepayData,
-    btcPrice,
-    currentLoanAmount,
-    currentCollateralAmount,
-  });
+  // Direct transaction handlers (skip review modal)
+  const handleBorrowDirect = async (
+    collateralAmount: number,
+    borrowAmount: number,
+  ) => {
+    // Set the data for success modal display
+    openBorrowReview(collateralAmount, borrowAmount);
+    // Execute transaction immediately with the amounts
+    await handleConfirmBorrow(collateralAmount, borrowAmount);
+  };
+
+  const handleRepayDirect = async (
+    repayAmount: number,
+    withdrawAmount: number,
+  ) => {
+    // Set the data for success modal display
+    openRepayReview(repayAmount, withdrawAmount);
+    // Execute transaction immediately with the amounts
+    await handleConfirmRepay(repayAmount, withdrawAmount);
+  };
 
   const handleBack = () => navigate("/");
 
@@ -180,37 +184,20 @@ export function MarketDetail() {
           <div className="top-24">
             <LoanCard
               defaultTab={defaultTab}
-              onBorrow={openBorrowReview}
-              onRepay={openRepayReview}
+              onBorrow={handleBorrowDirect}
+              onRepay={handleRepayDirect}
+              processing={processing}
             />
           </div>
         </div>
 
-        {/* Borrow Modals */}
-        <BorrowReviewModal
-          open={showBorrowReviewModal}
-          onClose={closeBorrowReview}
-          onConfirm={handleConfirmBorrow}
-          borrowData={lastBorrowData}
-          ltv={borrowLtv}
-          processing={processing}
-        />
+        {/* Success Modals */}
         <TransactionSuccessModal
           open={showBorrowSuccessModal}
           onClose={closeBorrowSuccess}
           borrowAmount={lastBorrowData.borrow}
           borrowSymbol={tokenPair.loan.symbol}
           collateralAmount={lastBorrowData.collateral}
-        />
-
-        {/* Repay Modals */}
-        <RepayReviewModal
-          open={showRepayReviewModal}
-          onClose={closeRepayReview}
-          onConfirm={handleConfirmRepay}
-          repayData={lastRepayData}
-          ltv={repayLtv}
-          processing={processing}
         />
         <RepaySuccessModal
           open={showRepaySuccessModal}
