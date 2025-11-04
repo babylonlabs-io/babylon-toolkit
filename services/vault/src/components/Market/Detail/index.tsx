@@ -132,6 +132,17 @@ export function MarketDetail() {
     );
   }
 
+  // Ensure tokenPair is available
+  if (!tokenPair) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center text-sm text-accent-secondary">
+          Market configuration not available
+        </div>
+      </div>
+    );
+  }
+
   return (
     <MarketDetailProvider
       value={{
@@ -141,7 +152,7 @@ export function MarketDetail() {
         currentCollateralAmount,
         availableVaults,
         availableLiquidity,
-        tokenPair: tokenPair ?? undefined,
+        tokenPair,
       }}
     >
       <Container className="pb-6">
@@ -149,11 +160,11 @@ export function MarketDetail() {
           {/* Left Side: Market Info */}
           <MarketInfo
             onBack={handleBack}
-            marketPair={tokenPair?.pairName || "Unknown Market"}
-            btcIcon={tokenPair?.collateral.icon}
-            usdcIcon={tokenPair?.loan.icon}
-            collateralSymbol={tokenPair?.collateral.symbol}
-            loanSymbol={tokenPair?.loan.symbol}
+            marketPair={tokenPair.pairName}
+            btcIcon={tokenPair.collateral.icon}
+            usdcIcon={tokenPair.loan.icon}
+            collateralSymbol={tokenPair.collateral.symbol}
+            loanSymbol={tokenPair.loan.symbol}
             totalMarketSize={marketDisplayValues.totalMarketSize}
             totalMarketSizeSubtitle={
               marketDisplayValues.totalMarketSizeSubtitle
@@ -188,7 +199,7 @@ export function MarketDetail() {
           open={showBorrowSuccessModal}
           onClose={closeBorrowSuccess}
           borrowAmount={lastBorrowData.borrow}
-          borrowSymbol={tokenPair?.loan.symbol || "USDC"}
+          borrowSymbol={tokenPair.loan.symbol}
           collateralAmount={lastBorrowData.collateral}
         />
 
@@ -206,8 +217,8 @@ export function MarketDetail() {
           onClose={closeRepaySuccess}
           repayAmount={lastRepayData.repay}
           withdrawAmount={lastRepayData.withdraw}
-          repaySymbol={tokenPair?.loan.symbol || "USDC"}
-          withdrawSymbol={tokenPair?.collateral.symbol || "BTC"}
+          repaySymbol={tokenPair.loan.symbol}
+          withdrawSymbol={tokenPair.collateral.symbol}
         />
       </Container>
     </MarketDetailProvider>

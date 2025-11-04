@@ -68,16 +68,16 @@ export function Repay({
         <AmountSlider
           amount={repayAmount}
           currencyIcon={getCurrencyIconWithFallback(
-            tokenPair?.loan.icon,
-            tokenPair?.loan.symbol || "USDC",
+            tokenPair.loan.icon,
+            tokenPair.loan.symbol,
           )}
-          currencyName={tokenPair?.loan.name || "Loan Token"}
+          currencyName={tokenPair.loan.name}
           onAmountChange={(e) =>
             setRepayAmount(parseFloat(e.target.value) || 0)
           }
           balanceDetails={{
             balance: currentLoanAmount.toLocaleString(),
-            symbol: tokenPair?.loan.symbol || "USDC",
+            symbol: tokenPair.loan.symbol,
             displayUSD: false,
           }}
           sliderValue={repayAmount}
@@ -89,7 +89,7 @@ export function Repay({
           sliderActiveColor="#0B53BF"
           leftField={{
             label: "Max",
-            value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "USDC"}`,
+            value: `${currentLoanAmount.toLocaleString()} ${tokenPair.loan.symbol}`,
           }}
           onMaxClick={() => setRepayAmount(currentLoanAmount)}
           rightField={{
@@ -116,14 +116,14 @@ export function Repay({
         <AmountSlider
           amount={withdrawCollateralAmount}
           currencyIcon={getCurrencyIconWithFallback(
-            tokenPair?.collateral.icon,
-            tokenPair?.collateral.symbol || "BTC",
+            tokenPair.collateral.icon,
+            tokenPair.collateral.symbol,
           )}
-          currencyName={tokenPair?.collateral.name || "Collateral"}
+          currencyName={tokenPair.collateral.name}
           disabled={!canWithdrawCollateral}
           balanceDetails={{
             balance: currentCollateralAmount.toFixed(4),
-            symbol: tokenPair?.collateral.symbol || "BTC",
+            symbol: tokenPair.collateral.symbol,
             displayUSD: false,
           }}
           sliderValue={withdrawCollateralAmount}
@@ -138,7 +138,7 @@ export function Repay({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${currentCollateralAmount.toFixed(4)} ${tokenPair?.collateral.symbol || "BTC"}`,
+            value: `${currentCollateralAmount.toFixed(4)} ${tokenPair.collateral.symbol}`,
           }}
           onMaxClick={() =>
             setWithdrawCollateralAmount(currentCollateralAmount)
@@ -155,7 +155,7 @@ export function Repay({
       {/* Summary Card */}
       <RepaySummaryCard
         currentLoanAmount={currentLoanAmount}
-        loanSymbol={tokenPair?.loan.symbol || "USDC"}
+        loanSymbol={tokenPair.loan.symbol}
         repayAmount={repayAmount}
         ltv={ltv}
         liquidationLtv={liquidationLtv}

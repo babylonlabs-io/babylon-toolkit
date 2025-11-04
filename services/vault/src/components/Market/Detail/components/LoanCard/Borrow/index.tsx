@@ -74,13 +74,13 @@ export function Borrow({
         <AmountSlider
           amount={collateralAmount}
           currencyIcon={getCurrencyIconWithFallback(
-            tokenPair?.collateral.icon,
-            tokenPair?.collateral.symbol || "BTC",
+            tokenPair.collateral.icon,
+            tokenPair.collateral.symbol,
           )}
-          currencyName={tokenPair?.collateral.name || "Collateral"}
+          currencyName={tokenPair.collateral.name}
           balanceDetails={{
             balance: maxCollateralFromVaults.toFixed(4),
-            symbol: tokenPair?.collateral.symbol || "BTC",
+            symbol: tokenPair.collateral.symbol,
             displayUSD: false,
           }}
           sliderValue={collateralAmount}
@@ -95,7 +95,7 @@ export function Borrow({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${maxCollateralFromVaults.toFixed(4)} ${tokenPair?.collateral.symbol || "BTC"}`,
+            value: `${maxCollateralFromVaults.toFixed(4)} ${tokenPair.collateral.symbol}`,
           }}
           onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
           rightField={{
@@ -116,16 +116,16 @@ export function Borrow({
           <AmountSlider
             amount={borrowAmount}
             currencyIcon={getCurrencyIconWithFallback(
-              tokenPair?.loan.icon,
-              tokenPair?.loan.symbol || "USDC",
+              tokenPair.loan.icon,
+              tokenPair.loan.symbol,
             )}
-            currencyName={tokenPair?.loan.name || "Loan Token"}
+            currencyName={tokenPair.loan.name}
             onAmountChange={(e) =>
               setBorrowAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
               balance: maxBorrowAmount.toLocaleString(),
-              symbol: tokenPair?.loan.symbol || "USDC",
+              symbol: tokenPair.loan.symbol,
               displayUSD: false,
             }}
             sliderValue={borrowAmount}
@@ -136,7 +136,7 @@ export function Borrow({
             sliderVariant={theme === "dark" ? "rainbow" : "primary"}
             leftField={{
               label: "Max",
-              value: `${maxBorrowAmount.toLocaleString()} ${tokenPair?.loan.symbol || "USDC"}`,
+              value: `${maxBorrowAmount.toLocaleString()} ${tokenPair.loan.symbol}`,
             }}
             onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{
@@ -151,9 +151,9 @@ export function Borrow({
 
         <LoanSummaryCard
           collateralAmount={currentCollateralAmount + collateralAmount}
-          collateralSymbol={tokenPair?.collateral.symbol || "BTC"}
+          collateralSymbol={tokenPair.collateral.symbol}
           loanAmount={currentLoanAmount + borrowAmount}
-          loanSymbol={tokenPair?.loan.symbol || "USDC"}
+          loanSymbol={tokenPair.loan.symbol}
           ltv={ltv}
           liquidationLtv={liquidationLtv}
         />

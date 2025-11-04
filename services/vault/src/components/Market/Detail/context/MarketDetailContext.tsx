@@ -15,7 +15,7 @@ export interface MarketDetailContextValue {
   currentCollateralAmount: number;
   availableVaults?: AvailableVault[];
   availableLiquidity: number;
-  tokenPair?: MarketTokenPair;
+  tokenPair: MarketTokenPair;
 }
 
 const MarketDetailContext = createContext<MarketDetailContextValue | null>(

@@ -398,14 +398,14 @@ export function useMarketDetail() {
         // Less than $10k - show actual USDC amount
         return {
           display: `$${valueUSDC.toFixed(2)}`,
-          subtitle: `${valueUSDC.toFixed(2)} ${tokenPair?.loan.symbol || "USDC"}`,
+          subtitle: tokenPair ? `${valueUSDC.toFixed(2)} ${tokenPair.loan.symbol}` : `${valueUSDC.toFixed(2)}`,
         };
       } else {
         // $10k or more - show in millions
         const valueM = (valueUSDC / 1e6).toFixed(2);
         return {
           display: `$${valueM}M`,
-          subtitle: `${valueM}M ${tokenPair?.loan.symbol || "USDC"}`,
+          subtitle: tokenPair ? `${valueM}M ${tokenPair.loan.symbol}` : `${valueM}M`,
         };
       }
     };
