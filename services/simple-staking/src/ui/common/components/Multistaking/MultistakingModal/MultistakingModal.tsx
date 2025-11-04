@@ -76,7 +76,9 @@ export function MultistakingModal() {
       ?.btcConfirmationDepth || DEFAULT_CONFIRMATION_DEPTH;
 
   const detailsModalTitle =
-    (delegationV2StepOptions?.type as string) || "Transaction Details";
+    typeof delegationV2StepOptions?.type === "string"
+      ? delegationV2StepOptions.type
+      : "Transaction Details";
 
   const currentFinalityProviders = useWatch<
     { finalityProviders: Record<string, string> | string[] | undefined },
