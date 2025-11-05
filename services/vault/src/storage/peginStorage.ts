@@ -15,6 +15,11 @@
  */
 
 import {
+  MAX_PENDING_DURATION,
+  STORAGE_KEY_PREFIX,
+  STORAGE_UPDATE_EVENT,
+} from "../constants";
+import {
   LocalStorageStatus,
   shouldRemoveFromLocalStorage,
   type ContractStatus,
@@ -35,7 +40,7 @@ export interface PendingPeginRequest {
   timestamp: number; // When the peg-in was initiated
   amount?: string; // Amount in BTC (formatted for display)
   providerIds?: string[]; // Vault provider's Ethereum addresses
-  status?: LocalStorageStatus; // Track user actions (pending, payout_signed, confirming)
+  status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
   btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
   // Fields for cross-device broadcasting support
   unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting later)
@@ -47,9 +52,6 @@ export interface PendingPeginRequest {
     scriptPubKey: string;
   }>;
 }
-
-const STORAGE_KEY_PREFIX = "vault-pending-pegins";
-const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup stale items
 
 /**
  * Get storage key for a specific address
@@ -67,7 +69,19 @@ function normalizeTransactionId(id: string): string {
 }
 
 /**
+ * Dispatch custom event to notify React hooks of localStorage changes
+ */
+function dispatchStorageUpdateEvent(ethAddress: string): void {
+  window.dispatchEvent(
+    new CustomEvent(STORAGE_UPDATE_EVENT, {
+      detail: { ethAddress },
+    }),
+  );
+}
+
+/**
  * Get all pending peg-ins from localStorage for an address
+ * Pure read function - no side effects
  */
 export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   if (!ethAddress) return [];
@@ -80,24 +94,30 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     const parsed: PendingPeginRequest[] = JSON.parse(stored);
 
     // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
+    // Note: We do NOT save back to localStorage here to avoid side effects
     const normalized = parsed.map((pegin) => ({
       ...pegin,
       id: normalizeTransactionId(pegin.id),
+      // Ensure status field exists (backward compatibility)
+      status: pegin.status || LocalStorageStatus.PENDING,
     }));
-
-    // Check if any IDs were normalized (legacy data)
-    const hasLegacyData = parsed.some(
-      (pegin, index) => pegin.id !== normalized[index].id,
-    );
-
-    // If we normalized any legacy data, save it back to localStorage
-    if (hasLegacyData) {
-      localStorage.setItem(key, JSON.stringify(normalized));
-    }
 
     return normalized;
   } catch (error) {
-    console.error("[peginStorage] Failed to parse pending pegins:", error);
+    console.error(
+      "[peginStorage] Failed to parse pending pegins:",
+      error,
+      "- Clearing corrupted data",
+    );
+    // Clear corrupted data so user isn't stuck
+    try {
+      localStorage.removeItem(getStorageKey(ethAddress));
+    } catch (clearError) {
+      console.error(
+        "[peginStorage] Failed to clear corrupted data:",
+        clearError,
+      );
+    }
     return [];
   }
 }
@@ -105,6 +125,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 /**
  * Save pending peg-ins to localStorage
  * If pegins array is empty, delete the entire key instead of storing empty array
+ * Dispatches a custom event to notify React hooks of the change
  */
 export function savePendingPegins(
   ethAddress: string,
@@ -119,8 +140,16 @@ export function savePendingPegins(
     if (pegins.length === 0) {
       localStorage.removeItem(key);
     } else {
-      localStorage.setItem(key, JSON.stringify(pegins));
+      // Ensure all IDs are normalized before saving
+      const normalizedPegins = pegins.map((pegin) => ({
+        ...pegin,
+        id: normalizeTransactionId(pegin.id),
+      }));
+      localStorage.setItem(key, JSON.stringify(normalizedPegins));
     }
+
+    // Dispatch custom event to notify React hooks
+    dispatchStorageUpdateEvent(ethAddress);
   } catch (error) {
     console.error("[peginStorage] Failed to save pending pegins:", error);
   }
@@ -133,7 +162,9 @@ export function savePendingPegins(
  */
 export function addPendingPegin(
   ethAddress: string,
-  pegin: Omit<PendingPeginRequest, "timestamp">,
+  pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
+    status?: LocalStorageStatus;
+  },
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
 
@@ -234,12 +265,7 @@ export function filterPendingPegins(
 
     // If it exists on blockchain, use peginStateMachine to determine if we should remove it
     // This handles the logic for keeping status 0-1 and removing status 2+
-    if (pegin.status && confirmedPegin) {
-      return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
-    }
-
-    // If no status in localStorage, remove it if on blockchain (legacy behavior)
-    return false;
+    return !shouldRemoveFromLocalStorage(confirmedPegin.status, pegin.status);
   });
 }
 
@@ -252,6 +278,7 @@ export function clearPendingPegins(ethAddress: string): void {
   try {
     const key = getStorageKey(ethAddress);
     localStorage.removeItem(key);
+    dispatchStorageUpdateEvent(ethAddress);
   } catch (error) {
     console.error("[peginStorage] Failed to clear pending pegins:", error);
   }

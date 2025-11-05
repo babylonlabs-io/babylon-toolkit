@@ -121,13 +121,13 @@ export enum PeginAction {
  * Determine the current state and available actions based on contract and local status
  *
  * @param contractStatus - On-chain contract status (source of truth)
- * @param localStatus - Off-chain localStorage status (temporary)
+ * @param localStatus - Off-chain localStorage status (optional, temporary)
  * @param transactionsReady - Whether claim/payout transactions are ready from VP
  * @returns Unified peg-in state with available actions
  */
 export function getPeginState(
   contractStatus: ContractStatus,
-  localStatus?: LocalStorageStatus,
+  localStatus?: LocalStorageStatus | undefined,
   transactionsReady?: boolean,
 ): PeginState {
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
