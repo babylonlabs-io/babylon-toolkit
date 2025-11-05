@@ -377,11 +377,16 @@ export function isTokenCached(address: string): boolean {
  * @param addresses - Array of token addresses to prefetch
  */
 export async function prefetchTokens(addresses: string[]): Promise<void> {
-  const validAddresses = addresses.filter((addr) => isAddress(addr)).map(getAddress);
+  const validAddresses = addresses
+    .filter((addr) => isAddress(addr))
+    .map(getAddress);
 
   // Fetch all uncached tokens in parallel
   const fetchPromises = validAddresses
-    .filter((address) => !tokenMetadataCache.has(address) && !fetchPromiseCache.has(address))
+    .filter(
+      (address) =>
+        !tokenMetadataCache.has(address) && !fetchPromiseCache.has(address),
+    )
     .map((address) => getTokenMetadata(address));
 
   await Promise.allSettled(fetchPromises);
