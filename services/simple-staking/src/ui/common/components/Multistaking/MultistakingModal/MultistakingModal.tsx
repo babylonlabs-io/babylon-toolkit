@@ -168,9 +168,7 @@ export function MultistakingModal() {
     if (!formData || !stakingInfo) return null;
 
     const unbondingTime =
-      blocksToDisplayTime(
-        networkInfo?.params.bbnStakingParams?.latestParam?.unbondingTime,
-      ) || "7 days";
+      blocksToDisplayTime(stakingInfo?.unbondingTime) || "7 days";
 
     const stakeAmountBtc = maxDecimals(satoshiToBtc(formData.amount), 8);
     const stakeAmountUsd = calculateTokenValueInCurrency(
@@ -204,7 +202,7 @@ export function MultistakingModal() {
       unbonding: `~ ${unbondingTime}`,
       unbondingFee: `${unbondingFeeBtc} ${coinSymbol}${displayUSD ? ` (${unbondingFeeUsd})` : ""}`,
     };
-  }, [formData, stakingInfo, networkInfo, btcInUsd, coinSymbol]);
+  }, [formData, stakingInfo, btcInUsd, coinSymbol]);
 
   if (!step) return null;
 
