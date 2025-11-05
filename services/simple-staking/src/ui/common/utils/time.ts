@@ -48,11 +48,25 @@ export const blocksToDisplayTime = (blocks: number | undefined): string => {
     return `${roundedWeeks} weeks`;
   }
 
-  // Otherwise, return the difference in days and round up to the nearest day
-  return formatDistanceStrict(startDate, endDate, {
+  // Hybrid day formatting under 30 days:
+  // - Use formatDistanceStrict with roundingMethod 'round' to get nearest day count
+  // - If under 1 day, display '< 1 day'
+  // - If not an exact integer number of days, prefix with '~'
+  const daysDecimal = hours / 24;
+  if (daysDecimal < 1) {
+    return "< 1 day";
+  }
+
+  const roundedLabel = formatDistanceStrict(startDate, endDate, {
     unit: "day",
-    roundingMethod: "ceil",
+    roundingMethod: "round",
   });
+  const roundedDays = Number.parseInt(roundedLabel, 10);
+  const isInteger = Math.abs(daysDecimal - Math.round(daysDecimal)) < 1e-9;
+  if (isInteger) {
+    return `${roundedDays} ${roundedDays === 1 ? "day" : "days"}`;
+  }
+  return `~${roundedDays} ${roundedDays === 1 ? "day" : "days"}`;
 };
 
 interface Duration {

@@ -10,6 +10,7 @@ import { getWalletClient } from "wagmi/actions";
 
 import { CONTRACTS } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useBTCPrice } from "../../hooks/useBTCPrice";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
 import { useVaultDeposits } from "../../hooks/useVaultDeposits";
 import { getPeginState } from "../../models/peginStateMachine";
@@ -54,6 +55,9 @@ function OverviewContent() {
   const btcBalanceSat = useMemo(() => {
     return BigInt(calculateBalance(confirmedUTXOs || []));
   }, [confirmedUTXOs]);
+
+  // Fetch BTC price from oracle
+  const { btcPriceUSD } = useBTCPrice();
 
   // Fetch vault providers from API (keep this - it's a data fetch function)
   const { providers } = useVaultProviders();
@@ -241,6 +245,7 @@ function OverviewContent() {
             onClose={resetDeposit}
             onDeposit={handleDeposit}
             btcBalance={btcBalanceSat}
+            btcPrice={btcPriceUSD}
           />
         )}
         {depositStep === VaultDepositStep.REVIEW && (
@@ -341,6 +346,7 @@ function OverviewContent() {
           onClose={resetDeposit}
           onDeposit={handleDeposit}
           btcBalance={btcBalanceSat}
+          btcPrice={btcPriceUSD}
         />
       )}
       {depositStep === VaultDepositStep.REVIEW && (

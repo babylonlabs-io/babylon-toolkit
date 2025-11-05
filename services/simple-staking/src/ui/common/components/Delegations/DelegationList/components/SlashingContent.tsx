@@ -67,7 +67,7 @@ export const SlashingContent = ({
           {maxDecimals(satoshiToBtc(slashingAmount ?? 0), 8)} {coinName}
         </b>{" "}
         being deducted from your delegation. It will take {unbondingTime.blocks}{" "}
-        blocks (~ {unbondingTime.time}) before it becomes withdrawable.{" "}
+        blocks ({unbondingTime.time}) before it becomes withdrawable.{" "}
         <a
           className="text-secondary-main"
           target="_blank"

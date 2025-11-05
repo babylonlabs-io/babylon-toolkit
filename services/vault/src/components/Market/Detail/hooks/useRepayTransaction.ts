@@ -3,8 +3,8 @@
  * Handles the repay flow logic and transaction execution
  */
 
+import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits } from "viem";
-import { useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import {

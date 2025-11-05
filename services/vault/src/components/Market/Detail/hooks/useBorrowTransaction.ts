@@ -3,8 +3,8 @@
  * Handles the borrow flow logic and transaction execution
  */
 
+import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits, type Hex } from "viem";
-import { useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";

@@ -6,10 +6,12 @@
  * confirmed transactions from localStorage.
  */
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { STORAGE_UPDATE_EVENT } from "../constants";
 import type { LocalStorageStatus } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
+import { useDebounce } from "../utils/hooks";
 
 import {
   addPendingPegin as addPendingPeginToStorage,
@@ -52,30 +54,68 @@ export function usePeginStorage({
   ethAddress,
   confirmedPegins,
 }: UsePeginStorageParams): UsePeginStorageResult {
-  // Get pending peg-ins from localStorage
-  const pendingPegins = useMemo(() => {
-    if (!ethAddress) return [];
-    return getPendingPegins(ethAddress);
-  }, [ethAddress]);
+  // Use state to allow manual updates when localStorage changes
+  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>([]);
+  const [storageVersion, setStorageVersion] = useState(0);
 
-  // Clean up old pending peg-ins on mount and when confirmed pegins change
+  // Load pending peg-ins from localStorage whenever ethAddress changes or storage is updated
+  useEffect(() => {
+    if (!ethAddress) {
+      setPendingPegins([]);
+      return;
+    }
+    setPendingPegins(getPendingPegins(ethAddress));
+  }, [ethAddress, storageVersion]);
+
+  // Listen for custom events when localStorage is updated (same-tab updates)
   useEffect(() => {
     if (!ethAddress) return;
 
-    // Filter and clean up old pending peg-ins (older than 24 hours and confirmed ones)
+    const handleCustomEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ ethAddress: string }>;
+      if (customEvent.detail.ethAddress === ethAddress) {
+        // Trigger refresh by incrementing version
+        setStorageVersion((v) => v + 1);
+      }
+    };
+
+    window.addEventListener(STORAGE_UPDATE_EVENT, handleCustomEvent);
+
+    return () => {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, handleCustomEvent);
+    };
+  }, [ethAddress]);
+
+  // Clean up old pending peg-ins - debounced to avoid excessive writes
+  // Note: This effect does NOT depend on pendingPegins to avoid circular dependency
+  const cleanupPendingPegins = useCallback(() => {
+    if (!ethAddress) return;
+
+    // Read fresh data from localStorage (not from stale state)
+    const currentPegins = getPendingPegins(ethAddress);
+
     const filteredPegins = filterPendingPegins(
-      pendingPegins,
+      currentPegins,
       confirmedPegins.map((p) => ({
         id: p.id,
         status: p.contractStatus ?? 0,
       })),
     );
 
-    // Save filtered pegins back to localStorage if anything changed
-    if (filteredPegins.length !== pendingPegins.length) {
+    // Only save if something actually changed
+    if (filteredPegins.length !== currentPegins.length) {
       savePendingPegins(ethAddress, filteredPegins);
+      // No need to manually update state - event listener will trigger refresh
     }
-  }, [ethAddress, confirmedPegins, pendingPegins]);
+  }, [ethAddress, confirmedPegins]);
+
+  // Debounce the cleanup to avoid excessive localStorage writes
+  const debouncedCleanup = useDebounce(cleanupPendingPegins, 500);
+
+  // Run cleanup when confirmed pegins change
+  useEffect(() => {
+    debouncedCleanup();
+  }, [debouncedCleanup]);
 
   // Merge pending and confirmed activities
   const allActivities = useMemo(() => {
@@ -107,14 +147,15 @@ export function usePeginStorage({
       }));
 
     // Combine and sort by timestamp (newest first)
+    // Use Date.now() as fallback for items without timestamps
     return [...pendingActivities, ...confirmedPegins].sort((a, b) => {
-      const aTime = a.timestamp || 0;
-      const bTime = b.timestamp || 0;
+      const aTime = a.timestamp || Date.now();
+      const bTime = b.timestamp || Date.now();
       return bTime - aTime;
     });
   }, [pendingPegins, confirmedPegins]);
 
-  // Add pending peg-in
+  // Add pending peg-in - storage function will dispatch event
   const addPendingPegin = useCallback(
     (pegin: Omit<PendingPeginRequest, "timestamp">) => {
       if (!ethAddress) return;
@@ -127,15 +168,17 @@ export function usePeginStorage({
         unsignedTxHex: pegin.unsignedTxHex,
         selectedUTXOs: pegin.selectedUTXOs,
       });
+      // Event will be dispatched by storage function - no manual state update needed
     },
     [ethAddress],
   );
 
-  // Update pending peg-in status
+  // Update pending peg-in status - storage function will dispatch event
   const updatePendingPeginStatus = useCallback(
     (peginId: string, status: LocalStorageStatus, btcTxHash?: string) => {
       if (!ethAddress) return;
       updatePendingPeginStatusInStorage(ethAddress, peginId, status, btcTxHash);
+      // Event will be dispatched by storage function - no manual state update needed
     },
     [ethAddress],
   );
