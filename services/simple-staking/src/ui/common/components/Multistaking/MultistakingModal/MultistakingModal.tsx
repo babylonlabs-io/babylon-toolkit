@@ -11,6 +11,7 @@ import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
 import { StakingSuccessModal } from "@/ui/common/components/Modals/StakingSuccessModal";
 import { VerificationModal } from "@/ui/common/components/Modals/VerificationModal";
+import { SignDetailsModal } from "@/ui/common/components/Modals/SignDetailsModal";
 import { FinalityProviderLogo } from "@/ui/common/components/Staking/FinalityProviders/FinalityProviderLogo";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
@@ -20,6 +21,7 @@ import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
 import { useStakingService } from "@/ui/common/hooks/services/useStakingService";
 import { useFinalityProviderBsnState } from "@/ui/common/state/FinalityProviderBsnState";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
+import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
 import { useStakingState } from "@/ui/common/state/StakingState";
 import { BsnFpDisplayItem } from "@/ui/common/types/display";
 import { getBsnLogoUrl } from "@/ui/common/utils/bsnLogo";
@@ -57,6 +59,8 @@ export function MultistakingModal() {
   const { getRegisteredFinalityProvider } = useFinalityProviderState();
   const { bsnList } = useFinalityProviderBsnState();
   const { createEOI, stakeDelegation } = useStakingService();
+  const { delegationV2StepOptions, setDelegationV2StepOptions } =
+    useDelegationV2State();
 
   const {
     reset: resetForm,
@@ -70,6 +74,11 @@ export function MultistakingModal() {
   const confirmationDepth =
     networkInfo?.params.btcEpochCheckParams?.latestParam
       ?.btcConfirmationDepth || DEFAULT_CONFIRMATION_DEPTH;
+
+  const detailsModalTitle =
+    typeof delegationV2StepOptions?.type === "string"
+      ? delegationV2StepOptions.type
+      : "Transaction Details";
 
   const currentFinalityProviders = useWatch<
     { finalityProviders: Record<string, string> | string[] | undefined },
@@ -278,6 +287,13 @@ export function MultistakingModal() {
       <CancelFeedbackModal
         open={step === "feedback-cancel"}
         onClose={resetState}
+      />
+
+      <SignDetailsModal
+        open={Boolean(delegationV2StepOptions) && processing}
+        onClose={() => setDelegationV2StepOptions(undefined)}
+        details={delegationV2StepOptions}
+        title={detailsModalTitle}
       />
     </>
   );
