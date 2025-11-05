@@ -3,7 +3,7 @@ import {
   createWalletConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
-import { useCallback, type PropsWithChildren } from "react";
+import { useCallback, useMemo, type PropsWithChildren } from "react";
 import { useLocation } from "react-router";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -52,21 +52,33 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [handleError, logger],
   );
 
-  const requiredChains: ("BBN" | "BTC" | "ETH")[] =
-    location.pathname.startsWith("/baby")
-      ? ["BBN"]
-      : location.pathname.startsWith("/vault")
-        ? ["BTC", "ETH"]
-        : ["BTC", "BBN"];
+  const requiredChains: ("BBN" | "BTC" | "ETH")[] = useMemo(
+    () =>
+      location.pathname.startsWith("/baby")
+        ? ["BBN"]
+        : location.pathname.startsWith("/vault")
+          ? ["BTC", "ETH"]
+          : ["BTC", "BBN"],
+    [location.pathname],
+  );
 
-  const config = createWalletConfig({
-    chains: requiredChains,
-    networkConfigs: {
-      BTC: getNetworkConfigBTC(),
-      BBN: getNetworkConfigBBN(),
-      ETH: getNetworkConfigETH(),
-    },
-  });
+  const config = useMemo(
+    () =>
+      createWalletConfig({
+        chains: requiredChains,
+        networkConfigs: {
+          BTC: getNetworkConfigBTC(),
+          BBN: getNetworkConfigBBN(),
+          ETH: getNetworkConfigETH(),
+        },
+      }),
+    [requiredChains],
+  );
+
+  const disabledWallets = useMemo(
+    () => (FeatureFlagService.IsLedgerEnabled ? [] : ["ledget_btc"]),
+    [],
+  );
 
   return (
     <WalletProvider
@@ -75,7 +87,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
-      disabledWallets={FeatureFlagService.IsLedgerEnabled ? [] : ["ledget_btc"]}
+      disabledWallets={disabledWallets}
       requiredChains={requiredChains}
     >
       {children}
