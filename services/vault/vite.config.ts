@@ -40,7 +40,7 @@ export default defineConfig({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],
     }),
     nodePolyfills({
-      include: ["buffer"],
+      include: ["buffer", "crypto"],
       globals: {
         Buffer: true,
       },
