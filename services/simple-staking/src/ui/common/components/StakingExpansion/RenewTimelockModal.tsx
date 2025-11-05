@@ -58,7 +58,7 @@ export const RenewTimelockModal = ({
                   {stakingEndInfo.blocks.toLocaleString()} Blocks
                 </Text>
                 <Text variant="caption" className="text-secondary mt-1 block">
-                  ~ {stakingEndInfo.displayTime}
+                  {stakingEndInfo.displayTime}
                 </Text>
               </div>
             </div>

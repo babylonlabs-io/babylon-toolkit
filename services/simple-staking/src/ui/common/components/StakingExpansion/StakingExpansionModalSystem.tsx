@@ -213,9 +213,9 @@ function StakingExpansionModalSystemInner() {
       transactionFees: `${feeAmountBtc} ${coinSymbol}${displayUSD ? ` (${feeAmountUsd})` : ""}`,
       term: {
         blocks: `${formData.stakingTimelock} blocks`,
-        duration: `~ ${blocksToDisplayTime(formData.stakingTimelock)}`,
+        duration: `${blocksToDisplayTime(formData.stakingTimelock)}`,
       },
-      unbonding: `~ ${unbondingTime}`,
+      unbonding: `${unbondingTime}`,
       unbondingFee: `${unbondingFeeBtc} ${coinSymbol}${displayUSD ? ` (${unbondingFeeUsd})` : ""}`,
     };
 

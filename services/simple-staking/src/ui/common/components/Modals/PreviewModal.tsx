@@ -141,7 +141,7 @@ export const PreviewModal = ({
         <>
           <Text variant="body1">{stakingTimelock} blocks</Text>
           <Text variant="body2" className="text-accent-secondary">
-            ~ {blocksToDisplayTime(stakingTimelock)}
+            {blocksToDisplayTime(stakingTimelock)}
           </Text>
         </>
       ),
@@ -149,7 +149,7 @@ export const PreviewModal = ({
     {
       key: "On Demand Unbonding",
       value: (
-        <Text variant="body1">Enabled (~ {unbondingTime} unbonding time)</Text>
+        <Text variant="body1">Enabled ({unbondingTime} unbonding time)</Text>
       ),
     },
     {

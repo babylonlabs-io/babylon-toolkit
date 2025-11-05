@@ -9,11 +9,11 @@ import type { Address } from "viem";
 import { CONTRACTS } from "../../../../config/contracts";
 import { useBTCPrice } from "../../../../hooks/useBTCPrice";
 import { useMarkets } from "../../../../hooks/useMarkets";
+import { useTokenPair } from "../../../../hooks/useTokenPair";
 import { getMarketBorrowAPR } from "../../../../services/irm";
 import type { MorphoMarketSummary } from "../../../../services/market/marketService";
 import { getMarketData } from "../../../../services/market/marketService";
-import { getUserVaultPosition } from "../../../../services/position";
-import { getMarketTokenPairAsync } from "../../../../services/token";
+import { getUserPositionForMarket } from "../../../../services/position";
 import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
   blockToDateString,
@@ -43,16 +43,20 @@ export function useMarketDetail() {
     error: marketsError,
   } = useMarkets();
 
-  // Fetch user's position for this specific market
   const {
-    data: marketPosition,
+    data: position,
     isLoading: isPositionLoading,
     error: positionError,
     refetch: refetchPosition,
   } = useQuery({
-    queryKey: ["userPosition", address, marketId, CONTRACTS.VAULT_CONTROLLER],
+    queryKey: [
+      "userPositionForMarket",
+      address,
+      marketId,
+      CONTRACTS.VAULT_CONTROLLER,
+    ],
     queryFn: () =>
-      getUserVaultPosition(
+      getUserPositionForMarket(
         address as Address,
         marketId!,
         CONTRACTS.VAULT_CONTROLLER,
@@ -106,13 +110,21 @@ export function useMarketDetail() {
     }));
   }, [availableCollaterals]);
 
+  // Fetch token metadata for the market
+  const {
+    data: tokenPair,
+    isLoading: isTokenPairLoading,
+    error: tokenPairError,
+  } = useTokenPair(marketConfig?.collateral_token, marketConfig?.loan_token);
+
   // Combine loading states
   const loading =
     isMarketLoading ||
     isMarketsLoading ||
     isPositionLoading ||
     isBTCPriceLoading ||
-    isCollateralsLoading;
+    isCollateralsLoading ||
+    isTokenPairLoading;
 
   // Combine errors
   const error =
@@ -120,7 +132,8 @@ export function useMarketDetail() {
     marketsError ||
     positionError ||
     btcPriceError ||
-    collateralsError;
+    collateralsError ||
+    tokenPairError;
 
   const [creationDate, setCreationDate] = useState<string>("Loading...");
 
@@ -157,11 +170,9 @@ export function useMarketDetail() {
     return 70;
   }, [marketData, marketConfig]);
 
-  const currentLoanAmount = marketPosition
-    ? formatUSDC(marketPosition.position.totalBorrowed)
-    : 0;
-  const currentCollateralAmount = marketPosition
-    ? formatVaultBTC(marketPosition.position.totalCollateral)
+  const currentLoanAmount = position ? formatUSDC(position.currentLoan) : 0;
+  const currentCollateralAmount = position
+    ? formatVaultBTC(position.currentCollateral)
     : 0;
 
   // Calculate available liquidity for borrowing (in USDC)
@@ -173,41 +184,17 @@ export function useMarketDetail() {
   }, [marketData]);
 
   // Extract only what's needed for transactions (positionId + marketId)
-  const userPosition = useMemo(() => {
-    if (!marketPosition) return null;
-    return {
-      positionId: marketPosition.positionId,
-      marketId: marketPosition.position.marketId,
-    };
-  }, [marketPosition]);
+  const userPosition = position
+    ? {
+        positionId: position.positionId,
+        marketId: position.marketId,
+      }
+    : null;
 
   const formatLLTV = (lltvString: string) => {
     const lltvNumber = Number(lltvString);
     return (lltvNumber / 1e16).toFixed(1);
   };
-
-  // NOTE: maxBorrow is now calculated dynamically in useBorrowState based on collateral slider value
-  // This allows real-time updates as user adjusts collateral amount
-  // Formula: Math.floor(collateralAmount * btcPrice * (liquidationLtv / 100))
-
-  // Fetch token metadata for the market (with async blockchain fetching)
-  const { data: tokenPair } = useQuery({
-    queryKey: [
-      "tokenPair",
-      marketConfig?.collateral_token,
-      marketConfig?.loan_token,
-    ],
-    queryFn: async () => {
-      if (!marketConfig) return null;
-
-      return getMarketTokenPairAsync(
-        marketConfig.collateral_token,
-        marketConfig.loan_token,
-      );
-    },
-    enabled: !!marketConfig,
-    staleTime: Infinity, // Token metadata doesn't change
-  });
 
   const marketAttributes = useMemo<
     Array<{ label: string; value: string | ReactNode }>
@@ -301,7 +288,7 @@ export function useMarketDetail() {
   const positionData = useMemo<
     Array<{ label: string; value: string }> | undefined
   >(() => {
-    if (!marketPosition) {
+    if (!position) {
       return undefined;
     }
     const currentLtv =
@@ -311,11 +298,11 @@ export function useMarketDetail() {
     return [
       {
         label: "Current Loan",
-        value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "???"}}`,
+        value: `${currentLoanAmount.toLocaleString()} ${tokenPair?.loan.symbol || "???"}`,
       },
       {
         label: "Current Collateral",
-        value: `${currentCollateralAmount.toFixed(8)} ${tokenPair?.collateral.symbol || "???"}}`,
+        value: `${currentCollateralAmount.toFixed(8)} ${tokenPair?.collateral.symbol || "???"}`,
       },
       { label: "Market", value: tokenPair?.pairName || "Unknown Market" },
       { label: "Current LTV", value: currentLtv },
@@ -327,7 +314,7 @@ export function useMarketDetail() {
       },
     ];
   }, [
-    marketPosition,
+    position,
     currentCollateralAmount,
     currentLoanAmount,
     btcPrice,
@@ -437,7 +424,7 @@ export function useMarketDetail() {
   // Refetch data that changes after user transactions (borrow/repay)
   const refetch = async () => {
     await Promise.all([
-      refetchPosition(), // User's position changes
+      refetchPosition(), // Refetches both Vault Controller AND Morpho data
       refetchCollaterals(), // Available vaults change
       refetchMarketData(), // Market totals change slightly
     ]);

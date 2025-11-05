@@ -39,7 +39,12 @@ export default defineConfig({
     tsconfigPaths({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],
     }),
-    nodePolyfills({ include: ["buffer", "crypto"] }),
+    nodePolyfills({
+      include: ["buffer", "crypto"],
+      globals: {
+        Buffer: true,
+      },
+    }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),
   ],
   define: {

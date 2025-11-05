@@ -11,7 +11,7 @@ import { FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
-import { durationTillNow } from "@/ui/common/utils/time";
+import { blocksToDisplayTime, durationTillNow } from "@/ui/common/utils/time";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
@@ -23,6 +23,7 @@ export interface ActivityCardTransformOptions {
   showExpansionSection?: boolean;
   hideExpansionCompletely?: boolean;
   isBroadcastedExpansion?: boolean;
+  unbondingTime?: number;
 }
 
 /**
@@ -122,6 +123,13 @@ export function transformDelegationToActivityCard(
   // Determine if we should show the expansion pending banner
   const showExpansionPendingBanner = !!options.isBroadcastedExpansion;
 
+  const unbondingDetail = options.unbondingTime
+    ? {
+        label: "Unbonding Period",
+        value: `${blocksToDisplayTime(options.unbondingTime)}`,
+      }
+    : undefined;
+
   return {
     formattedAmount,
     icon: icon,
@@ -132,6 +140,7 @@ export function transformDelegationToActivityCard(
     isPendingExpansion,
     showExpansionPendingBanner,
     hideExpansionCompletely: options.hideExpansionCompletely,
+    optionalDetails: unbondingDetail ? [unbondingDetail] : [],
   };
 }
 

@@ -3,8 +3,8 @@
  * Handles the borrow flow logic and transaction execution
  */
 
+import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits, type Hex } from "viem";
-import { useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";
@@ -23,17 +23,16 @@ interface UseBorrowTransactionProps {
   hasPosition: boolean;
   marketId: string | undefined;
   availableVaults: AvailableVault[];
-  lastBorrowData: {
-    collateral: number;
-    borrow: number;
-  };
   refetch: () => Promise<void>;
   onBorrowSuccess: () => void;
   setProcessing: (processing: boolean) => void;
 }
 
 export interface UseBorrowTransactionResult {
-  handleConfirmBorrow: () => Promise<void>;
+  handleConfirmBorrow: (
+    collateralBTC: number,
+    borrowUSDC: number,
+  ) => Promise<void>;
 }
 
 /**
@@ -43,7 +42,6 @@ export function useBorrowTransaction({
   hasPosition,
   marketId,
   availableVaults,
-  lastBorrowData,
   refetch,
   onBorrowSuccess,
   setProcessing,
@@ -51,7 +49,10 @@ export function useBorrowTransaction({
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
 
-  const handleConfirmBorrow = async () => {
+  const handleConfirmBorrow = async (
+    collateralBTC: number,
+    borrowUSDC: number,
+  ) => {
     setProcessing(true);
     try {
       // Validate wallet connection
@@ -63,8 +64,6 @@ export function useBorrowTransaction({
       if (!marketId) {
         throw new Error("Market ID is required for borrowing.");
       }
-
-      const { collateral: collateralBTC, borrow: borrowUSDC } = lastBorrowData;
 
       // Validate at least one amount is provided
       if (collateralBTC <= 0 && borrowUSDC <= 0) {
