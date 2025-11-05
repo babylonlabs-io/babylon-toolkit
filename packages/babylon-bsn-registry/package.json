@@ -20,13 +20,20 @@
     "type": "git",
     "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
   },
-  "keywords": ["babylon", "bsn", "registry", "bitcoin", "testnet", "mainnet"],
+  "keywords": [
+    "babylon",
+    "bsn",
+    "registry",
+    "bitcoin",
+    "testnet",
+    "mainnet"
+  ],
   "author": "Babylon Labs",
   "license": "MIT",
   "description": "Babylon BSN Registry - A registry of Bitcoin Staking Node (BSN) information for testnet and mainnet",
   "devDependencies": {
     "prettier": "^3.6.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3"
   },
   "publishConfig": {
     "access": "public"
