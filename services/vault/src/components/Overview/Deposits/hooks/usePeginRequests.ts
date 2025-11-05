@@ -4,13 +4,19 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 
-import { ONE_MINUTE } from "@/constants";
+import { FAST_POLL_INTERVAL, NORMAL_POLL_INTERVAL } from "@/constants";
 
 import { CONTRACTS } from "../../../../config/contracts";
+import {
+  ContractStatus,
+  getPeginState,
+  LocalStorageStatus,
+} from "../../../../models/peginStateMachine";
 import { getPeginRequestsWithDetails } from "../../../../services/vault/vaultQueryService";
+import { getPendingPegins } from "../../../../storage/peginStorage";
 import type { VaultActivity } from "../../../../types";
 import { transformPeginToActivity } from "../../../../utils/peginTransformers";
 
@@ -49,6 +55,14 @@ export interface UsePeginRequestsParams {
 export function usePeginRequests({
   connectedAddress,
 }: UsePeginRequestsParams): UsePeginRequestsResult {
+  // State to track if fast polling is needed
+  const [needsFastPolling, setNeedsFastPolling] = useState(false);
+
+  // Determine polling interval based on whether any activity is "Processing"
+  const pollingInterval = needsFastPolling
+    ? FAST_POLL_INTERVAL
+    : NORMAL_POLL_INTERVAL;
+
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["peginRequests", connectedAddress, CONTRACTS.BTC_VAULTS_MANAGER],
@@ -61,8 +75,8 @@ export function usePeginRequests({
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
-    // Poll every minute to track peg-in status updates
-    refetchInterval: ONE_MINUTE,
+    // Dynamic polling: 15s for "Processing" status, 1 minute otherwise
+    refetchInterval: pollingInterval,
   });
 
   // Trigger refetch when wallet connects (address changes from undefined to a value)
@@ -81,6 +95,35 @@ export function usePeginRequests({
     );
     return transformed;
   }, [data]);
+
+  // Check if any activity has "Processing" status and update fast polling flag
+  useEffect(() => {
+    if (!connectedAddress || !activities.length) {
+      setNeedsFastPolling(false);
+      return;
+    }
+
+    // Get pending pegins from localStorage to check local status
+    const pendingPegins = getPendingPegins(connectedAddress);
+
+    // Check if any activity is in "Processing" state
+    const hasProcessingActivity = activities.some((activity) => {
+      const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+      const localStatus = pendingPegin?.status as
+        | LocalStorageStatus
+        | undefined;
+
+      // Get the state for this activity
+      const state = getPeginState(
+        (activity.contractStatus ?? 0) as ContractStatus,
+        localStatus,
+      );
+
+      return state.displayLabel === "Processing";
+    });
+
+    setNeedsFastPolling(hasProcessingActivity);
+  }, [connectedAddress, activities]);
 
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {

@@ -114,7 +114,11 @@ function StatusCell({
     Expired: "inactive",
   };
 
-  return <StatusBadge status={statusMap[status] || "pending"} label={status} />;
+  return (
+    <div title={peginState.message || ""} className="cursor-help">
+      <StatusBadge status={statusMap[status] || "pending"} label={status} />
+    </div>
+  );
 }
 
 // Helper component for action buttons with row polling
@@ -240,10 +244,12 @@ function DepositMobileCard({
         {
           label: "Status",
           value: (
-            <StatusBadge
-              status={statusMap[status] || "pending"}
-              label={status}
-            />
+            <div title={peginState.message || ""} className="cursor-help">
+              <StatusBadge
+                status={statusMap[status] || "pending"}
+                label={status}
+              />
+            </div>
           ),
         },
       ]}
