@@ -11,6 +11,14 @@ jest.mock("@uidotdev/usehooks", () => ({
   useDebounce: jest.fn((value) => value),
 }));
 
+// Mock nanoevents (ESM-only module) to avoid Jest parsing issues
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({
+    on: jest.fn(),
+    emit: jest.fn(),
+  })),
+}));
+
 import { RegistrationStep } from "@babylonlabs-io/btc-staking-ts";
 import { act, renderHook } from "@testing-library/react";
 

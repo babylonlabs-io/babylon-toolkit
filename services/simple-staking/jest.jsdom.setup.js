@@ -1,7 +1,5 @@
-// Required for msw
-import { http, HttpResponse } from "msw";
-import { setupServer } from "msw/node";
-import { TextDecoder, TextEncoder } from "util";
+// Ensure required globals exist before loading MSW
+const { TextDecoder, TextEncoder } = require("util");
 
 // Define missing Jest lifecycle functions if not available
 const beforeAll = global.beforeAll || ((fn) => fn());
@@ -9,17 +7,19 @@ const afterEach = global.afterEach || ((fn) => fn());
 const afterAll = global.afterAll || ((fn) => fn());
 
 // Set up TextEncoder/TextDecoder
-global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder;
+global.TextEncoder = global.TextEncoder || TextEncoder;
+global.TextDecoder = global.TextDecoder || TextDecoder;
 
 // Mock BroadcastChannel for JSDOM environment
-global.BroadcastChannel = class BroadcastChannel {
-  constructor() {
-    this.onmessage = null;
-  }
-  postMessage() {}
-  close() {}
-};
+if (typeof global.BroadcastChannel !== "function") {
+  global.BroadcastChannel = class BroadcastChannel {
+    constructor() {
+      this.onmessage = null;
+    }
+    postMessage() {}
+    close() {}
+  };
+}
 
 // Mock crypto for JSDOM environment
 Object.defineProperty(global, "crypto", {
@@ -30,6 +30,10 @@ Object.defineProperty(global, "crypto", {
     },
   },
 });
+
+// Load MSW only after globals are set
+const { http, HttpResponse } = require("msw");
+const { setupServer } = require("msw/node");
 
 // Define handlers
 const handlers = [

@@ -1,16 +1,19 @@
-import { BabylonBtcStakingManager } from "@babylonlabs-io/btc-staking-ts";
 import { Transaction } from "bitcoinjs-lib";
 import { useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import type {
+  BtcStakingExpansionInputs,
+  BtcStakingInputs,
+} from "@/ui/common/types/stakingInputs";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import { useAppState } from "@/ui/common/state";
-import { validateStakingInput } from "@/ui/common/utils/delegations";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getTxInfo, getTxMerkleProof } from "@/ui/common/utils/mempool_api";
+import { validateStakingManagerInputs } from "@/ui/common/utils/validateStakingManagerInputs";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
 import { DELEGATIONS_V2_KEY } from "../client/api/useDelegationsV2";
@@ -18,20 +21,10 @@ import { useBbnQuery } from "../client/rpc/queries/useBbnQuery";
 
 import { useStakingManagerService } from "./useStakingManagerService";
 
-export interface BtcStakingInputs {
-  finalityProviderPksNoCoordHex: string[];
-  stakingAmountSat: number;
-  stakingTimelock: number;
-}
-
-export interface BtcStakingExpansionInputs {
-  finalityProviderPksNoCoordHex: string[];
-  stakingAmountSat: number;
-  stakingTimelock: number;
-  previousStakingTxHex: string;
-  previousStakingParamsVersion: number;
-  previousStakingInput: BtcStakingInputs;
-}
+export type {
+  BtcStakingExpansionInputs,
+  BtcStakingInputs,
+} from "@/ui/common/types/stakingInputs";
 
 export const useTransactionService = () => {
   const queryClient = useQueryClient();
@@ -75,7 +68,7 @@ export const useTransactionService = () => {
 
       const btcStakingManager = createBtcStakingManager();
 
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         latestTipHeight,
@@ -128,7 +121,7 @@ export const useTransactionService = () => {
         feeRate,
       });
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -171,7 +164,7 @@ export const useTransactionService = () => {
       const { data: latestTipHeight } = await refetchBtcTip();
 
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         latestTipHeight,
@@ -220,7 +213,7 @@ export const useTransactionService = () => {
       unsignedStakingTxHex: string,
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -301,7 +294,7 @@ export const useTransactionService = () => {
       }[],
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -343,7 +336,7 @@ export const useTransactionService = () => {
         earlyUnbondingTxHex,
       });
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -388,7 +381,7 @@ export const useTransactionService = () => {
         stakingTxHash: Transaction.fromHex(stakingTxHex).getId(),
       });
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -429,7 +422,7 @@ export const useTransactionService = () => {
       slashingTxHex: string,
     ) => {
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         stakingInput,
         tipHeight,
@@ -466,7 +459,7 @@ export const useTransactionService = () => {
 
       const btcStakingManager = createBtcStakingManager();
 
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -548,7 +541,7 @@ export const useTransactionService = () => {
         feeRate,
       });
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -634,7 +627,7 @@ export const useTransactionService = () => {
       });
 
       const btcStakingManager = createBtcStakingManager();
-      const commonInputs = validateCommonInputs(
+      const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
         {
           finalityProviderPksNoCoordHex:
@@ -778,46 +771,5 @@ const getInclusionProof = async (stakingTx: Transaction) => {
     pos,
     merkle,
     blockHashHex,
-  };
-};
-
-/**
- * Validate the common inputs
- * @param btcStakingManager - The BTC Staking Manager
- * @param stakingInput - The staking inputs (e.g. amount, timelock, etc.)
- * @param tipHeight - The BTC tip height from the Babylon Genesis
- * @param stakerInfo - The staker info (e.g. address, public key, etc.)
- */
-const validateCommonInputs = (
-  btcStakingManager: BabylonBtcStakingManager | null,
-  stakingInput: BtcStakingInputs,
-  tipHeight: number | undefined,
-  stakerInfo: { address: string; publicKeyNoCoordHex: string },
-): {
-  btcStakingManager: BabylonBtcStakingManager;
-  tipHeight: number;
-} => {
-  validateStakingInput(stakingInput);
-  if (!btcStakingManager) {
-    throw new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "BTC Staking Manager not initialized",
-    );
-  }
-  if (!tipHeight) {
-    throw new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "Tip height not initialized",
-    );
-  }
-  if (!stakerInfo.address || !stakerInfo.publicKeyNoCoordHex) {
-    throw new ClientError(
-      ERROR_CODES.INITIALIZATION_ERROR,
-      "Staker info not initialized",
-    );
-  }
-  return {
-    btcStakingManager,
-    tipHeight,
   };
 };
