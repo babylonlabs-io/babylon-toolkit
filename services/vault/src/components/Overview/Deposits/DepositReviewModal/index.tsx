@@ -7,10 +7,10 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
+import { useEstimateGas, useGasPrice } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { formatEther } from "viem";
-import { useEstimateGas, useGasPrice } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import { satoshiToBtcNumber } from "../../../../utils/btcConversion";
