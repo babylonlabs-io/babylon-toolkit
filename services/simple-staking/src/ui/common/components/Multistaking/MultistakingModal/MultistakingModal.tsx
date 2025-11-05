@@ -206,9 +206,9 @@ export function MultistakingModal() {
       transactionFees: `${feeAmountBtc} ${coinSymbol}${displayUSD ? ` (${feeAmountUsd})` : ""}`,
       term: {
         blocks: `${formData.term} blocks`,
-        duration: `~ ${blocksToDisplayTime(formData.term)}`,
+        duration: `${blocksToDisplayTime(formData.term)}`,
       },
-      unbonding: `~ ${unbondingTime}`,
+      unbonding: `${unbondingTime}`,
       unbondingFee: `${unbondingFeeBtc} ${coinSymbol}${displayUSD ? ` (${unbondingFeeUsd})` : ""}`,
     };
   }, [formData, stakingInfo, btcInUsd, coinSymbol]);
