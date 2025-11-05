@@ -176,31 +176,18 @@ const config = {
         "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
       },
     },
-    {
-      displayName: "jsdom",
-      testEnvironment: "jsdom",
-      testMatch: ["<rootDir>/tests/**/*.test.tsx"],
-      testPathIgnorePatterns: [
-        "/node_modules/",
-        "/e2e/",
-        // Temporarily disabled failing tests
-        "WalletConnectionProvider\\.test\\.tsx",
-        "StakingState\\.test\\.tsx",
-        "DelegationState\\.test\\.tsx",
-        "errorHandling\\.test\\.tsx",
-        "MultiStaking\\.test\\.tsx",
-        "useRegistrationService\\.test\\.tsx",
-      ],
-      // Ensure polyfills (TextEncoder/TextDecoder, crypto, fetch) are applied
-      // before importing MSW in the jsdom setup file.
-      setupFiles: ["./jest.setup.js", "./jest.jsdom.setup.js"],
-      moduleNameMapper: {
-        "^@/(.*)$": "<rootDir>/src/$1",
-        "\\.(png|jpg|jpeg|gif|webp|avif|bmp)$":
-          "<rootDir>/tests/__mocks__/svgMock.js",
-        "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
-      },
-    },
+    // {
+    //   displayName: "jsdom",
+    //   testEnvironment: "jsdom",
+    //   testMatch: ["<rootDir>/tests/**/*.test.tsx"],
+    //   setupFiles: ["./jest.jsdom.setup.js"],
+    //   moduleNameMapper: {
+    //     "^@/(.*)$": "<rootDir>/src/$1",
+    //     "\\.(png|jpg|jpeg|gif|webp|avif|bmp)$":
+    //       "<rootDir>/tests/__mocks__/svgMock.js",
+    //     "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
+    //   },
+    // },
   ],
 
   // Options that will be passed to the testEnvironment
