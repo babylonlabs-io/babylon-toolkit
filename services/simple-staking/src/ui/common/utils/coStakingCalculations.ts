@@ -35,11 +35,14 @@ export const formatNumber = (value: number, decimals: number = 2): string => {
  * Formats BABY tokens for display
  */
 export const formatBabyTokens = (value: number): string => {
-  if (value >= 1_000_000) {
-    return `${formatNumber(value / 1_000_000, 2)}M`;
+  const absValue = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+
+  if (absValue >= 1_000_000) {
+    return `${sign}${formatNumber(absValue / 1_000_000, 2)}M`;
   }
-  if (value >= 1_000) {
-    return `${formatNumber(value / 1_000, 2)}K`;
+  if (absValue >= 1_000) {
+    return `${sign}${formatNumber(absValue / 1_000, 2)}K`;
   }
-  return formatNumber(value, 2);
+  return `${sign}${formatNumber(absValue, 2)}`;
 };

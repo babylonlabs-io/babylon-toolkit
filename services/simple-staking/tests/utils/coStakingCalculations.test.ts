@@ -136,9 +136,9 @@ describe("formatBabyTokens", () => {
     expect(formatBabyTokens(1235.999)).toBe("1.24K");
   });
 
-  it("should handle negative numbers without suffix", () => {
-    expect(formatBabyTokens(-1000)).toBe("-1000.00");
-    expect(formatBabyTokens(-1000000)).toBe("-1000000.00");
+  it("should handle negative numbers with suffixes", () => {
+    expect(formatBabyTokens(-1000)).toBe("-1.00K");
+    expect(formatBabyTokens(-1000000)).toBe("-1.00M");
     expect(formatBabyTokens(-100)).toBe("-100.00");
   });
 });
