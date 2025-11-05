@@ -191,7 +191,9 @@ const config = {
         "MultiStaking\\.test\\.tsx",
         "useRegistrationService\\.test\\.tsx",
       ],
-      setupFiles: ["./jest.jsdom.setup.js"],
+      // Ensure polyfills (TextEncoder/TextDecoder, crypto, fetch) are applied
+      // before importing MSW in the jsdom setup file.
+      setupFiles: ["./jest.setup.js", "./jest.jsdom.setup.js"],
       moduleNameMapper: {
         "^@/(.*)$": "<rootDir>/src/$1",
         "\\.(png|jpg|jpeg|gif|webp|avif|bmp)$":
