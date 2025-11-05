@@ -25,14 +25,24 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
   const onError = useCallback(
     (error: Error) => {
-      if (error?.message?.includes("rejected")) {
+      const message = error?.message ?? "Error connecting to wallet";
+
+      if (message.toLowerCase().includes("rejected")) {
         return;
       }
 
+      const isCustomChainUnsupported =
+        message.toLowerCase().includes("no chain info") ||
+        message.toLowerCase().includes("not supported chainid");
+
+      const errorMessage = isCustomChainUnsupported
+        ? "This wallet doesn't support custom chains, please choose Keplr or Leap wallet and approve the custom chain in the wallet."
+        : message;
+
       const clientError = new ClientError(
         ERROR_CODES.WALLET_ACTION_FAILED,
-        error?.message || "Error connecting to wallet",
-        { cause: error as Error },
+        errorMessage,
+        { cause: error },
       );
       logger.error(clientError);
       handleError({

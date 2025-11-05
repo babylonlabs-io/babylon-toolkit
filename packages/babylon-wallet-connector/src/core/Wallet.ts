@@ -1,5 +1,4 @@
 import type { Account, IProvider, IWallet, Network } from "@/core/types";
-import { ERROR_CODES, WalletError } from "@/error";
 
 export interface WalletOptions<P extends IProvider> {
   id: string;
@@ -46,22 +45,8 @@ export class Wallet<P extends IProvider> implements IWallet {
     if (!this.provider) {
       throw Error("Provider not found");
     }
-    try {
-      await this.provider.connectWallet();
-    } catch (error: any) {
-      const isUnsupportedCustomChain = error?.message?.includes("no chain info");
 
-      if (isUnsupportedCustomChain) {
-        throw new WalletError({
-          code: ERROR_CODES.WALLET_UNSUPPORTED_CUSTOM_CHAIN,
-          message: `${this.name} wallet doesn't support custom chains, please connect with Keplr or Leap wallet and approve the custom chain in the wallet.`,
-          wallet: this.name,
-        });
-      }
-
-      throw error;
-    }
-
+    await this.provider.connectWallet();
     const [address, publicKeyHex] = await Promise.all([this.provider.getAddress(), this.provider.getPublicKeyHex()]);
 
     this.account = { address, publicKeyHex };
