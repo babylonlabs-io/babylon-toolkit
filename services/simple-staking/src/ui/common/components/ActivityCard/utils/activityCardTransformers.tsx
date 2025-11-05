@@ -126,7 +126,7 @@ export function transformDelegationToActivityCard(
   const unbondingDetail = options.unbondingTime
     ? {
         label: "Unbonding Period",
-        value: `~ ${blocksToDisplayTime(options.unbondingTime)}`,
+        value: `${blocksToDisplayTime(options.unbondingTime)}`,
       }
     : undefined;
 
