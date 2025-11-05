@@ -154,41 +154,43 @@ export async function getTokenMetadata(
 
   // 3. Create a new fetch promise
   const fetchPromise = (async () => {
-    console.log(
-      `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
-    );
+    try {
+      console.log(
+        `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
+      );
 
-    const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
+      const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
-    if (chainMetadata) {
-      // Use special icons for common token symbols
-      const icon = getIconForSymbol(chainMetadata.symbol);
+      if (chainMetadata) {
+        // Use special icons for common token symbols
+        const icon = getIconForSymbol(chainMetadata.symbol);
 
-      const tokenMetadata: TokenMetadata = {
-        ...chainMetadata,
-        icon,
+        const tokenMetadata: TokenMetadata = {
+          ...chainMetadata,
+          icon,
+        };
+
+        tokenMetadataCache.set(checksumAddress, tokenMetadata);
+        console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
+        return tokenMetadata;
+      }
+
+      // 4. Fallback to default if fetch fails
+      const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
+      const fallbackMetadata: TokenMetadata = {
+        address: checksumAddress as Address,
+        symbol: truncatedAddress,
+        name: `Unknown Token (${truncatedAddress})`,
+        decimals: 18,
+        // No icon - Avatar component will show fallback (initials)
+        icon: undefined,
       };
 
-      tokenMetadataCache.set(checksumAddress, tokenMetadata);
-      fetchPromiseCache.delete(checksumAddress); // Clean up promise cache
-      console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
-      return tokenMetadata;
+      tokenMetadataCache.set(checksumAddress, fallbackMetadata);
+      return fallbackMetadata;
+    } finally {
+      fetchPromiseCache.delete(checksumAddress);
     }
-
-    // 4. Fallback to default if fetch fails
-    const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
-    const fallbackMetadata: TokenMetadata = {
-      address: checksumAddress as Address,
-      symbol: truncatedAddress,
-      name: `Unknown Token (${truncatedAddress})`,
-      decimals: 18,
-      // No icon - Avatar component will show fallback (initials)
-      icon: undefined,
-    };
-
-    tokenMetadataCache.set(checksumAddress, fallbackMetadata);
-    fetchPromiseCache.delete(checksumAddress); // Clean up promise cache
-    return fallbackMetadata;
   })();
 
   fetchPromiseCache.set(checksumAddress, fetchPromise);
@@ -375,11 +377,11 @@ export function isTokenCached(address: string): boolean {
  * @param addresses - Array of token addresses to prefetch
  */
 export async function prefetchTokens(addresses: string[]): Promise<void> {
-  const validAddresses = addresses.filter(isAddress).map(getAddress);
+  const validAddresses = addresses.filter((addr) => isAddress(addr)).map(getAddress);
 
   // Fetch all uncached tokens in parallel
   const fetchPromises = validAddresses
-    .filter((address) => !tokenMetadataCache.has(address))
+    .filter((address) => !tokenMetadataCache.has(address) && !fetchPromiseCache.has(address))
     .map((address) => getTokenMetadata(address));
 
   await Promise.allSettled(fetchPromises);
