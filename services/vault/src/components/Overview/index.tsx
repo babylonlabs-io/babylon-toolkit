@@ -214,25 +214,25 @@ function OverviewContent() {
     return (
       <>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Deposits
           </h3>
           <DepositOverview />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Your Positions
           </h3>
           <Position />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Markets
           </h3>
           <Market />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Activity
           </h3>
           <Activity />

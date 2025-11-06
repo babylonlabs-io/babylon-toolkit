@@ -22,7 +22,7 @@ export function ProviderCard({
 }: ProviderCardProps) {
   return (
     <div className={twMerge(
-      "flex items-center justify-between p-4 rounded-lg bg-secondary-highlight",
+      "flex items-center justify-between p-4 rounded-lg bg-secondary-highlight dark:bg-primary-main",
       className
     )}>
       <div className="flex items-center gap-3">
