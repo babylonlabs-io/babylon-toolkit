@@ -3,7 +3,6 @@ import { ONE_MINUTE } from "@/ui/common/constants";
 import { useClientQuery } from "@/ui/common/hooks/client/useClient";
 
 const GLOBAL_APR_KEY = "GLOBAL_APR";
-const SATOSHIS_PER_BTC = 100_000_000;
 
 export interface GlobalAPRData {
   btcStakingApr: number;
@@ -11,14 +10,14 @@ export interface GlobalAPRData {
 }
 
 /**
- * Hook to fetch global APR data for 1 BTC staked with 0 BABY
+ * Hook to fetch global APR data
  * Returns base BTC staking APR and maximum staking APR (with co-staking)
  */
 export function useGlobalAPR({ enabled = true }: { enabled?: boolean } = {}) {
   return useClientQuery({
     queryKey: [GLOBAL_APR_KEY],
     queryFn: async (): Promise<GlobalAPRData> => {
-      const result = await getPersonalizedAPR(SATOSHIS_PER_BTC, 0);
+      const result = await getPersonalizedAPR(0, 0);
       return {
         btcStakingApr: result.btc_staking_apr,
         maxStakingApr: result.max_staking_apr,
