@@ -78,8 +78,7 @@ export const Stats = memo(() => {
                 </p>
                 <p>
                   The second number is the {coinSymbol} Staking APR if you
-                  co-stake {coinSymbol}
-                  and BABY.
+                  co-stake {coinSymbol} and BABY.
                 </p>
                 <p>
                   Annual Percentage Reward (APR) is a dynamic estimate of the
