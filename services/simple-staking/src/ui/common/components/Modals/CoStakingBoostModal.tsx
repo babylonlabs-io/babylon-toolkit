@@ -1,9 +1,14 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
 import { useCoStakingState } from "../../state/CoStakingState";
 import { formatAPRPercentage } from "../../utils/formatAPR";
+import {
+  AnalyticsCategory,
+  trackEvent,
+  trackModalView,
+} from "../../utils/analytics";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -46,6 +51,50 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     [eligibility.additionalBabyNeeded, babyCoinSymbol, boostPercentDisplay],
   );
 
+  // Track modal view duration on open/close
+  useEffect(() => {
+    if (!open) return;
+    const stopTracking = trackModalView("modal_viewed", {
+      modalName: CoStakingBoostModal.name,
+      babyAmount: eligibility.additionalBabyNeeded,
+      aprBoostPercent: percentageIncrease,
+      currentApr: aprData.currentApr,
+      boostApr: aprData.boostApr,
+    });
+    return () => {
+      stopTracking();
+    };
+  }, [
+    open,
+    eligibility.additionalBabyNeeded,
+    percentageIncrease,
+    aprData.currentApr,
+    aprData.boostApr,
+  ]);
+
+  const handleSubmit = useCallback(() => {
+    trackEvent(AnalyticsCategory.CTA_CLICK, "boost_apr_stake_baby", {
+      babyAmount: eligibility.additionalBabyNeeded,
+      aprBoostPercent: percentageIncrease,
+      currentApr: aprData.currentApr,
+      boostApr: aprData.boostApr,
+    });
+    onSubmit();
+  }, [
+    onSubmit,
+    eligibility.additionalBabyNeeded,
+    percentageIncrease,
+    aprData.currentApr,
+    aprData.boostApr,
+  ]);
+
+  const handleClose = useCallback(() => {
+    trackEvent(AnalyticsCategory.CTA_CLICK, "close_modal", {
+      modalName: CoStakingBoostModal.name,
+    });
+    onClose();
+  }, [onClose]);
+
   // Don't render modal if boost data is not available
   if (!hasValidBoostData) {
     return null;
@@ -65,8 +114,8 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       open={open}
       submitButton={submitButtonText}
       cancelButton=""
-      onSubmit={onSubmit}
-      onClose={onClose}
+      onSubmit={handleSubmit}
+      onClose={handleClose}
       showCloseButton={true}
     >
       <p className="text-center text-base text-accent-secondary">
