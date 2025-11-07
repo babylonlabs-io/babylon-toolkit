@@ -74,7 +74,7 @@ export const Stats = memo(() => {
                 </p>
                 <p>
                   The first number is the {coinSymbol} Staking APR if you only
-                  stake {coinSymbol}- you receive a share of the 1% inflation.
+                  stake {coinSymbol} - you receive a share of the 1% inflation.
                 </p>
                 <p>
                   The second number is the {coinSymbol} Staking APR if you
