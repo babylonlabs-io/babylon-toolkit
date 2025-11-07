@@ -69,15 +69,16 @@ export const Stats = memo(() => {
             tooltip={
               <>
                 <p>
-                  BTC Staking APR is higher if you co-stake BTC and BABY, hence
-                  the two numbers shown.
+                  {coinSymbol} Staking APR is higher if you co-stake{" "}
+                  {coinSymbol} and BABY, hence the two numbers shown.
                 </p>
                 <p>
-                  The first number is the BTC Staking APR if you only stake BTC
-                  - you receive a share of the 1% inflation.
+                  The first number is the {coinSymbol} Staking APR if you only
+                  stake {coinSymbol}- you receive a share of the 1% inflation.
                 </p>
                 <p>
-                  The second number is the BTC Staking APR if you co-stake BTC
+                  The second number is the {coinSymbol} Staking APR if you
+                  co-stake {coinSymbol}
                   and BABY.
                 </p>
                 <p>
