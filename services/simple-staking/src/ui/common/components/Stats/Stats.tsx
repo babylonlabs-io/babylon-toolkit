@@ -5,13 +5,15 @@ import { Section } from "@/ui/common/components/Section/Section";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
 import { useSystemStats } from "@/ui/common/hooks/client/api/useSystemStats";
-import { Network } from "@/ui/common/types/network";
+import { useGlobalAPR } from "@/ui/common/hooks/client/api/useGlobalAPR";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { formatBTCTvl } from "@/ui/common/utils/formatBTCTvl";
+import { formatAPRPairAdaptive } from "@/ui/common/utils/formatAPR";
+import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { StatItem } from "./StatItem";
 
-const { coinSymbol, network } = getNetworkConfigBTC();
+const { coinSymbol } = getNetworkConfigBTC();
 
 const formatter = Intl.NumberFormat("en", {
   notation: "compact",
@@ -19,6 +21,8 @@ const formatter = Intl.NumberFormat("en", {
 });
 
 export const Stats = memo(() => {
+  const isCoStakingEnabled = FeatureFlagService.IsCoStakingEnabled;
+
   const {
     data: {
       total_active_tvl: totalActiveTVL = 0,
@@ -28,6 +32,9 @@ export const Stats = memo(() => {
     } = {},
     isLoading,
   } = useSystemStats();
+  const { data: aprData, isLoading: isAPRLoading } = useGlobalAPR({
+    enabled: isCoStakingEnabled,
+  });
   const usdRate = usePrice(coinSymbol);
 
   return (
@@ -43,13 +50,62 @@ export const Stats = memo(() => {
           )}
         />
 
-        <StatItem
-          hidden={network === Network.MAINNET ? !stakingAPR : false}
-          loading={isLoading}
-          title={`${coinSymbol} Staking APR`}
-          value={`${formatter.format(network === Network.MAINNET && stakingAPR ? stakingAPR * 100 : 0)}%`}
-          tooltip="Annual Percentage Reward (APR) is a dynamic estimate of the annualized staking reward rate based on current network conditions, and it refers to staking rewards rather than traditional lending interest. Rewards are distributed in BABY tokens but shown as a Bitcoin-equivalent rate relative to the Bitcoin initially staked. APR is calculated using U.S. dollar values for Bitcoin and BABY from independent, reputable sources. The APR shown is an approximate figure that can fluctuate, and the displayed value may not always be completely accurate. Actual rewards are not guaranteed and may vary over time. Staking carries exposure to slashing and other risks."
-        />
+        {isCoStakingEnabled ? (
+          <StatItem
+            hidden={!aprData}
+            loading={isLoading || isAPRLoading}
+            title={`${coinSymbol} Staking APR`}
+            value={
+              aprData
+                ? (() => {
+                    const { a, b } = formatAPRPairAdaptive(
+                      aprData.btcStakingApr * 100,
+                      aprData.maxStakingApr * 100,
+                    );
+                    return `${a}% - ${b}%`;
+                  })()
+                : "0%"
+            }
+            tooltip={
+              <>
+                <p>
+                  BTC Staking APR is higher if you co-stake BTC and BABY, hence
+                  the two numbers shown.
+                </p>
+                <p>
+                  The first number is the BTC Staking APR if you only stake BTC
+                  - you receive a share of the 1% inflation.
+                </p>
+                <p>
+                  The second number is the BTC Staking APR if you co-stake BTC
+                  and BABY.
+                </p>
+                <p>
+                  Annual Percentage Reward (APR) is a dynamic estimate of the
+                  annualized staking reward rate based on current network
+                  conditions, and it refers to staking rewards rather than
+                  traditional lending interest. Rewards are distributed in BABY
+                  tokens but shown as a Bitcoin-equivalent rate relative to the
+                  Bitcoin initially staked. APR is calculated using U.S. dollar
+                  values for Bitcoin and BABY from independent, reputable
+                  sources. The APR shown is an approximate figure that can
+                  fluctuate, and the displayed value may not always be
+                  completely accurate. Actual rewards are not guaranteed and may
+                  vary over time. Staking carries exposure to slashing and other
+                  risks.
+                </p>
+              </>
+            }
+          />
+        ) : (
+          <StatItem
+            hidden={!stakingAPR}
+            loading={isLoading}
+            title={`${coinSymbol} Staking APR`}
+            value={`${formatter.format(stakingAPR ? stakingAPR * 100 : 0)}%`}
+            tooltip="Annual Percentage Reward (APR) is a dynamic estimate of the annualized staking reward rate based on current network conditions, and it refers to staking rewards rather than traditional lending interest. Rewards are distributed in BABY tokens but shown as a Bitcoin-equivalent rate relative to the Bitcoin initially staked. APR is calculated using U.S. dollar values for Bitcoin and BABY from independent, reputable sources. The APR shown is an approximate figure that can fluctuate, and the displayed value may not always be completely accurate. Actual rewards are not guaranteed and may vary over time. Staking carries exposure to slashing and other risks."
+          />
+        )}
 
         <StatItem
           loading={isLoading}
