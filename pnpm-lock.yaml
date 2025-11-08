@@ -682,8 +682,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/babylon-bsn-registry
       '@babylonlabs-io/btc-staking-ts':
-        specifier: 2.5.6
-        version: 2.5.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+        specifier: 2.5.9
+        version: 2.5.9(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
@@ -1859,8 +1859,8 @@ packages:
   '@babylonlabs-io/babylon-proto-ts@1.7.2':
     resolution: {integrity: sha512-10WVqrXA9nIE8Pipmg0Y+ywT3ODonNoM1h3Hmu2oxc8F7IQBokx76WyLvVoY1Y7NxVuLm0uV9iEKZbp+YWwf9Q==}
 
-  '@babylonlabs-io/btc-staking-ts@2.5.6':
-    resolution: {integrity: sha512-eNALWYgx9BwK4oiKk8eh5ndSKb+8EA18sStwVgtiqhQlFVS4xQrMacUHOvhc1nFknruca/MhouKUjhSIL5oS6A==}
+  '@babylonlabs-io/btc-staking-ts@2.5.9':
+    resolution: {integrity: sha512-XaBZ5cctai/LM6aDlrRToK/FMAZWlouVdJKiBPIKl+XEkoWH8kvFjVjSvApMdj8K+52m++1LD3wUxVxo4apk4A==}
     engines: {node: '>=22.0.0 <25.0.0'}
 
   '@base-org/account@1.1.1':
@@ -11323,7 +11323,7 @@ snapshots:
       - debug
       - utf-8-validate
 
-  '@babylonlabs-io/btc-staking-ts@2.5.6(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
+  '@babylonlabs-io/btc-staking-ts@2.5.9(bufferutil@4.0.9)(utf-8-validate@5.0.10)':
     dependencies:
       '@babylonlabs-io/babylon-proto-ts': 1.7.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@bitcoin-js/tiny-secp256k1-asmjs': 2.2.3

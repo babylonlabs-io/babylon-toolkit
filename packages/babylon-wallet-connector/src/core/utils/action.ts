@@ -8,6 +8,7 @@ export interface Action {
 
 export enum ActionName {
   SIGN_BTC_STAKING_TRANSACTION = "sign-btc-staking-transaction",
+  SIGN_BTC_STAKING_EXPANSION_TRANSACTION = "sign-btc-staking-expansion-transaction",
   SIGN_BTC_UNBONDING_TRANSACTION = "sign-btc-unbonding-transaction",
   SIGN_BTC_WITHDRAW_TRANSACTION = "sign-btc-withdraw-transaction",
   SIGN_BTC_SLASHING_TRANSACTION = "sign-btc-slashing-transaction",
