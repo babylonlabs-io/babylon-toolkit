@@ -3,7 +3,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -326,7 +326,7 @@ describe("useDepositValidation", () => {
       );
     });
 
-    it("should handle loading state", () => {
+    it("should return available providers", () => {
       const { result } = renderHook(
         () => useDepositValidation("bc1qaddress", mockProviders),
         {
@@ -334,7 +334,7 @@ describe("useDepositValidation", () => {
         },
       );
 
-      // Initially might be loading
+      expect(result.current.availableProviders).toEqual(mockProviders);
     });
   });
 
