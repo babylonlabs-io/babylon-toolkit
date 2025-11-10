@@ -27,7 +27,7 @@ export function ChainsContainer(props: ContainerProps) {
       if (chain.id === "ETH") {
         const ethConnector = connectors.ETH;
         const appkitWallet = ethConnector?.wallets.find(w => w.id === "appkit-eth-connector");
-        
+
         if (appkitWallet && ethConnector?.wallets.length === 1) {
           // Only AppKit available, connect it directly
           // This will trigger the AppKitProvider.connectWallet() which dispatches the event
@@ -39,8 +39,25 @@ export function ChainsContainer(props: ContainerProps) {
           return;
         }
       }
-      
-      // Normal flow for other chains or if ETH has multiple wallets
+
+      // Special handling for BTC chain with only AppKit wallet
+      if (chain.id === "BTC") {
+        const btcConnector = connectors.BTC;
+        const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === "appkit-btc-connector");
+
+        if (appkitBtcWallet && btcConnector?.wallets.length === 1) {
+          // Only AppKit available, connect it directly
+          // This will trigger the AppKitBTCProvider.connectWallet() which dispatches the event
+          try {
+            await btcConnector.connect(appkitBtcWallet);
+          } catch (error) {
+            console.error("Failed to connect AppKit BTC:", error);
+          }
+          return;
+        }
+      }
+
+      // Normal flow for other chains or if chain has multiple wallets
       displayWallets?.(chain.id);
     },
     [displayWallets, connectors],

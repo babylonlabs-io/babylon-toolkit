@@ -7,7 +7,9 @@ import { createAccountStorage } from "@/core/storage";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
+import { initializeAppKitBtcModal, type AppKitBtcModalConfig } from "@/core/wallets/btc/appkit/appKitBtcModal";
 import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
+import { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -23,6 +25,7 @@ interface WalletProviderProps {
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
   appKitConfig?: AppKitModalConfig;
+  appKitBtcConfig?: AppKitBtcModalConfig;
 }
 
 export function WalletProvider({
@@ -37,6 +40,7 @@ export function WalletProvider({
   disabledWallets,
   requiredChains,
   appKitConfig,
+  appKitBtcConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
@@ -51,13 +55,29 @@ export function WalletProvider({
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
-    // eslint-disable-next-line no-empty
-    } catch {
+    } catch (error) {
+      console.error("Failed to initialize AppKit ETH modal:", error);
     }
   }, [config, theme, appKitConfig]);
 
-  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+  // Initialize AppKit BTC synchronously before render when BTC chain is enabled
+  useMemo(() => {
+    try {
+      const hasBTC = config?.some((c) => c.chain === "BTC");
+      if (hasBTC && appKitBtcConfig) {
+        initializeAppKitBtcModal({
+          ...appKitBtcConfig,
+          themeMode: theme === "dark" ? "dark" : "light",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to initialize AppKit BTC modal:", error);
+    }
+  }, [config, theme, appKitBtcConfig]);
+
+  // Listen for requests to open the AppKit modals (triggered by connectors)
   useAppKitOpenListener();
+  useAppKitBtcOpenListener();
 
   return (
     <TomoConnectionProvider theme={theme} config={config}>

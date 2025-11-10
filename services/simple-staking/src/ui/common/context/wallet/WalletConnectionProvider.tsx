@@ -1,6 +1,7 @@
 import {
   WalletProvider,
   createWalletConfig,
+  type AppKitBtcModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -75,8 +76,42 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [requiredChains],
   );
 
-  const disabledWallets = useMemo(
-    () => (FeatureFlagService.IsLedgerEnabled ? [] : ["ledget_btc"]),
+  const disabledWallets = useMemo(() => {
+    const disabled: string[] = [];
+
+    // Disable Ledger BTC if feature flag is not enabled
+    if (!FeatureFlagService.IsLedgerEnabled) {
+      disabled.push("ledget_btc");
+    }
+
+    // Disable AppKit BTC on mainnet (not mature enough for production)
+    // Keep it enabled on testnet/signet for testing
+    const isMainnet = process.env.NEXT_PUBLIC_NETWORK === "mainnet";
+    if (isMainnet) {
+      disabled.push("appkit-btc-connector");
+    }
+
+    return disabled;
+  }, []);
+
+  const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
+    () => ({
+      metadata: {
+        name: "Babylon Staking",
+        description: "Babylon Bitcoin Staking Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://btcstaking.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+      network:
+        getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
+    }),
     [],
   );
 
@@ -89,6 +124,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={requiredChains}
+      appKitBtcConfig={appKitBtcConfig}
     >
       {children}
     </WalletProvider>
