@@ -8,7 +8,11 @@ import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
-import { AnalyticsCategory, trackEvent } from "@/ui/common/utils/analytics";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 
 import type { TabId } from "../../layout";
 
@@ -32,9 +36,13 @@ export function CoStakingBoostSection({
   const navigate = useNavigate();
 
   const handlePrefill = () => {
-    trackEvent(AnalyticsCategory.CTA_CLICK, "prefill_costaking_amount", {
-      component: "CoStakingBoostSection",
-    });
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "CoStakingBoostSection",
+      },
+    );
     setActiveTab("stake");
     navigate("/baby", {
       state: {
@@ -44,9 +52,13 @@ export function CoStakingBoostSection({
   };
 
   const handleClose = () => {
-    trackEvent(AnalyticsCategory.CTA_CLICK, "dismiss_costaking_prefill_cta", {
-      component: "CoStakingBoostSection",
-    });
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.DISMISS_COSTAKING_PREFILL_CTA,
+      {
+        component: "CoStakingBoostSection",
+      },
+    );
     setShowCoStakingBoostSection(false);
   };
 

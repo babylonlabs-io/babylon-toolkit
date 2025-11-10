@@ -14,14 +14,15 @@ export enum AnalyticsCategory {
 }
 
 /**
- * Type-safe analytics event messages
+ * Analytics event messages
  */
-export type AnalyticsMessage =
-  | "boost_apr_stake_baby"
-  | "prefill_costaking_amount"
-  | "dismiss_costaking_prefill_cta"
-  | "close_modal"
-  | "modal_viewed";
+export enum AnalyticsMessage {
+  BOOST_APR_STAKE_BABY = "boost_apr_stake_baby",
+  PREFILL_COSTAKING_AMOUNT = "prefill_costaking_amount",
+  DISMISS_COSTAKING_PREFILL_CTA = "dismiss_costaking_prefill_cta",
+  CLOSE_MODAL = "close_modal",
+  MODAL_VIEWED = "modal_viewed",
+}
 
 /**
  * Track a custom analytics event using Sentry breadcrumbs and captureEvent.

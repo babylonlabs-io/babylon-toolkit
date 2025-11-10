@@ -6,6 +6,7 @@ import { useCoStakingState } from "../../state/CoStakingState";
 import { formatAPRPercentage } from "../../utils/formatAPR";
 import {
   AnalyticsCategory,
+  AnalyticsMessage,
   trackEvent,
   trackModalView,
 } from "../../utils/analytics";
@@ -78,7 +79,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     if (!open) return;
     const { babyAmount, aprBoostPercent, currentApr, boostApr } =
       latestTrackingDataRef.current;
-    const stopTracking = trackModalView("modal_viewed", {
+    const stopTracking = trackModalView(AnalyticsMessage.MODAL_VIEWED, {
       modalName: "CoStakingBoostModal",
       babyAmount,
       aprBoostPercent,
@@ -91,12 +92,16 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   }, [open]);
 
   const handleSubmit = useCallback(() => {
-    trackEvent(AnalyticsCategory.CTA_CLICK, "boost_apr_stake_baby", {
-      babyAmount: eligibility.additionalBabyNeeded,
-      aprBoostPercent: percentageIncrease,
-      currentApr: aprData.currentApr,
-      boostApr: aprData.boostApr,
-    });
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.BOOST_APR_STAKE_BABY,
+      {
+        babyAmount: eligibility.additionalBabyNeeded,
+        aprBoostPercent: percentageIncrease,
+        currentApr: aprData.currentApr,
+        boostApr: aprData.boostApr,
+      },
+    );
     onSubmit();
   }, [
     onSubmit,
@@ -107,7 +112,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   ]);
 
   const handleClose = useCallback(() => {
-    trackEvent(AnalyticsCategory.CTA_CLICK, "close_modal", {
+    trackEvent(AnalyticsCategory.CTA_CLICK, AnalyticsMessage.CLOSE_MODAL, {
       modalName: "CoStakingBoostModal",
     });
     onClose();

@@ -15,8 +15,25 @@ import { v4 as uuidv4 } from "uuid";
 import { isProductionEnv } from "@/ui/common/config";
 import { REPLAYS_ON_ERROR_RATE } from "@/ui/common/constants";
 import { getCommitHash } from "@/ui/common/utils/version";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+} from "@/ui/common/utils/analytics";
 
 const SENTRY_DEVICE_ID_KEY = "sentry_device_id";
+
+const ANALYTICS_CATEGORY_SET = new Set<string>(
+  Object.values(AnalyticsCategory),
+);
+const ANALYTICS_MESSAGE_SET = new Set<string>(
+  Object.values(AnalyticsMessage),
+);
+
+function isAnalyticsBreadcrumbCategory(category?: string): boolean {
+  if (!category) return false;
+  if (ANALYTICS_CATEGORY_SET.has(category)) return true;
+  return false;
+}
 
 Sentry.init({
   enabled: Boolean(
@@ -62,6 +79,22 @@ Sentry.init({
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
 
+  beforeBreadcrumb(breadcrumb) {
+    // Drop analytics breadcrumbs (by category)
+    if (isAnalyticsBreadcrumbCategory(breadcrumb.category)) {
+      return null;
+    }
+    // Drop 'sentry.event' breadcrumbs created by analytics captures only
+    if (
+      breadcrumb.category === "sentry.event" &&
+      typeof breadcrumb.message === "string" &&
+      (ANALYTICS_MESSAGE_SET as Set<string>).has(breadcrumb.message)
+    ) {
+      return null;
+    }
+    return breadcrumb;
+  },
+
   replaysOnErrorSampleRate: REPLAYS_ON_ERROR_RATE,
 
   replaysSessionSampleRate: 0,
@@ -78,6 +111,13 @@ Sentry.init({
   ],
 
   beforeSend(event, hint) {
+    // If this is an analytics event, clear its breadcrumbs only
+    const analyticsCategoryTag =
+      (event as any)?.tags?.["analytics.category"] ?? undefined;
+    if (analyticsCategoryTag) {
+      event.breadcrumbs = [];
+    }
+
     event.extra = {
       ...(event.extra || {}),
       version: getCommitHash(),
@@ -92,6 +132,13 @@ Sentry.init({
     // Wallet identifiers are redacted at the source (logging points)
     // using redactTelemetry() before they reach Sentry, so no additional
     // filtering is needed here.
+
+    // Strip analytics breadcrumbs attached directly to events as well
+    if (Array.isArray(event.breadcrumbs)) {
+      event.breadcrumbs = event.breadcrumbs.filter(
+        (bc) => !isAnalyticsBreadcrumbCategory(bc.category),
+      );
+    }
 
     return event;
   },
