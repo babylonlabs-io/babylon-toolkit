@@ -47,31 +47,6 @@ export function calculateDepositFees(
 }
 
 /**
- * Calculate the total amount breakdown for a deposit
- * @param depositAmount - Amount to deposit
- * @param availableBalance - Total available balance from UTXOs
- * @param utxoCount - Number of UTXOs to be used
- * @returns Complete amount breakdown
- */
-export function calculateDepositAmountBreakdown(
-  depositAmount: bigint,
-  availableBalance: bigint,
-  utxoCount: number,
-): DepositAmountBreakdown {
-  const fees = calculateDepositFees(depositAmount, utxoCount);
-  const totalRequired = depositAmount + fees.totalFee;
-  const changeAmount =
-    availableBalance > totalRequired ? availableBalance - totalRequired : 0n;
-
-  return {
-    depositAmount,
-    fees,
-    totalRequired,
-    changeAmount,
-  };
-}
-
-/**
  * Select optimal UTXOs for a deposit
  * Pure function that selects UTXOs without modifying input
  * @param utxos - Available UTXOs

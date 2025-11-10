@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import type { UTXO } from "../../vault/vaultTransactionService";
 import {
-  calculateDepositAmountBreakdown,
   calculateDepositFees,
   calculateMinimumDeposit,
   estimateTransactionSize,
@@ -52,57 +51,6 @@ describe("Deposit Calculations", () => {
 
       expect(fees.protocolFee).toBe(21000000_00000n); // 0.1% of max supply
       expect(fees.totalFee).toBeGreaterThan(0n);
-    });
-  });
-
-  describe("calculateDepositAmountBreakdown", () => {
-    it("should calculate correct breakdown with sufficient balance", () => {
-      const depositAmount = 100000n;
-      const availableBalance = 200000n;
-      const utxoCount = 1;
-
-      const breakdown = calculateDepositAmountBreakdown(
-        depositAmount,
-        availableBalance,
-        utxoCount,
-      );
-
-      expect(breakdown.depositAmount).toBe(depositAmount);
-      expect(breakdown.fees).toBeDefined();
-      expect(breakdown.totalRequired).toBe(
-        depositAmount + breakdown.fees.totalFee,
-      );
-      expect(breakdown.changeAmount).toBe(
-        availableBalance - breakdown.totalRequired,
-      );
-    });
-
-    it("should handle insufficient balance", () => {
-      const depositAmount = 100000n;
-      const availableBalance = 50000n; // Less than deposit amount
-      const utxoCount = 1;
-
-      const breakdown = calculateDepositAmountBreakdown(
-        depositAmount,
-        availableBalance,
-        utxoCount,
-      );
-
-      expect(breakdown.changeAmount).toBe(0n); // No change when insufficient
-    });
-
-    it("should handle exact balance", () => {
-      const depositAmount = 100000n;
-      const fees = calculateDepositFees(depositAmount, 1);
-      const availableBalance = depositAmount + fees.totalFee;
-
-      const breakdown = calculateDepositAmountBreakdown(
-        depositAmount,
-        availableBalance,
-        1,
-      );
-
-      expect(breakdown.changeAmount).toBe(0n); // Exact amount, no change
     });
   });
 

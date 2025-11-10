@@ -14,11 +14,8 @@ import {
   parseBtcToSatoshis,
 } from "../../../utils/btcConversion";
 import {
-  calculateDepositProgress,
-  transformApiUtxoToInternal,
   transformErrorMessage,
   transformFormToTransactionData,
-  transformProviderForDisplay,
   type DepositFormData,
 } from "../transformers";
 
@@ -198,106 +195,6 @@ describe("Deposit Transformers", () => {
     it("should handle multiple decimal points", () => {
       expect(parseBtcToSatoshis("1.2.3")).toBe(0n);
       expect(parseBtcToSatoshis("0.1.0.1")).toBe(0n);
-    });
-  });
-
-  describe("transformApiUtxoToInternal", () => {
-    it("should transform API UTXO format to internal format", () => {
-      const apiUtxo = {
-        txid: "0xabc123",
-        vout: 1,
-        value: 100000,
-        scriptPubKey: "0xscript",
-      };
-
-      const result = transformApiUtxoToInternal(apiUtxo);
-
-      expect(result.txid).toBe("0xabc123");
-      expect(result.vout).toBe(1);
-      expect(result.value).toBe(100000);
-      expect(result.scriptPubKey).toBe("0xscript");
-    });
-
-    it("should handle alternative field names", () => {
-      const apiUtxo = {
-        tx_id: "0xdef456",
-        output_index: 2,
-        amount: 50000,
-        script_pubkey: "0xaltscript",
-      };
-
-      const result = transformApiUtxoToInternal(apiUtxo);
-
-      expect(result.txid).toBe("0xdef456");
-      expect(result.vout).toBe(2);
-      expect(result.value).toBe(50000);
-      expect(result.scriptPubKey).toBe("0xaltscript");
-    });
-
-    it("should prefer primary field names over alternatives", () => {
-      const apiUtxo = {
-        txid: "0xprimary",
-        tx_id: "0xalternative",
-        vout: 1,
-        output_index: 2,
-        value: 100000,
-        amount: 50000,
-        scriptPubKey: "0xprimaryscript",
-        script_pubkey: "0xaltscript",
-      };
-
-      const result = transformApiUtxoToInternal(apiUtxo);
-
-      expect(result.txid).toBe("0xprimary");
-      expect(result.vout).toBe(1);
-      expect(result.value).toBe(100000);
-      expect(result.scriptPubKey).toBe("0xprimaryscript");
-    });
-  });
-
-  describe("transformProviderForDisplay", () => {
-    it("should transform provider with name", () => {
-      const provider = {
-        address: "0x1234567890abcdef1234567890abcdef12345678",
-        name: "Test Provider",
-        btc_pub_key: "0xbtckey123",
-      };
-
-      const result = transformProviderForDisplay(provider);
-
-      expect(result.id).toBe(provider.address);
-      expect(result.name).toBe("Test Provider");
-      expect(result.btcPubkey).toBe("0xbtckey123");
-      expect(result.displayName).toBe("Test Provider");
-    });
-
-    it("should create display name from address when name is missing", () => {
-      const provider = {
-        address: "0x1234567890abcdef1234567890abcdef12345678",
-        btc_pub_key: "0xbtckey456",
-      };
-
-      const result = transformProviderForDisplay(provider);
-
-      expect(result.id).toBe(provider.address);
-      expect(result.name).toBe("0x1234...5678");
-      expect(result.btcPubkey).toBe("0xbtckey456");
-      expect(result.displayName).toBe("Provider 0x1234...5678");
-    });
-  });
-
-  describe("calculateDepositProgress", () => {
-    it("should calculate correct progress for each status", () => {
-      expect(calculateDepositProgress(ContractStatus.PENDING)).toBe(25);
-      expect(calculateDepositProgress(ContractStatus.VERIFIED)).toBe(50);
-      expect(calculateDepositProgress(ContractStatus.AVAILABLE)).toBe(100);
-      expect(calculateDepositProgress(ContractStatus.IN_POSITION)).toBe(100);
-      expect(calculateDepositProgress(ContractStatus.EXPIRED)).toBe(100);
-    });
-
-    it("should return 0 for unknown status", () => {
-      expect(calculateDepositProgress(999 as any)).toBe(0);
-      expect(calculateDepositProgress(undefined as any)).toBe(0);
     });
   });
 
