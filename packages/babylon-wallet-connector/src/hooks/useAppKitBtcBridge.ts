@@ -1,6 +1,6 @@
 import { bitcoinSignet } from "@reown/appkit/networks";
 import { useAppKitAccount } from "@reown/appkit/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { getSharedBtcAppKitConfig } from "../core/wallets/btc/appkit/sharedConfig";
 
@@ -26,49 +26,52 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
   const lastDispatchedAddress = useRef<string | null>(null);
 
   // Helper function to dispatch connection event with all necessary data
-  const dispatchConnectionEvent = async (currentAddress: string) => {
-    try {
-      // Force network switch to signet
+  const dispatchConnectionEvent = useCallback(
+    async (currentAddress: string) => {
       try {
-        const { adapter } = getSharedBtcAppKitConfig();
-        await adapter.switchNetwork({ caipNetwork: bitcoinSignet });
-      } catch (networkError) {
-        console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError);
-        // Don't fail the connection if network switch fails
-        // Some wallets may already be on the correct network
-      }
-
-      // Fetch publicKey from allAccounts (this is where AppKit stores it)
-      let publicKey: string | undefined;
-      try {
-        const currentAccount = allAccounts?.find(account => account.address === currentAddress);
-
-        if (currentAccount?.publicKey) {
-          publicKey = currentAccount.publicKey;
-        } else {
-          console.warn("[AppKit BTC Bridge] Public key not available in current account");
+        // Force network switch to signet
+        try {
+          const { adapter } = getSharedBtcAppKitConfig();
+          await adapter.switchNetwork({ caipNetwork: bitcoinSignet });
+        } catch (networkError) {
+          console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError);
+          // Don't fail the connection if network switch fails
+          // Some wallets may already be on the correct network
         }
-      } catch (pkError) {
-        console.error("[AppKit BTC Bridge] Error fetching public key:", pkError);
-      }
 
-      // Dispatch event to notify AppKitBTCProvider.connectWallet() that connection is ready
-      if (typeof window !== "undefined") {
-        const eventDetail = { address: currentAddress, publicKey };
-        window.dispatchEvent(
-          new CustomEvent("babylon:appkit-btc-connected", {
-            detail: eventDetail,
-          }),
-        );
+        // Fetch publicKey from allAccounts (this is where AppKit stores it)
+        let publicKey: string | undefined;
+        try {
+          const currentAccount = allAccounts?.find((account) => account.address === currentAddress);
 
-        // Mark this address as dispatched to prevent duplicate events
-        lastDispatchedAddress.current = currentAddress;
+          if (currentAccount?.publicKey) {
+            publicKey = currentAccount.publicKey;
+          } else {
+            console.warn("[AppKit BTC Bridge] Public key not available in current account");
+          }
+        } catch (pkError) {
+          console.error("[AppKit BTC Bridge] Error fetching public key:", pkError);
+        }
+
+        // Dispatch event to notify AppKitBTCProvider.connectWallet() that connection is ready
+        if (typeof window !== "undefined") {
+          const eventDetail = { address: currentAddress, publicKey };
+          window.dispatchEvent(
+            new CustomEvent("babylon:appkit-btc-connected", {
+              detail: eventDetail,
+            }),
+          );
+
+          // Mark this address as dispatched to prevent duplicate events
+          lastDispatchedAddress.current = currentAddress;
+        }
+      } catch (error) {
+        console.error("[AppKit BTC Bridge] Failed to process connection:", error);
+        onError?.(error as Error);
       }
-    } catch (error) {
-      console.error("[AppKit BTC Bridge] Failed to process connection:", error);
-      onError?.(error as Error);
-    }
-  };
+    },
+    [allAccounts, onError],
+  );
 
   // Listen for modal open events to coordinate event dispatch timing
   useEffect(() => {
@@ -87,7 +90,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
       window.addEventListener("babylon:open-appkit-btc", handleModalOpen);
       return () => window.removeEventListener("babylon:open-appkit-btc", handleModalOpen);
     }
-  }, [isConnected, address, caipAddress, allAccounts]);
+  }, [isConnected, address, caipAddress, allAccounts, dispatchConnectionEvent]);
 
   // Monitor AppKit connection state changes
   useEffect(() => {
@@ -110,7 +113,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
         console.error("Failed to disconnect from babylon-wallet-connector:", error);
       });
     }
-  }, [isConnected, address, caipAddress, btcConnector, onError]);
+  }, [isConnected, address, caipAddress, btcConnector, onError, dispatchConnectionEvent]);
 
   return {
     isAppKitBtcConnected: isConnected,
