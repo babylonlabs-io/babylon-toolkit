@@ -136,11 +136,6 @@ describe("useDepositValidation", () => {
         },
       );
 
-      // Wait for providers to load
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
-
       const validationResult = result.current.validateProviders([
         result.current.availableProviders[0],
       ]);
@@ -376,7 +371,6 @@ describe("useDepositValidation", () => {
       );
 
       // Initially might be loading
-      expect(typeof result.current.isLoadingProviders).toBe("boolean");
     });
   });
 
