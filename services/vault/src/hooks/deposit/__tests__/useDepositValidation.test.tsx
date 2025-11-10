@@ -143,17 +143,13 @@ describe("useDepositValidation", () => {
       expect(validationResult.valid).toBe(true);
     });
 
-    it("should reject empty provider selection", async () => {
+    it("should reject empty provider selection", () => {
       const { result } = renderHook(
         () => useDepositValidation("bc1qaddress", mockProviders),
         {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       const validationResult = result.current.validateProviders([]);
 
@@ -169,10 +165,6 @@ describe("useDepositValidation", () => {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       const validationResult = result.current.validateProviders([
         "0xinvalidprovider",
@@ -190,10 +182,6 @@ describe("useDepositValidation", () => {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       const validationResult = result.current.validateProviders(
         result.current.availableProviders,
@@ -216,10 +204,6 @@ describe("useDepositValidation", () => {
         },
       );
 
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
-
       const formData = {
         amount: "0.001",
         selectedProviders: [result.current.availableProviders[0]],
@@ -240,10 +224,6 @@ describe("useDepositValidation", () => {
         },
       );
 
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
-
       const formData = {
         amount: "0.00001", // Below minimum
         selectedProviders: [result.current.availableProviders[0]],
@@ -263,10 +243,6 @@ describe("useDepositValidation", () => {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       const formData = {
         amount: "0.002", // 200,000 sats
@@ -299,10 +275,6 @@ describe("useDepositValidation", () => {
         },
       );
 
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
-
       const formData = {
         amount: "0.001",
         selectedProviders: [result.current.availableProviders[0]],
@@ -324,10 +296,6 @@ describe("useDepositValidation", () => {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       // Force an error by passing invalid data
       const formData = {
@@ -351,10 +319,6 @@ describe("useDepositValidation", () => {
           wrapper,
         },
       );
-
-      await waitFor(() => {
-        expect(result.current.isLoadingProviders).toBe(false);
-      });
 
       expect(result.current.availableProviders).toHaveLength(2);
       expect(result.current.availableProviders[0]).toBe(
