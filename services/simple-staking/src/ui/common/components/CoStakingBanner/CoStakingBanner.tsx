@@ -30,7 +30,7 @@ export const CoStakingBanner = () => {
 
   const handleBannerClick = useCallback(() => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "prefill_costaking_amount", {
-      component: CoStakingBanner.name,
+      component: "CoStakingBanner",
     });
     navigate("/baby", {
       state: {
@@ -41,7 +41,7 @@ export const CoStakingBanner = () => {
 
   const handleDismiss = useCallback(() => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "dismiss_costaking_prefill_cta", {
-      component: CoStakingBanner.name,
+      component: "CoStakingBanner",
     });
     setDismissed(true);
   }, [setDismissed]);

@@ -33,7 +33,7 @@ export function CoStakingBoostSection({
 
   const handlePrefill = () => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "prefill_costaking_amount", {
-      component: CoStakingBoostSection.name,
+      component: "CoStakingBoostSection",
     });
     setActiveTab("stake");
     navigate("/baby", {
@@ -45,7 +45,7 @@ export function CoStakingBoostSection({
 
   const handleClose = () => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "dismiss_costaking_prefill_cta", {
-      component: CoStakingBoostSection.name,
+      component: "CoStakingBoostSection",
     });
     setShowCoStakingBoostSection(false);
   };

@@ -79,7 +79,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     const { babyAmount, aprBoostPercent, currentApr, boostApr } =
       latestTrackingDataRef.current;
     const stopTracking = trackModalView("modal_viewed", {
-      modalName: CoStakingBoostModal.name,
+      modalName: "CoStakingBoostModal",
       babyAmount,
       aprBoostPercent,
       currentApr,
@@ -108,7 +108,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
 
   const handleClose = useCallback(() => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "close_modal", {
-      modalName: CoStakingBoostModal.name,
+      modalName: "CoStakingBoostModal",
     });
     onClose();
   }, [onClose]);
