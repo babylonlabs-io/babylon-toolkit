@@ -21,9 +21,8 @@ export interface UseDepositValidationResult {
   validateProviders: (providers: string[]) => ValidationResult;
   validateDeposit: (data: DepositFormData) => Promise<ValidationResult>;
 
-  // Available providers
+  // Available providers (passed in, not fetched)
   availableProviders: string[];
-  isLoadingProviders: boolean;
 
   // Validation state
   minDeposit: bigint;
@@ -34,16 +33,14 @@ export interface UseDepositValidationResult {
  * Hook for deposit validation logic
  *
  * @param btcAddress - User's Bitcoin address for UTXO validation
- * @param availableProviders - List of available provider IDs
+ * @param availableProviders - List of available provider IDs (must be provided by caller)
  * @returns Validation functions and state
  */
 export function useDepositValidation(
   btcAddress: string | undefined,
   availableProviders: string[] = [],
 ): UseDepositValidationResult {
-  // Use passed providers instead of fetching mock data
   const providers = availableProviders;
-  const isLoadingProviders = false; // Providers are passed in, not loading
 
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
@@ -161,7 +158,6 @@ export function useDepositValidation(
     validateProviders,
     validateDeposit,
     availableProviders: providers,
-    isLoadingProviders,
     minDeposit,
     maxDeposit: MAX_DEPOSIT_SATS,
   };

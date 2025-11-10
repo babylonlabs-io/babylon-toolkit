@@ -64,11 +64,19 @@ describe("useDepositValidation", () => {
     );
   };
 
+  const mockProviders = [
+    "0x1234567890abcdef1234567890abcdef12345678",
+    "0xabcdef1234567890abcdef1234567890abcdef12",
+  ];
+
   describe("validateAmount", () => {
     it("should validate valid amount", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("0.001");
 
@@ -77,9 +85,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject invalid amount format", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("invalid");
 
@@ -89,9 +100,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject amount below minimum", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        {
+          wrapper,
+        },
+      );
 
       const validationResult = result.current.validateAmount("0.00001"); // Below minimum
 
@@ -100,9 +114,12 @@ describe("useDepositValidation", () => {
     });
 
     it("should use dynamic minimum based on fees", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
-        wrapper,
-      });
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        {
+          wrapper,
+        },
+      );
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
       expect(result.current.maxDeposit).toBe(21000000_00000000n);
@@ -112,7 +129,7 @@ describe("useDepositValidation", () => {
   describe("validateProviders", () => {
     it.skip("should validate single provider selection", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -129,7 +146,7 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject empty provider selection", async () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -145,7 +162,7 @@ describe("useDepositValidation", () => {
 
     it.skip("should reject invalid provider", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -163,7 +180,7 @@ describe("useDepositValidation", () => {
 
     it.skip("should reject multiple providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -185,7 +202,7 @@ describe("useDepositValidation", () => {
   describe("validateDeposit", () => {
     it.skip("should validate complete deposit with valid data", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -206,7 +223,7 @@ describe("useDepositValidation", () => {
 
     it.skip("should reject invalid amount in complete validation", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -227,7 +244,7 @@ describe("useDepositValidation", () => {
 
     it.skip("should check UTXOs when available", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -259,7 +276,7 @@ describe("useDepositValidation", () => {
         refetch: vi.fn(),
       } as any);
 
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -282,7 +299,7 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle validation errors gracefully", async () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -306,7 +323,7 @@ describe("useDepositValidation", () => {
   describe("provider fetching", () => {
     it.skip("should fetch available providers", async () => {
       // TODO: Requires proper provider API mocking
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -321,7 +338,7 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle loading state", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -332,7 +349,7 @@ describe("useDepositValidation", () => {
 
   describe("edge cases", () => {
     it("should handle undefined BTC address", () => {
-      const { result } = renderHook(() => useDepositValidation(undefined), {
+      const { result } = renderHook(() => useDepositValidation(undefined, mockProviders), {
         wrapper,
       });
 
@@ -342,7 +359,7 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle very large amounts", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 
@@ -353,7 +370,7 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle negative amounts by stripping minus sign", () => {
-      const { result } = renderHook(() => useDepositValidation("bc1qaddress"), {
+      const { result } = renderHook(() => useDepositValidation("bc1qaddress", mockProviders), {
         wrapper,
       });
 

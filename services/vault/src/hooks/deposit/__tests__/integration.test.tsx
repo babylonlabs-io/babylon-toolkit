@@ -286,16 +286,15 @@ describe("Deposit Flow Integration", () => {
   describe("Validation integration", () => {
     it("should validate throughout the flow", async () => {
       const btcAddress = "bc1qtest123";
+      const mockProviders = [
+        "0x1234567890abcdef1234567890abcdef12345678",
+        "0xabcdef1234567890abcdef1234567890abcdef12",
+      ];
 
       const { result: validationResult } = renderHook(
-        () => useDepositValidation(btcAddress),
+        () => useDepositValidation(btcAddress, mockProviders),
         { wrapper },
       );
-
-      // Wait for providers to load
-      await waitFor(() => {
-        expect(validationResult.current.isLoadingProviders).toBe(false);
-      });
 
       // Test amount validation
       const amountResult = validationResult.current.validateAmount("0.005");
