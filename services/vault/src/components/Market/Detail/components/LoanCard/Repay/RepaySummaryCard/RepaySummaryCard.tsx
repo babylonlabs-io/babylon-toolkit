@@ -6,6 +6,7 @@ import {
 
 interface RepaySummaryCardProps {
   currentLoanAmount: number;
+  loanSymbol?: string;
   repayAmount: number;
   ltv: number;
   liquidationLtv: number;
@@ -13,6 +14,7 @@ interface RepaySummaryCardProps {
 
 export function RepaySummaryCard({
   currentLoanAmount,
+  loanSymbol = "USDC",
   repayAmount,
   ltv,
   liquidationLtv,
@@ -21,8 +23,8 @@ export function RepaySummaryCard({
 
   const items: KeyValueItem[] = [
     {
-      label: "Loan (USDC)",
-      value: `${remainingLoanAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} USDC`,
+      label: `Loan (${loanSymbol})`,
+      value: `${remainingLoanAmount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ${loanSymbol}`,
     },
     {
       label: "LTV",

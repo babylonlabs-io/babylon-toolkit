@@ -43,7 +43,7 @@ function EmptyState({
   isConnected: boolean;
 }) {
   return (
-    <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-primary-contrast dark:bg-primary-main">
+    <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-[#F9F9F9] dark:bg-primary-main">
       <div className="flex min-h-[200px] items-center justify-center p-6">
         <div className="flex flex-col items-center">
           <img
@@ -114,7 +114,11 @@ function StatusCell({
     Expired: "inactive",
   };
 
-  return <StatusBadge status={statusMap[status] || "pending"} label={status} />;
+  return (
+    <div title={peginState.message || ""} className="cursor-help">
+      <StatusBadge status={statusMap[status] || "pending"} label={status} />
+    </div>
+  );
 }
 
 // Helper component for action buttons with row polling
@@ -240,10 +244,12 @@ function DepositMobileCard({
         {
           label: "Status",
           value: (
-            <StatusBadge
-              status={statusMap[status] || "pending"}
-              label={status}
-            />
+            <div title={peginState.message || ""} className="cursor-help">
+              <StatusBadge
+                status={statusMap[status] || "pending"}
+                label={status}
+              />
+            </div>
           ),
         },
       ]}
@@ -488,7 +494,7 @@ export function DepositOverview() {
           })}
         </div>
       ) : (
-        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
           <Table data={deposits} columns={columns} fluid />
         </div>
       )}

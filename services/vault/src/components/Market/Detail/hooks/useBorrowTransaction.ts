@@ -3,8 +3,8 @@
  * Handles the borrow flow logic and transaction execution
  */
 
+import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits, type Hex } from "viem";
-import { useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";
@@ -23,17 +23,16 @@ interface UseBorrowTransactionProps {
   hasPosition: boolean;
   marketId: string | undefined;
   availableVaults: AvailableVault[];
-  lastBorrowData: {
-    collateral: number;
-    borrow: number;
-  };
   refetch: () => Promise<void>;
   onBorrowSuccess: () => void;
   setProcessing: (processing: boolean) => void;
 }
 
 export interface UseBorrowTransactionResult {
-  handleConfirmBorrow: () => Promise<void>;
+  handleConfirmBorrow: (
+    collateralBTC: number,
+    borrowUSDC: number,
+  ) => Promise<void>;
 }
 
 /**
@@ -43,7 +42,6 @@ export function useBorrowTransaction({
   hasPosition,
   marketId,
   availableVaults,
-  lastBorrowData,
   refetch,
   onBorrowSuccess,
   setProcessing,
@@ -51,7 +49,10 @@ export function useBorrowTransaction({
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
 
-  const handleConfirmBorrow = async () => {
+  const handleConfirmBorrow = async (
+    collateralBTC: number,
+    borrowUSDC: number,
+  ) => {
     setProcessing(true);
     try {
       // Validate wallet connection
@@ -64,18 +65,19 @@ export function useBorrowTransaction({
         throw new Error("Market ID is required for borrowing.");
       }
 
-      const { collateral: collateralBTC, borrow: borrowUSDC } = lastBorrowData;
-
-      // Validate amounts
-      if (borrowUSDC <= 0) {
-        throw new Error("Borrow amount must be greater than 0");
+      // Validate at least one amount is provided
+      if (collateralBTC <= 0 && borrowUSDC <= 0) {
+        throw new Error(
+          "Either collateral amount or borrow amount must be greater than 0",
+        );
       }
 
-      // Convert borrow amount from USDC to bigint (6 decimals)
-      const borrowAmountBigint = parseUnits(borrowUSDC.toString(), 6);
+      // Convert borrow amount from USDC to bigint (6 decimals) - only if borrowing
+      const borrowAmountBigint =
+        borrowUSDC > 0 ? parseUnits(borrowUSDC.toString(), 6) : undefined;
 
       if (collateralBTC > 0) {
-        // Case 1: Add new collateral and borrow
+        // Case 1: Add new collateral (with optional borrowing)
         // Convert collateral from BTC to satoshis
         const collateralSatoshis = BigInt(Math.round(collateralBTC * 1e8));
 
@@ -132,7 +134,7 @@ export function useBorrowTransaction({
           marketId,
           borrowAmountBigint,
         );
-      } else {
+      } else if (borrowUSDC > 0) {
         // Case 2: Borrow more from existing position (no new collateral)
         if (!hasPosition) {
           throw new Error(
@@ -145,7 +147,12 @@ export function useBorrowTransaction({
           chain,
           CONTRACTS.VAULT_CONTROLLER,
           marketId,
-          borrowAmountBigint,
+          borrowAmountBigint!,
+        );
+      } else {
+        // This should never happen due to validation above, but just in case
+        throw new Error(
+          "Invalid operation: Cannot proceed without collateral or borrow amount",
         );
       }
 

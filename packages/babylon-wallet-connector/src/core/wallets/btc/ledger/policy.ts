@@ -41,6 +41,8 @@ export const getPolicyForTransaction = async (
   switch (action.name) {
     case ActionName.SIGN_BTC_STAKING_TRANSACTION:
       return getStakingPolicy(contracts, derivationPath, transport);
+    case ActionName.SIGN_BTC_STAKING_EXPANSION_TRANSACTION:
+      throw new Error("Staking expansion transactions are not yet supported on Ledger app.");
     case ActionName.SIGN_BTC_UNBONDING_TRANSACTION:
       return getUnbondingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_SLASHING_TRANSACTION:

@@ -48,9 +48,6 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
 
   const dismissError = useCallback(() => {
     setState((prev) => ({ ...prev, isOpen: false }));
-    setTimeout(() => {
-      setState({ isOpen: false, error: { message: "" }, modalOptions: {} });
-    }, 300);
   }, []);
 
   const handleError = useCallback(
@@ -69,12 +66,18 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
       };
 
       if (shouldShowModal) {
-        setState({
-          isOpen: true,
-          error: errorData,
-          modalOptions: {
-            ...displayOptions,
-          },
+        setState((prev) => {
+          // Prevent flicker: if modal is already open with the same error message, don't update
+          if (prev.isOpen && prev.error.message === errorData.message) {
+            return prev;
+          }
+          return {
+            isOpen: true,
+            error: errorData,
+            modalOptions: {
+              ...displayOptions,
+            },
+          };
         });
       }
     },

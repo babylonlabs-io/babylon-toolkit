@@ -6,6 +6,9 @@
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 
+import { getCurrencyIconWithFallback } from "../../../../../../services/token";
+import { useMarketDetailContext } from "../../../context/MarketDetailContext";
+
 import { LoanSummaryCard } from "./LoanSummaryCard";
 import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
@@ -23,6 +26,8 @@ export interface BorrowProps {
   currentCollateralAmount: number;
   /** Current loan amount in position (USDC) */
   currentLoanAmount: number;
+  /** Processing state for button loading indicator */
+  processing?: boolean;
 }
 
 export function Borrow({
@@ -33,8 +38,11 @@ export function Borrow({
   availableLiquidity,
   currentCollateralAmount,
   currentLoanAmount,
+  processing = false,
 }: BorrowProps) {
   const { theme } = useTheme();
+  const { tokenPair } = useMarketDetailContext();
+
   const {
     collateralAmount,
     borrowAmount,
@@ -68,11 +76,14 @@ export function Borrow({
       <SubSection>
         <AmountSlider
           amount={collateralAmount}
-          currencyIcon="/images/btc.png"
-          currencyName="Bitcoin"
+          currencyIcon={getCurrencyIconWithFallback(
+            tokenPair.collateral.icon,
+            tokenPair.collateral.symbol,
+          )}
+          currencyName={tokenPair.collateral.name}
           balanceDetails={{
             balance: maxCollateralFromVaults.toFixed(4),
-            symbol: "BTC",
+            symbol: tokenPair.collateral.symbol,
             displayUSD: false,
           }}
           sliderValue={collateralAmount}
@@ -87,7 +98,7 @@ export function Borrow({
           sliderVariant="primary"
           leftField={{
             label: "Max",
-            value: `${maxCollateralFromVaults.toFixed(4)} BTC`,
+            value: `${maxCollateralFromVaults.toFixed(4)} ${tokenPair.collateral.symbol}`,
           }}
           onMaxClick={() => setCollateralAmount(maxCollateralFromVaults)}
           rightField={{
@@ -107,14 +118,17 @@ export function Borrow({
         <SubSection>
           <AmountSlider
             amount={borrowAmount}
-            currencyIcon="/images/usdc.png"
-            currencyName="USDC"
+            currencyIcon={getCurrencyIconWithFallback(
+              tokenPair.loan.icon,
+              tokenPair.loan.symbol,
+            )}
+            currencyName={tokenPair.loan.name}
             onAmountChange={(e) =>
               setBorrowAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
               balance: maxBorrowAmount.toLocaleString(),
-              symbol: "USDC",
+              symbol: tokenPair.loan.symbol,
               displayUSD: false,
             }}
             sliderValue={borrowAmount}
@@ -125,7 +139,7 @@ export function Borrow({
             sliderVariant={theme === "dark" ? "rainbow" : "primary"}
             leftField={{
               label: "Max",
-              value: `${maxBorrowAmount.toLocaleString()} USDC`,
+              value: `${maxBorrowAmount.toLocaleString()} ${tokenPair.loan.symbol}`,
             }}
             onMaxClick={() => setBorrowAmount(maxBorrowAmount)}
             rightField={{
@@ -140,7 +154,9 @@ export function Borrow({
 
         <LoanSummaryCard
           collateralAmount={currentCollateralAmount + collateralAmount}
+          collateralSymbol={tokenPair.collateral.symbol}
           loanAmount={currentLoanAmount + borrowAmount}
+          loanSymbol={tokenPair.loan.symbol}
           ltv={ltv}
           liquidationLtv={liquidationLtv}
         />
@@ -151,11 +167,11 @@ export function Borrow({
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled}
+        disabled={isDisabled || processing}
         onClick={() => onBorrow(collateralAmount, borrowAmount)}
         className="mt-6"
       >
-        {buttonText}
+        {processing ? "Processing..." : buttonText}
       </Button>
     </div>
   );

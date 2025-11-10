@@ -34,3 +34,6 @@ export {
     closeAppKitModal,
     type AppKitModalConfig,
 } from "@/core/wallets/eth/appkit/appKitModal";
+
+// Re-export wagmi hooks to ensure single instance across all consumers
+export * from "@/wagmiExports";

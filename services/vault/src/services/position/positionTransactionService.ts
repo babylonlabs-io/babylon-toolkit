@@ -180,21 +180,13 @@ function validatePositionHealth(
 }
 
 /**
- * Calculate repay amount with buffer for interest accrual
- */
-function calculateRepayAmount(borrowAssets: bigint): bigint {
-  const bufferPercent = borrowAssets / 1000n; // 0.1% of debt
-  const minBuffer = 1_000_000n; // 1 USDC (6 decimals)
-  const buffer = bufferPercent > minBuffer ? bufferPercent : minBuffer;
-  return borrowAssets + buffer;
-}
-
-/**
  * Repay ALL debt from position (full repayment)
  *
- * This function repays the entire debt with a buffer to account for interest accrual
- * between transaction submission and execution. Use this when user clicks "Max" or
- * wants to fully close their position.
+ * This function uses the shares-based repayment method (repayDirectlyToMorpho) which
+ * allows Morpho to calculate the exact amount needed to burn all borrow shares.
+ * This avoids issues with interest accrual between calculation and execution.
+ *
+ * Use this when user clicks "Max" or wants to fully close their position.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
@@ -243,17 +235,41 @@ export async function repayDebtFull(
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
 
-  // Calculate repay amount with buffer
-  const repayAmount = calculateRepayAmount(borrowAssets);
+  // For full repayment, use repayDirectlyToMorpho with shares
+  // This ensures exact repayment without needing to calculate amount with buffer
+  // Morpho will calculate the exact amount needed based on current borrow shares
 
-  // Execute repayment
+  // Check user's USDC balance before attempting repay
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  const userBalance = await ERC20.getERC20Balance(
+    marketParams.loanToken,
+    userAddress,
+  );
+
+  // Check if user has enough to cover the approximate debt
+  // The exact amount will be calculated by Morpho based on shares
+  if (userBalance < borrowAssets) {
+    throw new Error(
+      `Insufficient USDC balance. Required: ~${(Number(borrowAssets) / 1e6).toFixed(6)} USDC, ` +
+        `Available: ${(Number(userBalance) / 1e6).toFixed(6)} USDC. ` +
+        `Please ensure you have enough USDC in your wallet to repay the full debt.`,
+    );
+  }
+
+  // Execute full repayment using shares (repayAmount=0, shares=borrowShares)
+  // This allows Morpho to calculate the exact amount needed to burn all shares
   try {
-    const result = await VaultControllerTx.repayFromPosition(
+    const result = await VaultControllerTx.repayDirectlyToMorpho(
       walletClient,
       chain,
       vaultControllerAddress,
       marketParams,
-      repayAmount,
+      0n, // repayAmount = 0 when using shares
+      position.borrowShares, // Use all borrow shares for full repayment
     );
 
     return {
@@ -266,7 +282,7 @@ export async function repayDebtFull(
     }
     throw new ContractError(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
-        `Required amount: ${(Number(repayAmount) / 1e6).toFixed(6)} USDC. ` +
+        `Approximate amount needed: ${(Number(borrowAssets) / 1e6).toFixed(6)} USDC. ` +
         `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
       ErrorCode.CONTRACT_ERROR,
       undefined,
@@ -346,6 +362,25 @@ export async function repayDebtPartial(
   const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
+
+  // Check user's USDC balance before attempting repay
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  const userBalance = await ERC20.getERC20Balance(
+    marketParams.loanToken,
+    userAddress,
+  );
+
+  if (userBalance < repayAmount) {
+    throw new Error(
+      `Insufficient USDC balance. Required: ${Number(formatUnits(repayAmount, 6)).toFixed(6)} USDC, ` +
+        `Available: ${Number(formatUnits(userBalance, 6)).toFixed(6)} USDC. ` +
+        `Please ensure you have enough USDC in your wallet to repay.`,
+    );
+  }
 
   // Execute partial repayment (no buffer added - exact amount)
   try {
