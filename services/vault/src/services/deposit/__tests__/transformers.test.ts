@@ -7,17 +7,18 @@ import { describe, expect, it } from "vitest";
 import {
   ContractStatus,
   LocalStorageStatus,
+  getPeginState,
 } from "../../../models/peginStateMachine";
 import {
-  calculateDepositProgress,
   formatSatoshisToBtc,
   parseBtcToSatoshis,
+} from "../../../utils/btcConversion";
+import {
+  calculateDepositProgress,
   transformApiUtxoToInternal,
-  transformDepositToActivity,
   transformErrorMessage,
   transformFormToTransactionData,
   transformProviderForDisplay,
-  transformStatusToLabel,
   type DepositFormData,
 } from "../transformers";
 
@@ -62,45 +63,55 @@ describe("Deposit Transformers", () => {
       expect(result.liquidatorBtcPubkeys).toHaveLength(2);
       expect(result.selectedUTXOs).toHaveLength(1);
       expect(result.fee).toBe(1000n);
-      expect(result.unsignedTxHex).toBe(""); // Will be filled by WASM
+      expect(result.unsignedTxHex).toBeUndefined();
     });
   });
 
-  describe("transformStatusToLabel", () => {
+  describe("getPeginState (status to label transformation)", () => {
     it("should map contract status to correct label", () => {
-      expect(transformStatusToLabel(ContractStatus.PENDING)).toBe("Pending");
-      expect(transformStatusToLabel(ContractStatus.VERIFIED)).toBe("Verified");
-      expect(transformStatusToLabel(ContractStatus.AVAILABLE)).toBe(
+      expect(getPeginState(ContractStatus.PENDING).displayLabel).toBe(
+        "Pending",
+      );
+      expect(getPeginState(ContractStatus.VERIFIED).displayLabel).toBe(
+        "Verified",
+      );
+      expect(getPeginState(ContractStatus.AVAILABLE).displayLabel).toBe(
         "Available",
       );
-      expect(transformStatusToLabel(ContractStatus.IN_POSITION)).toBe("In Use");
-      expect(transformStatusToLabel(ContractStatus.EXPIRED)).toBe("Expired");
+      expect(getPeginState(ContractStatus.IN_POSITION).displayLabel).toBe(
+        "In Use",
+      );
+      expect(getPeginState(ContractStatus.EXPIRED).displayLabel).toBe(
+        "Expired",
+      );
     });
 
     it("should prioritize local status when present", () => {
       expect(
-        transformStatusToLabel(
-          ContractStatus.PENDING,
-          LocalStorageStatus.CONFIRMING,
-        ),
-      ).toBe("Pending Bitcoin Confirmations");
+        getPeginState(ContractStatus.PENDING, LocalStorageStatus.CONFIRMING)
+          .displayLabel,
+      ).toBe("Pending"); // Note: CONFIRMING is only used with VERIFIED status in state machine
 
       expect(
-        transformStatusToLabel(
-          ContractStatus.PENDING,
-          LocalStorageStatus.PAYOUT_SIGNED,
-        ),
+        getPeginState(ContractStatus.PENDING, LocalStorageStatus.PAYOUT_SIGNED)
+          .displayLabel,
       ).toBe("Processing");
+
+      // Test the actual case where CONFIRMING is used
+      expect(
+        getPeginState(ContractStatus.VERIFIED, LocalStorageStatus.CONFIRMING)
+          .displayLabel,
+      ).toBe("Pending Bitcoin Confirmations");
     });
 
     it("should handle undefined local status", () => {
-      expect(transformStatusToLabel(ContractStatus.AVAILABLE, undefined)).toBe(
-        "Available",
-      );
+      expect(
+        getPeginState(ContractStatus.AVAILABLE, undefined).displayLabel,
+      ).toBe("Available");
     });
 
     it("should return Unknown for invalid status", () => {
-      expect(transformStatusToLabel(999 as any)).toBe("Unknown");
+      expect(getPeginState(999 as any).displayLabel).toBe("Unknown");
     });
   });
 
@@ -329,45 +340,6 @@ describe("Deposit Transformers", () => {
     it("should preserve original message for unrecognized errors", () => {
       const customError = new Error("Custom error message");
       expect(transformErrorMessage(customError)).toBe("Custom error message");
-    });
-  });
-
-  describe("transformDepositToActivity", () => {
-    it("should transform deposit transaction to activity format", () => {
-      const txData = {
-        depositorBtcPubkey: "0xBtcKey",
-        depositorEthAddress: "0xEthAddr" as any,
-        pegInAmount: 100000n,
-        vaultProviderAddress: "0xProvider" as any,
-        vaultProviderBtcPubkey: "0xProviderKey",
-        liquidatorBtcPubkeys: ["0xLiq1", "0xLiq2"],
-        selectedUTXOs: [],
-        fee: 1000n,
-        unsignedTxHex: "0xhex",
-      };
-
-      const result = {
-        btcTxid: "0xBtcTx123",
-        ethTxHash: "0xEthTx456" as any,
-        timestamp: Date.now(),
-      };
-
-      const activity = transformDepositToActivity(txData, result);
-
-      expect(activity.id).toBe("0xBtcTx123");
-      expect(activity.txHash).toBe("0xEthTx456");
-      expect(activity.collateral).toEqual({
-        amount: "100000",
-        symbol: "BTC",
-        icon: "/images/btc.svg",
-      });
-      expect(activity.providers).toHaveLength(1);
-      expect(activity.providers![0].id).toBe("0xProvider");
-      expect(activity.contractStatus).toBe(ContractStatus.PENDING);
-      expect(activity.isPending).toBe(true);
-      expect(activity.pendingMessage).toBe(
-        "Waiting for provider acknowledgments",
-      );
     });
   });
 });
