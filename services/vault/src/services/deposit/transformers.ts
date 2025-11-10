@@ -53,7 +53,7 @@ export function transformFormToTransactionData(
   return {
     depositorBtcPubkey: walletData.btcPubkey,
     depositorEthAddress: walletData.ethAddress,
-    pegInAmount: BigInt(formData.amount),
+    pegInAmount: parseBtcToSatoshis(formData.amount),
     vaultProviderAddress: providerData.address,
     vaultProviderBtcPubkey: providerData.btcPubkey,
     liquidatorBtcPubkeys: providerData.liquidatorPubkeys,

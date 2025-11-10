@@ -22,7 +22,7 @@ describe("Deposit Transformers", () => {
   describe("transformFormToTransactionData", () => {
     it("should transform form data to transaction data correctly", () => {
       const formData: DepositFormData = {
-        amount: "100000",
+        amount: "0.001",
         selectedProviders: ["0xProvider123"],
       };
 
