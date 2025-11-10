@@ -10,7 +10,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
 import type { DepositFormData } from "../../services/deposit";
-import { depositService } from "../../services/deposit";
+import { formatErrorMessage } from "../../utils/errors";
 
 import { useDepositTransaction } from "./useDepositTransaction";
 import { useDepositValidation } from "./useDepositValidation";
@@ -188,7 +188,7 @@ export function useDepositFlow(
       queryClient.invalidateQueries({ queryKey: ["balance"] });
     },
     onError: (error) => {
-      setError(depositService.transformErrorMessage(error));
+      setError(formatErrorMessage(error));
     },
   });
 

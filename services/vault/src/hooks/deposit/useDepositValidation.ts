@@ -10,6 +10,7 @@ import { useCallback, useMemo } from "react";
 
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
+import { formatErrorMessage } from "../../utils/errors";
 import { useUTXOs } from "../useUTXOs";
 
 // Constants
@@ -157,7 +158,7 @@ export function useDepositValidation(
       } catch (error) {
         return {
           valid: false,
-          error: depositService.transformErrorMessage(error),
+          error: formatErrorMessage(error),
         };
       }
     },

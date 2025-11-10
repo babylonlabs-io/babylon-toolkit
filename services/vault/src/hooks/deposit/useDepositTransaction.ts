@@ -10,6 +10,7 @@ import type { Hex } from "viem";
 
 import type { DepositTransactionData } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
+import { formatErrorMessage } from "../../utils/errors";
 
 export interface CreateDepositTransactionParams {
   amount: string;
@@ -131,7 +132,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       } catch (error) {
         return {
           success: false,
-          error: depositService.transformErrorMessage(error),
+          error: formatErrorMessage(error),
         };
       } finally {
         setIsCreating(false);
@@ -168,7 +169,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       } catch (error) {
         return {
           success: false,
-          error: depositService.transformErrorMessage(error),
+          error: formatErrorMessage(error),
         };
       } finally {
         setIsSubmitting(false);

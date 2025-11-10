@@ -14,7 +14,6 @@ import {
   parseBtcToSatoshis,
 } from "../../../utils/btcConversion";
 import {
-  transformErrorMessage,
   transformFormToTransactionData,
   type DepositFormData,
 } from "../transformers";
@@ -195,48 +194,6 @@ describe("Deposit Transformers", () => {
     it("should handle multiple decimal points", () => {
       expect(parseBtcToSatoshis("1.2.3")).toBe(0n);
       expect(parseBtcToSatoshis("0.1.0.1")).toBe(0n);
-    });
-  });
-
-  describe("transformErrorMessage", () => {
-    it("should handle string errors", () => {
-      expect(transformErrorMessage("Test error")).toBe("Test error");
-    });
-
-    it("should handle Error objects", () => {
-      const error = new Error("Test error message");
-      expect(transformErrorMessage(error)).toBe("Test error message");
-    });
-
-    it("should transform specific error messages", () => {
-      const insufficientError = new Error("insufficient funds for transaction");
-      expect(transformErrorMessage(insufficientError)).toBe(
-        "Insufficient balance for this transaction",
-      );
-
-      const rejectedError = new Error("User rejected the request");
-      expect(transformErrorMessage(rejectedError)).toBe(
-        "Transaction was rejected",
-      );
-
-      const timeoutError = new Error("Request timeout exceeded");
-      expect(transformErrorMessage(timeoutError)).toBe(
-        "Request timed out. Please try again",
-      );
-    });
-
-    it("should handle unknown error types", () => {
-      expect(transformErrorMessage(null)).toBe("An unexpected error occurred");
-      expect(transformErrorMessage(undefined)).toBe(
-        "An unexpected error occurred",
-      );
-      expect(transformErrorMessage(123)).toBe("An unexpected error occurred");
-      expect(transformErrorMessage({})).toBe("An unexpected error occurred");
-    });
-
-    it("should preserve original message for unrecognized errors", () => {
-      const customError = new Error("Custom error message");
-      expect(transformErrorMessage(customError)).toBe("Custom error message");
     });
   });
 });
