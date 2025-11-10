@@ -55,15 +55,6 @@ export interface UseDepositFormResult {
 export function useDepositForm(): UseDepositFormResult {
   const { address: btcAddress } = useBTCWallet();
 
-  // Get validation functions
-  const validation = useDepositValidation(btcAddress);
-
-  // Get UTXOs for balance calculation
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
-  const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(confirmedUTXOs || []));
-  }, [confirmedUTXOs]);
-
   // Get providers
   const { providers: rawProviders, loading: isLoadingProviders } =
     useVaultProviders();
@@ -76,6 +67,16 @@ export function useDepositForm(): UseDepositFormResult {
       btcPubkey: p.btc_pub_key || "",
     }));
   }, [rawProviders]);
+
+  // Get validation functions - pass provider IDs
+  const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
+  const validation = useDepositValidation(btcAddress, providerIds);
+
+  // Get UTXOs for balance calculation
+  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  const btcBalance = useMemo(() => {
+    return BigInt(calculateBalance(confirmedUTXOs || []));
+  }, [confirmedUTXOs]);
 
   // Form state
   const [formData, setFormDataInternal] = useState<DepositFormData>({
@@ -95,10 +96,18 @@ export function useDepositForm(): UseDepositFormResult {
     }));
     // Clear errors when user types
     if (data.amountBtc !== undefined) {
-      setErrors((prev) => ({ ...prev, amount: undefined }));
+      setErrors((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { amount, ...rest } = prev;
+        return rest;
+      });
     }
     if (data.selectedProvider !== undefined) {
-      setErrors((prev) => ({ ...prev, provider: undefined }));
+      setErrors((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { provider, ...rest } = prev;
+        return rest;
+      });
     }
   }, []);
 
@@ -151,11 +160,11 @@ export function useDepositForm(): UseDepositFormResult {
 
   // Check if form is valid
   const isValid = useMemo(() => {
-    return (
-      formData.amountBtc !== "" &&
-      formData.selectedProvider !== "" &&
-      Object.keys(errors).length === 0
-    );
+    const hasAmount = formData.amountBtc !== "";
+    const hasProvider = formData.selectedProvider !== "";
+    const noErrors = Object.keys(errors).length === 0;
+    const result = hasAmount && hasProvider && noErrors;
+    return result;
   }, [formData, errors]);
 
   // Reset form

@@ -8,8 +8,6 @@ import { useMemo, useState } from "react";
 import type { Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { DepositStateStep, useDepositState } from "@/hooks/deposit";
-
 import { CONTRACTS } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useBTCPrice } from "../../hooks/useBTCPrice";
@@ -29,6 +27,11 @@ import { RedeemCollateralModal } from "./Deposits/RedeemFormModal";
 import { RedeemCollateralReviewModal } from "./Deposits/RedeemReviewModal";
 import { RedeemCollateralSuccessModal } from "./Deposits/RedeemSuccessModal";
 import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
+import {
+  DepositState,
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "./Deposits/state/DepositState";
 import {
   useVaultRedeemState,
   VaultRedeemState,
@@ -410,8 +413,10 @@ function OverviewContent() {
 
 export function Overview() {
   return (
-    <VaultRedeemState>
-      <OverviewContent />
-    </VaultRedeemState>
+    <DepositState>
+      <VaultRedeemState>
+        <OverviewContent />
+      </VaultRedeemState>
+    </DepositState>
   );
 }

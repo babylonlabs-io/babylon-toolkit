@@ -67,10 +67,10 @@ export function CollateralDepositModal({
 
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
-    // For now, only support single provider selection
+    const newProvider =
+      providerId === formData.selectedProvider ? "" : providerId;
     setFormData({
-      selectedProvider:
-        providerId === formData.selectedProvider ? "" : providerId,
+      selectedProvider: newProvider,
     });
   };
 
@@ -82,7 +82,8 @@ export function CollateralDepositModal({
   // Handler: Balance click to auto-fill max amount
   const handleBalanceClick = () => {
     if (btcBalanceFormatted > 0) {
-      setFormData({ amountBtc: btcBalanceFormatted.toString() });
+      const maxAmount = btcBalanceFormatted.toString();
+      setFormData({ amountBtc: maxAmount });
     }
   };
 

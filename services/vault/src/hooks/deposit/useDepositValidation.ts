@@ -5,7 +5,6 @@
  * Integrates with wallet data and UTXO queries.
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
@@ -35,24 +34,16 @@ export interface UseDepositValidationResult {
  * Hook for deposit validation logic
  *
  * @param btcAddress - User's Bitcoin address for UTXO validation
+ * @param availableProviders - List of available provider IDs
  * @returns Validation functions and state
  */
 export function useDepositValidation(
   btcAddress: string | undefined,
+  availableProviders: string[] = [],
 ): UseDepositValidationResult {
-  // Fetch available providers
-  const { data: providers = [], isLoading: isLoadingProviders } = useQuery({
-    queryKey: ["vault-providers"],
-    queryFn: async () => {
-      // In real implementation, fetch from API
-      // For now, return mock data
-      return [
-        "0x1234567890abcdef1234567890abcdef12345678",
-        "0xabcdef1234567890abcdef1234567890abcdef12",
-      ];
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  // Use passed providers instead of fetching mock data
+  const providers = availableProviders;
+  const isLoadingProviders = false; // Providers are passed in, not loading
 
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });

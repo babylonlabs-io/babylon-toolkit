@@ -26,14 +26,15 @@ export type {
 export { useDepositForm } from "./useDepositForm";
 export type { DepositFormData, UseDepositFormResult } from "./useDepositForm";
 
+// Export from the new context-based state
 export {
   DepositStep as DepositStateStep,
   useDepositState,
-} from "./useDepositState";
-export type {
-  DepositStateData,
-  UseDepositStateResult,
-} from "./useDepositState";
+} from "../../components/Overview/Deposits/state/DepositState";
+export type { DepositStateData } from "../../components/Overview/Deposits/state/DepositState";
+
+// Keep the old hook result type for backwards compatibility
+export type { UseDepositStateResult } from "./useDepositState";
 
 // Compatibility layer for migration
 export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
