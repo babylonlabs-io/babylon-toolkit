@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
@@ -51,26 +51,44 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     [eligibility.additionalBabyNeeded, babyCoinSymbol, boostPercentDisplay],
   );
 
-  // Track modal view duration on open/close
+  // Keep latest values for tracking without retriggering the effect
+  const latestTrackingDataRef = useRef({
+    babyAmount: eligibility.additionalBabyNeeded,
+    aprBoostPercent: percentageIncrease,
+    currentApr: aprData.currentApr,
+    boostApr: aprData.boostApr,
+  });
+
   useEffect(() => {
-    if (!open) return;
-    const stopTracking = trackModalView("modal_viewed", {
-      modalName: CoStakingBoostModal.name,
+    latestTrackingDataRef.current = {
       babyAmount: eligibility.additionalBabyNeeded,
       aprBoostPercent: percentageIncrease,
       currentApr: aprData.currentApr,
       boostApr: aprData.boostApr,
-    });
-    return () => {
-      stopTracking();
     };
   }, [
-    open,
     eligibility.additionalBabyNeeded,
     percentageIncrease,
     aprData.currentApr,
     aprData.boostApr,
   ]);
+
+  // Track modal view duration only on open/close
+  useEffect(() => {
+    if (!open) return;
+    const { babyAmount, aprBoostPercent, currentApr, boostApr } =
+      latestTrackingDataRef.current;
+    const stopTracking = trackModalView("modal_viewed", {
+      modalName: CoStakingBoostModal.name,
+      babyAmount,
+      aprBoostPercent,
+      currentApr,
+      boostApr,
+    });
+    return () => {
+      stopTracking();
+    };
+  }, [open]);
 
   const handleSubmit = useCallback(() => {
     trackEvent(AnalyticsCategory.CTA_CLICK, "boost_apr_stake_baby", {
