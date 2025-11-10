@@ -9,7 +9,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
-import type { DepositFormData } from "../../services/deposit";
+import { depositService, type DepositFormData } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
 
 import { useDepositTransaction } from "./useDepositTransaction";
