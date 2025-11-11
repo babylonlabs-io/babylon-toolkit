@@ -75,6 +75,19 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [],
   );
 
+  const disabledWallets = useMemo(() => {
+    const disabled: string[] = [];
+
+    // Disable AppKit BTC on mainnet (not mature enough for production)
+    // Keep it enabled on testnet/signet for testing
+    const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
+    if (isMainnet) {
+      disabled.push("appkit-btc-connector");
+    }
+
+    return disabled;
+  }, []);
+
   const onError = useCallback((error: Error) => {
     if (error?.message?.includes("rejected")) {
       return;
@@ -89,6 +102,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
+      disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
       appKitConfig={appKitConfig}
       appKitBtcConfig={appKitBtcConfig}
