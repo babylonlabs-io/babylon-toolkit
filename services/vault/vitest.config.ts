@@ -41,10 +41,6 @@ export default defineConfig({
         __dirname,
         '../../packages/babylon-wallet-connector/src/index.tsx',
       ),
-      '@babylonlabs-io/config': path.resolve(
-        __dirname,
-        '../../packages/babylon-config/src/index.ts',
-      ),
     },
   },
 });
