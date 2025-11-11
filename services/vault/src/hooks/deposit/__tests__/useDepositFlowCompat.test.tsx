@@ -8,6 +8,16 @@ import type { Address } from "viem";
 
 import { useDepositFlow } from "../useDepositFlowCompat";
 
+// Mock config/contracts to avoid env var validation
+vi.mock("@/config/contracts", () => ({
+  CONTRACTS: {
+    BTC_VAULTS_MANAGER: "0x1234567890123456789012345678901234567890",
+    VAULT_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    BTC_VAULT: "0x1234567890123456789012345678901234567890",
+    MORPHO: "0x1234567890123456789012345678901234567890",
+  },
+}));
+
 // Mock dependencies
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({
@@ -90,6 +100,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
+    modalOpen: true,
     onSuccess: vi.fn(),
   };
 
