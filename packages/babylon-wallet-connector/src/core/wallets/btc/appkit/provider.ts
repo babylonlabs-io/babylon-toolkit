@@ -2,6 +2,7 @@ import { Psbt } from "bitcoinjs-lib";
 
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 
+import { APPKIT_BTC_CONNECTED_EVENT, APPKIT_BTC_OPEN_EVENT } from "./constants";
 import icon from "./icon.svg";
 import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
@@ -32,7 +33,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     try {
       // Open AppKit modal for Bitcoin wallet connection
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("babylon:open-appkit-btc"));
+        window.dispatchEvent(new CustomEvent(APPKIT_BTC_OPEN_EVENT));
 
         // Wait for connection to complete
         const waitForConnection = new Promise<void>((resolve, reject) => {
@@ -55,10 +56,10 @@ export class AppKitBTCProvider implements IBTCProvider {
 
           const cleanup = () => {
             clearTimeout(timeout);
-            window.removeEventListener("babylon:appkit-btc-connected", handleAccountChange as any);
+            window.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange as any);
           };
 
-          window.addEventListener("babylon:appkit-btc-connected", handleAccountChange as any);
+          window.addEventListener(APPKIT_BTC_CONNECTED_EVENT, handleAccountChange as any);
         });
 
         await waitForConnection;

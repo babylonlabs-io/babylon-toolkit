@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { openAppKitBtcModal, hasAppKitBtcModal } from "@/core/wallets/btc/appkit/appKitBtcModal";
+import { APPKIT_BTC_OPEN_EVENT } from "@/core/wallets/btc/appkit/constants";
 
 /**
  * Listens for the custom "babylon:open-appkit-btc" event and opens the AppKit BTC modal
@@ -22,7 +23,7 @@ export const useAppKitBtcOpenListener = () => {
       }
     };
 
-    window.addEventListener("babylon:open-appkit-btc", handleOpenRequest);
-    return () => window.removeEventListener("babylon:open-appkit-btc", handleOpenRequest);
+    window.addEventListener(APPKIT_BTC_OPEN_EVENT, handleOpenRequest);
+    return () => window.removeEventListener(APPKIT_BTC_OPEN_EVENT, handleOpenRequest);
   }, []);
 };

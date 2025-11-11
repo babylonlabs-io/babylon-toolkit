@@ -1,7 +1,8 @@
-import { bitcoinSignet } from "@reown/appkit/networks";
+import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useCallback, useEffect, useRef } from "react";
 
+import { APPKIT_BTC_CONNECTED_EVENT, APPKIT_BTC_OPEN_EVENT } from "../core/wallets/btc/appkit/constants";
 import { getSharedBtcAppKitConfig } from "../core/wallets/btc/appkit/sharedConfig";
 
 import { useChainConnector } from "./useChainConnector";
@@ -21,7 +22,7 @@ interface UseAppKitBtcBridgeOptions {
  * event dispatch timing with the provider's event listener registration.
  */
 export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) => {
-  const { isConnected, address, caipAddress, allAccounts } = useAppKitAccount({ namespace: "bip122" });
+  const { isConnected, address, allAccounts } = useAppKitAccount({ namespace: "bip122" });
   const btcConnector = useChainConnector("BTC");
   const lastDispatchedAddress = useRef<string | null>(null);
 
@@ -29,10 +30,16 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
   const dispatchConnectionEvent = useCallback(
     async (currentAddress: string) => {
       try {
-        // Force network switch to signet
+        // Switch to the configured network
         try {
-          const { adapter } = getSharedBtcAppKitConfig();
-          await adapter.switchNetwork({ caipNetwork: bitcoinSignet });
+          const { adapter, network } = getSharedBtcAppKitConfig();
+          // Map the network config to AppKit's network types
+          const networkMap = {
+            mainnet: bitcoin,
+            signet: bitcoinSignet,
+          } as const;
+          const caipNetwork = networkMap[network];
+          await adapter.switchNetwork({ caipNetwork });
         } catch (networkError) {
           console.warn("[AppKit BTC Bridge] Failed to switch network:", networkError);
           // Don't fail the connection if network switch fails
@@ -57,7 +64,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
         if (typeof window !== "undefined") {
           const eventDetail = { address: currentAddress, publicKey };
           window.dispatchEvent(
-            new CustomEvent("babylon:appkit-btc-connected", {
+            new CustomEvent(APPKIT_BTC_CONNECTED_EVENT, {
               detail: eventDetail,
             }),
           );
@@ -81,23 +88,20 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
 
       // If AppKit is already connected when modal opens, dispatch the event immediately
       // This handles the case where AppKit restored connection from localStorage
-      if (isConnected && address && caipAddress?.startsWith("bip122:")) {
+      if (isConnected && address) {
         dispatchConnectionEvent(address);
       }
     };
 
     if (typeof window !== "undefined") {
-      window.addEventListener("babylon:open-appkit-btc", handleModalOpen);
-      return () => window.removeEventListener("babylon:open-appkit-btc", handleModalOpen);
+      window.addEventListener(APPKIT_BTC_OPEN_EVENT, handleModalOpen);
+      return () => window.removeEventListener(APPKIT_BTC_OPEN_EVENT, handleModalOpen);
     }
-  }, [isConnected, address, caipAddress, allAccounts, dispatchConnectionEvent]);
+  }, [isConnected, address, allAccounts, dispatchConnectionEvent]);
 
   // Monitor AppKit connection state changes
   useEffect(() => {
-    // Only handle Bitcoin connections (caipAddress starts with "bip122:")
-    const isBitcoinAccount = caipAddress?.startsWith("bip122:");
-
-    if (isConnected && address && isBitcoinAccount) {
+    if (isConnected && address) {
       // Avoid dispatching the same connection event multiple times
       if (lastDispatchedAddress.current === address) {
         return;
@@ -113,7 +117,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
         console.error("Failed to disconnect from babylon-wallet-connector:", error);
       });
     }
-  }, [isConnected, address, caipAddress, btcConnector, onError, dispatchConnectionEvent]);
+  }, [isConnected, address, btcConnector, onError, dispatchConnectionEvent]);
 
   return {
     isAppKitBtcConnected: isConnected,

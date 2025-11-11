@@ -15,6 +15,7 @@ import type { createAppKit } from "@reown/appkit/react";
 export interface SharedBtcAppKitConfig {
   modal: ReturnType<typeof createAppKit>;
   adapter: BitcoinAdapter;
+  network: "mainnet" | "signet";
 }
 
 let sharedBtcAppKitConfig: SharedBtcAppKitConfig | null = null;

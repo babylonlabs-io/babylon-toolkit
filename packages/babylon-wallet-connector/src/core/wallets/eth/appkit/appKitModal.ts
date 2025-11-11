@@ -44,9 +44,14 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     }
 
     // Get project ID from config or environment
-    const projectId = config.projectId ||
-        (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined) ||
-        "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
+    const projectId =
+        config.projectId || (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined);
+
+    if (!projectId) {
+        throw new Error(
+            "Reown project ID is required. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable or pass projectId in config.",
+        );
+    }
 
     // Use metadata directly from config (now required)
     const metadata = config.metadata;
