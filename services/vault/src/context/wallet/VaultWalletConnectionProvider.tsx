@@ -79,8 +79,14 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const disabledWallets = useMemo(() => {
     const disabled: string[] = [];
 
-    // Disable AppKit BTC on mainnet
     const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
+
+    // Disable Ledger BTC on mainnet
+    if (isMainnet) {
+      disabled.push("ledget_btc");
+    }
+
+    // Disable AppKit BTC on mainnet
     if (isMainnet) {
       disabled.push(APPKIT_BTC_CONNECTOR_ID);
     }
