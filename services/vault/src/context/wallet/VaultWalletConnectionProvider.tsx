@@ -79,8 +79,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const disabledWallets = useMemo(() => {
     const disabled: string[] = [];
 
-    // Disable AppKit BTC on mainnet (not mature enough for production)
-    // Keep it enabled on testnet/signet for testing
+    // Disable AppKit BTC on mainnet
     const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
     if (isMainnet) {
       disabled.push(APPKIT_BTC_CONNECTOR_ID);
