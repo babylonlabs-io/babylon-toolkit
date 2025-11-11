@@ -83,7 +83,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
     // Disable Ledger BTC on mainnet
     if (isMainnet) {
-      disabled.push("ledget_btc");
+      disabled.push("ledger_btc");
     }
 
     // Disable AppKit BTC on mainnet

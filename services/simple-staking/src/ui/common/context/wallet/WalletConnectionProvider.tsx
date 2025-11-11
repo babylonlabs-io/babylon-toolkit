@@ -82,7 +82,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
     // Disable Ledger BTC if feature flag is not enabled
     if (!FeatureFlagService.IsLedgerEnabled) {
-      disabled.push("ledget_btc");
+      disabled.push("ledger_btc");
     }
 
     // Disable AppKit BTC on mainnet (not mature enough for production)
