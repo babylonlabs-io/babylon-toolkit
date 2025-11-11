@@ -7,10 +7,15 @@ import { AppKitBTCProvider } from "./provider";
 const WALLET_PROVIDER_NAME = "AppKit";
 
 /**
+ * Unique identifier for AppKit BTC wallet connector
+ */
+export const APPKIT_BTC_CONNECTOR_ID = "appkit-btc-connector";
+
+/**
  * AppKit wallet metadata for BTC chain
  */
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
-  id: "appkit-btc-connector",
+  id: APPKIT_BTC_CONNECTOR_ID,
   name: WALLET_PROVIDER_NAME,
   icon,
   docs: "https://docs.reown.com/appkit/networks/bitcoin",

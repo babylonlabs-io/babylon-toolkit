@@ -3,6 +3,7 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
+  APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
   ETHWalletProvider,
   WalletProvider,
@@ -82,7 +83,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     // Keep it enabled on testnet/signet for testing
     const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
     if (isMainnet) {
-      disabled.push("appkit-btc-connector");
+      disabled.push(APPKIT_BTC_CONNECTOR_ID);
     }
 
     return disabled;

@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react";
 
 import type { IChain } from "@/core/types";
+import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
+import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWidgetState } from "@/hooks/useWidgetState";
 import { useChainProviders } from "@/context/Chain.context";
@@ -26,7 +28,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for ETH chain with only AppKit wallet
       if (chain.id === "ETH") {
         const ethConnector = connectors.ETH;
-        const appkitWallet = ethConnector?.wallets.find(w => w.id === "appkit-eth-connector");
+        const appkitWallet = ethConnector?.wallets.find(w => w.id === APPKIT_ETH_CONNECTOR_ID);
 
         if (appkitWallet && ethConnector?.wallets.length === 1) {
           // Only AppKit available, connect it directly
@@ -43,7 +45,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for BTC chain with only AppKit wallet
       if (chain.id === "BTC") {
         const btcConnector = connectors.BTC;
-        const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === "appkit-btc-connector");
+        const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === APPKIT_BTC_CONNECTOR_ID);
 
         if (appkitBtcWallet && btcConnector?.wallets.length === 1) {
           // Only AppKit available, connect it directly

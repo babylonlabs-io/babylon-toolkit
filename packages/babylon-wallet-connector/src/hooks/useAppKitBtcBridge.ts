@@ -2,6 +2,7 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useCallback, useEffect, useRef } from "react";
 
+import { APPKIT_BTC_CONNECTOR_ID } from "../core/wallets/btc/appkit";
 import { APPKIT_BTC_CONNECTED_EVENT, APPKIT_BTC_OPEN_EVENT } from "../core/wallets/btc/appkit/constants";
 import { getSharedBtcAppKitConfig } from "../core/wallets/btc/appkit/sharedConfig";
 
@@ -109,7 +110,7 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
 
       // Dispatch connection event when AppKit connects
       dispatchConnectionEvent(address);
-    } else if (!isConnected && btcConnector?.connectedWallet?.id === "appkit-btc-connector") {
+    } else if (!isConnected && btcConnector?.connectedWallet?.id === APPKIT_BTC_CONNECTOR_ID) {
       // Reset the last dispatched address when disconnecting
       lastDispatchedAddress.current = null;
 

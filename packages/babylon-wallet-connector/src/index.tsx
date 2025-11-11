@@ -26,6 +26,10 @@ export { type ETHTypedData } from "@/core/wallets/eth/appkit/types";
 // Export AppKit shared config helpers
 export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from "@/core/wallets/eth/appkit/sharedConfig";
 
+// Export AppKit connector IDs
+export { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
+export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
+
 // Export ETH AppKit modal utilities
 export {
     initializeAppKitModal,
