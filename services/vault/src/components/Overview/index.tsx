@@ -28,10 +28,10 @@ import { RedeemCollateralReviewModal } from "./Deposits/RedeemReviewModal";
 import { RedeemCollateralSuccessModal } from "./Deposits/RedeemSuccessModal";
 import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
 import {
-  useVaultDepositState,
-  VaultDepositState,
-  VaultDepositStep,
-} from "./Deposits/state/VaultDepositState";
+  DepositState,
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "./Deposits/state/DepositState";
 import {
   useVaultRedeemState,
   VaultRedeemState,
@@ -68,14 +68,14 @@ function OverviewContent() {
   // Deposit flow state
   const {
     step: depositStep,
-    depositAmount,
+    amount: depositAmount,
     selectedProviders,
     // btcTxid,
     goToStep: goToDepositStep,
     setDepositData,
     setTransactionHashes: setDepositTransactionHashes,
     reset: resetDeposit,
-  } = useVaultDepositState();
+  } = useDepositState();
 
   // Redeem flow state
   const {
@@ -116,17 +116,17 @@ function OverviewContent() {
   // Deposit flow handlers
   const handleDeposit = (amount: bigint, providers: string[]) => {
     setDepositData(amount, providers);
-    goToDepositStep(VaultDepositStep.REVIEW);
+    goToDepositStep(DepositStateStep.REVIEW);
   };
 
   const handleDepositReviewConfirm = () => {
-    goToDepositStep(VaultDepositStep.SIGN);
+    goToDepositStep(DepositStateStep.SIGN);
   };
 
   const handleDepositSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setDepositTransactionHashes(btcTxid, ethTxHash);
     // All 3 steps complete - go directly to success modal
-    goToDepositStep(VaultDepositStep.SUCCESS);
+    goToDepositStep(DepositStateStep.SUCCESS);
   };
 
   // Redeem flow handlers
@@ -239,7 +239,7 @@ function OverviewContent() {
         </Card>
 
         {/* Deposit Modal Flow */}
-        {depositStep === VaultDepositStep.FORM && (
+        {depositStep === DepositStateStep.FORM && (
           <CollateralDepositModal
             open
             onClose={resetDeposit}
@@ -248,7 +248,7 @@ function OverviewContent() {
             btcPrice={btcPriceUSD}
           />
         )}
-        {depositStep === VaultDepositStep.REVIEW && (
+        {depositStep === DepositStateStep.REVIEW && (
           <CollateralDepositReviewModal
             open
             onClose={resetDeposit}
@@ -257,7 +257,7 @@ function OverviewContent() {
             providers={selectedProviders}
           />
         )}
-        {depositStep === VaultDepositStep.SIGN && (
+        {depositStep === DepositStateStep.SIGN && (
           <CollateralDepositSignModal
             open
             onClose={resetDeposit}
@@ -271,7 +271,7 @@ function OverviewContent() {
             onRefetchActivities={refetchActivities}
           />
         )}
-        {depositStep === VaultDepositStep.SUCCESS && (
+        {depositStep === DepositStateStep.SUCCESS && (
           <CollateralDepositSuccessModal
             open
             onClose={resetDeposit}
@@ -340,7 +340,7 @@ function OverviewContent() {
       </Card>
 
       {/* Deposit Modal Flow */}
-      {depositStep === VaultDepositStep.FORM && (
+      {depositStep === DepositStateStep.FORM && (
         <CollateralDepositModal
           open
           onClose={resetDeposit}
@@ -349,7 +349,7 @@ function OverviewContent() {
           btcPrice={btcPriceUSD}
         />
       )}
-      {depositStep === VaultDepositStep.REVIEW && (
+      {depositStep === DepositStateStep.REVIEW && (
         <CollateralDepositReviewModal
           open
           onClose={resetDeposit}
@@ -358,7 +358,7 @@ function OverviewContent() {
           providers={selectedProviders}
         />
       )}
-      {depositStep === VaultDepositStep.SIGN && (
+      {depositStep === DepositStateStep.SIGN && (
         <CollateralDepositSignModal
           open
           onClose={resetDeposit}
@@ -372,7 +372,7 @@ function OverviewContent() {
           onRefetchActivities={refetchActivities}
         />
       )}
-      {depositStep === VaultDepositStep.SUCCESS && (
+      {depositStep === DepositStateStep.SUCCESS && (
         <CollateralDepositSuccessModal
           open
           onClose={resetDeposit}
@@ -413,10 +413,10 @@ function OverviewContent() {
 
 export function Overview() {
   return (
-    <VaultDepositState>
+    <DepositState>
       <VaultRedeemState>
         <OverviewContent />
       </VaultRedeemState>
-    </VaultDepositState>
+    </DepositState>
   );
 }
