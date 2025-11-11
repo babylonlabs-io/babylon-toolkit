@@ -49,4 +49,3 @@ describe("Error Formatting", () => {
     });
   });
 });
-

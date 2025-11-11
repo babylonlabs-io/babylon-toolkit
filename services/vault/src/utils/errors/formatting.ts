@@ -30,4 +30,3 @@ export function formatErrorMessage(error: unknown): string {
 
   return "An unexpected error occurred";
 }
-
