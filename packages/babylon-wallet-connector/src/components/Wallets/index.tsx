@@ -1,5 +1,5 @@
 import { Button, DialogBody, DialogFooter, DialogHeader, Text } from "@babylonlabs-io/core-ui";
-import { memo, useMemo, useCallback } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { WalletButton } from "@/components/WalletButton";

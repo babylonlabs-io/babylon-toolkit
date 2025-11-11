@@ -4,7 +4,7 @@ import logo from "./logo.svg";
 import { LedgerProvider, WALLET_PROVIDER_NAME } from "./provider";
 
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
-  id: "ledget_btc",
+  id: "ledger_btc",
   name: WALLET_PROVIDER_NAME,
   icon: logo,
   docs: "https://www.ledger.com/ledger-live",

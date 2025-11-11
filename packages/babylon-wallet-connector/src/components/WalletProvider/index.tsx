@@ -7,7 +7,9 @@ import { createAccountStorage } from "@/core/storage";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
+import { initializeAppKitBtcModal, type AppKitBtcModalConfig } from "@/core/wallets/btc/appkit/appKitBtcModal";
 import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
+import { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -23,6 +25,7 @@ interface WalletProviderProps {
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
   appKitConfig?: AppKitModalConfig;
+  appKitBtcConfig?: AppKitBtcModalConfig;
 }
 
 export function WalletProvider({
@@ -37,27 +40,46 @@ export function WalletProvider({
   disabledWallets,
   requiredChains,
   appKitConfig,
+  appKitBtcConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize AppKit synchronously before render when ETH chain is enabled
-  // This ensures wagmi config is available before children (ETHWalletProvider) mount
+  // Initialize unified AppKit modal synchronously before render
+  // This ensures both wagmi and bitcoin configs are available before children mount
   useMemo(() => {
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");
+      const hasBTC = config?.some((c) => c.chain === "BTC");
+
+      // Only initialize if we have ETH (appKitConfig is required)
       if (hasETH && appKitConfig) {
-        initializeAppKitModal({
-          ...appKitConfig,
+        // Prepare BTC config if both ETH and BTC chains are enabled
+        const btcConfig = hasBTC && appKitBtcConfig ? {
+          network: appKitBtcConfig.network || "mainnet" as const
+        } : undefined;
+
+        initializeAppKitModal(
+          {
+            ...appKitConfig,
+            themeMode: theme === "dark" ? "dark" : "light",
+          },
+          btcConfig
+        );
+      } else if (hasBTC && appKitBtcConfig) {
+        // If only BTC is enabled, initialize with BTC only
+        initializeAppKitBtcModal({
+          ...appKitBtcConfig,
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
-    // eslint-disable-next-line no-empty
-    } catch {
+    } catch (error) {
+      console.error("Failed to initialize AppKit modal:", error);
     }
-  }, [config, theme, appKitConfig]);
+  }, [config, theme, appKitConfig, appKitBtcConfig]);
 
-  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+  // Listen for requests to open the AppKit modals (triggered by connectors)
   useAppKitOpenListener();
+  useAppKitBtcOpenListener();
 
   return (
     <TomoConnectionProvider theme={theme} config={config}>
