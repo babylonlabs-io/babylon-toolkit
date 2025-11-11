@@ -44,36 +44,38 @@ export function WalletProvider({
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize AppKit synchronously before render when ETH chain is enabled
-  // This ensures wagmi config is available before children (ETHWalletProvider) mount
+  // Initialize unified AppKit modal synchronously before render
+  // This ensures both wagmi and bitcoin configs are available before children mount
   useMemo(() => {
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");
-      if (hasETH && appKitConfig) {
-        initializeAppKitModal({
-          ...appKitConfig,
-          themeMode: theme === "dark" ? "dark" : "light",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to initialize AppKit ETH modal:", error);
-    }
-  }, [config, theme, appKitConfig]);
-
-  // Initialize AppKit BTC synchronously before render when BTC chain is enabled
-  useMemo(() => {
-    try {
       const hasBTC = config?.some((c) => c.chain === "BTC");
-      if (hasBTC && appKitBtcConfig) {
+
+      // Only initialize if we have ETH (appKitConfig is required)
+      if (hasETH && appKitConfig) {
+        // Prepare BTC config if both ETH and BTC chains are enabled
+        const btcConfig = hasBTC && appKitBtcConfig ? {
+          network: appKitBtcConfig.network || "mainnet" as const
+        } : undefined;
+
+        initializeAppKitModal(
+          {
+            ...appKitConfig,
+            themeMode: theme === "dark" ? "dark" : "light",
+          },
+          btcConfig
+        );
+      } else if (hasBTC && appKitBtcConfig) {
+        // If only BTC is enabled, initialize with BTC only
         initializeAppKitBtcModal({
           ...appKitBtcConfig,
           themeMode: theme === "dark" ? "dark" : "light",
         });
       }
     } catch (error) {
-      console.error("Failed to initialize AppKit BTC modal:", error);
+      console.error("Failed to initialize AppKit modal:", error);
     }
-  }, [config, theme, appKitBtcConfig]);
+  }, [config, theme, appKitConfig, appKitBtcConfig]);
 
   // Listen for requests to open the AppKit modals (triggered by connectors)
   useAppKitOpenListener();

@@ -2,7 +2,7 @@ import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 
-import { setSharedBtcAppKitConfig } from "./sharedConfig";
+import { setSharedBtcAppKitConfig, getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
 export interface AppKitBtcModalConfig {
   projectId?: string;
@@ -119,8 +119,17 @@ export function hasAppKitBtcModal(): boolean {
 
 /**
  * Open the AppKit BTC modal programmatically
+ * If a unified modal exists (with both ETH and BTC adapters), use that instead
  */
 export function openAppKitBtcModal() {
+  // Check if we have a unified modal (stored in shared config)
+  if (hasSharedBtcAppKitConfig()) {
+    const { modal } = getSharedBtcAppKitConfig();
+    modal.open();
+    return;
+  }
+
+  // Fall back to standalone BTC modal if shared config not available
   const modal = getAppKitBtcModal();
   modal.open();
 }

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
-import { openAppKitBtcModal, hasAppKitBtcModal } from "@/core/wallets/btc/appkit/appKitBtcModal";
+import { openAppKitBtcModal } from "@/core/wallets/btc/appkit/appKitBtcModal";
+import { hasSharedBtcAppKitConfig } from "@/core/wallets/btc/appkit/sharedConfig";
 import { APPKIT_BTC_OPEN_EVENT } from "@/core/wallets/btc/appkit/constants";
 
 /**
@@ -12,7 +13,8 @@ import { APPKIT_BTC_OPEN_EVENT } from "@/core/wallets/btc/appkit/constants";
 export const useAppKitBtcOpenListener = () => {
   useEffect(() => {
     const handleOpenRequest = () => {
-      if (hasAppKitBtcModal()) {
+      // Check if shared config has modal (works for both unified and standalone modals)
+      if (hasSharedBtcAppKitConfig()) {
         try {
           openAppKitBtcModal();
         } catch (error) {
