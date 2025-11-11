@@ -1,10 +1,3 @@
-/**
- * Deposit transaction hook
- *
- * Handles transaction creation, signing, and submission for deposits.
- * Integrates with wallet providers and blockchain clients.
- */
-
 import { getETHChain } from "@babylonlabs-io/config";
 import {
   getSharedWagmiConfig,
@@ -22,6 +15,7 @@ import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
 import * as vaultBtcTransactionService from "@/services/vault/vaultBtcTransactionService";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
+import type { VaultProvider } from "@/types/vaultProvider";
 import { processPublicKeyToXOnly } from "@/utils/btc";
 import { formatErrorMessage } from "@/utils/errors";
 
@@ -30,40 +24,31 @@ export interface CreateDepositTransactionParams {
   selectedProviders: string[];
   btcAddress: string;
   ethAddress: Hex;
-  providers?: any[]; // Optional: pass providers if already fetched
+  providers?: VaultProvider[];
 }
 
-export interface TransactionResult<T = any> {
+export interface TransactionResult<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
 export interface UseDepositTransactionResult {
-  // Transaction creation
   createDepositTransaction: (
     params: CreateDepositTransactionParams,
   ) => Promise<TransactionResult<DepositTransactionData>>;
 
-  // Transaction submission
   submitTransaction: (
     txData: DepositTransactionData,
   ) => Promise<TransactionResult>;
 
-  // Transaction state
   isCreating: boolean;
   isSubmitting: boolean;
   lastTransaction: DepositTransactionData | null;
 
-  // Reset
   reset: () => void;
 }
 
-/**
- * Hook for deposit transaction operations
- *
- * @returns Transaction functions and state
- */
 export function useDepositTransaction(): UseDepositTransactionResult {
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
@@ -75,14 +60,12 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const [lastTransaction, setLastTransaction] =
     useState<DepositTransactionData | null>(null);
 
-  // Reset state
   const reset = useCallback(() => {
     setIsCreating(false);
     setIsSubmitting(false);
     setLastTransaction(null);
   }, []);
 
-  // Create deposit transaction
   const createDepositTransaction = useCallback(
     async (
       params: CreateDepositTransactionParams,
@@ -90,7 +73,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       setIsCreating(true);
 
       try {
-        // Validate wallet connections
         if (!btcWalletProvider) {
           throw new Error("BTC wallet not connected");
         }
@@ -98,14 +80,11 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("ETH address not provided");
         }
 
-        // Parse amount
         const pegInAmount = depositService.parseBtcToSatoshis(params.amount);
 
-        // Get BTC public key from wallet
         const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
         const btcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
-        // Get provider data from API or use passed providers
         const providers = params.providers || availableProviders;
         if (!providers || providers.length === 0) {
           throw new Error("No providers available");
@@ -124,16 +103,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           address: selectedProvider.id as Hex,
           btcPubkey: selectedProvider.btc_pub_key || "",
           liquidatorPubkeys:
-            selectedProvider.liquidators?.map((liq: any) => liq.btc_pub_key) ||
-            [],
+            selectedProvider.liquidators?.map((liq) => liq.btc_pub_key) || [],
         };
 
-        // Get actual UTXOs from wallet
         if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
           throw new Error("No confirmed UTXOs available");
         }
 
-        // Convert mempool UTXOs to the format expected by the service
         const formattedUTXOs = confirmedUTXOs.map((utxo) => ({
           txid: utxo.txid,
           vout: utxo.vout,
@@ -141,7 +117,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           scriptPubKey: utxo.scriptPubKey || "",
         }));
 
-        // Calculate fees and select UTXOs
         const fees = depositService.calculateDepositFees(pegInAmount, 1);
         const requiredAmount = pegInAmount + fees.totalFee;
 
@@ -150,7 +125,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           requiredAmount,
         );
 
-        // Build transaction data structure
         const txData = depositService.transformFormToTransactionData(
           {
             amount: params.amount,
@@ -167,8 +141,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           },
         );
 
-        // Create unsigned BTC transaction using WASM
-        // Note: Current implementation only supports single UTXO
         const selectedUTXO = selectedUTXOs[0];
         if (!selectedUTXO) {
           throw new Error("No UTXO selected");
@@ -212,7 +184,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
     [btcWalletProvider, confirmedUTXOs, availableProviders],
   );
 
-  // Submit transaction to blockchain
   const submitTransaction = useCallback(
     async (txData: DepositTransactionData): Promise<TransactionResult> => {
       setIsSubmitting(true);
@@ -222,7 +193,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("BTC wallet not connected");
         }
 
-        // Get wallet client for ETH transactions
         const wagmiConfig = getSharedWagmiConfig();
         const expectedChainId = getETHChain().id;
         const walletClient = (await getWalletClient(wagmiConfig, {
@@ -233,7 +203,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No wallet client available");
         }
 
-        // Prepare transaction parameters
         const depositorBtcPubkey = txData.depositorBtcPubkey.startsWith("0x")
           ? txData.depositorBtcPubkey.slice(2)
           : txData.depositorBtcPubkey;
@@ -243,7 +212,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No UTXO selected for transaction");
         }
 
-        // Submit pegin request to ETH contract
         const result = await vaultTransactionService.submitPeginRequest(
           walletClient,
           getETHChain(),
@@ -252,7 +220,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           txData.pegInAmount,
           [selectedUTXO],
           Number(txData.fee),
-          "", // change address - not used in current implementation
+          "",
           txData.vaultProviderAddress,
           txData.vaultProviderBtcPubkey.startsWith("0x")
             ? txData.vaultProviderBtcPubkey.slice(2)
