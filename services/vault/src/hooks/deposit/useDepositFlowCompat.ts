@@ -12,7 +12,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
-import { getWalletClient } from "wagmi/actions";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { CONTRACTS } from "@/config/contracts";
 import { useUTXOs } from "@/hooks/useUTXOs";
@@ -169,8 +169,18 @@ export function useDepositFlow(
 
       // Get wallet client for ETH transactions
       const wagmiConfig = getSharedWagmiConfig();
+      const expectedChainId = getETHChain().id;
+      
+      // Switch to the correct chain if needed
+      try {
+        await switchChain(wagmiConfig, { chainId: expectedChainId });
+      } catch (switchError) {
+        console.error("Failed to switch chain:", switchError);
+        throw new Error(`Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`);
+      }
+      
       const walletClient = await getWalletClient(wagmiConfig, {
-        chainId: getETHChain().id,
+        chainId: expectedChainId,
         account: depositorEthAddress,
       });
 
