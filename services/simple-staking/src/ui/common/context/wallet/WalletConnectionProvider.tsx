@@ -96,6 +96,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
   const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
     () => ({
+      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
       metadata: {
         name: "Babylon Staking",
         description: "Babylon Bitcoin Staking Platform",

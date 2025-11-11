@@ -34,6 +34,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
   const appKitConfig: AppKitModalConfig = useMemo(
     () => ({
+      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
       metadata: {
         name: "Babylon Vault",
         description: "Babylon Vault - Secure Bitcoin Vault Platform",
