@@ -7,10 +7,14 @@
 
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 
 import type { DepositTransactionData } from "../../services/deposit";
-import { depositService } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
+import { useUTXOs } from "../useUTXOs";
+import { useBtcPublicKey } from "../useBtcPublicKey";
+import { useVaultProviders } from "../../components/Overview/Deposits/hooks/useVaultProviders";
+import { buildDepositTransaction } from "./buildDepositTransaction";
 
 export interface CreateDepositTransactionParams {
   amount: string;
@@ -56,6 +60,20 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const [lastTransaction, setLastTransaction] =
     useState<DepositTransactionData | null>(null);
 
+  // Get wallet connections
+  const btcConnector = useChainConnector("BTC");
+  const btcAddress = btcConnector?.connectedWallet?.account?.address;
+  const btcConnected = !!btcAddress;
+
+  // Get BTC public key
+  const btcPubkey = useBtcPublicKey(btcConnected);
+
+  // Get confirmed UTXOs
+  const { confirmedUTXOs, isLoading: utxosLoading } = useUTXOs(btcAddress);
+
+  // Get vault providers
+  const { findProvider } = useVaultProviders();
+
   // Reset state
   const reset = useCallback(() => {
     setIsCreating(false);
@@ -71,57 +89,48 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       setIsCreating(true);
 
       try {
-        // Parse amount
-        const pegInAmount = depositService.parseBtcToSatoshis(params.amount);
+        // Validate prerequisites
+        if (!btcAddress) {
+          throw new Error("BTC wallet not connected");
+        }
 
-        // Mock wallet data (in real implementation, would get from wallet)
-        const btcPubkey = "0x" + "a".repeat(64); // Mock 32-byte pubkey
+        if (!btcPubkey) {
+          throw new Error("Failed to get BTC public key from wallet");
+        }
 
-        // Mock provider data (in real implementation, would fetch from API)
+        if (utxosLoading) {
+          throw new Error("Still loading UTXOs, please wait");
+        }
+
+        if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+          throw new Error("No confirmed UTXOs available");
+        }
+
+        // Get provider data
+        const selectedProviderAddress = params.selectedProviders[0];
+        const provider = findProvider(selectedProviderAddress);
+        
+        if (!provider) {
+          throw new Error("Selected provider not found");
+        }
+
+        // Prepare provider data with liquidator pubkeys
         const providerData = {
-          address: params.selectedProviders[0] as Hex,
-          btcPubkey: "0x" + "b".repeat(64),
-          liquidatorPubkeys: ["0x" + "c".repeat(64), "0x" + "d".repeat(64)],
+          address: provider.id as Hex,
+          btcPubkey: provider.btc_pub_key,
+          liquidatorPubkeys: provider.liquidators?.map(l => l.btc_pub_key) || [],
         };
 
-        // Calculate fees and select UTXOs
-        const fees = depositService.calculateDepositFees(pegInAmount, 1);
-        const requiredAmount = pegInAmount + fees.totalFee;
-
-        // Mock UTXO selection (in real implementation, would use actual UTXOs)
-        const mockUTXOs = [
-          {
-            txid: "0x" + "f".repeat(64),
-            vout: 0,
-            value: Number(requiredAmount + 1000n), // Add some change
-            scriptPubKey: "0x" + "e".repeat(40),
-          },
-        ];
-
-        const { selected: selectedUTXOs } = depositService.selectOptimalUTXOs(
-          mockUTXOs,
-          requiredAmount,
-        );
-
-        // Build transaction data
-        const txData = depositService.transformFormToTransactionData(
-          {
-            amount: params.amount,
-            selectedProviders: params.selectedProviders,
-          },
-          {
-            btcPubkey,
-            ethAddress: params.ethAddress,
-          },
+        // Build the transaction using the extracted function
+        const txData = await buildDepositTransaction({
+          amount: params.amount,
+          selectedProviders: params.selectedProviders,
+          btcAddress: params.btcAddress,
+          ethAddress: params.ethAddress,
+          btcPubkey,
+          confirmedUTXOs,
           providerData,
-          {
-            selectedUTXOs,
-            fee: fees.totalFee,
-          },
-        );
-
-        // Mock unsigned transaction hex (in real implementation, would use WASM)
-        txData.unsignedTxHex = "0x" + "1".repeat(500);
+        });
 
         setLastTransaction(txData);
 
@@ -138,7 +147,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         setIsCreating(false);
       }
     },
-    [],
+    [
+      btcAddress,
+      btcPubkey,
+      confirmedUTXOs,
+      utxosLoading,
+      findProvider,
+    ],
   );
 
   // Submit transaction to blockchain
