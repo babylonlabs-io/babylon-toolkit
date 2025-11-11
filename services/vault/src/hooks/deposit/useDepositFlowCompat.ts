@@ -170,15 +170,17 @@ export function useDepositFlow(
       // Get wallet client for ETH transactions
       const wagmiConfig = getSharedWagmiConfig();
       const expectedChainId = getETHChain().id;
-      
+
       // Switch to the correct chain if needed
       try {
         await switchChain(wagmiConfig, { chainId: expectedChainId });
       } catch (switchError) {
         console.error("Failed to switch chain:", switchError);
-        throw new Error(`Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`);
+        throw new Error(
+          `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
+        );
       }
-      
+
       const walletClient = await getWalletClient(wagmiConfig, {
         chainId: expectedChainId,
         account: depositorEthAddress,

@@ -3,8 +3,8 @@
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Address } from "viem";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useDepositFlow } from "../useDepositFlowCompat";
 
@@ -111,7 +111,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
   describe("Chain switching on correct chain", () => {
     it("should successfully switch to correct chain before getting wallet client", async () => {
       const { getWalletClient, switchChain } = await import("wagmi/actions");
-      
+
       // Mock wallet client
       vi.mocked(getWalletClient).mockResolvedValue({
         account: { address: "0xEthAddress123" },
@@ -129,7 +129,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
       await waitFor(() => {
         expect(switchChain).toHaveBeenCalledWith(
           { config: "mock" },
-          { chainId: 11155111 }
+          { chainId: 11155111 },
         );
       });
 
@@ -139,7 +139,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
         {
           chainId: 11155111,
           account: "0xEthAddress123",
-        }
+        },
       );
     });
 
@@ -176,7 +176,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
       // Mock user rejecting chain switch
       vi.mocked(switchChain).mockRejectedValue(
-        new Error("User rejected the request")
+        new Error("User rejected the request"),
       );
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
@@ -203,7 +203,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
       // Mock chain switch failure
       vi.mocked(switchChain).mockRejectedValue(
-        new Error("User rejected the request")
+        new Error("User rejected the request"),
       );
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
@@ -218,7 +218,9 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
     it("should log chain switch error to console", async () => {
       const { switchChain } = await import("wagmi/actions");
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       const switchError = new Error("Network error during switch");
       vi.mocked(switchChain).mockRejectedValue(switchError);
@@ -230,7 +232,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
       await waitFor(() => {
         expect(consoleErrorSpy).toHaveBeenCalledWith(
           "Failed to switch chain:",
-          switchError
+          switchError,
         );
       });
 
@@ -241,7 +243,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
       const { getWalletClient, switchChain } = await import("wagmi/actions");
 
       vi.mocked(switchChain).mockRejectedValue(
-        new Error("Chain switch failed")
+        new Error("Chain switch failed"),
       );
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
@@ -274,10 +276,9 @@ describe("useDepositFlowCompat - Chain Switching", () => {
       await result.current.executeDepositFlow();
 
       await waitFor(() => {
-        expect(switchChain).toHaveBeenCalledWith(
-          expect.anything(),
-          { chainId: 11155111 }
-        );
+        expect(switchChain).toHaveBeenCalledWith(expect.anything(), {
+          chainId: 11155111,
+        });
       });
     });
 
@@ -297,10 +298,9 @@ describe("useDepositFlowCompat - Chain Switching", () => {
       await result.current.executeDepositFlow();
 
       await waitFor(() => {
-        expect(switchChain).toHaveBeenCalledWith(
-          expect.anything(),
-          { chainId: 1 }
-        );
+        expect(switchChain).toHaveBeenCalledWith(expect.anything(), {
+          chainId: 1,
+        });
       });
     });
   });
@@ -359,9 +359,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
     it("should maintain error state after chain switch failure", async () => {
       const { switchChain } = await import("wagmi/actions");
 
-      vi.mocked(switchChain).mockRejectedValue(
-        new Error("User rejected")
-      );
+      vi.mocked(switchChain).mockRejectedValue(new Error("User rejected"));
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
@@ -395,7 +393,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
       await waitFor(() => {
         expect(result.current.error).toBe(
-          "Please switch to Sepolia Testnet in your wallet"
+          "Please switch to Sepolia Testnet in your wallet",
         );
       });
     });
@@ -417,10 +415,9 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
       await waitFor(() => {
         expect(result.current.error).toBe(
-          "Please switch to Ethereum Mainnet in your wallet"
+          "Please switch to Ethereum Mainnet in your wallet",
         );
       });
     });
   });
 });
-
