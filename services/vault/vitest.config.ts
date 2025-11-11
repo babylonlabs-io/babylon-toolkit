@@ -37,6 +37,14 @@ export default defineConfig({
       '@/config': path.resolve(__dirname, './src/config'),
       '@/storage': path.resolve(__dirname, './src/storage'),
       '@/context': path.resolve(__dirname, './src/context'),
+      '@babylonlabs-io/wallet-connector': path.resolve(
+        __dirname,
+        '../../packages/babylon-wallet-connector/src/index.tsx',
+      ),
+      '@babylonlabs-io/config': path.resolve(
+        __dirname,
+        '../../packages/babylon-config/src/index.ts',
+      ),
     },
   },
 });
