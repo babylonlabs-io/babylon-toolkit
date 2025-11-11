@@ -4,6 +4,7 @@ import {
   stakingTxPolicy,
   withdrawPathPolicy,
   unbondingPathPolicy,
+  expansionTxPolicy,
   WalletPolicy,
 } from "ledger-bitcoin-babylon-boilerplate";
 
@@ -11,6 +12,7 @@ import { Action, Contract } from "@/core/types";
 import { ActionName } from "@/core/utils/action";
 import { BABYLON_SIGNING_CONTRACTS } from "@/core/utils/contracts";
 import { sortPkHexes } from "@/core/utils/sortPkHexes";
+//import { get } from "http";
 
 
 export const getPolicyForTransaction = async (
@@ -42,7 +44,7 @@ export const getPolicyForTransaction = async (
     case ActionName.SIGN_BTC_STAKING_TRANSACTION:
       return getStakingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_STAKING_EXPANSION_TRANSACTION:
-      throw new Error("Staking expansion transactions are not yet supported on Ledger app.");
+      return getExpansionPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_UNBONDING_TRANSACTION:
       return getUnbondingPolicy(contracts, derivationPath, transport);
     case ActionName.SIGN_BTC_SLASHING_TRANSACTION:
@@ -198,6 +200,31 @@ const getWithdrawPolicy = (
     transport,
     params: {
       timelockBlocks: timelockBlocks as number,
+    },
+    derivationPath,
+  });
+};
+
+export const getExpansionPolicy = (
+  signingContracts: Contract[],
+  derivationPath: string,
+  transport: Transport,
+): Promise<WalletPolicy> => {
+  console.log("signingContracts:", signingContracts);
+  const expansionContract = signingContracts.find((contract) => contract.id === BABYLON_SIGNING_CONTRACTS.EXPANSION);
+  if (!expansionContract) {
+    throw new Error("Expansion contract is required");
+  }
+
+  const { finalityProviders, covenantThreshold, covenantPks, stakingDuration } = expansionContract.params;
+
+  return expansionTxPolicy({
+    transport,
+    params: {
+      finalityProviders: finalityProviders as string[],
+      covenantThreshold: covenantThreshold as number,
+      covenantPks: sortPkHexes(covenantPks as string[]),
+      timelockBlocks: stakingDuration as number,
     },
     derivationPath,
   });

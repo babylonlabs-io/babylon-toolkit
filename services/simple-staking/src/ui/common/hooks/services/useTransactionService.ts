@@ -626,6 +626,17 @@ export const useTransactionService = () => {
         paramVersion,
       });
 
+      // Debug: Log covenant signatures details
+      console.log("=== COVENANT EXPANSION SIGNATURES ===");
+      console.log("Count:", covenantExpansionSignatures.length);
+      covenantExpansionSignatures.forEach((sig, idx) => {
+        console.log(`Covenant ${idx + 1}:`);
+        console.log("  BTC PK:", sig.btcPkHex);
+        console.log("  Sig:", sig.sigHex);
+        console.log("  Sig length:", sig.sigHex.length, "chars (", sig.sigHex.length / 2, "bytes)");
+      });
+      console.log("=== END COVENANT SIGNATURES ===");
+
       const btcStakingManager = createBtcStakingManager();
       const commonInputs = validateStakingManagerInputs(
         btcStakingManager,
@@ -664,7 +675,13 @@ export const useTransactionService = () => {
         stakingExpansionInput.previousStakingTxHex,
       );
 
+      console.log("=== UNSIGNED EXPANSION TX INFO ===");
+      console.log("TX ID:", unsignedStakingExpansionTx.getId());
+      console.log("Previous Staking TX ID:", previousStakingTx.getId());
+      console.log("=== END TX INFO ===");
+
       // Create signed transaction using btc-staking-ts
+      console.log("=== CALLING createSignedBtcStakingExpansionTransaction ===");
       const signedStakingExpansionTx =
         await commonInputs.btcStakingManager.createSignedBtcStakingExpansionTransaction(
           stakerInfo,
@@ -679,8 +696,14 @@ export const useTransactionService = () => {
           },
           covenantExpansionSignatures,
         );
+      console.log("=== RETURNED FROM createSignedBtcStakingExpansionTransaction ===");
 
       const actualTxHashHex = signedStakingExpansionTx.getId();
+
+      console.log("=== SIGNED EXPANSION TX DETAILS ===");
+      console.log("Signed TX ID:", actualTxHashHex);
+      console.log("Signed TX Hex (first 128 chars):", signedStakingExpansionTx.toHex().slice(0, 128) + "...");
+      console.log("=== END SIGNED TX DETAILS ===");
 
       logger.info("Transaction signing completed", {
         expectedTxHashHex,
@@ -722,6 +745,10 @@ export const useTransactionService = () => {
         "Broadcasting signed staking extension transaction",
         logContext,
       );
+
+      console.log("=== BROADCASTING TX ===");
+      console.log("TX Hex (full):", signedStakingExpansionTx.toHex());
+      console.log("=== END BROADCASTING ===");
 
       await pushTx(signedStakingExpansionTx.toHex());
       refetchUTXOs();

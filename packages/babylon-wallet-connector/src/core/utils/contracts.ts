@@ -6,4 +6,5 @@ export const BABYLON_SIGNING_CONTRACTS = {
   SLASHING: "babylon:slashing",
   SLASHING_BURN: "babylon:slashing-burn",
   WITHDRAW: "babylon:withdraw",
+  EXPANSION: "babylon:staking-expansion",
 };
