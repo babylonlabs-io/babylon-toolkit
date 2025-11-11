@@ -19,6 +19,11 @@ export default defineConfig({
         '**/index.ts',
       ],
     },
+    server: {
+      deps: {
+        inline: ['@babylonlabs-io/wallet-connector', '@babylonlabs-io/config'],
+      },
+    },
   },
   resolve: {
     alias: {
