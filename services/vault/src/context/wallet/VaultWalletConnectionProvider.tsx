@@ -3,10 +3,12 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
+  APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
+  type AppKitBtcModalConfig,
   type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
@@ -34,6 +36,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
   const appKitConfig: AppKitModalConfig = useMemo(
     () => ({
+      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
       metadata: {
         name: "Babylon Vault",
         description: "Babylon Vault - Secure Bitcoin Vault Platform",
@@ -51,6 +54,46 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [],
   );
 
+  const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
+    () => ({
+      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
+      metadata: {
+        name: "Babylon Vault",
+        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://staking.vault-devnet.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+      network:
+        getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
+    }),
+    [],
+  );
+
+  const disabledWallets = useMemo(() => {
+    const disabled: string[] = [];
+
+    const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
+
+    // Disable Ledger BTC on mainnet
+    if (isMainnet) {
+      disabled.push("ledger_btc");
+    }
+
+    // Disable AppKit BTC on mainnet
+    if (isMainnet) {
+      disabled.push(APPKIT_BTC_CONNECTOR_ID);
+    }
+
+    return disabled;
+  }, []);
+
   const onError = useCallback((error: Error) => {
     if (error?.message?.includes("rejected")) {
       return;
@@ -65,8 +108,10 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
+      disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
       appKitConfig={appKitConfig}
+      appKitBtcConfig={appKitBtcConfig}
     >
       <BTCWalletProvider>
         <ETHWalletProvider>{children}</ETHWalletProvider>

@@ -8,6 +8,11 @@ import { useCoStakingState } from "@/ui/common/state/CoStakingState";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 
 import type { TabId } from "../../layout";
 
@@ -31,12 +36,30 @@ export function CoStakingBoostSection({
   const navigate = useNavigate();
 
   const handlePrefill = () => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "CoStakingBoostSection",
+      },
+    );
     setActiveTab("stake");
     navigate("/baby", {
       state: {
         shouldPrefillCoStaking: true,
       },
     });
+  };
+
+  const handleClose = () => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.DISMISS_COSTAKING_PREFILL_CTA,
+      {
+        component: "CoStakingBoostSection",
+      },
+    );
+    setShowCoStakingBoostSection(false);
   };
 
   const formattedSuggestedAmount = useMemo(
@@ -70,7 +93,7 @@ export function CoStakingBoostSection({
             rewards. Start co-staking to unlock higher returns.
           </Text>
         }
-        onCloseClick={() => setShowCoStakingBoostSection(false)}
+        onCloseClick={handleClose}
       />
     )
   );

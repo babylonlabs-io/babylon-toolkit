@@ -55,7 +55,7 @@ describe("WalletConnectionProvider", () => {
 
     expect(WalletProvider).toHaveBeenCalledWith(
       expect.objectContaining({
-        disabledWallets: ["ledget_btc"],
+        disabledWallets: ["ledger_btc"],
       }),
       expect.anything(),
     );
@@ -73,7 +73,7 @@ describe("WalletConnectionProvider", () => {
 
     expect(WalletProvider).toHaveBeenCalledWith(
       expect.objectContaining({
-        disabledWallets: ["ledget_btc"],
+        disabledWallets: ["ledger_btc"],
       }),
       expect.anything(),
     );

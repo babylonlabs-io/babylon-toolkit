@@ -2,6 +2,7 @@ import { getETHChain } from "@babylonlabs-io/config";
 import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
 import {
   getSharedWagmiConfig,
+  useAppKitBtcBridge,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
@@ -43,6 +44,9 @@ import { Position } from "./Position";
 function OverviewContent() {
   const isMobile = useIsMobile();
   const [isSigning, setIsSigning] = useState(false);
+
+  // Bridge AppKit BTC connection state with babylon-wallet-connector
+  useAppKitBtcBridge();
 
   // Wallet providers
   const btcConnector = useChainConnector("BTC");

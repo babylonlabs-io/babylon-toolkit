@@ -10,11 +10,14 @@ interface UseAppKitBridgeOptions {
 /**
  * Bridge AppKit connection state with babylon-wallet-connector
  *
- * This hook monitors AppKit's connection state and automatically connects/disconnects
+ * This hook monitors AppKit's EVM/Ethereum connection state and automatically connects/disconnects
  * the corresponding ETH wallet in the babylon wallet connector system.
+ *
+ * IMPORTANT: Uses namespace "eip155" to monitor ONLY Ethereum connections,
+ * allowing independent BTC connections via useAppKitBtcBridge.
  */
 export const useAppKitBridge = ({ onError }: UseAppKitBridgeOptions = {}) => {
-  const { isConnected, address, caipAddress } = useAppKitAccount();
+  const { isConnected, address, caipAddress } = useAppKitAccount({ namespace: "eip155" });
   const ethConnector = useChainConnector("ETH");
 
   useEffect(() => {

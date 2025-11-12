@@ -1,5 +1,8 @@
 import { initBTCCurve } from "@babylonlabs-io/btc-staking-ts";
-import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
+import {
+  useWalletConnect,
+  useAppKitBtcBridge,
+} from "@babylonlabs-io/wallet-connector";
 import { Card, Container } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
@@ -21,6 +24,9 @@ const Home = () => {
   const { connected } = useWalletConnect();
   const { isGeoBlocked, isLoading } = useHealthCheck();
   const isConnected = connected && !isGeoBlocked && !isLoading;
+
+  // Bridge AppKit BTC connection state with babylon-wallet-connector
+  useAppKitBtcBridge();
 
   // Reset tab to "stake" when wallet disconnects
   useEffect(() => {

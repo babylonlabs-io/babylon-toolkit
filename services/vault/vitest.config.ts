@@ -1,7 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
+  plugins: [
+    tsconfigPaths({
+      projects: [
+        path.resolve(__dirname, './tsconfig.lib.json'),
+        path.resolve(__dirname, '../../packages/babylon-wallet-connector/tsconfig.lib.json'),
+      ],
+    }),
+  ],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -18,6 +27,11 @@ export default defineConfig({
         '**/*.test.tsx',
         '**/index.ts',
       ],
+    },
+    server: {
+      deps: {
+        inline: ['@babylonlabs-io/wallet-connector', '@babylonlabs-io/config'],
+      },
     },
   },
   resolve: {

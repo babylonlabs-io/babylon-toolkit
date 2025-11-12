@@ -23,7 +23,7 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
     public readonly icon: string,
     public readonly wallets: Wallet<P>[],
     public readonly config: C,
-  ) { }
+  ) {}
 
   get connectedWallet() {
     return this._connectedWallet;

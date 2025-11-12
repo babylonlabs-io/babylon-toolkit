@@ -137,7 +137,11 @@ export class AppKitProvider implements IETHProvider {
       }
 
       // Fallback to direct WalletConnect connection if event system not available
-      const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID || "e3a2b903ffa3e74e8d1ce1c2a16e4e27";
+      const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+      if (!projectId) {
+        throw new Error("NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required");
+      }
+
       const wcConnector = walletConnect({
         projectId,
         metadata: {

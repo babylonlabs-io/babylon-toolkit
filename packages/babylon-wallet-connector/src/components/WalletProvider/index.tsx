@@ -4,10 +4,14 @@ import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
+import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
+import { initializeAppKitBtcModal, type AppKitBtcModalConfig } from "@/core/wallets/btc/appkit/appKitBtcModal";
+import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
+import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
+import { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
+import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
-import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
-import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -23,6 +27,7 @@ interface WalletProviderProps {
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
   appKitConfig?: AppKitModalConfig;
+  appKitBtcConfig?: AppKitBtcModalConfig;
 }
 
 export function WalletProvider({
@@ -34,30 +39,77 @@ export function WalletProvider({
   config,
   context = window,
   onError,
-  disabledWallets,
+  disabledWallets = [],
   requiredChains,
   appKitConfig,
+  appKitBtcConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize AppKit synchronously before render when ETH chain is enabled
-  // This ensures wagmi config is available before children (ETHWalletProvider) mount
-  useMemo(() => {
+  // Initialize unified AppKit modal synchronously before render
+  // This ensures both wagmi and bitcoin configs are available before children mount
+  // Tracks which AppKit wallets should be disabled due to missing project ID
+  const appKitDisabledWallets = useMemo(() => {
+    const disabled: string[] = [];
+
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");
+      const hasBTC = config?.some((c) => c.chain === "BTC");
+
+      // Only initialize if we have ETH (appKitConfig is required)
       if (hasETH && appKitConfig) {
-        initializeAppKitModal({
-          ...appKitConfig,
+        // Prepare BTC config if both ETH and BTC chains are enabled
+        const btcConfig =
+          hasBTC && appKitBtcConfig
+            ? {
+                network: appKitBtcConfig.network || ("mainnet" as const),
+              }
+            : undefined;
+
+        const result = initializeAppKitModal(
+          {
+            ...appKitConfig,
+            themeMode: theme === "dark" ? "dark" : "light",
+          },
+          btcConfig,
+        );
+
+        // If initialization failed (null returned), disable AppKit ETH wallet
+        if (!result) {
+          disabled.push(APPKIT_ETH_CONNECTOR_ID);
+          // Also disable BTC if it was supposed to be unified
+          if (hasBTC && appKitBtcConfig) {
+            disabled.push(APPKIT_BTC_CONNECTOR_ID);
+          }
+        }
+      } else if (hasBTC && appKitBtcConfig) {
+        // If only BTC is enabled, initialize with BTC only
+        const result = initializeAppKitBtcModal({
+          ...appKitBtcConfig,
           themeMode: theme === "dark" ? "dark" : "light",
         });
-      }
-    // eslint-disable-next-line no-empty
-    } catch {
-    }
-  }, [config, theme, appKitConfig]);
 
-  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+        // If initialization failed (null returned), disable AppKit BTC wallet
+        if (!result) {
+          disabled.push(APPKIT_BTC_CONNECTOR_ID);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to initialize AppKit modal:", error);
+    }
+
+    return disabled;
+  }, [config, theme, appKitConfig, appKitBtcConfig]);
+
+  // Merge user-provided disabled wallets with auto-disabled AppKit wallets
+  const allDisabledWallets = useMemo(
+    () => [...disabledWallets, ...appKitDisabledWallets],
+    [disabledWallets, appKitDisabledWallets],
+  );
+
+  // Listen for requests to open the AppKit modals (triggered by connectors)
   useAppKitOpenListener();
+  useAppKitBtcOpenListener();
 
   return (
     <TomoConnectionProvider theme={theme} config={config}>
@@ -68,7 +120,7 @@ export function WalletProvider({
           context={context}
           config={config}
           onError={onError}
-          disabledWallets={disabledWallets}
+          disabledWallets={allDisabledWallets}
           requiredChains={requiredChains}
         >
           {children}

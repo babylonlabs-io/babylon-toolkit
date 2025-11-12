@@ -47,7 +47,7 @@ export const WithDisabledWallets: Story = {
           context={window.parent}
           config={config}
           onError={console.log}
-          disabledWallets={["ledget_btc"]}
+          disabledWallets={["ledger_btc"]}
         >
           <Story />
         </WalletProvider>
