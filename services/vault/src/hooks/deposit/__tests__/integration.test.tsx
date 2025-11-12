@@ -329,7 +329,6 @@ describe("Deposit Flow Integration", () => {
       const createParams = {
         amount: "0.005",
         selectedProviders: ["0xProvider123"],
-        btcAddress: "bc1qtest123",
         ethAddress: "0xEthAddress123" as any,
       };
 

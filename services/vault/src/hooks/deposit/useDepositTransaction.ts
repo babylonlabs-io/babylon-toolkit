@@ -22,7 +22,6 @@ import { formatErrorMessage } from "@/utils/errors";
 export interface CreateDepositTransactionParams {
   amount: string;
   selectedProviders: string[];
-  btcAddress: string;
   ethAddress: Hex;
   providers?: VaultProvider[];
 }
@@ -90,6 +89,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No providers available");
         }
 
+        if (
+          !params.selectedProviders ||
+          params.selectedProviders.length === 0
+        ) {
+          throw new Error("No provider selected");
+        }
+
         const selectedProvider = providers.find(
           (p) =>
             p.id.toLowerCase() === params.selectedProviders[0].toLowerCase(),
@@ -99,9 +105,15 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("Selected provider not found");
         }
 
+        if (!selectedProvider.btc_pub_key) {
+          throw new Error(
+            "Provider BTC public key is missing. Cannot create deposit transaction.",
+          );
+        }
+
         const providerData = {
           address: selectedProvider.id as Hex,
-          btcPubkey: selectedProvider.btc_pub_key || "",
+          btcPubkey: selectedProvider.btc_pub_key,
           liquidatorPubkeys:
             selectedProvider.liquidators?.map((liq) => liq.btc_pub_key) || [],
         };
@@ -159,9 +171,9 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
               ? providerData.btcPubkey.slice(2)
               : providerData.btcPubkey,
-            liquidatorBtcPubkeys: providerData.liquidatorPubkeys.map(
-              (key: string) => (key.startsWith("0x") ? key.slice(2) : key),
-            ),
+            liquidatorBtcPubkeys: (
+              providerData.liquidatorPubkeys as string[]
+            ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
           });
 
         txData.unsignedTxHex = unsignedTx.unsignedTxHex;
@@ -225,7 +237,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           txData.vaultProviderBtcPubkey.startsWith("0x")
             ? txData.vaultProviderBtcPubkey.slice(2)
             : txData.vaultProviderBtcPubkey,
-          txData.liquidatorBtcPubkeys.map((key: string) =>
+          (txData.liquidatorBtcPubkeys as string[]).map((key) =>
             key.startsWith("0x") ? key.slice(2) : key,
           ),
         );

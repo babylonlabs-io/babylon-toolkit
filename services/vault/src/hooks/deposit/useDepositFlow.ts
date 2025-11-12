@@ -151,7 +151,6 @@ export function useDepositFlow(
       setStep("signing");
       const txResult = await transaction.createDepositTransaction({
         ...data,
-        btcAddress,
         ethAddress,
       });
 
