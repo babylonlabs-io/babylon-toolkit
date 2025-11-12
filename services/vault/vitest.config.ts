@@ -1,7 +1,16 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
+  plugins: [
+    tsconfigPaths({
+      projects: [
+        path.resolve(__dirname, './tsconfig.lib.json'),
+        path.resolve(__dirname, '../../packages/babylon-wallet-connector/tsconfig.lib.json'),
+      ],
+    }),
+  ],
   test: {
     globals: true,
     environment: 'jsdom',
@@ -37,10 +46,6 @@ export default defineConfig({
       '@/config': path.resolve(__dirname, './src/config'),
       '@/storage': path.resolve(__dirname, './src/storage'),
       '@/context': path.resolve(__dirname, './src/context'),
-      '@babylonlabs-io/wallet-connector': path.resolve(
-        __dirname,
-        '../../packages/babylon-wallet-connector/src/index.tsx',
-      ),
     },
   },
 });
