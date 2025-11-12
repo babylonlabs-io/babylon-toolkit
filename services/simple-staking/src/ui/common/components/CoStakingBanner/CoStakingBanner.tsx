@@ -10,6 +10,11 @@ import {
   type NavigationState,
 } from "@/ui/common/constants/navigation";
 import { useCoStakingState } from "@/ui/common/state/CoStakingState";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 
 const BANNER_DISMISSED_KEY = "bbn-costaking-banner-dismissed";
 
@@ -28,6 +33,13 @@ export const CoStakingBanner = () => {
   const shouldShowBanner = !dismissed && hasValidBoostData;
 
   const handleBannerClick = useCallback(() => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "CoStakingBanner",
+      },
+    );
     navigate("/baby", {
       state: {
         [NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]: true,
@@ -36,6 +48,13 @@ export const CoStakingBanner = () => {
   }, [navigate]);
 
   const handleDismiss = useCallback(() => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.DISMISS_COSTAKING_PREFILL_CTA,
+      {
+        component: "CoStakingBanner",
+      },
+    );
     setDismissed(true);
   }, [setDismissed]);
 

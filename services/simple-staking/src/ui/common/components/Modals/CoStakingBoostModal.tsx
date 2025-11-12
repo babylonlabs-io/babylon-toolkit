@@ -1,9 +1,15 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { getNetworkConfigBTC } from "../../config/network/btc";
 import { getNetworkConfigBBN } from "../../config/network/bbn";
 import { useCoStakingState } from "../../state/CoStakingState";
 import { formatAPRPercentage } from "../../utils/formatAPR";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+  trackModalView,
+} from "../../utils/analytics";
 
 import { SubmitModal } from "./SubmitModal";
 
@@ -46,6 +52,72 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     [eligibility.additionalBabyNeeded, babyCoinSymbol, boostPercentDisplay],
   );
 
+  // Keep latest values for tracking without retriggering the effect
+  const latestTrackingDataRef = useRef({
+    babyAmount: eligibility.additionalBabyNeeded,
+    aprBoostPercent: percentageIncrease,
+    currentApr: aprData.currentApr,
+    boostApr: aprData.boostApr,
+  });
+
+  useEffect(() => {
+    latestTrackingDataRef.current = {
+      babyAmount: eligibility.additionalBabyNeeded,
+      aprBoostPercent: percentageIncrease,
+      currentApr: aprData.currentApr,
+      boostApr: aprData.boostApr,
+    };
+  }, [
+    eligibility.additionalBabyNeeded,
+    percentageIncrease,
+    aprData.currentApr,
+    aprData.boostApr,
+  ]);
+
+  // Track modal view duration only on open/close
+  useEffect(() => {
+    if (!open) return;
+    const { babyAmount, aprBoostPercent, currentApr, boostApr } =
+      latestTrackingDataRef.current;
+    const stopTracking = trackModalView(AnalyticsMessage.MODAL_VIEWED, {
+      modalName: "CoStakingBoostModal",
+      babyAmount,
+      aprBoostPercent,
+      currentApr,
+      boostApr,
+    });
+    return () => {
+      stopTracking();
+    };
+  }, [open]);
+
+  const handleSubmit = useCallback(() => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.BOOST_APR_STAKE_BABY,
+      {
+        babyAmount: eligibility.additionalBabyNeeded,
+        aprBoostPercent: percentageIncrease,
+        currentApr: aprData.currentApr,
+        boostApr: aprData.boostApr,
+      },
+    );
+    onSubmit();
+  }, [
+    onSubmit,
+    eligibility.additionalBabyNeeded,
+    percentageIncrease,
+    aprData.currentApr,
+    aprData.boostApr,
+  ]);
+
+  const handleClose = useCallback(() => {
+    trackEvent(AnalyticsCategory.CTA_CLICK, AnalyticsMessage.CLOSE_MODAL, {
+      modalName: "CoStakingBoostModal",
+    });
+    onClose();
+  }, [onClose]);
+
   // Don't render modal if boost data is not available
   if (!hasValidBoostData) {
     return null;
@@ -65,8 +137,8 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       open={open}
       submitButton={submitButtonText}
       cancelButton=""
-      onSubmit={onSubmit}
-      onClose={onClose}
+      onSubmit={handleSubmit}
+      onClose={handleClose}
       showCloseButton={true}
     >
       <p className="text-center text-base text-accent-secondary">
