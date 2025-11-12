@@ -9,11 +9,12 @@ import { getWalletClient } from "wagmi/actions";
 
 import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
 import { CONTRACTS } from "@/config/contracts";
+import { BTC_TRANSACTION_FEE } from "@/config/pegin";
 import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
-import * as vaultBtcTransactionService from "@/services/vault/vaultBtcTransactionService";
+import { createPeginTxForSubmission } from "@/services/vault/vaultBtcTransactionService";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { processPublicKeyToXOnly } from "@/utils/btc";
@@ -129,8 +130,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           scriptPubKey: utxo.scriptPubKey || "",
         }));
 
-        const fees = depositService.calculateDepositFees(pegInAmount, 1);
-        const requiredAmount = pegInAmount + fees.totalFee;
+        // Use the same fixed fee that will be used in the actual transaction
+        const requiredAmount = pegInAmount + BTC_TRANSACTION_FEE;
 
         const { selected: selectedUTXOs } = depositService.selectOptimalUTXOs(
           formattedUTXOs,
@@ -149,7 +150,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           providerData,
           {
             selectedUTXOs,
-            fee: fees.totalFee,
+            fee: BTC_TRANSACTION_FEE,
           },
         );
 
@@ -158,8 +159,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No UTXO selected");
         }
 
-        const unsignedTx =
-          await vaultBtcTransactionService.createPeginTxForSubmission({
+        const unsignedTx = await createPeginTxForSubmission({
             depositorBtcPubkey: btcPubkey.startsWith("0x")
               ? btcPubkey.slice(2)
               : btcPubkey,

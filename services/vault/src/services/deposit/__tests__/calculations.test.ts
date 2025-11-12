@@ -20,27 +20,27 @@ describe("Deposit Calculations", () => {
 
       const fees = calculateDepositFees(depositAmount, utxoCount);
 
-      expect(fees.btcNetworkFee).toBeGreaterThan(0n);
+      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
       expect(fees.protocolFee).toBe(100n); // 0.1% of 100000 = 100
       expect(fees.totalFee).toBe(fees.btcNetworkFee + fees.protocolFee);
     });
 
-    it("should calculate higher network fees for multiple UTXOs", () => {
+    it("should use fixed network fee regardless of UTXO count", () => {
       const depositAmount = 100000n;
 
       const feesSingle = calculateDepositFees(depositAmount, 1);
       const feesMultiple = calculateDepositFees(depositAmount, 5);
 
-      expect(feesMultiple.btcNetworkFee).toBeGreaterThan(
-        feesSingle.btcNetworkFee,
-      );
+      // Network fee should be the same fixed value regardless of UTXO count
+      expect(feesMultiple.btcNetworkFee).toBe(feesSingle.btcNetworkFee);
+      expect(feesMultiple.btcNetworkFee).toBe(10000n); // Fixed fee from config
       expect(feesMultiple.protocolFee).toBe(feesSingle.protocolFee); // Protocol fee should be same
     });
 
     it("should handle zero deposit amount", () => {
       const fees = calculateDepositFees(0n, 1);
 
-      expect(fees.btcNetworkFee).toBeGreaterThan(0n); // Network fee still applies
+      expect(fees.btcNetworkFee).toBe(10000n); // Fixed network fee still applies
       expect(fees.protocolFee).toBe(0n); // 0.1% of 0 is 0
       expect(fees.totalFee).toBe(fees.btcNetworkFee);
     });
