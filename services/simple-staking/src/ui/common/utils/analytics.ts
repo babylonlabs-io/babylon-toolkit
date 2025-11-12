@@ -25,31 +25,23 @@ export enum AnalyticsMessage {
 }
 
 /**
- * Track a custom analytics event using Sentry breadcrumbs and captureEvent.
+ * Track a custom analytics event using Sentry captureEvent.
  */
 export function trackEvent(
   category: AnalyticsCategory,
   message: AnalyticsMessage,
   data: AnalyticsData = {},
 ) {
-  const breadcrumb: Sentry.Breadcrumb = {
-    category,
-    message,
-    level: "info",
-    data: {
-      timestamp: new Date().toISOString(),
-      ...data,
-    },
-  };
-
   Sentry.captureEvent({
     message,
-    level: "info",
-    breadcrumbs: [breadcrumb],
+    level: "debug",
     tags: {
       "analytics.category": category,
     },
-    extra: data,
+    extra: {
+      timestamp: new Date().toISOString(),
+      ...data,
+    },
   });
 }
 
