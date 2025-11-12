@@ -115,6 +115,7 @@ jobs:
           # Wallet Configuration
           NEXT_PUBLIC_DISABLED_WALLETS: ${{ vars.NEXT_PUBLIC_DISABLED_WALLETS }}
           NEXT_PUBLIC_REDACT_TELEMETRY: ${{ vars.NEXT_PUBLIC_REDACT_TELEMETRY }}
+          NEXT_PUBLIC_REOWN_PROJECT_ID: ${{ vars.NEXT_PUBLIC_REOWN_PROJECT_ID }}
           # Sentry Configuration
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
