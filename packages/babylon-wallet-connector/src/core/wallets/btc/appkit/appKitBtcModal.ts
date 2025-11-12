@@ -2,7 +2,7 @@ import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 
-import { setSharedBtcAppKitConfig, getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
+import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig, setSharedBtcAppKitConfig } from "./sharedConfig";
 
 export interface AppKitBtcModalConfig {
   projectId?: string;
@@ -44,9 +44,10 @@ export function initializeAppKitBtcModal(config: AppKitBtcModalConfig) {
     config.projectId || (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined);
 
   if (!projectId) {
-    throw new Error(
-      "Reown project ID is required. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable or pass projectId in config.",
+    console.warn(
+      "[AppKit] Reown project ID not provided. AppKit BTC wallet will not be available. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable",
     );
+    return null;
   }
 
   // Use metadata directly from config (now required)

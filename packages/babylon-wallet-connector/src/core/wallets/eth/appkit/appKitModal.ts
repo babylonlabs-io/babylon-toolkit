@@ -58,9 +58,10 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
     config.projectId || (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined);
 
   if (!projectId) {
-    throw new Error(
-      "Reown project ID is required. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable or pass projectId in config.",
+    console.warn(
+      "[AppKit] Reown project ID not provided. AppKit ETH wallet will not be available. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable",
     );
+    return null;
   }
 
   // Use metadata directly from config (now required)
