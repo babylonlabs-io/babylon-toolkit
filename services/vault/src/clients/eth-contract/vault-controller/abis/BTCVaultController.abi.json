@@ -839,14 +839,24 @@
     "name": "submitPeginRequest",
     "inputs": [
       {
-        "name": "unsignedPegInTx",
-        "type": "bytes",
-        "internalType": "bytes"
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
       },
       {
         "name": "depositorBtcPubKey",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "btcPopSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "unsignedPegInTx",
+        "type": "bytes",
+        "internalType": "bytes"
       },
       {
         "name": "vaultProvider",
