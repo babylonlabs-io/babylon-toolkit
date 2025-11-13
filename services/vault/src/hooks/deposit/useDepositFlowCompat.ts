@@ -191,7 +191,7 @@ export function useDepositFlow(
       }
 
       // Use new service for fee calculation
-      const fees = depositService.calculateDepositFees(amount, 1);
+      const fees = depositService.calculateDepositFees(amount);
 
       // Submit pegin request (using existing service)
       const result = await submitPeginRequest(

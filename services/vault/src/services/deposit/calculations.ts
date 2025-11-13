@@ -30,13 +30,9 @@ export interface DepositAmountBreakdown {
  * Calculate fees for a deposit transaction
  * Uses a fixed fee to ensure consistency with the actual transaction creation
  * @param depositAmount - Amount to deposit in satoshis
- * @param utxoCount - Number of UTXOs that will be used (currently unused but kept for compatibility)
  * @returns Fee breakdown
  */
-export function calculateDepositFees(
-  depositAmount: bigint,
-  _utxoCount: number,
-): DepositFees {
+export function calculateDepositFees(depositAmount: bigint): DepositFees {
   // Use the fixed fee to ensure consistency with the actual BTC transaction
   const btcNetworkFee = BTC_TRANSACTION_FEE;
 

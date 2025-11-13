@@ -160,21 +160,21 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         }
 
         const unsignedTx = await createPeginTxForSubmission({
-            depositorBtcPubkey: btcPubkey.startsWith("0x")
-              ? btcPubkey.slice(2)
-              : btcPubkey,
-            pegInAmount,
-            fundingTxid: selectedUTXO.txid,
-            fundingVout: selectedUTXO.vout,
-            fundingValue: BigInt(selectedUTXO.value),
-            fundingScriptPubkey: selectedUTXO.scriptPubKey,
-            vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
-              ? providerData.btcPubkey.slice(2)
-              : providerData.btcPubkey,
-            liquidatorBtcPubkeys: (
-              providerData.liquidatorPubkeys as string[]
-            ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
-          });
+          depositorBtcPubkey: btcPubkey.startsWith("0x")
+            ? btcPubkey.slice(2)
+            : btcPubkey,
+          pegInAmount,
+          fundingTxid: selectedUTXO.txid,
+          fundingVout: selectedUTXO.vout,
+          fundingValue: BigInt(selectedUTXO.value),
+          fundingScriptPubkey: selectedUTXO.scriptPubKey,
+          vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
+            ? providerData.btcPubkey.slice(2)
+            : providerData.btcPubkey,
+          liquidatorBtcPubkeys: (
+            providerData.liquidatorPubkeys as string[]
+          ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
+        });
 
         txData.unsignedTxHex = unsignedTx.unsignedTxHex;
 

@@ -206,7 +206,7 @@ export function useDepositFlow(
 
     try {
       const amount = depositService.parseBtcToSatoshis(state.formData.amount);
-      return depositService.calculateDepositFees(amount, 1); // Assume 1 UTXO for estimation
+      return depositService.calculateDepositFees(amount);
     } catch {
       return null;
     }
