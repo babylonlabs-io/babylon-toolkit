@@ -57,7 +57,7 @@ export interface UTXO {
  * @param vaultProviderAddress - Selected vault provider's Ethereum address
  * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
  * @param liquidatorBtcPubkeys - Liquidator BTC public keys from the selected vault provider
- * @param btcPopSignatureRaw - Pre-generated BIP-322 signature (from createProofOfPossession)
+ * @param btcPopSignatureRaw - Pre-generated BIP-322 or ECDSA signature (from createProofOfPossession)
  * @returns Transaction hash, receipt, pegin transaction details, selected UTXOs, and unsigned tx hex
  */
 export async function submitPeginRequest(
