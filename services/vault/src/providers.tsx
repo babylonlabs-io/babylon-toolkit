@@ -6,6 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
+import { ErrorProvider } from "@/context/error";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
@@ -29,13 +30,15 @@ function Providers({ children }: React.PropsWithChildren) {
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
-                <WalletConnectionProvider>
-                  <AppState>{children}</AppState>
-                </WalletConnectionProvider>
-                <ReactQueryDevtools
-                  buttonPosition="bottom-left"
-                  initialIsOpen={false}
-                />
+                <ErrorProvider>
+                  <WalletConnectionProvider>
+                    <AppState>{children}</AppState>
+                  </WalletConnectionProvider>
+                  <ReactQueryDevtools
+                    buttonPosition="bottom-left"
+                    initialIsOpen={false}
+                  />
+                </ErrorProvider>
               </QueryClientProvider>
               <NotificationContainer />
             </div>
