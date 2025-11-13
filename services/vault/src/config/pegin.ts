@@ -36,16 +36,17 @@ export function getBTCNetworkForWASM(): WASMNetwork {
 }
 
 /**
- * Fixed BTC transaction fee in satoshis
- * This is the single source of truth for the transaction fee used across the application
+ * Default BTC transaction fee in satoshis
+ * Used as fallback when dynamic fee calculation fails
+ * @deprecated Use calculateDynamicBtcFee() from services/fees instead
  */
-export const BTC_TRANSACTION_FEE = 10_000n;
+export const DEFAULT_BTC_TRANSACTION_FEE = 10_000n;
 
 export const LOCAL_PEGIN_CONFIG = {
   /**
-   * Fixed fee for BTC transaction
-   * TODO: calculate dynamically based on the tx size
+   * Default fee for BTC transaction (fallback only)
+   * Actual fees are calculated dynamically based on network conditions
    */
-  btcTransactionFee: BTC_TRANSACTION_FEE,
-  defaultFeeRate: 100, // sat/vbyte - reasonable default for most conditions
+  defaultBtcTransactionFee: DEFAULT_BTC_TRANSACTION_FEE,
+  defaultFeeRate: 10, // sat/vbyte - fallback rate when API is unavailable
 };
