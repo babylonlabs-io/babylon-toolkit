@@ -8,9 +8,10 @@
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import { useError } from "../../context/error";
 import type { DepositTransactionData } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
-import { formatErrorMessage } from "../../utils/errors";
+import { ErrorCode, ValidationError } from "../../utils/errors";
 
 export interface CreateDepositTransactionParams {
   amount: string;
@@ -55,6 +56,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] =
     useState<DepositTransactionData | null>(null);
+  const { handleError } = useError();
 
   // Reset state
   const reset = useCallback(() => {
@@ -130,15 +132,31 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           data: txData,
         };
       } catch (error) {
+        const validationError =
+          error instanceof Error
+            ? new ValidationError(
+                error.message,
+                ErrorCode.VALIDATION_ERROR,
+                "amount",
+              )
+            : new Error("Failed to create deposit transaction");
+
+        handleError({
+          error: validationError,
+          displayOptions: {
+            showModal: true,
+          },
+        });
+
         return {
           success: false,
-          error: formatErrorMessage(error),
+          error: validationError.message,
         };
       } finally {
         setIsCreating(false);
       }
     },
-    [],
+    [handleError],
   );
 
   // Submit transaction to blockchain
@@ -167,15 +185,28 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           data: result,
         };
       } catch (error) {
+        const txError =
+          error instanceof Error
+            ? error
+            : new Error("Failed to submit transaction");
+
+        handleError({
+          error: txError,
+          displayOptions: {
+            showModal: true,
+            retryAction: () => submitTransaction(_txData),
+          },
+        });
+
         return {
           success: false,
-          error: formatErrorMessage(error),
+          error: txError.message,
         };
       } finally {
         setIsSubmitting(false);
       }
     },
-    [],
+    [handleError],
   );
 
   return {
