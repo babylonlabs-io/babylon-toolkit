@@ -6,33 +6,9 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
 
 import { useError } from "@/context/error";
 import { ErrorCode } from "@/utils/errors/types";
-
-const CopyIcon = () => (
-  <svg
-    className="h-4 w-4"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg
-    className="h-4 w-4"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
 
 const ERROR_TITLES: Record<ErrorCode, string> = {
   [ErrorCode.API_ERROR]: "API Error",
@@ -70,7 +46,6 @@ const ERROR_TITLES: Record<ErrorCode, string> = {
 export function ErrorModal() {
   const { error, modalOptions, dismissError, isOpen } = useError();
   const { retryAction, noCancel } = modalOptions;
-  const [copied, setCopied] = useState(false);
 
   const getErrorTitle = () => {
     if (error.title) {
@@ -91,29 +66,6 @@ export function ErrorModal() {
       }
     }, 300);
   };
-
-  const copyErrorDetails = () => {
-    const details = [
-      `Error: ${error.message}`,
-      error.code ? `Code: ${error.code}` : null,
-      error.trace ? `Trace: ${error.trace}` : null,
-      error.context
-        ? `Context: ${JSON.stringify(error.context, null, 2)}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
-    navigator.clipboard.writeText(details);
-    setCopied(true);
-  };
-
-  useEffect(() => {
-    if (copied) {
-      const timer = setTimeout(() => setCopied(false), 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [copied]);
 
   return (
     <ResponsiveDialog
@@ -140,24 +92,12 @@ export function ErrorModal() {
           {getErrorTitle()}
         </Heading>
 
-        <div className="flex flex-col gap-3">
-          <Text
-            variant="body1"
-            className="text-center text-sm text-accent-secondary sm:text-base"
-          >
-            {error.message}
-          </Text>
-
-          <div className="mt-2 flex items-center justify-center gap-4">
-            <button
-              className="flex items-center gap-1 text-sm text-accent-secondary hover:opacity-70"
-              onClick={copyErrorDetails}
-            >
-              {copied ? <CheckIcon /> : <CopyIcon />}
-              <span>{copied ? "Copied!" : "Copy error details"}</span>
-            </button>
-          </div>
-        </div>
+        <Text
+          variant="body1"
+          className="text-center text-sm text-accent-secondary sm:text-base"
+        >
+          {error.message}
+        </Text>
       </DialogBody>
 
       <DialogFooter className="flex gap-4 px-4 pb-8 sm:px-6">
