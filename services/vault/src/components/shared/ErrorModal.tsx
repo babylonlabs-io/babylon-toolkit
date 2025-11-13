@@ -76,7 +76,7 @@ export function ErrorModal() {
       data-testid="error-dialog"
     >
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
-        <div className="mb-6 inline-flex h-20 w-20 items-center justify-center bg-primary-contrast">
+        <div className="mb-6 inline-flex h-20 w-20 items-center justify-center">
           <img
             src="/images/status/warning.svg"
             alt="Warning"
