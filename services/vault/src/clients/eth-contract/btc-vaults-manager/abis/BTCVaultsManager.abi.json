@@ -934,6 +934,11 @@
         "internalType": "bytes32"
       },
       {
+        "name": "btcPopSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
         "name": "unsignedPegInTx",
         "type": "bytes",
         "internalType": "bytes"

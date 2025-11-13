@@ -30,8 +30,10 @@ export interface MarketParams {
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param contractAddress - BTCVaultController contract address
- * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
+ * @param depositor - Depositor's Ethereum address
  * @param depositorBtcPubKey - Depositor's BTC public key (x-only, 32 bytes hex)
+ * @param btcPopSignature - BIP-322 or ECDSA proof of possession signature
+ * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
  * @param vaultProvider - Vault provider address
  * @returns Transaction hash and receipt
  */
@@ -39,8 +41,10 @@ export async function submitPeginRequest(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
-  unsignedPegInTx: Hex,
+  depositor: Address,
   depositorBtcPubKey: Hex,
+  btcPopSignature: Hex,
+  unsignedPegInTx: Hex,
   vaultProvider: Address,
 ): Promise<{
   transactionHash: Hash;
@@ -53,7 +57,7 @@ export async function submitPeginRequest(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "submitPeginRequest",
-      args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
+      args: [depositor, depositorBtcPubKey, btcPopSignature, unsignedPegInTx, vaultProvider],
       chain,
       account: walletClient.account!,
     });

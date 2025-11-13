@@ -14,7 +14,6 @@ import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
-import { CONTRACTS } from "@/config/contracts";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
@@ -144,11 +143,12 @@ export function useDepositFlow(
       // Step 2: Create proof of possession
       setCurrentStep(1);
 
-      await createProofOfPossession({
+      const btcPopSignatureRaw = await createProofOfPossession({
         ethAddress: depositorEthAddress,
         btcAddress,
+        chainId: getETHChain().id,
         signMessage: (message: string) =>
-          btcWalletProvider.signMessage(message, "bip322-simple"),
+          btcWalletProvider.signMessage(message, "ecdsa"),
       });
 
       // Step 3: Create transaction and submit
@@ -197,7 +197,7 @@ export function useDepositFlow(
       const result = await submitPeginRequest(
         walletClient,
         getETHChain(),
-        CONTRACTS.VAULT_CONTROLLER,
+        depositorEthAddress,
         depositorBtcPubkey,
         amount,
         confirmedUTXOs,
@@ -206,6 +206,7 @@ export function useDepositFlow(
         selectedProviders[0] as Address,
         processedVaultProviderKey,
         processedLiquidatorKeys,
+        btcPopSignatureRaw,
       );
 
       // Store pending pegin in localStorage
