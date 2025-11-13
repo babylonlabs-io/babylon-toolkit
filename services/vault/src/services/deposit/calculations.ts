@@ -6,12 +6,11 @@
 import type { UTXO } from "../vault/vaultTransactionService";
 
 /**
- * Fixed BTC transaction fee in satoshis
- * IMPORTANT: This value must match BTC_TRANSACTION_FEE exported from config/pegin.ts
- * It's duplicated here to avoid test environment issues with importing from pegin.ts
- * which has dependencies that don't work well in the test environment
+ * Default BTC transaction fee in satoshis
+ * Used as fallback when dynamic fee calculation is not available
+ * @deprecated This should only be used in tests or as a fallback
  */
-const BTC_TRANSACTION_FEE = 10_000n;
+const DEFAULT_BTC_TRANSACTION_FEE = 10_000n;
 
 export interface DepositFees {
   btcNetworkFee: bigint;
@@ -28,14 +27,14 @@ export interface DepositAmountBreakdown {
 
 /**
  * Calculate fees for a deposit transaction
- * Uses a fixed fee to ensure consistency with the actual transaction creation
  * @param depositAmount - Amount to deposit in satoshis
+ * @param btcNetworkFee - Network fee (calculated dynamically or provided)
  * @returns Fee breakdown
  */
-export function calculateDepositFees(depositAmount: bigint): DepositFees {
-  // Use the fixed fee to ensure consistency with the actual BTC transaction
-  const btcNetworkFee = BTC_TRANSACTION_FEE;
-
+export function calculateDepositFees(
+  depositAmount: bigint,
+  btcNetworkFee: bigint = DEFAULT_BTC_TRANSACTION_FEE,
+): DepositFees {
   // Protocol fee: 0.1% of deposit amount
   const protocolFee = (depositAmount * 10n) / 10000n;
 

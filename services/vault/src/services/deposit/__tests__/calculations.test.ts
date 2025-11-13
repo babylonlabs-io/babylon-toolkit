@@ -14,31 +14,45 @@ import {
 
 describe("Deposit Calculations", () => {
   describe("calculateDepositFees", () => {
-    it("should calculate fees correctly", () => {
+    it("should calculate fees correctly with provided fee", () => {
       const depositAmount = 100000n; // 0.001 BTC
+      const networkFee = 5000n; // Dynamic fee
 
-      const fees = calculateDepositFees(depositAmount);
+      const fees = calculateDepositFees(depositAmount, networkFee);
 
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
+      expect(fees.btcNetworkFee).toBe(5000n); // Provided dynamic fee
       expect(fees.protocolFee).toBe(100n); // 0.1% of 100000 = 100
-      expect(fees.totalFee).toBe(fees.btcNetworkFee + fees.protocolFee);
+      expect(fees.totalFee).toBe(5100n);
     });
 
-    it("should use fixed network fee", () => {
+    it("should use default fee when not provided", () => {
       const depositAmount = 100000n;
 
       const fees = calculateDepositFees(depositAmount);
 
-      // Network fee should be the fixed value
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
+      expect(fees.btcNetworkFee).toBe(10000n); // Default fallback fee
+      expect(fees.protocolFee).toBe(100n);
+      expect(fees.totalFee).toBe(10100n);
+    });
+
+    it("should calculate different fees for different network conditions", () => {
+      const depositAmount = 100000n;
+
+      const feesLow = calculateDepositFees(depositAmount, 2000n); // Low congestion
+      const feesHigh = calculateDepositFees(depositAmount, 20000n); // High congestion
+
+      expect(feesLow.btcNetworkFee).toBe(2000n);
+      expect(feesHigh.btcNetworkFee).toBe(20000n);
+      expect(feesLow.protocolFee).toBe(feesHigh.protocolFee); // Protocol fee should be same
+      expect(feesLow.totalFee).toBeLessThan(feesHigh.totalFee);
     });
 
     it("should handle zero deposit amount", () => {
-      const fees = calculateDepositFees(0n);
+      const fees = calculateDepositFees(0n, 3000n);
 
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed network fee still applies
+      expect(fees.btcNetworkFee).toBe(3000n); // Provided network fee still applies
       expect(fees.protocolFee).toBe(0n); // 0.1% of 0 is 0
-      expect(fees.totalFee).toBe(fees.btcNetworkFee);
+      expect(fees.totalFee).toBe(3000n);
     });
 
     it("should handle large deposit amounts", () => {

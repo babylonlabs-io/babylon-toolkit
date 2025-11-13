@@ -9,11 +9,11 @@ import { getWalletClient } from "wagmi/actions";
 
 import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
 import { CONTRACTS } from "@/config/contracts";
-import { BTC_TRANSACTION_FEE } from "@/config/pegin";
 import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
+import { calculateDynamicBtcFee, FeePriority } from "@/services/fees";
 import { createPeginTxForSubmission } from "@/services/vault/vaultBtcTransactionService";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -130,13 +130,48 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           scriptPubKey: utxo.scriptPubKey || "",
         }));
 
-        // Use the same fixed fee that will be used in the actual transaction
-        const requiredAmount = pegInAmount + BTC_TRANSACTION_FEE;
+        // Calculate dynamic fee based on number of UTXOs needed
+        // Start with estimate for 1 input to select UTXOs
+        let estimatedFee = await calculateDynamicBtcFee(1, FeePriority.HALF_HOUR);
+        let requiredAmount = pegInAmount + estimatedFee;
 
         const { selected: selectedUTXOs } = depositService.selectOptimalUTXOs(
           formattedUTXOs,
           requiredAmount,
         );
+
+        // Recalculate fee with actual number of UTXOs
+        const actualFee = await calculateDynamicBtcFee(
+          selectedUTXOs.length,
+          FeePriority.HALF_HOUR,
+        );
+
+        // Verify we still have enough with the actual fee
+        const actualRequiredAmount = pegInAmount + actualFee;
+        const totalSelectedValue = selectedUTXOs.reduce(
+          (sum, utxo) => sum + BigInt(utxo.value),
+          0n,
+        );
+
+        if (totalSelectedValue < actualRequiredAmount) {
+          // Need to select more UTXOs or use a higher value UTXO
+          const { selected: reselectedUTXOs } = depositService.selectOptimalUTXOs(
+            formattedUTXOs,
+            actualRequiredAmount,
+          );
+          
+          // Final fee calculation with final UTXO set
+          const finalFee = await calculateDynamicBtcFee(
+            reselectedUTXOs.length,
+            FeePriority.HALF_HOUR,
+          );
+
+          estimatedFee = finalFee;
+          selectedUTXOs.length = 0;
+          selectedUTXOs.push(...reselectedUTXOs);
+        } else {
+          estimatedFee = actualFee;
+        }
 
         const txData = depositService.transformFormToTransactionData(
           {
@@ -150,7 +185,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           providerData,
           {
             selectedUTXOs,
-            fee: BTC_TRANSACTION_FEE,
+            fee: estimatedFee,
           },
         );
 
@@ -160,21 +195,22 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         }
 
         const unsignedTx = await createPeginTxForSubmission({
-          depositorBtcPubkey: btcPubkey.startsWith("0x")
-            ? btcPubkey.slice(2)
-            : btcPubkey,
-          pegInAmount,
-          fundingTxid: selectedUTXO.txid,
-          fundingVout: selectedUTXO.vout,
-          fundingValue: BigInt(selectedUTXO.value),
-          fundingScriptPubkey: selectedUTXO.scriptPubKey,
-          vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
-            ? providerData.btcPubkey.slice(2)
-            : providerData.btcPubkey,
-          liquidatorBtcPubkeys: (
-            providerData.liquidatorPubkeys as string[]
-          ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
-        });
+            depositorBtcPubkey: btcPubkey.startsWith("0x")
+              ? btcPubkey.slice(2)
+              : btcPubkey,
+            pegInAmount,
+            fundingTxid: selectedUTXO.txid,
+            fundingVout: selectedUTXO.vout,
+            fundingValue: BigInt(selectedUTXO.value),
+            fundingScriptPubkey: selectedUTXO.scriptPubKey,
+            vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
+              ? providerData.btcPubkey.slice(2)
+              : providerData.btcPubkey,
+            liquidatorBtcPubkeys: (
+              providerData.liquidatorPubkeys as string[]
+            ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
+            fee: estimatedFee,
+          });
 
         txData.unsignedTxHex = unsignedTx.unsignedTxHex;
 

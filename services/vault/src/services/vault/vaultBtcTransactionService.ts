@@ -6,7 +6,7 @@
  * local infrastructure data.
  */
 
-import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from "../../config/pegin";
+import { DEFAULT_BTC_TRANSACTION_FEE, getBTCNetworkForWASM } from "../../config/pegin";
 import { createPegInTransaction } from "../../utils/btc/wasm";
 
 export interface CreatePeginTxParams {
@@ -51,6 +51,11 @@ export interface CreatePeginTxParams {
    * These are the challengers for the selected vault provider
    */
   liquidatorBtcPubkeys: string[];
+
+  /**
+   * Transaction fee in satoshis (optional, defaults to fallback value)
+   */
+  fee?: bigint;
 }
 
 export interface PeginTxResult {
@@ -70,9 +75,11 @@ export interface PeginTxResult {
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
+  // Use provided fee or fallback to default
+  const txFee = params.fee ?? DEFAULT_BTC_TRANSACTION_FEE;
+  
   // Validate UTXO has sufficient value
-  const requiredValue =
-    params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
+  const requiredValue = params.pegInAmount + txFee;
   if (params.fundingValue < requiredValue) {
     throw new Error(
       `Insufficient UTXO value. Required: ${requiredValue} sats, Available: ${params.fundingValue} sats`,
@@ -89,7 +96,7 @@ export async function createPeginTxForSubmission(
     claimerPubkey: params.vaultProviderBtcPubkey,
     challengerPubkeys: params.liquidatorBtcPubkeys,
     pegInAmount: params.pegInAmount,
-    fee: LOCAL_PEGIN_CONFIG.btcTransactionFee,
+    fee: txFee,
     network: getBTCNetworkForWASM(),
   });
 
