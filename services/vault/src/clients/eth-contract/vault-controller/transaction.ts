@@ -57,7 +57,13 @@ export async function submitPeginRequest(
       address: contractAddress,
       abi: BTCVaultControllerABI,
       functionName: "submitPeginRequest",
-      args: [depositor, depositorBtcPubKey, btcPopSignature, unsignedPegInTx, vaultProvider],
+      args: [
+        depositor,
+        depositorBtcPubKey,
+        btcPopSignature,
+        unsignedPegInTx,
+        vaultProvider,
+      ],
       chain,
       account: walletClient.account!,
     });
