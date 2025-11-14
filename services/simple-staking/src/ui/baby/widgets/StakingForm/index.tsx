@@ -1,6 +1,7 @@
 import { Form, type FormRef } from "@babylonlabs-io/core-ui";
-import { useMemo, useRef, useEffect, useCallback } from "react";
+import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { useDebounce } from "@uidotdev/usehooks";
 import { DeepPartial } from "react-hook-form";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
@@ -16,6 +17,12 @@ import {
   NAVIGATION_STATE_KEYS,
   type NavigationState,
 } from "@/ui/common/constants/navigation";
+import {
+  AnalyticsMessage,
+  trackEvent,
+  AnalyticsCategory,
+} from "@/ui/common/utils/analytics";
+import { formatBabyStakingAmount } from "@/ui/common/utils/formTransforms";
 
 interface StakingFormProps {
   isGeoBlocked?: boolean;
@@ -52,6 +59,17 @@ export default function StakingForm({
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
 
+  const prefilledAmountRef = useRef<number | null>(null);
+  const previousValuesRef = useRef<Partial<StakingFormFields>>({});
+  const [amountTrackingPayload, setAmountTrackingPayload] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const debouncedAmountTrackingPayload = useDebounce(
+    amountTrackingPayload,
+    300,
+  );
+
   const defaultValues = useMemo<Partial<StakingFormFields>>(() => {
     return {
       amount: babyStakeDraft?.amount,
@@ -66,6 +84,16 @@ export default function StakingForm({
       validatorAddresses,
       feeAmount,
     }: Required<StakingFormFields>) => {
+      trackEvent(
+        AnalyticsCategory.CTA_CLICK,
+        AnalyticsMessage.PREVIEW_BABY_STAKE,
+        {
+          wasPrefilledFromCoStaking:
+            prefilledAmountRef.current !== null &&
+            amount === formatBabyStakingAmount(prefilledAmountRef.current),
+        },
+      );
+
       showPreview({
         amount,
         feeAmount,
@@ -77,15 +105,83 @@ export default function StakingForm({
 
   const handleChange = useCallback(
     (data: DeepPartial<StakingFormFields>) => {
+      const previousValues = previousValuesRef.current;
+      const amountValue = Number(data.amount);
+
       setBabyStakeDraft({
         ...data,
         validatorAddresses: data.validatorAddresses?.filter(
           (i) => i !== undefined,
         ),
       });
+
+      // Track field-level interactions - only for fields that actually changed
+      if ("amount" in data && data.amount !== previousValues.amount) {
+        const wasPrefilledFromCoStaking =
+          amountValue !== undefined &&
+          prefilledAmountRef.current !== null &&
+          amountValue === prefilledAmountRef.current;
+
+        setAmountTrackingPayload({
+          fieldName: "amount",
+          hasValue: Boolean(data.amount),
+          valueType: typeof data.amount,
+          wasPrefilledFromCoStaking,
+        });
+
+        // If user modifies the amount away from the prefilled value, clear the prefill marker
+        const shouldClearPrefill =
+          prefilledAmountRef.current !== null &&
+          (amountValue === undefined ||
+            amountValue !== prefilledAmountRef.current);
+
+        if (shouldClearPrefill) {
+          prefilledAmountRef.current = null;
+        }
+      }
+
+      if (
+        "validatorAddresses" in data &&
+        JSON.stringify(data.validatorAddresses) !==
+          JSON.stringify(previousValues.validatorAddresses)
+      ) {
+        const list =
+          data.validatorAddresses?.filter((i: unknown) => i !== undefined) ??
+          [];
+
+        trackEvent(
+          AnalyticsCategory.FORM_INTERACTION,
+          AnalyticsMessage.FORM_FIELD_CHANGED,
+          {
+            fieldName: "validatorAddresses",
+            // Redact actual values for privacy, just track that interaction occurred
+            hasValue: list.length > 0,
+            valueType: "array",
+            arrayCount: list.length,
+            validatorCount: list.length,
+          },
+        );
+      }
+
+      // Update previous values for next comparison
+      previousValuesRef.current = {
+        amount: data.amount,
+        validatorAddresses: data.validatorAddresses?.filter(
+          (i): i is string => i !== undefined,
+        ),
+        feeAmount: data.feeAmount,
+      };
     },
     [setBabyStakeDraft],
   );
+  useEffect(() => {
+    if (!debouncedAmountTrackingPayload) return;
+    trackEvent(
+      AnalyticsCategory.FORM_INTERACTION,
+      AnalyticsMessage.FORM_FIELD_CHANGED,
+      debouncedAmountTrackingPayload,
+    );
+  }, [debouncedAmountTrackingPayload]);
 
   // Handle prefill amount from navigation state
   useEffect(() => {
@@ -100,6 +196,9 @@ export default function StakingForm({
     if (additionalBabyNeeded <= 0) return;
 
     if (formRef.current) {
+      // Set prefilledAmountRef before setValue so handleChange can detect it
+      prefilledAmountRef.current = additionalBabyNeeded;
+
       formRef.current.setValue<"amount">("amount", additionalBabyNeeded, {
         shouldDirty: true,
         shouldTouch: true,

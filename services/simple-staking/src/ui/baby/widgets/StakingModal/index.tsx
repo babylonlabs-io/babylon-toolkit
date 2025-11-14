@@ -1,4 +1,5 @@
 import { PreviewModal, useFormContext } from "@babylonlabs-io/core-ui";
+import { useEffect } from "react";
 
 import babylon from "@/infrastructure/babylon";
 import { ValidatorAvatar } from "@/ui/baby/components/ValidatorAvatar";
@@ -6,6 +7,11 @@ import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { DEFAULT_CONFIRMATION_DEPTH } from "@/ui/common/constants";
 import { useNetworkInfo } from "@/ui/common/hooks/client/api/useNetworkInfo";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 
 import { LoadingModal } from "../../components/LoadingModal";
 import { SuccessModal } from "../../components/SuccessModal";
@@ -24,6 +30,19 @@ export function StakingModal() {
   const warnings = [
     `The staking transaction may take up to ~${processingHours} ${processingHourLabel} to process. Funds will not be deducted instantly; a sufficient available balance must be maintained until the transaction is confirmed and the deduction is finalized.`,
   ];
+
+  useEffect(() => {
+    if (step.name !== "success") return;
+
+    trackEvent(
+      AnalyticsCategory.FORM_INTERACTION,
+      AnalyticsMessage.FORM_SUBMITTED,
+      {
+        txHash: step.data?.txHash,
+        hasTxHash: Boolean(step.data?.txHash),
+      },
+    );
+  }, [step]);
 
   return (
     <>
