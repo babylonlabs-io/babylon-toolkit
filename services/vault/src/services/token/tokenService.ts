@@ -210,10 +210,6 @@ export async function getTokenMetadata(
   }
 
   // 3. Fetch from blockchain
-  console.log(
-    `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
-  );
-
   const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
   if (chainMetadata) {
@@ -226,7 +222,6 @@ export async function getTokenMetadata(
     };
 
     tokenMetadataCache.set(checksumAddress, tokenMetadata);
-    console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
     return tokenMetadata;
   }
 
@@ -317,11 +312,6 @@ export async function getMarketTokenPairAsync(
   collateralAddress: string,
   loanAddress: string,
 ): Promise<MarketTokenPair> {
-  console.log(`[TokenService] Fetching token pair for market:`, {
-    collateral: collateralAddress,
-    loan: loanAddress,
-  });
-
   // Fetch both tokens in parallel
   const [collateral, loan] = await Promise.all([
     getTokenMetadata(collateralAddress),

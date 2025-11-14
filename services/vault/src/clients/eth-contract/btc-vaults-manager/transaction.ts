@@ -38,7 +38,6 @@ export async function submitPeginRequest(
 ): Promise<{
   transactionHash: Hash;
   receipt: TransactionReceipt;
-  vaultId: Hex;
 }> {
   const publicClient = ethClient.getPublicClient();
 
@@ -62,16 +61,9 @@ export async function submitPeginRequest(
       hash,
     });
 
-    // The function returns the vault ID (BTC transaction hash)
-    // Extract it from the return value or logs
-    // For now, we can compute it or extract from logs
-    const vaultId =
-      "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex; // TODO: Extract from return value
-
     return {
       transactionHash: hash,
       receipt,
-      vaultId,
     };
   } catch (error) {
     throw mapViemErrorToContractError(error, "submit pegin request");
