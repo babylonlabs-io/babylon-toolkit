@@ -51,7 +51,7 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
         title: "title" in error ? error.title : undefined,
         trace: stackTrace,
         context: "context" in error ? error.context : undefined,
-        ...metadata,
+        metadata: metadata ?? {},
       };
 
       if (shouldShowModal) {

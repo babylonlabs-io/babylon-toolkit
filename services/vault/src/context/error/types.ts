@@ -12,6 +12,7 @@ export interface AppError {
   title?: string;
   trace?: string;
   context?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ErrorHandlerParam {
