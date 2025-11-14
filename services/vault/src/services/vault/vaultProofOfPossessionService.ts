@@ -1,7 +1,7 @@
 /**
  * Proof of Possession Service
  *
- * Handles BIP-322 signature creation for proving BTC key ownership.
+ * Handles signature creation for proving BTC key ownership.
  * This is required by the smart contract to verify the depositor
  * controls the BTC public key.
  */
@@ -20,6 +20,11 @@ export interface ProofOfPossessionParams {
   btcAddress: string;
 
   /**
+   * Chain ID for the message
+   */
+  chainId: number;
+
+  /**
    * BTC wallet signing function
    */
   signMessage?: (message: string) => Promise<string>;
@@ -32,7 +37,7 @@ export interface ProofOfPossessionParams {
  * to prove they control the BTC public key.
  *
  * @param params - PoP parameters
- * @returns BIP-322 signature
+ * @returns Signature
  * @throws Error if validation fails or wallet doesn't support signing
  */
 export async function createProofOfPossession(
@@ -49,13 +54,13 @@ export async function createProofOfPossession(
   // Check if wallet supports message signing
   if (!params.signMessage) {
     throw new Error(
-      "BTC wallet does not support message signing. Please use a wallet that supports BIP-322 message signing (e.g., Unisat, Xverse)",
+      "BTC wallet does not support message signing. Please use a wallet that supports message signing (e.g., Unisat, OKX, Xverse)",
     );
   }
 
-  // BIP-322 message format: sign ETH address with BTC key
-  // Per spec: "Proof-of-possession signed by the depositor's BTC private key over its ETH address following BIP322"
-  const message = params.ethAddress;
+  // Message format: "0x<lowercase-address>:<chainId>"
+  // This matches BTCProofOfPossession.sol buildMessage() format
+  const message = `${params.ethAddress.toLowerCase()}:${params.chainId}`;
 
   // Request signature from BTC wallet
   const signature = await params.signMessage(message);

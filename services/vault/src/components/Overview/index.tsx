@@ -167,7 +167,7 @@ function OverviewContent() {
       await redeemVaults(
         ethWalletClient as WalletClient,
         ethChain,
-        CONTRACTS.VAULT_CONTROLLER,
+        CONTRACTS.MORPHO_CONTROLLER,
         pegInTxHashes,
       );
 

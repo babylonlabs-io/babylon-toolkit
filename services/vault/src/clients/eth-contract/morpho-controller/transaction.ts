@@ -1,4 +1,4 @@
-// BTC Vault Controller - Write operations (transactions)
+// Morpho Integration Controller - Write operations (transactions)
 
 import {
   type Address,
@@ -12,7 +12,7 @@ import {
 import { mapViemErrorToContractError } from "../../../utils/errors";
 import { ethClient } from "../client";
 
-import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
+import MorphoIntegrationControllerABI from "./abis/MorphoIntegrationController.abi.json";
 
 /**
  * Morpho market parameters
@@ -26,52 +26,6 @@ export interface MarketParams {
 }
 
 /**
- * Submit a pegin request
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
- * @param unsignedPegInTx - Unsigned Bitcoin peg-in transaction
- * @param depositorBtcPubKey - Depositor's BTC public key (x-only, 32 bytes hex)
- * @param vaultProvider - Vault provider address
- * @returns Transaction hash and receipt
- */
-export async function submitPeginRequest(
-  walletClient: WalletClient,
-  chain: Chain,
-  contractAddress: Address,
-  unsignedPegInTx: Hex,
-  depositorBtcPubKey: Hex,
-  vaultProvider: Address,
-): Promise<{
-  transactionHash: Hash;
-  receipt: TransactionReceipt;
-}> {
-  const publicClient = ethClient.getPublicClient();
-
-  try {
-    const hash = await walletClient.writeContract({
-      address: contractAddress,
-      abi: BTCVaultControllerABI,
-      functionName: "submitPeginRequest",
-      args: [unsignedPegInTx, depositorBtcPubKey, vaultProvider],
-      chain,
-      account: walletClient.account!,
-    });
-
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    });
-
-    return {
-      transactionHash: hash,
-      receipt,
-    };
-  } catch (error) {
-    throw mapViemErrorToContractError(error, "submit pegin request");
-  }
-}
-
-/**
  * Add collateral to position (without borrowing)
  *
  * This function supports multi-vault collateral:
@@ -82,7 +36,7 @@ export async function submitPeginRequest(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
  * @param marketParams - Morpho market parameters
  * @returns Transaction hash, receipt, and position ID
@@ -103,7 +57,7 @@ export async function addCollateralToPosition(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "addCollateralToPosition",
       args: [vaultIds, marketParams],
       chain,
@@ -139,7 +93,7 @@ export async function addCollateralToPosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param vaultIds - Array of vault IDs (pegin transaction hashes) to use as collateral
  * @param marketParams - Morpho market parameters
  * @param borrowAmount - Amount to borrow (in loan token units)
@@ -158,7 +112,7 @@ export async function addCollateralToPositionAndBorrow(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "addCollateralToPositionAndBorrow",
       args: [vaultIds, marketParams, borrowAmount],
       chain,
@@ -188,7 +142,7 @@ export async function addCollateralToPositionAndBorrow(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param marketParams - Morpho market parameters identifying the position
  * @param repayAmount - Amount to repay (in loan token units, must be > 0)
  * @returns Transaction hash and receipt
@@ -205,7 +159,7 @@ export async function repayFromPosition(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "repayFromPosition",
       args: [marketParams, repayAmount],
       chain,
@@ -237,7 +191,7 @@ export async function repayFromPosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param marketParams - Morpho market parameters identifying the position
  * @param repayAmount - Amount to repay (in loan token units, set to 0 when using shares)
  * @param shares - Number of borrow shares to repay (set to borrowShares for full repayment)
@@ -256,7 +210,7 @@ export async function repayDirectlyToMorpho(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "repayDirectlyToMorpho",
       args: [marketParams, repayAmount, shares],
       chain,
@@ -281,7 +235,7 @@ export async function repayDirectlyToMorpho(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param marketParams - Morpho market parameters identifying the position
  * @param borrowAmount - Amount to borrow (in loan token units, must be > 0)
  * @returns Transaction hash, receipt, and actual amount borrowed
@@ -298,7 +252,7 @@ export async function borrowFromPosition(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "borrowFromPosition",
       args: [marketParams, borrowAmount],
       chain,
@@ -323,7 +277,7 @@ export async function borrowFromPosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param marketParams - Morpho market parameters identifying the position
  * @returns Transaction hash, receipt, and amount of collateral withdrawn
  */
@@ -338,7 +292,7 @@ export async function withdrawCollateralFromPosition(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "withdrawCollateralFromPosition",
       args: [marketParams],
       chain,
@@ -372,7 +326,7 @@ export async function withdrawCollateralFromPosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param pegInTxHash - Peg-in transaction hash (vault ID) to redeem
  * @returns Transaction hash and receipt
  */
@@ -387,7 +341,7 @@ export async function depositorRedeemBTCVault(
   try {
     const hash = await walletClient.writeContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "depositorRedeemBTCVault",
       args: [pegInTxHash],
       chain,

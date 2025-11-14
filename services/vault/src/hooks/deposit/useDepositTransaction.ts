@@ -4,17 +4,17 @@ import {
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
-import type { Address, Hex, WalletClient } from "viem";
+import type { Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
 import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
-import { CONTRACTS } from "@/config/contracts";
 import { BTC_TRANSACTION_FEE } from "@/config/pegin";
 import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
 import { createPeginTxForSubmission } from "@/services/vault/vaultBtcTransactionService";
+import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { processPublicKeyToXOnly } from "@/utils/btc";
@@ -204,6 +204,9 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         if (!btcWalletProvider) {
           throw new Error("BTC wallet not connected");
         }
+        if (!btcAddress) {
+          throw new Error("BTC address not available");
+        }
 
         const wagmiConfig = getSharedWagmiConfig();
         const expectedChainId = getETHChain().id;
@@ -224,10 +227,19 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No UTXO selected for transaction");
         }
 
+        // Create proof of possession
+        const btcPopSignatureRaw = await createProofOfPossession({
+          ethAddress: txData.depositorEthAddress,
+          btcAddress,
+          chainId: expectedChainId,
+          signMessage: (message: string) =>
+            btcWalletProvider.signMessage(message, "ecdsa"),
+        });
+
         const result = await vaultTransactionService.submitPeginRequest(
           walletClient,
           getETHChain(),
-          CONTRACTS.VAULT_CONTROLLER as Address,
+          txData.depositorEthAddress,
           depositorBtcPubkey,
           txData.pegInAmount,
           [selectedUTXO],
@@ -240,6 +252,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           (txData.liquidatorBtcPubkeys as string[]).map((key) =>
             key.startsWith("0x") ? key.slice(2) : key,
           ),
+          btcPopSignatureRaw,
         );
 
         return {
@@ -260,7 +273,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         setIsSubmitting(false);
       }
     },
-    [btcWalletProvider],
+    [btcWalletProvider, btcAddress],
   );
 
   return {

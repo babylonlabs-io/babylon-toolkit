@@ -1,4 +1,4 @@
-// BTC Vault Controller - Read operations (queries)
+// Morpho Integration Controller - Read operations (queries)
 
 import { type Abi, type Address, type Hex } from "viem";
 
@@ -6,7 +6,7 @@ import { ethClient } from "../client";
 import { normalizeMarketId } from "../morpho/utils";
 import { executeMulticall } from "../multicall-helpers";
 
-import BTCVaultControllerABI from "./abis/BTCVaultController.abi.json";
+import MorphoIntegrationControllerABI from "./abis/MorphoIntegrationController.abi.json";
 
 /**
  * Depositor structure from contract
@@ -38,7 +38,7 @@ export interface MarketPosition {
  * Iterates through the userPositions array by calling userPositions(address, index)
  * starting from index 0 and incrementing until an error occurs or no result is returned.
  *
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param userAddress - User's Ethereum address
  * @returns Array of position IDs (bytes32)
  */
@@ -55,7 +55,7 @@ export async function getUserPositions(
       try {
         const result = await publicClient.readContract({
           address: contractAddress,
-          abi: BTCVaultControllerABI,
+          abi: MorphoIntegrationControllerABI,
           functionName: "userPositions",
           args: [userAddress, BigInt(index)],
         });
@@ -87,7 +87,7 @@ export async function getUserPositions(
  * Get the position ID (key) for a user in a specific market
  * This is a pure function that calculates the position ID from depositor + marketId
  *
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param userAddress - User's Ethereum address
  * @param marketId - Market ID (bytes32, with or without 0x prefix)
  * @returns Position ID (bytes32)
@@ -104,7 +104,7 @@ export async function getPositionKey(
 
   const positionId = await publicClient.readContract({
     address: contractAddress,
-    abi: BTCVaultControllerABI,
+    abi: MorphoIntegrationControllerABI,
     functionName: "getPositionKey",
     args: [userAddress, normalizedMarketId],
   });
@@ -116,7 +116,7 @@ export async function getPositionKey(
  * Get a single position for a user in a specific market
  * This is more efficient than fetching all positions when you only need one
  *
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param userAddress - User's Ethereum address
  * @param marketId - Market ID (bytes32, with or without 0x prefix)
  * @returns Market position or null if position doesn't exist
@@ -134,7 +134,7 @@ export async function getPosition(
 
     const result = await publicClient.readContract({
       address: contractAddress,
-      abi: BTCVaultControllerABI,
+      abi: MorphoIntegrationControllerABI,
       functionName: "getPosition",
       args: [userAddress, normalizedMarketId],
     });
@@ -194,7 +194,7 @@ export async function getPosition(
  * To get complete position data with pegInTxHashes, you need to call getPosition() for each position,
  * but that requires depositor address + marketId (not position ID).
  *
- * @param contractAddress - BTCVaultController contract address
+ * @param contractAddress - MorphoIntegrationController contract address
  * @param positionIds - Array of position IDs (bytes32)
  * @returns Array of market positions (only successful fetches, failed requests are filtered out)
  */
@@ -223,7 +223,7 @@ export async function getPositionsBulk(
     const results = await executeMulticall<MarketPositionRaw>(
       publicClient,
       contractAddress,
-      BTCVaultControllerABI as Abi,
+      MorphoIntegrationControllerABI as Abi,
       "positions",
       positionIds.map((positionId) => [positionId]),
     );
