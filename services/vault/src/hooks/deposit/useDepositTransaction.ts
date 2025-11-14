@@ -11,7 +11,6 @@ import type { Hex } from "viem";
 import { useError } from "../../context/error";
 import type { DepositTransactionData } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
-import { ErrorCode, ValidationError } from "../../utils/errors";
 
 export interface CreateDepositTransactionParams {
   amount: string;
@@ -132,17 +131,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           data: txData,
         };
       } catch (error) {
-        const validationError =
+        const handledError =
           error instanceof Error
-            ? new ValidationError(
-                error.message,
-                ErrorCode.VALIDATION_ERROR,
-                "amount",
-              )
+            ? error
             : new Error("Failed to create deposit transaction");
 
         handleError({
-          error: validationError,
+          error: handledError,
           displayOptions: {
             showModal: true,
           },
@@ -150,7 +145,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
 
         return {
           success: false,
-          error: validationError.message,
+          error: handledError.message,
         };
       } finally {
         setIsCreating(false);
