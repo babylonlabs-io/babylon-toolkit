@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { formatEther } from "viem";
-import { useGasPrice } from "wagmi";
+import { useGasPrice } from "@babylonlabs-io/wallet-connector";
 
 /**
  * Hook to calculate estimated ETH fee for transactions

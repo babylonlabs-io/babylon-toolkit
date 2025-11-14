@@ -12,7 +12,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
+import { getWalletClient, switchChain } from "@babylonlabs-io/wallet-connector";
 
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";

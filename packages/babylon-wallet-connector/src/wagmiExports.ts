@@ -35,3 +35,12 @@ export {
   type UseConnectReturnType,
   type UseWalletClientReturnType,
 } from 'wagmi';
+
+/**
+ * Re-export wagmi actions to ensure all consumers use the same wagmi instance.
+ * These are imperative actions that can be called outside of React components.
+ */
+export {
+  getWalletClient,
+  switchChain,
+} from 'wagmi/actions';

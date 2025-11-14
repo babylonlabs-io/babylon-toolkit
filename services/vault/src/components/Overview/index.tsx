@@ -7,7 +7,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
 import type { Address, Hex, WalletClient } from "viem";
-import { getWalletClient } from "wagmi/actions";
+import { getWalletClient } from "@babylonlabs-io/wallet-connector";
 
 import { CONTRACTS } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
