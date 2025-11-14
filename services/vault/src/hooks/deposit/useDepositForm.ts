@@ -123,13 +123,7 @@ export function useDepositForm(): UseDepositFormResult {
       return null;
     }
 
-    // Use UTXO count for fee estimation
-    const utxoCount = Math.min(
-      confirmedUTXOs.length,
-      Math.ceil(Number(amountSats) / (confirmedUTXOs[0]?.value || 100000)),
-    );
-
-    return depositService.calculateDepositFees(amountSats, utxoCount);
+    return depositService.calculateDepositFees(amountSats);
   }, [amountSats, confirmedUTXOs]);
 
   // Validate form

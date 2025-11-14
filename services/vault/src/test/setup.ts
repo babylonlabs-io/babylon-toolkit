@@ -5,6 +5,18 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
+// Mock the WASM module to avoid syntax errors in tests
+vi.mock("@/utils/btc/wasm", () => ({
+  initWasm: vi.fn(),
+  createPegInTransaction: vi.fn().mockResolvedValue({
+    txHex: "0xmocktxhex",
+    txid: "mocktxid",
+    vaultScriptPubKey: "0xmockvaultscript",
+    vaultValue: 100000n,
+    changeValue: 390000n,
+  }),
+}));
+
 // Mock window.matchMedia
 Object.defineProperty(window, "matchMedia", {
   writable: true,

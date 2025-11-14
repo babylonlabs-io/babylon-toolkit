@@ -14,40 +14,36 @@ import {
 
 describe("Deposit Calculations", () => {
   describe("calculateDepositFees", () => {
-    it("should calculate fees correctly for single UTXO", () => {
+    it("should calculate fees correctly", () => {
       const depositAmount = 100000n; // 0.001 BTC
-      const utxoCount = 1;
 
-      const fees = calculateDepositFees(depositAmount, utxoCount);
+      const fees = calculateDepositFees(depositAmount);
 
-      expect(fees.btcNetworkFee).toBeGreaterThan(0n);
+      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
       expect(fees.protocolFee).toBe(100n); // 0.1% of 100000 = 100
       expect(fees.totalFee).toBe(fees.btcNetworkFee + fees.protocolFee);
     });
 
-    it("should calculate higher network fees for multiple UTXOs", () => {
+    it("should use fixed network fee", () => {
       const depositAmount = 100000n;
 
-      const feesSingle = calculateDepositFees(depositAmount, 1);
-      const feesMultiple = calculateDepositFees(depositAmount, 5);
+      const fees = calculateDepositFees(depositAmount);
 
-      expect(feesMultiple.btcNetworkFee).toBeGreaterThan(
-        feesSingle.btcNetworkFee,
-      );
-      expect(feesMultiple.protocolFee).toBe(feesSingle.protocolFee); // Protocol fee should be same
+      // Network fee should be the fixed value
+      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
     });
 
     it("should handle zero deposit amount", () => {
-      const fees = calculateDepositFees(0n, 1);
+      const fees = calculateDepositFees(0n);
 
-      expect(fees.btcNetworkFee).toBeGreaterThan(0n); // Network fee still applies
+      expect(fees.btcNetworkFee).toBe(10000n); // Fixed network fee still applies
       expect(fees.protocolFee).toBe(0n); // 0.1% of 0 is 0
       expect(fees.totalFee).toBe(fees.btcNetworkFee);
     });
 
     it("should handle large deposit amounts", () => {
       const largeAmount = 21000000_00000000n; // 21M BTC (max supply)
-      const fees = calculateDepositFees(largeAmount, 1);
+      const fees = calculateDepositFees(largeAmount);
 
       expect(fees.protocolFee).toBe(21000000_00000n); // 0.1% of max supply
       expect(fees.totalFee).toBeGreaterThan(0n);
