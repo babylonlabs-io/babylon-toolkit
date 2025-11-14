@@ -101,13 +101,13 @@ export async function submitPeginRequest(
   );
 
   if (!selectedUTXO) {
-    const totalAvailable = availableUTXOs.reduce(
-      (sum, utxo) => sum + BigInt(utxo.value),
+    const maxSingleUtxo = availableUTXOs.reduce(
+      (max, utxo) => (BigInt(utxo.value) > max ? BigInt(utxo.value) : max),
       0n,
     );
     throw new Error(
       `No suitable UTXO found. Required: ${Number(requiredAmount) / 100000000} BTC, ` +
-        `Available in single UTXOs: ${Number(totalAvailable) / 100000000} BTC. ` +
+        `Largest available UTXO: ${Number(maxSingleUtxo) / 100000000} BTC. ` +
         `Note: Multi-UTXO combination not yet supported.`,
     );
   }
