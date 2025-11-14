@@ -129,7 +129,7 @@ export function useBorrowTransaction({
         await addCollateralWithMarketId(
           walletClient,
           chain,
-          CONTRACTS.VAULT_CONTROLLER,
+          CONTRACTS.MORPHO_CONTROLLER,
           pegInTxHashes,
           marketId,
           borrowAmountBigint,
@@ -145,7 +145,7 @@ export function useBorrowTransaction({
         await borrowMoreFromPosition(
           walletClient,
           chain,
-          CONTRACTS.VAULT_CONTROLLER,
+          CONTRACTS.MORPHO_CONTROLLER,
           marketId,
           borrowAmountBigint!,
         );

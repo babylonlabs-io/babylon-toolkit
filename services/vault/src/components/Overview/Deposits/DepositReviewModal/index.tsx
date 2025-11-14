@@ -58,7 +58,7 @@ export function CollateralDepositReviewModal({
 
   // Estimate ETH gas for the transaction
   const { data: gasEstimate } = useEstimateGas({
-    to: CONTRACTS.VAULT_CONTROLLER,
+    to: CONTRACTS.MORPHO_CONTROLLER,
     // Rough estimate for submitPeginRequest function
     // Actual gas will be calculated at transaction time
     data: "0x" as `0x${string}`, // Placeholder for actual function call

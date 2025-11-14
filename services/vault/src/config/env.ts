@@ -13,7 +13,7 @@ import type { Address } from "viem";
 interface RequiredEnvVars {
   // Contract addresses
   BTC_VAULTS_MANAGER: Address;
-  VAULT_CONTROLLER: Address;
+  MORPHO_CONTROLLER: Address;
   BTC_VAULT: Address;
   MORPHO: Address;
 
@@ -32,7 +32,7 @@ function validateEnvVars(): RequiredEnvVars {
   const envVars = {
     // Contract addresses (required)
     BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
-    VAULT_CONTROLLER: process.env.NEXT_PUBLIC_TBV_VAULT_CONTROLLER,
+    MORPHO_CONTROLLER: process.env.NEXT_PUBLIC_TBV_MORPHO_CONTROLLER,
     BTC_VAULT: process.env.NEXT_PUBLIC_TBV_BTC_VAULT,
     MORPHO: process.env.NEXT_PUBLIC_TBV_MORPHO,
 
@@ -47,7 +47,7 @@ function validateEnvVars(): RequiredEnvVars {
   // Check for missing required environment variables
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
-    "VAULT_CONTROLLER",
+    "MORPHO_CONTROLLER",
     "BTC_VAULT",
     "MORPHO",
     "VAULT_API_URL",
@@ -63,7 +63,7 @@ function validateEnvVars(): RequiredEnvVars {
       // Map internal names to actual env var names
       const envVarMap: Record<string, string> = {
         BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
-        VAULT_CONTROLLER: "NEXT_PUBLIC_TBV_VAULT_CONTROLLER",
+        MORPHO_CONTROLLER: "NEXT_PUBLIC_TBV_MORPHO_CONTROLLER",
         BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
         MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
         VAULT_API_URL: "NEXT_PUBLIC_VAULT_API_URL",

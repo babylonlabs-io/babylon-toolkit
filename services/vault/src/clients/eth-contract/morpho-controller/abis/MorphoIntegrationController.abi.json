@@ -105,28 +105,10 @@
   },
   {
     "type": "function",
-    "name": "acknowledgeVaultProviderRegistrationACK",
-    "inputs": [
-      {
-        "name": "liquidator",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "addCollateralToPosition",
     "inputs": [
       {
-        "name": "pegInTxHashes",
+        "name": "vaultIds",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       },
@@ -177,7 +159,7 @@
     "name": "addCollateralToPositionAndBorrow",
     "inputs": [
       {
-        "name": "pegInTxHashes",
+        "name": "vaultIds",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
       },
@@ -289,7 +271,7 @@
     "name": "depositorRedeemBTCVault",
     "inputs": [
       {
-        "name": "pegInTxHash",
+        "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -316,12 +298,12 @@
       {
         "name": "position",
         "type": "tuple",
-        "internalType": "struct BTCVaultController.MarketPosition",
+        "internalType": "struct IMorphoIntegrationController.MarketPosition",
         "components": [
           {
             "name": "depositor",
             "type": "tuple",
-            "internalType": "struct BTCVaultsManager.AddressBTCKeyPair",
+            "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair",
             "components": [
               {
                 "name": "ethAddress",
@@ -346,17 +328,12 @@
             "internalType": "address"
           },
           {
-            "name": "pegInTxHashes",
+            "name": "vaultIds",
             "type": "bytes32[]",
             "internalType": "bytes32[]"
           },
           {
             "name": "totalCollateral",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "totalBorrowed",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -415,6 +392,25 @@
   },
   {
     "type": "function",
+    "name": "getPositionVaultIds",
+    "inputs": [
+      {
+        "name": "positionId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getRegistrationDepositAmount",
     "inputs": [],
     "outputs": [
@@ -441,6 +437,25 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getVaultUsageStatus",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum ApplicationVaultTracker.VaultUsageStatus"
       }
     ],
     "stateMutability": "view"
@@ -513,6 +528,44 @@
   },
   {
     "type": "function",
+    "name": "isAuthorizedLiquidator",
+    "inputs": [
+      {
+        "name": "liquidator",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isVaultInUse",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "inUse",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "liquidate",
     "inputs": [
       {
@@ -548,7 +601,7 @@
         ]
       },
       {
-        "name": "borrower",
+        "name": "morphoProxyBorrower",
         "type": "address",
         "internalType": "address"
       },
@@ -606,7 +659,7 @@
       {
         "name": "depositor",
         "type": "tuple",
-        "internalType": "struct BTCVaultsManager.AddressBTCKeyPair",
+        "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair",
         "components": [
           {
             "name": "ethAddress",
@@ -632,11 +685,6 @@
       },
       {
         "name": "totalCollateral",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "totalBorrowed",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -763,19 +811,6 @@
   },
   {
     "type": "function",
-    "name": "requestVaultProviderRegistration",
-    "inputs": [
-      {
-        "name": "btcPubKeyXOnly",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "payable"
-  },
-  {
-    "type": "function",
     "name": "revokeRole",
     "inputs": [
       {
@@ -790,87 +825,6 @@
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "submitInclusionProof",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "inclusionProof",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "isValid",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "submitPeginACK",
-    "inputs": [
-      {
-        "name": "pegInTxHash",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "submitPeginRequest",
-    "inputs": [
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "depositorBtcPubKey",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "btcPopSignature",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "unsignedPegInTx",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "vaultProvider",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -949,42 +903,20 @@
   },
   {
     "type": "function",
-    "name": "withdrawCollateralAndRedeemBTCVault",
+    "name": "vaultActivated",
     "inputs": [
       {
-        "name": "marketParams",
-        "type": "tuple",
-        "internalType": "struct MarketParams",
-        "components": [
-          {
-            "name": "loanToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "collateralToken",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "oracle",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "irm",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "lltv",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
-        "name": "repayAmount",
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "satoshiAmount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -994,7 +926,7 @@
   },
   {
     "type": "function",
-    "name": "withdrawCollateralFromPosition",
+    "name": "withdrawAllCollateralFromPosition",
     "inputs": [
       {
         "name": "marketParams",
@@ -1036,6 +968,51 @@
         "internalType": "uint256"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawCollateralAndRedeemBTCVault",
+    "inputs": [
+      {
+        "name": "marketParams",
+        "type": "tuple",
+        "internalType": "struct MarketParams",
+        "components": [
+          {
+            "name": "loanToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "collateralToken",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "oracle",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "irm",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "lltv",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "repayAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
     "stateMutability": "nonpayable"
   },
   {
@@ -1146,17 +1123,12 @@
   },
   {
     "type": "error",
-    "name": "DebtMustBeRepaidFirst",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InclusionProofVerificationFailed",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InvalidAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidProxyContract",
     "inputs": []
   },
   {
@@ -1171,17 +1143,22 @@
   },
   {
     "type": "error",
-    "name": "ProxyDeploymentFailed",
+    "name": "LiquidatorNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "OnlyApplicationController",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ProxyMismatch",
     "inputs": []
   },
   {
     "type": "error",
     "name": "Unauthorized",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UnsupportedMarket",
     "inputs": []
   },
   {

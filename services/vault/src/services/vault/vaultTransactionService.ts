@@ -7,7 +7,10 @@
 
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
-import { VaultControllerTx } from "../../clients/eth-contract";
+import {
+  BTCVaultsManagerTx,
+  MorphoControllerTx,
+} from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 
 import * as btcTransactionService from "./vaultBtcTransactionService";
@@ -133,7 +136,7 @@ export async function submitPeginRequest(
 
   // Step 6: Submit to smart contract
 
-  const result = await VaultControllerTx.submitPeginRequest(
+  const result = await BTCVaultsManagerTx.submitPeginRequest(
     walletClient,
     chain,
     CONTRACTS.BTC_VAULTS_MANAGER,
@@ -171,7 +174,7 @@ export async function submitPeginRequest(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param pegInTxHashes - Array of peg-in transaction hashes (vault IDs) to redeem
  * @returns Array of transaction hashes and receipts for each redemption
  * @throws Error if any vault is not in Available status or if any transaction fails
@@ -179,7 +182,7 @@ export async function submitPeginRequest(
 export async function redeemVaults(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   pegInTxHashes: Hex[],
 ): Promise<Array<{ transactionHash: Hex; pegInTxHash: Hex; error?: string }>> {
   const results: Array<{
@@ -192,10 +195,10 @@ export async function redeemVaults(
   // If any fails, throw error immediately (fail-entire operation)
   for (const pegInTxHash of pegInTxHashes) {
     try {
-      const result = await VaultControllerTx.depositorRedeemBTCVault(
+      const result = await MorphoControllerTx.depositorRedeemBTCVault(
         walletClient,
         chain,
-        vaultControllerAddress,
+        morphoControllerAddress,
         pegInTxHash,
       );
 
