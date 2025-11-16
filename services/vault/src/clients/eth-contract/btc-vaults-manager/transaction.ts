@@ -78,8 +78,8 @@ export async function submitPeginRequest(
       // Re-throw with the transaction hash included so user can check Etherscan
       const enhancedError = new Error(
         `Transaction submitted with hash ${hash}, but receipt polling timed out. ` +
-        `Please check the transaction on Etherscan. The transaction may still be pending or confirmed. ` +
-        `Original error: ${error instanceof Error ? error.message : String(error)}`
+          `Please check the transaction on Etherscan. The transaction may still be pending or confirmed. ` +
+          `Original error: ${error instanceof Error ? error.message : String(error)}`,
       );
       enhancedError.cause = error;
       throw enhancedError;
