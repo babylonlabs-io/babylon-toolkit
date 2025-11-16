@@ -10,10 +10,8 @@ export * from "@/providers";
 export { useChainConnector } from "@/hooks/useChainConnector";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
-export { useAppKitBridge } from "@/hooks/useAppKitBridge";
-export { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
-export { useAppKitBtcBridge } from "@/hooks/useAppKitBtcBridge";
-export { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
+export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";
+export { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 
 export { type ChainConfigArr } from "@/context/Chain.context";
 export { useInscriptionProvider } from "@/context/Inscriptions.context";
@@ -35,12 +33,6 @@ export {
     initializeAppKitModal,
     type AppKitModalConfig,
 } from "@/core/wallets/appkit/appKitModal";
-
-// Export BTC AppKit modal utilities
-// Note: Most BTC AppKit functions are used internally and not exported
-export {
-    type AppKitBtcModalConfig,
-} from "@/core/wallets/btc/appkit/appKitBtcModal";
 
 // Export BTC AppKit shared config helpers
 export {

@@ -78,10 +78,13 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabled.push("ledger_btc");
     }
 
-    // Disable AppKit BTC on mainnet (not mature enough for production)
-    // Keep it enabled on testnet/signet for testing
+    // Disable AppKit BTC if:
+    // 1. No Reown project ID (AppKit won't work without it)
+    // 2. On mainnet (not mature enough for production)
+    const hasReownProjectId = !!process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
     const isMainnet = process.env.NEXT_PUBLIC_NETWORK === "mainnet";
-    if (isMainnet) {
+
+    if (!hasReownProjectId || isMainnet) {
       disabled.push(APPKIT_BTC_CONNECTOR_ID);
     }
 

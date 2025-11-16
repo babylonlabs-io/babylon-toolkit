@@ -64,7 +64,6 @@ export async function submitPeginRequest(
     // 5 minutes should be sufficient for most cases
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
-      timeout: 300_000, // 5 minutes in milliseconds
     });
 
     return {

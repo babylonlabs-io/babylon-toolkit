@@ -101,7 +101,4 @@ export default defineConfig({
       ws: resolve(__dirname, "src/stubs/ws.ts"),
     },
   },
-  optimizeDeps: {
-    exclude: ["ws"],
-  },
 });

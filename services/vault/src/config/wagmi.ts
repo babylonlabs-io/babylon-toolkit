@@ -67,5 +67,9 @@ function initializeVaultWagmi() {
 /**
  * Singleton wagmi config instance
  * Created by AppKit initialization at module load time
+ *
+ * IMPORTANT: This will throw if NEXT_PUBLIC_REOWN_PROJECT_ID is not set.
+ * The vault requires AppKit for ETH wallet connections, so this is a required
+ * environment variable. Ensure it's configured before starting the application.
  */
 export const vaultWagmiConfig = initializeVaultWagmi();

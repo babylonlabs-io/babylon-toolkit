@@ -16,6 +16,7 @@ import {
 import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
@@ -51,8 +52,8 @@ export class AppKitProvider implements IETHProvider {
   private getWagmiConfig() {
     if (!hasSharedWagmiConfig()) {
       throw new Error(
-        "AppKitProvider requires shared wagmi config. " +
-        "Call initializeAppKitModal() before creating wallet connections."
+        "AppKit ETH not initialized. Ensure AppKit modal is initialized at application startup " +
+        "by calling initializeAppKitModal() with eth config in your app's entry point."
       );
     }
     return getSharedWagmiConfig();
@@ -120,7 +121,7 @@ export class AppKitProvider implements IETHProvider {
 
       // Open AppKit modal for manual connection
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
+        window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
 
         const waitForConnection = new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {

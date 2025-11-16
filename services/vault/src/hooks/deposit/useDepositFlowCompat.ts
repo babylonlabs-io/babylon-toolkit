@@ -174,7 +174,8 @@ export function useDepositFlow(
       // Switch to the correct chain if needed
       try {
         await switchChain(wagmiConfig, { chainId: expectedChainId });
-      } catch {
+      } catch (switchError) {
+        console.error("Failed to switch chain:", switchError);
         throw new Error(
           `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
         );
@@ -239,6 +240,7 @@ export function useDepositFlow(
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);
+      console.error("Deposit flow error:", err);
     } finally {
       setProcessing(false);
     }

@@ -16,11 +16,39 @@
  * - This stub only satisfies the bundler; it's not part of the runtime code path
  */
 
-// Export empty classes to satisfy build-time imports
-// These are never executed at runtime in browser environments
-export default class WebSocket {}
+// Export classes that throw errors if accidentally instantiated
+// These should never be executed at runtime in browser environments
+export default class WebSocket {
+  constructor() {
+    throw new Error(
+      "ws module stub: WebSocket should not be instantiated in browser. " +
+        "Wallet libraries should use native window.WebSocket instead.",
+    );
+  }
+}
 
-export const WebSocketServer = class {};
-export const Server = class {};
-export const Receiver = class {};
-export const Sender = class {};
+export const WebSocketServer = class {
+  constructor() {
+    throw new Error(
+      "ws module stub: WebSocketServer is not available in browser",
+    );
+  }
+};
+
+export const Server = class {
+  constructor() {
+    throw new Error("ws module stub: Server is not available in browser");
+  }
+};
+
+export const Receiver = class {
+  constructor() {
+    throw new Error("ws module stub: Receiver is not available in browser");
+  }
+};
+
+export const Sender = class {
+  constructor() {
+    throw new Error("ws module stub: Sender is not available in browser");
+  }
+};
