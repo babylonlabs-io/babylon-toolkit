@@ -42,7 +42,6 @@ function initializeVaultWagmi() {
 
   const result = initializeAppKitModal(appKitConfig, {
     network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
-    mempoolUrl: `${btcConfig.mempoolApiUrl}/api`,
   });
 
   if (!result) {

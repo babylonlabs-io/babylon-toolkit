@@ -22,15 +22,14 @@ export interface AppKitModalConfig {
     icons: string[];
   };
   /**
-   * Optional ETH network chain configuration
-   * If not provided, defaults to Ethereum mainnet
+   * ETH network chain configuration
+   * Must be provided by the consuming application (e.g., from @babylonlabs-io/config)
    */
-  ethChain?: Chain;
+  ethChain: Chain;
 }
 
 export interface AppKitBtcConfig {
   network?: "mainnet" | "signet";
-  mempoolUrl?: string;
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
@@ -60,42 +59,16 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
     return null;
   }
 
-  // Use metadata directly from config (now required)
+  // Use metadata and ethChain directly from config (both required)
   const metadata = config.metadata;
-
-  // Use provided ETH chain or default to mainnet
-  // Consuming apps can pass their network config (e.g., from @babylonlabs-io/config)
-  const ethChain: Chain = config.ethChain || ({
-    id: 1,
-    name: "Ethereum",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: ["https://cloudflare-eth.com"] } },
-    blockExplorers: { default: { name: "Etherscan", url: "https://etherscan.io" } },
-  } as Chain);
-  const networks = [ethChain];
+  const ethNetworks: Chain[] = [config.ethChain];
 
   // Add Bitcoin networks if btcConfig is provided
-  // Use any[] to avoid type conflicts between different network definitions
-  const allNetworks: any[] = [...networks];
-  let customBtcNetwork: any;
+  // Use any[] to avoid type conflicts between ETH and BTC network definitions
+  const allNetworks: any[] = [...ethNetworks];
   if (btcConfig) {
-    const baseBtcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
-    // Override mempool URL if provided
-    if (btcConfig.mempoolUrl) {
-      customBtcNetwork = {
-        ...baseBtcNetwork,
-        rpcUrls: {
-          ...baseBtcNetwork.rpcUrls,
-          default: {
-            ...baseBtcNetwork.rpcUrls?.default,
-            http: [btcConfig.mempoolUrl],
-          },
-        },
-      };
-      allNetworks.push(customBtcNetwork);
-    } else {
-      allNetworks.push(baseBtcNetwork);
-    }
+    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
+    allNetworks.push(btcNetwork);
   }
 
   // Create storage for wallet persistence
@@ -105,7 +78,7 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
 
   // Create Wagmi Adapter with storage for reconnection
   wagmiAdapter = new WagmiAdapter({
-    networks: networks as any, // Cast to any - WagmiAdapter handles type conversion internally
+    networks: ethNetworks,
     projectId,
     ssr: false,
     storage,
@@ -116,7 +89,7 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
 
   // Create Bitcoin Adapter if btcConfig is provided
   if (btcConfig) {
-    const btcNetwork = customBtcNetwork || (btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet);
+    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
     bitcoinAdapter = new BitcoinAdapter({
       networks: [btcNetwork],
     });
