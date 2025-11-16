@@ -34,7 +34,6 @@ export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 export {
     initializeAppKitModal,
     type AppKitModalConfig,
-    type AppKitBtcConfig,
 } from "@/core/wallets/appkit/appKitModal";
 
 // Export BTC AppKit modal utilities

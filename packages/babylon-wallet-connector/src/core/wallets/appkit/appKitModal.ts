@@ -17,7 +17,7 @@ import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
 
 /**
  * Minimal AppKit configuration
- * Only includes required fields for vault usage
+ * Supports ETH-only, BTC-only, or unified ETH+BTC wallet connections
  */
 export interface AppKitModalConfig {
   projectId?: string;
@@ -28,14 +28,26 @@ export interface AppKitModalConfig {
     icons: string[];
   };
   /**
-   * ETH network chain configuration
-   * Must be provided by the consuming application (e.g., from @babylonlabs-io/config)
+   * ETH configuration (optional)
+   * Required only if you want to enable ETH wallet connections
    */
-  ethChain: Chain;
-}
-
-export interface AppKitBtcConfig {
-  network?: "mainnet" | "signet";
+  eth?: {
+    /**
+     * ETH network chain configuration
+     * Provide from your network config (e.g., @babylonlabs-io/config)
+     */
+    chain: Chain;
+  };
+  /**
+   * BTC configuration (optional)
+   * Required only if you want to enable BTC wallet connections
+   */
+  btc?: {
+    /**
+     * BTC network (mainnet or signet)
+     */
+    network: "mainnet" | "signet";
+  };
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
@@ -53,57 +65,75 @@ export function getAppKitModal() {
 /**
  * Initialize AppKit modal with wagmi and/or bitcoin adapters
  * This should be called once at the application level
- * @param config - Configuration including required metadata for app branding
- * @param btcConfig - Optional Bitcoin configuration
+ * @param config - Configuration including required metadata, optional ETH chain, and optional BTC network
  */
-export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: AppKitBtcConfig) {
+export function initializeAppKitModal(config: AppKitModalConfig) {
   // Don't reinitialize if already initialized
-  if (appKitModal && wagmiAdapter) {
-    return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig, bitcoinAdapter };
+  if (appKitModal) {
+    return {
+      modal: appKitModal,
+      wagmiConfig: wagmiAdapter?.wagmiConfig,
+      bitcoinAdapter,
+    };
   }
 
-  // Get project ID from config or environment
-  const projectId =
-    config.projectId || (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_REOWN_PROJECT_ID : undefined);
-
-  if (!projectId) {
-    console.warn(
-      "[AppKit] Reown project ID not provided. AppKit ETH wallet will not be available. Set NEXT_PUBLIC_REOWN_PROJECT_ID environment variable",
+  // Project ID is required for AppKit to work
+  if (!config.projectId) {
+    console.debug(
+      "[AppKit] Reown project ID not provided. AppKit will not be available. " +
+      "Provide projectId in AppKitModalConfig.",
     );
     return null;
   }
 
-  // Use metadata and ethChain directly from config (both required)
-  const metadata = config.metadata;
-  const ethNetworks: Chain[] = [config.ethChain];
+  const projectId = config.projectId;
 
-  // Add Bitcoin networks if btcConfig is provided
-  // Use any[] to avoid type conflicts between ETH and BTC network definitions
-  const allNetworks: any[] = [...ethNetworks];
-  if (btcConfig) {
-    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
+  // Use metadata from config (required)
+  const metadata = config.metadata;
+
+  // Prepare ETH networks if eth config is provided
+  const ethNetworks: Chain[] | undefined = config.eth?.chain ? [config.eth.chain] : undefined;
+
+  // Build list of all networks for AppKit modal
+  const allNetworks: any[] = [];
+  if (ethNetworks) {
+    allNetworks.push(...ethNetworks);
+  }
+  if (config.btc?.network) {
+    const btcNetwork = config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
     allNetworks.push(btcNetwork);
   }
 
-  // Create storage for wallet persistence
-  const storage = createStorage({
-    storage: cookieStorage,
-  });
+  // Must have at least one network (ETH or BTC)
+  if (allNetworks.length === 0) {
+    console.warn("[AppKit] No networks configured. Provide either eth or btc config.");
+    return null;
+  }
 
-  // Create Wagmi Adapter with storage for reconnection
-  wagmiAdapter = new WagmiAdapter({
-    networks: ethNetworks,
-    projectId,
-    ssr: false,
-    storage,
-  });
+  // Create Wagmi Adapter only if ETH is configured
+  if (ethNetworks) {
+    // Create storage for wallet persistence
+    const storage = createStorage({
+      storage: cookieStorage,
+    });
+
+    wagmiAdapter = new WagmiAdapter({
+      networks: ethNetworks,
+      projectId,
+      ssr: false,
+      storage,
+    });
+  }
 
   // Collect all adapters
-  const adapters: any[] = [wagmiAdapter];
+  const adapters: any[] = [];
+  if (wagmiAdapter) {
+    adapters.push(wagmiAdapter);
+  }
 
-  // Create Bitcoin Adapter if btcConfig is provided
-  if (btcConfig) {
-    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
+  // Create Bitcoin Adapter if btc config is provided
+  if (config.btc?.network) {
+    const btcNetwork = config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
     bitcoinAdapter = new BitcoinAdapter({
       networks: [btcNetwork],
     });
@@ -119,18 +149,24 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
     metadata,
   });
 
-  // Set the shared wagmi config for the wallet-connector AppKitProvider
+  // Set the shared wagmi config for the wallet-connector AppKitProvider (if ETH is configured)
   // This prevents multiple WalletConnect initializations
-  setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
+  if (wagmiAdapter) {
+    setSharedWagmiConfig(wagmiAdapter.wagmiConfig);
+  }
 
   // Set the shared BTC AppKit config if Bitcoin adapter was created
-  if (bitcoinAdapter && btcConfig) {
+  if (bitcoinAdapter && config.btc?.network) {
     setSharedBtcAppKitConfig({
       modal: appKitModal,
       adapter: bitcoinAdapter,
-      network: btcConfig.network || "signet",
+      network: config.btc.network,
     });
   }
 
-  return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig, bitcoinAdapter };
+  return {
+    modal: appKitModal,
+    wagmiConfig: wagmiAdapter?.wagmiConfig,
+    bitcoinAdapter,
+  };
 }

@@ -2,7 +2,7 @@ import {
   APPKIT_BTC_CONNECTOR_ID,
   WalletProvider,
   createWalletConfig,
-  type AppKitBtcModalConfig,
+  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -54,8 +54,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   );
 
   const requiredChains: ("BBN" | "BTC")[] = useMemo(
-    () =>
-      location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"],
+    () => (location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"]),
     [location.pathname],
   );
 
@@ -89,9 +88,16 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     return disabled;
   }, []);
 
-  const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
-    () => ({
-      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
+  const appKitConfig: AppKitModalConfig | undefined = useMemo(() => {
+    const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+    // AppKit is optional - if no project ID is provided, AppKit wallets won't be available
+    if (!projectId) {
+      return undefined;
+    }
+
+    return {
+      projectId,
       metadata: {
         name: "Babylon Staking",
         description: "Babylon Bitcoin Staking Platform",
@@ -105,11 +111,12 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
             : "https://btcstaking.babylonlabs.io/favicon.ico",
         ],
       },
-      network:
-        getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
-    }),
-    [],
-  );
+      btc: {
+        network:
+          getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
+      },
+    };
+  }, []);
 
   return (
     <WalletProvider
@@ -120,7 +127,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={requiredChains}
-      appKitBtcConfig={appKitBtcConfig}
+      appKitConfig={appKitConfig}
     >
       {children}
     </WalletProvider>

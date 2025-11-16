@@ -5,7 +5,6 @@ import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/Life
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
 import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
-import { initializeAppKitBtcModal, type AppKitBtcModalConfig } from "@/core/wallets/btc/appkit/appKitBtcModal";
 import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
 import { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
@@ -26,8 +25,11 @@ interface WalletProviderProps {
   onError?: (e: Error) => void;
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  /**
+   * Unified AppKit configuration for ETH and/or BTC wallet connections
+   * Provide eth and/or btc properties to enable respective chains
+   */
   appKitConfig?: AppKitModalConfig;
-  appKitBtcConfig?: AppKitBtcModalConfig;
 }
 
 export function WalletProvider({
@@ -42,64 +44,50 @@ export function WalletProvider({
   disabledWallets = [],
   requiredChains,
   appKitConfig,
-  appKitBtcConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize unified AppKit modal synchronously before render (only if configs provided)
+  // Initialize unified AppKit modal synchronously before render (only if config provided)
   // This ensures both wagmi and bitcoin configs are available before children mount
-  // Tracks which AppKit wallets should be disabled due to missing project ID or external initialization
+  // Tracks which AppKit wallets should be disabled due to missing project ID or initialization failure
   const appKitDisabledWallets = useMemo(() => {
     const disabled: string[] = [];
 
-    // If AppKit configs are not provided, assume external initialization
+    // If AppKit config is not provided, assume external initialization
     // and don't attempt to initialize here
-    if (!appKitConfig && !appKitBtcConfig) {
+    if (!appKitConfig) {
       return disabled;
     }
 
     try {
-      const hasETH = config?.some((c) => c.chain === "ETH");
-      const hasBTC = config?.some((c) => c.chain === "BTC");
+      // Initialize AppKit with the unified config
+      // Config may have eth and/or btc properties
+      const result = initializeAppKitModal(appKitConfig);
 
-      // Only initialize if we have ETH (appKitConfig is required)
-      if (hasETH && appKitConfig) {
-        // Prepare BTC config if both ETH and BTC chains are enabled
-        const btcConfig =
-          hasBTC && appKitBtcConfig
-            ? {
-                network: appKitBtcConfig.network || ("mainnet" as const),
-              }
-            : undefined;
-
-        const result = initializeAppKitModal(
-          appKitConfig,
-          btcConfig,
-        );
-
-        // If initialization failed (null returned), disable AppKit ETH wallet
-        if (!result) {
+      // If initialization failed (null returned), disable AppKit wallets
+      if (!result) {
+        // Disable ETH wallet if eth was configured
+        if (appKitConfig.eth) {
           disabled.push(APPKIT_ETH_CONNECTOR_ID);
-          // Also disable BTC if it was supposed to be unified
-          if (hasBTC && appKitBtcConfig) {
-            disabled.push(APPKIT_BTC_CONNECTOR_ID);
-          }
         }
-      } else if (hasBTC && appKitBtcConfig) {
-        // If only BTC is enabled, initialize with BTC only
-        const result = initializeAppKitBtcModal(appKitBtcConfig);
-
-        // If initialization failed (null returned), disable AppKit BTC wallet
-        if (!result) {
+        // Disable BTC wallet if btc was configured
+        if (appKitConfig.btc) {
           disabled.push(APPKIT_BTC_CONNECTOR_ID);
         }
       }
     } catch (error) {
       console.error("Failed to initialize AppKit modal:", error);
+      // On error, disable both wallets to be safe
+      if (appKitConfig.eth) {
+        disabled.push(APPKIT_ETH_CONNECTOR_ID);
+      }
+      if (appKitConfig.btc) {
+        disabled.push(APPKIT_BTC_CONNECTOR_ID);
+      }
     }
 
     return disabled;
-  }, [config, theme, appKitConfig, appKitBtcConfig]);
+  }, [appKitConfig]);
 
   // Merge user-provided disabled wallets with auto-disabled AppKit wallets
   const allDisabledWallets = useMemo(

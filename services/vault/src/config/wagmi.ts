@@ -21,9 +21,17 @@ import {
  */
 function initializeVaultWagmi() {
   const btcConfig = getNetworkConfigBTC();
+  const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+  if (!projectId) {
+    throw new Error(
+      "NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required. " +
+        "Please set it in your .env file or environment configuration.",
+    );
+  }
 
   const appKitConfig: AppKitModalConfig = {
-    projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
+    projectId,
     metadata: {
       name: "Babylon Vault",
       description: "Babylon Vault - Secure Bitcoin Vault Platform",
@@ -37,15 +45,20 @@ function initializeVaultWagmi() {
           : "https://btcstaking.babylonlabs.io/favicon.ico",
       ],
     },
-    ethChain: getETHChain(),
+    eth: {
+      chain: getETHChain(),
+    },
+    btc: {
+      network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
+    },
   };
 
-  const result = initializeAppKitModal(appKitConfig, {
-    network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
-  });
+  const result = initializeAppKitModal(appKitConfig);
 
-  if (!result) {
-    throw new Error("Failed to initialize AppKit modal");
+  if (!result || !result.wagmiConfig) {
+    throw new Error(
+      "Failed to initialize AppKit modal or wagmi config not created",
+    );
   }
 
   return result.wagmiConfig;
