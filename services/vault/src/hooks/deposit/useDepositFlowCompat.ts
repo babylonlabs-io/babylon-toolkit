@@ -12,7 +12,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
-import { getWalletClient, switchChain } from "@babylonlabs-io/wallet-connector";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -175,7 +175,6 @@ export function useDepositFlow(
       try {
         await switchChain(wagmiConfig, { chainId: expectedChainId });
       } catch (switchError) {
-        console.error("Failed to switch chain:", switchError);
         throw new Error(
           `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
         );
@@ -240,7 +239,6 @@ export function useDepositFlow(
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);
-      console.error("Deposit flow error:", err);
     } finally {
       setProcessing(false);
     }

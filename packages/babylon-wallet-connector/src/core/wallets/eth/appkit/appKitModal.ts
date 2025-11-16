@@ -35,6 +35,7 @@ export interface AppKitModalConfig {
 
 export interface AppKitBtcConfig {
   network?: "mainnet" | "signet";
+  mempoolUrl?: string;
 }
 
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
@@ -105,9 +106,25 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
 
   // Add Bitcoin networks if btcConfig is provided
   const allNetworks = [...networks];
+  let customBtcNetwork: any;
   if (btcConfig) {
-    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
-    allNetworks.push(btcNetwork);
+    const baseBtcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
+    // Override mempool URL if provided
+    if (btcConfig.mempoolUrl) {
+      customBtcNetwork = {
+        ...baseBtcNetwork,
+        rpcUrls: {
+          ...baseBtcNetwork.rpcUrls,
+          default: {
+            ...baseBtcNetwork.rpcUrls?.default,
+            http: [btcConfig.mempoolUrl],
+          },
+        },
+      };
+      allNetworks.push(customBtcNetwork);
+    } else {
+      allNetworks.push(baseBtcNetwork);
+    }
   }
 
   // Create storage for wallet persistence
@@ -128,7 +145,7 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
 
   // Create Bitcoin Adapter if btcConfig is provided
   if (btcConfig) {
-    const btcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
+    const btcNetwork = customBtcNetwork || (btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet);
     bitcoinAdapter = new BitcoinAdapter({
       networks: [btcNetwork],
     });

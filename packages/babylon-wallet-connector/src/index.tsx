@@ -58,6 +58,3 @@ export {
     getSharedBtcAppKitConfig,
     hasSharedBtcAppKitConfig,
 } from "@/core/wallets/btc/appkit/sharedConfig";
-
-// Re-export wagmi hooks to ensure single instance across all consumers
-export * from "@/wagmiExports";

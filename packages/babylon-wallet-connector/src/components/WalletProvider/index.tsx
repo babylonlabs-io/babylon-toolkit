@@ -46,11 +46,17 @@ export function WalletProvider({
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize unified AppKit modal synchronously before render
+  // Initialize unified AppKit modal synchronously before render (only if configs provided)
   // This ensures both wagmi and bitcoin configs are available before children mount
-  // Tracks which AppKit wallets should be disabled due to missing project ID
+  // Tracks which AppKit wallets should be disabled due to missing project ID or external initialization
   const appKitDisabledWallets = useMemo(() => {
     const disabled: string[] = [];
+
+    // If AppKit configs are not provided, assume external initialization
+    // and don't attempt to initialize here
+    if (!appKitConfig && !appKitBtcConfig) {
+      return disabled;
+    }
 
     try {
       const hasETH = config?.some((c) => c.chain === "ETH");

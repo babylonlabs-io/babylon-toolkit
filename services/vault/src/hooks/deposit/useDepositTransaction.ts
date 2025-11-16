@@ -1,11 +1,11 @@
 import { getETHChain } from "@babylonlabs-io/config";
 import {
   getSharedWagmiConfig,
-  getWalletClient,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex, WalletClient } from "viem";
+import { getWalletClient } from "wagmi/actions";
 
 import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
 import { BTC_TRANSACTION_FEE } from "@/config/pegin";

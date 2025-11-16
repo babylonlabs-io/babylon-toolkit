@@ -12,7 +12,7 @@ import {
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useState } from "react";
 import type { Hex, WalletClient } from "viem";
-import { getWalletClient } from "@babylonlabs-io/wallet-connector";
+import { getWalletClient } from "wagmi/actions";
 
 import { CONTRACTS } from "../../../../config";
 import { redeemVaults } from "../../../../services/vault/vaultTransactionService";
