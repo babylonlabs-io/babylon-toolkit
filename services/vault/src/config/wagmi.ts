@@ -8,7 +8,7 @@
  * the wagmi config to ensure compatibility.
  */
 
-import { getNetworkConfigBTC } from "@babylonlabs-io/config";
+import { getETHChain, getNetworkConfigBTC } from "@babylonlabs-io/config";
 import {
   initializeAppKitModal,
   type AppKitModalConfig,
@@ -37,6 +37,7 @@ function initializeVaultWagmi() {
           : "https://btcstaking.babylonlabs.io/favicon.ico",
       ],
     },
+    ethChain: getETHChain(),
   };
 
   const result = initializeAppKitModal(appKitConfig, {

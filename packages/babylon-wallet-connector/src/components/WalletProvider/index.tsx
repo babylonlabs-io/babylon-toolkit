@@ -73,10 +73,7 @@ export function WalletProvider({
             : undefined;
 
         const result = initializeAppKitModal(
-          {
-            ...appKitConfig,
-            themeMode: theme === "dark" ? "dark" : "light",
-          },
+          appKitConfig,
           btcConfig,
         );
 
@@ -90,10 +87,7 @@ export function WalletProvider({
         }
       } else if (hasBTC && appKitBtcConfig) {
         // If only BTC is enabled, initialize with BTC only
-        const result = initializeAppKitBtcModal({
-          ...appKitBtcConfig,
-          themeMode: theme === "dark" ? "dark" : "light",
-        });
+        const result = initializeAppKitBtcModal(appKitBtcConfig);
 
         // If initialization failed (null returned), disable AppKit BTC wallet
         if (!result) {

@@ -17,7 +17,6 @@ import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
 
-import { wagmiConfig as fallbackWagmiConfig } from "./config";
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
 /**
@@ -29,6 +28,9 @@ import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
  * - Typed data signing (eth_signTypedData_v4)
  * - Transaction sending and gas estimation
  * - Network switching and information
+ *
+ * IMPORTANT: Requires shared wagmi config to be set via initializeAppKitModal()
+ * before this provider is instantiated. This ensures single wagmi instance.
  */
 export class AppKitProvider implements IETHProvider {
   private config: ETHConfig;
@@ -43,10 +45,17 @@ export class AppKitProvider implements IETHProvider {
   }
 
   /**
-   * Get the current wagmi config (shared if available, otherwise fallback)
+   * Get the shared wagmi config (throws if not set)
+   * This ensures we never create multiple wagmi instances
    */
   private getWagmiConfig() {
-    return hasSharedWagmiConfig() ? getSharedWagmiConfig() : fallbackWagmiConfig;
+    if (!hasSharedWagmiConfig()) {
+      throw new Error(
+        "AppKitProvider requires shared wagmi config. " +
+        "Call initializeAppKitModal() before creating wallet connections."
+      );
+    }
+    return getSharedWagmiConfig();
   }
 
   private setupEventWatchers(): void {

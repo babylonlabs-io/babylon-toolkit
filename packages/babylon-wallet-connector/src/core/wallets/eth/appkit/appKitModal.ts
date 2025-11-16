@@ -2,13 +2,17 @@ import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
-import type { Config } from "wagmi";
 import { cookieStorage, createStorage } from "wagmi";
+import type { Chain } from "viem";
 
 import { setSharedBtcAppKitConfig } from "../../btc/appkit/sharedConfig";
 
 import { setSharedWagmiConfig } from "./sharedConfig";
 
+/**
+ * Minimal AppKit configuration
+ * Only includes required fields for vault usage
+ */
 export interface AppKitModalConfig {
   projectId?: string;
   metadata: {
@@ -17,20 +21,11 @@ export interface AppKitModalConfig {
     url: string;
     icons: string[];
   };
-  themeMode?: "light" | "dark";
-  themeVariables?: {
-    "--w3m-accent"?: string;
-  };
-  featuredWalletIds?: string[];
-  networks?: any[];
-  features?: {
-    email?: boolean;
-    socials?: false | string[];
-    analytics?: boolean;
-    swaps?: boolean;
-    onramp?: boolean;
-  };
-  allWallets?: "SHOW" | "HIDE" | "ONLY_MOBILE";
+  /**
+   * Optional ETH network chain configuration
+   * If not provided, defaults to Ethereum mainnet
+   */
+  ethChain?: Chain;
 }
 
 export interface AppKitBtcConfig {
@@ -68,44 +63,20 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
   // Use metadata directly from config (now required)
   const metadata = config.metadata;
 
-  // Define networks for AppKit - use minimal network configuration
-  const networks =
-    config?.networks ||
-    ([
-      {
-        id: 1,
-        name: "Ethereum",
-        nativeCurrency: {
-          name: "Ether",
-          symbol: "ETH",
-          decimals: 18,
-        },
-        rpcUrls: {
-          default: { http: ["https://cloudflare-eth.com"] },
-        },
-        blockExplorers: {
-          default: { name: "Etherscan", url: "https://etherscan.io" },
-        },
-      },
-      {
-        id: 11155111,
-        name: "Sepolia",
-        nativeCurrency: {
-          name: "Sepolia Ether",
-          symbol: "ETH",
-          decimals: 18,
-        },
-        rpcUrls: {
-          default: { http: ["https://rpc.sepolia.org"] },
-        },
-        blockExplorers: {
-          default: { name: "Etherscan", url: "https://sepolia.etherscan.io" },
-        },
-      },
-    ] as any);
+  // Use provided ETH chain or default to mainnet
+  // Consuming apps can pass their network config (e.g., from @babylonlabs-io/config)
+  const ethChain: Chain = config.ethChain || ({
+    id: 1,
+    name: "Ethereum",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: ["https://cloudflare-eth.com"] } },
+    blockExplorers: { default: { name: "Etherscan", url: "https://etherscan.io" } },
+  } as Chain);
+  const networks = [ethChain];
 
   // Add Bitcoin networks if btcConfig is provided
-  const allNetworks = [...networks];
+  // Use any[] to avoid type conflicts between different network definitions
+  const allNetworks: any[] = [...networks];
   let customBtcNetwork: any;
   if (btcConfig) {
     const baseBtcNetwork = btcConfig.network === "mainnet" ? bitcoin : bitcoinSignet;
@@ -134,7 +105,7 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
 
   // Create Wagmi Adapter with storage for reconnection
   wagmiAdapter = new WagmiAdapter({
-    networks,
+    networks: networks as any, // Cast to any - WagmiAdapter handles type conversion internally
     projectId,
     ssr: false,
     storage,
@@ -153,26 +124,12 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
   }
 
   // Create and store the AppKit modal instance with all adapters
+  // Using AppKit's defaults for all optional settings
   appKitModal = createAppKit({
     adapters,
     networks: allNetworks as any,
     projectId,
     metadata,
-    features: {
-      analytics: config.features?.analytics ?? true,
-      swaps: config.features?.swaps ?? false,
-      onramp: config.features?.onramp ?? false,
-    },
-    enableWalletConnect: true,
-    enableCoinbase: true,
-    themeMode: config.themeMode || "light",
-    themeVariables: config.themeVariables || {
-      "--w3m-accent": "#FF7C2A",
-    },
-    featuredWalletIds: config.featuredWalletIds || [
-      "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96", // MetaMask
-    ],
-    allWallets: config.allWallets || "SHOW",
   });
 
   // Set the shared wagmi config for the wallet-connector AppKitProvider
@@ -189,49 +146,4 @@ export function initializeAppKitModal(config: AppKitModalConfig, btcConfig?: App
   }
 
   return { modal: appKitModal, wagmiConfig: wagmiAdapter.wagmiConfig, bitcoinAdapter };
-}
-
-/**
- * Get the initialized AppKit modal instance
- * Throws if not initialized
- */
-export function getAppKitModal() {
-  if (!appKitModal) {
-    throw new Error("AppKit modal not initialized. Call initializeAppKitModal() first.");
-  }
-  return appKitModal;
-}
-
-/**
- * Get the wagmi configuration from the initialized AppKit
- * Throws if not initialized
- */
-export function getAppKitWagmiConfig(): Config {
-  if (!wagmiAdapter) {
-    throw new Error("AppKit wagmi adapter not initialized. Call initializeAppKitModal() first.");
-  }
-  return (wagmiAdapter as any).wagmiConfig;
-}
-
-/**
- * Check if AppKit modal has been initialized
- */
-export function hasAppKitModal(): boolean {
-  return appKitModal !== null && wagmiAdapter !== null;
-}
-
-/**
- * Open the AppKit modal programmatically
- */
-export function openAppKitModal() {
-  const modal = getAppKitModal();
-  modal.open();
-}
-
-/**
- * Close the AppKit modal programmatically
- */
-export function closeAppKitModal() {
-  const modal = getAppKitModal();
-  modal.close();
 }

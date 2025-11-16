@@ -33,22 +33,12 @@ export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 // Export ETH AppKit modal utilities
 export {
     initializeAppKitModal,
-    getAppKitModal,
-    getAppKitWagmiConfig,
-    hasAppKitModal,
-    openAppKitModal,
-    closeAppKitModal,
     type AppKitModalConfig,
 } from "@/core/wallets/eth/appkit/appKitModal";
 
 // Export BTC AppKit modal utilities
+// Note: Most BTC AppKit functions are used internally and not exported
 export {
-    initializeAppKitBtcModal,
-    getAppKitBtcModal,
-    getBitcoinAdapter,
-    hasAppKitBtcModal,
-    openAppKitBtcModal,
-    closeAppKitBtcModal,
     type AppKitBtcModalConfig,
 } from "@/core/wallets/btc/appkit/appKitBtcModal";
 
