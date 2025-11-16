@@ -5,9 +5,15 @@ import { createAppKit } from "@reown/appkit/react";
 import { cookieStorage, createStorage } from "wagmi";
 import type { Chain } from "viem";
 
-import { setSharedBtcAppKitConfig } from "../../btc/appkit/sharedConfig";
+import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
+import { setSharedWagmiConfig } from "../eth/appkit/sharedConfig";
 
-import { setSharedWagmiConfig } from "./sharedConfig";
+/**
+ * Unified AppKit Modal Configuration
+ *
+ * This file provides a unified initialization point for both ETH and BTC AppKit adapters.
+ * It creates a single AppKit modal instance that supports both chains.
+ */
 
 /**
  * Minimal AppKit configuration
@@ -35,6 +41,14 @@ export interface AppKitBtcConfig {
 let appKitModal: ReturnType<typeof createAppKit> | null = null;
 let wagmiAdapter: WagmiAdapter | null = null;
 let bitcoinAdapter: BitcoinAdapter | null = null;
+
+/**
+ * Get the AppKit modal instance (if initialized)
+ * @returns The AppKit modal instance or null if not initialized
+ */
+export function getAppKitModal() {
+  return appKitModal;
+}
 
 /**
  * Initialize AppKit modal with wagmi and/or bitcoin adapters

@@ -95,4 +95,13 @@ export default defineConfig({
     ),
     "process.env.NEXT_TELEMETRY_DISABLED": JSON.stringify("1"),
   },
+  resolve: {
+    alias: {
+      // Stub out Node.js-only packages for browser
+      ws: resolve(__dirname, "src/stubs/ws.ts"),
+    },
+  },
+  optimizeDeps: {
+    exclude: ["ws"],
+  },
 });

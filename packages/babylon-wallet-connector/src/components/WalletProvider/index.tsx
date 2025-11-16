@@ -7,7 +7,7 @@ import { createAccountStorage } from "@/core/storage";
 import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 import { initializeAppKitBtcModal, type AppKitBtcModalConfig } from "@/core/wallets/btc/appkit/appKitBtcModal";
 import { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
-import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
+import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
 import { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
 import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
@@ -108,6 +108,7 @@ export function WalletProvider({
   );
 
   // Listen for requests to open the AppKit modals (triggered by connectors)
+  // These hooks gracefully handle cases where AppKit is not initialized
   useAppKitOpenListener();
   useAppKitBtcOpenListener();
 

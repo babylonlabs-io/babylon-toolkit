@@ -30,11 +30,12 @@ export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from
 export { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
 export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 
-// Export ETH AppKit modal utilities
+// Export unified AppKit modal utilities (supports both ETH and BTC)
 export {
     initializeAppKitModal,
     type AppKitModalConfig,
-} from "@/core/wallets/eth/appkit/appKitModal";
+    type AppKitBtcConfig,
+} from "@/core/wallets/appkit/appKitModal";
 
 // Export BTC AppKit modal utilities
 // Note: Most BTC AppKit functions are used internally and not exported

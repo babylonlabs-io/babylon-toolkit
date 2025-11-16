@@ -41,6 +41,7 @@ export default defineConfig({
         // @reown packages that use viem internally
         "@reown/appkit",
         "@reown/appkit-adapter-wagmi",
+        "@reown/appkit-adapter-bitcoin",
         /^@reown\//, // Match all @reown/* packages
       ],
       output: {
