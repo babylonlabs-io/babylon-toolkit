@@ -135,7 +135,7 @@ export default function StakingForm({
     if (additionalBabyNeeded <= 0) return;
 
     if (formRef.current) {
-      // Set prefilledAmountRef before setValue so handleChange can detect it
+      // Set prefilledAmountRef before setValue to track the prefilled amount for later analytics
       prefilledAmountRef.current = additionalBabyNeeded;
 
       runProgrammaticChange(() => {
