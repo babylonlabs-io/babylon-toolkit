@@ -27,7 +27,7 @@ export function wait(ms: number): Promise<void> {
  */
 export function createDeferred<T>() {
   let resolve: (value: T) => void;
-  let reject: (error: any) => void;
+  let reject: (error: unknown) => void;
 
   const promise = new Promise<T>((res, rej) => {
     resolve = res;
@@ -42,8 +42,9 @@ export function createDeferred<T>() {
 }
 
 /**
- * Type-safe mock creator for complex objects
+ * Type-safe mock creator for complex objects.
+ * Returns a Partial<T>; callers are responsible for providing required properties if needed.
  */
-export function createMock<T>(overrides: Partial<T> = {}): T {
-  return overrides as T;
+export function createMock<T>(overrides: Partial<T> = {}): Partial<T> {
+  return overrides;
 }
