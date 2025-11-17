@@ -22,15 +22,9 @@ export const Wallets = memo(({ chain, className, append, onClose, onBack, onSele
 
   const handleWalletClick = useCallback(
     async (wallet: IWallet) => {
-      if (wallet?.id === "appkit-eth-connector") {
-        try {
-          window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
-        } catch {
-          onSelectWallet?.(chain, wallet);
-        }
-        return;
-      }
-
+      // For AppKit wallets, we call onSelectWallet which triggers connector.connect()
+      // which then calls provider.connectWallet() which dispatches the open event
+      // and sets up the connection event listener
       onSelectWallet?.(chain, wallet);
     },
     [chain, onSelectWallet],

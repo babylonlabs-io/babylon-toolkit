@@ -16,8 +16,8 @@ import {
 import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
-import { wagmiConfig as fallbackWagmiConfig } from "./config";
 import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
 /**
@@ -29,6 +29,9 @@ import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
  * - Typed data signing (eth_signTypedData_v4)
  * - Transaction sending and gas estimation
  * - Network switching and information
+ *
+ * IMPORTANT: Requires shared wagmi config to be set via initializeAppKitModal()
+ * before this provider is instantiated. This ensures single wagmi instance.
  */
 export class AppKitProvider implements IETHProvider {
   private config: ETHConfig;
@@ -43,10 +46,17 @@ export class AppKitProvider implements IETHProvider {
   }
 
   /**
-   * Get the current wagmi config (shared if available, otherwise fallback)
+   * Get the shared wagmi config (throws if not set)
+   * This ensures we never create multiple wagmi instances
    */
   private getWagmiConfig() {
-    return hasSharedWagmiConfig() ? getSharedWagmiConfig() : fallbackWagmiConfig;
+    if (!hasSharedWagmiConfig()) {
+      throw new Error(
+        "AppKit ETH not initialized. Ensure AppKit modal is initialized at application startup " +
+        "by calling initializeAppKitModal() with eth config in your app's entry point."
+      );
+    }
+    return getSharedWagmiConfig();
   }
 
   private setupEventWatchers(): void {
@@ -111,7 +121,7 @@ export class AppKitProvider implements IETHProvider {
 
       // Open AppKit modal for manual connection
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("babylon:open-appkit"));
+        window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
 
         const waitForConnection = new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {

@@ -19,7 +19,6 @@ interface RequiredEnvVars {
 
   // API endpoints
   VAULT_API_URL: string;
-  MEMPOOL_API: string;
 
   // Optional with defaults
   VAULT_PROVIDER_RPC_URL?: string;
@@ -38,7 +37,6 @@ function validateEnvVars(): RequiredEnvVars {
 
     // API endpoints (required)
     VAULT_API_URL: process.env.NEXT_PUBLIC_VAULT_API_URL,
-    MEMPOOL_API: process.env.NEXT_PUBLIC_MEMPOOL_API,
 
     // Optional (has default)
     VAULT_PROVIDER_RPC_URL: process.env.NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL,
@@ -51,7 +49,6 @@ function validateEnvVars(): RequiredEnvVars {
     "BTC_VAULT",
     "MORPHO",
     "VAULT_API_URL",
-    "MEMPOOL_API",
   ] as const;
 
   const missingVars = requiredVars.filter(
@@ -67,7 +64,6 @@ function validateEnvVars(): RequiredEnvVars {
         BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
         MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
         VAULT_API_URL: "NEXT_PUBLIC_VAULT_API_URL",
-        MEMPOOL_API: "NEXT_PUBLIC_MEMPOOL_API",
       };
       return envVarMap[key] || key;
     });
