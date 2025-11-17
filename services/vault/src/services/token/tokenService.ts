@@ -155,10 +155,6 @@ export async function getTokenMetadata(
   // 3. Create a new fetch promise
   const fetchPromise = (async () => {
     try {
-      console.log(
-        `[TokenService] Fetching metadata from blockchain for: ${checksumAddress}`,
-      );
-
       const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
       if (chainMetadata) {
@@ -170,7 +166,6 @@ export async function getTokenMetadata(
         };
 
         tokenMetadataCache.set(checksumAddress, tokenMetadata);
-        console.log(`[TokenService] Fetched token metadata:`, tokenMetadata);
         return tokenMetadata;
       }
 
