@@ -124,13 +124,6 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     });
 
     adapters.push(bitcoinAdapter);
-
-    // Set the shared BTC AppKit config
-    setSharedBtcAppKitConfig({
-      modal: appKitModal!, // Will be set below
-      adapter: bitcoinAdapter,
-      network: config.btc.network,
-    });
   }
 
   // Must have at least one network (ETH or BTC)
@@ -146,7 +139,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     metadata,
   });
 
-  // Update BTC config with actual modal instance
+  // Set the shared BTC AppKit config with the actual modal instance
   if (bitcoinAdapter && config.btc?.network) {
     setSharedBtcAppKitConfig({
       modal: appKitModal,
