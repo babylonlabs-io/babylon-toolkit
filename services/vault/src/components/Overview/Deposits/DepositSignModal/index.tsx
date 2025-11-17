@@ -1,3 +1,4 @@
+import { getETHChain } from "@babylonlabs-io/config";
 import {
   Button,
   DialogBody,
@@ -8,11 +9,29 @@ import {
   Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useRef } from "react";
+import {
+  getSharedWagmiConfig,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
-// Migration: Using new architecture with compatibility layer
-import { useDepositFlow } from "@/hooks/deposit/useDepositFlowCompat";
+import { useUTXOs } from "@/hooks/useUTXOs";
+import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { depositService } from "@/services/deposit";
+import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
+import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
+import { addPendingPegin } from "@/storage/peginStorage";
+import { processPublicKeyToXOnly } from "@/utils/btc";
+
+interface BtcWalletProvider {
+  signMessage: (
+    message: string,
+    type: "ecdsa" | "bip322-simple",
+  ) => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+}
 
 interface CollateralDepositSignModalProps {
   open: boolean;
@@ -22,13 +41,13 @@ interface CollateralDepositSignModalProps {
     ethTxHash: string,
     depositorBtcPubkey: string,
   ) => void;
-  amount: bigint; // in satoshis
-  btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
+  amount: bigint;
+  btcWalletProvider: BtcWalletProvider;
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
-  vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
-  liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
-  onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
+  vaultProviderBtcPubkey: string;
+  liquidatorBtcPubkeys: string[];
+  onRefetchActivities?: () => Promise<void>;
 }
 
 export function CollateralDepositSignModal({
@@ -43,57 +62,178 @@ export function CollateralDepositSignModal({
   liquidatorBtcPubkeys,
   onRefetchActivities,
 }: CollateralDepositSignModalProps) {
-  // Track previous open state to detect transitions
+  const [currentStep, setCurrentStep] = useState(1);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const prevOpenRef = useRef(false);
   const hasExecutedRef = useRef(false);
 
-  const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
-    {
-      amount,
-      btcWalletProvider,
-      depositorEthAddress,
-      selectedProviders,
-      vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys,
-      modalOpen: open, // Pass modal open state to control Step 3 auto-signing
-      onSuccess: (
-        btcTxid: string,
-        ethTxHash: string,
-        depositorBtcPubkey: string,
-      ) => {
-        // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
-        // and after Step 3 (PAYOUT_SIGNED)
+  const btcConnector = useChainConnector("BTC");
+  const btcAddress = btcConnector?.connectedWallet?.account?.address;
 
-        // Trigger refetch to immediately show the updated deposit
-        if (onRefetchActivities) {
-          onRefetchActivities();
-        }
+  const {
+    confirmedUTXOs,
+    isLoading: isUTXOsLoading,
+    error: utxoError,
+  } = useUTXOs(btcAddress);
 
-        // Call parent success handler with depositor BTC pubkey
-        onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
-      },
-    },
-  );
+  const executeDepositFlow = useCallback(async () => {
+    try {
+      setProcessing(true);
+      setError(null);
 
-  // Execute flow once when modal transitions from closed to open
+      if (!btcAddress) {
+        throw new Error("BTC wallet not connected");
+      }
+      if (!depositorEthAddress) {
+        throw new Error("ETH wallet not connected");
+      }
+
+      const amountValidation = depositService.validateDepositAmount(
+        amount,
+        10000n,
+        21000000_00000000n,
+      );
+      if (!amountValidation.valid) {
+        throw new Error(amountValidation.error);
+      }
+
+      if (selectedProviders.length === 0) {
+        throw new Error("No providers selected");
+      }
+
+      if (isUTXOsLoading) {
+        throw new Error("Loading UTXOs...");
+      }
+      if (utxoError) {
+        throw new Error(`Failed to load UTXOs: ${utxoError}`);
+      }
+      if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+        throw new Error("No confirmed UTXOs available");
+      }
+
+      setCurrentStep(1);
+
+      const btcPopSignatureRaw = await createProofOfPossession({
+        ethAddress: depositorEthAddress,
+        btcAddress,
+        chainId: getETHChain().id,
+        signMessage: (message: string) =>
+          btcWalletProvider.signMessage(message, "ecdsa"),
+      });
+
+      setCurrentStep(2);
+
+      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+
+      const processedVaultProviderKey = vaultProviderBtcPubkey.startsWith("0x")
+        ? vaultProviderBtcPubkey.slice(2)
+        : vaultProviderBtcPubkey;
+
+      const processedLiquidatorKeys = liquidatorBtcPubkeys.map((key) =>
+        key.startsWith("0x") ? key.slice(2) : key,
+      );
+
+      const wagmiConfig = getSharedWagmiConfig();
+      const expectedChainId = getETHChain().id;
+
+      try {
+        await switchChain(wagmiConfig, { chainId: expectedChainId });
+      } catch (switchError) {
+        console.error("Failed to switch chain:", switchError);
+        throw new Error(
+          `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
+        );
+      }
+
+      const walletClient = await getWalletClient(wagmiConfig, {
+        chainId: expectedChainId,
+        account: depositorEthAddress,
+      });
+
+      if (!walletClient) {
+        throw new Error("Failed to get wallet client");
+      }
+
+      const fees = depositService.calculateDepositFees(amount);
+
+      const result = await submitPeginRequest(
+        walletClient,
+        getETHChain(),
+        depositorEthAddress,
+        depositorBtcPubkey,
+        amount,
+        confirmedUTXOs,
+        Number(fees.btcNetworkFee),
+        btcAddress,
+        selectedProviders[0] as Address,
+        processedVaultProviderKey,
+        processedLiquidatorKeys,
+        btcPopSignatureRaw,
+      );
+
+      const btcTxid = "0x" + result.btcTxid;
+      const ethTxHash = result.transactionHash;
+
+      const pendingPeginData = {
+        id: btcTxid,
+        depositAmount: amount.toString(),
+        btcAddress,
+        ethAddress: depositorEthAddress,
+        contractStatus: 0,
+        localStatus: LocalStorageStatus.PENDING,
+        ethTxHash,
+        timestamp: Date.now(),
+        vaultProviderBtcPubkey: processedVaultProviderKey,
+        selectedProviders,
+      };
+
+      addPendingPegin(depositorEthAddress, pendingPeginData);
+
+      setCurrentStep(3);
+
+      if (onRefetchActivities) {
+        await onRefetchActivities();
+      }
+
+      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(errorMessage);
+      console.error("Deposit flow error:", err);
+    } finally {
+      setProcessing(false);
+    }
+  }, [
+    amount,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+    onSuccess,
+    btcAddress,
+    confirmedUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    onRefetchActivities,
+  ]);
+
   useEffect(() => {
     const justOpened = open && !prevOpenRef.current;
     if (justOpened && !hasExecutedRef.current) {
-      // Mark as executed immediately to prevent duplicate calls (React 18 Strict Mode)
       hasExecutedRef.current = true;
       executeDepositFlow();
     }
 
-    // Reset execution flag when modal closes
     if (!open && prevOpenRef.current) {
       hasExecutedRef.current = false;
     }
 
-    // Update previous open state
     prevOpenRef.current = open;
-    // executeDepositFlow is intentionally not in deps - we only want to execute on modal open transition
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, executeDepositFlow]);
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>

@@ -38,10 +38,3 @@ export type { DepositStateData } from "../../components/Overview/Deposits/state/
 
 // Keep the old hook result type for backwards compatibility
 export type { UseDepositStateResult } from "./useDepositState";
-
-// Compatibility layer for migration
-export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
-export type {
-  UseDepositFlowParams as UseDepositFlowCompatParams,
-  UseDepositFlowReturn as UseDepositFlowCompatReturn,
-} from "./useDepositFlowCompat";
