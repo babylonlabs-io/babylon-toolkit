@@ -39,9 +39,12 @@ export function useUserPositions(
 ): UseUserPositionsResult {
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["userPositions", connectedAddress, CONTRACTS.VAULT_CONTROLLER],
+    queryKey: ["userPositions", connectedAddress, CONTRACTS.MORPHO_CONTROLLER],
     queryFn: () =>
-      getUserPositionsWithMorpho(connectedAddress!, CONTRACTS.VAULT_CONTROLLER),
+      getUserPositionsWithMorpho(
+        connectedAddress!,
+        CONTRACTS.MORPHO_CONTROLLER,
+      ),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,

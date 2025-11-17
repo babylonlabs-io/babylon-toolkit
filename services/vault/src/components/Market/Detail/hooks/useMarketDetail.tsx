@@ -53,13 +53,13 @@ export function useMarketDetail() {
       "userPositionForMarket",
       address,
       marketId,
-      CONTRACTS.VAULT_CONTROLLER,
+      CONTRACTS.MORPHO_CONTROLLER,
     ],
     queryFn: () =>
       getUserPositionForMarket(
         address as Address,
         marketId!,
-        CONTRACTS.VAULT_CONTROLLER,
+        CONTRACTS.MORPHO_CONTROLLER,
       ),
     enabled: !!address && !!marketId,
     retry: 2,

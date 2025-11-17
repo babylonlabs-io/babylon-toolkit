@@ -14,8 +14,8 @@ import type {
 } from "../../clients/eth-contract";
 import {
   Morpho,
+  MorphoController,
   MorphoOracle,
-  VaultController,
 } from "../../clients/eth-contract";
 
 /**
@@ -24,7 +24,7 @@ import {
 export interface PositionWithMorpho {
   /** Position ID */
   positionId: Hex;
-  /** Position data from BTCVaultController */
+  /** Position data from MorphoIntegrationController */
   position: MarketPosition;
   /** User's Morpho position data (via proxy contract) */
   morphoPosition: MorphoUserPosition;
@@ -38,16 +38,16 @@ export interface PositionWithMorpho {
  * Get all user positions with Morpho data
  *
  * @param userAddress - User's Ethereum address
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @returns Array of positions with Morpho position, full market data, and BTC price
  */
 export async function getUserPositionsWithMorpho(
   userAddress: Address,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
 ): Promise<PositionWithMorpho[]> {
   // Step 1: Get all position IDs for the user
-  const positionIds = await VaultController.getUserPositions(
-    vaultControllerAddress,
+  const positionIds = await MorphoController.getUserPositions(
+    morphoControllerAddress,
     userAddress,
   );
 
@@ -57,8 +57,8 @@ export async function getUserPositionsWithMorpho(
   }
 
   // Step 2: Bulk fetch all position data in a single multicall
-  const positions = await VaultController.getPositionsBulk(
-    vaultControllerAddress,
+  const positions = await MorphoController.getPositionsBulk(
+    morphoControllerAddress,
     positionIds,
   );
 
@@ -174,24 +174,28 @@ export async function getUserPositionsWithMorpho(
  *
  * @param userAddress - User's Ethereum address
  * @param marketId - Market ID
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @returns Position data with current loan/collateral from Morpho, or null if no position exists
  */
 export async function getUserPositionForMarket(
   userAddress: Address,
   marketId: string | bigint,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
 ): Promise<{
   positionId: Hex;
   marketId: Hex;
   currentLoan: bigint;
   currentCollateral: bigint;
 } | null> {
-  // Get position from Vault Controller (contains positionId and proxy address)
+  // Get position from Morpho Controller (contains positionId and proxy address)
   const [position, positionId] = await Promise.all([
-    VaultController.getPosition(vaultControllerAddress, userAddress, marketId),
-    VaultController.getPositionKey(
-      vaultControllerAddress,
+    MorphoController.getPosition(
+      morphoControllerAddress,
+      userAddress,
+      marketId,
+    ),
+    MorphoController.getPositionKey(
+      morphoControllerAddress,
       userAddress,
       marketId,
     ),
@@ -218,16 +222,16 @@ export async function getUserPositionForMarket(
  * Get a single position by position ID with full Morpho data
  *
  * @param positionId - Position ID (hex string)
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @returns Position with Morpho data, or null if not found
  */
 export async function getSinglePositionWithMorpho(
   positionId: Hex,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
 ): Promise<PositionWithMorpho | null> {
   // Step 1: Fetch position data
-  const positions = await VaultController.getPositionsBulk(
-    vaultControllerAddress,
+  const positions = await MorphoController.getPositionsBulk(
+    morphoControllerAddress,
     [positionId],
   );
 

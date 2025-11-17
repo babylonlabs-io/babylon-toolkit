@@ -10,17 +10,18 @@ import { ENV } from "./env";
 
 export const CONTRACTS = {
   /**
-   * BTCVaultsManager contract - Manages vault providers and pegin requests
+   * BTCVaultsManager contract - Manages vault lifecycle (submit, ACK, activate, redeem)
    */
   BTC_VAULTS_MANAGER: ENV.BTC_VAULTS_MANAGER as Address,
 
   /**
-   * VaultController contract - Controls vault operations and borrowing
+   * MorphoIntegrationController contract - Morpho-specific application controller
+   * Controls collateral, borrowing, and lending operations for Morpho protocol
    */
-  VAULT_CONTROLLER: ENV.VAULT_CONTROLLER as Address,
+  MORPHO_CONTROLLER: ENV.MORPHO_CONTROLLER as Address,
 
   /**
-   * BTCVault base contract
+   * VaultBTC token contract - ERC20 representation of BTC vaults
    */
   BTC_VAULT: ENV.BTC_VAULT as Address,
 

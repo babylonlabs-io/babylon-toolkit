@@ -115,7 +115,7 @@ export function useRepayTransaction({
             await repayDebtFull(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               positionId as `0x${string}`,
               marketId,
             );
@@ -125,7 +125,7 @@ export function useRepayTransaction({
             await repayDebtPartial(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               positionId as `0x${string}`,
               marketId,
               repayAmountBigint,
@@ -143,7 +143,7 @@ export function useRepayTransaction({
             await withdrawCollateralFromPosition(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               marketId,
             );
           } catch (error) {

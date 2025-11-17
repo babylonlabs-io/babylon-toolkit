@@ -62,7 +62,7 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_VAULT_API_URL` - Vault indexer API endpoint
   - Example: `https://vault-indexer-api.vault-devnet.babylonlabs.io`
 - `NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER` - TBV BTC Vaults Manager contract address
-- `NEXT_PUBLIC_TBV_VAULT_CONTROLLER` - TBV Vault Controller contract address
+- `NEXT_PUBLIC_TBV_MORPHO_CONTROLLER` - TBV Morpho Integration Controller contract address
 - `NEXT_PUBLIC_TBV_BTC_VAULT` - TBV BTC Vault contract address
 - `NEXT_PUBLIC_TBV_MORPHO` - TBV Morpho contract address
 

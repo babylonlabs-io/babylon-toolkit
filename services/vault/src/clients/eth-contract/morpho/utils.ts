@@ -13,7 +13,7 @@ import {
   type Hex,
 } from "viem";
 
-import type { MarketParams } from "../vault-controller/transaction";
+import type { MarketParams } from "../morpho-controller/transaction";
 
 /**
  * Calculate Morpho market ID from market parameters
