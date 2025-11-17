@@ -7,27 +7,32 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
       "import": "./dist/index.js"
     },
     "./tbv": {
       "types": "./dist/tbv/index.d.ts",
+      "require": "./dist/tbv/index.cjs",
       "import": "./dist/tbv/index.js"
     },
     "./tbv/core": {
       "types": "./dist/tbv/core/index.d.ts",
+      "require": "./dist/tbv/core/index.cjs",
       "import": "./dist/tbv/core/index.js"
     },
     "./tbv/integrations/morpho": {
       "types": "./dist/tbv/integrations/morpho/index.d.ts",
+      "require": "./dist/tbv/integrations/morpho/index.cjs",
       "import": "./dist/tbv/integrations/morpho/index.js"
     },
     "./shared": {
       "types": "./dist/shared/index.d.ts",
+      "require": "./dist/shared/index.cjs",
       "import": "./dist/shared/index.js"
     }
   },
   "scripts": {
-    "build": "tsc -b tsconfig.lib.json",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\""
   },
@@ -55,7 +60,9 @@
     "@internal/eslint-config": "workspace:*",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.3.0"
   },
   "publishConfig": {
     "access": "public"
