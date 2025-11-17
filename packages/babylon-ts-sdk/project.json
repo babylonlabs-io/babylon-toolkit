@@ -1,0 +1,13 @@
+{
+  "name": "@babylonlabs-io/ts-sdk",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "{projectRoot}/src",
+  "projectType": "library",
+  "tags": ["type:package"],
+  "targets": {
+    "build": {
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    }
+  }
+}
