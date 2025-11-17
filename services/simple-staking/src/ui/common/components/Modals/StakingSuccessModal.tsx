@@ -2,6 +2,12 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router";
 
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
+import { useCoStakingState } from "@/ui/common/state/CoStakingState";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 
 import { CoStakingBoostModal } from "./CoStakingBoostModal";
 import { SuccessFeedbackModal } from "./SuccessFeedbackModal";
@@ -24,8 +30,17 @@ export function StakingSuccessModal({
   onClose,
 }: StakingSuccessModalProps) {
   const navigate = useNavigate();
+  const { eligibility } = useCoStakingState();
 
   const handleSubmitBoost = useCallback(() => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "StakingSuccessModal",
+        babyAmount: eligibility.additionalBabyNeeded,
+      },
+    );
     onClose();
 
     // Navigate to baby page with flag to trigger prefill
@@ -34,7 +49,7 @@ export function StakingSuccessModal({
         shouldPrefillCoStaking: true,
       },
     });
-  }, [navigate, onClose]);
+  }, [navigate, onClose, eligibility.additionalBabyNeeded]);
 
   if (FeatureFlagService.IsCoStakingEnabled) {
     return (

@@ -59,8 +59,10 @@ export default function StakingForm({
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
 
-  const prefilledAmountRef = useRef<number | null>(null);
-  const previousValuesRef = useRef<Partial<StakingFormFields>>({});
+  const [validationTrackingFields, setValidationTrackingFields] = useState({
+    amount: false,
+    validatorAddresses: false,
+  });
   const [amountTrackingPayload, setAmountTrackingPayload] = useState<Record<
     string,
     unknown
@@ -77,6 +79,14 @@ export default function StakingForm({
       feeAmount: babyStakeDraft?.feeAmount,
     };
   }, [babyStakeDraft]);
+
+  const { prefilledAmountRef, runProgrammaticChange } =
+    useStakingFormChangeTracker({
+      formRef,
+      setBabyStakeDraft,
+      setValidationTrackingFields,
+      setAmountTrackingPayload,
+    });
 
   const handlePreview = useCallback(
     ({
@@ -100,80 +110,9 @@ export default function StakingForm({
         validatorAddress: validatorAddresses[0],
       });
     },
-    [showPreview],
+    [showPreview, prefilledAmountRef],
   );
 
-  const handleChange = useCallback(
-    (data: DeepPartial<StakingFormFields>) => {
-      const previousValues = previousValuesRef.current;
-      const amountValue = Number(data.amount);
-
-      setBabyStakeDraft({
-        ...data,
-        validatorAddresses: data.validatorAddresses?.filter(
-          (i) => i !== undefined,
-        ),
-      });
-
-      // Track field-level interactions - only for fields that actually changed
-      if ("amount" in data && data.amount !== previousValues.amount) {
-        const wasPrefilledFromCoStaking =
-          amountValue !== undefined &&
-          prefilledAmountRef.current !== null &&
-          amountValue === prefilledAmountRef.current;
-
-        setAmountTrackingPayload({
-          fieldName: "amount",
-          hasValue: Boolean(data.amount),
-          valueType: typeof data.amount,
-          wasPrefilledFromCoStaking,
-        });
-
-        // If user modifies the amount away from the prefilled value, clear the prefill marker
-        const shouldClearPrefill =
-          prefilledAmountRef.current !== null &&
-          (amountValue === undefined ||
-            amountValue !== prefilledAmountRef.current);
-
-        if (shouldClearPrefill) {
-          prefilledAmountRef.current = null;
-        }
-      }
-
-      if (
-        "validatorAddresses" in data &&
-        JSON.stringify(data.validatorAddresses) !==
-          JSON.stringify(previousValues.validatorAddresses)
-      ) {
-        const list =
-          data.validatorAddresses?.filter((i: unknown) => i !== undefined) ??
-          [];
-
-        trackEvent(
-          AnalyticsCategory.FORM_INTERACTION,
-          AnalyticsMessage.FORM_FIELD_CHANGED,
-          {
-            fieldName: "validatorAddresses",
-            // Redact actual values for privacy, just track that interaction occurred
-            hasValue: list.length > 0,
-            valueType: "array",
-            arrayCount: list.length,
-            validatorCount: list.length,
-          },
-        );
-      }
-
-      // Update previous values for next comparison
-      previousValuesRef.current = {
-        amount: data.amount,
-        validatorAddresses: data.validatorAddresses?.filter(
-          (i): i is string => i !== undefined,
-        ),
-        feeAmount: data.feeAmount,
-      };
-    },
-    [setBabyStakeDraft],
-  );
   useEffect(() => {
     if (!debouncedAmountTrackingPayload) return;
     trackEvent(
@@ -199,17 +138,12 @@ export default function StakingForm({
       // Set prefilledAmountRef before setValue so handleChange can detect it
       prefilledAmountRef.current = additionalBabyNeeded;
 
-      formRef.current.setValue<"amount">("amount", additionalBabyNeeded, {
-        shouldDirty: true,
-        shouldTouch: true,
-        shouldValidate: true,
-      });
-
-      const currentFormValues = formRef.current.getValues();
-      setBabyStakeDraft({
-        amount: additionalBabyNeeded,
-        validatorAddresses: currentFormValues.validatorAddresses,
-        feeAmount: currentFormValues.feeAmount,
+      runProgrammaticChange(() => {
+        formRef.current?.setValue<"amount">("amount", additionalBabyNeeded, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        });
       });
     }
 
@@ -231,7 +165,14 @@ export default function StakingForm({
     additionalBabyNeeded,
     isCoStakingLoading,
     setBabyStakeDraft,
+    runProgrammaticChange,
+    prefilledAmountRef,
   ]);
+
+  useValidationTracker({
+    formRef,
+    enabledFields: validationTrackingFields,
+  });
 
   return (
     <Form
@@ -240,7 +181,6 @@ export default function StakingForm({
       className="flex flex-col gap-2"
       onSubmit={handlePreview}
       defaultValues={defaultValues}
-      onChange={handleChange}
     >
       <AmountField />
       <ValidatorField />
@@ -251,4 +191,300 @@ export default function StakingForm({
       <FormAlert {...disabled} />
     </Form>
   );
+}
+
+interface UseValidationTrackerParams {
+  formRef: React.RefObject<FormRef<StakingFormFields>>;
+  enabledFields: { amount: boolean; validatorAddresses: boolean };
+}
+
+function useValidationTracker({
+  formRef,
+  enabledFields,
+}: UseValidationTrackerParams) {
+  const lastLoggedErrorsRef = useRef<Record<string, string | undefined>>({});
+  const [amountError, setAmountError] = useState<
+    { message: string; errorType?: string } | undefined
+  >(undefined);
+  const [validatorError, setValidatorError] = useState<
+    { message: string; errorType?: string } | undefined
+  >(undefined);
+
+  const getFieldError = useCallback(
+    (fieldName: keyof StakingFormFields) => {
+      const form = formRef.current;
+      if (!form) return undefined;
+
+      const { error, isDirty, isTouched } = form.getFieldState(
+        fieldName,
+        form.formState,
+      );
+
+      if (!(isDirty || isTouched) || !error) return undefined;
+      if (typeof error.message !== "string") return undefined;
+
+      return {
+        message: error.message,
+        errorType: typeof error.type === "string" ? error.type : undefined,
+      };
+    },
+    [formRef],
+  );
+
+  const updateFieldErrors = useCallback(() => {
+    if (!formRef.current) return;
+
+    if (enabledFields.amount) {
+      setAmountError((previous) => {
+        const next = getFieldError("amount");
+        if (
+          previous?.message === next?.message &&
+          previous?.errorType === next?.errorType
+        )
+          return previous;
+        return next;
+      });
+    } else {
+      setAmountError(undefined);
+    }
+
+    if (enabledFields.validatorAddresses) {
+      setValidatorError((previous) => {
+        const next = getFieldError("validatorAddresses");
+        if (
+          previous?.message === next?.message &&
+          previous?.errorType === next?.errorType
+        )
+          return previous;
+        return next;
+      });
+    } else {
+      setValidatorError(undefined);
+    }
+  }, [
+    enabledFields.amount,
+    enabledFields.validatorAddresses,
+    getFieldError,
+    formRef,
+  ]);
+
+  useEffect(() => {
+    if (!formRef.current) return;
+
+    updateFieldErrors();
+
+    const subscription = formRef.current.watch(() => {
+      updateFieldErrors();
+    });
+
+    return () => subscription.unsubscribe();
+  }, [formRef, updateFieldErrors]);
+
+  const debouncedAmountFieldError = useDebounce(
+    enabledFields.amount ? amountError : undefined,
+    300,
+  );
+  const debouncedValidatorFieldError = useDebounce(
+    enabledFields.validatorAddresses ? validatorError : undefined,
+    300,
+  );
+
+  useEffect(() => {
+    if (!enabledFields.amount) return;
+
+    const message = debouncedAmountFieldError?.message;
+    if (!message) {
+      lastLoggedErrorsRef.current.amount = undefined;
+      return;
+    }
+
+    if (lastLoggedErrorsRef.current.amount === message) return;
+
+    trackEvent(
+      AnalyticsCategory.FORM_INTERACTION,
+      AnalyticsMessage.FORM_VALIDATION_ERROR,
+      {
+        fieldName: "amount",
+        errorMessage: message,
+        errorType: debouncedAmountFieldError?.errorType,
+      },
+    );
+    lastLoggedErrorsRef.current.amount = message;
+  }, [debouncedAmountFieldError, enabledFields.amount]);
+
+  useEffect(() => {
+    if (!enabledFields.validatorAddresses) return;
+
+    const message = debouncedValidatorFieldError?.message;
+    if (!message) {
+      lastLoggedErrorsRef.current.validatorAddresses = undefined;
+      return;
+    }
+
+    if (lastLoggedErrorsRef.current.validatorAddresses === message) return;
+
+    trackEvent(
+      AnalyticsCategory.FORM_INTERACTION,
+      AnalyticsMessage.FORM_VALIDATION_ERROR,
+      {
+        fieldName: "validatorAddresses",
+        errorMessage: message,
+        errorType: debouncedValidatorFieldError?.errorType,
+      },
+    );
+    lastLoggedErrorsRef.current.validatorAddresses = message;
+  }, [debouncedValidatorFieldError, enabledFields.validatorAddresses]);
+}
+
+interface UseStakingFormChangeTrackerParams {
+  formRef: React.RefObject<FormRef<StakingFormFields>>;
+  setBabyStakeDraft: (draft?: Partial<StakingFormFields>) => void;
+  setValidationTrackingFields: React.Dispatch<
+    React.SetStateAction<{ amount: boolean; validatorAddresses: boolean }>
+  >;
+  setAmountTrackingPayload: React.Dispatch<
+    React.SetStateAction<Record<string, unknown> | null>
+  >;
+}
+
+function useStakingFormChangeTracker({
+  formRef,
+  setBabyStakeDraft,
+  setValidationTrackingFields,
+  setAmountTrackingPayload,
+}: UseStakingFormChangeTrackerParams) {
+  const prefilledAmountRef = useRef<number | null>(null);
+  const previousValuesRef = useRef<Partial<StakingFormFields>>({});
+  const hasInitializedWatchRef = useRef(false);
+  const isProgrammaticChangeRef = useRef(false);
+
+  const areValidatorsEqual = useCallback(
+    (next?: string[], previous?: string[]) => {
+      if (!next && !previous) return true;
+      if (!next || !previous) return false;
+      if (next.length !== previous.length) return false;
+      return next.every((validator, index) => validator === previous[index]);
+    },
+    [],
+  );
+
+  const handleChange = useCallback(
+    (
+      data: DeepPartial<StakingFormFields>,
+      info?: { name?: string; type?: string },
+    ) => {
+      if (!data) return;
+
+      const filteredValidatorAddresses = data.validatorAddresses?.filter(
+        (validator): validator is string => typeof validator === "string",
+      );
+
+      const nextValues: Partial<StakingFormFields> = {
+        amount: data.amount,
+        validatorAddresses: filteredValidatorAddresses,
+        feeAmount: data.feeAmount,
+      };
+
+      setBabyStakeDraft(nextValues);
+
+      const amountValue =
+        typeof data.amount === "number" ? data.amount : undefined;
+
+      const previousValues = previousValuesRef.current;
+
+      const amountChanged =
+        "amount" in data && data.amount !== previousValues.amount;
+
+      const validatorsChanged = !areValidatorsEqual(
+        filteredValidatorAddresses,
+        previousValues.validatorAddresses,
+      );
+
+      if (!hasInitializedWatchRef.current || isProgrammaticChangeRef.current) {
+        previousValuesRef.current = nextValues;
+        hasInitializedWatchRef.current = true;
+        return;
+      }
+
+      if (amountChanged) {
+        setValidationTrackingFields((previous) =>
+          previous.amount ? previous : { ...previous, amount: true },
+        );
+
+        const wasPrefilledFromCoStaking =
+          amountValue !== undefined &&
+          prefilledAmountRef.current !== null &&
+          amountValue === prefilledAmountRef.current;
+
+        setAmountTrackingPayload({
+          fieldName: "amount",
+          hasValue: Boolean(data.amount),
+          valueType: typeof data.amount,
+          wasPrefilledFromCoStaking,
+          changeType: info?.type,
+        });
+
+        const shouldClearPrefill =
+          prefilledAmountRef.current !== null &&
+          (amountValue === undefined ||
+            amountValue !== prefilledAmountRef.current);
+
+        if (shouldClearPrefill) {
+          prefilledAmountRef.current = null;
+        }
+      }
+
+      if (validatorsChanged) {
+        setValidationTrackingFields((previous) =>
+          previous.validatorAddresses
+            ? previous
+            : { ...previous, validatorAddresses: true },
+        );
+        const list = filteredValidatorAddresses ?? [];
+
+        trackEvent(
+          AnalyticsCategory.FORM_INTERACTION,
+          AnalyticsMessage.FORM_FIELD_CHANGED,
+          {
+            fieldName: "validatorAddresses",
+            hasValue: list.length > 0,
+            valueType: "array",
+            arrayCount: list.length,
+            validatorCount: list.length,
+            changeType: info?.type,
+          },
+        );
+      }
+
+      previousValuesRef.current = nextValues;
+    },
+    [
+      areValidatorsEqual,
+      setBabyStakeDraft,
+      setValidationTrackingFields,
+      setAmountTrackingPayload,
+    ],
+  );
+
+  useEffect(() => {
+    if (!formRef.current) return;
+
+    const subscription = formRef.current.watch((values, info) => {
+      handleChange(values, info);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [formRef, handleChange]);
+
+  // Programmatic change is used to update the form values without triggering a change event.
+  // This is used to prefill the co-staking amount and keeping form state persistent.
+  const runProgrammaticChange = useCallback((update: () => void) => {
+    isProgrammaticChangeRef.current = true;
+    update();
+    Promise.resolve().then(() => {
+      isProgrammaticChangeRef.current = false;
+    });
+  }, []);
+
+  return { prefilledAmountRef, runProgrammaticChange };
 }

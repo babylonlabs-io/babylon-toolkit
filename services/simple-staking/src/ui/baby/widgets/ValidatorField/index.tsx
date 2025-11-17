@@ -5,22 +5,15 @@ import {
   ValidatorSelector,
   ValidatorRow,
   FinalityProviderLogo,
-  useFormContext,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect } from "react";
 import { AiOutlinePlus } from "react-icons/ai";
-import { useDebounce } from "@uidotdev/usehooks";
 
 import { useValidatorState } from "@/ui/baby/state/ValidatorState";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPercentage";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
-import {
-  AnalyticsCategory,
-  AnalyticsMessage,
-  trackEvent,
-} from "@/ui/common/utils/analytics";
 
 const { coinSymbol } = getNetworkConfigBBN();
 
@@ -170,58 +163,6 @@ export function ValidatorField() {
       },
     };
   };
-
-  const formContext = useFormContext<{ validatorAddresses?: string[] }>();
-  const lastLoggedErrorRef = useRef<string | undefined>();
-
-  const validatorFieldError = useMemo(() => {
-    if (!formContext) {
-      return;
-    }
-
-    const fieldState = formContext.getFieldState(
-      "validatorAddresses",
-      formContext.formState,
-    );
-    const hasUserInteraction = fieldState.isTouched || fieldState.isDirty;
-    if (!hasUserInteraction) return undefined;
-
-    const message =
-      fieldState.error && typeof fieldState.error.message === "string"
-        ? fieldState.error.message
-        : undefined;
-    const errorType =
-      fieldState.error && typeof fieldState.error.type === "string"
-        ? fieldState.error.type
-        : undefined;
-
-    if (!message) return undefined;
-
-    return { message, errorType };
-  }, [formContext]);
-
-  const debouncedValidatorFieldError = useDebounce(validatorFieldError, 300);
-
-  useEffect(() => {
-    const message = debouncedValidatorFieldError?.message;
-    if (!message) {
-      lastLoggedErrorRef.current = undefined;
-      return;
-    }
-
-    if (lastLoggedErrorRef.current === message) return;
-
-    trackEvent(
-      AnalyticsCategory.FORM_INTERACTION,
-      AnalyticsMessage.FORM_VALIDATION_ERROR,
-      {
-        fieldName: "validatorAddresses",
-        errorMessage: message,
-        errorType: debouncedValidatorFieldError?.errorType,
-      },
-    );
-    lastLoggedErrorRef.current = message;
-  }, [debouncedValidatorFieldError]);
 
   const handleSelect = (row: ValidatorRow) => {
     handleSelectValidator(row);

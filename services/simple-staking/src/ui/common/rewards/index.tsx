@@ -19,6 +19,11 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import FF from "@/ui/common/utils/FeatureFlagService";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+} from "@/ui/common/utils/analytics";
 import { useRewardsState as useBtcRewardsState } from "@/ui/common/state/RewardState";
 import {
   RewardState,
@@ -142,6 +147,14 @@ function RewardsPageContent() {
   }
 
   const handleStakeMoreClick = () => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "RewardsPage",
+        babyAmount: eligibility.additionalBabyNeeded,
+      },
+    );
     navigate("/baby", {
       state: {
         [NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]: true,
