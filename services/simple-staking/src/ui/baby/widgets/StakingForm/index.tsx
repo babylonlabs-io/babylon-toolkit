@@ -475,8 +475,8 @@ function useStakingFormChangeTracker({
     return () => subscription.unsubscribe();
   }, [formRef, handleChange]);
 
-  // Programmatic change is used to update the form values without triggering a change event.
-  // This is used to prefill the co-staking amount and keeping form state persistent.
+  // Marks form updates as programmatic to exclude them from analytics tracking.
+  // This is used for prefilling the co-staking amount and restoring persistent form state.
   const runProgrammaticChange = useCallback((update: () => void) => {
     isProgrammaticChangeRef.current = true;
     update();
