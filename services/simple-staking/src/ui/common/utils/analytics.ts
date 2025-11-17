@@ -39,8 +39,6 @@ export function trackEvent(
   message: AnalyticsMessage,
   data: AnalyticsData = {},
 ) {
-  // TODO: Remove log after testing
-  console.log("trackEvent", category, message, data);
   Sentry.captureEvent({
     message,
     level: "debug",
