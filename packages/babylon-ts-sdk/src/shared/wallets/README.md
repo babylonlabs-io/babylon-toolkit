@@ -20,7 +20,7 @@ interface BitcoinWallet {
   getAddress(): Promise<string>;
   signPsbt(psbtHex: string): Promise<string>;
   signMessage(message: string): Promise<string>;
-  getNetwork(): Promise<"mainnet" | "signet">;
+  getNetwork(): Promise<"mainnet" | "testnet" | "signet" | "regtest">;
 }
 ```
 
@@ -34,13 +34,14 @@ import type { EthereumWallet } from "@babylonlabs-io/ts-sdk/shared";
 interface EthereumWallet {
   getAddress(): Promise<Address>;
   getChainId(): Promise<number>;
-  signMessage(message: string): Promise<Hash>;           // EIP-191 personal_sign
-  signTypedData(typedData: TypedData): Promise<Hash>;   // EIP-712 structured data
+  signMessage(message: string): Promise<Hash>; // EIP-191 personal_sign
+  signTypedData(typedData: TypedData): Promise<Hash>; // EIP-712 structured data
   sendTransaction(tx: TransactionRequest): Promise<Hash>; // Sign + broadcast
 }
 ```
 
 **Key Methods:**
+
 - `signMessage`: Personal message signing (EIP-191) for authentication
 - `signTypedData`: Structured data signing (EIP-712) for permits, approvals, meta-transactions
 - `sendTransaction`: Signs and broadcasts transactions to the network
