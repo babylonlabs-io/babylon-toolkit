@@ -4,7 +4,7 @@
     "baseUrl": ".",
     "outDir": "dist",
     "rootDir": "src",
-    "tsBuildInfoFile": "dist/tsconfig.lib.tsbuildinfo",
+    "tsBuildInfoFile": "tsconfig.lib.tsbuildinfo",
     "skipLibCheck": true,
     "esModuleInterop": true,
     "module": "esnext",
