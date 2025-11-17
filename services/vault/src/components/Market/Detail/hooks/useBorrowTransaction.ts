@@ -3,10 +3,15 @@
  * Handles the borrow flow logic and transaction execution
  */
 
+import { useQueryClient } from "@tanstack/react-query";
 import { parseUnits, type Hex } from "viem";
-import { useWalletClient } from "wagmi";
+import { useAccount, useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
+import {
+  getVaultUsageStatusBulk,
+  VaultUsageStatus,
+} from "../../../../clients/eth-contract/morpho-controller/query";
 import { CONTRACTS } from "../../../../config/contracts";
 import { useError } from "../../../../context/error";
 import {
@@ -53,6 +58,8 @@ export function useBorrowTransaction({
   setProcessing,
 }: UseBorrowTransactionProps): UseBorrowTransactionResult {
   const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
@@ -109,30 +116,33 @@ export function useBorrowTransaction({
           (i) => availableVaults[i].txHash as Hex,
         );
 
-        // Validate vault statuses before attempting to borrow
-        const vaultStatuses = await Promise.all(
-          pegInTxHashes.map((txHash) =>
-            BTCVaultsManager.getPeginRequest(
-              CONTRACTS.BTC_VAULTS_MANAGER,
-              txHash,
+        // Validate vault statuses
+        const [vaultStatuses, usageStatuses] = await Promise.all([
+          Promise.all(
+            pegInTxHashes.map((txHash) =>
+              BTCVaultsManager.getPeginRequest(
+                CONTRACTS.BTC_VAULTS_MANAGER,
+                txHash,
+              ),
             ),
           ),
-        );
+          getVaultUsageStatusBulk(CONTRACTS.MORPHO_CONTROLLER, pegInTxHashes),
+        ]);
 
-        // Check all vaults are in AVAILABLE status (status 2)
-        const invalidVaults = vaultStatuses.filter((v) => v.status !== 2);
-        if (invalidVaults.length > 0) {
-          const statusNames = invalidVaults.map((v) =>
-            v.status === 0
-              ? "Pending"
-              : v.status === 1
-                ? "Verified"
-                : v.status === 3
-                  ? "InPosition"
-                  : "Expired",
+        const invalidVaults = vaultStatuses
+          .map((v, index) => ({
+            status: v.status,
+            usageStatus: usageStatuses[index],
+            index,
+          }))
+          .filter(
+            (v) =>
+              v.status !== 2 || v.usageStatus !== VaultUsageStatus.Available,
           );
+
+        if (invalidVaults.length > 0) {
           throw new Error(
-            `Cannot borrow: ${invalidVaults.length} vault(s) are not in AVAILABLE status. Current statuses: ${statusNames.join(", ")}. Only vaults with AVAILABLE status (status 2) can be used for borrowing.`,
+            `Selected vaults are not available for borrowing. Please refresh and try again.`,
           );
         }
 
@@ -168,6 +178,12 @@ export function useBorrowTransaction({
 
       // Refetch position data to update UI
       await refetch();
+
+      // Invalidate available collaterals query to refresh the list
+      // This ensures vaults that were just added to the position are removed from available list
+      await queryClient.invalidateQueries({
+        queryKey: ["availableCollaterals", address],
+      });
 
       // Success - show success modal
       onBorrowSuccess();

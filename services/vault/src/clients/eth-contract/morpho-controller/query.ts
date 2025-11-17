@@ -257,3 +257,43 @@ export async function getPositionsBulk(
     );
   }
 }
+
+/**
+ * Vault usage status from ApplicationVaultTracker
+ */
+export enum VaultUsageStatus {
+  Available = 0,
+  InUse = 1,
+  Redeemed = 2,
+}
+
+/**
+ * Get vault usage status for multiple vaults
+ */
+export async function getVaultUsageStatusBulk(
+  contractAddress: Address,
+  vaultIds: Hex[],
+): Promise<number[]> {
+  if (vaultIds.length === 0) {
+    return [];
+  }
+
+  try {
+    const publicClient = ethClient.getPublicClient();
+
+    // Use shared multicall helper for getVaultUsageStatus
+    const results = await executeMulticall<number>(
+      publicClient,
+      contractAddress,
+      MorphoIntegrationControllerABI as Abi,
+      "getVaultUsageStatus",
+      vaultIds.map((vaultId) => [vaultId]),
+    );
+
+    return results;
+  } catch (error) {
+    throw new Error(
+      `Failed to get vault usage status: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+}

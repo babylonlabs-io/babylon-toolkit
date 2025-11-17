@@ -44,8 +44,11 @@ export interface VaultActivity {
   /** Transaction hash (pegin tx) */
   txHash?: Hex;
 
-  /** Contract status (0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired) */
+  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed) - from BTCVaultsManager */
   contractStatus?: number;
+
+  /** Application usage status - whether vault is in use by Morpho (from MorphoIntegrationController) */
+  isInUse?: boolean;
 
   /** Pending peg-in flags */
   isPending?: boolean;

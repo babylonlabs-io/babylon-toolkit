@@ -357,8 +357,9 @@ export function DepositOverview() {
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
     return allActivities.map((activity: VaultActivity) => {
-      // Get state from state machine (without transactionsReady for initial display)
-      const state = getPeginState(activity.contractStatus ?? 0);
+      const state = getPeginState(activity.contractStatus ?? 0, {
+        isInUse: activity.isInUse,
+      });
 
       return {
         id: activity.id,

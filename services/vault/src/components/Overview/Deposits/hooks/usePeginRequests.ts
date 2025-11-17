@@ -15,7 +15,7 @@ import {
   getPeginState,
   LocalStorageStatus,
 } from "../../../../models/peginStateMachine";
-import { getPeginRequestsWithDetails } from "../../../../services/vault/vaultQueryService";
+import { getPeginRequestsWithUsageStatus } from "../../../../services/vault/vaultQueryService";
 import { getPendingPegins } from "../../../../storage/peginStorage";
 import type { VaultActivity } from "../../../../types";
 import { transformPeginToActivity } from "../../../../utils/peginTransformers";
@@ -43,14 +43,7 @@ export interface UsePeginRequestsParams {
 }
 
 /**
- * Custom hook to fetch pegin requests for a connected wallet address
- *
- * Fetches pegin/deposit data. The "in use" status is determined from the pegin status itself (status 3 = InPosition).
- * Does NOT fetch full Morpho position details (for performance).
- * For full position data with Morpho details, use useUserPositions instead.
- *
- * @param params - Hook parameters
- * @returns Object containing activities array, loading state, error state, and refetch function
+ * Fetch pegin requests with vault and usage status
  */
 export function usePeginRequests({
   connectedAddress,
@@ -65,11 +58,19 @@ export function usePeginRequests({
 
   // Use React Query to fetch data from service layer
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["peginRequests", connectedAddress, CONTRACTS.BTC_VAULTS_MANAGER],
-    queryFn: () => {
-      return getPeginRequestsWithDetails(
+    queryKey: [
+      "peginRequests",
+      connectedAddress,
+      CONTRACTS.BTC_VAULTS_MANAGER,
+      CONTRACTS.MORPHO_CONTROLLER,
+    ],
+    queryFn: async () => {
+      // Fetch pegin requests with application usage status
+      // Service layer handles orchestration of multiple client calls
+      return await getPeginRequestsWithUsageStatus(
         connectedAddress!,
         CONTRACTS.BTC_VAULTS_MANAGER,
+        CONTRACTS.MORPHO_CONTROLLER,
       );
     },
     enabled: !!connectedAddress,
@@ -90,10 +91,9 @@ export function usePeginRequests({
   const activities = useMemo(() => {
     if (!data) return [];
 
-    const transformed = data.map(({ peginRequest, txHash }) =>
-      transformPeginToActivity(peginRequest, txHash),
+    return data.map(({ peginRequest, txHash, isInUse }) =>
+      transformPeginToActivity(peginRequest, txHash, isInUse),
     );
-    return transformed;
   }, [data]);
 
   // Check if any activity has "Processing" status and update fast polling flag
@@ -116,7 +116,10 @@ export function usePeginRequests({
       // Get the state for this activity
       const state = getPeginState(
         (activity.contractStatus ?? 0) as ContractStatus,
-        localStatus,
+        {
+          localStatus,
+          isInUse: activity.isInUse,
+        },
       );
 
       return state.displayLabel === "Processing";

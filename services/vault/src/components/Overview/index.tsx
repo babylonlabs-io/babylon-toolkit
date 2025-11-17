@@ -198,7 +198,9 @@ function OverviewContent() {
   // Transform activities to deposits for modal
   const depositsForModal = useMemo(() => {
     return activities.map((activity) => {
-      const state = getPeginState(activity.contractStatus ?? 0);
+      const state = getPeginState(activity.contractStatus ?? 0, {
+        isInUse: activity.isInUse,
+      });
 
       return {
         id: activity.id,

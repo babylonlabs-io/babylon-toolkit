@@ -78,11 +78,13 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
  * For Deposit tab - shows vault status but not full Morpho loan details
  * @param peginRequest - Pegin request data from BTCVaultsManager contract
  * @param txHash - Transaction hash used as unique ID
+ * @param isInUse - Optional: Whether vault is in use by application (from ApplicationVaultTracker.isVaultInUse())
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
 export function transformPeginToActivity(
   peginRequest: PeginRequest,
   txHash: Hex,
+  isInUse?: boolean,
 ): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
@@ -102,6 +104,8 @@ export function transformPeginToActivity(
     },
     // Store numeric contract status for state machine and localStorage cleanup logic
     contractStatus: peginRequest.status,
+    // Application usage status (whether vault is in use by the target application)
+    isInUse,
     providers: [
       {
         id: peginRequest.vaultProvider,

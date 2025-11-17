@@ -293,7 +293,7 @@ export async function withdrawCollateralFromPosition(
     const hash = await walletClient.writeContract({
       address: contractAddress,
       abi: MorphoIntegrationControllerABI,
-      functionName: "withdrawCollateralFromPosition",
+      functionName: "withdrawAllCollateralFromPosition",
       args: [marketParams],
       chain,
       account: walletClient.account!,

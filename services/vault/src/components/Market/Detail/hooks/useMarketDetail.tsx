@@ -86,7 +86,7 @@ export function useMarketDetail() {
     return markets.find((market) => market.id === marketId) || null;
   }, [markets, marketId]);
 
-  // Fetch available collaterals (vaults with status AVAILABLE)
+  // Fetch available collaterals (vaults with status AVAILABLE and NOT in use by Morpho)
   const {
     data: availableCollaterals,
     isLoading: isCollateralsLoading,
@@ -95,7 +95,11 @@ export function useMarketDetail() {
   } = useQuery({
     queryKey: ["availableCollaterals", address],
     queryFn: () =>
-      getAvailableCollaterals(address as Address, CONTRACTS.BTC_VAULTS_MANAGER),
+      getAvailableCollaterals(
+        address as Address,
+        CONTRACTS.BTC_VAULTS_MANAGER,
+        CONTRACTS.MORPHO_CONTROLLER,
+      ),
     enabled: !!address,
     retry: 2,
     staleTime: 30000,
@@ -159,8 +163,8 @@ export function useMarketDetail() {
   }, [marketConfig?.created_block]);
 
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
-  // vaultBTC (ERC20) uses 18 decimals, not 8 like native BTC
-  const formatVaultBTC = (value: bigint) => Number(value) / 1e18;
+  // Collateral in Morpho is stored in satoshis (8 decimals)
+  const formatVaultBTC = (value: bigint) => Number(value) / 1e8;
 
   const btcPrice = btcPriceUSD;
 
