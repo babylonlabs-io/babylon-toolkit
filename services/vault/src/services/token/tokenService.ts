@@ -10,34 +10,7 @@
 import type { Address } from "viem";
 import { getAddress, isAddress } from "viem";
 
-import { ethClient } from "../../clients/eth-contract/client";
-
-/**
- * ERC20 ABI for fetching token metadata
- */
-const ERC20_METADATA_ABI = [
-  {
-    inputs: [],
-    name: "name",
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "symbol",
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-] as const;
+import { fetchERC20Metadata } from "../../clients/eth-contract/erc20/query";
 
 /**
  * Token metadata interface
@@ -81,52 +54,6 @@ const tokenMetadataCache = new Map<string, TokenMetadata>();
 const fetchPromiseCache = new Map<string, Promise<TokenMetadata>>();
 
 /**
- * Fetch token metadata from blockchain
- *
- * @param address - Token contract address
- * @returns Token metadata fetched from the contract
- */
-async function fetchTokenMetadataFromChain(
-  address: Address,
-): Promise<Omit<TokenMetadata, "icon"> | null> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-
-    // Fetch name, symbol, and decimals in parallel
-    const [name, symbol, decimals] = await Promise.all([
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "name",
-      }),
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "symbol",
-      }),
-      publicClient.readContract({
-        address,
-        abi: ERC20_METADATA_ABI,
-        functionName: "decimals",
-      }),
-    ]);
-
-    return {
-      address,
-      name: name as string,
-      symbol: symbol as string,
-      decimals: decimals as number,
-    };
-  } catch (error) {
-    console.warn(
-      `[TokenService] Failed to fetch metadata for ${address}:`,
-      error,
-    );
-    return null;
-  }
-}
-
-/**
  * Get token metadata by address (fetches from blockchain dynamically)
  * Uses cache for performance but always fetches unknown tokens from chain
  *
@@ -142,20 +69,17 @@ export async function getTokenMetadata(
 
   const checksumAddress = getAddress(address);
 
-  // 1. Check cache first
   if (tokenMetadataCache.has(checksumAddress)) {
     return tokenMetadataCache.get(checksumAddress)!;
   }
 
-  // 2. Check if we're already fetching this token
   if (fetchPromiseCache.has(checksumAddress)) {
     return fetchPromiseCache.get(checksumAddress)!;
   }
 
-  // 3. Create a new fetch promise
   const fetchPromise = (async () => {
     try {
-      const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
+      const chainMetadata = await fetchERC20Metadata(checksumAddress);
 
       if (chainMetadata) {
         const icon = getIconForSymbol(chainMetadata.symbol);
