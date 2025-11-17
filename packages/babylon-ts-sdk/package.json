@@ -34,7 +34,11 @@
   "scripts": {
     "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
     "format": "prettier --check \"src/**/*.ts\"",
-    "format:fix": "prettier --write \"src/**/*.ts\""
+    "format:fix": "prettier --write \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "files": [
     "dist",
@@ -58,11 +62,14 @@
   "description": "TypeScript SDK for Babylon protocol integrations",
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",
+    "@vitest/coverage-v8": "^4.0.8",
+    "@vitest/ui": "^4.0.8",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
     "typescript": "^5.8.3",
     "vite": "^6.4.1",
-    "vite-plugin-dts": "^4.3.0"
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "^4.0.8"
   },
   "publishConfig": {
     "access": "public"

@@ -8,6 +8,14 @@
     "build": {
       "outputs": ["{projectRoot}/dist"],
       "cache": true
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm test",
+        "cwd": "{projectRoot}"
+      },
+      "cache": true
     }
   }
 }
