@@ -164,9 +164,8 @@ export default function StakingForm({
     navigate,
     additionalBabyNeeded,
     isCoStakingLoading,
-    setBabyStakeDraft,
-    runProgrammaticChange,
     prefilledAmountRef,
+    runProgrammaticChange,
   ]);
 
   useValidationTracker({
