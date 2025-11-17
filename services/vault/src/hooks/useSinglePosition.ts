@@ -54,7 +54,7 @@ export function useSinglePosition(
 
         const positionData = await getSinglePositionWithMorpho(
           positionId,
-          CONTRACTS.VAULT_CONTROLLER,
+          CONTRACTS.MORPHO_CONTROLLER,
         );
 
         setPosition(positionData);

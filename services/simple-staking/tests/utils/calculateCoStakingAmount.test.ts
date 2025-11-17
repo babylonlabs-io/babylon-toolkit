@@ -21,6 +21,8 @@ describe("calculateCoStakingAmount", () => {
       baby_staking_apr: 0,
       total_apr: 0,
     },
+    btc_staking_apr: 0,
+    max_staking_apr: 0,
   });
 
   describe("returns base values when APR data is unavailable", () => {

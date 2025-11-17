@@ -162,7 +162,6 @@ export async function getTokenMetadata(
       const chainMetadata = await fetchTokenMetadataFromChain(checksumAddress);
 
       if (chainMetadata) {
-        // Use special icons for common token symbols
         const icon = getIconForSymbol(chainMetadata.symbol);
 
         const tokenMetadata: TokenMetadata = {
@@ -175,14 +174,12 @@ export async function getTokenMetadata(
         return tokenMetadata;
       }
 
-      // 4. Fallback to default if fetch fails
       const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
       const fallbackMetadata: TokenMetadata = {
         address: checksumAddress as Address,
         symbol: truncatedAddress,
         name: `Unknown Token (${truncatedAddress})`,
         decimals: 18,
-        // No icon - Avatar component will show fallback (initials)
         icon: undefined,
       };
 
@@ -273,11 +270,6 @@ export async function getMarketTokenPairAsync(
   collateralAddress: string,
   loanAddress: string,
 ): Promise<MarketTokenPair> {
-  console.log(`[TokenService] Fetching token pair for market:`, {
-    collateral: collateralAddress,
-    loan: loanAddress,
-  });
-
   // Fetch both tokens in parallel
   const [collateral, loan] = await Promise.all([
     getTokenMetadata(collateralAddress),

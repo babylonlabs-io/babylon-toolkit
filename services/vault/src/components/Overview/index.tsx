@@ -2,6 +2,7 @@ import { getETHChain } from "@babylonlabs-io/config";
 import { Card, Tabs, useIsMobile } from "@babylonlabs-io/core-ui";
 import {
   getSharedWagmiConfig,
+  useAppKitBtcBridge,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo, useState } from "react";
@@ -28,10 +29,10 @@ import { RedeemCollateralReviewModal } from "./Deposits/RedeemReviewModal";
 import { RedeemCollateralSuccessModal } from "./Deposits/RedeemSuccessModal";
 import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
 import {
-  useVaultDepositState,
-  VaultDepositState,
-  VaultDepositStep,
-} from "./Deposits/state/VaultDepositState";
+  DepositState,
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "./Deposits/state/DepositState";
 import {
   useVaultRedeemState,
   VaultRedeemState,
@@ -43,6 +44,9 @@ import { Position } from "./Position";
 function OverviewContent() {
   const isMobile = useIsMobile();
   const [isSigning, setIsSigning] = useState(false);
+
+  // Bridge AppKit BTC connection state with babylon-wallet-connector
+  useAppKitBtcBridge();
 
   // Wallet providers
   const btcConnector = useChainConnector("BTC");
@@ -68,14 +72,14 @@ function OverviewContent() {
   // Deposit flow state
   const {
     step: depositStep,
-    depositAmount,
+    amount: depositAmount,
     selectedProviders,
     // btcTxid,
     goToStep: goToDepositStep,
     setDepositData,
     setTransactionHashes: setDepositTransactionHashes,
     reset: resetDeposit,
-  } = useVaultDepositState();
+  } = useDepositState();
 
   // Redeem flow state
   const {
@@ -116,17 +120,17 @@ function OverviewContent() {
   // Deposit flow handlers
   const handleDeposit = (amount: bigint, providers: string[]) => {
     setDepositData(amount, providers);
-    goToDepositStep(VaultDepositStep.REVIEW);
+    goToDepositStep(DepositStateStep.REVIEW);
   };
 
   const handleDepositReviewConfirm = () => {
-    goToDepositStep(VaultDepositStep.SIGN);
+    goToDepositStep(DepositStateStep.SIGN);
   };
 
   const handleDepositSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setDepositTransactionHashes(btcTxid, ethTxHash);
     // All 3 steps complete - go directly to success modal
-    goToDepositStep(VaultDepositStep.SUCCESS);
+    goToDepositStep(DepositStateStep.SUCCESS);
   };
 
   // Redeem flow handlers
@@ -163,7 +167,7 @@ function OverviewContent() {
       await redeemVaults(
         ethWalletClient as WalletClient,
         ethChain,
-        CONTRACTS.VAULT_CONTROLLER,
+        CONTRACTS.MORPHO_CONTROLLER,
         pegInTxHashes,
       );
 
@@ -214,32 +218,32 @@ function OverviewContent() {
     return (
       <>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Deposits
           </h3>
           <DepositOverview />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Your Positions
           </h3>
           <Position />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Markets
           </h3>
           <Market />
         </Card>
         <Card>
-          <h3 className="mb-4 text-xl font-normal text-accent-primary md:mb-6">
+          <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Activity
           </h3>
           <Activity />
         </Card>
 
         {/* Deposit Modal Flow */}
-        {depositStep === VaultDepositStep.FORM && (
+        {depositStep === DepositStateStep.FORM && (
           <CollateralDepositModal
             open
             onClose={resetDeposit}
@@ -248,7 +252,7 @@ function OverviewContent() {
             btcPrice={btcPriceUSD}
           />
         )}
-        {depositStep === VaultDepositStep.REVIEW && (
+        {depositStep === DepositStateStep.REVIEW && (
           <CollateralDepositReviewModal
             open
             onClose={resetDeposit}
@@ -257,7 +261,7 @@ function OverviewContent() {
             providers={selectedProviders}
           />
         )}
-        {depositStep === VaultDepositStep.SIGN && (
+        {depositStep === DepositStateStep.SIGN && (
           <CollateralDepositSignModal
             open
             onClose={resetDeposit}
@@ -271,7 +275,7 @@ function OverviewContent() {
             onRefetchActivities={refetchActivities}
           />
         )}
-        {depositStep === VaultDepositStep.SUCCESS && (
+        {depositStep === DepositStateStep.SUCCESS && (
           <CollateralDepositSuccessModal
             open
             onClose={resetDeposit}
@@ -340,7 +344,7 @@ function OverviewContent() {
       </Card>
 
       {/* Deposit Modal Flow */}
-      {depositStep === VaultDepositStep.FORM && (
+      {depositStep === DepositStateStep.FORM && (
         <CollateralDepositModal
           open
           onClose={resetDeposit}
@@ -349,7 +353,7 @@ function OverviewContent() {
           btcPrice={btcPriceUSD}
         />
       )}
-      {depositStep === VaultDepositStep.REVIEW && (
+      {depositStep === DepositStateStep.REVIEW && (
         <CollateralDepositReviewModal
           open
           onClose={resetDeposit}
@@ -358,7 +362,7 @@ function OverviewContent() {
           providers={selectedProviders}
         />
       )}
-      {depositStep === VaultDepositStep.SIGN && (
+      {depositStep === DepositStateStep.SIGN && (
         <CollateralDepositSignModal
           open
           onClose={resetDeposit}
@@ -372,7 +376,7 @@ function OverviewContent() {
           onRefetchActivities={refetchActivities}
         />
       )}
-      {depositStep === VaultDepositStep.SUCCESS && (
+      {depositStep === DepositStateStep.SUCCESS && (
         <CollateralDepositSuccessModal
           open
           onClose={resetDeposit}
@@ -413,10 +417,10 @@ function OverviewContent() {
 
 export function Overview() {
   return (
-    <VaultDepositState>
+    <DepositState>
       <VaultRedeemState>
         <OverviewContent />
       </VaultRedeemState>
-    </VaultDepositState>
+    </DepositState>
   );
 }

@@ -27,9 +27,9 @@ import { useDepositRowPolling } from "../hooks/useDepositRowPolling";
 import { usePayoutSignModal } from "../hooks/usePayoutSignModal";
 import { PayoutSignModal } from "../PayoutSignModal";
 import {
-  useVaultDepositState,
-  VaultDepositStep,
-} from "../state/VaultDepositState";
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "../state/DepositState";
 import {
   useVaultRedeemState,
   VaultRedeemStep,
@@ -43,7 +43,7 @@ function EmptyState({
   isConnected: boolean;
 }) {
   return (
-    <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-primary-contrast dark:bg-primary-main">
+    <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-[#F9F9F9] dark:bg-primary-main">
       <div className="flex min-h-[200px] items-center justify-center p-6">
         <div className="flex flex-col items-center">
           <img
@@ -335,7 +335,7 @@ export function DepositOverview() {
     setBroadcastSuccessOpen(false);
   }, []);
 
-  const { goToStep: goToDepositStep } = useVaultDepositState();
+  const { goToStep: goToDepositStep } = useDepositState();
   const { goToStep: goToRedeemStep } = useVaultRedeemState();
 
   const handleDeposit = () => {
@@ -344,7 +344,7 @@ export function DepositOverview() {
       openWalletModal();
     } else {
       // Already connected, open deposit modal directly
-      goToDepositStep(VaultDepositStep.FORM);
+      goToDepositStep(DepositStateStep.FORM);
     }
   };
 
@@ -494,7 +494,7 @@ export function DepositOverview() {
           })}
         </div>
       ) : (
-        <div className="max-h-[500px] overflow-x-auto overflow-y-auto bg-primary-contrast">
+        <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
           <Table data={deposits} columns={columns} fluid />
         </div>
       )}

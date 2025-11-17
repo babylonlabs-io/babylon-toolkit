@@ -7,15 +7,11 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEstimateGas, useGasPrice } from "@babylonlabs-io/wallet-connector";
-import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
-import { formatEther } from "viem";
 
-import { CONTRACTS } from "../../../../config/contracts";
+import { useEstimatedBtcFee } from "../../../../hooks/deposit/useEstimatedBtcFee";
+import { useEstimatedEthFee } from "../../../../hooks/deposit/useEstimatedEthFee";
+import { useBTCPrice } from "../../../../hooks/useBTCPrice";
 import { satoshiToBtcNumber } from "../../../../utils/btcConversion";
-import { estimatePeginFee } from "../../../../utils/fee/peginFee";
-import { getNetworkFees } from "../../../../utils/mempoolApi";
 import { useVaultProviders } from "../hooks/useVaultProviders";
 
 interface CollateralDepositReviewModalProps {
@@ -24,8 +20,6 @@ interface CollateralDepositReviewModalProps {
   onConfirm: () => void;
   amount: bigint;
   providers: string[];
-  btcPrice?: number;
-  ethPrice?: number;
 }
 
 export function CollateralDepositReviewModal({
@@ -34,91 +28,25 @@ export function CollateralDepositReviewModal({
   onConfirm,
   amount,
   providers,
-  btcPrice = 97833.68,
-  ethPrice = 3200, // Default ETH price
 }: CollateralDepositReviewModalProps) {
   // Convert satoshis to BTC for display
   const amountBtc = satoshiToBtcNumber(amount);
 
-  // Calculate USD value
-  const amountUsd = amountBtc * btcPrice;
+  // Fetch real-time BTC price from oracle
+  const { btcPriceUSD, loading: btcPriceLoading } = useBTCPrice();
+
+  // Calculate USD value using real-time price
+  const amountUsd = btcPriceUSD > 0 ? amountBtc * btcPriceUSD : null;
 
   // Fetch real vault providers from API
-  const { providers: apiProviders, loading: providersLoading } =
-    useVaultProviders();
+  const { findProviders, loading: providersLoading } = useVaultProviders();
 
-  // Fetch current BTC network fees
-  const { data: networkFees, isLoading: feesLoading } = useQuery({
-    queryKey: ["networkFees"],
-    queryFn: getNetworkFees,
-    enabled: open, // Only fetch when modal is open
-    staleTime: 30000, // Cache for 30 seconds
-    refetchInterval: 60000, // Refresh every minute while modal is open
-  });
-
-  // Estimate ETH gas for the transaction
-  const { data: gasEstimate } = useEstimateGas({
-    to: CONTRACTS.VAULT_CONTROLLER,
-    // Rough estimate for submitPeginRequest function
-    // Actual gas will be calculated at transaction time
-    data: "0x" as `0x${string}`, // Placeholder for actual function call
-  });
-
-  // Get current gas price
-  const { data: gasPrice } = useGasPrice();
-
-  // Calculate estimated BTC fee
-  const estimatedBtcFee = useMemo(() => {
-    if (!networkFees) return null;
-
-    // Use a rough UTXO estimate for fee calculation
-    // Assume we need 1 UTXO that covers amount + fee
-    const roughUtxo = { value: amount + 100000n }; // Add buffer for fee
-
-    try {
-      // Use halfHourFee for reasonable confirmation time
-      const feeInSats = estimatePeginFee(
-        amount,
-        [roughUtxo],
-        networkFees.halfHourFee,
-      );
-
-      return satoshiToBtcNumber(feeInSats);
-    } catch (error) {
-      console.error("Failed to estimate BTC fee:", error);
-      return null;
-    }
-  }, [networkFees, amount]);
-
-  // Calculate estimated ETH fee
-  const estimatedEthFee = useMemo(() => {
-    if (!gasEstimate || !gasPrice) return null;
-
-    // Add 20% buffer to gas estimate for safety
-    const gasWithBuffer = (gasEstimate * 120n) / 100n;
-    const feeInWei = gasWithBuffer * gasPrice;
-
-    return parseFloat(formatEther(feeInWei));
-  }, [gasEstimate, gasPrice]);
+  // Get estimated fees from custom hooks
+  const estimatedBtcFee = useEstimatedBtcFee(amount, open);
+  const estimatedEthFee = useEstimatedEthFee();
 
   // Map selected provider IDs to actual provider data
-  const selectedProviders = useMemo(() => {
-    if (!apiProviders || apiProviders.length === 0) {
-      // Fallback to provider IDs if API data not available
-      return providers.map((id) => ({
-        id,
-        name: id,
-        icon: null,
-      }));
-    }
-
-    return providers.map((providerId) => {
-      const provider = apiProviders.find((p) => p.id === providerId);
-      return provider
-        ? { ...provider, name: provider.id }
-        : { id: providerId, name: providerId, icon: null };
-    });
-  }, [providers, apiProviders]);
+  const selectedProviders = findProviders(providers);
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
@@ -143,12 +71,14 @@ export function CollateralDepositReviewModal({
               {amountBtc} BTC
             </Text>
             <Text variant="body2" className="text-accent-secondary">
-              ($
-              {amountUsd.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              USD)
+              {btcPriceLoading
+                ? "Loading price..."
+                : amountUsd !== null
+                  ? `($${amountUsd.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })} USD)`
+                  : "(Price unavailable)"}
             </Text>
           </div>
         </div>
@@ -189,31 +119,29 @@ export function CollateralDepositReviewModal({
           </Text>
           <div className="flex flex-col items-end gap-1">
             {/* BTC Fee */}
-            {feesLoading ? (
-              <Text variant="body2" className="text-accent-secondary">
-                Calculating BTC fee...
-              </Text>
-            ) : estimatedBtcFee !== null ? (
+            {estimatedBtcFee !== null ? (
               <div className="flex flex-col items-end">
                 <Text variant="body2">~{estimatedBtcFee.toFixed(8)} BTC</Text>
-                <Text variant="body2" className="text-accent-secondary">
-                  (${(estimatedBtcFee * btcPrice).toFixed(2)})
-                </Text>
+                {btcPriceUSD > 0 && (
+                  <Text variant="body2" className="text-accent-secondary">
+                    ($
+                    {(estimatedBtcFee * btcPriceUSD).toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                    )
+                  </Text>
+                )}
               </div>
             ) : (
               <Text variant="body2" className="text-accent-secondary">
-                BTC fee unavailable
+                Calculating BTC fee...
               </Text>
             )}
 
             {/* ETH Gas Fee */}
             {estimatedEthFee !== null ? (
-              <div className="flex flex-col items-end">
-                <Text variant="body2">~{estimatedEthFee.toFixed(6)} ETH</Text>
-                <Text variant="body2" className="text-accent-secondary">
-                  (${(estimatedEthFee * ethPrice).toFixed(2)})
-                </Text>
-              </div>
+              <Text variant="body2">~{estimatedEthFee.toFixed(6)} ETH</Text>
             ) : (
               <Text variant="body2" className="text-accent-secondary">
                 ETH gas estimate pending...

@@ -3,15 +3,16 @@
 // Shared client
 export { ethClient } from "./client";
 
-// Vault Controller
-export * as VaultController from "./vault-controller/query";
-export type { MarketPosition } from "./vault-controller/query";
-export * as VaultControllerTx from "./vault-controller/transaction";
-export type { MarketParams } from "./vault-controller/transaction";
+// Morpho Integration Controller
+export * as MorphoController from "./morpho-controller/query";
+export type { MarketPosition } from "./morpho-controller/query";
+export * as MorphoControllerTx from "./morpho-controller/transaction";
+export type { MarketParams } from "./morpho-controller/transaction";
 
 // BTC Vaults Manager
 export * as BTCVaultsManager from "./btc-vaults-manager/query";
 export type { PeginRequest } from "./btc-vaults-manager/query";
+export * as BTCVaultsManagerTx from "./btc-vaults-manager/transaction";
 
 // Morpho (using direct contract calls)
 export * as Morpho from "./morpho";

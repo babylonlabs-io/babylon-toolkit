@@ -1,0 +1,109 @@
+/**
+ * Pure calculation functions for deposit operations
+ * No side effects, no state, just pure transformations
+ */
+
+import type { UTXO } from "../vault/vaultTransactionService";
+
+/**
+ * Fixed BTC transaction fee in satoshis
+ * IMPORTANT: This value must match BTC_TRANSACTION_FEE exported from config/pegin.ts
+ * It's duplicated here to avoid test environment issues with importing from pegin.ts
+ * which has dependencies that don't work well in the test environment
+ */
+const BTC_TRANSACTION_FEE = 10_000n;
+
+export interface DepositFees {
+  btcNetworkFee: bigint;
+  protocolFee: bigint;
+  totalFee: bigint;
+}
+
+export interface DepositAmountBreakdown {
+  depositAmount: bigint;
+  fees: DepositFees;
+  totalRequired: bigint;
+  changeAmount: bigint;
+}
+
+/**
+ * Calculate fees for a deposit transaction
+ * Uses a fixed fee to ensure consistency with the actual transaction creation
+ * @param depositAmount - Amount to deposit in satoshis
+ * @returns Fee breakdown
+ */
+export function calculateDepositFees(depositAmount: bigint): DepositFees {
+  // Use the fixed fee to ensure consistency with the actual BTC transaction
+  const btcNetworkFee = BTC_TRANSACTION_FEE;
+
+  // Protocol fee: 0.1% of deposit amount
+  const protocolFee = (depositAmount * 10n) / 10000n;
+
+  return {
+    btcNetworkFee,
+    protocolFee,
+    totalFee: btcNetworkFee + protocolFee,
+  };
+}
+
+/**
+ * Select optimal UTXOs for a deposit
+ * Pure function that selects UTXOs without modifying input
+ * @param utxos - Available UTXOs
+ * @param targetAmount - Target amount including fees
+ * @returns Selected UTXOs and total value
+ */
+export function selectOptimalUTXOs(
+  utxos: UTXO[],
+  targetAmount: bigint,
+): { selected: UTXO[]; totalValue: bigint } {
+  // Sort UTXOs by value (largest first for optimal selection)
+  const sortedUTXOs = [...utxos].sort((a, b) => Number(b.value - a.value));
+
+  const selected: UTXO[] = [];
+  let totalValue = 0n;
+
+  // Select UTXOs until we have enough
+  for (const utxo of sortedUTXOs) {
+    if (totalValue >= targetAmount) break;
+
+    selected.push(utxo);
+    totalValue += BigInt(utxo.value);
+  }
+
+  return { selected, totalValue };
+}
+
+/**
+ * Calculate estimated transaction size in bytes
+ * @param inputCount - Number of inputs
+ * @param outputCount - Number of outputs
+ * @returns Estimated size in bytes
+ */
+export function estimateTransactionSize(
+  inputCount: number,
+  outputCount: number,
+): number {
+  // P2TR input: ~58 bytes (witness)
+  // P2TR output: ~43 bytes
+  // Base overhead: ~11 bytes
+  const BASE_SIZE = 11;
+  const INPUT_SIZE = 58;
+  const OUTPUT_SIZE = 43;
+
+  return BASE_SIZE + INPUT_SIZE * inputCount + OUTPUT_SIZE * outputCount;
+}
+
+/**
+ * Calculate the minimum deposit amount based on current fees
+ * @param feeRate - Current fee rate in sats/byte
+ * @returns Minimum viable deposit amount
+ */
+export function calculateMinimumDeposit(feeRate: number): bigint {
+  // Minimum should cover at least the transaction fees plus a reasonable deposit
+  const minTxSize = estimateTransactionSize(1, 2); // 1 input, 2 outputs (deposit + change)
+  const minFee = BigInt(minTxSize * feeRate);
+  const MIN_DEPOSIT_BASE = 10000n; // 0.0001 BTC minimum
+
+  return MIN_DEPOSIT_BASE + minFee;
+}

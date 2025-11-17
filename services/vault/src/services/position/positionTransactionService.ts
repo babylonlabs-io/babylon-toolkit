@@ -18,9 +18,9 @@ import type { MarketParams } from "../../clients/eth-contract";
 import {
   ERC20,
   Morpho,
+  MorphoController,
+  MorphoControllerTx,
   MorphoOracle,
-  VaultController,
-  VaultControllerTx,
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { ContractError, ErrorCode } from "../../utils/errors";
@@ -44,7 +44,7 @@ export interface AddCollateralResult {
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param pegInTxHashes - Array of pegin transaction hashes (vault IDs) to use as collateral
  * @param marketId - Morpho market ID
  * @param borrowAmount - Optional amount to borrow (in loan token units). If provided and > 0, borrows from position.
@@ -53,7 +53,7 @@ export interface AddCollateralResult {
 export async function addCollateralWithMarketId(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   pegInTxHashes: Hex[],
   marketId: string | bigint,
   borrowAmount?: bigint,
@@ -64,10 +64,10 @@ export async function addCollateralWithMarketId(
   // Step 2: Execute transaction based on whether borrowing is requested
   if (borrowAmount !== undefined && borrowAmount > 0n) {
     const { transactionHash, receipt } =
-      await VaultControllerTx.addCollateralToPositionAndBorrow(
+      await MorphoControllerTx.addCollateralToPositionAndBorrow(
         walletClient,
         chain,
-        vaultControllerAddress,
+        morphoControllerAddress,
         pegInTxHashes,
         marketParams,
         borrowAmount,
@@ -80,10 +80,10 @@ export async function addCollateralWithMarketId(
     };
   } else {
     const { transactionHash, receipt, positionId } =
-      await VaultControllerTx.addCollateralToPosition(
+      await MorphoControllerTx.addCollateralToPosition(
         walletClient,
         chain,
-        vaultControllerAddress,
+        morphoControllerAddress,
         pegInTxHashes,
         marketParams,
       );
@@ -114,8 +114,8 @@ export async function approveLoanTokenForRepay(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
   const loanTokenAddress = marketParams.loanToken;
 
-  // Approve VaultController to spend loan tokens (not Morpho directly)
-  // VaultController.repayFromPosition does: transferFrom(msg.sender, proxy, amount)
+  // Approve MorphoController to spend loan tokens (not Morpho directly)
+  // MorphoController.repayFromPosition does: transferFrom(msg.sender, proxy, amount)
   // Using max uint256 for unlimited approval
   const approvalAmount = 2n ** 256n - 1n;
 
@@ -123,7 +123,7 @@ export async function approveLoanTokenForRepay(
     walletClient,
     chain,
     loanTokenAddress,
-    CONTRACTS.VAULT_CONTROLLER, // Approve VaultController to transfer tokens
+    CONTRACTS.MORPHO_CONTROLLER, // Approve MorphoController to transfer tokens
     approvalAmount,
   );
 }
@@ -190,7 +190,7 @@ function validatePositionHealth(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param positionId - Position ID
  * @param marketId - Market ID
  * @returns Transaction hash and receipt
@@ -198,15 +198,15 @@ function validatePositionHealth(
 export async function repayDebtFull(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   positionId: string,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   // Fetch position data
-  const positions = await VaultController.getPositionsBulk(
-    vaultControllerAddress,
+  const positions = await MorphoController.getPositionsBulk(
+    morphoControllerAddress,
     [positionId as Hex],
   );
   if (positions.length === 0) {
@@ -263,10 +263,10 @@ export async function repayDebtFull(
   // Execute full repayment using shares (repayAmount=0, shares=borrowShares)
   // This allows Morpho to calculate the exact amount needed to burn all shares
   try {
-    const result = await VaultControllerTx.repayDirectlyToMorpho(
+    const result = await MorphoControllerTx.repayDirectlyToMorpho(
       walletClient,
       chain,
-      vaultControllerAddress,
+      morphoControllerAddress,
       marketParams,
       0n, // repayAmount = 0 when using shares
       position.borrowShares, // Use all borrow shares for full repayment
@@ -283,7 +283,7 @@ export async function repayDebtFull(
     throw new ContractError(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
         `Approximate amount needed: ${(Number(borrowAssets) / 1e6).toFixed(6)} USDC. ` +
-        `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
+        `Please ensure you have sufficient USDC balance and the MorphoController has approval to spend your tokens.`,
       ErrorCode.CONTRACT_ERROR,
       undefined,
       undefined,
@@ -303,7 +303,7 @@ export async function repayDebtFull(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param positionId - Position ID
  * @param marketId - Market ID
  * @param repayAmount - Exact amount to repay (in loan token units, e.g., USDC with 6 decimals)
@@ -312,7 +312,7 @@ export async function repayDebtFull(
 export async function repayDebtPartial(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   positionId: string,
   marketId: string | bigint,
   repayAmount: bigint,
@@ -320,8 +320,8 @@ export async function repayDebtPartial(
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
   // Fetch position data
-  const positions = await VaultController.getPositionsBulk(
-    vaultControllerAddress,
+  const positions = await MorphoController.getPositionsBulk(
+    morphoControllerAddress,
     [positionId as Hex],
   );
   if (positions.length === 0) {
@@ -384,10 +384,10 @@ export async function repayDebtPartial(
 
   // Execute partial repayment (no buffer added - exact amount)
   try {
-    const result = await VaultControllerTx.repayFromPosition(
+    const result = await MorphoControllerTx.repayFromPosition(
       walletClient,
       chain,
-      vaultControllerAddress,
+      morphoControllerAddress,
       marketParams,
       repayAmount,
     );
@@ -403,7 +403,7 @@ export async function repayDebtPartial(
     throw new ContractError(
       `Failed to repay from position: ${error instanceof Error ? error.message : "Unknown error"}. ` +
         `Required amount: ${Number(formatUnits(repayAmount, 6)).toFixed(6)} USDC. ` +
-        `Please ensure you have sufficient USDC balance and the VaultController has approval to spend your tokens.`,
+        `Please ensure you have sufficient USDC balance and the MorphoController has approval to spend your tokens.`,
       ErrorCode.CONTRACT_ERROR,
       undefined,
       undefined,
@@ -417,7 +417,7 @@ export async function repayDebtPartial(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param marketId - Market ID
  * @param borrowAmount - Amount to borrow (in loan token units)
  * @returns Transaction hash, receipt, and actual amount borrowed
@@ -425,17 +425,17 @@ export async function repayDebtPartial(
 export async function borrowMoreFromPosition(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   marketId: string | bigint,
   borrowAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
-  return VaultControllerTx.borrowFromPosition(
+  return MorphoControllerTx.borrowFromPosition(
     walletClient,
     chain,
-    vaultControllerAddress,
+    morphoControllerAddress,
     marketParams,
     borrowAmount,
   );
@@ -446,23 +446,23 @@ export async function borrowMoreFromPosition(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param vaultControllerAddress - BTCVaultController contract address
+ * @param morphoControllerAddress - MorphoIntegrationController contract address
  * @param marketId - Morpho market ID
  * @returns Transaction hash, receipt, and amount of collateral withdrawn
  */
 export async function withdrawCollateralFromPosition(
   walletClient: WalletClient,
   chain: Chain,
-  vaultControllerAddress: Address,
+  morphoControllerAddress: Address,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters from Morpho contract
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
-  return VaultControllerTx.withdrawCollateralFromPosition(
+  return MorphoControllerTx.withdrawCollateralFromPosition(
     walletClient,
     chain,
-    vaultControllerAddress,
+    morphoControllerAddress,
     marketParams,
   );
 }

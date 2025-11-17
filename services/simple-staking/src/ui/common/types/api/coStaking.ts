@@ -43,6 +43,8 @@ export interface PersonalizedAPRResponse {
       co_staking_apr: number;
       total_apr: number;
     };
+    btc_staking_apr: number;
+    max_staking_apr: number;
   };
 }
 

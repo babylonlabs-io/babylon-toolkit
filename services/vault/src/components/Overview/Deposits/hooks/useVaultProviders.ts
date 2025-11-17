@@ -27,6 +27,12 @@ export interface UseVaultProvidersResult {
   refetch: () => Promise<void>;
   /** Find provider by Ethereum address */
   findProvider: (address: string) => VaultProvider | undefined;
+  /** Find multiple providers by array of Ethereum addresses */
+  findProviders: (addresses: string[]) => Array<{
+    id: string;
+    name: string;
+    icon: string | null;
+  }>;
 }
 
 /**
@@ -69,6 +75,22 @@ export function useVaultProviders(): UseVaultProvidersResult {
     [data],
   );
 
+  // Helper function to find multiple providers by addresses
+  // Returns formatted provider objects with fallback for unknown providers
+  const findProviders = useCallback(
+    (
+      addresses: string[],
+    ): Array<{ id: string; name: string; icon: string | null }> => {
+      return addresses.map((address) => {
+        const provider = findProvider(address);
+        return provider
+          ? { id: provider.id, name: provider.id, icon: null }
+          : { id: address, name: address, icon: null };
+      });
+    },
+    [findProvider],
+  );
+
   // Wrap refetch to return Promise<void>
   const wrappedRefetch = async () => {
     await refetch();
@@ -80,5 +102,6 @@ export function useVaultProviders(): UseVaultProvidersResult {
     error: error as Error | null,
     refetch: wrappedRefetch,
     findProvider,
+    findProviders,
   };
 }

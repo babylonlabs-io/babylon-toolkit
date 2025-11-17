@@ -3,11 +3,11 @@ import {
   getNetworkConfigETH,
 } from "@babylonlabs-io/config";
 import {
+  APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
-  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -16,6 +16,9 @@ const context = typeof window !== "undefined" ? window : {};
 
 /**
  * WalletConnectionProvider
+ *
+ * NOTE: AppKit modal initialization is now handled in @/config/wagmi.ts
+ * to ensure wagmi config is created before the app renders.
  */
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { theme } = useTheme();
@@ -32,24 +35,23 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [],
   );
 
-  const appKitConfig: AppKitModalConfig = useMemo(
-    () => ({
-      metadata: {
-        name: "Babylon Vault",
-        description: "Babylon Vault - Secure Bitcoin Vault Platform",
-        url:
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "https://staking.vault-devnet.babylonlabs.io",
-        icons: [
-          typeof window !== "undefined"
-            ? `${window.location.origin}/favicon.ico`
-            : "https://btcstaking.babylonlabs.io/favicon.ico",
-        ],
-      },
-    }),
-    [],
-  );
+  const disabledWallets = useMemo(() => {
+    const disabled: string[] = [];
+
+    const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
+
+    // Disable Ledger BTC on mainnet
+    if (isMainnet) {
+      disabled.push("ledger_btc");
+    }
+
+    // Disable AppKit BTC on mainnet
+    if (isMainnet) {
+      disabled.push(APPKIT_BTC_CONNECTOR_ID);
+    }
+
+    return disabled;
+  }, []);
 
   const onError = useCallback((error: Error) => {
     if (error?.message?.includes("rejected")) {
@@ -65,8 +67,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
+      disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
-      appKitConfig={appKitConfig}
     >
       <BTCWalletProvider>
         <ETHWalletProvider>{children}</ETHWalletProvider>

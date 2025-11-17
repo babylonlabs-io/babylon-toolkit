@@ -95,7 +95,7 @@ jobs:
           NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL: ${{ vars.NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL }}
           # Trustless Bitcoin Vault (TBV) Contracts
           NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER }}
-          NEXT_PUBLIC_TBV_VAULT_CONTROLLER: ${{ vars.NEXT_PUBLIC_TBV_VAULT_CONTROLLER }}
+          NEXT_PUBLIC_TBV_MORPHO_CONTROLLER: ${{ vars.NEXT_PUBLIC_TBV_MORPHO_CONTROLLER }}
           NEXT_PUBLIC_TBV_BTC_VAULT: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT }}
           NEXT_PUBLIC_TBV_MORPHO: ${{ vars.NEXT_PUBLIC_TBV_MORPHO }}
           # Simple Staking Configuration
@@ -115,6 +115,7 @@ jobs:
           # Wallet Configuration
           NEXT_PUBLIC_DISABLED_WALLETS: ${{ vars.NEXT_PUBLIC_DISABLED_WALLETS }}
           NEXT_PUBLIC_REDACT_TELEMETRY: ${{ vars.NEXT_PUBLIC_REDACT_TELEMETRY }}
+          NEXT_PUBLIC_REOWN_PROJECT_ID: ${{ vars.NEXT_PUBLIC_REOWN_PROJECT_ID }}
           # Sentry Configuration
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}

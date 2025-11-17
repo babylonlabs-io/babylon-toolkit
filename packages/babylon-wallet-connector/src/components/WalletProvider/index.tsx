@@ -4,10 +4,10 @@ import { ChainConfigArr, ChainProvider } from "@/context/Chain.context";
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
+import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
+import { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 import { TomoBBNConnector } from "@/widgets/tomo/BBNConnector";
 import { TomoBTCConnector } from "@/widgets/tomo/BTCConnector";
-import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/eth/appkit/appKitModal";
-import { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
 
 import { WalletDialog } from "./components/WalletDialog";
 import { ONE_HOUR } from "./constants";
@@ -22,6 +22,10 @@ interface WalletProviderProps {
   onError?: (e: Error) => void;
   disabledWallets?: string[];
   requiredChains?: ("BTC" | "BBN" | "ETH")[];
+  /**
+   * Unified AppKit configuration for ETH and/or BTC wallet connections
+   * Provide eth and/or btc properties to enable respective chains
+   */
   appKitConfig?: AppKitModalConfig;
 }
 
@@ -34,29 +38,31 @@ export function WalletProvider({
   config,
   context = window,
   onError,
-  disabledWallets,
+  disabledWallets = [],
   requiredChains,
   appKitConfig,
 }: PropsWithChildren<WalletProviderProps>) {
   const storage = useMemo(() => createAccountStorage(ttl), [ttl]);
 
-  // Initialize AppKit synchronously before render when ETH chain is enabled
-  // This ensures wagmi config is available before children (ETHWalletProvider) mount
+  // Initialize unified AppKit modal synchronously before render (only if config provided)
+  // This ensures both wagmi and bitcoin configs are available before children mount
   useMemo(() => {
-    try {
-      const hasETH = config?.some((c) => c.chain === "ETH");
-      if (hasETH && appKitConfig) {
-        initializeAppKitModal({
-          ...appKitConfig,
-          themeMode: theme === "dark" ? "dark" : "light",
-        });
-      }
-    // eslint-disable-next-line no-empty
-    } catch {
+    if (!appKitConfig) {
+      return;
     }
-  }, [config, theme, appKitConfig]);
 
-  // Listen for requests to open the AppKit modal (triggered by ETH connector)
+    try {
+      // Initialize AppKit with the unified config
+      // Config may have eth and/or btc properties
+      initializeAppKitModal(appKitConfig);
+    } catch (error) {
+      console.error("Failed to initialize AppKit modal:", error);
+    }
+  }, [appKitConfig]);
+
+
+  // Listen for requests to open the AppKit modal (triggered by connectors)
+  // This hook gracefully handles cases where AppKit is not initialized
   useAppKitOpenListener();
 
   return (

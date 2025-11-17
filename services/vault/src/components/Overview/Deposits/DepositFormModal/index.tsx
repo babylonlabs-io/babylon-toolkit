@@ -10,14 +10,10 @@ import {
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
-import type { VaultProvider } from "../../../../types/vaultProvider";
-import {
-  btcStringToSatoshi,
-  satoshiToBtcNumber,
-} from "../../../../utils/btcConversion";
-import { useVaultProviders } from "../hooks/useVaultProviders";
+import { useDepositForm } from "@/hooks/deposit/useDepositForm";
+import { depositService } from "@/services/deposit";
 
 interface CollateralDepositModalProps {
   open: boolean;
@@ -31,70 +27,74 @@ export function CollateralDepositModal({
   open,
   onClose,
   onDeposit,
-  btcBalance, // Use actual wallet balance
+  btcBalance: propBtcBalance,
   // TODO: Fetch BTC price from oracle service
-  // The price oracle is available at services/vault/src/clients/eth-contract/oracle
-  // - Use getOraclePrice(oracleAddress) to get price with 36 decimals
-  // - Use convertOraclePriceToUSD(oraclePrice) to convert to USD per BTC
-  // - Oracle address should be exposed via a service layer (not yet implemented)
-  // - Create a service in services/vault/src/services/oracle/ if it doesn't exist
   btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
 }: CollateralDepositModalProps) {
-  const [amount, setAmount] = useState("");
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-
-  // Fetch real vault providers from API
+  // Use the new deposit form hook
   const {
-    providers: vaultProviders,
-    loading: isLoadingProviders,
-    error: providersError,
-  } = useVaultProviders();
+    formData,
+    setFormData,
+    errors,
+    isValid,
+    btcBalance,
+    providers,
+    isLoadingProviders,
+    amountSats,
+    // estimatedFees, // TODO: Display estimated fees in UI
+    validateForm,
+    resetForm,
+  } = useDepositForm();
 
-  // Conversion and validation
+  // Use prop balance if provided, otherwise use wallet balance from hook
+  const displayBalance = propBtcBalance ?? btcBalance;
+
+  // Format balance for display
   const btcBalanceFormatted = useMemo(() => {
-    if (btcBalance === undefined || btcBalance === null) return 0;
-    return satoshiToBtcNumber(btcBalance);
-  }, [btcBalance]);
-  const amountNum = useMemo(() => {
-    const parsed = parseFloat(amount || "0");
-    return isNaN(parsed) ? 0 : parsed;
-  }, [amount]);
+    if (!displayBalance) return 0;
+    return Number(depositService.formatSatoshisToBtc(displayBalance, 8));
+  }, [displayBalance]);
 
+  // Calculate USD value
   const amountUsd = useMemo(() => {
-    if (!btcPrice || amountNum === 0) return "";
-    const usdValue = amountNum * btcPrice;
+    if (!btcPrice || !formData.amountBtc || formData.amountBtc === "0")
+      return "";
+    const btcNum = parseFloat(formData.amountBtc);
+    if (isNaN(btcNum)) return "";
+    const usdValue = btcNum * btcPrice;
     return `$${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }, [amountNum, btcPrice]);
-
-  const isValid = amountNum > 0 && selectedProviders.length > 0;
+  }, [formData.amountBtc, btcPrice]);
 
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
-    setSelectedProviders((prev) =>
-      prev.includes(providerId)
-        ? prev.filter((id) => id !== providerId)
-        : [...prev, providerId],
-    );
+    const newProvider =
+      providerId === formData.selectedProvider ? "" : providerId;
+    setFormData({
+      selectedProvider: newProvider,
+    });
   };
 
   // Handler: Amount input change
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAmount(e.target.value);
+    setFormData({ amountBtc: e.target.value });
   };
 
   // Handler: Balance click to auto-fill max amount
   const handleBalanceClick = () => {
     if (btcBalanceFormatted > 0) {
-      setAmount(btcBalanceFormatted.toString());
+      const maxAmount = btcBalanceFormatted.toString();
+      setFormData({ amountBtc: maxAmount });
     }
   };
 
   // Handler: Deposit button click
   const handleDeposit = () => {
-    if (isValid) {
-      // Convert BTC string input to satoshis (bigint)
-      const amountSats = btcStringToSatoshi(amount);
-      onDeposit(amountSats, selectedProviders);
+    if (validateForm()) {
+      // Use amount in satoshis from the hook
+      onDeposit(
+        amountSats,
+        formData.selectedProvider ? [formData.selectedProvider] : [],
+      );
     }
   };
 
@@ -107,10 +107,16 @@ export function CollateralDepositModal({
 
   // Handler: Reset state on close
   const handleClose = () => {
-    setAmount("");
-    setSelectedProviders([]);
+    resetForm();
     onClose();
   };
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (open) {
+      resetForm();
+    }
+  }, [open, resetForm]);
 
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
@@ -125,7 +131,7 @@ export function CollateralDepositModal({
         <div className="flex flex-col gap-2">
           <SubSection className="flex w-full flex-col gap-2">
             <AmountItem
-              amount={amount}
+              amount={formData.amountBtc}
               amountUsd={amountUsd}
               currencyIcon="/images/btc.png"
               currencyName="Bitcoin"
@@ -144,7 +150,7 @@ export function CollateralDepositModal({
               onChange={handleAmountChange}
               onKeyDown={handleKeyDown}
               onMaxClick={handleBalanceClick}
-              subtitle=""
+              subtitle={errors.amount ? errors.amount : ""}
             />
           </SubSection>
         </div>
@@ -170,20 +176,14 @@ export function CollateralDepositModal({
               <div className="flex items-center justify-center py-8">
                 <Loader size={32} className="text-primary-main" />
               </div>
-            ) : providersError ? (
-              <div className="bg-error/10 rounded-lg p-4">
-                <Text variant="body2" className="text-error text-sm">
-                  Failed to load vault providers. Please try again.
-                </Text>
-              </div>
-            ) : vaultProviders.length === 0 ? (
+            ) : providers.length === 0 ? (
               <div className="rounded-lg bg-secondary-highlight p-4">
                 <Text variant="body2" className="text-sm text-accent-secondary">
                   No vault providers available at this time.
                 </Text>
               </div>
             ) : (
-              vaultProviders.map((provider: VaultProvider) => {
+              providers.map((provider) => {
                 const shortId =
                   provider.id.length > 14
                     ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
@@ -192,7 +192,7 @@ export function CollateralDepositModal({
                   <ProviderCard
                     key={provider.id}
                     id={provider.id}
-                    name={shortId}
+                    name={provider.name || shortId}
                     icon={
                       <Text
                         variant="body2"
@@ -201,7 +201,7 @@ export function CollateralDepositModal({
                         {provider.id.slice(2, 3).toUpperCase()}
                       </Text>
                     }
-                    isSelected={selectedProviders.includes(provider.id)}
+                    isSelected={formData.selectedProvider === provider.id}
                     onToggle={handleToggleProvider}
                   />
                 );
@@ -213,7 +213,7 @@ export function CollateralDepositModal({
 
       <DialogFooter className="flex items-center justify-between pb-6">
         <Text variant="body2" className="text-sm text-accent-secondary">
-          {selectedProviders.length} Selected
+          {formData.selectedProvider ? "1 Selected" : "0 Selected"}
         </Text>
         <Button
           variant="contained"

@@ -3,8 +3,8 @@
  * Handles the borrow flow logic and transaction execution
  */
 
-import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits, type Hex } from "viem";
+import { useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";
@@ -129,7 +129,7 @@ export function useBorrowTransaction({
         await addCollateralWithMarketId(
           walletClient,
           chain,
-          CONTRACTS.VAULT_CONTROLLER,
+          CONTRACTS.MORPHO_CONTROLLER,
           pegInTxHashes,
           marketId,
           borrowAmountBigint,
@@ -145,7 +145,7 @@ export function useBorrowTransaction({
         await borrowMoreFromPosition(
           walletClient,
           chain,
-          CONTRACTS.VAULT_CONTROLLER,
+          CONTRACTS.MORPHO_CONTROLLER,
           marketId,
           borrowAmountBigint!,
         );

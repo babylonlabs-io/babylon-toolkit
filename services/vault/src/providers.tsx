@@ -3,9 +3,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
+import { vaultWagmiConfig } from "@/config/wagmi";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
@@ -29,9 +31,11 @@ function Providers({ children }: React.PropsWithChildren) {
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
-                <WalletConnectionProvider>
-                  <AppState>{children}</AppState>
-                </WalletConnectionProvider>
+                <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
+                  <WalletConnectionProvider>
+                    <AppState>{children}</AppState>
+                  </WalletConnectionProvider>
+                </WagmiProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"
                   initialIsOpen={false}

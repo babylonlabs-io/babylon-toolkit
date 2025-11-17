@@ -3,8 +3,8 @@
  * Handles the repay flow logic and transaction execution
  */
 
-import { useWalletClient } from "@babylonlabs-io/wallet-connector";
 import { parseUnits } from "viem";
+import { useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import {
@@ -105,7 +105,7 @@ export function useRepayTransaction({
             await repayDebtFull(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               positionId as `0x${string}`,
               marketId,
             );
@@ -115,7 +115,7 @@ export function useRepayTransaction({
             await repayDebtPartial(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               positionId as `0x${string}`,
               marketId,
               repayAmountBigint,
@@ -133,7 +133,7 @@ export function useRepayTransaction({
             await withdrawCollateralFromPosition(
               walletClient,
               chain,
-              CONTRACTS.VAULT_CONTROLLER,
+              CONTRACTS.MORPHO_CONTROLLER,
               marketId,
             );
           } catch (error) {
