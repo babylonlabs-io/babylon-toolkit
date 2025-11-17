@@ -1,0 +1,15 @@
+# Coverage reports
+coverage/
+coverage-final.json
+*.lcov
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
