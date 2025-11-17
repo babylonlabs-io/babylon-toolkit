@@ -41,8 +41,10 @@ export async function submitPeginRequest(
 }> {
   const publicClient = ethClient.getPublicClient();
 
+  let hash: Hash | undefined;
+
   try {
-    const hash = await walletClient.writeContract({
+    hash = await walletClient.writeContract({
       address: contractAddress,
       abi: BTCVaultsManagerABI,
       functionName: "submitPeginRequest",
@@ -57,6 +59,9 @@ export async function submitPeginRequest(
       account: walletClient.account!,
     });
 
+    // Wait for transaction receipt with extended timeout for testnet/mainnet
+    // Ethereum blocks can take 12-15 seconds, testnets can be slower
+    // 5 minutes should be sufficient for most cases
     const receipt = await publicClient.waitForTransactionReceipt({
       hash,
     });
@@ -66,6 +71,19 @@ export async function submitPeginRequest(
       receipt,
     };
   } catch (error) {
+    // If we have a transaction hash, the transaction was submitted successfully
+    // even if we timed out waiting for the receipt
+    if (hash) {
+      // Re-throw with the transaction hash included so user can check Etherscan
+      const enhancedError = new Error(
+        `Transaction submitted with hash ${hash}, but receipt polling timed out. ` +
+          `Please check the transaction on Etherscan. The transaction may still be pending or confirmed. ` +
+          `Original error: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      enhancedError.cause = error;
+      throw enhancedError;
+    }
+
     throw mapViemErrorToContractError(error, "submit pegin request");
   }
 }

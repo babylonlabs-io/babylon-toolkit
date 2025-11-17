@@ -2,7 +2,7 @@ import {
   APPKIT_BTC_CONNECTOR_ID,
   WalletProvider,
   createWalletConfig,
-  type AppKitBtcModalConfig,
+  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -10,7 +10,6 @@ import { useLocation } from "react-router";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
-import { getNetworkConfigETH } from "@/ui/common/config/network/eth";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
@@ -54,13 +53,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [handleError, logger],
   );
 
-  const requiredChains: ("BBN" | "BTC" | "ETH")[] = useMemo(
-    () =>
-      location.pathname.startsWith("/baby")
-        ? ["BBN"]
-        : location.pathname.startsWith("/vault")
-          ? ["BTC", "ETH"]
-          : ["BTC", "BBN"],
+  const requiredChains: ("BBN" | "BTC")[] = useMemo(
+    () => (location.pathname.startsWith("/baby") ? ["BBN"] : ["BTC", "BBN"]),
     [location.pathname],
   );
 
@@ -71,7 +65,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
         networkConfigs: {
           BTC: getNetworkConfigBTC(),
           BBN: getNetworkConfigBBN(),
-          ETH: getNetworkConfigETH(),
         },
       }),
     [requiredChains],
@@ -85,19 +78,29 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabled.push("ledger_btc");
     }
 
-    // Disable AppKit BTC on mainnet (not mature enough for production)
-    // Keep it enabled on testnet/signet for testing
+    // Disable AppKit BTC if:
+    // 1. No Reown project ID (AppKit won't work without it)
+    // 2. On mainnet (not mature enough for production)
+    const hasReownProjectId = !!process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
     const isMainnet = process.env.NEXT_PUBLIC_NETWORK === "mainnet";
-    if (isMainnet) {
+
+    if (!hasReownProjectId || isMainnet) {
       disabled.push(APPKIT_BTC_CONNECTOR_ID);
     }
 
     return disabled;
   }, []);
 
-  const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
-    () => ({
-      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
+  const appKitConfig: AppKitModalConfig | undefined = useMemo(() => {
+    const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+    // AppKit is optional - if no project ID is provided, AppKit wallets won't be available
+    if (!projectId) {
+      return undefined;
+    }
+
+    return {
+      projectId,
       metadata: {
         name: "Babylon Staking",
         description: "Babylon Bitcoin Staking Platform",
@@ -111,11 +114,12 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
             : "https://btcstaking.babylonlabs.io/favicon.ico",
         ],
       },
-      network:
-        getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
-    }),
-    [],
-  );
+      btc: {
+        network:
+          getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
+      },
+    };
+  }, []);
 
   return (
     <WalletProvider
@@ -126,7 +130,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={requiredChains}
-      appKitBtcConfig={appKitBtcConfig}
+      appKitConfig={appKitConfig}
     >
       {children}
     </WalletProvider>

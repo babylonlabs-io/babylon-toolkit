@@ -8,8 +8,6 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
-  type AppKitBtcModalConfig,
-  type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, type PropsWithChildren } from "react";
@@ -18,6 +16,9 @@ const context = typeof window !== "undefined" ? window : {};
 
 /**
  * WalletConnectionProvider
+ *
+ * NOTE: AppKit modal initialization is now handled in @/config/wagmi.ts
+ * to ensure wagmi config is created before the app renders.
  */
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { theme } = useTheme();
@@ -31,48 +32,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
           ETH: getNetworkConfigETH(),
         },
       }),
-    [],
-  );
-
-  const appKitConfig: AppKitModalConfig = useMemo(
-    () => ({
-      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
-      metadata: {
-        name: "Babylon Vault",
-        description: "Babylon Vault - Secure Bitcoin Vault Platform",
-        url:
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "https://staking.vault-devnet.babylonlabs.io",
-        icons: [
-          typeof window !== "undefined"
-            ? `${window.location.origin}/favicon.ico`
-            : "https://btcstaking.babylonlabs.io/favicon.ico",
-        ],
-      },
-    }),
-    [],
-  );
-
-  const appKitBtcConfig: AppKitBtcModalConfig = useMemo(
-    () => ({
-      projectId: process.env.NEXT_PUBLIC_REOWN_PROJECT_ID,
-      metadata: {
-        name: "Babylon Vault",
-        description: "Babylon Vault - Secure Bitcoin Vault Platform",
-        url:
-          typeof window !== "undefined"
-            ? window.location.origin
-            : "https://staking.vault-devnet.babylonlabs.io",
-        icons: [
-          typeof window !== "undefined"
-            ? `${window.location.origin}/favicon.ico`
-            : "https://btcstaking.babylonlabs.io/favicon.ico",
-        ],
-      },
-      network:
-        getNetworkConfigBTC().network === "mainnet" ? "mainnet" : "signet",
-    }),
     [],
   );
 
@@ -110,8 +69,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
-      appKitConfig={appKitConfig}
-      appKitBtcConfig={appKitBtcConfig}
     >
       <BTCWalletProvider>
         <ETHWalletProvider>{children}</ETHWalletProvider>

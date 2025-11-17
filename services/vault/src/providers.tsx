@@ -3,9 +3,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
+import { WagmiProvider } from "wagmi";
 
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
+import { vaultWagmiConfig } from "@/config/wagmi";
 import { ErrorProvider } from "@/context/error";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
@@ -31,14 +33,16 @@ function Providers({ children }: React.PropsWithChildren) {
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
                 <ErrorProvider>
-                  <WalletConnectionProvider>
-                    <AppState>{children}</AppState>
-                  </WalletConnectionProvider>
-                  <ReactQueryDevtools
-                    buttonPosition="bottom-left"
-                    initialIsOpen={false}
-                  />
+                  <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
+                    <WalletConnectionProvider>
+                      <AppState>{children}</AppState>
+                    </WalletConnectionProvider>
+                  </WagmiProvider>
                 </ErrorProvider>
+                <ReactQueryDevtools
+                  buttonPosition="bottom-left"
+                  initialIsOpen={false}
+                />
               </QueryClientProvider>
               <NotificationContainer />
             </div>

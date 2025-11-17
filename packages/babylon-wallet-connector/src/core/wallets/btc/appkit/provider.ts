@@ -1,8 +1,9 @@
 import { Psbt } from "bitcoinjs-lib";
 
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
-import { APPKIT_BTC_CONNECTED_EVENT, APPKIT_BTC_OPEN_EVENT } from "./constants";
+import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
 import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
@@ -24,7 +25,10 @@ export class AppKitBTCProvider implements IBTCProvider {
    */
   private getAppKitConfig() {
     if (!hasSharedBtcAppKitConfig()) {
-      throw new Error("AppKit BTC not initialized. Make sure to call initializeAppKitBtcModal() before connecting.");
+      throw new Error(
+        "AppKit BTC not initialized. Ensure AppKit modal is initialized at application startup " +
+        "by calling initializeAppKitModal() with btc config in your app's entry point."
+      );
     }
     return getSharedBtcAppKitConfig();
   }
@@ -33,7 +37,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     try {
       // Open AppKit modal for Bitcoin wallet connection
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent(APPKIT_BTC_OPEN_EVENT));
+        window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
 
         // Wait for connection to complete
         const waitForConnection = new Promise<void>((resolve, reject) => {

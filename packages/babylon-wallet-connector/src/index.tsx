@@ -10,10 +10,8 @@ export * from "@/providers";
 export { useChainConnector } from "@/hooks/useChainConnector";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
-export { useAppKitBridge } from "@/hooks/useAppKitBridge";
-export { useAppKitOpenListener } from "@/hooks/useAppKitOpenListener";
-export { useAppKitBtcBridge } from "@/hooks/useAppKitBtcBridge";
-export { useAppKitBtcOpenListener } from "@/hooks/useAppKitBtcOpenListener";
+export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";
+export { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
 
 export { type ChainConfigArr } from "@/context/Chain.context";
 export { useInscriptionProvider } from "@/context/Inscriptions.context";
@@ -30,27 +28,11 @@ export { setSharedWagmiConfig, getSharedWagmiConfig, hasSharedWagmiConfig } from
 export { APPKIT_ETH_CONNECTOR_ID } from "@/core/wallets/eth/appkit";
 export { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 
-// Export ETH AppKit modal utilities
+// Export unified AppKit modal utilities (supports both ETH and BTC)
 export {
     initializeAppKitModal,
-    getAppKitModal,
-    getAppKitWagmiConfig,
-    hasAppKitModal,
-    openAppKitModal,
-    closeAppKitModal,
     type AppKitModalConfig,
-} from "@/core/wallets/eth/appkit/appKitModal";
-
-// Export BTC AppKit modal utilities
-export {
-    initializeAppKitBtcModal,
-    getAppKitBtcModal,
-    getBitcoinAdapter,
-    hasAppKitBtcModal,
-    openAppKitBtcModal,
-    closeAppKitBtcModal,
-    type AppKitBtcModalConfig,
-} from "@/core/wallets/btc/appkit/appKitBtcModal";
+} from "@/core/wallets/appkit/appKitModal";
 
 // Export BTC AppKit shared config helpers
 export {
@@ -58,6 +40,3 @@ export {
     getSharedBtcAppKitConfig,
     hasSharedBtcAppKitConfig,
 } from "@/core/wallets/btc/appkit/sharedConfig";
-
-// Re-export wagmi hooks to ensure single instance across all consumers
-export * from "@/wagmiExports";

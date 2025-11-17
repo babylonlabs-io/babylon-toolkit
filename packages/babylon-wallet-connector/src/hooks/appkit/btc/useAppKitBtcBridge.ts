@@ -2,11 +2,12 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useCallback, useEffect, useRef } from "react";
 
-import { APPKIT_BTC_CONNECTOR_ID } from "../core/wallets/btc/appkit";
-import { APPKIT_BTC_CONNECTED_EVENT, APPKIT_BTC_OPEN_EVENT } from "../core/wallets/btc/appkit/constants";
-import { getSharedBtcAppKitConfig } from "../core/wallets/btc/appkit/sharedConfig";
+import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
+import { APPKIT_BTC_CONNECTED_EVENT } from "@/core/wallets/btc/appkit/constants";
+import { getSharedBtcAppKitConfig } from "@/core/wallets/btc/appkit/sharedConfig";
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 
-import { useChainConnector } from "./useChainConnector";
+import { useChainConnector } from "@/hooks/useChainConnector";
 
 interface UseAppKitBtcBridgeOptions {
   onError?: (error: Error) => void;
@@ -19,7 +20,7 @@ interface UseAppKitBtcBridgeOptions {
  * that AppKitBTCProvider.connectWallet() is waiting for. It does NOT call btcConnector.connect()
  * to avoid circular dependency issues.
  *
- * To prevent race conditions, it listens for "babylon:open-appkit-btc" events to coordinate
+ * To prevent race conditions, it listens for "babylon:open-appkit" events to coordinate
  * event dispatch timing with the provider's event listener registration.
  */
 export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) => {
@@ -95,8 +96,8 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
     };
 
     if (typeof window !== "undefined") {
-      window.addEventListener(APPKIT_BTC_OPEN_EVENT, handleModalOpen);
-      return () => window.removeEventListener(APPKIT_BTC_OPEN_EVENT, handleModalOpen);
+      window.addEventListener(APPKIT_OPEN_EVENT, handleModalOpen);
+      return () => window.removeEventListener(APPKIT_OPEN_EVENT, handleModalOpen);
     }
   }, [isConnected, address, allAccounts, dispatchConnectionEvent]);
 

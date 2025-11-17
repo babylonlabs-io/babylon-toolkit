@@ -1,20 +1,22 @@
 /**
  * Configuration for Bitcoin/Mempool API client
  *
- * Uses centralized environment variable validation from config/env.ts
+ * Uses babylon-config for network-aware mempool API URLs
  */
 
-import { ENV } from "../../config/env";
+import { getNetworkConfigBTC } from "@babylonlabs-io/config";
 
 /**
- * Get the Mempool API base URL from environment variables
+ * Get the Mempool API base URL from babylon-config
  *
- * This is required for fetching UTXOs, broadcasting transactions, and other Bitcoin operations.
+ * This automatically uses the correct network (mainnet/signet) based on
+ * NEXT_PUBLIC_BTC_NETWORK environment variable.
+ *
+ * @returns Mempool API URL with `/api` suffix (e.g., https://mempool.space/signet/api)
  */
 export function getMempoolApiUrl(): string {
-  // HARDCODED: Using `signet` for vault development
-  // TODO: Use wallet's actual network or add separate env var in production
-  return `${ENV.MEMPOOL_API}/signet/api`;
+  const btcConfig = getNetworkConfigBTC();
+  return `${btcConfig.mempoolApiUrl}/api`;
 }
 
 /**
