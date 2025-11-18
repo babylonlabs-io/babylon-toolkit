@@ -2,7 +2,7 @@
  * Data transformation utilities for converting blockchain data to UI formats
  */
 
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 
 import type { PeginRequest } from "../clients/eth-contract";
 import { getPeginState } from "../models/peginStateMachine";
@@ -32,7 +32,6 @@ export function formatBTCAmount(satoshis: bigint): string {
   // Format with up to 8 decimal places, removing trailing zeros
   return btc.toFixed(8).replace(/\.?0+$/, "") || "0";
 }
-
 
 /**
  * Format USDC amount from wei (6 decimals) to human-readable string

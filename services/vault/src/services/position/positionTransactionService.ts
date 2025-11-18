@@ -35,8 +35,6 @@ export interface AddCollateralResult {
   receipt: TransactionReceipt;
   /** Market parameters used */
   marketParams: MarketParams;
-  /** Position ID (only available when not borrowing) */
-  positionId?: Hex;
 }
 
 /**
@@ -79,7 +77,7 @@ export async function addCollateralWithMarketId(
       marketParams,
     };
   } else {
-    const { transactionHash, receipt, positionId } =
+    const { transactionHash, receipt } =
       await MorphoControllerTx.addCollateralToPosition(
         walletClient,
         chain,
@@ -92,7 +90,6 @@ export async function addCollateralWithMarketId(
       transactionHash,
       receipt,
       marketParams,
-      positionId,
     };
   }
 }
