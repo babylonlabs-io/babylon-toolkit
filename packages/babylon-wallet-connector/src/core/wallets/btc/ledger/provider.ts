@@ -11,7 +11,7 @@ import { getPublicKeyFromXpub, toNetwork } from "@/core/utils/wallet";
 
 import logo from "./logo.svg";
 import { getPolicyForTransaction } from "./policy";
-
+//#f statement
 
 const USE_SIMULATOR = true; // true: emulator, false: real device
 const SIMULATOR_URL = "http://localhost:5000";
@@ -112,7 +112,7 @@ export class LedgerProvider implements IBTCProvider {
   constructor(_wallet: any, config: BTCConfig) {
     this.config = config;
     this.derivationConfig = {
-      purpose: 86,
+      purpose: 84,
       addressIndex: 0,
     };
   }
@@ -285,10 +285,14 @@ export class LedgerProvider implements IBTCProvider {
     if (!this.ledgerWalletInfo?.address || !this.ledgerWalletInfo?.publicKeyHex) {
       throw new Error("Ledger is not connected");
     }
-    console.log("Signing PSBT hex:", psbtHex);
-    if (!psbtHex) throw new Error("psbt hex is required");
-    const psbtBase64 = Buffer.from(psbtHex, "hex").toString("base64");
-    const transport = this.ledgerWalletInfo.app.transport;
+  // Print the unsigned PSBT hex for debugging
+  console.log("=== PSBT UNSIGNED HEX ===");
+  console.log(psbtHex);
+  console.log("=== END PSBT UNSIGNED ===");
+
+  if (!psbtHex) throw new Error("psbt hex is required");
+  const psbtBase64 = Buffer.from(psbtHex, "hex").toString("base64");
+  const transport = this.ledgerWalletInfo.app.transport;
     if (!transport || !(transport instanceof Transport)) {
       throw new Error("Transport is required to sign psbt");
     }
@@ -317,12 +321,67 @@ export class LedgerProvider implements IBTCProvider {
       psbt: psbtBase64,
       policy,
     });
+
+    // Normalize deviceTransaction.toPSBT() into a hex string so it matches the
+    // unsigned PSBT hex representation. The ledger may return a base64 string,
+    // a Buffer/Uint8Array, or other binary-like object.
+    let ledgerPsbtHex: string | undefined;
+    let ledgerPsbtRaw: any;
+    try {
+      ledgerPsbtRaw = deviceTransaction.toPSBT();
+      console.log("=== PSBT FROM LEDGER (RAW) ===");
+      console.log(ledgerPsbtRaw);
+      console.log("=== END PSBT FROM LEDGER (RAW) ===");
+
+      if (typeof ledgerPsbtRaw === 'string') {
+        // likely base64
+        try {
+          ledgerPsbtHex = Buffer.from(ledgerPsbtRaw, 'base64').toString('hex');
+        } catch (_) {
+          // not base64; maybe already hex string
+          // if it looks like hex (only 0-9a-fA-F), use it
+          if (/^[0-9a-fA-F]+$/.test(ledgerPsbtRaw)) ledgerPsbtHex = ledgerPsbtRaw.toLowerCase();
+        }
+      } else if (Buffer.isBuffer(ledgerPsbtRaw)) {
+        ledgerPsbtHex = Buffer.from(ledgerPsbtRaw).toString('hex');
+      } else if (ledgerPsbtRaw instanceof Uint8Array || Object.prototype.toString.call(ledgerPsbtRaw) === '[object Uint8Array]') {
+        ledgerPsbtHex = Buffer.from(ledgerPsbtRaw).toString('hex');
+      } else if (ledgerPsbtRaw && ledgerPsbtRaw.data && (ledgerPsbtRaw.data instanceof Uint8Array || Buffer.isBuffer(ledgerPsbtRaw.data))) {
+        ledgerPsbtHex = Buffer.from(ledgerPsbtRaw.data).toString('hex');
+      }
+
+      if (ledgerPsbtHex) {
+        console.log("=== PSBT FROM LEDGER (HEX) ===");
+        console.log(ledgerPsbtHex);
+        console.log("=== END PSBT FROM LEDGER (HEX) ===");
+      } else {
+        console.warn('Could not convert ledger PSBT to hex for logging');
+      }
+    } catch (e) {
+      console.warn('Could not get deviceTransaction.toPSBT():', e);
+    }
+
+    // If caller requested the raw (unsigned-like) hex from ledger, return it
+    // without finalizing. We read options as any to avoid TS errors when
+    // the option is not declared in the shared type.
+    const skipFinalize = (options as any)?.skipFinalize === true;
+    if (skipFinalize && ledgerPsbtHex) {
+      console.log('Returning ledger PSBT hex without finalize (skipFinalize=true)');
+      return ledgerPsbtHex;
+    }
+
+    // Default: build Transaction, finalize and return finalized PSBT hex
     const tx = Transaction.fromPSBT(deviceTransaction.toPSBT(), {
       allowUnknownInputs: true,
       allowUnknownOutputs: true,
     });
     tx.finalize();
-    const signedPsbtHex = Buffer.from(tx.toPSBT()).toString("hex");
+    const signedPsbtHex = Buffer.from(tx.toPSBT()).toString('hex');
+
+    // Log finalized PSBT hex
+    console.log("=== PSBT AFTER FINALIZE HEX ===");
+    console.log(signedPsbtHex);
+    console.log("=== END PSBT AFTER FINALIZE ===");
 
     return signedPsbtHex;
   };
@@ -363,6 +422,13 @@ export class LedgerProvider implements IBTCProvider {
     if (!this.ledgerWalletInfo?.app.transport || !this.ledgerWalletInfo?.path) {
       throw new Error("Ledger is not connected");
     }
+    
+    // Log input message (as UTF-8 string and hex)
+    console.log("=== SIGN MESSAGE INPUT ===");
+    console.log("Message (string):", message);
+    console.log("Message (hex):", Buffer.from(message, 'utf-8').toString('hex'));
+    console.log("=== END SIGN MESSAGE INPUT ===");
+    
     const fullDerivationPath = `${this.ledgerWalletInfo.path}/0/${this.derivationConfig.addressIndex}`;
 
     const signedMessage = await signMessage({
@@ -370,6 +436,24 @@ export class LedgerProvider implements IBTCProvider {
       message,
       derivationPath: fullDerivationPath,
     });
+
+    // Log output signature (as returned string and as hex if needed)
+    console.log("=== SIGN MESSAGE OUTPUT ===");
+    console.log("Signature (raw):", signedMessage.signature);
+    // If signature is base64 or other encoding, convert to hex
+    let signatureHex = signedMessage.signature;
+    if (!/^[0-9a-fA-F]+$/.test(signedMessage.signature)) {
+      // Try base64 decode
+      try {
+        signatureHex = Buffer.from(signedMessage.signature, 'base64').toString('hex');
+        console.log("Signature (hex):", signatureHex);
+      } catch (_) {
+        console.log("Signature (could not convert to hex)");
+      }
+    } else {
+      console.log("Signature (already hex):", signatureHex);
+    }
+    console.log("=== END SIGN MESSAGE OUTPUT ===");
 
     return signedMessage.signature;
   };
