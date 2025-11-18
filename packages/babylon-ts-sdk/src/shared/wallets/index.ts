@@ -1,7 +1,4 @@
-// Shared utilities and cross-cutting concerns
-// This module contains wallet interfaces, errors, and common utilities
-
-// Wallet interfaces and implementations
+// Wallet interfaces
 export type {
   BitcoinWallet,
   BitcoinNetwork,
@@ -10,14 +7,14 @@ export type {
   Hash,
   TransactionRequest,
   TypedData,
-} from "./wallets";
+} from "./interfaces";
 
+// Mock implementations for testing
 export {
   MockBitcoinWallet,
   MockEthereumWallet,
-} from "./wallets";
-
+} from "./mocks";
 export type {
   MockBitcoinWalletConfig,
   MockEthereumWalletConfig,
-} from "./wallets";
+} from "./mocks";
