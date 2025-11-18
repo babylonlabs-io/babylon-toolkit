@@ -1,15 +1,10 @@
-// ERC20 Token - Write operations (transactions)
+/**
+ * ERC20 Token - Write operations (transactions)
+ */
 
-import {
-  type Address,
-  type Chain,
-  type Hash,
-  type TransactionReceipt,
-  type WalletClient,
-} from "viem";
+import { type Address, type Chain, type WalletClient } from "viem";
 
-import { mapViemErrorToContractError } from "../../../utils/errors";
-import { ethClient } from "../client";
+import { executeWrite, type TransactionResult } from "../transactionFactory";
 
 /**
  * Standard ERC20 ABI for approve function
@@ -29,12 +24,6 @@ const ERC20_APPROVE_ABI = [
 
 /**
  * Approve ERC20 token spending
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param tokenAddress - ERC20 token contract address
- * @param spenderAddress - Address that will be allowed to spend tokens
- * @param amount - Amount to approve (in token's smallest unit)
- * @returns Transaction hash and receipt
  */
 export async function approveERC20(
   walletClient: WalletClient,
@@ -42,28 +31,14 @@ export async function approveERC20(
   tokenAddress: Address,
   spenderAddress: Address,
   amount: bigint,
-): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const publicClient = ethClient.getPublicClient();
-
-  try {
-    const hash = await walletClient.writeContract({
-      address: tokenAddress,
-      abi: ERC20_APPROVE_ABI,
-      functionName: "approve",
-      args: [spenderAddress, amount],
-      chain,
-      account: walletClient.account!,
-    });
-
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-    });
-
-    return {
-      transactionHash: hash,
-      receipt,
-    };
-  } catch (error) {
-    throw mapViemErrorToContractError(error, "approve ERC20");
-  }
+): Promise<TransactionResult> {
+  return executeWrite({
+    walletClient,
+    chain,
+    address: tokenAddress,
+    abi: ERC20_APPROVE_ABI,
+    functionName: "approve",
+    args: [spenderAddress, amount],
+    errorContext: "approve ERC20",
+  });
 }

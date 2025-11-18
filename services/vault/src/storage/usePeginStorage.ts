@@ -9,7 +9,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { STORAGE_UPDATE_EVENT } from "../constants";
-import type { LocalStorageStatus } from "../models/peginStateMachine";
+import {
+  ContractStatus,
+  getPeginState,
+  type LocalStorageStatus,
+} from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
 import { useDebounce } from "../utils/hooks";
 
@@ -98,7 +102,7 @@ export function usePeginStorage({
       currentPegins,
       confirmedPegins.map((p) => ({
         id: p.id,
-        status: p.contractStatus ?? 0,
+        status: p.contractStatus ?? ContractStatus.PENDING,
       })),
     );
 
@@ -128,19 +132,18 @@ export function usePeginStorage({
       .map((pending) => ({
         id: pending.id,
         collateral: {
-          amount: pending.amount || "0", // Use stored amount from localStorage
+          amount: pending.amount || "0",
           symbol: "BTC",
         },
         providers: pending.providerIds
           ? [
               {
                 id: pending.providerIds?.join(",") || "",
-                name: "Vault Provider", // Name will be fetched from contract later
-                icon: "",
               },
             ]
           : [],
-        contractStatus: 0, // Pending status
+        contractStatus: ContractStatus.PENDING,
+        displayLabel: getPeginState(ContractStatus.PENDING).displayLabel,
         isPending: true,
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,

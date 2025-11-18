@@ -111,15 +111,33 @@ export function usePendingPeginTxPolling(
       // Create RPC client with provider URL
       const rpcClient = new VaultProviderRpcApi(providerUrl, 30000);
 
-      // Request claim and payout transactions
-      // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
-      // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
-      const response = await rpcClient.requestClaimAndPayoutTransactions({
-        pegin_tx_id: stripHexPrefix(params.peginTxId),
-        depositor_pk: params.depositorBtcPubkey,
-      });
+      try {
+        // Request claim and payout transactions
+        // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
+        // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
+        const response = await rpcClient.requestClaimAndPayoutTransactions({
+          pegin_tx_id: stripHexPrefix(params.peginTxId),
+          depositor_pk: params.depositorBtcPubkey,
+        });
 
-      return response;
+        return response;
+      } catch (error) {
+        // Expected error: Daemon is still processing (e.g., in "Acknowledged" state)
+        // Transactions are not ready yet - keep polling
+        if (
+          error instanceof Error &&
+          error.message.includes("Invalid state") &&
+          (error.message.includes("Acknowledged") ||
+            error.message.includes("PendingChallengerSignatures"))
+        ) {
+          // Return empty response to indicate transactions not ready yet
+          // This will continue polling without throwing error to console
+          return { txs: [] };
+        }
+
+        // Unexpected error - rethrow to be handled by React Query
+        throw error;
+      }
     },
     // Only enable polling when:
     // 1. params exist (pegin is in pending status)

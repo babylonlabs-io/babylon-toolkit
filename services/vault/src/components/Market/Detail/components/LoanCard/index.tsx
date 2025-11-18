@@ -29,7 +29,7 @@ export function LoanCard({
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    availableVaults,
+    borrowableVaults,
     availableLiquidity,
   } = useMarketDetailContext();
 
@@ -60,7 +60,7 @@ export function LoanCard({
                 btcPrice={btcPrice}
                 liquidationLtv={liquidationLtv}
                 onBorrow={onBorrow}
-                availableVaults={availableVaults}
+                borrowableVaults={borrowableVaults}
                 availableLiquidity={availableLiquidity}
                 currentCollateralAmount={currentCollateralAmount}
                 currentLoanAmount={currentLoanAmount}

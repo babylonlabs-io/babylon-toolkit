@@ -8,6 +8,7 @@ import { WagmiProvider } from "wagmi";
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
 import { vaultWagmiConfig } from "@/config/wagmi";
+import { ErrorProvider } from "@/context/error";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
@@ -31,11 +32,13 @@ function Providers({ children }: React.PropsWithChildren) {
           <CoreUIProvider portalContainer={portalContainer}>
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
-                <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
-                  <WalletConnectionProvider>
-                    <AppState>{children}</AppState>
-                  </WalletConnectionProvider>
-                </WagmiProvider>
+                <ErrorProvider>
+                  <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
+                    <WalletConnectionProvider>
+                      <AppState>{children}</AppState>
+                    </WalletConnectionProvider>
+                  </WagmiProvider>
+                </ErrorProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"
                   initialIsOpen={false}

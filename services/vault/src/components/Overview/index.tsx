@@ -198,15 +198,15 @@ function OverviewContent() {
   // Transform activities to deposits for modal
   const depositsForModal = useMemo(() => {
     return activities.map((activity) => {
-      const state = getPeginState(activity.contractStatus ?? 0);
+      const state = getPeginState(activity.contractStatus ?? 0, {
+        isInUse: activity.isInUse,
+      });
 
       return {
         id: activity.id,
         amount: parseFloat(activity.collateral.amount),
         vaultProvider: {
           address: activity.providers[0]?.id || "",
-          name: activity.providers[0]?.name || "Unknown Provider",
-          icon: activity.providers[0]?.icon || "",
         },
         pegInTxHash: activity.txHash || activity.id,
         status: state.displayLabel,

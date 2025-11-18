@@ -14,16 +14,14 @@ import { getMarketBorrowAPR } from "../../../../services/irm";
 import type { MorphoMarketSummary } from "../../../../services/market/marketService";
 import { getMarketData } from "../../../../services/market/marketService";
 import { getUserPositionForMarket } from "../../../../services/position";
-import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
   blockToDateString,
   estimateDateFromBlock,
 } from "../../../../utils/blockUtils";
 
-export interface AvailableVault {
-  txHash: string;
-  amountSatoshis: bigint;
-}
+import { useVaultsForBorrowing } from "./useVaultsForBorrowing";
+
+export type { BorrowableVault } from "./useVaultsForBorrowing";
 
 export function useMarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
@@ -86,29 +84,13 @@ export function useMarketDetail() {
     return markets.find((market) => market.id === marketId) || null;
   }, [markets, marketId]);
 
-  // Fetch available collaterals (vaults with status AVAILABLE)
+  // Fetch vaults available for borrowing
   const {
-    data: availableCollaterals,
+    vaults: borrowableVaults,
     isLoading: isCollateralsLoading,
     error: collateralsError,
     refetch: refetchCollaterals,
-  } = useQuery({
-    queryKey: ["availableCollaterals", address],
-    queryFn: () =>
-      getAvailableCollaterals(address as Address, CONTRACTS.BTC_VAULTS_MANAGER),
-    enabled: !!address,
-    retry: 2,
-    staleTime: 30000,
-  });
-
-  // Convert available collaterals to AvailableVault format
-  const availableVaults: AvailableVault[] = useMemo(() => {
-    if (!availableCollaterals) return [];
-    return availableCollaterals.map((collateral) => ({
-      txHash: collateral.txHash,
-      amountSatoshis: collateral.amountSatoshis,
-    }));
-  }, [availableCollaterals]);
+  } = useVaultsForBorrowing(address as Address | undefined);
 
   // Fetch token metadata for the market
   const {
@@ -159,8 +141,8 @@ export function useMarketDetail() {
   }, [marketConfig?.created_block]);
 
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
-  // vaultBTC (ERC20) uses 18 decimals, not 8 like native BTC
-  const formatVaultBTC = (value: bigint) => Number(value) / 1e18;
+  // Collateral in Morpho is stored in satoshis (8 decimals)
+  const formatVaultBTC = (value: bigint) => Number(value) / 1e8;
 
   const btcPrice = btcPriceUSD;
 
@@ -443,7 +425,7 @@ export function useMarketDetail() {
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    availableVaults,
+    borrowableVaults,
     availableLiquidity,
 
     // derived view

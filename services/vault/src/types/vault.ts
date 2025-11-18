@@ -12,8 +12,6 @@ export interface Deposit {
   amount: number;
   vaultProvider: {
     address: string;
-    name: string;
-    icon: string;
   };
   pegInTxHash: string;
   status: PeginDisplayLabel;

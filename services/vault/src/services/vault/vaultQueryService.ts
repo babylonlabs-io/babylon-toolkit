@@ -9,6 +9,10 @@ import type { Address, Hex } from "viem";
 
 import type { PeginRequest } from "../../clients/eth-contract";
 import { BTCVaultsManager } from "../../clients/eth-contract";
+import {
+  getVaultUsageStatusBulk,
+  VaultUsageStatus,
+} from "../../clients/eth-contract/morpho-controller/query";
 
 /**
  * Pegin request with transaction hash
@@ -97,6 +101,43 @@ export async function getPeginRequestsWithDetails(
 }
 
 /**
+ * Pegin request with in-use status
+ */
+export interface PeginRequestWithUsageStatus extends PeginRequestWithTxHash {
+  /** Whether the vault is currently in use by an application */
+  isInUse: boolean;
+}
+
+/**
+ * Get all pegin requests with their application usage status
+ */
+export async function getPeginRequestsWithUsageStatus(
+  depositorAddress: Address,
+  btcVaultsManagerAddress: Address,
+  applicationControllerAddress: Address,
+): Promise<PeginRequestWithUsageStatus[]> {
+  const peginRequests = await getPeginRequestsWithDetails(
+    depositorAddress,
+    btcVaultsManagerAddress,
+  );
+
+  if (peginRequests.length === 0) {
+    return [];
+  }
+
+  const vaultIds = peginRequests.map(({ txHash }) => txHash);
+  const usageStatuses = await getVaultUsageStatusBulk(
+    applicationControllerAddress,
+    vaultIds,
+  );
+
+  return peginRequests.map((pegin, index) => ({
+    ...pegin,
+    isInUse: usageStatuses[index] === VaultUsageStatus.InUse,
+  }));
+}
+
+/**
  * Available collateral for borrowing
  */
 export interface AvailableCollateral {
@@ -113,44 +154,40 @@ export interface AvailableCollateral {
 /**
  * Get available collaterals for borrowing
  *
- * Fetches all pegin requests and filters for those with status "Available" (status === 2).
- * These are pegins that have been verified by vault providers and are ready to be used as collateral,
- * but are NOT yet in a borrowing position (not borrowed against yet).
- *
- * Status flow:
- * - 0 = Pending: Waiting for vault provider verification
- * - 1 = Verified: Vault provider has signed, waiting for BTC confirmation
- * - 2 = Available: BTC confirmed, ready to use as collateral (THIS IS WHAT WE WANT)
- * - 3 = InPosition: Already being used in a Morpho borrowing position
- * - 4 = Expired: Pegin request expired
- *
- * @param depositorAddress - Depositor's Ethereum address
- * @param btcVaultsManagerAddress - BTCVaultsManager contract address
- * @returns Array of available collaterals that can be selected for borrowing
+ * Filters for vaults with:
+ * - Core status: Active
+ * - Usage status: Available (not InUse or Redeemed)
  */
 export async function getAvailableCollaterals(
   depositorAddress: Address,
   btcVaultsManagerAddress: Address,
+  applicationControllerAddress: Address,
 ): Promise<AvailableCollateral[]> {
-  // Fetch all pegin requests (no need to fetch vault metadata since status tells us if it's in use)
   const peginRequests = await getPeginRequestsWithDetails(
     depositorAddress,
     btcVaultsManagerAddress,
   );
 
-  // Filter for pegins with status "Available" (status === 2)
-  // These are pegins that:
-  // 1. Have been verified by vault provider
-  // 2. Have BTC confirmation on-chain
-  // 3. Are NOT yet used in a borrowing position (status 3 would mean "InPosition")
-  const availableCollaterals = peginRequests
-    .filter(({ peginRequest }) => peginRequest.status === 2)
+  const activePegins = peginRequests.filter(
+    ({ peginRequest }) => peginRequest.status === 2,
+  );
+
+  if (activePegins.length === 0) {
+    return [];
+  }
+
+  const vaultIds = activePegins.map(({ txHash }) => txHash);
+  const usageStatuses = await getVaultUsageStatusBulk(
+    applicationControllerAddress,
+    vaultIds,
+  );
+
+  return activePegins
+    .filter((_, index) => usageStatuses[index] === VaultUsageStatus.Available)
     .map(({ txHash, peginRequest }) => ({
       txHash,
-      amountSatoshis: peginRequest.amount, // Keep as satoshis (bigint) for precision
+      amountSatoshis: peginRequest.amount,
       symbol: "BTC",
-      icon: undefined, // Will be set by UI layer if needed
+      icon: undefined,
     }));
-
-  return availableCollaterals;
 }

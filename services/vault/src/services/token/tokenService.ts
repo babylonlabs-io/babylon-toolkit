@@ -161,10 +161,16 @@ async function fetchTokenMetadataFromChain(
       }),
     ]);
 
+    // Normalize vaultBTC symbol and name to BTC for display
+    const symbolLower = (symbol as string).toLowerCase();
+    const isVaultBTC = symbolLower === "vaultbtc";
+    const normalizedSymbol = isVaultBTC ? "BTC" : (symbol as string);
+    const normalizedName = isVaultBTC ? "Bitcoin" : (name as string);
+
     return {
       address,
-      name: name as string,
-      symbol: symbol as string,
+      name: normalizedName,
+      symbol: normalizedSymbol,
       decimals: decimals as number,
     };
   } catch (error) {

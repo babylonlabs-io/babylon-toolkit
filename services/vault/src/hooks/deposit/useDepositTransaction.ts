@@ -9,6 +9,7 @@ import { getWalletClient } from "wagmi/actions";
 
 import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
 import { BTC_TRANSACTION_FEE } from "@/config/pegin";
+import { useError } from "@/context/error";
 import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
@@ -18,7 +19,6 @@ import { createProofOfPossession } from "@/services/vault/vaultProofOfPossession
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { processPublicKeyToXOnly } from "@/utils/btc";
-import { formatErrorMessage } from "@/utils/errors";
 
 export interface CreateDepositTransactionParams {
   amount: string;
@@ -59,6 +59,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] =
     useState<DepositTransactionData | null>(null);
+  const { handleError } = useError();
 
   const reset = useCallback(() => {
     setIsCreating(false);
@@ -185,15 +186,27 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           data: txData,
         };
       } catch (error) {
+        const handledError =
+          error instanceof Error
+            ? error
+            : new Error("Failed to create deposit transaction");
+
+        handleError({
+          error: handledError,
+          displayOptions: {
+            showModal: true,
+          },
+        });
+
         return {
           success: false,
-          error: formatErrorMessage(error),
+          error: handledError.message,
         };
       } finally {
         setIsCreating(false);
       }
     },
-    [btcWalletProvider, confirmedUTXOs, availableProviders],
+    [btcWalletProvider, confirmedUTXOs, availableProviders, handleError],
   );
 
   const submitTransaction = useCallback(
@@ -265,15 +278,28 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           },
         };
       } catch (error) {
+        const txError =
+          error instanceof Error
+            ? error
+            : new Error("Failed to submit transaction");
+
+        handleError({
+          error: txError,
+          displayOptions: {
+            showModal: true,
+            retryAction: () => submitTransaction(txData),
+          },
+        });
+
         return {
           success: false,
-          error: formatErrorMessage(error),
+          error: txError.message,
         };
       } finally {
         setIsSubmitting(false);
       }
     },
-    [btcWalletProvider, btcAddress],
+    [btcWalletProvider, btcAddress, handleError],
   );
 
   return {

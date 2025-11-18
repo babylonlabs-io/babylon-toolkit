@@ -12,6 +12,8 @@
 
 import type { Hex } from "viem";
 
+import type { PeginDisplayLabel } from "../models/peginStateMachine";
+
 /**
  * Vault activity - represents both deposits and borrowing positions
  */
@@ -26,11 +28,9 @@ export interface VaultActivity {
     icon?: string;
   };
 
-  /** Vault providers */
+  /** Vault provider addresses */
   providers: Array<{
     id: string;
-    name: string;
-    icon?: string;
   }>;
 
   /** Optional action button */
@@ -44,8 +44,14 @@ export interface VaultActivity {
   /** Transaction hash (pegin tx) */
   txHash?: Hex;
 
-  /** Contract status (0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired) */
+  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed) - from BTCVaultsManager */
   contractStatus?: number;
+
+  /** Application usage status - whether vault is in use by Morpho (from MorphoIntegrationController) */
+  isInUse?: boolean;
+
+  /** Display label for UI (derived from contractStatus and isInUse) */
+  displayLabel: PeginDisplayLabel;
 
   /** Pending peg-in flags */
   isPending?: boolean;
