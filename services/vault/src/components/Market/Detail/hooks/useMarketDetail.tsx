@@ -14,16 +14,14 @@ import { getMarketBorrowAPR } from "../../../../services/irm";
 import type { MorphoMarketSummary } from "../../../../services/market/marketService";
 import { getMarketData } from "../../../../services/market/marketService";
 import { getUserPositionForMarket } from "../../../../services/position";
-import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 import {
   blockToDateString,
   estimateDateFromBlock,
 } from "../../../../utils/blockUtils";
 
-export interface AvailableVault {
-  txHash: string;
-  amountSatoshis: bigint;
-}
+import { useAvailableCollaterals } from "./useAvailableCollaterals";
+
+export type { AvailableVault } from "./useAvailableCollaterals";
 
 export function useMarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
@@ -86,33 +84,13 @@ export function useMarketDetail() {
     return markets.find((market) => market.id === marketId) || null;
   }, [markets, marketId]);
 
-  // Fetch available collaterals (vaults with status AVAILABLE and NOT in use by Morpho)
+  // Fetch available collaterals
   const {
-    data: availableCollaterals,
+    availableVaults,
     isLoading: isCollateralsLoading,
     error: collateralsError,
     refetch: refetchCollaterals,
-  } = useQuery({
-    queryKey: ["availableCollaterals", address],
-    queryFn: () =>
-      getAvailableCollaterals(
-        address as Address,
-        CONTRACTS.BTC_VAULTS_MANAGER,
-        CONTRACTS.MORPHO_CONTROLLER,
-      ),
-    enabled: !!address,
-    retry: 2,
-    staleTime: 30000,
-  });
-
-  // Convert available collaterals to AvailableVault format
-  const availableVaults: AvailableVault[] = useMemo(() => {
-    if (!availableCollaterals) return [];
-    return availableCollaterals.map((collateral) => ({
-      txHash: collateral.txHash,
-      amountSatoshis: collateral.amountSatoshis,
-    }));
-  }, [availableCollaterals]);
+  } = useAvailableCollaterals(address as Address | undefined);
 
   // Fetch token metadata for the market
   const {

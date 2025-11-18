@@ -5,6 +5,7 @@
 import type { Address, Hex } from "viem";
 
 import type { PeginRequest } from "../clients/eth-contract";
+import { getPeginState } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types";
 
 /**
@@ -32,18 +33,6 @@ export function formatBTCAmount(satoshis: bigint): string {
   return btc.toFixed(8).replace(/\.?0+$/, "") || "0";
 }
 
-/**
- * Format vault provider address to display name
- * TODO: Implement proper provider registry lookup
- * @param providerAddress - Ethereum address of vault provider
- * @returns Provider display name
- */
-export function formatProviderName(providerAddress: Address): string {
-  // For now, show shortened address
-  // TODO: Look up provider name from registry or API
-  const shortened = `${providerAddress.slice(0, 6)}...${providerAddress.slice(-4)}`;
-  return `Provider ${shortened}`;
-}
 
 /**
  * Format USDC amount from wei (6 decimals) to human-readable string
@@ -89,11 +78,10 @@ export function transformPeginToActivity(
   // Convert amount from satoshis to BTC
   const btcAmount = formatBTCAmount(peginRequest.amount);
 
-  // Format provider
-  const providerName = formatProviderName(peginRequest.vaultProvider);
+  // Compute display label from state machine
+  const state = getPeginState(peginRequest.status, { isInUse });
 
   // Create VaultActivity object (deposit/collateral info)
-  // Note: Display status is derived from contractStatus via peginStateMachine, not stored here
   const activity: VaultActivity = {
     id: txHash,
     txHash,
@@ -102,15 +90,12 @@ export function transformPeginToActivity(
       symbol: "BTC",
       icon: BITCOIN_ICON_DATA_URI,
     },
-    // Store numeric contract status for state machine and localStorage cleanup logic
     contractStatus: peginRequest.status,
-    // Application usage status (whether vault is in use by the target application)
     isInUse,
+    displayLabel: state.displayLabel,
     providers: [
       {
         id: peginRequest.vaultProvider,
-        name: providerName,
-        icon: undefined, // TODO: Add provider icon support
       },
     ],
     // No action handlers - these are attached at the component level

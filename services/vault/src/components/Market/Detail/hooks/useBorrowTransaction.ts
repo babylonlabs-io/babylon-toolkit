@@ -4,14 +4,9 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { parseUnits, type Hex } from "viem";
+import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
-import { BTCVaultsManager } from "../../../../clients/eth-contract";
-import {
-  getVaultUsageStatusBulk,
-  VaultUsageStatus,
-} from "../../../../clients/eth-contract/morpho-controller/query";
 import { CONTRACTS } from "../../../../config/contracts";
 import { useError } from "../../../../context/error";
 import {
@@ -41,8 +36,8 @@ interface UseBorrowTransactionProps {
 
 export interface UseBorrowTransactionResult {
   handleConfirmBorrow: (
-    collateralBTC: number,
-    borrowUSDC: number,
+    collateralSatoshis: bigint,
+    borrowAmount: bigint,
   ) => Promise<void>;
 }
 
@@ -64,8 +59,8 @@ export function useBorrowTransaction({
   const { handleError } = useError();
 
   const handleConfirmBorrow = async (
-    collateralBTC: number,
-    borrowUSDC: number,
+    collateralSatoshis: bigint,
+    borrowAmount: bigint,
   ) => {
     setProcessing(true);
     try {
@@ -83,21 +78,14 @@ export function useBorrowTransaction({
       }
 
       // Validate at least one amount is provided
-      if (collateralBTC <= 0 && borrowUSDC <= 0) {
+      if (collateralSatoshis <= 0n && borrowAmount <= 0n) {
         throw new Error(
           "Either collateral amount or borrow amount must be greater than 0",
         );
       }
 
-      // Convert borrow amount from USDC to bigint (6 decimals) - only if borrowing
-      const borrowAmountBigint =
-        borrowUSDC > 0 ? parseUnits(borrowUSDC.toString(), 6) : undefined;
-
-      if (collateralBTC > 0) {
+      if (collateralSatoshis > 0n) {
         // Case 1: Add new collateral (with optional borrowing)
-        // Convert collateral from BTC to satoshis
-        const collateralSatoshis = BigInt(Math.round(collateralBTC * 1e8));
-
         // Find which vaults to use for this collateral amount
         const vaultAmounts = availableVaults.map((v) => v.amountSatoshis);
         const vaultIndices = findVaultIndicesForAmount(
@@ -107,7 +95,7 @@ export function useBorrowTransaction({
 
         if (!vaultIndices) {
           throw new Error(
-            `Cannot find vault combination for ${collateralBTC} BTC. Please select a different amount.`,
+            `Cannot find vault combination for the requested amount. Please select a different amount.`,
           );
         }
 
@@ -116,45 +104,15 @@ export function useBorrowTransaction({
           (i) => availableVaults[i].txHash as Hex,
         );
 
-        // Validate vault statuses
-        const [vaultStatuses, usageStatuses] = await Promise.all([
-          Promise.all(
-            pegInTxHashes.map((txHash) =>
-              BTCVaultsManager.getPeginRequest(
-                CONTRACTS.BTC_VAULTS_MANAGER,
-                txHash,
-              ),
-            ),
-          ),
-          getVaultUsageStatusBulk(CONTRACTS.MORPHO_CONTROLLER, pegInTxHashes),
-        ]);
-
-        const invalidVaults = vaultStatuses
-          .map((v, index) => ({
-            status: v.status,
-            usageStatus: usageStatuses[index],
-            index,
-          }))
-          .filter(
-            (v) =>
-              v.status !== 2 || v.usageStatus !== VaultUsageStatus.Available,
-          );
-
-        if (invalidVaults.length > 0) {
-          throw new Error(
-            `Selected vaults are not available for borrowing. Please refresh and try again.`,
-          );
-        }
-
         await addCollateralWithMarketId(
           walletClient,
           chain,
           CONTRACTS.MORPHO_CONTROLLER,
           pegInTxHashes,
           marketId,
-          borrowAmountBigint,
+          borrowAmount > 0n ? borrowAmount : undefined,
         );
-      } else if (borrowUSDC > 0) {
+      } else if (borrowAmount > 0n) {
         // Case 2: Borrow more from existing position (no new collateral)
         if (!hasPosition) {
           throw new Error(
@@ -167,7 +125,7 @@ export function useBorrowTransaction({
           chain,
           CONTRACTS.MORPHO_CONTROLLER,
           marketId,
-          borrowAmountBigint!,
+          borrowAmount,
         );
       } else {
         // This should never happen due to validation above, but just in case

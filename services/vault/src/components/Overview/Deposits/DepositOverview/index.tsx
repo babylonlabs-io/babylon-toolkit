@@ -15,7 +15,6 @@ import type { Hex } from "viem";
 import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
 import { useBtcPublicKey } from "../../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
-import { getPeginState } from "../../../../models/peginStateMachine";
 import { usePeginStorage } from "../../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../../types/activity";
 import type { Deposit } from "../../../../types/vault";
@@ -233,12 +232,7 @@ function DepositMobileCard({
         {
           label: "Vault",
           value: (
-            <div className="flex items-center gap-2">
-              <span className="text-base">{deposit.vaultProvider.icon}</span>
-              <CopyableProviderAddress
-                address={deposit.vaultProvider.address}
-              />
-            </div>
+            <CopyableProviderAddress address={deposit.vaultProvider.address} />
           ),
         },
         {
@@ -356,23 +350,15 @@ export function DepositOverview() {
 
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
-    return allActivities.map((activity: VaultActivity) => {
-      const state = getPeginState(activity.contractStatus ?? 0, {
-        isInUse: activity.isInUse,
-      });
-
-      return {
-        id: activity.id,
-        amount: parseFloat(activity.collateral.amount),
-        vaultProvider: {
-          address: activity.providers[0]?.id || "",
-          name: activity.providers[0]?.name || "Unknown Provider",
-          icon: activity.providers[0]?.icon || "",
-        },
-        pegInTxHash: activity.txHash || activity.id,
-        status: state.displayLabel,
-      };
-    });
+    return allActivities.map((activity: VaultActivity) => ({
+      id: activity.id,
+      amount: parseFloat(activity.collateral.amount),
+      vaultProvider: {
+        address: activity.providers[0]?.id || "",
+      },
+      pegInTxHash: activity.txHash || activity.id,
+      status: activity.displayLabel,
+    }));
   }, [allActivities]);
 
   // Show empty state when not connected OR when connected but no data
@@ -411,10 +397,7 @@ export function DepositOverview() {
       key: "vaultProvider",
       header: "Vault(s)",
       render: (_value: unknown, row: Deposit) => (
-        <div className="flex items-center gap-2">
-          <span className="text-base">{row.vaultProvider.icon}</span>
-          <CopyableProviderAddress address={row.vaultProvider.address} />
-        </div>
+        <CopyableProviderAddress address={row.vaultProvider.address} />
       ),
     },
     {

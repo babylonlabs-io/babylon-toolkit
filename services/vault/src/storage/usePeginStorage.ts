@@ -128,19 +128,18 @@ export function usePeginStorage({
       .map((pending) => ({
         id: pending.id,
         collateral: {
-          amount: pending.amount || "0", // Use stored amount from localStorage
+          amount: pending.amount || "0",
           symbol: "BTC",
         },
         providers: pending.providerIds
           ? [
               {
                 id: pending.providerIds?.join(",") || "",
-                name: "Vault Provider", // Name will be fetched from contract later
-                icon: "",
               },
             ]
           : [],
-        contractStatus: 0, // Pending status
+        contractStatus: 0,
+        displayLabel: "Pending",
         isPending: true,
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,
