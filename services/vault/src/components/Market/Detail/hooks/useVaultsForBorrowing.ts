@@ -25,7 +25,7 @@ export function useVaultsForBorrowing(
   address: Address | undefined,
 ): UseVaultsForBorrowingResult {
   const {
-    data: availableCollaterals,
+    data: vaultsData,
     isLoading,
     error,
     refetch,
@@ -43,12 +43,12 @@ export function useVaultsForBorrowing(
   });
 
   const vaults: BorrowableVault[] = useMemo(() => {
-    if (!availableCollaterals) return [];
-    return availableCollaterals.map((collateral) => ({
-      txHash: collateral.txHash,
-      amountSatoshis: collateral.amountSatoshis,
+    if (!vaultsData) return [];
+    return vaultsData.map((vault) => ({
+      txHash: vault.txHash,
+      amountSatoshis: vault.amountSatoshis,
     }));
-  }, [availableCollaterals]);
+  }, [vaultsData]);
 
   const wrappedRefetch = async () => {
     await refetch();
