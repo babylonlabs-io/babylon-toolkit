@@ -7,12 +7,18 @@ import { parseUnits } from "viem";
 import { useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
+import { useError } from "../../../../context/error";
 import {
   approveLoanTokenForRepay,
   repayDebtFull,
   repayDebtPartial,
   withdrawCollateralFromPosition,
 } from "../../../../services/position/positionTransactionService";
+import {
+  ErrorCode,
+  WalletError,
+  mapViemErrorToContractError,
+} from "../../../../utils/errors";
 
 interface UseRepayTransactionProps {
   hasPosition: boolean;
@@ -48,6 +54,7 @@ export function useRepayTransaction({
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
+  const { handleError } = useError();
 
   const handleConfirmRepay = async (
     repayAmount: number,
@@ -59,7 +66,10 @@ export function useRepayTransaction({
       try {
         // Validate wallet connection
         if (!walletClient || !chain) {
-          throw new Error("Wallet not connected. Please connect your wallet.");
+          throw new WalletError(
+            "Please connect your wallet to continue",
+            ErrorCode.WALLET_NOT_CONNECTED,
+          );
         }
 
         // Validate at least one action is requested
@@ -162,6 +172,19 @@ export function useRepayTransaction({
         onRepaySuccess();
       } catch (error) {
         console.error("Repayment failed:", error);
+
+        const mappedError =
+          error instanceof Error
+            ? mapViemErrorToContractError(error, "Repay")
+            : new Error("An unexpected error occurred during repayment");
+
+        handleError({
+          error: mappedError,
+          displayOptions: {
+            showModal: true,
+            retryAction: () => handleConfirmRepay(repayAmount, withdrawAmount),
+          },
+        });
       } finally {
         setProcessing(false);
       }

@@ -8,10 +8,16 @@ import { useWalletClient } from "wagmi";
 
 import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";
+import { useError } from "../../../../context/error";
 import {
   addCollateralWithMarketId,
   borrowMoreFromPosition,
 } from "../../../../services/position/positionTransactionService";
+import {
+  ErrorCode,
+  WalletError,
+  mapViemErrorToContractError,
+} from "../../../../utils/errors";
 import { findVaultIndicesForAmount } from "../../../../utils/subsetSum";
 
 interface AvailableVault {
@@ -48,6 +54,7 @@ export function useBorrowTransaction({
 }: UseBorrowTransactionProps): UseBorrowTransactionResult {
   const { data: walletClient } = useWalletClient();
   const chain = walletClient?.chain;
+  const { handleError } = useError();
 
   const handleConfirmBorrow = async (
     collateralBTC: number,
@@ -57,7 +64,10 @@ export function useBorrowTransaction({
     try {
       // Validate wallet connection
       if (!walletClient || !chain) {
-        throw new Error("Wallet not connected. Please connect your wallet.");
+        throw new WalletError(
+          "Please connect your wallet to continue",
+          ErrorCode.WALLET_NOT_CONNECTED,
+        );
       }
 
       // Validate market ID
@@ -162,16 +172,20 @@ export function useBorrowTransaction({
       // Success - show success modal
       onBorrowSuccess();
     } catch (error) {
-      // Log detailed error information for debugging
       console.error("Borrow failed:", error);
-      console.error("Error details:", {
-        message: error instanceof Error ? error.message : "Unknown error",
-        cause: error instanceof Error ? error.cause : undefined,
-        stack: error instanceof Error ? error.stack : undefined,
-        fullError: error,
-      });
 
-      // TODO: Show error to user with proper error handling UI
+      const mappedError =
+        error instanceof Error
+          ? mapViemErrorToContractError(error, "Borrow")
+          : new Error("An unexpected error occurred during borrowing");
+
+      handleError({
+        error: mappedError,
+        displayOptions: {
+          showModal: true,
+          retryAction: () => handleConfirmBorrow(collateralBTC, borrowUSDC),
+        },
+      });
     } finally {
       setProcessing(false);
     }
