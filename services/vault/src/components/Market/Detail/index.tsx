@@ -114,7 +114,7 @@ export function MarketDetail() {
     // Set the data for success modal display
     openBorrowReview(collateralAmount, borrowAmount);
     // Convert to blockchain units and execute transaction
-    const collateralSatoshis = BigInt(Math.round(collateralAmount * 1e8));
+    const collateralSatoshis = parseUnits(collateralAmount.toString(), 8);
     const borrowAmountRaw = parseUnits(borrowAmount.toString(), 6);
     await handleConfirmBorrow(collateralSatoshis, borrowAmountRaw);
   };

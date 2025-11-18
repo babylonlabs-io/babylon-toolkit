@@ -132,7 +132,7 @@ export async function borrowFromPosition(
 /**
  * Withdraw ALL collateral from position
  */
-export async function withdrawCollateralFromPosition(
+export async function withdrawAllCollateralFromPosition(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
@@ -145,7 +145,7 @@ export async function withdrawCollateralFromPosition(
     abi: MorphoIntegrationControllerABI,
     functionName: "withdrawAllCollateralFromPosition",
     args: [marketParams],
-    errorContext: "withdraw collateral from position",
+    errorContext: "withdraw all collateral from position",
   });
 }
 

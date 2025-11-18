@@ -12,7 +12,7 @@ import {
   approveLoanTokenForRepay,
   repayDebtFull,
   repayDebtPartial,
-  withdrawCollateralFromPosition,
+  withdrawAllCollateralFromPosition,
 } from "../../../../services/position/positionTransactionService";
 import {
   ErrorCode,
@@ -135,12 +135,12 @@ export function useRepayTransaction({
 
         // Step 2: Withdraw collateral (if user wants to withdraw)
         if (withdrawAmount > 0) {
-          // Note: withdrawCollateralFromPosition withdraws ALL collateral
+          // Note: withdrawAllCollateralFromPosition withdraws ALL collateral
           // The contract will revert if there's any outstanding debt
           // We can only withdraw after debt is fully repaid
 
           try {
-            await withdrawCollateralFromPosition(
+            await withdrawAllCollateralFromPosition(
               walletClient,
               chain,
               CONTRACTS.MORPHO_CONTROLLER,

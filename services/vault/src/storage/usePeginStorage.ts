@@ -9,7 +9,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { STORAGE_UPDATE_EVENT } from "../constants";
-import type { LocalStorageStatus } from "../models/peginStateMachine";
+import {
+  ContractStatus,
+  getPeginState,
+  type LocalStorageStatus,
+} from "../models/peginStateMachine";
 import type { VaultActivity } from "../types/activity";
 import { useDebounce } from "../utils/hooks";
 
@@ -138,8 +142,8 @@ export function usePeginStorage({
               },
             ]
           : [],
-        contractStatus: 0,
-        displayLabel: "Pending",
+        contractStatus: ContractStatus.PENDING,
+        displayLabel: getPeginState(ContractStatus.PENDING).displayLabel,
         isPending: true,
         pendingMessage: "Transaction pending confirmation...",
         timestamp: pending.timestamp,
