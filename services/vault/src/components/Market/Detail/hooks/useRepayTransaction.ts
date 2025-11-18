@@ -3,8 +3,9 @@
  * Handles the repay flow logic and transaction execution
  */
 
-import { parseUnits } from "viem";
-import { useWalletClient } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { type Address, parseUnits } from "viem";
+import { useAccount, useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import { useError } from "../../../../context/error";
@@ -19,6 +20,7 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../utils/errors";
+import { invalidateVaultQueries } from "../../../../utils/queryKeys";
 
 interface UseRepayTransactionProps {
   hasPosition: boolean;
@@ -53,6 +55,8 @@ export function useRepayTransaction({
   setProcessing,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
@@ -167,6 +171,9 @@ export function useRepayTransaction({
 
         // Step 3: Refetch position data to update UI
         await refetch();
+
+        // Invalidate vault-related queries to update availability and usage status
+        await invalidateVaultQueries(queryClient, address as Address);
 
         // Success - show success modal
         onRepaySuccess();

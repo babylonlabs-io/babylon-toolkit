@@ -102,7 +102,7 @@ export function usePeginStorage({
       currentPegins,
       confirmedPegins.map((p) => ({
         id: p.id,
-        status: p.contractStatus ?? 0,
+        status: p.contractStatus ?? ContractStatus.PENDING,
       })),
     );
 

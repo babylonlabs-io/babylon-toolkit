@@ -4,7 +4,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
@@ -18,6 +18,7 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../utils/errors";
+import { invalidateVaultQueries } from "../../../../utils/queryKeys";
 import { findVaultIndicesForAmount } from "../../../../utils/subsetSum";
 
 import type { BorrowableVault } from "./useVaultsForBorrowing";
@@ -134,11 +135,8 @@ export function useBorrowTransaction({
       // Refetch position data to update UI
       await refetch();
 
-      // Invalidate borrowable vaults query to refresh the list
-      // This ensures vaults that were just added to the position are removed from available list
-      await queryClient.invalidateQueries({
-        queryKey: ["borrowableVaults", address],
-      });
+      // Invalidate vault-related queries to refresh available collateral and usage status
+      await invalidateVaultQueries(queryClient, address as Address);
 
       // Success - show success modal
       onBorrowSuccess();
@@ -154,7 +152,8 @@ export function useBorrowTransaction({
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () => handleConfirmBorrow(collateralBTC, borrowUSDC),
+          retryAction: () =>
+            handleConfirmBorrow(collateralSatoshis, borrowAmount),
         },
       });
     } finally {

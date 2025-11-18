@@ -273,7 +273,7 @@ export enum VaultUsageStatus {
 export async function getVaultUsageStatusBulk(
   contractAddress: Address,
   vaultIds: Hex[],
-): Promise<number[]> {
+): Promise<VaultUsageStatus[]> {
   if (vaultIds.length === 0) {
     return [];
   }
@@ -290,7 +290,8 @@ export async function getVaultUsageStatusBulk(
       vaultIds.map((vaultId) => [vaultId]),
     );
 
-    return results;
+    // Cast raw numbers to enum type for better type safety
+    return results as VaultUsageStatus[];
   } catch (error) {
     throw new Error(
       `Failed to get vault usage status: ${error instanceof Error ? error.message : "Unknown error"}`,
