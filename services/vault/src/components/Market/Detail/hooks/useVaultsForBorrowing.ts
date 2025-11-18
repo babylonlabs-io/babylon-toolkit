@@ -1,5 +1,5 @@
 /**
- * Hook to fetch available collaterals (vaults) for borrowing
+ * Hook to fetch vaults available for use as collateral in Morpho borrowing
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -9,28 +9,28 @@ import type { Address } from "viem";
 import { CONTRACTS } from "../../../../config/contracts";
 import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
 
-export interface AvailableVault {
+export interface BorrowableVault {
   txHash: string;
   amountSatoshis: bigint;
 }
 
-interface UseAvailableCollateralsResult {
-  availableVaults: AvailableVault[];
+interface UseVaultsForBorrowingResult {
+  vaults: BorrowableVault[];
   isLoading: boolean;
   error: Error | null;
   refetch: () => Promise<void>;
 }
 
-export function useAvailableCollaterals(
+export function useVaultsForBorrowing(
   address: Address | undefined,
-): UseAvailableCollateralsResult {
+): UseVaultsForBorrowingResult {
   const {
     data: availableCollaterals,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ["availableCollaterals", address],
+    queryKey: ["borrowableVaults", address],
     queryFn: () =>
       getAvailableCollaterals(
         address as Address,
@@ -42,7 +42,7 @@ export function useAvailableCollaterals(
     staleTime: 30000,
   });
 
-  const availableVaults: AvailableVault[] = useMemo(() => {
+  const vaults: BorrowableVault[] = useMemo(() => {
     if (!availableCollaterals) return [];
     return availableCollaterals.map((collateral) => ({
       txHash: collateral.txHash,
@@ -55,7 +55,7 @@ export function useAvailableCollaterals(
   };
 
   return {
-    availableVaults,
+    vaults,
     isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,

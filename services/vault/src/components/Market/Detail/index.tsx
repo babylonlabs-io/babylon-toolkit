@@ -38,7 +38,7 @@ export function MarketDetail() {
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    availableVaults,
+    borrowableVaults,
     availableLiquidity,
     marketAttributes,
     positionData,
@@ -89,7 +89,7 @@ export function MarketDetail() {
   const { handleConfirmBorrow } = useBorrowTransaction({
     hasPosition,
     marketId,
-    availableVaults,
+    borrowableVaults,
     refetch,
     onBorrowSuccess: showBorrowSuccess,
     setProcessing,
@@ -171,7 +171,7 @@ export function MarketDetail() {
         liquidationLtv,
         currentLoanAmount,
         currentCollateralAmount,
-        availableVaults,
+        borrowableVaults,
         availableLiquidity,
         tokenPair,
       }}

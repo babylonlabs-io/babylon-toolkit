@@ -8,9 +8,9 @@ import { useTheme } from "next-themes";
 
 import { getCurrencyIconWithFallback } from "../../../../../../services/token";
 import { useMarketDetailContext } from "../../../context/MarketDetailContext";
+import type { BorrowableVault } from "../../../hooks/useVaultsForBorrowing";
 
 import { LoanSummaryCard } from "./LoanSummaryCard";
-import type { AvailableVault } from "./hooks/useBorrowState";
 import { useBorrowState } from "./hooks/useBorrowState";
 import { useBorrowUI } from "./hooks/useBorrowUI";
 
@@ -18,8 +18,8 @@ export interface BorrowProps {
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
-  /** Available vaults with status AVAILABLE (status 2) */
-  availableVaults?: AvailableVault[];
+  /** Vaults available for use as collateral in borrowing */
+  borrowableVaults?: BorrowableVault[];
   /** Available liquidity in the market (in USDC) */
   availableLiquidity: number;
   /** Current collateral amount in position (BTC) */
@@ -34,7 +34,7 @@ export function Borrow({
   btcPrice,
   liquidationLtv,
   onBorrow,
-  availableVaults,
+  borrowableVaults,
   availableLiquidity,
   currentCollateralAmount,
   currentLoanAmount,
@@ -56,7 +56,7 @@ export function Borrow({
   } = useBorrowState({
     btcPrice,
     liquidationLtv,
-    availableVaults,
+    borrowableVaults,
     currentCollateralAmount,
     currentLoanAmount,
   });

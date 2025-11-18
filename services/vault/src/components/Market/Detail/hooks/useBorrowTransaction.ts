@@ -20,15 +20,12 @@ import {
 } from "../../../../utils/errors";
 import { findVaultIndicesForAmount } from "../../../../utils/subsetSum";
 
-interface AvailableVault {
-  txHash: string;
-  amountSatoshis: bigint;
-}
+import type { BorrowableVault } from "./useVaultsForBorrowing";
 
 interface UseBorrowTransactionProps {
   hasPosition: boolean;
   marketId: string | undefined;
-  availableVaults: AvailableVault[];
+  borrowableVaults: BorrowableVault[];
   refetch: () => Promise<void>;
   onBorrowSuccess: () => void;
   setProcessing: (processing: boolean) => void;
@@ -47,7 +44,7 @@ export interface UseBorrowTransactionResult {
 export function useBorrowTransaction({
   hasPosition,
   marketId,
-  availableVaults,
+  borrowableVaults,
   refetch,
   onBorrowSuccess,
   setProcessing,
@@ -87,7 +84,7 @@ export function useBorrowTransaction({
       if (collateralSatoshis > 0n) {
         // Case 1: Add new collateral (with optional borrowing)
         // Find which vaults to use for this collateral amount
-        const vaultAmounts = availableVaults.map((v) => v.amountSatoshis);
+        const vaultAmounts = borrowableVaults.map((v) => v.amountSatoshis);
         const vaultIndices = findVaultIndicesForAmount(
           vaultAmounts,
           collateralSatoshis,
@@ -101,7 +98,7 @@ export function useBorrowTransaction({
 
         // Get txHashes for selected vaults
         const pegInTxHashes = vaultIndices.map(
-          (i) => availableVaults[i].txHash as Hex,
+          (i) => borrowableVaults[i].txHash as Hex,
         );
 
         await addCollateralWithMarketId(
@@ -137,10 +134,10 @@ export function useBorrowTransaction({
       // Refetch position data to update UI
       await refetch();
 
-      // Invalidate available collaterals query to refresh the list
+      // Invalidate borrowable vaults query to refresh the list
       // This ensures vaults that were just added to the position are removed from available list
       await queryClient.invalidateQueries({
-        queryKey: ["availableCollaterals", address],
+        queryKey: ["borrowableVaults", address],
       });
 
       // Success - show success modal

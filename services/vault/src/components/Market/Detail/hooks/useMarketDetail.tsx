@@ -19,9 +19,9 @@ import {
   estimateDateFromBlock,
 } from "../../../../utils/blockUtils";
 
-import { useAvailableCollaterals } from "./useAvailableCollaterals";
+import { useVaultsForBorrowing } from "./useVaultsForBorrowing";
 
-export type { AvailableVault } from "./useAvailableCollaterals";
+export type { BorrowableVault } from "./useVaultsForBorrowing";
 
 export function useMarketDetail() {
   const { marketId } = useParams<{ marketId: string }>();
@@ -84,13 +84,13 @@ export function useMarketDetail() {
     return markets.find((market) => market.id === marketId) || null;
   }, [markets, marketId]);
 
-  // Fetch available collaterals
+  // Fetch vaults available for borrowing
   const {
-    availableVaults,
+    vaults: borrowableVaults,
     isLoading: isCollateralsLoading,
     error: collateralsError,
     refetch: refetchCollaterals,
-  } = useAvailableCollaterals(address as Address | undefined);
+  } = useVaultsForBorrowing(address as Address | undefined);
 
   // Fetch token metadata for the market
   const {
@@ -425,7 +425,7 @@ export function useMarketDetail() {
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    availableVaults,
+    borrowableVaults,
     availableLiquidity,
 
     // derived view
