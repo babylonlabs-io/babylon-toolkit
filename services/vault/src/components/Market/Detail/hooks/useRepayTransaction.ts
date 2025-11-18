@@ -3,8 +3,9 @@
  * Handles the repay flow logic and transaction execution
  */
 
-import { parseUnits } from "viem";
-import { useWalletClient } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import { type Address, parseUnits } from "viem";
+import { useAccount, useWalletClient } from "wagmi";
 
 import { CONTRACTS } from "../../../../config/contracts";
 import { useError } from "../../../../context/error";
@@ -12,13 +13,14 @@ import {
   approveLoanTokenForRepay,
   repayDebtFull,
   repayDebtPartial,
-  withdrawCollateralFromPosition,
+  withdrawAllCollateralFromPosition,
 } from "../../../../services/position/positionTransactionService";
 import {
   ErrorCode,
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../utils/errors";
+import { invalidateVaultQueries } from "../../../../utils/queryKeys";
 
 interface UseRepayTransactionProps {
   hasPosition: boolean;
@@ -53,6 +55,8 @@ export function useRepayTransaction({
   setProcessing,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
@@ -135,12 +139,12 @@ export function useRepayTransaction({
 
         // Step 2: Withdraw collateral (if user wants to withdraw)
         if (withdrawAmount > 0) {
-          // Note: withdrawCollateralFromPosition withdraws ALL collateral
+          // Note: withdrawAllCollateralFromPosition withdraws ALL collateral
           // The contract will revert if there's any outstanding debt
           // We can only withdraw after debt is fully repaid
 
           try {
-            await withdrawCollateralFromPosition(
+            await withdrawAllCollateralFromPosition(
               walletClient,
               chain,
               CONTRACTS.MORPHO_CONTROLLER,
@@ -167,6 +171,9 @@ export function useRepayTransaction({
 
         // Step 3: Refetch position data to update UI
         await refetch();
+
+        // Invalidate vault-related queries to update availability and usage status
+        await invalidateVaultQueries(queryClient, address as Address);
 
         // Success - show success modal
         onRepaySuccess();

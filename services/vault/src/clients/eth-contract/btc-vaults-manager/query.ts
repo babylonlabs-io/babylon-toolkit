@@ -10,12 +10,11 @@ import BTCVaultsManagerABI from "./abis/BTCVaultsManager.abi.json";
 /**
  * Pegin request structure
  *
- * BTCVaultStatus enum values:
+ * BTCVaultStatus enum values (core status in BTCVaultsManager):
  * 0 = Pending - Request submitted, waiting for ACKs
  * 1 = Verified - All ACKs collected, ready for inclusion proof
- * 2 = Available - Inclusion proof verified, vBTC minted, available for positions
- * 3 = InPosition - Vault is being used as collateral in a lending position
- * 4 = Expired - Pegged-in BTC has been liquidated/repaid and burned
+ * 2 = Active - Inclusion proof verified, vBTC can be minted, vault is active
+ * 3 = Redeemed - Vault has been redeemed (terminal state)
  */
 export interface PeginRequest {
   depositor: Address;
@@ -23,7 +22,8 @@ export interface PeginRequest {
   unsignedBtcTx: Hex;
   amount: bigint;
   vaultProvider: Address;
-  status: number; // BTCVaultStatus: 0=Pending, 1=Verified, 2=Available, 3=InPosition, 4=Expired
+  status: number; // BTCVaultStatus: 0=Pending, 1=Verified, 2=Active, 3=Redeemed
+  applicationController: Address; // Application the vault is registered for (immutable, set at creation)
 }
 
 /**
@@ -72,9 +72,9 @@ export async function getPeginRequest(
       args: [pegInTxHash],
     });
 
-    // Contract returns 7 fields from BTCVault struct (excluding mapping):
+    // Contract returns 7 fields from BTCVault struct:
     // 1. depositor, 2. depositorBtcPubKey, 3. unsignedPegInTx, 4. amount,
-    // 5. vaultProvider, 6. status, 7. positionId
+    // 5. vaultProvider, 6. status, 7. applicationController
     const [
       depositor,
       depositorBtcPubkey,
@@ -82,7 +82,7 @@ export async function getPeginRequest(
       amount,
       vaultProvider,
       status,
-      _positionId, // eslint-disable-line @typescript-eslint/no-unused-vars
+      applicationController,
     ] = result as [
       Address, // depositor
       Hex, // depositorBtcPubKey (32 bytes, x-only format)
@@ -90,7 +90,7 @@ export async function getPeginRequest(
       bigint, // amount
       Address, // vaultProvider
       number, // status
-      Hex, // positionId
+      Address, // applicationController
     ];
 
     return {
@@ -100,8 +100,7 @@ export async function getPeginRequest(
       amount,
       vaultProvider,
       status,
-      // Note: positionId is read but not included in return
-      // since PeginRequest interface doesn't need it for now
+      applicationController,
     };
   } catch (error) {
     throw new Error(
@@ -177,7 +176,7 @@ export async function getPeginRequestsBulk(
         amount,
         vaultProvider,
         status,
-        _positionId, // eslint-disable-line @typescript-eslint/no-unused-vars
+        applicationController,
       ]) => ({
         depositor,
         depositorBtcPubkey,
@@ -185,6 +184,7 @@ export async function getPeginRequestsBulk(
         amount,
         vaultProvider,
         status,
+        applicationController,
       }),
     );
   } catch (error) {

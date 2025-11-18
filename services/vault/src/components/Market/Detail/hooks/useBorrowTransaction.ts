@@ -3,10 +3,10 @@
  * Handles the borrow flow logic and transaction execution
  */
 
-import { parseUnits, type Hex } from "viem";
-import { useWalletClient } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
+import type { Address, Hex } from "viem";
+import { useAccount, useWalletClient } from "wagmi";
 
-import { BTCVaultsManager } from "../../../../clients/eth-contract";
 import { CONTRACTS } from "../../../../config/contracts";
 import { useError } from "../../../../context/error";
 import {
@@ -18,17 +18,15 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../utils/errors";
+import { invalidateVaultQueries } from "../../../../utils/queryKeys";
 import { findVaultIndicesForAmount } from "../../../../utils/subsetSum";
 
-interface AvailableVault {
-  txHash: string;
-  amountSatoshis: bigint;
-}
+import type { BorrowableVault } from "./useVaultsForBorrowing";
 
 interface UseBorrowTransactionProps {
   hasPosition: boolean;
   marketId: string | undefined;
-  availableVaults: AvailableVault[];
+  borrowableVaults: BorrowableVault[];
   refetch: () => Promise<void>;
   onBorrowSuccess: () => void;
   setProcessing: (processing: boolean) => void;
@@ -36,8 +34,8 @@ interface UseBorrowTransactionProps {
 
 export interface UseBorrowTransactionResult {
   handleConfirmBorrow: (
-    collateralBTC: number,
-    borrowUSDC: number,
+    collateralSatoshis: bigint,
+    borrowAmount: bigint,
   ) => Promise<void>;
 }
 
@@ -47,18 +45,20 @@ export interface UseBorrowTransactionResult {
 export function useBorrowTransaction({
   hasPosition,
   marketId,
-  availableVaults,
+  borrowableVaults,
   refetch,
   onBorrowSuccess,
   setProcessing,
 }: UseBorrowTransactionProps): UseBorrowTransactionResult {
   const { data: walletClient } = useWalletClient();
+  const { address } = useAccount();
+  const queryClient = useQueryClient();
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
   const handleConfirmBorrow = async (
-    collateralBTC: number,
-    borrowUSDC: number,
+    collateralSatoshis: bigint,
+    borrowAmount: bigint,
   ) => {
     setProcessing(true);
     try {
@@ -76,23 +76,16 @@ export function useBorrowTransaction({
       }
 
       // Validate at least one amount is provided
-      if (collateralBTC <= 0 && borrowUSDC <= 0) {
+      if (collateralSatoshis <= 0n && borrowAmount <= 0n) {
         throw new Error(
           "Either collateral amount or borrow amount must be greater than 0",
         );
       }
 
-      // Convert borrow amount from USDC to bigint (6 decimals) - only if borrowing
-      const borrowAmountBigint =
-        borrowUSDC > 0 ? parseUnits(borrowUSDC.toString(), 6) : undefined;
-
-      if (collateralBTC > 0) {
+      if (collateralSatoshis > 0n) {
         // Case 1: Add new collateral (with optional borrowing)
-        // Convert collateral from BTC to satoshis
-        const collateralSatoshis = BigInt(Math.round(collateralBTC * 1e8));
-
         // Find which vaults to use for this collateral amount
-        const vaultAmounts = availableVaults.map((v) => v.amountSatoshis);
+        const vaultAmounts = borrowableVaults.map((v) => v.amountSatoshis);
         const vaultIndices = findVaultIndicesForAmount(
           vaultAmounts,
           collateralSatoshis,
@@ -100,41 +93,14 @@ export function useBorrowTransaction({
 
         if (!vaultIndices) {
           throw new Error(
-            `Cannot find vault combination for ${collateralBTC} BTC. Please select a different amount.`,
+            `Cannot find vault combination for the requested amount. Please select a different amount.`,
           );
         }
 
         // Get txHashes for selected vaults
         const pegInTxHashes = vaultIndices.map(
-          (i) => availableVaults[i].txHash as Hex,
+          (i) => borrowableVaults[i].txHash as Hex,
         );
-
-        // Validate vault statuses before attempting to borrow
-        const vaultStatuses = await Promise.all(
-          pegInTxHashes.map((txHash) =>
-            BTCVaultsManager.getPeginRequest(
-              CONTRACTS.BTC_VAULTS_MANAGER,
-              txHash,
-            ),
-          ),
-        );
-
-        // Check all vaults are in AVAILABLE status (status 2)
-        const invalidVaults = vaultStatuses.filter((v) => v.status !== 2);
-        if (invalidVaults.length > 0) {
-          const statusNames = invalidVaults.map((v) =>
-            v.status === 0
-              ? "Pending"
-              : v.status === 1
-                ? "Verified"
-                : v.status === 3
-                  ? "InPosition"
-                  : "Expired",
-          );
-          throw new Error(
-            `Cannot borrow: ${invalidVaults.length} vault(s) are not in AVAILABLE status. Current statuses: ${statusNames.join(", ")}. Only vaults with AVAILABLE status (status 2) can be used for borrowing.`,
-          );
-        }
 
         await addCollateralWithMarketId(
           walletClient,
@@ -142,9 +108,9 @@ export function useBorrowTransaction({
           CONTRACTS.MORPHO_CONTROLLER,
           pegInTxHashes,
           marketId,
-          borrowAmountBigint,
+          borrowAmount > 0n ? borrowAmount : undefined,
         );
-      } else if (borrowUSDC > 0) {
+      } else if (borrowAmount > 0n) {
         // Case 2: Borrow more from existing position (no new collateral)
         if (!hasPosition) {
           throw new Error(
@@ -157,7 +123,7 @@ export function useBorrowTransaction({
           chain,
           CONTRACTS.MORPHO_CONTROLLER,
           marketId,
-          borrowAmountBigint!,
+          borrowAmount,
         );
       } else {
         // This should never happen due to validation above, but just in case
@@ -168,6 +134,9 @@ export function useBorrowTransaction({
 
       // Refetch position data to update UI
       await refetch();
+
+      // Invalidate vault-related queries to refresh available collateral and usage status
+      await invalidateVaultQueries(queryClient, address as Address);
 
       // Success - show success modal
       onBorrowSuccess();
@@ -183,7 +152,8 @@ export function useBorrowTransaction({
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () => handleConfirmBorrow(collateralBTC, borrowUSDC),
+          retryAction: () =>
+            handleConfirmBorrow(collateralSatoshis, borrowAmount),
         },
       });
     } finally {

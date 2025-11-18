@@ -18,18 +18,21 @@
 /**
  * Smart contract peg-in status (on-chain)
  * Source: BTCVaultsManager.sol - enum BTCVaultStatus
+ *
+ * IMPORTANT: With the new contract architecture:
+ * - Core vault status (BTCVaultsManager) does NOT change when used by applications
+ * - Vaults remain at ACTIVE status even when locked in Morpho positions
+ * - Application usage status is tracked separately in MorphoIntegrationController
  */
 export enum ContractStatus {
   /** Status 0: Request submitted, waiting for ACKs */
   PENDING = 0,
   /** Status 1: All ACKs collected, ready for inclusion proof */
   VERIFIED = 1,
-  /** Status 2: Inclusion proof verified, vBTC minted, available for positions */
-  AVAILABLE = 2,
-  /** Status 3: Vault is being used as collateral in a lending position */
-  IN_POSITION = 3,
-  /** Status 4: Pegged-in BTC has been liquidated/repaid and burned */
-  EXPIRED = 4,
+  /** Status 2: Inclusion proof verified, vault is active and usable (stays here even when used by apps) */
+  ACTIVE = 2,
+  /** Status 3: Vault has been redeemed, BTC is claimable */
+  REDEEMED = 3,
 }
 
 /**
@@ -77,7 +80,7 @@ export type PeginDisplayLabel =
   | "Pending Bitcoin Confirmations"
   | "Available"
   | "In Use"
-  | "Expired"
+  | "Redeemed"
   | "Unknown";
 
 /**
@@ -118,18 +121,29 @@ export enum PeginAction {
 // ============================================================================
 
 /**
+ * Options for getPeginState function
+ */
+export interface GetPeginStateOptions {
+  /** Off-chain localStorage status (optional, temporary) */
+  localStatus?: LocalStorageStatus;
+  /** Whether claim/payout transactions are ready from VP */
+  transactionsReady?: boolean;
+  /** Whether vault is in use by an application (from ApplicationVaultTracker) */
+  isInUse?: boolean;
+}
+
+/**
  * Determine the current state and available actions based on contract and local status
  *
  * @param contractStatus - On-chain contract status (source of truth)
- * @param localStatus - Off-chain localStorage status (optional, temporary)
- * @param transactionsReady - Whether claim/payout transactions are ready from VP
+ * @param options - Optional parameters (localStatus, transactionsReady, isInUse)
  * @returns Unified peg-in state with available actions
  */
 export function getPeginState(
   contractStatus: ContractStatus,
-  localStatus?: LocalStorageStatus | undefined,
-  transactionsReady?: boolean,
+  options: GetPeginStateOptions = {},
 ): PeginState {
+  const { localStatus, transactionsReady, isInUse } = options;
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
   if (contractStatus === ContractStatus.PENDING) {
     // Sub-state: Depositor already signed (waiting for on-chain ACK)
@@ -193,8 +207,24 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 2: Available (vBTC minted, available for positions)
-  if (contractStatus === ContractStatus.AVAILABLE) {
+  // Contract Status 2: Active (vault is active and usable)
+  // NOTE: With new contract architecture, vault stays at ACTIVE even when used by applications
+  // Application usage status is tracked separately in MorphoIntegrationController
+  if (contractStatus === ContractStatus.ACTIVE) {
+    // Check if vault is in use by an application (e.g., Morpho)
+    if (isInUse) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: "In Use",
+        displayVariant: "active",
+        availableActions: [PeginAction.NONE],
+        message:
+          "Vault is currently being used as collateral. Repay all debt before redeeming.",
+      };
+    }
+
+    // Vault is active and NOT in use - available for redemption
     return {
       contractStatus,
       localStatus,
@@ -204,28 +234,15 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 3: InPosition (Vault is being used as collateral)
-  if (contractStatus === ContractStatus.IN_POSITION) {
+  // Contract Status 3: Redeemed (vault has been redeemed, BTC is claimable)
+  if (contractStatus === ContractStatus.REDEEMED) {
     return {
       contractStatus,
       localStatus,
-      displayLabel: "In Use",
-      displayVariant: "active",
-      availableActions: [PeginAction.NONE],
-      message:
-        "Vault is currently being used as collateral in a lending position",
-    };
-  }
-
-  // Contract Status 4: Expired (Pegged-in BTC has been liquidated/repaid)
-  if (contractStatus === ContractStatus.EXPIRED) {
-    return {
-      contractStatus,
-      localStatus,
-      displayLabel: "Expired",
+      displayLabel: "Redeemed",
       displayVariant: "inactive",
       availableActions: [PeginAction.NONE],
-      message: "Vault has been redeemed or liquidated",
+      message: "Vault has been redeemed, BTC is claimable",
     };
   }
 
@@ -320,9 +337,8 @@ export function shouldRemoveFromLocalStorage(
   // Remove for terminal/confirmed states
   // Use explicit checks instead of >= to avoid fragility if enum values change
   if (
-    contractStatus === ContractStatus.AVAILABLE ||
-    contractStatus === ContractStatus.IN_POSITION ||
-    contractStatus === ContractStatus.EXPIRED
+    contractStatus === ContractStatus.ACTIVE ||
+    contractStatus === ContractStatus.REDEEMED
   ) {
     return true; // Fully confirmed, blockchain is source of truth
   }

@@ -106,8 +106,13 @@ export function useDepositRowPolling(
 
   // Get current state from state machine
   const peginState = useMemo(
-    () => getPeginState(contractStatus, localStatus, isReady),
-    [contractStatus, localStatus, isReady],
+    () =>
+      getPeginState(contractStatus, {
+        localStatus,
+        transactionsReady: isReady,
+        isInUse: activity.isInUse,
+      }),
+    [contractStatus, localStatus, isReady, activity.isInUse],
   );
 
   // Determine if "Sign" button should be shown

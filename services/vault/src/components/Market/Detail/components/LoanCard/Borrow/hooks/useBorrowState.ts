@@ -9,19 +9,13 @@ import {
   amountsToSliderSteps,
   calculateSubsetSums,
 } from "../../../../../../../utils/subsetSum";
-
-export interface AvailableVault {
-  /** Amount in satoshis (bigint for precision) */
-  amountSatoshis: bigint;
-  /** Transaction hash (vault ID) */
-  txHash: string;
-}
+import type { BorrowableVault } from "../../../../hooks/useVaultsForBorrowing";
 
 export interface UseBorrowStateProps {
   btcPrice: number;
   liquidationLtv: number;
-  /** Available vaults with status AVAILABLE (status 2) */
-  availableVaults?: AvailableVault[];
+  /** Vaults available for use as collateral in borrowing */
+  borrowableVaults?: BorrowableVault[];
   /** Current collateral amount in position (BTC) */
   currentCollateralAmount?: number;
   /** Current loan amount in position (USDC) */
@@ -49,7 +43,7 @@ export interface UseBorrowStateResult {
 export function useBorrowState({
   btcPrice,
   liquidationLtv,
-  availableVaults = [],
+  borrowableVaults = [],
   currentCollateralAmount = 0,
   currentLoanAmount = 0,
 }: UseBorrowStateProps): UseBorrowStateResult {
@@ -72,7 +66,7 @@ export function useBorrowState({
   useEffect(() => {
     setCollateralAmount(0);
     setBorrowAmount(0);
-  }, [availableVaults]);
+  }, [borrowableVaults]);
 
   // Reset both sliders when current loan amount changes (after refetch from successful borrow)
   // This handles the case where user borrows from existing collateral without adding new vaults
@@ -83,27 +77,27 @@ export function useBorrowState({
 
   // Calculate maximum collateral from available vaults (sum of all vaults)
   const maxCollateralFromVaults = useMemo(() => {
-    if (availableVaults.length === 0) {
+    if (borrowableVaults.length === 0) {
       return 0; // No vaults = cannot borrow
     }
 
     // Sum all vault amounts to get maximum possible collateral
-    const totalSatoshis = availableVaults.reduce(
+    const totalSatoshis = borrowableVaults.reduce(
       (sum, vault) => sum + vault.amountSatoshis,
       0n,
     );
 
     // Convert to BTC
     return Number(totalSatoshis) / 1e8;
-  }, [availableVaults]);
+  }, [borrowableVaults]);
 
   // Generate collateral slider steps based on available vaults
   // If vaults are provided, calculate all possible combinations using satoshis
   // Otherwise, fall back to percentage-based steps
   const collateralSteps = useMemo(() => {
     // If we have available vaults, calculate all possible subset sums in satoshis
-    if (availableVaults.length > 0) {
-      const vaultAmountsSatoshis = availableVaults.map(
+    if (borrowableVaults.length > 0) {
+      const vaultAmountsSatoshis = borrowableVaults.map(
         (vault) => vault.amountSatoshis,
       );
       const possibleSumsSatoshis = calculateSubsetSums(vaultAmountsSatoshis);
@@ -114,7 +108,7 @@ export function useBorrowState({
 
     // Fallback: No vaults means no collateral options
     return [{ value: 0 }];
-  }, [availableVaults]);
+  }, [borrowableVaults]);
 
   // Calculate collateral value in USD (only new collateral for display)
   const collateralValueUSD = useMemo(

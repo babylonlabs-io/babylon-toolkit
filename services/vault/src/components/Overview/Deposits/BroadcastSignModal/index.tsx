@@ -48,12 +48,10 @@ function formatAddress(address: string): string {
  */
 function ProviderStep({
   step,
-  providerName,
   providerAddress,
   isActive,
 }: {
   step: number;
-  providerName?: string;
   providerAddress: string;
   isActive: boolean;
 }) {
@@ -77,7 +75,7 @@ function ProviderStep({
           variant="body2"
           className={`text-sm ${isActive ? "font-medium text-accent-primary" : "text-accent-secondary"}`}
         >
-          {providerName || formatAddress(providerAddress)} payout
+          {formatAddress(providerAddress)} payout
         </Text>
       </div>
     </div>
@@ -163,7 +161,6 @@ export function BroadcastSignModal({
             <ProviderStep
               key={provider.id}
               step={index + 1}
-              providerName={provider.name}
               providerAddress={provider.id}
               isActive={isBroadcasting && index === 0}
             />

@@ -71,39 +71,42 @@ describe("Deposit Transformers", () => {
       expect(getPeginState(ContractStatus.VERIFIED).displayLabel).toBe(
         "Verified",
       );
-      expect(getPeginState(ContractStatus.AVAILABLE).displayLabel).toBe(
+      expect(getPeginState(ContractStatus.ACTIVE).displayLabel).toBe(
         "Available",
       );
-      expect(getPeginState(ContractStatus.IN_POSITION).displayLabel).toBe(
-        "In Use",
-      );
-      expect(getPeginState(ContractStatus.EXPIRED).displayLabel).toBe(
-        "Expired",
+      expect(
+        getPeginState(ContractStatus.ACTIVE, { isInUse: true }).displayLabel,
+      ).toBe("In Use");
+      expect(getPeginState(ContractStatus.REDEEMED).displayLabel).toBe(
+        "Redeemed",
       );
     });
 
     it("should prioritize local status when present", () => {
       expect(
-        getPeginState(ContractStatus.PENDING, LocalStorageStatus.CONFIRMING)
-          .displayLabel,
+        getPeginState(ContractStatus.PENDING, {
+          localStatus: LocalStorageStatus.CONFIRMING,
+        }).displayLabel,
       ).toBe("Pending"); // Note: CONFIRMING is only used with VERIFIED status in state machine
 
       expect(
-        getPeginState(ContractStatus.PENDING, LocalStorageStatus.PAYOUT_SIGNED)
-          .displayLabel,
+        getPeginState(ContractStatus.PENDING, {
+          localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        }).displayLabel,
       ).toBe("Processing");
 
       // Test the actual case where CONFIRMING is used
       expect(
-        getPeginState(ContractStatus.VERIFIED, LocalStorageStatus.CONFIRMING)
-          .displayLabel,
+        getPeginState(ContractStatus.VERIFIED, {
+          localStatus: LocalStorageStatus.CONFIRMING,
+        }).displayLabel,
       ).toBe("Pending Bitcoin Confirmations");
     });
 
     it("should handle undefined local status", () => {
-      expect(
-        getPeginState(ContractStatus.AVAILABLE, undefined).displayLabel,
-      ).toBe("Available");
+      expect(getPeginState(ContractStatus.ACTIVE).displayLabel).toBe(
+        "Available",
+      );
     });
 
     it("should return Unknown for invalid status", () => {

@@ -6,14 +6,14 @@
 import { createContext, useContext } from "react";
 
 import type { MarketTokenPair } from "../../../../services/token";
-import type { AvailableVault } from "../components/LoanCard/Borrow/hooks/useBorrowState";
+import type { BorrowableVault } from "../hooks/useVaultsForBorrowing";
 
 export interface MarketDetailContextValue {
   btcPrice: number;
   liquidationLtv: number;
   currentLoanAmount: number;
   currentCollateralAmount: number;
-  availableVaults?: AvailableVault[];
+  borrowableVaults?: BorrowableVault[];
   availableLiquidity: number;
   tokenPair: MarketTokenPair;
 }

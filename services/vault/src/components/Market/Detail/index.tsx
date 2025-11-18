@@ -11,6 +11,7 @@
 import { Container } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+import { parseUnits } from "viem";
 
 import { MarketInfo } from "../Info";
 
@@ -37,7 +38,7 @@ export function MarketDetail() {
     liquidationLtv,
     currentLoanAmount,
     currentCollateralAmount,
-    availableVaults,
+    borrowableVaults,
     availableLiquidity,
     marketAttributes,
     positionData,
@@ -88,7 +89,7 @@ export function MarketDetail() {
   const { handleConfirmBorrow } = useBorrowTransaction({
     hasPosition,
     marketId,
-    availableVaults,
+    borrowableVaults,
     refetch,
     onBorrowSuccess: showBorrowSuccess,
     setProcessing,
@@ -112,8 +113,10 @@ export function MarketDetail() {
   ) => {
     // Set the data for success modal display
     openBorrowReview(collateralAmount, borrowAmount);
-    // Execute transaction immediately with the amounts
-    await handleConfirmBorrow(collateralAmount, borrowAmount);
+    // Convert to blockchain units and execute transaction
+    const collateralSatoshis = parseUnits(collateralAmount.toString(), 8);
+    const borrowAmountRaw = parseUnits(borrowAmount.toString(), 6);
+    await handleConfirmBorrow(collateralSatoshis, borrowAmountRaw);
   };
 
   const handleRepayDirect = async (
@@ -168,7 +171,7 @@ export function MarketDetail() {
         liquidationLtv,
         currentLoanAmount,
         currentCollateralAmount,
-        availableVaults,
+        borrowableVaults,
         availableLiquidity,
         tokenPair,
       }}

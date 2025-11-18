@@ -2,14 +2,14 @@
  * Local Storage utilities for pending peg-in transactions
  *
  * Purpose:
- * - Store pending deposits temporarily until they reach Available state (contract status 2+)
+ * - Store pending deposits temporarily until they reach Active state (contract status 2+)
  * - Track user actions through localStorage status field
  * - Show immediate feedback to users after deposit submission
  * - Auto-cleanup based on peginStateMachine shouldRemoveFromLocalStorage logic
  *
  * Cleanup Strategy:
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
- * - Remove entries for contract status 2+ (AVAILABLE, IN_POSITION, EXPIRED)
+ * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
  * - Remove when older than 24 hours (stale data)
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
@@ -225,7 +225,7 @@ export function updatePendingPeginStatus(
  *
  * Uses peginStateMachine.shouldRemoveFromLocalStorage() for cleanup logic:
  * - Keep entries for contract status 0-1 (PENDING, VERIFIED)
- * - Remove entries for contract status 2+ (AVAILABLE, IN_POSITION, EXPIRED)
+ * - Remove entries for contract status 2+ (ACTIVE, REDEEMED)
  * - Remove entries older than 24 hours (stale data)
  * - Remove when contract status has progressed beyond local status
  *

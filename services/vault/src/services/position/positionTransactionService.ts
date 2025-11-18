@@ -35,8 +35,6 @@ export interface AddCollateralResult {
   receipt: TransactionReceipt;
   /** Market parameters used */
   marketParams: MarketParams;
-  /** Position ID (only available when not borrowing) */
-  positionId?: Hex;
 }
 
 /**
@@ -79,7 +77,7 @@ export async function addCollateralWithMarketId(
       marketParams,
     };
   } else {
-    const { transactionHash, receipt, positionId } =
+    const { transactionHash, receipt } =
       await MorphoControllerTx.addCollateralToPosition(
         walletClient,
         chain,
@@ -92,7 +90,6 @@ export async function addCollateralWithMarketId(
       transactionHash,
       receipt,
       marketParams,
-      positionId,
     };
   }
 }
@@ -450,7 +447,7 @@ export async function borrowMoreFromPosition(
  * @param marketId - Morpho market ID
  * @returns Transaction hash, receipt, and amount of collateral withdrawn
  */
-export async function withdrawCollateralFromPosition(
+export async function withdrawAllCollateralFromPosition(
   walletClient: WalletClient,
   chain: Chain,
   morphoControllerAddress: Address,
@@ -459,7 +456,7 @@ export async function withdrawCollateralFromPosition(
   // Fetch market parameters from Morpho contract
   const marketParams = await Morpho.getBasicMarketParams(marketId);
 
-  return MorphoControllerTx.withdrawCollateralFromPosition(
+  return MorphoControllerTx.withdrawAllCollateralFromPosition(
     walletClient,
     chain,
     morphoControllerAddress,
