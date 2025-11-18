@@ -3,8 +3,7 @@ import TransportWebHID from "@ledgerhq/hw-transport-webhid";
 import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
 import { Transaction } from "@scure/btc-signer";
 import { Buffer } from "buffer";
-import AppClient, { DefaultWalletPolicy, signMessage, signPsbt } from "ledger-bitcoin-babylon-boilerplate";
-
+import AppClient, { DefaultWalletPolicy, signMessage, signPsbt, getBbnVersion} from "ledger-bitcoin-babylon-boilerplate";
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { getPublicKeyFromXpub, toNetwork } from "@/core/utils/wallet";
@@ -236,37 +235,40 @@ export class LedgerProvider implements IBTCProvider {
   }
 
   connectWallet = async (): Promise<void> => {
-    try {
-      const app = await this.createAppClient();
-      // Get the master key fingerprint
-      const fpr = await app.getMasterFingerprint();
-      const derivationPathLv3 = this.getDerivationPath();
-      console.log("Derivation Path (3 levels):", derivationPathLv3);
-      console.log("Master Fingerprint:", fpr);
-     
-      const extendedPubkey = await app.getExtendedPubkey(derivationPathLv3);
-      const accountPolicy = await this.getWalletPolicy(app, fpr, derivationPathLv3);
-      console.log("Account Policy:", accountPolicy);
-      if (!accountPolicy) throw new Error("Could not retrieve the policy");
-      const { address, publicKeyHex } = await this.getLedgerAccount(
-        app,
-        accountPolicy,
-        extendedPubkey,
-      );
-      this.ledgerWalletInfo = {
-        app,
-        policy: accountPolicy,
-        mfp: fpr,
-        extendedPublicKey: extendedPubkey,
-        path: derivationPathLv3,
-        address,
-        publicKeyHex,
-      };
-    } catch (error) {
-      console.error("Error in connectWallet:", error);
-      console.error("Error stack:", error instanceof Error ? error.stack : 'No stack trace');
-      throw error;
+    const app = await this.createAppClient();
+    
+    // Detect firmware version - v2 required
+    const firmwareVersion = await getBbnVersion(app.transport);
+    console.log(`✓ Detected firmware version: v${firmwareVersion}`);
+    
+    if (firmwareVersion < 2) {
+      throw new Error(`Ledger firmware version too low. Required: v2 or higher, Found: v${firmwareVersion}`);
     }
+
+    // Get the master key fingerprint
+    const fpr = await app.getMasterFingerprint();
+    const derivationPathLv3 = this.getDerivationPath();
+    console.log("Derivation Path (3 levels):", derivationPathLv3);
+    console.log("Master Fingerprint:", fpr);
+   
+    const extendedPubkey = await app.getExtendedPubkey(derivationPathLv3);
+    const accountPolicy = await this.getWalletPolicy(app, fpr, derivationPathLv3);
+    console.log("Account Policy:", accountPolicy);
+    if (!accountPolicy) throw new Error("Could not retrieve the policy");
+    const { address, publicKeyHex } = await this.getLedgerAccount(
+      app,
+      accountPolicy,
+      extendedPubkey,
+    );
+    this.ledgerWalletInfo = {
+      app,
+      policy: accountPolicy,
+      mfp: fpr,
+      extendedPublicKey: extendedPubkey,
+      path: derivationPathLv3,
+      address,
+      publicKeyHex,
+    };
   };
 
   getAddress = async (): Promise<string> => {

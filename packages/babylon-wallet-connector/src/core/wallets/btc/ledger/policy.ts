@@ -5,14 +5,14 @@ import {
   withdrawPathPolicy,
   unbondingPathPolicy,
   expansionTxPolicy,
-  WalletPolicy,
+  WalletPolicy
 } from "ledger-bitcoin-babylon-boilerplate";
 
 import { Action, Contract } from "@/core/types";
 import { ActionName } from "@/core/utils/action";
 import { BABYLON_SIGNING_CONTRACTS } from "@/core/utils/contracts";
 import { sortPkHexes } from "@/core/utils/sortPkHexes";
-//import { get } from "http";
+
 
 
 export const getPolicyForTransaction = async (
