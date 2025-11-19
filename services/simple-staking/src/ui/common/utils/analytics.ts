@@ -39,6 +39,9 @@ export enum AnalyticsMessage {
   // Rewards tracking
   CLAIM_ALL_REWARDS = "claim_all_rewards",
   CLAIM_REWARDS_SUCCESS = "claim_rewards_success",
+  CONFIRM_CLAIM_REWARDS = "confirm_claim_rewards",
+  CANCEL_CLAIM_PREVIEW = "cancel_claim_preview",
+  CLAIM_PREVIEW_VIEWED = "claim_preview_viewed",
 }
 
 /**

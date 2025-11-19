@@ -249,7 +249,32 @@ function RewardsPageContent() {
     setPreviewOpen(true);
   };
 
+  useEffect(() => {
+    if (!previewOpen) {
+      return;
+    }
+
+    const stopTrackingPreview = trackViewTime(
+      AnalyticsCategory.MODAL_VIEW,
+      AnalyticsMessage.CLAIM_PREVIEW_VIEWED,
+      {
+        modalName: "RewardsPreviewModal",
+      },
+    );
+
+    return () => {
+      stopTrackingPreview();
+    };
+  }, [previewOpen]);
+
   const handleProceed = async () => {
+    trackEvent(
+      AnalyticsCategory.MODAL_INTERACTION,
+      AnalyticsMessage.CONFIRM_CLAIM_REWARDS,
+      {
+        modalName: "RewardsPreviewModal",
+      },
+    );
     const startTime = performance.now();
     setPreviewOpen(false);
     // Ensure processing modal is visible for the entire dual-claim flow
@@ -345,6 +370,15 @@ function RewardsPageContent() {
   };
 
   const handleClose = () => {
+    if (previewOpen) {
+      trackEvent(
+        AnalyticsCategory.MODAL_INTERACTION,
+        AnalyticsMessage.CANCEL_CLAIM_PREVIEW,
+        {
+          modalName: "RewardsPreviewModal",
+        },
+      );
+    }
     setPreviewOpen(false);
   };
   // Note: Co-staking bonus is included in BTC rewards, not claimed separately
