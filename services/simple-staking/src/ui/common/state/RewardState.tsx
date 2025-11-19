@@ -4,13 +4,18 @@ import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider
 import { useBbnQuery } from "@/ui/common/hooks/client/rpc/queries/useBbnQuery";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 
+interface BTCRewardBalance {
+  btcStaker: number;
+  coStaker: number;
+}
+
 interface RewardsStateProps {
   loading: boolean;
   showRewardModal: boolean;
   showProcessingModal: boolean;
   processing: boolean;
   bbnAddress: string;
-  rewardBalance: number;
+  rewardBalance: BTCRewardBalance;
   transactionFee: number;
   transactionHash: string;
   setTransactionHash: (hash: string) => void;
@@ -29,7 +34,7 @@ const defaultState: RewardsStateProps = {
   showProcessingModal: false,
   processing: false,
   bbnAddress: "",
-  rewardBalance: 0,
+  rewardBalance: { btcStaker: 0, coStaker: 0 },
   transactionFee: 0,
   transactionHash: "",
   setTransactionHash: () => {},
@@ -56,7 +61,7 @@ export function RewardsState({ children }: PropsWithChildren) {
 
   const {
     rewardsQuery: {
-      data: rewardBalance = 0,
+      data: rewardBalance = { btcStaker: 0, coStaker: 0 },
       isLoading: isRewardBalanceLoading,
       refetch: refetchRewardBalance,
     },
