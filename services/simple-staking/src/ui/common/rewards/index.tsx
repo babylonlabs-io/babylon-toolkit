@@ -153,6 +153,10 @@ function RewardsPageContent() {
       {
         component: "RewardsPage",
         babyAmount: eligibility.additionalBabyNeeded,
+        hasCoStakingBoost:
+          coStakingAmountBaby !== undefined && coStakingAmountBaby > 0,
+        currentTotalRewards: totalBabyRewards,
+        currentCoStakingBonus: coStakingAmountBaby ?? 0,
       },
     );
     navigate("/baby", {
