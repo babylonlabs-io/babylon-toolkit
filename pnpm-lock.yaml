@@ -446,6 +446,10 @@ importers:
         version: 5.9.2
 
   packages/babylon-ts-sdk:
+    dependencies:
+      '@babylonlabs-io/babylon-tbv-rust-wasm':
+        specifier: workspace:*
+        version: link:../babylon-tbv-rust-wasm
     devDependencies:
       '@internal/eslint-config':
         specifier: workspace:*

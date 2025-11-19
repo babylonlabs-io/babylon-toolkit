@@ -18,6 +18,10 @@ export default defineConfig({
         index: path.resolve(__dirname, "src/index.ts"),
         "tbv/index": path.resolve(__dirname, "src/tbv/index.ts"),
         "tbv/core/index": path.resolve(__dirname, "src/tbv/core/index.ts"),
+        "tbv/core/primitives/index": path.resolve(
+          __dirname,
+          "src/tbv/core/primitives/index.ts",
+        ),
         "tbv/integrations/morpho/index": path.resolve(
           __dirname,
           "src/tbv/integrations/morpho/index.ts",
