@@ -1,6 +1,6 @@
 import { Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
-import { useIsMobile } from "@babylonlabs-io/core-ui";
+import { useIsMobile, WaveBackground } from "@babylonlabs-io/core-ui";
 
 import { network } from "@/ui/common/config/network/btc";
 import { Network } from "@/ui/common/types/network";
@@ -20,11 +20,17 @@ export default function RootLayout() {
       className={twJoin(
         `relative h-full min-h-svh w-full`,
         network === Network.MAINNET ? "main-app-mainnet" : "main-app-testnet",
-        !isMobile
-          ? `dark:app-bg app-bg bg-cover bg-fixed bg-center bg-no-repeat`
-          : "",
       )}
     >
+      <WaveBackground
+        className="absolute inset-0 -z-10"
+        waveCount={5}
+        colors={["rgba(255, 124, 42, 0.3)", "rgba(13, 183, 191, 0.3)", "rgba(255, 124, 42, 0.2)"]}
+        strokeWidth={2}
+        speed={0.0005}
+        amplitude={0.15}
+        frequency={0.8}
+      />
       <div className="flex min-h-svh flex-col">
         <Banner />
         {FF.IsCoStakingEnabled && <CoStakingBanner />}
