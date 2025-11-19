@@ -77,17 +77,15 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   // Track modal view duration only on open/close
   useEffect(() => {
     if (!open) return;
-    const { babyAmount, aprBoostPercent, currentApr, boostApr } =
-      latestTrackingDataRef.current;
+    // Pass a snapshot so we log the values as they were when modal opened
     const stopTracking = trackViewTime(
       AnalyticsCategory.MODAL_VIEW,
       AnalyticsMessage.MODAL_VIEWED,
       {
-        modalName: "CoStakingBoostModal",
-        babyAmount,
-        aprBoostPercent,
-        currentApr,
-        boostApr,
+        current: {
+          modalName: "CoStakingBoostModal",
+          ...latestTrackingDataRef.current,
+        },
       },
     );
     return () => {

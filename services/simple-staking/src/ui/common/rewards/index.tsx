@@ -9,7 +9,7 @@ import {
   Container,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 
 import { Content } from "@/ui/common/components/Content/Content";
@@ -171,7 +171,20 @@ function RewardsPageContent() {
     (btcRewardUbbn.btcStaker > 0 || btcRewardUbbn.coStaker > 0);
   const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
 
-  // Track page viewing time
+  // Keep latest view metrics in a ref to avoid effect re-runs
+  const latestViewDataRef = useRef({
+    pageName: "RewardsPage" as const,
+    hasBtcRewards: Boolean(hasBtcRewards),
+    hasBabyRewards: Boolean(hasBabyRewards),
+    totalRewardsBaby: totalBabyRewards,
+    hasCoStakingBoost: Boolean(
+      FF.IsCoStakingEnabled &&
+        hasValidBoostData &&
+        coStakingAmountBaby !== undefined &&
+        coStakingAmountBaby > 0,
+    ),
+  });
+
   useEffect(() => {
     const hasCoStakingBoost =
       FF.IsCoStakingEnabled &&
@@ -179,20 +192,12 @@ function RewardsPageContent() {
       coStakingAmountBaby !== undefined &&
       coStakingAmountBaby > 0;
 
-    const logPageLeft = trackViewTime(
-      AnalyticsCategory.PAGE_VIEW,
-      AnalyticsMessage.PAGE_LEFT,
-      {
-        pageName: "RewardsPage",
-        hasBtcRewards: Boolean(hasBtcRewards),
-        hasBabyRewards: Boolean(hasBabyRewards),
-        totalRewardsBaby: totalBabyRewards,
-        hasCoStakingBoost,
-      },
-    );
-
-    return () => {
-      logPageLeft();
+    latestViewDataRef.current = {
+      pageName: "RewardsPage" as const,
+      hasBtcRewards: Boolean(hasBtcRewards),
+      hasBabyRewards: Boolean(hasBabyRewards),
+      totalRewardsBaby: totalBabyRewards,
+      hasCoStakingBoost,
     };
   }, [
     hasBtcRewards,
@@ -201,6 +206,16 @@ function RewardsPageContent() {
     coStakingAmountBaby,
     hasValidBoostData,
   ]);
+
+  // Track page viewing time using the ref so cleanup logs the latest metrics
+  useEffect(() => {
+    const stop = trackViewTime(
+      AnalyticsCategory.PAGE_VIEW,
+      AnalyticsMessage.PAGE_LEFT,
+      latestViewDataRef,
+    );
+    return () => stop();
+  }, []);
 
   const handleClaimClick = async () => {
     if (processing) return;
@@ -235,6 +250,7 @@ function RewardsPageContent() {
   };
 
   const handleProceed = async () => {
+    const startTime = performance.now();
     setPreviewOpen(false);
     // Ensure processing modal is visible for the entire dual-claim flow
     btcOpenProcessingModal();
@@ -273,6 +289,24 @@ function RewardsPageContent() {
           txHash: result?.txHash,
         });
       }
+
+      // Track successful claim transaction
+      const duration = Math.round(performance.now() - startTime);
+      trackEvent(
+        AnalyticsCategory.FORM_INTERACTION,
+        AnalyticsMessage.CLAIM_REWARDS_SUCCESS,
+        {
+          txHash: result?.txHash,
+          durationMs: duration,
+          durationSeconds: Math.round(duration / 1000),
+          hasBtcRewards: Boolean(hasBtcRewards),
+          hasBabyRewards: Boolean(hasBabyRewards),
+          totalRewardsBaby: totalBabyRewards,
+          btcRewardsBaby: btcRewardBaby,
+          babyRewardsBaby: babyRewardBaby,
+          coStakingBonusBaby: coStakingAmountBaby ?? 0,
+        },
+      );
 
       setClaimResults(results);
       setClaimStatus(ClaimStatus.SUCCESS);
