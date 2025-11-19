@@ -9,7 +9,7 @@ import {
   Container,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { Content } from "@/ui/common/components/Content/Content";
@@ -23,6 +23,7 @@ import {
   AnalyticsCategory,
   AnalyticsMessage,
   trackEvent,
+  trackViewTime,
 } from "@/ui/common/utils/analytics";
 import { useRewardsState as useBtcRewardsState } from "@/ui/common/state/RewardState";
 import {
@@ -166,6 +167,37 @@ function RewardsPageContent() {
     btcRewardUbbn &&
     (btcRewardUbbn.btcStaker > 0 || btcRewardUbbn.coStaker > 0);
   const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+
+  // Track page viewing time
+  useEffect(() => {
+    const hasCoStakingBoost =
+      FF.IsCoStakingEnabled &&
+      hasValidBoostData &&
+      coStakingAmountBaby !== undefined &&
+      coStakingAmountBaby > 0;
+
+    const logPageLeft = trackViewTime(
+      AnalyticsCategory.PAGE_VIEW,
+      AnalyticsMessage.PAGE_LEFT,
+      {
+        pageName: "RewardsPage",
+        hasBtcRewards: Boolean(hasBtcRewards),
+        hasBabyRewards: Boolean(hasBabyRewards),
+        totalRewardsBaby: totalBabyRewards,
+        hasCoStakingBoost,
+      },
+    );
+
+    return () => {
+      logPageLeft();
+    };
+  }, [
+    hasBtcRewards,
+    hasBabyRewards,
+    totalBabyRewards,
+    coStakingAmountBaby,
+    hasValidBoostData,
+  ]);
 
   const handleClaimClick = async () => {
     if (processing) return;

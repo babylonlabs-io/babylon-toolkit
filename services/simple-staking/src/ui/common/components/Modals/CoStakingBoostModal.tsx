@@ -8,7 +8,7 @@ import {
   AnalyticsCategory,
   AnalyticsMessage,
   trackEvent,
-  trackModalView,
+  trackViewTime,
 } from "../../utils/analytics";
 
 import { SubmitModal } from "./SubmitModal";
@@ -79,13 +79,17 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     if (!open) return;
     const { babyAmount, aprBoostPercent, currentApr, boostApr } =
       latestTrackingDataRef.current;
-    const stopTracking = trackModalView(AnalyticsMessage.MODAL_VIEWED, {
-      modalName: "CoStakingBoostModal",
-      babyAmount,
-      aprBoostPercent,
-      currentApr,
-      boostApr,
-    });
+    const stopTracking = trackViewTime(
+      AnalyticsCategory.MODAL_VIEW,
+      AnalyticsMessage.MODAL_VIEWED,
+      {
+        modalName: "CoStakingBoostModal",
+        babyAmount,
+        aprBoostPercent,
+        currentApr,
+        boostApr,
+      },
+    );
     return () => {
       stopTracking();
     };

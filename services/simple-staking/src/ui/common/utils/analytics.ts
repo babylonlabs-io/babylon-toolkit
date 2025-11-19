@@ -11,6 +11,7 @@ export enum AnalyticsCategory {
   FORM_INTERACTION = "form.interaction",
   CTA_CLICK = "cta.click",
   NAVIGATION = "navigation",
+  PAGE_VIEW = "page.view",
 }
 
 /**
@@ -29,6 +30,8 @@ export enum AnalyticsMessage {
   FORM_VALIDATION_ERROR = "form_validation_error",
   FORM_SUBMITTED = "form_submitted",
   FORM_SUBMISSION_FAILED = "form_submission_failed",
+  // Page view tracking
+  PAGE_LEFT = "page_left",
 }
 
 /**
@@ -53,17 +56,40 @@ export function trackEvent(
 }
 
 /**
- * Track modal viewing time. Returns a function to call when modal closes to log duration.
+ * Track viewing time for modals, pages, or any component.
+ * Returns a function to call when view ends to log duration.
+ *
+ * @param minDurationMs - Minimum duration in ms to track (default: 1000ms). Ignores StrictMode double-mount and instant unmounts.
+ *
+ * @example
+ * // Track page view
+ * const logPageLeft = trackViewTime(AnalyticsCategory.PAGE_VIEW, AnalyticsMessage.PAGE_LEFT, { pageName: 'RewardsPage' });
+ * return () => logPageLeft();
+ *
+ * @example
+ * // Track modal view
+ * const logModalClose = trackViewTime(AnalyticsCategory.MODAL_VIEW, AnalyticsMessage.MODAL_VIEWED, { modalName: 'ClaimPreview' });
+ * return () => logModalClose();
  */
-export function trackModalView(
+export function trackViewTime(
+  category: AnalyticsCategory,
   message: AnalyticsMessage,
   data: AnalyticsData = {},
+  minDurationMs = 1000,
 ) {
   const startTime = performance.now();
 
   return () => {
     const duration = Math.round(performance.now() - startTime);
-    trackEvent(AnalyticsCategory.MODAL_VIEW, message, {
+
+    // Ignore StrictMode double-mount and instant unmounts
+    if (duration < minDurationMs) {
+      return;
+    }
+
+    console.log("duration", duration, category, message, data);
+
+    trackEvent(category, message, {
       ...data,
       durationMs: duration,
       durationSeconds: Math.round(duration / 1000),
