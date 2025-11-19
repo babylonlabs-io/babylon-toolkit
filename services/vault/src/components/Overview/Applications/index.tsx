@@ -75,7 +75,7 @@ export function Applications() {
                 logoUrl={app.logoUrl}
                 name={app.name || app.type}
               />
-              <h4 className="text-[20px] font-medium text-white">
+              <h4 className="text-[20px] font-medium text-accent-primary">
                 {app.name || app.type}
               </h4>
             </div>
@@ -83,7 +83,7 @@ export function Applications() {
           </div>
 
           {app.description && (
-            <p className="flex-1 text-sm leading-relaxed text-white/60">
+            <p className="flex-1 text-sm leading-relaxed text-accent-primary">
               {app.description}
             </p>
           )}
