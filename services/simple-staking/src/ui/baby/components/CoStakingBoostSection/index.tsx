@@ -41,6 +41,7 @@ export function CoStakingBoostSection({
       AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
       {
         component: "CoStakingBoostSection",
+        babyAmount: eligibility.additionalBabyNeeded,
       },
     );
     setActiveTab("stake");

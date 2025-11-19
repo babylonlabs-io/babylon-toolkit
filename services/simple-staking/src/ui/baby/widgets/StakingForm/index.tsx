@@ -1,7 +1,7 @@
 import { Form, type FormRef } from "@babylonlabs-io/core-ui";
-import { useMemo, useRef, useEffect, useCallback } from "react";
+import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { DeepPartial } from "react-hook-form";
+import { useDebounce } from "@uidotdev/usehooks";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
 import { FeeField } from "@/ui/baby/components/FeeField";
@@ -16,6 +16,15 @@ import {
   NAVIGATION_STATE_KEYS,
   type NavigationState,
 } from "@/ui/common/constants/navigation";
+import {
+  AnalyticsMessage,
+  trackEvent,
+  AnalyticsCategory,
+} from "@/ui/common/utils/analytics";
+import { formatBabyStakingAmount } from "@/ui/common/utils/formTransforms";
+
+import { useValidationTracker } from "./hooks/useValidationTracker";
+import { useStakingFormChangeTracker } from "./hooks/useStakingFormChangeTracker";
 
 interface StakingFormProps {
   isGeoBlocked?: boolean;
@@ -52,6 +61,19 @@ export default function StakingForm({
   const { babyStakeDraft, setBabyStakeDraft } = useFormPersistenceState();
   const formRef = useRef<FormRef<StakingFormFields>>(null);
 
+  const [validationTrackingFields, setValidationTrackingFields] = useState({
+    amount: false,
+    validatorAddresses: false,
+  });
+  const [amountTrackingPayload, setAmountTrackingPayload] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
+  const debouncedAmountTrackingPayload = useDebounce(
+    amountTrackingPayload,
+    300,
+  );
+
   const defaultValues = useMemo<Partial<StakingFormFields>>(() => {
     return {
       amount: babyStakeDraft?.amount,
@@ -60,32 +82,47 @@ export default function StakingForm({
     };
   }, [babyStakeDraft]);
 
+  const { prefilledAmountRef, runProgrammaticChange } =
+    useStakingFormChangeTracker({
+      formRef,
+      setBabyStakeDraft,
+      setValidationTrackingFields,
+      setAmountTrackingPayload,
+    });
+
   const handlePreview = useCallback(
     ({
       amount,
       validatorAddresses,
       feeAmount,
     }: Required<StakingFormFields>) => {
+      trackEvent(
+        AnalyticsCategory.CTA_CLICK,
+        AnalyticsMessage.PREVIEW_BABY_STAKE,
+        {
+          wasPrefilledFromCoStaking:
+            prefilledAmountRef.current !== null &&
+            amount === formatBabyStakingAmount(prefilledAmountRef.current),
+        },
+      );
+
       showPreview({
         amount,
         feeAmount,
         validatorAddress: validatorAddresses[0],
       });
     },
-    [showPreview],
+    [showPreview, prefilledAmountRef],
   );
 
-  const handleChange = useCallback(
-    (data: DeepPartial<StakingFormFields>) => {
-      setBabyStakeDraft({
-        ...data,
-        validatorAddresses: data.validatorAddresses?.filter(
-          (i) => i !== undefined,
-        ),
-      });
-    },
-    [setBabyStakeDraft],
-  );
+  useEffect(() => {
+    if (!debouncedAmountTrackingPayload) return;
+    trackEvent(
+      AnalyticsCategory.FORM_INTERACTION,
+      AnalyticsMessage.FORM_FIELD_CHANGED,
+      debouncedAmountTrackingPayload,
+    );
+  }, [debouncedAmountTrackingPayload]);
 
   // Handle prefill amount from navigation state
   useEffect(() => {
@@ -100,17 +137,15 @@ export default function StakingForm({
     if (additionalBabyNeeded <= 0) return;
 
     if (formRef.current) {
-      formRef.current.setValue<"amount">("amount", additionalBabyNeeded, {
-        shouldDirty: true,
-        shouldTouch: true,
-        shouldValidate: true,
-      });
+      // Set prefilledAmountRef before setValue to track the prefilled amount for later analytics
+      prefilledAmountRef.current = additionalBabyNeeded;
 
-      const currentFormValues = formRef.current.getValues();
-      setBabyStakeDraft({
-        amount: additionalBabyNeeded,
-        validatorAddresses: currentFormValues.validatorAddresses,
-        feeAmount: currentFormValues.feeAmount,
+      runProgrammaticChange(() => {
+        formRef.current?.setValue<"amount">("amount", additionalBabyNeeded, {
+          shouldDirty: true,
+          shouldTouch: true,
+          shouldValidate: true,
+        });
       });
     }
 
@@ -131,8 +166,14 @@ export default function StakingForm({
     navigate,
     additionalBabyNeeded,
     isCoStakingLoading,
-    setBabyStakeDraft,
+    prefilledAmountRef,
+    runProgrammaticChange,
   ]);
+
+  useValidationTracker({
+    formRef,
+    enabledFields: validationTrackingFields,
+  });
 
   return (
     <Form
@@ -141,7 +182,6 @@ export default function StakingForm({
       className="flex flex-col gap-2"
       onSubmit={handlePreview}
       defaultValues={defaultValues}
-      onChange={handleChange}
     >
       <AmountField />
       <ValidatorField />

@@ -22,6 +22,13 @@ export enum AnalyticsMessage {
   DISMISS_COSTAKING_PREFILL_CTA = "dismiss_costaking_prefill_cta",
   CLOSE_MODAL = "close_modal",
   MODAL_VIEWED = "modal_viewed",
+  PREVIEW_BABY_STAKE = "preview_baby_stake",
+  CONFIRM_BABY_STAKE = "confirm_baby_stake",
+  // Form interactions
+  FORM_FIELD_CHANGED = "form_field_changed",
+  FORM_VALIDATION_ERROR = "form_validation_error",
+  FORM_SUBMITTED = "form_submitted",
+  FORM_SUBMISSION_FAILED = "form_submission_failed",
 }
 
 /**
