@@ -15,7 +15,7 @@ export default function ApplicationsHome() {
           <h2 className="text-center text-2xl font-normal leading-[133%] tracking-[0px] text-accent-secondary">
             Deposit your BTC, select the application, choose a vault provider and begin.
           </h2>
-          <Button color="secondary" rounded className="self-center">Deposit BTC</Button>
+          <Button color="secondary" rounded className="self-center mt-4">Deposit BTC</Button>
         </div>
         <h3 className="text-2xl font-normal capitalize text-accent-primary md:mb-6">
             Applications
