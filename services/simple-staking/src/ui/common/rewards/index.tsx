@@ -74,11 +74,11 @@ function RewardsPageContent() {
 
   // Convert BTC rewards from ubbn to BABY, using actual on-chain gauge values
   const baseBtcRewardBaby = maxDecimals(
-    ubbnToBaby(Number(btcRewardUbbn?.btcStaker || 0)),
+    ubbnToBaby(Number(btcRewardUbbn?.btcStaker ?? 0)),
     MAX_DECIMALS,
   );
   const coStakingAmountBaby = maxDecimals(
-    ubbnToBaby(Number(btcRewardUbbn?.coStaker || 0)),
+    ubbnToBaby(Number(btcRewardUbbn?.coStaker ?? 0)),
     MAX_DECIMALS,
   );
 
