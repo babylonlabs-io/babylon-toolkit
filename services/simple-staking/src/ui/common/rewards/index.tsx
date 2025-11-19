@@ -203,6 +203,19 @@ function RewardsPageContent() {
     if (processing) return;
     if (!hasBtcRewards && !hasBabyRewards) return;
 
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.CLAIM_ALL_REWARDS,
+      {
+        hasBtcRewards: Boolean(hasBtcRewards),
+        hasBabyRewards: Boolean(hasBabyRewards),
+        totalRewardsBaby: totalBabyRewards,
+        btcRewardsBaby: btcRewardBaby,
+        babyRewardsBaby: babyRewardBaby,
+        coStakingBonusBaby: coStakingAmountBaby ?? 0,
+      },
+    );
+
     const babyRewardsToClaim = hasBabyRewards ? babyRewards : [];
     try {
       const fee = await estimateCombinedClaimGas({

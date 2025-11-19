@@ -32,6 +32,8 @@ export enum AnalyticsMessage {
   FORM_SUBMISSION_FAILED = "form_submission_failed",
   // Page view tracking
   PAGE_LEFT = "page_left",
+  // Rewards tracking
+  CLAIM_ALL_REWARDS = "claim_all_rewards",
 }
 
 /**
@@ -42,6 +44,7 @@ export function trackEvent(
   message: AnalyticsMessage,
   data: AnalyticsData = {},
 ) {
+  console.log("trackEvent", category, message, data);
   Sentry.captureEvent({
     message,
     level: "debug",
