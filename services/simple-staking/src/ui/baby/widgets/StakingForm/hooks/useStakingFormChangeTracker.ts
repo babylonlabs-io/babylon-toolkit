@@ -42,6 +42,69 @@ export function useStakingFormChangeTracker({
     [],
   );
 
+  const handleAmountFieldChange = useCallback(
+    ({
+      amountValue,
+      rawAmount,
+      changeType,
+    }: {
+      amountValue?: number;
+      rawAmount: DeepPartial<StakingFormFields>["amount"];
+      changeType?: string;
+    }) => {
+      setValidationTrackingFields((previous) =>
+        previous.amount ? previous : { ...previous, amount: true },
+      );
+
+      const wasPrefilledFromCoStaking =
+        amountValue !== undefined &&
+        prefilledAmountRef.current !== null &&
+        amountValue === prefilledAmountRef.current;
+
+      setAmountTrackingPayload({
+        fieldName: "amount",
+        hasValue: Boolean(rawAmount),
+        valueType: typeof rawAmount,
+        wasPrefilledFromCoStaking,
+        changeType,
+      });
+
+      const shouldClearPrefill =
+        prefilledAmountRef.current !== null &&
+        (amountValue === undefined ||
+          amountValue !== prefilledAmountRef.current);
+
+      if (shouldClearPrefill) {
+        prefilledAmountRef.current = null;
+      }
+    },
+    [setValidationTrackingFields, setAmountTrackingPayload],
+  );
+
+  const handleValidatorFieldChange = useCallback(
+    ({ list, changeType }: { list: string[]; changeType?: string }) => {
+      setValidationTrackingFields((previous) =>
+        previous.validatorAddresses
+          ? previous
+          : { ...previous, validatorAddresses: true },
+      );
+
+      trackEvent(
+        AnalyticsCategory.FORM_INTERACTION,
+        AnalyticsMessage.FORM_FIELD_CHANGED,
+        {
+          fieldName: "validatorAddresses",
+          hasValue: list.length > 0,
+          valueType: "array",
+          arrayCount: list.length,
+          validatorCount: list.length,
+          changeType,
+        },
+      );
+    },
+    [setValidationTrackingFields],
+  );
+
   const handleChange = useCallback(
     (
       data: DeepPartial<StakingFormFields>,
@@ -81,62 +144,27 @@ export function useStakingFormChangeTracker({
       }
 
       if (amountChanged) {
-        setValidationTrackingFields((previous) =>
-          previous.amount ? previous : { ...previous, amount: true },
-        );
-
-        const wasPrefilledFromCoStaking =
-          amountValue !== undefined &&
-          prefilledAmountRef.current !== null &&
-          amountValue === prefilledAmountRef.current;
-
-        setAmountTrackingPayload({
-          fieldName: "amount",
-          hasValue: Boolean(data.amount),
-          valueType: typeof data.amount,
-          wasPrefilledFromCoStaking,
+        handleAmountFieldChange({
+          amountValue,
+          rawAmount: data.amount,
           changeType: info?.type,
         });
-
-        const shouldClearPrefill =
-          prefilledAmountRef.current !== null &&
-          (amountValue === undefined ||
-            amountValue !== prefilledAmountRef.current);
-
-        if (shouldClearPrefill) {
-          prefilledAmountRef.current = null;
-        }
       }
 
       if (validatorsChanged) {
-        setValidationTrackingFields((previous) =>
-          previous.validatorAddresses
-            ? previous
-            : { ...previous, validatorAddresses: true },
-        );
-        const list = filteredValidatorAddresses ?? [];
-
-        trackEvent(
-          AnalyticsCategory.FORM_INTERACTION,
-          AnalyticsMessage.FORM_FIELD_CHANGED,
-          {
-            fieldName: "validatorAddresses",
-            hasValue: list.length > 0,
-            valueType: "array",
-            arrayCount: list.length,
-            validatorCount: list.length,
-            changeType: info?.type,
-          },
-        );
+        handleValidatorFieldChange({
+          list: filteredValidatorAddresses ?? [],
+          changeType: info?.type,
+        });
       }
 
       previousValuesRef.current = nextValues;
     },
     [
       areValidatorsEqual,
+      handleAmountFieldChange,
+      handleValidatorFieldChange,
       setBabyStakeDraft,
-      setValidationTrackingFields,
-      setAmountTrackingPayload,
     ],
   );
 
