@@ -84,7 +84,7 @@ export function ChainProvider({
     const connectorArr = await Promise.all(connectorPromises);
 
     return connectorArr.reduce((acc, connector) => ({ ...acc, [connector.id]: connector }), {} as Connectors);
-  }, [persistent]);
+  }, [persistent, config, context, storage, disabledWallets]);
 
   useEffect(() => {
     init()
