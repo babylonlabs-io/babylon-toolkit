@@ -15,6 +15,7 @@ describe("FeatureFlagService", () => {
 
   describe("IsLedgerEnabled", () => {
     it("should return false when NEXT_PUBLIC_FF_ENABLE_LEDGER is not set", () => {
+      delete process.env.NEXT_PUBLIC_FF_ENABLE_LEDGER;
       expect(FeatureFlagService.IsLedgerEnabled).toBe(false);
     });
 
@@ -31,6 +32,7 @@ describe("FeatureFlagService", () => {
 
   describe("IsCoStakingEnabled", () => {
     it("should return false when NEXT_PUBLIC_FF_CO_STAKING is not set", () => {
+      delete process.env.NEXT_PUBLIC_FF_CO_STAKING;
       expect(FeatureFlagService.IsCoStakingEnabled).toBe(false);
     });
 

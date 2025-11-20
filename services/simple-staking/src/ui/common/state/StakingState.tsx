@@ -231,14 +231,6 @@ export function StakingState({ children }: PropsWithChildren) {
   }, [latestParam, mempoolFeeRates]);
 
   const isDisabled = useMemo(() => {
-    // Disable staking on testnet when sunsetting flag is enabled
-    if (FeatureFlags.IsTestnetSunsetEnabled) {
-      return {
-        title: "This testnet is sunsetting",
-        message:
-          "Staking is disabled on testnet. Please unbond and withdraw your funds as soon as possible.",
-      };
-    }
     // System wide staking disabled
     if (STAKING_DISABLED) {
       return {
