@@ -89,7 +89,6 @@ export function trackViewTime(
       return;
     }
 
-    console.log("duration", duration, category, message, data);
 
     trackEvent(category, message, {
       ...data,
