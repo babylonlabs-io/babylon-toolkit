@@ -7,12 +7,10 @@
  * @module primitives/psbt/pegin
  */
 
-import { createPegInTransaction } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-
-/**
- * Bitcoin network types supported by the vault system
- */
-export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
+import {
+  createPegInTransaction,
+  type Network,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**
  * Parameters for building an unsigned peg-in PSBT

@@ -8,4 +8,4 @@
  */
 
 export { buildPeginPsbt } from "./pegin";
-export type { Network, PeginParams, PeginPsbtResult } from "./pegin";
+export type { PeginParams, PeginPsbtResult } from "./pegin";

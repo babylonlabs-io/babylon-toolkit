@@ -14,6 +14,16 @@
  * @module primitives
  */
 
+// Core types from WASM package
+export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
 // PSBT builders
 export { buildPeginPsbt } from "./psbt/pegin";
-export type { Network, PeginParams, PeginPsbtResult } from "./psbt/pegin";
+export type { PeginParams, PeginPsbtResult } from "./psbt/pegin";
+
+// Script generators
+export { createPayoutScript } from "./scripts/payout";
+export type {
+  PayoutScriptParams,
+  PayoutScriptResult,
+} from "./scripts/payout";
