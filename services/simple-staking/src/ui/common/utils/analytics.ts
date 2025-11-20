@@ -44,7 +44,6 @@ export function trackEvent(
   message: AnalyticsMessage,
   data: AnalyticsData = {},
 ) {
-  console.log("trackEvent", category, message, data);
   Sentry.captureEvent({
     message,
     level: "debug",
