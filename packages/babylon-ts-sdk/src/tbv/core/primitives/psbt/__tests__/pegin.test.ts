@@ -3,12 +3,11 @@
  */
 
 import { describe, expect, it, beforeAll } from "vitest";
+import { buildPeginPsbt, type PeginParams } from "../pegin";
 import {
-  buildPeginPsbt,
+  createPegInTransaction,
   type Network,
-  type PeginParams,
-} from "../pegin";
-import { createPegInTransaction } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { TEST_KEYS, TEST_AMOUNTS, initializeWasmForTests } from "./helpers";
 
 describe("buildPeginPsbt", () => {
