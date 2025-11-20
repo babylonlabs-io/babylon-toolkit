@@ -450,6 +450,12 @@ importers:
       '@babylonlabs-io/babylon-tbv-rust-wasm':
         specifier: workspace:*
         version: link:../babylon-tbv-rust-wasm
+      '@bitcoin-js/tiny-secp256k1-asmjs':
+        specifier: 2.2.3
+        version: 2.2.3
+      bitcoinjs-lib:
+        specifier: 6.1.5
+        version: 6.1.5
     devDependencies:
       '@internal/eslint-config':
         specifier: workspace:*

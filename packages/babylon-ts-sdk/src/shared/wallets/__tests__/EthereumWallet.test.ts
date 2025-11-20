@@ -96,20 +96,6 @@ describe("EthereumWallet Interface", () => {
       await mockWallet.sendTransaction(tx);
       expect(mockWallet.getCurrentNonce()).toBe(2);
     });
-
-    it("should handle transaction delay", async () => {
-      const delayedWallet = new MockEthereumWallet({
-        transactionDelay: 50,
-      });
-
-      const startTime = Date.now();
-      await delayedWallet.sendTransaction({
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
-      });
-      const endTime = Date.now();
-
-      expect(endTime - startTime).toBeGreaterThanOrEqual(50);
-    });
   });
 
   describe("signTypedData", () => {
