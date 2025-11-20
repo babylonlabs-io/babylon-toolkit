@@ -25,17 +25,6 @@ export default {
   },
 
   /**
-   * TESTNET_SUNSET feature flag
-   *
-   * Purpose: Shows a testnet sunsetting notice and disables staking/expansion on testnet
-   * Why needed: To guide users to unbond and withdraw ahead of testnet sunset
-   * ETA for removal: When testnet is fully sunset
-   */
-  get IsTestnetSunsetEnabled() {
-    return process.env.NEXT_PUBLIC_FF_TESTNET_SUNSET === "true";
-  },
-
-  /**
    * Co-staking feature flag
    *
    * Purpose: Enables co-staking functionality for users to stake both BTC and BABY tokens for additional rewards
