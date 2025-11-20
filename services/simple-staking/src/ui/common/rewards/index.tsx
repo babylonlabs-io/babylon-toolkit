@@ -32,7 +32,6 @@ import {
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
-import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import { useCombinedRewardsService } from "@/ui/common/hooks/services/useCombinedRewardsService";
 import {
   ClaimStatus,
@@ -76,28 +75,28 @@ function RewardsPageContent() {
   const { claimCombined, estimateCombinedClaimGas } =
     useCombinedRewardsService();
 
-  const { eligibility, rawAprData, hasValidBoostData } = useCoStakingState();
+  const { eligibility, hasValidBoostData } = useCoStakingState();
 
-  const btcRewardBaby = maxDecimals(
-    ubbnToBaby(Number(btcRewardUbbn || 0)),
+  // Convert BTC rewards from ubbn to BABY, using actual on-chain gauge values
+  const baseBtcRewardBaby = maxDecimals(
+    ubbnToBaby(Number(btcRewardUbbn?.btcStaker ?? 0)),
     MAX_DECIMALS,
   );
+  const coStakingAmountBaby = maxDecimals(
+    ubbnToBaby(Number(btcRewardUbbn?.coStaker ?? 0)),
+    MAX_DECIMALS,
+  );
+
   const babyRewardBaby = maxDecimals(
     ubbnToBaby(Number(babyRewardUbbn || 0n)),
     MAX_DECIMALS,
   );
 
-  // Note: Co-staking bonus is already included in BTC rewards
-  // Total = BTC rewards (includes co-staking bonus if eligible) + BABY rewards
+  // Total rewards = BTC rewards (base + co-staking) + BABY rewards
+  // Calculate BTC total in frontend instead of using pre-calculated value
   const totalBabyRewards = maxDecimals(
-    btcRewardBaby + babyRewardBaby,
+    baseBtcRewardBaby + coStakingAmountBaby + babyRewardBaby,
     MAX_DECIMALS,
-  );
-
-  // Calculate co-staking amount split from BTC rewards using API APR ratios
-  const { coStakingAmountBaby, baseBtcRewardBaby } = useMemo(
-    () => calculateCoStakingAmount(btcRewardBaby, rawAprData),
-    [btcRewardBaby, rawAprData],
   );
 
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -163,7 +162,9 @@ function RewardsPageContent() {
   };
 
   // Hoist reward checks to avoid duplicate declarations
-  const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+  const hasBtcRewards =
+    btcRewardUbbn &&
+    (btcRewardUbbn.btcStaker > 0 || btcRewardUbbn.coStaker > 0);
   const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
 
   const handleClaimClick = async () => {
