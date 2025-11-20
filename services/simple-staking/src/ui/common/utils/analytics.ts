@@ -92,7 +92,6 @@ export function trackViewTime(
       return;
     }
 
-
     trackEvent(category, message, {
       ...data,
       durationMs: duration,
