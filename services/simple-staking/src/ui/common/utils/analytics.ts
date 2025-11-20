@@ -61,6 +61,9 @@ export function trackEvent(
  * Track viewing time for modals, pages, or any component.
  * Returns a function to call when view ends to log duration.
  *
+ * @param category - The analytics event category (e.g., modal, page, form).
+ * @param message - The analytics event message describing the action.
+ * @param data - Additional analytics data to include with the event.
  * @param minDurationMs - Minimum duration in ms to track (default: 1000ms). Ignores StrictMode double-mount and instant unmounts.
  *
  * @example
