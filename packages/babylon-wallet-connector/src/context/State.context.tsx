@@ -64,7 +64,18 @@ export function StateProvider({ children, chains }: PropsWithChildren<StateProvi
   const [state, setState] = useState<State>(defaultState);
 
   useEffect(() => {
-    setState((state) => ({ ...state, chains: chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {}) }));
+    setState((state) => {
+      const newChains = chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {});
+      const validChainIds = chains.map(chain => chain.id);
+      const filteredWallets = Object.keys(state.selectedWallets).reduce((acc, key) => {
+        if (validChainIds.includes(key)) {
+          acc[key] = state.selectedWallets[key];
+        }
+        return acc;
+      }, {} as Record<string, IWallet | undefined>);
+
+      return { ...state, chains: newChains, selectedWallets: filteredWallets };
+    });
   }, [chains]);
 
   const actions: Actions = useMemo(
