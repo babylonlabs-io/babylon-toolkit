@@ -20,6 +20,11 @@
       "require": "./dist/tbv/core/index.cjs",
       "import": "./dist/tbv/core/index.js"
     },
+    "./tbv/core/primitives": {
+      "types": "./dist/tbv/core/primitives/index.d.ts",
+      "require": "./dist/tbv/core/primitives/index.cjs",
+      "import": "./dist/tbv/core/primitives/index.js"
+    },
     "./tbv/integrations/morpho": {
       "types": "./dist/tbv/integrations/morpho/index.d.ts",
       "require": "./dist/tbv/integrations/morpho/index.cjs",
@@ -60,6 +65,9 @@
   "author": "",
   "license": "ISC",
   "description": "TypeScript SDK for Babylon protocol integrations",
+  "dependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*"
+  },
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",
     "@vitest/coverage-v8": "^4.0.8",
