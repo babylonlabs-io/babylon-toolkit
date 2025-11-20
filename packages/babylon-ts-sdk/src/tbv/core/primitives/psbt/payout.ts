@@ -145,11 +145,26 @@ export async function buildPayoutPsbt(
     // Determine which transaction this input spends from
     const inputTxid = Buffer.from(input.hash).reverse().toString("hex");
     const peginTxid = peginTx.getId();
-    const prevTx = inputTxid === peginTxid ? peginTx : claimTx;
+    const claimTxid = claimTx.getId();
+
+    let prevTx: Transaction;
+    if (inputTxid === peginTxid) {
+      prevTx = peginTx;
+    } else if (inputTxid === claimTxid) {
+      prevTx = claimTx;
+    } else {
+      throw new Error(
+        `Input ${i} references unknown transaction. ` +
+        `Expected peginTxid (${peginTxid}) or claimTxid (${claimTxid}), ` +
+        `got ${inputTxid}`
+      );
+    }
 
     const prevOut = prevTx.outs[input.index];
     if (!prevOut) {
-      throw new Error(`Previous output not found for input ${i}`);
+      throw new Error(
+        `Previous output not found for input ${i} (txid: ${inputTxid}, index: ${input.index})`
+      );
     }
 
     if (i === 0) {
