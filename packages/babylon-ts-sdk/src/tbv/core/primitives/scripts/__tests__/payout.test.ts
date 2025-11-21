@@ -2,13 +2,16 @@
  * Tests for createPayoutScript primitive function
  */
 
-import { describe, expect, it, beforeAll } from "vitest";
-import { createPayoutScript, type PayoutScriptParams } from "../payout";
 import {
   createPayoutConnector,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { TEST_KEYS, initializeWasmForTests } from "../../psbt/__tests__/helpers";
+import { beforeAll, describe, expect, it } from "vitest";
+import {
+  TEST_KEYS,
+  initializeWasmForTests,
+} from "../../psbt/__tests__/helpers";
+import { createPayoutScript, type PayoutScriptParams } from "../payout";
 
 describe("createPayoutScript", () => {
   // Initialize WASM before running tests

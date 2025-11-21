@@ -1,7 +1,7 @@
-export type { BitcoinWallet, BitcoinNetwork } from "./BitcoinWallet";
+export type { BitcoinNetwork, BitcoinWallet } from "./BitcoinWallet";
 export type {
-  EthereumWallet,
   Address,
+  EthereumWallet,
   Hash,
   TransactionRequest,
   TypedData,

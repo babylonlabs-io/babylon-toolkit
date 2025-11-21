@@ -155,15 +155,15 @@ export async function buildPayoutPsbt(
     } else {
       throw new Error(
         `Input ${i} references unknown transaction. ` +
-        `Expected peginTxid (${peginTxid}) or claimTxid (${claimTxid}), ` +
-        `got ${inputTxid}`
+          `Expected peginTxid (${peginTxid}) or claimTxid (${claimTxid}), ` +
+          `got ${inputTxid}`,
       );
     }
 
     const prevOut = prevTx.outs[input.index];
     if (!prevOut) {
       throw new Error(
-        `Previous output not found for input ${i} (txid: ${inputTxid}, index: ${input.index})`
+        `Previous output not found for input ${i} (txid: ${inputTxid}, index: ${input.index})`,
       );
     }
 
