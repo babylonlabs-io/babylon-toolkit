@@ -55,11 +55,23 @@ export function toXOnly(pubKey: Buffer): Buffer {
 }
 
 /**
+ * Internal helper: Validate hex string format without stripping prefix
+ *
+ * @internal
+ * @param hex - Hex string (must already have prefix stripped)
+ * @returns true if valid hex string
+ */
+function isValidHexRaw(hex: string): boolean {
+  return /^[0-9a-fA-F]*$/.test(hex) && hex.length % 2 === 0;
+}
+
+/**
  * Process and convert a public key to x-only format (32 bytes hex)
  *
  * Handles:
  * - 0x prefix removal
- * - Validation
+ * - Hex character validation
+ * - Length validation
  * - Conversion to x-only format
  *
  * Accepts:
@@ -69,7 +81,7 @@ export function toXOnly(pubKey: Buffer): Buffer {
  *
  * @param publicKeyHex - Public key in hex format (with or without 0x prefix)
  * @returns X-only public key as 32 bytes hex string (without 0x prefix)
- * @throws Error if public key format is invalid
+ * @throws Error if public key format is invalid or contains invalid hex characters
  *
  * @example
  * ```typescript
@@ -94,6 +106,14 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Remove '0x' prefix if present
   const cleanHex = stripHexPrefix(publicKeyHex);
 
+  // Validate hex characters early to prevent silent failures
+  // Buffer.from() silently converts invalid hex chars to 0x00
+  if (!isValidHexRaw(cleanHex)) {
+    throw new Error(
+      `Invalid hex characters in public key: ${publicKeyHex}`,
+    );
+  }
+
   // If already 64 chars (32 bytes), it's already x-only format
   if (cleanHex.length === 64) {
     return cleanHex;
@@ -116,7 +136,7 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
  * Checks that the string contains only valid hexadecimal characters (0-9, a-f, A-F)
  * and has an even length (since each byte is represented by 2 hex characters).
  *
- * @param hex - String to validate
+ * @param hex - String to validate (with or without 0x prefix)
  * @returns true if valid hex string
  *
  * @example
@@ -130,7 +150,7 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
  */
 export function isValidHex(hex: string): boolean {
   const cleanHex = stripHexPrefix(hex);
-  return /^[0-9a-fA-F]*$/.test(cleanHex) && cleanHex.length % 2 === 0;
+  return isValidHexRaw(cleanHex);
 }
 
 /**
@@ -149,7 +169,8 @@ export function isValidHex(hex: string): boolean {
  */
 export function hexToBuffer(hex: string): Buffer {
   const cleanHex = stripHexPrefix(hex);
-  if (!isValidHex(cleanHex)) {
+  // Use isValidHexRaw to avoid redundant prefix stripping
+  if (!isValidHexRaw(cleanHex)) {
     throw new Error(`Invalid hex string: ${hex}`);
   }
   return Buffer.from(cleanHex, "hex");

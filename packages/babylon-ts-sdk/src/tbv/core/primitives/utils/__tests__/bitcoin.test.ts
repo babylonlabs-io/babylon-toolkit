@@ -113,11 +113,12 @@ describe("Bitcoin Utilities", () => {
     });
 
     it("should throw on invalid length", () => {
-      expect(() => processPublicKeyToXOnly("abc")).toThrow(
-        "Invalid public key length: 3",
+      // Use valid hex chars but wrong length
+      expect(() => processPublicKeyToXOnly("aa")).toThrow(
+        "Invalid public key length: 2",
       );
-      expect(() => processPublicKeyToXOnly("0xabc")).toThrow(
-        "Invalid public key length: 3",
+      expect(() => processPublicKeyToXOnly("0xaaaa")).toThrow(
+        "Invalid public key length: 4",
       );
       expect(() => processPublicKeyToXOnly("a".repeat(60))).toThrow(
         "Invalid public key length: 60",
@@ -149,6 +150,49 @@ describe("Bitcoin Utilities", () => {
 
       // 0x03 prefix (odd y-coordinate)
       expect(processPublicKeyToXOnly("03" + key)).toBe(key);
+    });
+
+    it("should throw on invalid hex characters in x-only key", () => {
+      // Invalid characters in 64-char (x-only) key
+      expect(() => processPublicKeyToXOnly("xyz123" + "a".repeat(58))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("gg" + "a".repeat(62))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("z".repeat(64))).toThrow(
+        "Invalid hex characters in public key",
+      );
+    });
+
+    it("should throw on invalid hex characters in compressed key", () => {
+      // Invalid characters in 66-char (compressed) key
+      expect(() => processPublicKeyToXOnly("02" + "x".repeat(64))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("02xyz" + "a".repeat(60))).toThrow(
+        "Invalid hex characters in public key",
+      );
+    });
+
+    it("should throw on invalid hex characters in uncompressed key", () => {
+      // Invalid characters in 130-char (uncompressed) key
+      expect(() =>
+        processPublicKeyToXOnly("04" + "x".repeat(64) + "a".repeat(64)),
+      ).toThrow("Invalid hex characters in public key");
+      expect(() =>
+        processPublicKeyToXOnly("04" + "a".repeat(64) + "z".repeat(64)),
+      ).toThrow("Invalid hex characters in public key");
+    });
+
+    it("should throw on invalid hex characters with 0x prefix", () => {
+      // Invalid characters with 0x prefix
+      expect(() => processPublicKeyToXOnly("0xggg" + "a".repeat(61))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("0x02" + "xyz" + "a".repeat(61))).toThrow(
+        "Invalid hex characters in public key",
+      );
     });
   });
 
