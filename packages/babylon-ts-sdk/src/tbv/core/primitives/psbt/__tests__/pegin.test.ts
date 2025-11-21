@@ -2,13 +2,13 @@
  * Tests for buildPeginPsbt primitive function
  */
 
-import { describe, expect, it, beforeAll } from "vitest";
-import { buildPeginPsbt, type PeginParams } from "../pegin";
 import {
   createPegInTransaction,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { TEST_KEYS, TEST_AMOUNTS, initializeWasmForTests } from "./helpers";
+import { beforeAll, describe, expect, it } from "vitest";
+import { buildPeginPsbt, type PeginParams } from "../pegin";
+import { TEST_AMOUNTS, TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 describe("buildPeginPsbt", () => {
   // Initialize WASM before running tests

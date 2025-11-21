@@ -7,6 +7,7 @@
  * - Script creation
  * - Transaction parsing
  * - Signature extraction
+ * - Bitcoin utility functions
  *
  * All functions are pure: input → output, no side effects.
  * Works in Node.js, browsers, and serverless environments.
@@ -26,7 +27,14 @@ export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
 
 // Script generators
 export { createPayoutScript } from "./scripts/payout";
-export type {
-  PayoutScriptParams,
-  PayoutScriptResult,
-} from "./scripts/payout";
+export type { PayoutScriptParams, PayoutScriptResult } from "./scripts/payout";
+
+// Bitcoin utilities
+export {
+  bufferToHex,
+  hexToBuffer,
+  isValidHex,
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+  toXOnly,
+} from "./utils/bitcoin";

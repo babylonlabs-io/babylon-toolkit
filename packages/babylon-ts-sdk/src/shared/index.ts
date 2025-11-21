@@ -3,19 +3,16 @@
 
 // Wallet interfaces and implementations
 export type {
-  BitcoinWallet,
-  BitcoinNetwork,
-  EthereumWallet,
   Address,
+  BitcoinNetwork,
+  BitcoinWallet,
+  EthereumWallet,
   Hash,
   TransactionRequest,
   TypedData,
 } from "./wallets";
 
-export {
-  MockBitcoinWallet,
-  MockEthereumWallet,
-} from "./wallets";
+export { MockBitcoinWallet, MockEthereumWallet } from "./wallets";
 
 export type {
   MockBitcoinWalletConfig,
