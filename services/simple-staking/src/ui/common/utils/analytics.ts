@@ -1,4 +1,7 @@
+import type { MutableRefObject } from "react";
 import * as Sentry from "@sentry/react";
+
+import { isRef } from "./isRef";
 
 type AnalyticsData = NonNullable<Sentry.Breadcrumb["data"]>;
 
@@ -34,6 +37,10 @@ export enum AnalyticsMessage {
   PAGE_LEFT = "page_left",
   // Rewards tracking
   CLAIM_ALL_REWARDS = "claim_all_rewards",
+  CLAIM_REWARDS_SUCCESS = "claim_rewards_success",
+  CONFIRM_CLAIM_REWARDS = "confirm_claim_rewards",
+  CANCEL_CLAIM_PREVIEW = "cancel_claim_preview",
+  CLAIM_PREVIEW_VIEWED = "claim_preview_viewed",
 }
 
 /**
@@ -65,6 +72,9 @@ export function trackEvent(
  * @param message - The analytics event message describing the action.
  * @param data - Additional analytics data to include with the event.
  * @param minDurationMs - Minimum duration in ms to track (default: 1000ms). Ignores StrictMode double-mount and instant unmounts.
+ * @remarks
+ * You can pass either a static data object or a `MutableRefObject`.
+ * Updating the ref's `.current` during the view ensures cleanup logs the latest values.
  *
  * @example
  * // Track page view
@@ -79,7 +89,7 @@ export function trackEvent(
 export function trackViewTime(
   category: AnalyticsCategory,
   message: AnalyticsMessage,
-  data: AnalyticsData = {},
+  data: AnalyticsData | MutableRefObject<AnalyticsData>,
   minDurationMs = 1000,
 ) {
   const startTime = performance.now();
@@ -92,8 +102,10 @@ export function trackViewTime(
       return;
     }
 
+    const dataToTrack = isRef<AnalyticsData>(data) ? data.current : data;
+
     trackEvent(category, message, {
-      ...data,
+      ...dataToTrack,
       durationMs: duration,
       durationSeconds: Math.round(duration / 1000),
     });
