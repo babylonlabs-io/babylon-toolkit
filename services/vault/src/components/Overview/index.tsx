@@ -261,7 +261,7 @@ function OverviewContent() {
             providers={selectedProviders}
           />
         )}
-        {depositStep === DepositStateStep.SIGN && (
+        {depositStep === DepositStateStep.SIGN && btcWalletProvider && (
           <CollateralDepositSignModal
             open
             onClose={resetDeposit}
@@ -362,7 +362,7 @@ function OverviewContent() {
           providers={selectedProviders}
         />
       )}
-      {depositStep === DepositStateStep.SIGN && (
+      {depositStep === DepositStateStep.SIGN && btcWalletProvider && (
         <CollateralDepositSignModal
           open
           onClose={resetDeposit}
