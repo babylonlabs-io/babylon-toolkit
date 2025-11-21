@@ -18,7 +18,6 @@ import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
-import FF from "@/ui/common/utils/FeatureFlagService";
 import {
   AnalyticsCategory,
   AnalyticsMessage,
@@ -318,7 +317,7 @@ function RewardsPageContent() {
   const hasAnyRewards = hasBtcRewards || hasBabyRewards;
   const claimDisabled = !hasAnyRewards || processing;
 
-  const isStakeMoreActive = FF.IsCoStakingEnabled && hasValidBoostData;
+  const isStakeMoreActive = hasValidBoostData;
 
   const stakeMoreCta = isStakeMoreActive
     ? `Stake ${formatter.format(eligibility.additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
@@ -406,7 +405,7 @@ function RewardsPageContent() {
                 babyRewardAmount={formatBalance(babyRewardBaby)}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
-                  FF.IsCoStakingEnabled && coStakingAmountBaby !== undefined
+                  coStakingAmountBaby !== undefined
                     ? formatBalance(coStakingAmountBaby)
                     : undefined
                 }
