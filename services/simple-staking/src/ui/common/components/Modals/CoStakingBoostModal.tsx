@@ -98,6 +98,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       AnalyticsCategory.CTA_CLICK,
       AnalyticsMessage.BOOST_APR_STAKE_BABY,
       {
+        modalName: "CoStakingBoostModal",
         babyAmount: eligibility.additionalBabyNeeded,
         aprBoostPercent: percentageIncrease,
         currentApr: aprData.currentApr,
