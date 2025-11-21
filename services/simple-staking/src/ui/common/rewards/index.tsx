@@ -174,7 +174,6 @@ function RewardsPageContent() {
   // Track page viewing time
   useEffect(() => {
     const hasCoStakingBoost =
-      FF.IsCoStakingEnabled &&
       hasValidBoostData &&
       coStakingAmountBaby !== undefined &&
       coStakingAmountBaby > 0;
