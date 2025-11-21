@@ -157,10 +157,6 @@ export function StakingState({ children }: PropsWithChildren) {
   const [formData, setFormData] = useState<FormFields>();
   const [processing, setProcessing] = useState(false);
   const [verifiedDelegation, setVerifiedDelegation] = useState<DelegationV2>();
-  const [successModalShown, setSuccessModalShown] = useLocalStorage<boolean>(
-    "bbn-staking-successFeedbackModalOpened",
-    false,
-  );
   const [cancelModalShown, setCancelModalShown] = useLocalStorage<boolean>(
     "bbn-staking-cancelFeedbackModalOpened ",
     false,
@@ -349,11 +345,6 @@ export function StakingState({ children }: PropsWithChildren) {
 
   const goToStep = useCallback(
     (stepName: StakingStep) => {
-      if (stepName === StakingStep.FEEDBACK_SUCCESS) {
-        // Co-staking is enabled - we always want to show the boost modal
-        // (no localStorage check needed)
-      }
-
       if (stepName === StakingStep.FEEDBACK_CANCEL) {
         if (cancelModalShown) {
           return;
@@ -364,13 +355,7 @@ export function StakingState({ children }: PropsWithChildren) {
 
       setCurrentStep(stepName);
     },
-    [
-      successModalShown,
-      cancelModalShown,
-      setCancelModalShown,
-      setSuccessModalShown,
-      setCurrentStep,
-    ],
+    [cancelModalShown, setCancelModalShown, setCurrentStep],
   );
 
   const reset = useCallback(() => {
