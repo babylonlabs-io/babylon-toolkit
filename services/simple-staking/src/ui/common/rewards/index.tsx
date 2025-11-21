@@ -178,8 +178,7 @@ function RewardsPageContent() {
     hasBabyRewards: Boolean(hasBabyRewards),
     totalRewardsBaby: totalBabyRewards,
     hasCoStakingBoost: Boolean(
-      FF.IsCoStakingEnabled &&
-        hasValidBoostData &&
+      hasValidBoostData &&
         coStakingAmountBaby !== undefined &&
         coStakingAmountBaby > 0,
     ),
@@ -187,7 +186,6 @@ function RewardsPageContent() {
 
   useEffect(() => {
     const hasCoStakingBoost =
-      FF.IsCoStakingEnabled &&
       hasValidBoostData &&
       coStakingAmountBaby !== undefined &&
       coStakingAmountBaby > 0;
