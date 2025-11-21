@@ -327,7 +327,7 @@ function RewardsPageContent() {
           hasBtcRewards: Boolean(hasBtcRewards),
           hasBabyRewards: Boolean(hasBabyRewards),
           totalRewardsBaby: totalBabyRewards,
-          btcRewardsBaby: btcRewardBaby,
+          btcRewardsBaby: baseBtcRewardBaby + (coStakingAmountBaby ?? 0),
           babyRewardsBaby: babyRewardBaby,
           coStakingBonusBaby: coStakingAmountBaby ?? 0,
         },
