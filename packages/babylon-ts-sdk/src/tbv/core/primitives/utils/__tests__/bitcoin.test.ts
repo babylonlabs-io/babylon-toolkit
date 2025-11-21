@@ -190,9 +190,9 @@ describe("Bitcoin Utilities", () => {
       expect(() => processPublicKeyToXOnly("0xggg" + "a".repeat(61))).toThrow(
         "Invalid hex characters in public key",
       );
-      expect(() => processPublicKeyToXOnly("0x02" + "xyz" + "a".repeat(61))).toThrow(
-        "Invalid hex characters in public key",
-      );
+      expect(() =>
+        processPublicKeyToXOnly("0x02" + "xyz" + "a".repeat(61)),
+      ).toThrow("Invalid hex characters in public key");
     });
   });
 

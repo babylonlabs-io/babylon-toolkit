@@ -6,29 +6,29 @@
  * from etc/btc-vault/crates/vault/tests.
  */
 
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
   type PayoutParams,
 } from "../payout";
-import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { TEST_KEYS, initializeWasmForTests } from "./helpers";
-import { Psbt, Transaction } from "bitcoinjs-lib";
 import {
-  TAPSCRIPT_LEAF_VERSION,
-  SEQUENCE_MAX,
-  NULL_TXID,
   DUMMY_TXID_1,
-  TEST_PEGIN_VALUE,
+  NULL_TXID,
+  SEQUENCE_MAX,
+  TAPSCRIPT_LEAF_VERSION,
   TEST_CLAIM_VALUE,
-  TEST_PAYOUT_VALUE,
   TEST_COMBINED_VALUE,
-  TEST_WITNESS_UTXO_VALUE,
   TEST_OUTPUT_VALUE,
-  createDummyP2WPKH,
+  TEST_PAYOUT_VALUE,
+  TEST_PEGIN_VALUE,
+  TEST_WITNESS_UTXO_VALUE,
   createDummyP2TR,
+  createDummyP2WPKH,
 } from "./constants";
+import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 /**
  * Creates a test pegin transaction with a single P2TR output.
@@ -104,7 +104,10 @@ function createTestClaimTransaction(): string {
  * @returns Transaction hex string
  * @see Rust: crates/vault/src/transactions/payout.rs::PayoutTx::new()
  */
-function createTestPayoutTransaction(peginTxHex: string, claimTxHex?: string): string {
+function createTestPayoutTransaction(
+  peginTxHex: string,
+  claimTxHex?: string,
+): string {
   const peginTx = Transaction.fromHex(peginTxHex);
   const tx = new Transaction();
 
@@ -170,7 +173,9 @@ describe("buildPayoutPsbt", () => {
       const firstInput = psbt.data.inputs[0];
       expect(firstInput.tapLeafScript).toBeDefined();
       expect(firstInput.tapLeafScript).toHaveLength(1);
-      expect(firstInput.tapLeafScript![0].leafVersion).toBe(TAPSCRIPT_LEAF_VERSION);
+      expect(firstInput.tapLeafScript![0].leafVersion).toBe(
+        TAPSCRIPT_LEAF_VERSION,
+      );
       expect(firstInput.tapInternalKey).toBeDefined();
       expect(firstInput.witnessUtxo).toBeDefined();
     });
@@ -275,7 +280,11 @@ describe("buildPayoutPsbt", () => {
       // This simulates the case where the transaction references a non-existent output
       const peginTx = Transaction.fromHex(peginTxHex);
       const wrongTx = new Transaction();
-      wrongTx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 99, SEQUENCE_MAX); // Invalid index 99
+      wrongTx.addInput(
+        Buffer.from(peginTx.getId(), "hex").reverse(),
+        99,
+        SEQUENCE_MAX,
+      ); // Invalid index 99
       wrongTx.addOutput(createDummyP2WPKH("f"), Number(TEST_PAYOUT_VALUE));
       const payoutTxHex = wrongTx.toHex();
 
@@ -321,7 +330,9 @@ describe("buildPayoutPsbt", () => {
 
       // Verify control block is present (computed by bitcoinjs-lib)
       expect(firstInput.tapLeafScript![0].controlBlock).toBeDefined();
-      expect(firstInput.tapLeafScript![0].controlBlock.length).toBeGreaterThan(0);
+      expect(firstInput.tapLeafScript![0].controlBlock.length).toBeGreaterThan(
+        0,
+      );
     });
   });
 });

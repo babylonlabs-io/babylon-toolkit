@@ -109,9 +109,7 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Validate hex characters early to prevent silent failures
   // Buffer.from() silently converts invalid hex chars to 0x00
   if (!isValidHexRaw(cleanHex)) {
-    throw new Error(
-      `Invalid hex characters in public key: ${publicKeyHex}`,
-    );
+    throw new Error(`Invalid hex characters in public key: ${publicKeyHex}`);
   }
 
   // If already 64 chars (32 bytes), it's already x-only format
