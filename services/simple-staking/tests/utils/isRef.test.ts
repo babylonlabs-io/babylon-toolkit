@@ -9,7 +9,7 @@ describe("isRef", () => {
     expect(isRef(ref)).toBe(true);
   });
 
-  it("returns true for mutable ref object literals", () => {
+  it("returns true for plain objects with current property", () => {
     const ref: MutableRefObject<string> = { current: "value" };
     expect(isRef(ref)).toBe(true);
   });
