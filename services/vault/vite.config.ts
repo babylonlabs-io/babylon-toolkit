@@ -26,6 +26,14 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
       },
+      external: (id) => {
+        // Externalize vite plugin polyfill shims that are referenced in SDK build output
+        // These are already polyfilled by our own node-polyfills plugin
+        if (id.includes("vite-plugin-node-polyfills/shims")) return true;
+        // Externalize @reown/appkit packages with broken package.json exports
+        if (id.startsWith("@reown/appkit")) return true;
+        return false;
+      },
       output: {
         manualChunks: {
           react: ["react", "react-dom"],

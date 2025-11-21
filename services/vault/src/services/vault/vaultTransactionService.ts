@@ -112,14 +112,10 @@ export async function submitPeginRequest(
     );
   }
 
-  // Step 3: Create unsigned BTC peg-in transaction using WASM
+  // Step 3: Create unfunded BTC peg-in transaction using SDK
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
-    fundingTxid: selectedUTXO.txid,
-    fundingVout: selectedUTXO.vout,
-    fundingValue: BigInt(selectedUTXO.value),
-    fundingScriptPubkey: selectedUTXO.scriptPubKey,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
   });
@@ -147,9 +143,10 @@ export async function submitPeginRequest(
     vaultProviderAddress,
   );
 
-  // Step 6: Calculate actual fee used
-  const actualFee =
-    BigInt(selectedUTXO.value) - pegInAmountSats - btcTx.changeValue;
+  // Step 6: Calculate fee used
+  // Note: With unfunded transactions, the wallet will add inputs and calculate actual fee
+  // For now, we return the fixed fee that was used for UTXO selection
+  const actualFee = BigInt(fixedFee);
 
   return {
     transactionHash: result.transactionHash,

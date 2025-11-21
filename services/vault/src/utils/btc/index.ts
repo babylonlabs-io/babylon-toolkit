@@ -14,12 +14,8 @@ export {
 } from "./getPsbtInputFields";
 export {
   WasmPeginPayoutConnector,
-  WasmPeginTx,
   createPayoutConnector,
-  createPegInTransaction,
   type Network,
   type PayoutConnectorInfo,
   type PayoutConnectorParams,
-  type PegInParams,
-  type PegInResult,
 } from "./wasm";
