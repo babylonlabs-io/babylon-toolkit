@@ -13,6 +13,7 @@ import {
   getVaultUsageStatusBulk,
   VaultUsageStatus,
 } from "../../clients/eth-contract/morpho-controller/query";
+import { ContractStatus } from "../../models/peginStateMachine";
 
 /**
  * Pegin request with transaction hash
@@ -169,7 +170,7 @@ export async function getAvailableCollaterals(
   );
 
   const activePegins = peginRequests.filter(
-    ({ peginRequest }) => peginRequest.status === 2,
+    ({ peginRequest }) => peginRequest.status === ContractStatus.ACTIVE,
   );
 
   if (activePegins.length === 0) {
