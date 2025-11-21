@@ -58,6 +58,15 @@ const columns: TableColumn<DelegationWithFP, TableParams>[] = [
     renderCell: (row) => <TxHash value={row.stakingTxHashHex} />,
   },
   {
+    field: "withdrawalTx",
+    headerName: "Withdrawal Tx",
+    width: "minmax(max-content, 1fr)",
+    renderCell: (row) => {
+      if (!row.withdrawalTx?.txHash) return <span>-</span>;
+      return <TxHash value={row.withdrawalTx.txHash} />;
+    },
+  },
+  {
     field: "state",
     headerName: "Status",
     width: "minmax(max-content, 1fr)",
@@ -134,7 +143,7 @@ export function DelegationList() {
           headerCellClassName: "p-4 text-align-left text-accent-secondary",
           rowClassName: "group",
           wrapperClassName: "max-h-[25rem] overflow-x-auto",
-          bodyClassName: "min-w-[1000px]",
+          bodyClassName: "min-w-[1200px]",
           cellClassName:
             "p-4 first:pl-4 first:rounded-l last:pr-4 last:rounded-r bg-surface flex items-center text-sm justify-start group-even:bg-secondary-highlight text-accent-primary",
         }}
