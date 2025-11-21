@@ -24,7 +24,6 @@ export function CoStakingBoostSection({
   const {
     eligibility,
     hasValidBoostData,
-    isEnabled: isCoStakingEnabled,
     isLoading: isCoStakingLoading,
   } = useCoStakingState();
   const { coinSymbol: babyCoinSymbol } = getNetworkConfigBBN();
@@ -69,10 +68,7 @@ export function CoStakingBoostSection({
   );
 
   const shouldShowCoStakingBoostSection =
-    isCoStakingEnabled &&
-    !isCoStakingLoading &&
-    showCoStakingBoostSection &&
-    hasValidBoostData;
+    !isCoStakingLoading && showCoStakingBoostSection && hasValidBoostData;
 
   return (
     shouldShowCoStakingBoostSection && (

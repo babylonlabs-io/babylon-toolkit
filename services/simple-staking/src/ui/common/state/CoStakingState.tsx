@@ -60,7 +60,6 @@ interface CoStakingStateValue {
   rawAprData: PersonalizedAPRResponse["data"] | null;
   hasValidBoostData: boolean;
   isLoading: boolean;
-  isEnabled: boolean;
   hasError: boolean;
   refetch: () => Promise<void>;
   getRequiredBabyForSatoshis: (satoshis: number) => number;
@@ -87,7 +86,6 @@ const defaultState: CoStakingStateValue = {
   rawAprData: null,
   hasValidBoostData: false,
   isLoading: false,
-  isEnabled: false,
   hasError: false,
   refetch: async () => {},
   getRequiredBabyForSatoshis: () => 0,
@@ -162,7 +160,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
     getRequiredBabyForSatoshis,
     isLoading,
     error,
-    isCoStakingEnabled,
   } = useCoStakingService(totalBtcStakedSat, totalBabyStakedUbbn);
 
   const scoreRatio = getScoreRatio();
@@ -219,7 +216,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
       rawAprData: rawAprData ?? null,
       hasValidBoostData,
       isLoading,
-      isEnabled: isCoStakingEnabled,
       hasError: Boolean(error),
       refetch: refreshCoStakingData,
       getRequiredBabyForSatoshis,
@@ -232,7 +228,6 @@ export function CoStakingState({ children }: PropsWithChildren) {
       rawAprData,
       hasValidBoostData,
       isLoading,
-      isCoStakingEnabled,
       error,
       refreshCoStakingData,
       getRequiredBabyForSatoshis,

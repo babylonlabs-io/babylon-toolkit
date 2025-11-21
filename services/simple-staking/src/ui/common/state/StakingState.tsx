@@ -34,7 +34,6 @@ import {
   formatStakingAmount,
 } from "@/ui/common/utils/formTransforms";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
-import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
 
 import { GEO_BLOCK_MESSAGE } from "../types/services/healthCheck";
 
@@ -351,14 +350,8 @@ export function StakingState({ children }: PropsWithChildren) {
   const goToStep = useCallback(
     (stepName: StakingStep) => {
       if (stepName === StakingStep.FEEDBACK_SUCCESS) {
-        // Skip localStorage check when co-staking is enabled - we always want to show the boost modal
-        if (!FeatureFlags.IsCoStakingEnabled) {
-          if (successModalShown) {
-            return;
-          } else {
-            setSuccessModalShown(true);
-          }
-        }
+        // Co-staking is enabled - we always want to show the boost modal
+        // (no localStorage check needed)
       }
 
       if (stepName === StakingStep.FEEDBACK_CANCEL) {
