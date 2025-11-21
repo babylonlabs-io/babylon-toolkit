@@ -1,6 +1,5 @@
-import * as Sentry from "@sentry/react";
-
 import type { MutableRefObject } from "react";
+import * as Sentry from "@sentry/react";
 
 import { isRef } from "./isRef";
 
@@ -103,9 +102,7 @@ export function trackViewTime(
       return;
     }
 
-    const dataToTrack = isRef<AnalyticsData>(data)
-      ? data.current
-      : data;
+    const dataToTrack = isRef<AnalyticsData>(data) ? data.current : data;
 
     trackEvent(category, message, {
       ...dataToTrack,
