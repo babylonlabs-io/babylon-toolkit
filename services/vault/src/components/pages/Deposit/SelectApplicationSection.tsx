@@ -63,9 +63,9 @@ export function SelectApplicationSection({
         2. Select Application
       </h3>
       {isLoading ? (
-        <div className="flex items-center justify-center py-8">
+        <SubSection className="flex w-full flex-col gap-2">
           <Loader size={32} className="text-primary-main" />
-        </div>
+        </SubSection>
       ) : applications.length === 0 ? (
         <SubSection>
           <Text variant="body2" className="text-sm text-accent-secondary">
