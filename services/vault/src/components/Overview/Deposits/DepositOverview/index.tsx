@@ -1,14 +1,12 @@
 import {
   Avatar,
   AvatarGroup,
-  Button,
   StatusBadge,
   Table,
   useIsMobile,
   VaultDetailCard,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
@@ -25,22 +23,8 @@ import { DepositTableRowActions } from "../DepositTableRow";
 import { useDepositRowPolling } from "../hooks/useDepositRowPolling";
 import { usePayoutSignModal } from "../hooks/usePayoutSignModal";
 import { PayoutSignModal } from "../PayoutSignModal";
-import {
-  DepositStep as DepositStateStep,
-  useDepositState,
-} from "../state/DepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../state/VaultRedeemState";
 
-function EmptyState({
-  onDeposit,
-  isConnected,
-}: {
-  onDeposit: () => void;
-  isConnected: boolean;
-}) {
+function EmptyState({ isConnected }: { isConnected: boolean }) {
   return (
     <div className="max-h-[500px] overflow-x-auto overflow-y-auto rounded-2xl bg-[#F9F9F9] dark:bg-primary-main">
       <div className="flex min-h-[200px] items-center justify-center p-6">
@@ -63,17 +47,6 @@ function EmptyState({
                 ? "Your deposit will appear here once confirmed."
                 : "Connect your wallet to start depositing BTC."}
             </p>
-          </div>
-          <div className="mt-8">
-            <Button
-              variant="outlined"
-              size="medium"
-              rounded
-              onClick={onDeposit}
-              aria-label={isConnected ? "Add deposit" : "Connect wallet"}
-            >
-              {isConnected ? "Deposit" : "Connect Wallet"}
-            </Button>
           </div>
         </div>
       </div>
@@ -270,7 +243,6 @@ export function DepositOverview() {
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const isConnected = btcConnected && ethConnected;
-  const { open: openWalletModal } = useWalletConnect();
 
   // Get BTC public key from wallet
   const btcPublicKey = useBtcPublicKey(btcConnected);
@@ -329,25 +301,6 @@ export function DepositOverview() {
     setBroadcastSuccessOpen(false);
   }, []);
 
-  const { goToStep: goToDepositStep } = useDepositState();
-  const { goToStep: goToRedeemStep } = useVaultRedeemState();
-
-  const handleDeposit = () => {
-    if (!isConnected) {
-      // Open wallet connection modal
-      openWalletModal();
-    } else {
-      // Already connected, open deposit modal directly
-      goToDepositStep(DepositStateStep.FORM);
-    }
-  };
-
-  const handleRedeem = () => {
-    if (isConnected) {
-      goToRedeemStep(VaultRedeemStep.FORM);
-    }
-  };
-
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
     return allActivities.map((activity: VaultActivity) => ({
@@ -363,7 +316,7 @@ export function DepositOverview() {
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || allActivities.length === 0) {
-    return <EmptyState onDeposit={handleDeposit} isConnected={isConnected} />;
+    return <EmptyState isConnected={isConnected} />;
   }
 
   const columns: ColumnProps<Deposit>[] = [
@@ -436,29 +389,6 @@ export function DepositOverview() {
 
   return (
     <div className="relative">
-      {/* Header with Deposit and Redeem buttons */}
-      <div className="mb-4 flex items-center justify-end gap-2">
-        <Button
-          variant="outlined"
-          size="medium"
-          rounded
-          onClick={handleDeposit}
-          aria-label={isConnected ? "Deposit BTC" : "Connect wallet to deposit"}
-        >
-          {isConnected ? "Deposit" : "Connect Wallet"}
-        </Button>
-        <Button
-          variant="outlined"
-          size="medium"
-          rounded
-          onClick={handleRedeem}
-          aria-label="Redeem BTC"
-          disabled={!isConnected}
-        >
-          Redeem
-        </Button>
-      </div>
-
       {/* Desktop: Deposits Table, Mobile: Deposit Cards */}
       {isMobile ? (
         <div className="flex max-h-[60vh] flex-col gap-4 overflow-y-auto">

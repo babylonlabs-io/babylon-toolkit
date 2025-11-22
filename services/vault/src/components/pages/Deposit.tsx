@@ -1,8 +1,11 @@
-import { Button, Container } from "@babylonlabs-io/core-ui";
+import { Button, Card, Container } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 import { depositService } from "../../services/deposit";
+import { DepositOverview } from "../Overview/Deposits/DepositOverview";
+import { DepositState } from "../Overview/Deposits/state/DepositState";
+import { VaultRedeemState } from "../Overview/Deposits/state/VaultRedeemState";
 
 import { DepositAmountSection } from "./Deposit/DepositAmountSection";
 import { SelectApplicationSection } from "./Deposit/SelectApplicationSection";
@@ -31,7 +34,7 @@ const faqData = [
   },
 ];
 
-export default function Deposit() {
+function DepositContent() {
   const {
     formData,
     setFormData,
@@ -78,7 +81,7 @@ export default function Deposit() {
       as="main"
       className="mx-auto flex flex-1 flex-col gap-6 px-4 pb-6 max-md:flex-none max-md:gap-4 max-md:px-0 max-md:pb-4 max-md:pt-0"
     >
-      <div className="mx-auto w-full max-w-[1400px] py-8">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[80px] py-8">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-6">
             <DepositAmountSection
@@ -145,7 +148,24 @@ export default function Deposit() {
             </div>
           </div>
         </div>
+
+        <Card>
+          <h2 className="mb-6 text-2xl font-normal leading-[133%] tracking-[0px] text-accent-primary">
+            Deposits
+          </h2>
+          <DepositOverview />
+        </Card>
       </div>
     </Container>
+  );
+}
+
+export default function Deposit() {
+  return (
+    <DepositState>
+      <VaultRedeemState>
+        <DepositContent />
+      </VaultRedeemState>
+    </DepositState>
   );
 }
