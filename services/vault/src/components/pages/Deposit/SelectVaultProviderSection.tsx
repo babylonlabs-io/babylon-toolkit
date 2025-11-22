@@ -29,9 +29,9 @@ export function SelectVaultProviderSection({
 }: SelectVaultProviderSectionProps) {
   return (
     <Card>
-      <h2 className="mb-4 text-xl font-semibold text-accent-primary">
+      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         3. Select Vault Provider
-      </h2>
+      </h3>
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
           <Loader size={32} className="text-primary-main" />

@@ -44,9 +44,9 @@ export function DepositAmountSection({
 
   return (
     <Card>
-      <h2 className="mb-4 text-xl font-semibold text-accent-primary">
+      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         1. Deposit
-      </h2>
+      </h3>
       <SubSection className="flex w-full flex-col gap-2">
         <AmountItem
           amount={amount}
