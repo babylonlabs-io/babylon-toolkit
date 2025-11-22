@@ -1,4 +1,5 @@
 import {
+  Button,
   DEFAULT_SOCIAL_LINKS,
   Footer,
   Header,
@@ -6,14 +7,22 @@ import {
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
-import { Outlet } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
 
 export default function RootLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
+  const { connected: btcConnected } = useBTCWallet();
+  const { connected: ethConnected } = useETHWallet();
+
+  const isWalletConnected = btcConnected && ethConnected;
+  const isDepositPage = location.pathname === "/deposit";
 
   return (
     <div
@@ -27,7 +36,16 @@ export default function RootLayout() {
         <Header
           size="sm"
           rightActions={
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              {isWalletConnected && !isDepositPage && (
+                <Button
+                  variant="outlined"
+                  rounded
+                  onClick={() => navigate("/deposit")}
+                >
+                  Deposit
+                </Button>
+              )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>
