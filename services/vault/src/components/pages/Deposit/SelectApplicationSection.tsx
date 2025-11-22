@@ -1,0 +1,96 @@
+import {
+  Card,
+  Loader,
+  ProviderCard,
+  SubSection,
+  Text,
+} from "@babylonlabs-io/core-ui";
+import { useState } from "react";
+
+interface Application {
+  id: string;
+  name: string;
+  type: string;
+  logoUrl: string;
+}
+
+interface SelectApplicationSectionProps {
+  applications: Application[];
+  isLoading: boolean;
+  selectedApplication: string;
+  error?: string;
+  onSelect: (applicationId: string) => void;
+}
+
+interface ApplicationLogoProps {
+  logoUrl: string;
+  name: string;
+}
+
+function ApplicationLogo({ logoUrl, name }: ApplicationLogoProps) {
+  const [imageError, setImageError] = useState(false);
+
+  if (imageError || !logoUrl) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary-main">
+        <Text as="span" className="text-base font-medium text-accent-contrast">
+          {name.charAt(0).toUpperCase()}
+        </Text>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={logoUrl}
+      alt={name}
+      className="h-10 w-10 rounded-full object-cover"
+      onError={() => setImageError(true)}
+    />
+  );
+}
+
+export function SelectApplicationSection({
+  applications,
+  isLoading,
+  selectedApplication,
+  error,
+  onSelect,
+}: SelectApplicationSectionProps) {
+  return (
+    <Card>
+      <h2 className="mb-4 text-xl font-semibold text-accent-primary">
+        2. Select Application
+      </h2>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader size={32} className="text-primary-main" />
+        </div>
+      ) : applications.length === 0 ? (
+        <SubSection>
+          <Text variant="body2" className="text-sm text-accent-secondary">
+            No applications available at this time.
+          </Text>
+        </SubSection>
+      ) : (
+        <SubSection>
+          {applications.map((app) => (
+            <ProviderCard
+              key={app.id}
+              id={app.id}
+              name={app.name}
+              icon={<ApplicationLogo logoUrl={app.logoUrl} name={app.name} />}
+              isSelected={selectedApplication === app.id}
+              onToggle={onSelect}
+            />
+          ))}
+          {error && (
+            <Text variant="body2" className="text-error mt-2 text-sm">
+              {error}
+            </Text>
+          )}
+        </SubSection>
+      )}
+    </Card>
+  );
+}

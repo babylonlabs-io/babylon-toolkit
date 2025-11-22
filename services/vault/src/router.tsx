@@ -5,6 +5,7 @@ import { MarketDetail as MarketDetailPage } from "./components/Market/Detail";
 import { Overview } from "./components/Overview";
 import { VaultStats } from "./components/Overview/VaultStats";
 import ApplicationsHome from "./components/pages/ApplicationsHome";
+import Deposit from "./components/pages/Deposit";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
 
@@ -13,6 +14,7 @@ export const Router = () => {
     <Routes>
       <Route path="/" element={<RootLayout />}>
         <Route index element={<ApplicationsHome />} />
+        <Route path="deposit" element={<Deposit />} />
         <Route
           path="vault"
           element={

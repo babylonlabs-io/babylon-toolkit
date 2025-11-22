@@ -1,0 +1,73 @@
+import {
+  Card,
+  Loader,
+  ProviderCard,
+  SubSection,
+  Text,
+} from "@babylonlabs-io/core-ui";
+
+interface Provider {
+  id: string;
+  name: string;
+  btcPubkey: string;
+}
+
+interface SelectVaultProviderSectionProps {
+  providers: Provider[];
+  isLoading: boolean;
+  selectedProvider: string;
+  error?: string;
+  onSelect: (providerId: string) => void;
+}
+
+export function SelectVaultProviderSection({
+  providers,
+  isLoading,
+  selectedProvider,
+  error,
+  onSelect,
+}: SelectVaultProviderSectionProps) {
+  return (
+    <Card>
+      <h2 className="mb-4 text-xl font-semibold text-accent-primary">
+        3. Select Vault Provider
+      </h2>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader size={32} className="text-primary-main" />
+        </div>
+      ) : providers.length === 0 ? (
+        <SubSection>
+          <Text variant="body2" className="text-sm text-accent-secondary">
+            No vault providers available at this time.
+          </Text>
+        </SubSection>
+      ) : (
+        <SubSection>
+          {providers.map((provider) => (
+            <ProviderCard
+              key={provider.id}
+              id={provider.id}
+              name={provider.name}
+              icon={
+                <Text
+                  variant="body2"
+                  className="text-sm font-medium text-accent-contrast"
+                >
+                  {provider.id.slice(2, 3).toUpperCase()}
+                </Text>
+              }
+              isSelected={selectedProvider === provider.id}
+              onToggle={onSelect}
+            />
+          ))}
+          {error && (
+            <Text variant="body2" className="text-error mt-2 text-sm">
+              {error}
+            </Text>
+          )}
+        </SubSection>
+      )}
+    </Card>
+  );
+}

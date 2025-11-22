@@ -13,4 +13,3 @@ export interface ApplicationsResponse {
     items: Application[];
   };
 }
-
