@@ -2,9 +2,9 @@ export interface Application {
   id: string;
   name: string | null;
   type: string;
-  description: string;
-  logoUrl: string;
-  websiteUrl: string;
+  description: string | null;
+  logoUrl: string | null;
+  websiteUrl: string | null;
   registeredAt: string;
 }
 
