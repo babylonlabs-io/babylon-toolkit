@@ -12,6 +12,7 @@ overrides:
   glob: '>=11.1.0'
   babel-plugin-module-resolver>glob: 9.3.5
   js-yaml: '>=4.1.1'
+  bitcoinjs-lib: 6.1.5
 
 importers:
 
@@ -4096,7 +4097,7 @@ packages:
       '@keystonehq/keystone-sdk': 0.9.0
       '@keystonehq/sdk': 0.22.1
       '@scure/bip32': ^1.4.0
-      bitcoinjs-lib: ^6.1.5
+      bitcoinjs-lib: 6.1.5
       react: ^18
       react-dom: ^18
 
@@ -5196,10 +5197,6 @@ packages:
 
   bitcoinjs-lib@6.1.5:
     resolution: {integrity: sha512-yuf6xs9QX/E8LWE2aMJPNd0IxGofwfuVOiYdNUESkc+2bHHVKjhJd8qewqapeoolh9fihzHGoDCB5Vkr57RZCQ==}
-    engines: {node: '>=8.0.0'}
-
-  bitcoinjs-lib@6.1.7:
-    resolution: {integrity: sha512-tlf/r2DGMbF7ky1MgUqXHzypYHakkEnm0SZP23CJKIqNY/5uNAnMbFhMJdhjrL/7anfb/U8+AlpdjPWjPnAalg==}
     engines: {node: '>=8.0.0'}
 
   bl@4.1.0:
@@ -13609,7 +13606,7 @@ snapshots:
       '@wallet-standard/app': 1.1.0
       '@wallet-standard/base': 1.1.0
       '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.5
       sats-connect: 3.5.0(typescript@5.9.2)
     transitivePeerDependencies:
       - '@azure/app-configuration'
@@ -18048,15 +18045,6 @@ snapshots:
       sha256-uint8array: 0.10.7
 
   bitcoinjs-lib@6.1.5:
-    dependencies:
-      '@noble/hashes': 1.8.0
-      bech32: 2.0.0
-      bip174: 2.1.1
-      bs58check: 3.0.1
-      typeforce: 1.18.0
-      varuint-bitcoin: 1.1.2
-
-  bitcoinjs-lib@6.1.7:
     dependencies:
       '@noble/hashes': 1.8.0
       bech32: 2.0.0

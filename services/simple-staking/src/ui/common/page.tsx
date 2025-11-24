@@ -1,4 +1,3 @@
-import { initBTCCurve } from "@babylonlabs-io/btc-staking-ts";
 import {
   useWalletConnect,
   useAppKitBtcBridge,
@@ -16,10 +15,6 @@ import { Tabs } from "./components/Tabs";
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState("stake");
-
-  useEffect(() => {
-    initBTCCurve();
-  }, []);
 
   const { connected } = useWalletConnect();
   const { isGeoBlocked, isLoading } = useHealthCheck();
