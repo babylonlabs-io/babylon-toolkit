@@ -4,6 +4,8 @@ import { gql } from "graphql-request";
 import { graphqlClient } from "../../clients/graphql/config";
 import type { ApplicationsResponse } from "../../types/application";
 
+export const APPLICATIONS_KEY = "applications";
+
 const GET_APPLICATIONS = gql`
   query GetApplications {
     applications {
@@ -20,9 +22,14 @@ const GET_APPLICATIONS = gql`
   }
 `;
 
+/**
+ * Fetches the list of registered applications from the backend GraphQL API.
+ *
+ * @returns React Query result with application items array
+ */
 export const useApplications = () => {
   return useQuery({
-    queryKey: ["applications"],
+    queryKey: [APPLICATIONS_KEY],
     queryFn: async () => {
       const data =
         await graphqlClient.request<ApplicationsResponse>(GET_APPLICATIONS);

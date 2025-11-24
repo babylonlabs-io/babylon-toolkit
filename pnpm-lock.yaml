@@ -1027,10 +1027,10 @@ importers:
         specifier: 6.1.5
         version: 6.1.5
       graphql:
-        specifier: ^16.12.0
+        specifier: 16.12.0
         version: 16.12.0
       graphql-request:
-        specifier: ^7.3.4
+        specifier: 7.3.4
         version: 7.3.4(graphql@16.12.0)
       next-themes:
         specifier: 0.3.0

@@ -19,6 +19,7 @@ interface RequiredEnvVars {
 
   // API endpoints
   VAULT_API_URL: string;
+  GRAPHQL_ENDPOINT: string;
 
   // Optional with defaults
   VAULT_PROVIDER_RPC_URL?: string;
@@ -37,6 +38,7 @@ function validateEnvVars(): RequiredEnvVars {
 
     // API endpoints (required)
     VAULT_API_URL: process.env.NEXT_PUBLIC_VAULT_API_URL,
+    GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT,
 
     // Optional (has default)
     VAULT_PROVIDER_RPC_URL: process.env.NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL,
@@ -49,6 +51,7 @@ function validateEnvVars(): RequiredEnvVars {
     "BTC_VAULT",
     "MORPHO",
     "VAULT_API_URL",
+    "GRAPHQL_ENDPOINT",
   ] as const;
 
   const missingVars = requiredVars.filter(
@@ -64,6 +67,7 @@ function validateEnvVars(): RequiredEnvVars {
         BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
         MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
         VAULT_API_URL: "NEXT_PUBLIC_VAULT_API_URL",
+        GRAPHQL_ENDPOINT: "NEXT_PUBLIC_GRAPHQL_ENDPOINT",
       };
       return envVarMap[key] || key;
     });
