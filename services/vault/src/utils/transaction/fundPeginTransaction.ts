@@ -1,11 +1,26 @@
 /**
- * Transaction builder for peg-in transactions.
+ * Transaction Funding Utility for Peg-in Transactions
  *
- * This module creates a funded transaction from an unfunded transaction template
- * by adding inputs and change outputs.
+ * This module funds an unfunded transaction template from the SDK by adding
+ * UTXO inputs and change outputs, creating a transaction ready for wallet signing.
  *
- * Note: We manually extract the vault output from WASM hex instead of parsing
- * because bitcoinjs-lib cannot parse 0-input transactions (even witness format).
+ * ⚠️ MIGRATION NOTICE:
+ * This is a TEMPORARY local utility. It will be moved to @babylonlabs-io/ts-sdk
+ * as part of Phase 2
+ *
+ * After migration:
+ * - This file will be DELETED from vault service
+ * - Import will change to: @babylonlabs-io/ts-sdk/tbv/core/utils
+ * - Function signature and behavior will remain the same
+ *
+ * Transaction Flow:
+ * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, 1 vault output)
+ * 2. selectUtxosForPegin() → select UTXOs and calculate fees
+ * 3. fundPeginTransaction() → add inputs/change, create funded transaction
+ *
+ * Technical Note:
+ * We manually extract the vault output from WASM hex instead of using bitcoinjs-lib
+ * parsing because bitcoinjs-lib cannot parse 0-input transactions (even witness format).
  */
 
 import * as bitcoin from "bitcoinjs-lib";
@@ -13,8 +28,8 @@ import * as bitcoin from "bitcoinjs-lib";
 import { BTC_DUST_SAT } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
-export interface PeginPsbtParams {
-  /** Unfunded transaction hex from WASM (0 inputs, 1 output) */
+export interface FundPeginTransactionParams {
+  /** Unfunded transaction hex from SDK (0 inputs, 1 vault output) */
   unfundedTxHex: string;
   /** Selected UTXOs to use as inputs */
   selectedUTXOs: UTXO[];
@@ -27,7 +42,11 @@ export interface PeginPsbtParams {
 }
 
 /**
- * Builds a funded transaction from an unfunded peg-in transaction.
+ * Funds an unfunded peg-in transaction by adding inputs and change output.
+ *
+ * Takes an unfunded transaction template (0 inputs, 1 vault output) from the SDK
+ * and adds UTXO inputs and a change output to create a funded transaction ready
+ * for wallet signing.
  *
  * Process:
  * 1. Manually extract vault output from WASM hex (bitcoinjs-lib cannot parse 0-input txs)
@@ -36,10 +55,12 @@ export interface PeginPsbtParams {
  * 4. Add change output if changeAmount > DUST_THRESHOLD
  * 5. Return transaction hex ready for wallet signing
  *
- * @param params - Transaction building parameters
+ * @param params - Transaction funding parameters
  * @returns Transaction hex string ready for wallet signing
  */
-export function buildPeginPsbt(params: PeginPsbtParams): string {
+export function fundPeginTransaction(
+  params: FundPeginTransactionParams,
+): string {
   const { unfundedTxHex, selectedUTXOs, changeAddress, changeAmount, network } =
     params;
 

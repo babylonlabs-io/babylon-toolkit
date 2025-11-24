@@ -165,10 +165,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             ? btcPubkey.slice(2)
             : btcPubkey,
           pegInAmount,
-          fundingTxid: selectedUTXO.txid,
-          fundingVout: selectedUTXO.vout,
-          fundingValue: BigInt(selectedUTXO.value),
-          fundingScriptPubkey: selectedUTXO.scriptPubKey,
           vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
             ? providerData.btcPubkey.slice(2)
             : providerData.btcPubkey,

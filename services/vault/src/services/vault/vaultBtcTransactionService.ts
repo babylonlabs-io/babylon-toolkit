@@ -1,13 +1,13 @@
 /**
  * BTC Transaction Service
  *
- * Handles creation of BTC peg-in transactions using WASM module.
- * Extracts data from connected BTC wallet and combines with hardcoded
- * local infrastructure data.
+ * Handles creation of BTC peg-in transactions using SDK primitives.
+ * Creates unfunded transactions that wallets will fund and sign.
  */
 
-import { LOCAL_PEGIN_CONFIG, getBTCNetworkForWASM } from "../../config/pegin";
-import { createPegInTransaction } from "../../utils/btc/wasm";
+import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core";
+
+import { getBTCNetworkForWASM } from "../../config/pegin";
 
 export interface CreatePeginTxParams {
   /**
@@ -19,26 +19,6 @@ export interface CreatePeginTxParams {
    * Amount to peg in (in satoshis)
    */
   pegInAmount: bigint;
-
-  /**
-   * Funding transaction ID (from selected UTXO)
-   */
-  fundingTxid: string;
-
-  /**
-   * Funding transaction output index (from selected UTXO)
-   */
-  fundingVout: number;
-
-  /**
-   * Funding transaction output value in satoshis (from selected UTXO)
-   */
-  fundingValue: bigint;
-
-  /**
-   * Funding transaction scriptPubKey hex (from selected UTXO)
-   */
-  fundingScriptPubkey: string;
 
   /**
    * Selected vault provider's BTC public key (x-only, 32 bytes hex)
@@ -58,46 +38,38 @@ export interface PeginTxResult {
   txid: string;
   vaultScriptPubKey: string;
   vaultValue: bigint;
-  changeValue: bigint;
 }
 
 /**
- * Create a peg-in transaction for submission to the vault contract
+ * Create an unfunded peg-in transaction
  *
- * @param params - Transaction parameters including real UTXO data, selected provider, and liquidators
- * @returns Unsigned BTC transaction details
+ * This creates a transaction with NO inputs and ONE output (the vault output).
+ * The wallet is responsible for:
+ * - Selecting UTXOs to fund the transaction
+ * - Calculating appropriate fees
+ * - Adding inputs to cover peginAmount + fees
+ * - Adding change output if needed
+ * - Signing the complete transaction
+ *
+ * @param params - Transaction parameters including depositor pubkey, provider, and liquidators
+ * @returns Unfunded BTC transaction details
  */
 export async function createPeginTxForSubmission(
   params: CreatePeginTxParams,
 ): Promise<PeginTxResult> {
-  // Validate UTXO has sufficient value
-  const requiredValue =
-    params.pegInAmount + LOCAL_PEGIN_CONFIG.btcTransactionFee;
-  if (params.fundingValue < requiredValue) {
-    throw new Error(
-      `Insufficient UTXO value. Required: ${requiredValue} sats, Available: ${params.fundingValue} sats`,
-    );
-  }
-
-  // Create BTC peg-in transaction using WASM
-  const pegInTx = await createPegInTransaction({
-    depositTxid: params.fundingTxid,
-    depositVout: params.fundingVout,
-    depositValue: params.fundingValue,
-    depositScriptPubKey: params.fundingScriptPubkey,
+  // Create unfunded BTC peg-in transaction using SDK
+  const pegInResult = await buildPeginPsbt({
     depositorPubkey: params.depositorBtcPubkey,
     claimerPubkey: params.vaultProviderBtcPubkey,
     challengerPubkeys: params.liquidatorBtcPubkeys,
     pegInAmount: params.pegInAmount,
-    fee: LOCAL_PEGIN_CONFIG.btcTransactionFee,
     network: getBTCNetworkForWASM(),
   });
 
   return {
-    unsignedTxHex: pegInTx.txHex,
-    txid: pegInTx.txid,
-    vaultScriptPubKey: pegInTx.vaultScriptPubKey,
-    vaultValue: pegInTx.vaultValue,
-    changeValue: pegInTx.changeValue,
+    unsignedTxHex: pegInResult.psbtHex,
+    txid: pegInResult.txid,
+    vaultScriptPubKey: pegInResult.vaultScriptPubKey,
+    vaultValue: pegInResult.vaultValue,
   };
 }

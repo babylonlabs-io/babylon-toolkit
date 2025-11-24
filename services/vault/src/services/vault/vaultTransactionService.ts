@@ -12,6 +12,9 @@ import {
   MorphoControllerTx,
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
+import { getBTCNetworkForWASM } from "../../config/pegin";
+import { fundPeginTransaction, getNetwork } from "../../utils/transaction";
+import { selectUtxosForPegin } from "../../utils/utxo";
 
 import * as btcTransactionService from "./vaultBtcTransactionService";
 
@@ -56,7 +59,7 @@ export interface UTXO {
  * @param pegInAmountSats - Amount to peg in (in satoshis)
  * @param availableUTXOs - Array of available UTXOs to select from
  * @param fixedFee - BTC transaction fixed fee in satoshis (used for UTXO selection)
- * @param _changeAddress - BTC address for change output (reserved for future use)
+ * @param changeAddress - BTC address for change output
  * @param vaultProviderAddress - Selected vault provider's Ethereum address
  * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
  * @param liquidatorBtcPubkeys - Liquidator BTC public keys from the selected vault provider
@@ -71,7 +74,7 @@ export async function submitPeginRequest(
   pegInAmountSats: bigint,
   availableUTXOs: UTXO[],
   fixedFee: number,
-  _changeAddress: string,
+  changeAddress: string,
   vaultProviderAddress: Address,
   vaultProviderBtcPubkey: string,
   liquidatorBtcPubkeys: string[],
@@ -90,52 +93,52 @@ export async function submitPeginRequest(
     btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
   }
 
-  // Step 2: Select appropriate UTXO(s) from available UTXOs
-  const requiredAmount = pegInAmountSats + BigInt(fixedFee);
-
-  // Find the smallest UTXO that can cover the required amount
-  // Sort by value ascending to prefer smaller UTXOs (preserves larger ones for future use)
-  const sortedUTXOs = [...availableUTXOs].sort((a, b) => a.value - b.value);
-  const selectedUTXO = sortedUTXOs.find(
-    (utxo) => BigInt(utxo.value) >= requiredAmount,
-  );
-
-  if (!selectedUTXO) {
-    const maxSingleUtxo = availableUTXOs.reduce(
-      (max, utxo) => (BigInt(utxo.value) > max ? BigInt(utxo.value) : max),
-      0n,
-    );
-    throw new Error(
-      `No suitable UTXO found. Required: ${Number(requiredAmount) / 100000000} BTC, ` +
-        `Largest available UTXO: ${Number(maxSingleUtxo) / 100000000} BTC. ` +
-        `Note: Multi-UTXO combination not yet supported.`,
-    );
-  }
-
-  // Step 3: Create unsigned BTC peg-in transaction using WASM
+  // Step 2: Create unfunded BTC peg-in transaction using SDK
   const btcTx = await btcTransactionService.createPeginTxForSubmission({
     depositorBtcPubkey,
     pegInAmount: pegInAmountSats,
-    fundingTxid: selectedUTXO.txid,
-    fundingVout: selectedUTXO.vout,
-    fundingValue: BigInt(selectedUTXO.value),
-    fundingScriptPubkey: selectedUTXO.scriptPubKey,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
   });
+  // btcTx.unsignedTxHex = unfunded tx (0 inputs, 1 vault output)
 
-  // Step 4: Convert to Hex format for contract (ensure 0x prefix)
-  const unsignedPegInTx = btcTx.unsignedTxHex.startsWith("0x")
-    ? (btcTx.unsignedTxHex as Hex)
-    : (`0x${btcTx.unsignedTxHex}` as Hex);
+  // Step 3: Select UTXOs and calculate fees using iterative approach
+  // TEMPORARY: Convert legacy fixedFee to feeRate for new UTXO selection logic
+  // TODO: Remove fixedFee parameter and use feeRate directly (breaking change for frontend)
+  // See: services/vault/src/utils/fee/constants.ts for proper fee calculation constants
+  const ESTIMATED_PEGIN_TX_SIZE_VBYTES = 250;
+  const feeRate = Math.ceil(fixedFee / ESTIMATED_PEGIN_TX_SIZE_VBYTES);
+  const utxoSelection = selectUtxosForPegin(
+    availableUTXOs,
+    pegInAmountSats,
+    feeRate,
+  );
 
-  // Step 5: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
+  // Step 4: Fund the transaction (add inputs and change output)
+  const network = getNetwork(getBTCNetworkForWASM());
+  const fundedTxHex = fundPeginTransaction({
+    unfundedTxHex: btcTx.unsignedTxHex,
+    selectedUTXOs: utxoSelection.selectedUTXOs,
+    // TODO: Get depositor's BTC address from wallet when changeAddress is empty
+    // Currently frontend may pass empty string "", which could cause issues.
+    // For now, we pass it through - but ideally should fallback to depositor address
+    changeAddress: changeAddress,
+    changeAmount: utxoSelection.changeAmount,
+    network,
+  });
+  // fundedTxHex = funded tx (N inputs, 2 outputs: vault + change)
+
+  // Step 5: Convert funded tx to Hex format for contract (ensure 0x prefix)
+  const unsignedPegInTx = fundedTxHex.startsWith("0x")
+    ? (fundedTxHex as Hex)
+    : (`0x${fundedTxHex}` as Hex);
+
+  // Step 6: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
   const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
     ? (depositorBtcPubkey as Hex)
     : (`0x${depositorBtcPubkey}` as Hex);
 
-  // Step 6: Submit to smart contract
-
+  // Step 7: Submit to smart contract
   const result = await BTCVaultsManagerTx.submitPeginRequest(
     walletClient,
     chain,
@@ -147,16 +150,15 @@ export async function submitPeginRequest(
     vaultProviderAddress,
   );
 
-  // Step 6: Calculate actual fee used
-  const actualFee =
-    BigInt(selectedUTXO.value) - pegInAmountSats - btcTx.changeValue;
+  // Step 8: Return results with actual fee used
+  const actualFee = utxoSelection.fee;
 
   return {
     transactionHash: result.transactionHash,
     receipt: result.receipt,
     btcTxid: btcTx.txid,
-    btcTxHex: btcTx.unsignedTxHex,
-    selectedUTXOs: [selectedUTXO],
+    btcTxHex: fundedTxHex,
+    selectedUTXOs: utxoSelection.selectedUTXOs,
     fee: actualFee,
   };
 }
