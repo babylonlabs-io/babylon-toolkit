@@ -4,15 +4,6 @@
  * This module funds an unfunded transaction template from the SDK by adding
  * UTXO inputs and change outputs, creating a transaction ready for wallet signing.
  *
- * ⚠️ MIGRATION NOTICE:
- * This is a TEMPORARY local utility. It will be moved to @babylonlabs-io/ts-sdk
- * as part of Phase 2
- *
- * After migration:
- * - This file will be DELETED from vault service
- * - Import will change to: @babylonlabs-io/ts-sdk/tbv/core/utils
- * - Function signature and behavior will remain the same
- *
  * Transaction Flow:
  * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, 1 vault output)
  * 2. selectUtxosForPegin() → select UTXOs and calculate fees

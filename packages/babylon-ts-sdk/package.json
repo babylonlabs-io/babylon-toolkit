@@ -25,6 +25,11 @@
       "require": "./dist/tbv/core/primitives/index.cjs",
       "import": "./dist/tbv/core/primitives/index.js"
     },
+    "./tbv/core/utils": {
+      "types": "./dist/tbv/core/utils/index.d.ts",
+      "require": "./dist/tbv/core/utils/index.cjs",
+      "import": "./dist/tbv/core/utils/index.js"
+    },
     "./tbv/integrations/morpho": {
       "types": "./dist/tbv/integrations/morpho/index.d.ts",
       "require": "./dist/tbv/integrations/morpho/index.cjs",
