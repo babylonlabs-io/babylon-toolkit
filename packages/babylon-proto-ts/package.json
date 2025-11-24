@@ -2,10 +2,18 @@
   "name": "@babylonlabs-io/babylon-proto-ts",
   "version": "0.0.0-semantic-release",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "scripts": {
-    "build": "tsc -b tsconfig.lib.json",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
     "build-proto": "node scripts/build-proto.js",
     "prepare": "husky",
     "format": "prettier --check \"src/**/*.ts\"",
@@ -31,6 +39,8 @@
     "prettier-plugin-organize-imports": "^4.1.0",
     "shelljs": "^0.8.5",
     "typescript": "^5.8.3",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.3.0",
     "vite-plugin-node-polyfills": "^0.23.0"
   },
   "dependencies": {

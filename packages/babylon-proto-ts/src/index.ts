@@ -11,5 +11,7 @@ export * as incentivetx from "./generated/babylon/incentive/tx";
 export * as cosmosstaking from "./generated/cosmos/staking/v1beta1/staking";
 export * as cosmosstakingtx from "./generated/cosmos/staking/v1beta1/tx";
 export * as googleProtoAny from "./generated/google/protobuf/any";
+// Re-export MessageFns for convenience
+export type { MessageFns } from "./generated/google/protobuf/any";
 
 export * from "./lib/sdk";
