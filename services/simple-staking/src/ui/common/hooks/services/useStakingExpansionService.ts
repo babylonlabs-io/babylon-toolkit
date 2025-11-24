@@ -240,7 +240,6 @@ export function useStakingExpansionService() {
           stakingTimelock: formData.stakingTimelock,
           unbondingTimelock: 0,
           unbondingTxHex: "",
-          canExpand: false,
           slashing: {
             stakingSlashingTxHex: "",
             unbondingSlashingTxHex: "",
