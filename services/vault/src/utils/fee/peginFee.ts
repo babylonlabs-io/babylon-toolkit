@@ -10,7 +10,7 @@ import {
   P2TR_INPUT_SIZE,
   rateBasedTxBufferFee,
   TX_BUFFER_SIZE_OVERHEAD,
-} from "./constants";
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 
 /**
  * Estimates transaction fee for peg-in with support for multiple input UTXOs.
