@@ -175,6 +175,10 @@ const config = {
           "<rootDir>/tests/__mocks__/svgMock.js",
         "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
       },
+      transformIgnorePatterns: [
+        "/node_modules/(?!.*@babylonlabs-io/babylon-proto-ts)",
+        "\\.pnp\\.[^\\/]+$",
+      ],
     },
     // {
     //   displayName: "jsdom",
@@ -221,7 +225,10 @@ const config = {
   },
 
   // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
-  transformIgnorePatterns: ["/node_modules/", "\\.pnp\\.[^\\/]+$"],
+  transformIgnorePatterns: [
+    "/node_modules/(?!.*@babylonlabs-io/babylon-proto-ts)",
+    "\\.pnp\\.[^\\/]+$",
+  ],
 
   // An array of regexp pattern strings that are matched against all modules before the module loader will automatically return a mock for them
   // unmockedModulePathPatterns: undefined,

@@ -29,7 +29,7 @@
   "dependencies": {
     "@babylonlabs-io/babylon-proto-ts": "workspace:*",
     "@babylonlabs-io/bsn-registry": "workspace:*",
-    "@babylonlabs-io/btc-staking-ts": "2.8.0",
+    "@babylonlabs-io/btc-staking-ts": "2.8.4",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
