@@ -22,8 +22,6 @@
       "hono": ">=4.10.3",
       "tmp": ">=0.2.4",
       "@walletconnect/logger": "3.0.0",
-      "glob": ">=11.1.0",
-      "babel-plugin-module-resolver>glob": "9.3.5",
       "js-yaml": ">=4.1.1",
       "bitcoinjs-lib": "6.1.5"
     }
