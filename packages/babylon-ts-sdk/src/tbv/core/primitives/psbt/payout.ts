@@ -20,6 +20,9 @@ import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
 import { hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
 
+// Use Buffer from global scope (provided by bitcoinjs-lib or polyfills)
+declare const Buffer: typeof import("buffer").Buffer;
+
 // Initialize ECC library for bitcoinjs-lib
 initEccLib(ecc);
 
@@ -180,11 +183,11 @@ export async function buildPayoutPsbt(
         tapLeafScript: [
           {
             leafVersion: 0xc0,
-            script: payoutScriptBytes as Buffer,
-            controlBlock: controlBlock as Buffer,
+            script: Buffer.from(payoutScriptBytes),
+            controlBlock: Buffer.from(controlBlock),
           },
         ],
-        tapInternalKey: tapInternalPubkey,
+        tapInternalKey: Buffer.from(tapInternalPubkey),
         // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
       });
     } else {
@@ -260,7 +263,7 @@ export function extractPayoutSignature(
     const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
 
     for (const sigEntry of firstInput.tapScriptSig) {
-      if (sigEntry.pubkey.equals(depositorPubkeyBytes)) {
+      if (sigEntry.pubkey.equals(Buffer.from(depositorPubkeyBytes))) {
         const signature = sigEntry.signature;
 
         // Remove sighash flag byte if present
@@ -322,9 +325,10 @@ function computeControlBlock(
   internalKey: Uint8Array,
   script: Uint8Array,
 ): Uint8Array {
-  const scriptTree = { output: script as Buffer };
+  // Convert to actual Buffer instances for bitcoinjs-lib runtime type checks
+  const scriptTree = { output: Buffer.from(script) };
   const payment = payments.p2tr({
-    internalPubkey: internalKey as Buffer,
+    internalPubkey: Buffer.from(internalKey),
     scriptTree,
   });
 
