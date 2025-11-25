@@ -33,11 +33,13 @@ export default defineConfig({
         "viem",
         "@cosmjs/stargate",
         "@babylonlabs-io/core-ui",
-        // "bitcoinjs-lib",
+        // "bitcoinjs-lib", // Bundle bitcoinjs-lib since we use deep imports from it
         "@keystonehq/animated-qr",
         // Issues linking with Next.js
         // "@keystonehq/keystone-sdk",
         "@keystonehq/sdk",
+        "@tomo-inc/wallet-connect-sdk", // Externalize to avoid bundling its deep imports
+        "usehooks-ts", // Externalize to avoid CommonJS interop issues
         // @reown packages that use viem internally
         "@reown/appkit",
         "@reown/appkit-adapter-wagmi",

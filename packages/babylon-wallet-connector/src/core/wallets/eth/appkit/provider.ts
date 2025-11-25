@@ -10,10 +10,8 @@ import {
   switchChain as wagmiSwitchChain,
   watchAccount,
   watchChainId,
-  connect,
   disconnect as wagmiDisconnect,
 } from "wagmi/actions";
-import { walletConnect } from "wagmi/connectors";
 
 import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
@@ -146,25 +144,9 @@ export class AppKitProvider implements IETHProvider {
         return;
       }
 
-      // Fallback to direct WalletConnect connection if event system not available
-      const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
-      if (!projectId) {
-        throw new Error("NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required");
-      }
-
-      const wcConnector = walletConnect({
-        projectId,
-        metadata: {
-          name: "Babylon Vault",
-          description: "",
-          url: "",
-          icons: [""],
-        },
-      });
-
-      const result = await connect(config, { connector: wcConnector });
-      this.address = result.accounts[0];
-      this.chainId = result.chainId;
+      // If window is not available (SSR), throw error
+      // AppKit requires a browser environment
+      throw new Error("AppKit wallet connection requires a browser environment");
     } catch (error) {
       console.error("Failed to connect wallet:", error);
       throw new Error(`Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
