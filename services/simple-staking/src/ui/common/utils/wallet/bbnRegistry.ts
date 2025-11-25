@@ -2,8 +2,8 @@ import {
   btcstakingtx,
   epochingtx,
   incentivetx,
+  type MessageFns,
 } from "@babylonlabs-io/babylon-proto-ts";
-import { MessageFns } from "@babylonlabs-io/babylon-proto-ts/dist/generated/google/protobuf/any";
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
