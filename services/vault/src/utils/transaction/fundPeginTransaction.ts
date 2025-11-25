@@ -19,7 +19,7 @@
  * 3. fundPeginTransaction() → add inputs/change, create funded transaction
  *
  * Technical Note:
- * We manually extract the vault output from WASM hex instead of using bitcoinjs-lib
+ * We manually extract the vault output from SDK hex instead of using bitcoinjs-lib
  * parsing because bitcoinjs-lib cannot parse 0-input transactions (even witness format).
  */
 
@@ -49,7 +49,7 @@ export interface FundPeginTransactionParams {
  * for wallet signing.
  *
  * Process:
- * 1. Manually extract vault output from WASM hex (bitcoinjs-lib cannot parse 0-input txs)
+ * 1. Manually extract vault output from SDK hex (bitcoinjs-lib cannot parse 0-input txs)
  * 2. Add inputs for each selected UTXO
  * 3. Add vault output at index 0
  * 4. Add change output if changeAmount > DUST_THRESHOLD
@@ -64,8 +64,8 @@ export function fundPeginTransaction(
   const { unfundedTxHex, selectedUTXOs, changeAddress, changeAmount, network } =
     params;
 
-  // Extract vault output data from WASM hex manually
-  // WASM produces witness-format transaction with 0 inputs, which bitcoinjs-lib cannot parse
+  // Extract vault output data from SDK hex manually
+  // SDK produces witness-format transaction with 0 inputs, which bitcoinjs-lib cannot parse
   // Format: [version:4bytes][marker:0x00][flag:0x01][inputs:1byte=0x00][outputs:1byte=0x01][value:8bytes][scriptLen:1byte][script:34bytes][locktime:4bytes]
 
   // Check if witness markers are present
@@ -88,10 +88,10 @@ export function fundPeginTransaction(
   );
 
   if (inputCount !== 0) {
-    throw new Error(`Expected 0 inputs from WASM, got ${inputCount}`);
+    throw new Error(`Expected 0 inputs from SDK, got ${inputCount}`);
   }
   if (outputCount !== 1) {
-    throw new Error(`Expected 1 output from WASM, got ${outputCount}`);
+    throw new Error(`Expected 1 output from SDK, got ${outputCount}`);
   }
 
   // Extract vault output (starting after input/output counts)

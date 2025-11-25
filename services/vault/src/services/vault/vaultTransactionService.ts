@@ -13,6 +13,7 @@ import {
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
+import { BTC_DUST_SAT } from "../../utils/fee/constants";
 import { fundPeginTransaction, getNetwork } from "../../utils/transaction";
 import { selectUtxosForPegin } from "../../utils/utxo";
 
@@ -114,31 +115,35 @@ export async function submitPeginRequest(
     feeRate,
   );
 
-  // Step 4: Fund the transaction (add inputs and change output)
+  // Step 4: Validate change address if change output is needed
+  if (utxoSelection.changeAmount > BigInt(BTC_DUST_SAT) && !changeAddress) {
+    throw new Error(
+      "Change address is required when change amount exceeds dust threshold",
+    );
+  }
+
+  // Step 5: Fund the transaction (add inputs and change output)
   const network = getNetwork(getBTCNetworkForWASM());
   const fundedTxHex = fundPeginTransaction({
     unfundedTxHex: btcTx.unsignedTxHex,
     selectedUTXOs: utxoSelection.selectedUTXOs,
-    // TODO: Get depositor's BTC address from wallet when changeAddress is empty
-    // Currently frontend may pass empty string "", which could cause issues.
-    // For now, we pass it through - but ideally should fallback to depositor address
     changeAddress: changeAddress,
     changeAmount: utxoSelection.changeAmount,
     network,
   });
   // fundedTxHex = funded tx (N inputs, 2 outputs: vault + change)
 
-  // Step 5: Convert funded tx to Hex format for contract (ensure 0x prefix)
+  // Step 6: Convert funded tx to Hex format for contract (ensure 0x prefix)
   const unsignedPegInTx = fundedTxHex.startsWith("0x")
     ? (fundedTxHex as Hex)
     : (`0x${fundedTxHex}` as Hex);
 
-  // Step 6: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
+  // Step 7: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
   const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
     ? (depositorBtcPubkey as Hex)
     : (`0x${depositorBtcPubkey}` as Hex);
 
-  // Step 7: Submit to smart contract
+  // Step 8: Submit to smart contract
   const result = await BTCVaultsManagerTx.submitPeginRequest(
     walletClient,
     chain,
@@ -150,7 +155,7 @@ export async function submitPeginRequest(
     vaultProviderAddress,
   );
 
-  // Step 8: Return results with actual fee used
+  // Step 9: Return results with actual fee used
   const actualFee = utxoSelection.fee;
 
   return {
