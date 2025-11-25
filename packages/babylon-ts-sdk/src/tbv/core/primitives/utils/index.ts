@@ -7,10 +7,10 @@
  */
 
 export {
-  bufferToHex,
-  hexToBuffer,
+  hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,
+  uint8ArrayToHex,
 } from "./bitcoin";

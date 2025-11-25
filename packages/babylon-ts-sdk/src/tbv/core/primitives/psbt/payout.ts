@@ -18,6 +18,7 @@ import {
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
+import { hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
 
 // Initialize ECC library for bitcoinjs-lib
 initEccLib(ecc);
@@ -122,11 +123,8 @@ export async function buildPayoutPsbt(
     network: params.network,
   });
 
-  const payoutScriptBuffer = Buffer.from(payoutConnector.payoutScript, "hex");
-  const controlBlock = computeControlBlock(
-    tapInternalPubkey,
-    payoutScriptBuffer,
-  );
+  const payoutScriptBytes = hexToUint8Array(payoutConnector.payoutScript);
+  const controlBlock = computeControlBlock(tapInternalPubkey, payoutScriptBytes);
 
   // Parse transactions
   const payoutTx = Transaction.fromHex(params.payoutTxHex);
@@ -143,7 +141,9 @@ export async function buildPayoutPsbt(
     const input = payoutTx.ins[i];
 
     // Determine which transaction this input spends from
-    const inputTxid = Buffer.from(input.hash).reverse().toString("hex");
+    const inputTxid = uint8ArrayToHex(
+      new Uint8Array(input.hash).slice().reverse(),
+    );
     const peginTxid = peginTx.getId();
     const claimTxid = claimTx.getId();
 
@@ -180,8 +180,8 @@ export async function buildPayoutPsbt(
         tapLeafScript: [
           {
             leafVersion: 0xc0,
-            script: payoutScriptBuffer,
-            controlBlock: controlBlock,
+            script: payoutScriptBytes as Buffer,
+            controlBlock: controlBlock as Buffer,
           },
         ],
         tapInternalKey: tapInternalPubkey,
@@ -257,17 +257,17 @@ export function extractPayoutSignature(
 
   // Try tapScriptSig first
   if (firstInput.tapScriptSig && firstInput.tapScriptSig.length > 0) {
-    const depositorPubkeyBuffer = Buffer.from(depositorPubkey, "hex");
+    const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
 
     for (const sigEntry of firstInput.tapScriptSig) {
-      if (sigEntry.pubkey.equals(depositorPubkeyBuffer)) {
+      if (sigEntry.pubkey.equals(depositorPubkeyBytes)) {
         const signature = sigEntry.signature;
 
         // Remove sighash flag byte if present
         if (signature.length === 64) {
-          return signature.toString("hex");
+          return uint8ArrayToHex(new Uint8Array(signature));
         } else if (signature.length === 65) {
-          return signature.subarray(0, 64).toString("hex");
+          return uint8ArrayToHex(new Uint8Array(signature.subarray(0, 64)));
         } else {
           throw new Error(
             `Unexpected Schnorr signature length: ${signature.length}`,
@@ -318,10 +318,13 @@ export function extractPayoutSignature(
  *
  * @internal
  */
-function computeControlBlock(internalKey: Buffer, script: Buffer): Buffer {
-  const scriptTree = { output: script };
+function computeControlBlock(
+  internalKey: Uint8Array,
+  script: Uint8Array,
+): Uint8Array {
+  const scriptTree = { output: script as Buffer };
   const payment = payments.p2tr({
-    internalPubkey: internalKey,
+    internalPubkey: internalKey as Buffer,
     scriptTree,
   });
 
@@ -335,5 +338,8 @@ function computeControlBlock(internalKey: Buffer, script: Buffer): Buffer {
   const parity = outputKey[0] === 0x03 ? 1 : 0; // 0x02 = even, 0x03 = odd
   const controlByte = leafVersion | parity;
 
-  return Buffer.concat([Buffer.from([controlByte]), internalKey]);
+  const result = new Uint8Array(1 + internalKey.length);
+  result[0] = controlByte;
+  result.set(internalKey, 1);
+  return result;
 }

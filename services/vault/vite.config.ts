@@ -26,19 +26,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
       },
-      external: (id) => {
-        // The vite-plugin-node-polyfills plugin scans bundled code (including SDK output) for Buffer usage
-        // and injects imports like "vite-plugin-node-polyfills/shims/buffer" during build.
-        // These injected imports are internal to the plugin and can't be resolved by Rollup.
-        // We must externalize them so they're not processed further.
-        // Context: SDK bundles buffer polyfill from bitcoinjs-lib, plugin detects Buffer usage and tries to re-polyfill it
-        if (id.includes("vite-plugin-node-polyfills/shims")) return true;
-
-        // Already externalized in wallet-connector but still cause resolution errors during vault build
-        if (id.startsWith("@reown/appkit")) return true;
-
-        return false;
-      },
       output: {
         manualChunks: {
           react: ["react", "react-dom"],
