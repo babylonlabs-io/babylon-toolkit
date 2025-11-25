@@ -60,6 +60,58 @@ export const questionsBtc = (coinName: string): Question[] => {
       ),
     },
     {
+      title: "What is Co-Staking?",
+      content: (
+        <>
+          <p>
+            Co-Staking is a feature that rewards users who stake both {coinName}{" "}
+            and BABY tokens together. When you stake {coinName}, you earn base
+            staking rewards. By also staking BABY tokens alongside your{" "}
+            {coinName} stake, you unlock additional co-staking bonus rewards on
+            top of your regular staking earnings.
+          </p>
+          <br />
+          <p>
+            The amount of BABY you need to stake is proportional to your{" "}
+            {coinName} stake, determined by a protocol parameter called the
+            score ratio. The more you align your BABY stake with your {coinName}{" "}
+            stake according to this ratio, the higher your total APR becomes.
+          </p>
+        </>
+      ),
+    },
+    {
+      title: "How is the Co-Staking APR calculated?",
+      content: (
+        <>
+          <p>
+            Your Co-Staking APR is personalized based on your actual {coinName}{" "}
+            and BABY staking amounts. The system calculates two key values:
+          </p>
+          <br />
+          <p>
+            <b>Current APR:</b> Your total APR right now, which includes your{" "}
+            {coinName} staking APR, BABY staking APR, and any co-staking bonus
+            you&apos;re currently earning based on your BABY stake.
+          </p>
+          <br />
+          <p>
+            <b>Boost APR:</b> The maximum APR you could earn if you stake enough
+            BABY to meet the full co-staking requirement for your {coinName}{" "}
+            stake.
+          </p>
+          <br />
+          <p>
+            The required BABY amount is calculated using the formula: Required
+            BABY = {coinName} staked (in satoshis) × score ratio. The score
+            ratio is a protocol parameter that determines how much BABY is
+            needed per satoshi of {coinName} to maximize your co-staking
+            rewards.
+          </p>
+        </>
+      ),
+    },
+    {
       title: `Does my ${coinName} leave my wallet once staked?`,
       content: (
         <p>
