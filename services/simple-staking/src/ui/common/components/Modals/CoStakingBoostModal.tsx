@@ -54,7 +54,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
 
   // Keep latest values for tracking without retriggering the tracking effect
   const latestTrackingDataRef = useRef({
-    modalName: "CoStakingBoostModal",
+    component: "CoStakingBoostModal",
     babyAmount: eligibility.additionalBabyNeeded,
     aprBoostPercent: percentageIncrease,
     currentApr: aprData.currentApr,
@@ -65,7 +65,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
   // still only depends on `open`, so it doesn't retrigger.
   useEffect(() => {
     latestTrackingDataRef.current = {
-      modalName: "CoStakingBoostModal",
+      component: "CoStakingBoostModal",
       babyAmount: eligibility.additionalBabyNeeded,
       aprBoostPercent: percentageIncrease,
       currentApr: aprData.currentApr,
@@ -116,7 +116,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
 
   const handleClose = useCallback(() => {
     trackEvent(AnalyticsCategory.CTA_CLICK, AnalyticsMessage.CLOSE_MODAL, {
-      modalName: "CoStakingBoostModal",
+      component: "CoStakingBoostModal",
     });
     onClose();
   }, [onClose]);
