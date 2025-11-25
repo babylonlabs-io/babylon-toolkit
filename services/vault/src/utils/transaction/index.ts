@@ -1,1 +1,1 @@
-export * from "./buildPeginPsbt";
+export * from "./fundPeginTransaction";

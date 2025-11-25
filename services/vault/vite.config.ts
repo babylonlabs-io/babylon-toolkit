@@ -26,6 +26,10 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
       },
+      // External shim is needed because nodePolyfills plugin transforms Buffer usage
+      // in dependencies (including SDK's Buffer.from() calls). The Buffer global is
+      // provided by globals.Buffer=true, so the shim import can be external.
+      external: ["vite-plugin-node-polyfills/shims/buffer"],
       output: {
         manualChunks: {
           react: ["react", "react-dom"],
@@ -44,6 +48,7 @@ export default defineConfig({
       globals: {
         Buffer: true,
       },
+      protocolImports: true,
     }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),
   ],

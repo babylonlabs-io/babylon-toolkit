@@ -1016,6 +1016,9 @@ importers:
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
+      '@babylonlabs-io/ts-sdk':
+        specifier: workspace:*
+        version: link:../../packages/babylon-ts-sdk
       '@babylonlabs-io/wallet-connector':
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector

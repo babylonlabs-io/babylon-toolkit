@@ -31,6 +31,11 @@ export default defineConfig({
       formats: ["es", "cjs"],
     },
     rollupOptions: {
+      external: [
+        "bitcoinjs-lib",
+        "@bitcoin-js/tiny-secp256k1-asmjs",
+        "@babylonlabs-io/babylon-tbv-rust-wasm",
+      ],
       output: {
         sourcemapExcludeSources: false,
       },

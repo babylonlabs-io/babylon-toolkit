@@ -1,104 +1,30 @@
-import init, {
+/**
+ * WASM Utilities - Payout Connector
+ *
+ * This module provides utilities for payout connectors using the WASM package.
+ * For peg-in transactions, use the SDK primitives from @babylonlabs-io/ts-sdk.
+ *
+ * ⚠️ DEPRECATION NOTICE:
+ *
+ * This file previously contained peg-in transaction creation using WASM directly.
+ * Peg-in functionality has been migrated to SDK primitives (@babylonlabs-io/ts-sdk).
+ *
+ * Migration Status:
+ * - ✅ Peg-in: Migrated to SDK (see vaultBtcTransactionService.ts)
+ * - 🔄 Payout: Still uses WASM directly
+ *
+ * TODO: Once payout is migrated to SDK this file will be removed.
+ */
+
+import {
+  createPayoutConnector as createPayoutConnectorWasm,
+  type Network,
+  type PayoutConnectorInfo,
+  type PayoutConnectorParams,
   WasmPeginPayoutConnector,
-  WasmPeginTx,
-} from "../../../wasm/btc_vault.js";
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
-let wasmInitialized = false;
-let wasmInitPromise: Promise<void> | null = null;
-
-export async function initWasm() {
-  if (wasmInitialized) return;
-  if (wasmInitPromise) return wasmInitPromise;
-
-  wasmInitPromise = (async () => {
-    try {
-      await init();
-      wasmInitialized = true;
-    } finally {
-      wasmInitPromise = null;
-    }
-  })();
-
-  return wasmInitPromise;
-}
-
-export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
-
-export interface PegInParams {
-  depositTxid: string;
-  depositVout: number;
-  depositValue: bigint;
-  depositScriptPubKey: string; // hex
-  depositorPubkey: string; // 64-char hex
-  claimerPubkey: string; // 64-char hex
-  challengerPubkeys: string[]; // array of 64-char hex
-  pegInAmount: bigint;
-  fee: bigint;
-  network: Network;
-}
-
-export interface PegInResult {
-  txHex: string;
-  txid: string;
-  vaultScriptPubKey: string;
-  vaultValue: bigint;
-  changeValue: bigint;
-}
-
-export async function createPegInTransaction(
-  params: PegInParams,
-): Promise<PegInResult> {
-  await initWasm();
-
-  const tx = new WasmPeginTx(
-    params.depositTxid,
-    params.depositVout,
-    params.depositValue,
-    params.depositScriptPubKey,
-    params.depositorPubkey,
-    params.claimerPubkey,
-    params.challengerPubkeys,
-    params.pegInAmount,
-    params.fee,
-    params.network,
-  );
-
-  return {
-    txHex: tx.toHex(),
-    txid: tx.getTxid(),
-    vaultScriptPubKey: tx.getVaultScriptPubKey(),
-    vaultValue: tx.getVaultValue(),
-    changeValue: tx.getChangeValue(),
-  };
-}
-
-// ==================== Payout Connector ====================
-
-/**
- * Parameters for creating a payout connector
- */
-export interface PayoutConnectorParams {
-  /** X-only public key of the depositor (hex encoded) */
-  depositor: string;
-  /** X-only public key of the vault provider (hex encoded) */
-  vaultProvider: string;
-  /** Array of x-only public keys of liquidators (hex encoded) */
-  liquidators: string[];
-}
-
-/**
- * Information about a payout connector
- */
-export interface PayoutConnectorInfo {
-  /** The full payout script (hex encoded) */
-  payoutScript: string;
-  /** Taproot script hash (TapNodeHash) - this is the tapLeafHash needed for signing PSBTs */
-  taprootScriptHash: string;
-  /** Taproot script pubkey (hex encoded) */
-  scriptPubKey: string;
-  /** Pay-to-Taproot (P2TR) address */
-  address: string;
-}
+export type { Network, PayoutConnectorInfo, PayoutConnectorParams };
 
 /**
  * Creates a payout connector for vault transactions.
@@ -126,24 +52,8 @@ export async function createPayoutConnector(
   params: PayoutConnectorParams,
   network: Network,
 ): Promise<PayoutConnectorInfo> {
-  await initWasm();
-
-  const connector = new WasmPeginPayoutConnector(
-    params.depositor,
-    params.vaultProvider,
-    params.liquidators,
-  );
-
-  return {
-    payoutScript: connector.getPayoutScript(),
-    taprootScriptHash: connector.getTaprootScriptHash(),
-    scriptPubKey: connector.getScriptPubKey(network),
-    address: connector.getAddress(network),
-  };
+  return await createPayoutConnectorWasm(params, network);
 }
 
 // Re-export the raw WASM types if needed
-export {
-  WasmPeginPayoutConnector,
-  WasmPeginTx,
-} from "../../../wasm/btc_vault.js";
+export { WasmPeginPayoutConnector };

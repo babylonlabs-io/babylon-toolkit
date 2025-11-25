@@ -19,6 +19,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
