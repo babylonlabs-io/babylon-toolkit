@@ -1,43 +1,45 @@
-/**
- * Deposit Form Hook
- *
- * Manages deposit form logic using the new architecture.
- * Used by DepositFormModal component.
- */
-
 import { useCallback, useMemo, useState } from "react";
 
 import { useVaultProviders } from "../../components/Overview/Deposits/hooks/useVaultProviders";
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
+import { useApplications } from "../api/useApplications";
+import { useBTCPrice } from "../useBTCPrice";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
 
-export interface DepositFormData {
+export interface DepositPageFormData {
   amountBtc: string;
+  selectedApplication: string;
   selectedProvider: string;
 }
 
-export interface UseDepositFormResult {
-  // Form state
-  formData: DepositFormData;
-  setFormData: (data: Partial<DepositFormData>) => void;
+export interface UseDepositPageFormResult {
+  formData: DepositPageFormData;
+  setFormData: (data: Partial<DepositPageFormData>) => void;
 
-  // Validation
   errors: {
     amount?: string;
+    application?: string;
     provider?: string;
   };
   isValid: boolean;
 
-  // Data
   btcBalance: bigint;
+  btcBalanceFormatted: number;
+  btcPrice: number;
+  applications: Array<{
+    id: string;
+    name: string;
+    type: string;
+    logoUrl: string | null;
+  }>;
+  isLoadingApplications: boolean;
   providers: Array<{ id: string; name: string; btcPubkey: string }>;
   isLoadingProviders: boolean;
 
-  // Calculated values
   amountSats: bigint;
   estimatedFees: {
     btcNetworkFee: bigint;
@@ -45,59 +47,79 @@ export interface UseDepositFormResult {
     totalFee: bigint;
   } | null;
 
-  // Actions
   validateForm: () => boolean;
   resetForm: () => void;
 }
 
-/**
- * Hook to manage deposit form state and validation
- */
-export function useDepositForm(): UseDepositFormResult {
+export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
+  const { btcPriceUSD } = useBTCPrice();
 
-  // Get providers
-  const { vaultProviders, loading: isLoadingProviders } = useVaultProviders();
+  const { data: applicationsData, isLoading: isLoadingApplications } =
+    useApplications();
+  const applications = useMemo(() => {
+    return (applicationsData || []).map((app) => ({
+      id: app.id,
+      name: app.name || app.type,
+      type: app.type,
+      logoUrl: app.logoUrl,
+    }));
+  }, [applicationsData]);
 
+  const { vaultProviders: rawProviders, loading: isLoadingProviders } =
+    useVaultProviders();
   const providers = useMemo(() => {
-    return vaultProviders.map((p) => ({
+    return rawProviders.map((p: { id: string; btcPubKey: string }) => ({
       id: p.id,
       name: formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
     }));
-  }, [vaultProviders]);
+  }, [rawProviders]);
 
-  // Get validation functions - pass provider IDs
-  const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
+  const providerIds = useMemo(
+    () => providers.map((p: { id: string }) => p.id),
+    [providers],
+  );
   const validation = useDepositValidation(btcAddress, providerIds);
 
-  // Get UTXOs for balance calculation
   const { confirmedUTXOs } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(confirmedUTXOs || []));
   }, [confirmedUTXOs]);
 
-  // Form state
-  const [formData, setFormDataInternal] = useState<DepositFormData>({
+  const btcBalanceFormatted = useMemo(() => {
+    if (!btcBalance) return 0;
+    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
+  }, [btcBalance]);
+
+  const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
+    selectedApplication: "",
     selectedProvider: "",
   });
 
-  const [errors, setErrors] = useState<{ amount?: string; provider?: string }>(
-    {},
-  );
+  const [errors, setErrors] = useState<{
+    amount?: string;
+    application?: string;
+    provider?: string;
+  }>({});
 
-  // Update form data
-  const setFormData = useCallback((data: Partial<DepositFormData>) => {
+  const setFormData = useCallback((data: Partial<DepositPageFormData>) => {
     setFormDataInternal((prev) => ({
       ...prev,
       ...data,
     }));
-    // Clear errors when user types
     if (data.amountBtc !== undefined) {
       setErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { amount, ...rest } = prev;
+        return rest;
+      });
+    }
+    if (data.selectedApplication !== undefined) {
+      setErrors((prev) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { application, ...rest } = prev;
         return rest;
       });
     }
@@ -110,32 +132,30 @@ export function useDepositForm(): UseDepositFormResult {
     }
   }, []);
 
-  // Calculate amount in satoshis
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  // Calculate estimated fees
   const estimatedFees = useMemo(() => {
     if (amountSats === 0n || !confirmedUTXOs || confirmedUTXOs.length === 0) {
       return null;
     }
-
     return depositService.calculateDepositFees(amountSats);
   }, [amountSats, confirmedUTXOs]);
 
-  // Validate form
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
-    // Validate amount
     const amountResult = validation.validateAmount(formData.amountBtc);
     if (!amountResult.valid) {
       newErrors.amount = amountResult.error;
     }
 
-    // Validate provider
+    if (!formData.selectedApplication) {
+      newErrors.application = "Please select an application";
+    }
+
     if (!formData.selectedProvider) {
       newErrors.provider = "Please select a vault provider";
     } else {
@@ -151,43 +171,37 @@ export function useDepositForm(): UseDepositFormResult {
     return Object.keys(newErrors).length === 0;
   }, [formData, validation]);
 
-  // Check if form is valid
   const isValid = useMemo(() => {
     const hasAmount = formData.amountBtc !== "";
+    const hasApplication = formData.selectedApplication !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
-    const result = hasAmount && hasProvider && noErrors;
-    return result;
+    return hasAmount && hasApplication && hasProvider && noErrors;
   }, [formData, errors]);
 
-  // Reset form
   const resetForm = useCallback(() => {
     setFormDataInternal({
       amountBtc: "",
+      selectedApplication: "",
       selectedProvider: "",
     });
     setErrors({});
   }, []);
 
   return {
-    // Form state
     formData,
     setFormData,
-
-    // Validation
     errors,
     isValid,
-
-    // Data
     btcBalance,
+    btcBalanceFormatted,
+    btcPrice: btcPriceUSD,
+    applications,
+    isLoadingApplications,
     providers,
     isLoadingProviders,
-
-    // Calculated values
     amountSats,
     estimatedFees,
-
-    // Actions
     validateForm,
     resetForm,
   };
