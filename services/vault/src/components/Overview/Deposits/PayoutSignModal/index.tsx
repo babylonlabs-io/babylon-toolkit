@@ -64,7 +64,7 @@ export function PayoutSignModal({
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { findProvider } = useVaultProviders();
+  const { findProvider, liquidators } = useVaultProviders();
   const btcConnector = useChainConnector("BTC");
 
   const handleSign = useCallback(async () => {
@@ -84,19 +84,6 @@ export function PayoutSignModal({
         throw new Error("Vault provider not found");
       }
 
-      // Extract liquidator BTC pubkeys from vault provider
-      const liquidatorBtcPubkeys =
-        provider.liquidators?.map(
-          (liq: { btc_pub_key: string }) => liq.btc_pub_key,
-        ) || [];
-
-      const vaultProvider = {
-        url: provider.url,
-        address: provider.id as Hex,
-        btcPubkey: provider.btc_pub_key,
-        liquidatorBtcPubkeys,
-      };
-
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;
       if (!btcWalletProvider) {
@@ -108,7 +95,14 @@ export function PayoutSignModal({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
-        vaultProvider,
+        providers: {
+          vaultProvider: {
+            address: provider.id as Hex,
+            url: provider.url,
+            btcPubKey: provider.btcPubKey,
+          },
+          liquidators,
+        },
         btcWalletProvider: {
           signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
         },
@@ -140,13 +134,15 @@ export function PayoutSignModal({
     }
   }, [
     transactions,
-    activity,
-    btcPublicKey,
-    depositorEthAddress,
+    activity.providers,
+    activity.txHash,
     findProvider,
-    btcConnector,
+    liquidators,
+    btcConnector?.connectedWallet?.provider,
+    btcPublicKey,
     onSuccess,
     onClose,
+    depositorEthAddress,
   ]);
 
   return (

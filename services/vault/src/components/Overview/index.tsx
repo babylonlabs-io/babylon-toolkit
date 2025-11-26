@@ -63,8 +63,8 @@ function OverviewContent() {
   // Fetch BTC price from oracle
   const { btcPriceUSD } = useBTCPrice();
 
-  // Fetch vault providers from API (keep this - it's a data fetch function)
-  const { providers } = useVaultProviders();
+  // Fetch vault providers and liquidators from GraphQL API
+  const { vaultProviders, liquidators } = useVaultProviders();
 
   // Get activities and refetch function from useVaultDeposits
   const { activities, refetchActivities } = useVaultDeposits(ethAddress);
@@ -92,7 +92,7 @@ function OverviewContent() {
 
   // Get selected provider's BTC public key and liquidators from API data
   const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
-    if (selectedProviders.length === 0 || providers.length === 0) {
+    if (selectedProviders.length === 0 || vaultProviders.length === 0) {
       return {
         selectedProviderBtcPubkey: "",
         liquidatorBtcPubkeys: [],
@@ -100,22 +100,16 @@ function OverviewContent() {
     }
 
     // Find the selected provider by ETH address
-    const selectedProvider = providers.find(
+    const selectedProvider = vaultProviders.find(
       (p: VaultProvider) =>
         p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
     );
 
-    // Extract BTC public keys from liquidator objects
-    const liquidators =
-      selectedProvider?.liquidators?.map(
-        (liq: Liquidator) => liq.btc_pub_key,
-      ) || [];
-
     return {
-      selectedProviderBtcPubkey: selectedProvider?.btc_pub_key || "",
-      liquidatorBtcPubkeys: liquidators,
+      selectedProviderBtcPubkey: selectedProvider?.btcPubKey || "",
+      liquidatorBtcPubkeys: liquidators.map((liq: Liquidator) => liq.btcPubKey),
     };
-  }, [selectedProviders, providers]);
+  }, [selectedProviders, vaultProviders, liquidators]);
 
   // Deposit flow handlers
   const handleDeposit = (amount: bigint, providers: string[]) => {

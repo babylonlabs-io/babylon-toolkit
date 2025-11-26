@@ -1,9 +1,6 @@
 /**
  * Type definitions for Vault Indexer API
- *
- * Source: vault-indexer swagger docs
- * API Version: 1.0
- * Last synced: 2025-10-16
+ * TODO: Remove this file and use the GraphQL types instead.
  */
 
 // ============================================================================
@@ -28,18 +25,6 @@ export interface Vault {
   /** Amount borrowed from Morpho (as string to preserve precision) */
   borrow_amount: string;
 }
-
-// ============================================================================
-// Vault Provider Types
-// ============================================================================
-
-/**
- * Vault provider information
- * Corresponds to: model.VaultProvider (swagger.yaml)
- *
- * Re-exported from types/ directory (domain model)
- */
-export type { VaultProvider } from "../../types/vaultProvider";
 
 // ============================================================================
 // Morpho Market Types

@@ -2,5 +2,6 @@ export type {
   MorphoAsset,
   MorphoMarket,
   Vault,
-  VaultProvider,
 } from "../clients/vault-api/types";
+
+// VaultProvider and Liquidator types are exported from src/types/vaultProvider.ts

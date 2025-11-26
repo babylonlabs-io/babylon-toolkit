@@ -55,8 +55,8 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Get cached vault providers
-  const { findProvider } = useVaultProviders();
+  // Get cached vault providers and liquidators
+  const { findProvider, liquidators } = useVaultProviders();
 
   const signPayoutsAndSubmit = useCallback(
     async (params: SignPeginTransactionsParams) => {
@@ -80,22 +80,18 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
           );
         }
 
-        // Extract liquidator BTC pubkeys from vault provider
-        const liquidatorBtcPubkeys =
-          provider.liquidators?.map(
-            (liq: { btc_pub_key: string }) => liq.btc_pub_key,
-          ) || [];
-
         // Delegate to service layer (state-unaware, reusable business logic)
         await signAndSubmitPayoutSignatures({
           peginTxId: params.peginTxId,
           depositorBtcPubkey: params.depositorBtcPubkey,
           claimerTransactions: params.transactions,
-          vaultProvider: {
-            address: params.vaultProviderAddress,
-            url: provider.url,
-            btcPubkey: provider.btc_pub_key,
-            liquidatorBtcPubkeys,
+          providers: {
+            vaultProvider: {
+              address: params.vaultProviderAddress,
+              url: provider.url,
+              btcPubKey: provider.btcPubKey,
+            },
+            liquidators,
           },
           btcWalletProvider: params.btcWalletProvider,
         });
@@ -114,7 +110,7 @@ export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
         setLoading(false);
       }
     },
-    [findProvider],
+    [findProvider, liquidators],
   );
 
   return {

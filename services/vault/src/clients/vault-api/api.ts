@@ -1,13 +1,13 @@
 /**
  * Vault Indexer API Client
+ * TODO: Remove this client and use the GraphQL client instead.
  *
  * REST API client for querying vault and market information from the Babylon vault indexer.
- *
  */
 
 import { RestClient } from "../../utils/rest-client";
 
-import type { MorphoMarket, Vault, VaultProvider } from "./types";
+import type { MorphoMarket, Vault } from "./types";
 
 export class VaultApiClient {
   private client: RestClient;
@@ -25,14 +25,6 @@ export class VaultApiClient {
    */
   async getMarkets(): Promise<MorphoMarket[]> {
     return this.client.get<MorphoMarket[]>("/v1/markets");
-  }
-
-  /**
-   * Get all registered vault providers
-   * @returns Array of vault provider information
-   */
-  async getProviders(): Promise<VaultProvider[]> {
-    return this.client.get<VaultProvider[]>("/v1/providers");
   }
 
   /**

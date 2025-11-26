@@ -5,11 +5,15 @@
 
 import { useMemo } from "react";
 
-import type { VaultProvider } from "../../../../types/vaultProvider";
+import type {
+  Liquidator,
+  VaultProvider,
+} from "../../../../types/vaultProvider";
 
 export interface UseSelectedProviderDataParams {
   selectedProviders: string[];
-  providers: VaultProvider[];
+  vaultProviders: VaultProvider[];
+  liquidators: Liquidator[];
 }
 
 export interface UseSelectedProviderDataReturn {
@@ -20,17 +24,21 @@ export interface UseSelectedProviderDataReturn {
 export function useSelectedProviderData(
   params: UseSelectedProviderDataParams,
 ): UseSelectedProviderDataReturn {
-  const { selectedProviders, providers } = params;
+  const { selectedProviders, vaultProviders, liquidators } = params;
 
   return useMemo(() => {
-    if (selectedProviders.length === 0 || providers.length === 0) {
+    if (
+      selectedProviders.length === 0 ||
+      vaultProviders.length === 0 ||
+      liquidators.length === 0
+    ) {
       return {
         selectedProviderBtcPubkey: "",
         liquidatorBtcPubkeys: [],
       };
     }
 
-    const selectedProvider = providers.find(
+    const selectedProvider = vaultProviders.find(
       (p) => p.id.toLowerCase() === selectedProviders[0].toLowerCase(),
     );
 
@@ -41,12 +49,9 @@ export function useSelectedProviderData(
       };
     }
 
-    const liquidators =
-      selectedProvider.liquidators?.map((liq) => liq.btc_pub_key) || [];
-
     return {
-      selectedProviderBtcPubkey: selectedProvider.btc_pub_key || "",
-      liquidatorBtcPubkeys: liquidators,
+      selectedProviderBtcPubkey: selectedProvider.btcPubKey || "",
+      liquidatorBtcPubkeys: liquidators.map((liq) => liq.btcPubKey),
     };
-  }, [selectedProviders, providers]);
+  }, [selectedProviders, vaultProviders, liquidators]);
 }

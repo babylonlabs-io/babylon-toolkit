@@ -9,11 +9,28 @@ import { stripHexPrefix, type Network } from "../../utils/btc";
 import { signPayoutTransaction } from "./btcPayoutSigner";
 import { getPeginRequest, getProviderBTCKey } from "./vaultQueryService";
 
-export interface VaultProviderInfo {
+/** Vault provider info needed for payout signing */
+export interface PayoutVaultProvider {
+  /** Provider's Ethereum address */
   address: Hex;
+  /** Provider's RPC URL */
   url: string;
-  btcPubkey?: string;
-  liquidatorBtcPubkeys?: string[];
+  /** Provider's BTC public key (optional - will be fetched if not provided) */
+  btcPubKey?: string;
+}
+
+/** Liquidator info needed for payout signing */
+export interface PayoutLiquidator {
+  /** Liquidator's BTC public key */
+  btcPubKey: string;
+}
+
+/** Provider data for payout signing */
+export interface PayoutProviders {
+  /** Vault provider info */
+  vaultProvider: PayoutVaultProvider;
+  /** Liquidators for the application */
+  liquidators: PayoutLiquidator[];
 }
 
 export interface BtcWalletProvider {
@@ -24,7 +41,7 @@ export interface SignAndSubmitPayoutSignaturesParams {
   peginTxId: string;
   depositorBtcPubkey: string;
   claimerTransactions: ClaimerTransactions[];
-  vaultProvider: VaultProviderInfo;
+  providers: PayoutProviders;
   btcWalletProvider: BtcWalletProvider;
 }
 
@@ -39,9 +56,11 @@ export async function signAndSubmitPayoutSignatures(
     peginTxId,
     depositorBtcPubkey,
     claimerTransactions,
-    vaultProvider,
+    providers,
     btcWalletProvider,
   } = params;
+
+  const { vaultProvider, liquidators } = providers;
 
   // Validate inputs
   if (!peginTxId || typeof peginTxId !== "string") {
@@ -68,6 +87,10 @@ export async function signAndSubmitPayoutSignatures(
     );
   }
 
+  if (!liquidators || liquidators.length === 0) {
+    throw new Error("Invalid liquidators: must be a non-empty array");
+  }
+
   // Fetch pegin transaction from smart contract
   const peginRequest = await getPeginRequest(
     CONTRACTS.BTC_VAULTS_MANAGER,
@@ -82,8 +105,8 @@ export async function signAndSubmitPayoutSignatures(
 
   // Fetch vault provider's BTC public key (if not provided)
   let vaultProviderBtcPubkey: string;
-  if (vaultProvider.btcPubkey) {
-    vaultProviderBtcPubkey = stripHexPrefix(vaultProvider.btcPubkey);
+  if (vaultProvider.btcPubKey) {
+    vaultProviderBtcPubkey = stripHexPrefix(vaultProvider.btcPubKey);
   } else {
     const btcPubkeyHex = await getProviderBTCKey(
       CONTRACTS.BTC_VAULTS_MANAGER,
@@ -93,15 +116,9 @@ export async function signAndSubmitPayoutSignatures(
   }
 
   // Get liquidator BTC public keys
-  const liquidatorBtcPubkeys: string[] =
-    vaultProvider.liquidatorBtcPubkeys || [];
-  if (liquidatorBtcPubkeys.length === 0) {
-    throw new Error(
-      "No liquidator BTC public keys provided in vault provider info",
-    );
-  }
-
-  const cleanLiquidatorPubkeys = liquidatorBtcPubkeys.map(stripHexPrefix);
+  const cleanLiquidatorPubkeys = liquidators.map((liq) =>
+    stripHexPrefix(liq.btcPubKey),
+  );
 
   // Pre-sort liquidators to match Rust backend behavior (lexicographic sort)
   // Rust: crates/vault/src/connectors/script_utils.rs:30 - sorted_signers.sort()
