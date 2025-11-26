@@ -10,7 +10,7 @@ import { useState } from "react";
 import { useApplications } from "../../../hooks/api/useApplications";
 
 interface ApplicationLogoProps {
-  logoUrl: string;
+  logoUrl: string | null;
   name: string;
 }
 
@@ -90,16 +90,18 @@ export function Applications() {
               </p>
             )}
 
-            <a
-              href={app.websiteUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="self-start"
-            >
-              <Button variant="outlined" rounded>
-                Explore
-              </Button>
-            </a>
+            {app.websiteUrl && (
+              <a
+                href={app.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="self-start"
+              >
+                <Button variant="outlined" rounded>
+                  Explore
+                </Button>
+              </a>
+            )}
           </SubSection>
         ))}
       </div>

@@ -31,7 +31,7 @@ export interface UseDepositPageFormResult {
     id: string;
     name: string;
     type: string;
-    logoUrl: string;
+    logoUrl: string | null;
   }>;
   isLoadingApplications: boolean;
   providers: Array<{ id: string; name: string; btcPubkey: string }>;
@@ -62,17 +62,20 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }));
   }, [applicationsData]);
 
-  const { providers: rawProviders, loading: isLoadingProviders } =
+  const { vaultProviders: rawProviders, loading: isLoadingProviders } =
     useVaultProviders();
   const providers = useMemo(() => {
-    return rawProviders.map((p) => ({
+    return rawProviders.map((p: { id: string; btcPubKey: string }) => ({
       id: p.id,
       name: `Provider ${p.id.slice(0, 6)}...${p.id.slice(-4)}`,
-      btcPubkey: p.btc_pub_key || "",
+      btcPubkey: p.btcPubKey || "",
     }));
   }, [rawProviders]);
 
-  const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
+  const providerIds = useMemo(
+    () => providers.map((p: { id: string }) => p.id),
+    [providers],
+  );
   const validation = useDepositValidation(btcAddress, providerIds);
 
   const { confirmedUTXOs } = useUTXOs(btcAddress);

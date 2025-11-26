@@ -11,7 +11,7 @@ interface Application {
   id: string;
   name: string;
   type: string;
-  logoUrl: string;
+  logoUrl: string | null;
 }
 
 interface SelectApplicationSectionProps {
@@ -23,7 +23,7 @@ interface SelectApplicationSectionProps {
 }
 
 interface ApplicationLogoProps {
-  logoUrl: string;
+  logoUrl: string | null;
   name: string;
 }
 
