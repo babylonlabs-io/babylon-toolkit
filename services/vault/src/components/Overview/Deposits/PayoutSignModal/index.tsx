@@ -84,6 +84,10 @@ export function PayoutSignModal({
         throw new Error("Vault provider not found");
       }
 
+      if (!provider.url) {
+        throw new Error("Vault provider URL not available");
+      }
+
       // Extract liquidator BTC pubkeys from vault provider
       const liquidatorBtcPubkeys =
         provider.liquidators?.map(
