@@ -1,11 +1,21 @@
 import { ReactNode } from "react";
 
+import { DEFAULT_CONFIRMATION_DEPTH } from "@/ui/common/constants";
+
 export interface Question {
   title: string;
   content: ReactNode;
 }
 
-export const questionsBtc = (coinName: string): Question[] => {
+export interface QuestionsBtcParams {
+  coinName: string;
+  btcConfirmationDepth?: number;
+}
+
+export const questionsBtc = ({
+  coinName,
+  btcConfirmationDepth,
+}: QuestionsBtcParams): Question[] => {
   const questionList = [
     {
       title: "What is Babylon?",
@@ -223,10 +233,12 @@ export const questionsBtc = (coinName: string): Question[] => {
       title: "How long will it take for my stake to become active?",
       content: (
         <p>
-          Your stake becomes active after it receives at least 10 Bitcoin block
+          Your stake becomes active after it receives at least{" "}
+          {btcConfirmationDepth ?? DEFAULT_CONFIRMATION_DEPTH} Bitcoin block
           confirmations and is registered and verified by the Babylon Genesis
-          chain. This process typically takes around 100 minutes, depending on
-          Bitcoin network conditions.
+          chain. This process typically takes around{" "}
+          {(btcConfirmationDepth ?? DEFAULT_CONFIRMATION_DEPTH) * 10} minutes,
+          depending on Bitcoin network conditions.
         </p>
       ),
     },

@@ -2,6 +2,7 @@ import { Card } from "@babylonlabs-io/core-ui";
 
 import { Section as SectionContainer } from "@/ui/common/components/Section/Section";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { useAppState } from "@/ui/common/state";
 
 import { Question, questionsBaby, questionsBtc } from "./data/questions";
 import { Section } from "./Section";
@@ -13,11 +14,15 @@ interface FAQProps {
 }
 
 export const FAQ = ({ variant }: FAQProps) => {
+  const { networkInfo } = useAppState();
+  const btcConfirmationDepth =
+    networkInfo?.params.btcEpochCheckParams?.latestParam?.btcConfirmationDepth;
+
   let items: Question[] = [];
 
   if (variant === "btc") {
     const { coinName } = getNetworkConfigBTC();
-    items = questionsBtc(coinName);
+    items = questionsBtc({ coinName, btcConfirmationDepth });
   } else if (variant === "baby") {
     items = questionsBaby;
   }
