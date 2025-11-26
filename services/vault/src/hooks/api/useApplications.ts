@@ -12,11 +12,9 @@ const GET_APPLICATIONS = gql`
       items {
         id
         name
-        type
-        description
-        logoUrl
-        websiteUrl
         registeredAt
+        blockNumber
+        transactionHash
       }
     }
   }

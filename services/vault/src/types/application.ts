@@ -1,11 +1,9 @@
 export interface Application {
   id: string;
   name: string | null;
-  type: string;
-  description: string | null;
-  logoUrl: string | null;
-  websiteUrl: string | null;
   registeredAt: string;
+  blockNumber: string;
+  transactionHash: string;
 }
 
 export interface ApplicationsResponse {

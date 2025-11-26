@@ -2,7 +2,7 @@
  * Market Service - Business logic for Morpho market operations
  *
  * Handles market-related read operations including:
- * - Fetching markets from vault-indexer API
+ * - Fetching markets from GraphQL API
  * - Validating markets against on-chain Morpho contract
  * - Getting market data and user positions
  *
@@ -10,6 +10,7 @@
  * All hooks should import from this service, never directly from clients.
  */
 
+import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import type {
@@ -17,11 +18,7 @@ import type {
   MorphoUserPosition,
 } from "../../clients/eth-contract";
 import { Morpho } from "../../clients/eth-contract";
-import { VaultApiClient } from "../../clients/vault-api";
-import {
-  DEFAULT_TIMEOUT,
-  getVaultApiUrl,
-} from "../../clients/vault-api/config";
+import { graphqlClient } from "../../clients/graphql/config";
 import type { MorphoMarket } from "../../clients/vault-api/types";
 
 /**
@@ -69,14 +66,57 @@ export interface MarketsWithValidationResult {
   invalidMarkets: MarketWithValidation[];
 }
 
+const GET_MARKETS = gql`
+  query GetMarkets {
+    markets {
+      items {
+        id
+        loanTokenAddress
+        collateralTokenAddress
+        oracleAddress
+        irm
+        lltv
+        createdAt
+        blockNumber
+        transactionHash
+      }
+    }
+  }
+`;
+
+interface MarketsResponse {
+  markets: {
+    items: Array<{
+      id: string;
+      loanTokenAddress: string;
+      collateralTokenAddress: string;
+      oracleAddress: string;
+      irm: string;
+      lltv: string;
+      createdAt: string;
+      blockNumber: string;
+      transactionHash: string;
+    }>;
+  };
+}
+
 /**
- * Get all markets from vault-indexer API
+ * Get all markets from GraphQL API
  *
  * @returns Array of market information from API
  */
 export async function getMarkets(): Promise<MorphoMarket[]> {
-  const client = new VaultApiClient(getVaultApiUrl(), DEFAULT_TIMEOUT);
-  return client.getMarkets();
+  const data = await graphqlClient.request<MarketsResponse>(GET_MARKETS);
+  return data.markets.items.map((market) => ({
+    id: market.id,
+    loan_token: market.loanTokenAddress,
+    collateral_token: market.collateralTokenAddress,
+    oracle: market.oracleAddress,
+    irm: market.irm,
+    lltv: market.lltv,
+    created_block: parseInt(market.blockNumber),
+    created_tx_hash: market.transactionHash,
+  }));
 }
 
 /**
