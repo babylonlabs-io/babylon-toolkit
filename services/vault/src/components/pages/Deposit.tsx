@@ -12,24 +12,29 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 
 const faqData = [
   {
-    question: "Lorem ipsum dolor sit amet?",
+    question: "How do I make a deposit?",
     answer:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "To make a deposit, select your preferred vault provider and application, enter the amount you wish to deposit, and follow the on-screen instructions. You will need a supported wallet to complete the transaction.",
   },
   {
-    question: "Ut enim ad minim veniam?",
+    question: "What is the minimum and maximum deposit amount?",
     answer:
-      "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
+      "The minimum and maximum deposit amounts depend on the selected vault provider and application. Please refer to the deposit form for specific limits.",
   },
   {
-    question: "Duis aute irure dolor in reprehenderit?",
+    question: "How long does it take for my deposit to be processed?",
     answer:
-      "Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+      "Deposits are typically processed within a few minutes, but processing times may vary depending on network congestion and provider policies.",
   },
   {
-    question: "Excepteur sint occaecat cupidatat?",
+    question: "Are there any fees for making a deposit?",
     answer:
-      "Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.",
+      "Some vault providers may charge a small fee for processing deposits. Any applicable fees will be displayed before you confirm your transaction.",
+  },
+  {
+    question: "Is my deposit secure?",
+    answer:
+      "All deposits are secured using industry-standard encryption and security protocols. Please ensure you are using a trusted wallet and provider.",
   },
 ];
 
