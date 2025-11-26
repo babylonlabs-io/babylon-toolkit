@@ -3,7 +3,10 @@ import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql/config";
 import { getApplicationMetadata } from "../../config/applicationMetadata";
-import type { Application, ApplicationsResponse } from "../../types/application";
+import type {
+  Application,
+  ApplicationsResponse,
+} from "../../types/application";
 
 export const APPLICATIONS_KEY = "applications";
 
