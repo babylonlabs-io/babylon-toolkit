@@ -54,7 +54,7 @@ export function SelectVaultProviderSection({
                   variant="body2"
                   className="text-sm font-medium text-accent-contrast"
                 >
-                  {provider.id.slice(2, 3).toUpperCase()}
+                  {provider.id.replace(/^0x/, '').charAt(0).toUpperCase()}
                 </Text>
               }
               isSelected={selectedProvider === provider.id}

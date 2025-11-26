@@ -67,4 +67,3 @@ export const useVaultProvidersQuery = () => {
     retry: 1,
   });
 };
-

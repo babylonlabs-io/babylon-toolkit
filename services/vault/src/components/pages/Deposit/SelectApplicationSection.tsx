@@ -5,7 +5,8 @@ import {
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+
+import { ApplicationLogo } from "../../ApplicationLogo";
 
 interface Application {
   id: string;
@@ -20,34 +21,6 @@ interface SelectApplicationSectionProps {
   selectedApplication: string;
   error?: string;
   onSelect: (applicationId: string) => void;
-}
-
-interface ApplicationLogoProps {
-  logoUrl: string | null;
-  name: string;
-}
-
-function ApplicationLogo({ logoUrl, name }: ApplicationLogoProps) {
-  const [imageError, setImageError] = useState(false);
-
-  if (imageError || !logoUrl) {
-    return (
-      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-secondary-main">
-        <Text as="span" className="text-base font-medium text-accent-contrast">
-          {name.charAt(0).toUpperCase()}
-        </Text>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={logoUrl}
-      alt={name}
-      className="h-10 w-10 rounded-full object-cover"
-      onError={() => setImageError(true)}
-    />
-  );
 }
 
 export function SelectApplicationSection({

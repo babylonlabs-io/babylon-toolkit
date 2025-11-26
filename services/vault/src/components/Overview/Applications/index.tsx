@@ -1,44 +1,7 @@
-import {
-  Avatar,
-  Button,
-  Chip,
-  SubSection,
-  Text,
-} from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
 
 import { useApplications } from "../../../hooks/api/useApplications";
-
-interface ApplicationLogoProps {
-  logoUrl: string | null;
-  name: string;
-}
-
-function ApplicationLogo({ logoUrl, name }: ApplicationLogoProps) {
-  const [imageError, setImageError] = useState(false);
-
-  if (imageError || !logoUrl) {
-    return (
-      <Avatar alt={name} size="large" variant="rounded" className="h-8 w-8">
-        <Text
-          as="span"
-          className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-base font-medium text-accent-contrast"
-        >
-          {name.charAt(0).toUpperCase()}
-        </Text>
-      </Avatar>
-    );
-  }
-
-  return (
-    <img
-      src={logoUrl}
-      alt={name}
-      className="h-8 w-8 rounded-2xl object-cover"
-      onError={() => setImageError(true)}
-    />
-  );
-}
+import { ApplicationLogo } from "../../ApplicationLogo";
 
 export function Applications() {
   const { data: applications, isLoading, error } = useApplications();
@@ -76,6 +39,8 @@ export function Applications() {
                 <ApplicationLogo
                   logoUrl={app.logoUrl}
                   name={app.name || app.type}
+                  size="small"
+                  shape="rounded"
                 />
                 <h4 className="text-[20px] font-medium text-accent-primary">
                   {app.name || app.type}
