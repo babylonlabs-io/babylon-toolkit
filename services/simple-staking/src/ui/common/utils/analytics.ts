@@ -56,17 +56,15 @@ export function trackEvent(
 
   // Promote primitives from data to tags for searchability
   // We add "extra.key" to support specific query patterns
-  if (data) {
-    Object.entries(data).forEach(([key, value]) => {
-      if (
-        typeof value === "string" ||
-        typeof value === "number" ||
-        typeof value === "boolean"
-      ) {
-        tags[`extra.${key}`] = value;
-      }
-    });
-  }
+  Object.entries(data).forEach(([key, value]) => {
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      tags[`extra.${key}`] = value;
+    }
+  });
 
   Sentry.captureEvent({
     message,
