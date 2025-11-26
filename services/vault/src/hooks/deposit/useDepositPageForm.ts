@@ -4,6 +4,7 @@ import { useVaultProviders } from "../../components/Overview/Deposits/hooks/useV
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { useApplications } from "../api/useApplications";
+import { useBTCPrice } from "../useBTCPrice";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -26,6 +27,7 @@ export interface UseDepositPageFormResult {
   isValid: boolean;
 
   btcBalance: bigint;
+  btcBalanceFormatted: number;
   btcPrice: number;
   applications: Array<{
     id: string;
@@ -50,6 +52,7 @@ export interface UseDepositPageFormResult {
 
 export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
+  const { btcPriceUSD } = useBTCPrice();
 
   const { data: applicationsData, isLoading: isLoadingApplications } =
     useApplications();
@@ -82,6 +85,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(confirmedUTXOs || []));
   }, [confirmedUTXOs]);
+
+  const btcBalanceFormatted = useMemo(() => {
+    if (!btcBalance) return 0;
+    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
+  }, [btcBalance]);
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -185,7 +193,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     errors,
     isValid,
     btcBalance,
-    btcPrice: 97833.68,
+    btcBalanceFormatted,
+    btcPrice: btcPriceUSD,
     applications,
     isLoadingApplications,
     providers,

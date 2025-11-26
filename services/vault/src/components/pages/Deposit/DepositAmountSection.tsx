@@ -3,6 +3,8 @@ import { useMemo } from "react";
 
 import { depositService } from "../../../services/deposit";
 
+const BTC_ICON_PATH = "/images/btc.png";
+
 interface DepositAmountSectionProps {
   amount: string;
   btcBalance: bigint;
@@ -51,7 +53,7 @@ export function DepositAmountSection({
         <AmountItem
           amount={amount}
           amountUsd={amountUsd}
-          currencyIcon="/images/btc.png"
+          currencyIcon={BTC_ICON_PATH}
           currencyName="Bitcoin"
           placeholder="Enter amount"
           displayBalance={true}

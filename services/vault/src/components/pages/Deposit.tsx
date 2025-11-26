@@ -1,8 +1,7 @@
 import { Button, Card, Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
-import { depositService } from "../../services/deposit";
 import { DepositOverview } from "../Overview/Deposits/DepositOverview";
 import { DepositState } from "../Overview/Deposits/state/DepositState";
 import { VaultRedeemState } from "../Overview/Deposits/state/VaultRedeemState";
@@ -41,6 +40,7 @@ function DepositContent() {
     errors,
     isValid,
     btcBalance,
+    btcBalanceFormatted,
     btcPrice,
     applications,
     isLoadingApplications,
@@ -50,11 +50,6 @@ function DepositContent() {
   } = useDepositPageForm();
 
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
-
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
-  }, [btcBalance]);
 
   const handleMaxClick = () => {
     if (btcBalanceFormatted > 0) {
@@ -133,6 +128,7 @@ function DepositContent() {
                   <button
                     onClick={() => handleFaqClick(index)}
                     className="w-full cursor-pointer text-left"
+                    aria-expanded={openFaqIndex === index}
                   >
                     <h3 className="text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary">
                       {faq.question}
