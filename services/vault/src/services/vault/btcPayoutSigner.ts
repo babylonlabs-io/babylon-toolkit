@@ -63,22 +63,12 @@ export async function signPayoutTransaction(
   } = params;
 
   try {
-    // Strip 0x prefix if present (SDK expects clean hex)
-    const cleanPayoutHex = payoutTxHex.startsWith("0x")
-      ? payoutTxHex.slice(2)
-      : payoutTxHex;
-    const cleanPeginHex = peginTxHex.startsWith("0x")
-      ? peginTxHex.slice(2)
-      : peginTxHex;
-    const cleanClaimHex = claimTxHex.startsWith("0x")
-      ? claimTxHex.slice(2)
-      : claimTxHex;
-
     // Build PSBT using SDK Level 1 primitive
+    // Note: SDK normalizes hex inputs internally (strips 0x prefix if present)
     const payoutPsbt = await buildPayoutPsbt({
-      payoutTxHex: cleanPayoutHex,
-      peginTxHex: cleanPeginHex,
-      claimTxHex: cleanClaimHex,
+      payoutTxHex,
+      peginTxHex,
+      claimTxHex,
       depositorBtcPubkey,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,

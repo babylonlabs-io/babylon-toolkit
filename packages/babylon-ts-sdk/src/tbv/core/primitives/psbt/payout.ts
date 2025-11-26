@@ -18,7 +18,11 @@ import {
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
-import { hexToUint8Array, uint8ArrayToHex } from "../utils/bitcoin";
+import {
+  hexToUint8Array,
+  stripHexPrefix,
+  uint8ArrayToHex,
+} from "../utils/bitcoin";
 
 // Use Buffer from global scope (provided by bitcoinjs-lib or polyfills)
 declare const Buffer: typeof import("buffer").Buffer;
@@ -118,6 +122,11 @@ export interface PayoutPsbtResult {
 export async function buildPayoutPsbt(
   params: PayoutParams,
 ): Promise<PayoutPsbtResult> {
+  // Normalize hex inputs (strip 0x prefix if present)
+  const payoutTxHex = stripHexPrefix(params.payoutTxHex);
+  const peginTxHex = stripHexPrefix(params.peginTxHex);
+  const claimTxHex = stripHexPrefix(params.claimTxHex);
+
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
     depositor: params.depositorBtcPubkey,
@@ -130,9 +139,9 @@ export async function buildPayoutPsbt(
   const controlBlock = computeControlBlock(tapInternalPubkey, payoutScriptBytes);
 
   // Parse transactions
-  const payoutTx = Transaction.fromHex(params.payoutTxHex);
-  const peginTx = Transaction.fromHex(params.peginTxHex);
-  const claimTx = Transaction.fromHex(params.claimTxHex);
+  const payoutTx = Transaction.fromHex(payoutTxHex);
+  const peginTx = Transaction.fromHex(peginTxHex);
+  const claimTx = Transaction.fromHex(claimTxHex);
 
   // Create PSBT
   const psbt = new Psbt();
