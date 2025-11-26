@@ -1,4 +1,8 @@
-import { REWARD_GAUGE_KEY_BTC_DELEGATION } from "../../constants";
+import {
+  REWARD_GAUGE_KEY_BTC_DELEGATION,
+  REWARD_GAUGE_KEY_COSTAKER,
+} from "../../constants";
+import type { BTCRewards } from "../rpc/btc";
 import type { RequestFn } from "../utils/http";
 import { sumCoinAmounts } from "../utils/sumCoinAmounts";
 
@@ -7,24 +11,42 @@ interface Dependencies {
 }
 
 const createBTCClient = ({ request }: Dependencies) => ({
-  async getRewards(address: string): Promise<bigint> {
+  async getRewards(address: string): Promise<BTCRewards> {
     try {
       const response = await request(
         `/babylon/incentive/address/${address}/reward_gauge`,
       );
 
-      const coins =
-        response?.rewardGauges?.[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
-
-      if (!coins) {
-        return 0n;
+      if (!response?.rewardGauges) {
+        return {
+          btcStaker: 0n,
+          coStaker: 0n,
+        };
       }
 
-      const withdrawnCoins = sumCoinAmounts(
+      // Calculate rewards from BTC_STAKER gauge (base BTC staking rewards)
+      const btcStakerCoins =
+        response.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.coins;
+      const btcStakerWithdrawn = sumCoinAmounts(
         response.rewardGauges[REWARD_GAUGE_KEY_BTC_DELEGATION]?.withdrawnCoins,
       );
+      const btcStakerTotal = sumCoinAmounts(btcStakerCoins);
+      const btcStakerAvailable = btcStakerTotal - btcStakerWithdrawn;
 
-      return sumCoinAmounts(coins) - withdrawnCoins;
+      // Calculate rewards from COSTAKER gauge (co-staking bonus)
+      const costakerCoins =
+        response.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.coins;
+      const costakerWithdrawn = sumCoinAmounts(
+        response.rewardGauges[REWARD_GAUGE_KEY_COSTAKER]?.withdrawnCoins,
+      );
+      const costakerTotal = sumCoinAmounts(costakerCoins);
+      const costakerAvailable = costakerTotal - costakerWithdrawn;
+
+      // Return separated values for accurate display
+      return {
+        btcStaker: btcStakerAvailable,
+        coStaker: costakerAvailable,
+      };
     } catch (error) {
       // If error message contains "reward gauge not found", silently return 0
       // This is to handle the case where the user has no rewards, meaning
@@ -33,7 +55,10 @@ const createBTCClient = ({ request }: Dependencies) => ({
         error instanceof Error &&
         error.message.includes("reward gauge not found")
       ) {
-        return 0n;
+        return {
+          btcStaker: 0n,
+          coStaker: 0n,
+        };
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
         cause: error,

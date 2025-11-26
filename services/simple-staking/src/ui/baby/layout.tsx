@@ -12,7 +12,6 @@ import { Section } from "@/ui/common/components/Section/Section";
 import { Tabs } from "@/ui/common/components/Tabs";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
-import FF from "@/ui/common/utils/FeatureFlagService";
 
 import { Stats } from "./components/Stats/Stats";
 import { BabyActivityList } from "./components/ActivityList";
@@ -110,9 +109,7 @@ function BabyLayoutContent() {
                   className="mx-auto flex max-w-[760px] flex-1 flex-col gap-4 pb-0"
                 >
                   <Stats />
-                  {FF.IsCoStakingEnabled && (
-                    <CoStakingBoostSection setActiveTab={setActiveTab} />
-                  )}
+                  <CoStakingBoostSection setActiveTab={setActiveTab} />
                   <Tabs
                     items={tabItems}
                     defaultActiveTab="stake"

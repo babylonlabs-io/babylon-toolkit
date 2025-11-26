@@ -46,10 +46,9 @@ export function useExpansionHistoryModalData({
         index === totalExpansions - 1
           ? "Original Stake"
           : `Extension ${totalExpansions - index - 1}`;
-      // Options for expansion history: no expansion section, hide expansion completely
+      // Options for expansion history: no expansion section
       const options = {
         showExpansionSection: false,
-        hideExpansionCompletely: true,
       };
       return transformDelegationToActivityCard(
         delegation,

@@ -24,20 +24,23 @@ export const useBbnQuery = () => {
   const { hasRpcError, reconnect } = useRpcErrorHandler();
 
   /**
-   * Gets the total available BTC staking rewards from the user's account.
-   * This includes both base BTC staking rewards (BTC_STAKER gauge) and
+   * Gets the available BTC staking rewards from the user's account, broken down by type.
+   * Returns separate values for base BTC staking rewards (BTC_STAKER gauge) and
    * co-staking bonus rewards (COSTAKER gauge).
-   * @returns {Promise<number>} - Total available rewards in ubbn (base BTC + co-staking bonus).
+   * @returns {Promise<{btcStaker: number, coStaker: number}>} - Rewards in ubbn broken down by type
    */
   const rewardsQuery = useClientQuery({
     queryKey: [BBN_REWARDS_KEY, bech32Address, connected],
     queryFn: async () => {
       if (!connected || !rpcClient || !bech32Address) {
-        return 0;
+        return { btcStaker: 0, coStaker: 0 };
       }
       try {
         const rewards = await rpcClient.btc.getRewards(bech32Address);
-        return Number(rewards);
+        return {
+          btcStaker: Number(rewards.btcStaker),
+          coStaker: Number(rewards.coStaker),
+        };
       } catch (error) {
         throw new ClientError(
           ERROR_CODES.EXTERNAL_SERVICE_UNAVAILABLE,

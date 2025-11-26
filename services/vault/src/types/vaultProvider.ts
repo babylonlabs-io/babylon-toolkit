@@ -1,8 +1,7 @@
 /**
- * Vault Provider domain types
+ * Provider domain types
  *
- * Represents vault providers in the system - entities that provide
- * vault services including BTC custody and transaction signing.
+ * Represents vault providers and liquidators in the system.
  */
 
 /**
@@ -10,9 +9,9 @@
  */
 export interface Liquidator {
   /** Liquidator's Ethereum address */
-  address: string;
+  id: string;
   /** Liquidator's BTC public key (x-only, 32 bytes hex with 0x prefix) */
-  btc_pub_key: string;
+  btcPubKey: string;
 }
 
 /**
@@ -21,10 +20,20 @@ export interface Liquidator {
 export interface VaultProvider {
   /** Provider's Ethereum address */
   id: string;
-  /** Provider's BTC public key */
-  btc_pub_key: string;
-  /** Provider's RPC URL */
+  /** Provider's BTC public key (hex with 0x prefix) */
+  btcPubKey: string;
+  /** Provider status: "pending" | "active" */
+  status: string;
+  /** Provider's RPC URL (from registry) */
   url: string;
-  /** Liquidators (challengers) for this provider */
+}
+
+/**
+ * Response from fetchProviders containing vault providers and liquidators
+ */
+export interface ProvidersResponse {
+  /** Vault providers for the application */
+  vaultProviders: VaultProvider[];
+  /** Liquidators (challengers) for the application */
   liquidators: Liquidator[];
 }

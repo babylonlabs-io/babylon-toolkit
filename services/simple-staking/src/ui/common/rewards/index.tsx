@@ -9,7 +9,7 @@ import {
   Container,
 } from "@babylonlabs-io/core-ui";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 
 import { Content } from "@/ui/common/components/Content/Content";
@@ -18,7 +18,12 @@ import { AuthGuard } from "@/ui/common/components/Common/AuthGuard";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
-import FF from "@/ui/common/utils/FeatureFlagService";
+import {
+  AnalyticsCategory,
+  AnalyticsMessage,
+  trackEvent,
+  trackViewTime,
+} from "@/ui/common/utils/analytics";
 import { useRewardsState as useBtcRewardsState } from "@/ui/common/state/RewardState";
 import {
   RewardState,
@@ -27,7 +32,6 @@ import {
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { formatBalance } from "@/ui/common/utils/formatCryptoBalance";
-import { calculateCoStakingAmount } from "@/ui/common/utils/calculateCoStakingAmount";
 import { useCombinedRewardsService } from "@/ui/common/hooks/services/useCombinedRewardsService";
 import {
   ClaimStatus,
@@ -71,28 +75,28 @@ function RewardsPageContent() {
   const { claimCombined, estimateCombinedClaimGas } =
     useCombinedRewardsService();
 
-  const { eligibility, rawAprData, hasValidBoostData } = useCoStakingState();
+  const { eligibility, hasValidBoostData } = useCoStakingState();
 
-  const btcRewardBaby = maxDecimals(
-    ubbnToBaby(Number(btcRewardUbbn || 0)),
+  // Convert BTC rewards from ubbn to BABY, using actual on-chain gauge values
+  const baseBtcRewardBaby = maxDecimals(
+    ubbnToBaby(Number(btcRewardUbbn?.btcStaker ?? 0)),
     MAX_DECIMALS,
   );
+  const coStakingAmountBaby = maxDecimals(
+    ubbnToBaby(Number(btcRewardUbbn?.coStaker ?? 0)),
+    MAX_DECIMALS,
+  );
+
   const babyRewardBaby = maxDecimals(
     ubbnToBaby(Number(babyRewardUbbn || 0n)),
     MAX_DECIMALS,
   );
 
-  // Note: Co-staking bonus is already included in BTC rewards
-  // Total = BTC rewards (includes co-staking bonus if eligible) + BABY rewards
+  // Total rewards = BTC rewards (base + co-staking) + BABY rewards
+  // Calculate BTC total in frontend instead of using pre-calculated value
   const totalBabyRewards = maxDecimals(
-    btcRewardBaby + babyRewardBaby,
+    baseBtcRewardBaby + coStakingAmountBaby + babyRewardBaby,
     MAX_DECIMALS,
-  );
-
-  // Calculate co-staking amount split from BTC rewards using API APR ratios
-  const { coStakingAmountBaby, baseBtcRewardBaby } = useMemo(
-    () => calculateCoStakingAmount(btcRewardBaby, rawAprData),
-    [btcRewardBaby, rawAprData],
   );
 
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -142,6 +146,18 @@ function RewardsPageContent() {
   }
 
   const handleStakeMoreClick = () => {
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
+      {
+        component: "RewardsPage",
+        babyAmount: eligibility.additionalBabyNeeded,
+        hasCoStakingBoost:
+          coStakingAmountBaby !== undefined && coStakingAmountBaby > 0,
+        currentTotalRewards: totalBabyRewards,
+        currentCoStakingBonus: coStakingAmountBaby ?? 0,
+      },
+    );
     navigate("/baby", {
       state: {
         [NAVIGATION_STATE_KEYS.PREFILL_COSTAKING]: true,
@@ -150,12 +166,71 @@ function RewardsPageContent() {
   };
 
   // Hoist reward checks to avoid duplicate declarations
-  const hasBtcRewards = btcRewardUbbn && btcRewardUbbn > 0;
+  const hasBtcRewards =
+    btcRewardUbbn &&
+    (btcRewardUbbn.btcStaker > 0 || btcRewardUbbn.coStaker > 0);
   const hasBabyRewards = babyRewardUbbn && babyRewardUbbn > 0n;
+
+  // Keep latest view metrics in a ref to avoid effect re-runs
+  const latestViewDataRef = useRef({
+    pageName: "RewardsPage" as const,
+    hasBtcRewards: Boolean(hasBtcRewards),
+    hasBabyRewards: Boolean(hasBabyRewards),
+    totalRewardsBaby: totalBabyRewards,
+    hasCoStakingBoost: Boolean(
+      hasValidBoostData &&
+        coStakingAmountBaby !== undefined &&
+        coStakingAmountBaby > 0,
+    ),
+  });
+
+  useEffect(() => {
+    const hasCoStakingBoost =
+      hasValidBoostData &&
+      coStakingAmountBaby !== undefined &&
+      coStakingAmountBaby > 0;
+
+    latestViewDataRef.current = {
+      pageName: "RewardsPage" as const,
+      hasBtcRewards: Boolean(hasBtcRewards),
+      hasBabyRewards: Boolean(hasBabyRewards),
+      totalRewardsBaby: totalBabyRewards,
+      hasCoStakingBoost,
+    };
+  }, [
+    hasBtcRewards,
+    hasBabyRewards,
+    totalBabyRewards,
+    coStakingAmountBaby,
+    hasValidBoostData,
+  ]);
+
+  // Track page viewing time using the ref so cleanup logs the latest metrics
+  useEffect(() => {
+    const stop = trackViewTime(
+      AnalyticsCategory.PAGE_VIEW,
+      AnalyticsMessage.PAGE_LEFT,
+      latestViewDataRef,
+    );
+    return () => stop();
+  }, []);
 
   const handleClaimClick = async () => {
     if (processing) return;
     if (!hasBtcRewards && !hasBabyRewards) return;
+
+    trackEvent(
+      AnalyticsCategory.CTA_CLICK,
+      AnalyticsMessage.CLAIM_ALL_REWARDS,
+      {
+        hasBtcRewards: Boolean(hasBtcRewards),
+        hasBabyRewards: Boolean(hasBabyRewards),
+        totalRewardsBaby: totalBabyRewards,
+        btcRewardsBaby: baseBtcRewardBaby + (coStakingAmountBaby ?? 0),
+        babyRewardsBaby: babyRewardBaby,
+        coStakingBonusBaby: coStakingAmountBaby ?? 0,
+      },
+    );
 
     const babyRewardsToClaim = hasBabyRewards ? babyRewards : [];
     try {
@@ -172,7 +247,33 @@ function RewardsPageContent() {
     setPreviewOpen(true);
   };
 
+  useEffect(() => {
+    if (!previewOpen) {
+      return;
+    }
+
+    const stopTrackingPreview = trackViewTime(
+      AnalyticsCategory.MODAL_VIEW,
+      AnalyticsMessage.CLAIM_PREVIEW_VIEWED,
+      {
+        modalName: "RewardsPreviewModal",
+      },
+    );
+
+    return () => {
+      stopTrackingPreview();
+    };
+  }, [previewOpen]);
+
   const handleProceed = async () => {
+    trackEvent(
+      AnalyticsCategory.MODAL_INTERACTION,
+      AnalyticsMessage.CONFIRM_CLAIM_REWARDS,
+      {
+        modalName: "RewardsPreviewModal",
+      },
+    );
+    const startTime = performance.now();
     setPreviewOpen(false);
     // Ensure processing modal is visible for the entire dual-claim flow
     btcOpenProcessingModal();
@@ -212,6 +313,24 @@ function RewardsPageContent() {
         });
       }
 
+      // Track successful claim transaction
+      const duration = Math.round(performance.now() - startTime);
+      trackEvent(
+        AnalyticsCategory.FORM_INTERACTION,
+        AnalyticsMessage.CLAIM_REWARDS_SUCCESS,
+        {
+          txHash: result?.txHash,
+          durationMs: duration,
+          durationSeconds: Math.round(duration / 1000),
+          hasBtcRewards: Boolean(hasBtcRewards),
+          hasBabyRewards: Boolean(hasBabyRewards),
+          totalRewardsBaby: totalBabyRewards,
+          btcRewardsBaby: baseBtcRewardBaby + (coStakingAmountBaby ?? 0),
+          babyRewardsBaby: babyRewardBaby,
+          coStakingBonusBaby: coStakingAmountBaby ?? 0,
+        },
+      );
+
       setClaimResults(results);
       setClaimStatus(ClaimStatus.SUCCESS);
     } catch (error) {
@@ -249,13 +368,22 @@ function RewardsPageContent() {
   };
 
   const handleClose = () => {
+    if (previewOpen) {
+      trackEvent(
+        AnalyticsCategory.MODAL_INTERACTION,
+        AnalyticsMessage.CANCEL_CLAIM_PREVIEW,
+        {
+          modalName: "RewardsPreviewModal",
+        },
+      );
+    }
     setPreviewOpen(false);
   };
   // Note: Co-staking bonus is included in BTC rewards, not claimed separately
   const hasAnyRewards = hasBtcRewards || hasBabyRewards;
   const claimDisabled = !hasAnyRewards || processing;
 
-  const isStakeMoreActive = FF.IsCoStakingEnabled && hasValidBoostData;
+  const isStakeMoreActive = hasValidBoostData;
 
   const stakeMoreCta = isStakeMoreActive
     ? `Stake ${formatter.format(eligibility.additionalBabyNeeded)} ${bbnCoinSymbol} to Unlock Full Rewards`
@@ -343,7 +471,7 @@ function RewardsPageContent() {
                 babyRewardAmount={formatBalance(babyRewardBaby)}
                 babySymbol={bbnCoinSymbol}
                 coStakingAmount={
-                  FF.IsCoStakingEnabled && coStakingAmountBaby !== undefined
+                  coStakingAmountBaby !== undefined
                     ? formatBalance(coStakingAmountBaby)
                     : undefined
                 }

@@ -8,7 +8,6 @@ import { useSystemStats } from "@/ui/common/hooks/client/api/useSystemStats";
 import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { formatBTCTvl } from "@/ui/common/utils/formatBTCTvl";
 import { formatAPRPairAdaptive } from "@/ui/common/utils/formatAPR";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { StatItem } from "./StatItem";
 
@@ -20,8 +19,6 @@ const formatter = Intl.NumberFormat("en", {
 });
 
 export const Stats = memo(() => {
-  const isCoStakingEnabled = FeatureFlagService.IsCoStakingEnabled;
-
   const {
     data: {
       total_active_tvl: totalActiveTVL = 0,
@@ -47,7 +44,7 @@ export const Stats = memo(() => {
           )}
         />
 
-        {isCoStakingEnabled && maxStakingAPR !== undefined ? (
+        {maxStakingAPR !== undefined ? (
           <StatItem
             hidden={!btcStakingAPR || !maxStakingAPR}
             loading={isLoading}

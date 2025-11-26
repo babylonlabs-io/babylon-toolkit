@@ -11,15 +11,25 @@ interface Dependencies {
   btcLight: btclightclientquery.QueryClientImpl;
 }
 
+/**
+ * BTC staking rewards broken down by reward type.
+ * All values are in ubbn (micro-BBN).
+ */
+export interface BTCRewards {
+  /** Base BTC staking rewards from BTC_STAKER gauge */
+  btcStaker: bigint;
+  /** Co-staking bonus rewards from COSTAKER gauge */
+  coStaker: bigint;
+}
+
 const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
   /**
-   * Gets the total available BTC staking rewards from the user's account.
-   * This includes both base BTC staking rewards (BTC_STAKER gauge) and
-   * co-staking bonus rewards (COSTAKER gauge).
+   * Gets the available BTC staking rewards from the user's account, broken down by type.
+   * Returns separate values for base BTC staking rewards and co-staking bonus rewards.
    * @param address - The Babylon address to query rewards for
-   * @returns {Promise<bigint>} - Total available rewards in ubbn (base BTC + co-staking bonus)
+   * @returns {Promise<BTCRewards>} - Rewards broken down by type (btcStaker, coStaker)
    */
-  async getRewards(address: string): Promise<bigint> {
+  async getRewards(address: string): Promise<BTCRewards> {
     try {
       const req = incentivequery.QueryRewardGaugesRequest.fromPartial({
         address,
@@ -27,7 +37,10 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
 
       const rewards = await incentive.RewardGauges(req);
       if (!rewards || !rewards.rewardGauges) {
-        return 0n;
+        return {
+          btcStaker: 0n,
+          coStaker: 0n,
+        };
       }
 
       // Calculate rewards from BTC_STAKER gauge (base BTC staking rewards)
@@ -48,8 +61,11 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
       const costakerTotal = sumCoinAmounts(costakerCoins);
       const costakerAvailable = costakerTotal - costakerWithdrawn;
 
-      // Total available rewards = BTC staking + co-staking bonus
-      return btcStakerAvailable + costakerAvailable;
+      // Return separated values for accurate display
+      return {
+        btcStaker: btcStakerAvailable,
+        coStaker: costakerAvailable,
+      };
     } catch (error) {
       // If error message contains "reward gauge not found", silently return 0
       // This is to handle the case where the user has no rewards, meaning
@@ -58,7 +74,10 @@ const createBTCClient = ({ incentive, btcLight }: Dependencies) => ({
         error instanceof Error &&
         error.message.includes("reward gauge not found")
       ) {
-        return 0n;
+        return {
+          btcStaker: 0n,
+          coStaker: 0n,
+        };
       }
       throw new Error(`Failed to fetch rewards for ${address}`, {
         cause: error,

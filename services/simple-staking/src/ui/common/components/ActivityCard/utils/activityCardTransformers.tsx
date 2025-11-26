@@ -12,7 +12,6 @@ import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
 import { blocksToDisplayTime, durationTillNow } from "@/ui/common/utils/time";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
 import { ActivityCardData, ActivityCardDetailItem } from "../ActivityCard";
@@ -21,7 +20,6 @@ const { coinName, icon } = getNetworkConfigBTC();
 
 export interface ActivityCardTransformOptions {
   showExpansionSection?: boolean;
-  hideExpansionCompletely?: boolean;
   isBroadcastedExpansion?: boolean;
   unbondingTime?: number;
 }
@@ -97,14 +95,10 @@ export function transformDelegationToActivityCard(
 
   if (options.showExpansionSection) {
     // Check if expansion section should be shown
-    // 1. Delegation is active and can expand from the api
+    // 1. Delegation is active and can expand
     // 2. OR delegation is a broadcasted VERIFIED expansion (waiting for confirmations)
-    // Note: canExpand will be removed soon and not taking effect for non-phase-3
-    const canExpand = FeatureFlagService.IsTimelockRenewalEnabled
-      ? true
-      : delegation.canExpand;
     const isActiveExpandable =
-      delegation.state === DelegationV2StakingState.ACTIVE && canExpand;
+      delegation.state === DelegationV2StakingState.ACTIVE;
 
     const showExpansionSection =
       isActiveExpandable || options.isBroadcastedExpansion;
@@ -139,7 +133,6 @@ export function transformDelegationToActivityCard(
     expansionSection,
     isPendingExpansion,
     showExpansionPendingBanner,
-    hideExpansionCompletely: options.hideExpansionCompletely,
     optionalDetails: unbondingDetail ? [unbondingDetail] : [],
   };
 }
@@ -206,6 +199,5 @@ export function transformDelegationToVerifiedExpansionCard(
     iconAlt: "bitcoin",
     details,
     groupedDetails: groupedDetails.length > 0 ? groupedDetails : undefined,
-    hideExpansionCompletely: true, // Hide expansion section in verified modal
   };
 }

@@ -8,7 +8,7 @@ import {
   AnalyticsCategory,
   AnalyticsMessage,
   trackEvent,
-  trackModalView,
+  trackViewTime,
 } from "../../utils/analytics";
 
 import { SubmitModal } from "./SubmitModal";
@@ -52,16 +52,20 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     [eligibility.additionalBabyNeeded, babyCoinSymbol, boostPercentDisplay],
   );
 
-  // Keep latest values for tracking without retriggering the effect
+  // Keep latest values for tracking without retriggering the tracking effect
   const latestTrackingDataRef = useRef({
+    modalName: "CoStakingBoostModal",
     babyAmount: eligibility.additionalBabyNeeded,
     aprBoostPercent: percentageIncrease,
     currentApr: aprData.currentApr,
     boostApr: aprData.boostApr,
   });
 
+  // Update ref whenever the underlying values change; the tracking effect itself
+  // still only depends on `open`, so it doesn't retrigger.
   useEffect(() => {
     latestTrackingDataRef.current = {
+      modalName: "CoStakingBoostModal",
       babyAmount: eligibility.additionalBabyNeeded,
       aprBoostPercent: percentageIncrease,
       currentApr: aprData.currentApr,
@@ -74,18 +78,16 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
     aprData.boostApr,
   ]);
 
-  // Track modal view duration only on open/close
+  // Track modal view duration using the ref so cleanup logs the latest metrics,
+  // while only reacting to `open` changes.
   useEffect(() => {
     if (!open) return;
-    const { babyAmount, aprBoostPercent, currentApr, boostApr } =
-      latestTrackingDataRef.current;
-    const stopTracking = trackModalView(AnalyticsMessage.MODAL_VIEWED, {
-      modalName: "CoStakingBoostModal",
-      babyAmount,
-      aprBoostPercent,
-      currentApr,
-      boostApr,
-    });
+
+    const stopTracking = trackViewTime(
+      AnalyticsCategory.MODAL_VIEW,
+      AnalyticsMessage.MODAL_VIEWED,
+      latestTrackingDataRef,
+    );
     return () => {
       stopTracking();
     };
@@ -96,6 +98,7 @@ export const CoStakingBoostModal: React.FC<FeedbackModalProps> = ({
       AnalyticsCategory.CTA_CLICK,
       AnalyticsMessage.BOOST_APR_STAKE_BABY,
       {
+        modalName: "CoStakingBoostModal",
         babyAmount: eligibility.additionalBabyNeeded,
         aprBoostPercent: percentageIncrease,
         currentApr: aprData.currentApr,

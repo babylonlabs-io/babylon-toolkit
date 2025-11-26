@@ -1,7 +1,7 @@
 /**
- * Hook to fetch and cache vault providers
+ * Hook to fetch and cache vault providers and liquidators
  *
- * This hook fetches the list of registered vault providers from the indexer API.
+ * This hook fetches vault providers and liquidators from the GraphQL indexer.
  * The data is cached globally using React Query and shared across all components.
  *
  * Since provider data rarely changes, we use aggressive caching:
@@ -13,12 +13,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import { getVaultProviders } from "../../../../services/vault";
-import type { VaultProvider } from "../../../../types";
+import { fetchProviders } from "../../../../services/providers";
+import type {
+  Liquidator,
+  ProvidersResponse,
+  VaultProvider,
+} from "../../../../types";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
-  providers: VaultProvider[];
+  vaultProviders: VaultProvider[];
+  /** Array of liquidators */
+  liquidators: Liquidator[];
   /** Loading state - true while fetching */
   loading: boolean;
   /** Error state */
@@ -36,19 +42,17 @@ export interface UseVaultProvidersResult {
 }
 
 /**
- * Hook to fetch vault providers from the indexer
+ * Hook to fetch vault providers and liquidators from the GraphQL indexer
  *
  * Data is cached globally and shared across all components.
  * Will only fetch once unless manually refetched.
  *
- * @returns Hook result with providers, loading, error states
+ * @returns Hook result with vaultProviders, liquidators, loading, error states
  */
 export function useVaultProviders(): UseVaultProvidersResult {
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["vaultProviders"],
-    queryFn: async () => {
-      return getVaultProviders();
-    },
+  const { data, isLoading, error, refetch } = useQuery<ProvidersResponse>({
+    queryKey: ["providers"],
+    queryFn: () => fetchProviders(),
     // Fetch once on mount
     refetchOnMount: false,
     // Don't refetch on window focus
@@ -68,8 +72,8 @@ export function useVaultProviders(): UseVaultProvidersResult {
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
       if (!data) return undefined;
-      return data.find(
-        (p: VaultProvider) => p.id.toLowerCase() === address.toLowerCase(),
+      return data.vaultProviders.find(
+        (p) => p.id.toLowerCase() === address.toLowerCase(),
       );
     },
     [data],
@@ -97,7 +101,8 @@ export function useVaultProviders(): UseVaultProvidersResult {
   };
 
   return {
-    providers: data || [],
+    vaultProviders: data?.vaultProviders || [],
+    liquidators: data?.liquidators || [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,

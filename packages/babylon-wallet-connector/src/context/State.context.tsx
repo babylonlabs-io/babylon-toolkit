@@ -60,11 +60,31 @@ interface StateProviderProps {
   chains: IChain[];
 }
 
+// Filters selected wallets to only include those that belong to currently valid chains.
+// This ensures wallet state stays in sync when the available chains configuration changes.
+function filterWalletsByValidChains(
+  selectedWallets: Record<string, IWallet | undefined>,
+  validChainIds: Set<string>
+): Record<string, IWallet | undefined> {
+  return Object.keys(selectedWallets).reduce((acc, key) => {
+    if (validChainIds.has(key)) {
+      acc[key] = selectedWallets[key];
+    }
+    return acc;
+  }, {} as Record<string, IWallet | undefined>);
+}
+
 export function StateProvider({ children, chains }: PropsWithChildren<StateProviderProps>) {
   const [state, setState] = useState<State>(defaultState);
 
   useEffect(() => {
-    setState((state) => ({ ...state, chains: chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {}) }));
+    setState((state) => {
+      const newChains = chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {});
+      const validChainIds = new Set(chains.map(chain => chain.id));
+      const filteredWallets = filterWalletsByValidChains(state.selectedWallets, validChainIds);
+
+      return { ...state, chains: newChains, selectedWallets: filteredWallets };
+    });
   }, [chains]);
 
   const actions: Actions = useMemo(

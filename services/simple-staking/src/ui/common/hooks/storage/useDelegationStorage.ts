@@ -45,7 +45,6 @@ export function useDelegationStorage(
           stakingSlashingTxHex: "",
           bbnInceptionHeight: 0,
           bbnInceptionTime: new Date().toISOString(),
-          canExpand: false,
           slashing: {
             stakingSlashingTxHex: "",
             unbondingSlashingTxHex: "",

@@ -54,7 +54,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const { address: btcAddress } = useBTCWallet();
   const { confirmedUTXOs } = useUTXOs(btcAddress);
-  const { providers: availableProviders } = useVaultProviders();
+  const { vaultProviders: availableProviders, liquidators } =
+    useVaultProviders();
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] =
@@ -107,7 +108,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("Selected provider not found");
         }
 
-        if (!selectedProvider.btc_pub_key) {
+        if (!selectedProvider.btcPubKey) {
           throw new Error(
             "Provider BTC public key is missing. Cannot create deposit transaction.",
           );
@@ -115,9 +116,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
 
         const providerData = {
           address: selectedProvider.id as Hex,
-          btcPubkey: selectedProvider.btc_pub_key,
-          liquidatorPubkeys:
-            selectedProvider.liquidators?.map((liq) => liq.btc_pub_key) || [],
+          btcPubkey: selectedProvider.btcPubKey,
+          liquidatorPubkeys: liquidators.map((liq) => liq.btcPubKey),
         };
 
         if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
@@ -165,10 +165,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             ? btcPubkey.slice(2)
             : btcPubkey,
           pegInAmount,
-          fundingTxid: selectedUTXO.txid,
-          fundingVout: selectedUTXO.vout,
-          fundingValue: BigInt(selectedUTXO.value),
-          fundingScriptPubkey: selectedUTXO.scriptPubKey,
           vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
             ? providerData.btcPubkey.slice(2)
             : providerData.btcPubkey,
@@ -206,7 +202,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         setIsCreating(false);
       }
     },
-    [btcWalletProvider, confirmedUTXOs, availableProviders, handleError],
+    [
+      btcWalletProvider,
+      confirmedUTXOs,
+      availableProviders,
+      liquidators,
+      handleError,
+    ],
   );
 
   const submitTransaction = useCallback(

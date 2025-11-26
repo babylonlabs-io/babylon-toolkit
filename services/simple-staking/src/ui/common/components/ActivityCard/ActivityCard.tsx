@@ -1,7 +1,6 @@
 import { ExpansionPendingBanner } from "@/ui/common/components/Activity/components/ExpansionPendingBanner";
 import { StakeExpansionSection } from "@/ui/common/components/Activity/components/StakeExpansionSection";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
 import { ActivityCardActionSection } from "./components/ActivityCardActionSection";
 import { ActivityCardAmountSection } from "./components/ActivityCardAmountSection";
@@ -48,7 +47,6 @@ export interface ActivityCardData {
   expansionSection?: DelegationWithFP;
   isPendingExpansion?: boolean;
   showExpansionPendingBanner?: boolean;
-  hideExpansionCompletely?: boolean;
 }
 
 interface ActivityCardProps {
@@ -57,10 +55,6 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ data, className }: ActivityCardProps) {
-  const shouldShowExpansion =
-    FeatureFlagService.IsTimelockRenewalEnabled &&
-    !data.hideExpansionCompletely;
-
   return (
     <div
       className={`w-full space-y-3 rounded bg-secondary-highlight p-3 sm:space-y-4 sm:p-4 ${className || ""}`}
@@ -78,7 +72,7 @@ export function ActivityCard({ data, className }: ActivityCardProps) {
         groupedDetails={data.groupedDetails}
       />
       {data.showExpansionPendingBanner && <ExpansionPendingBanner />}
-      {shouldShowExpansion && data.expansionSection && (
+      {data.expansionSection && (
         <StakeExpansionSection
           delegation={data.expansionSection}
           isPendingExpansion={data.isPendingExpansion}

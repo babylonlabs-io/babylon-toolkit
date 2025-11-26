@@ -89,8 +89,10 @@ describe("blocksToDisplayTime", () => {
   });
 
   it("should round weeks to nearest 5 weeks for values between 5-week intervals", () => {
-    // 32400 blocks = 225 days = ~32.1 weeks, ceil rounds to 33, then rounds to 35 weeks
-    expect(blocksToDisplayTime(32400)).toBe("35 weeks");
+    // 33000 blocks = 5500 hours = ~229 days
+    // With mocked start date 2024-01-01, differenceInWeeks with ceil = 33 weeks
+    // Math.round(33 / 5) * 5 = 35 weeks
+    expect(blocksToDisplayTime(33000)).toBe("35 weeks");
   });
 
   it("should handle large block values", () => {

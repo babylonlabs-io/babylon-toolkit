@@ -150,21 +150,21 @@ export async function withdrawAllCollateralFromPosition(
 }
 
 /**
- * Depositor redeems BTC vault
+ * Redeem BTC vault
  */
-export async function depositorRedeemBTCVault(
+export async function redeemBTCVault(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
-  pegInTxHash: Hex,
+  vaultId: Hex,
 ): Promise<TransactionResult> {
   return executeWrite({
     walletClient,
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "depositorRedeemBTCVault",
-    args: [pegInTxHash],
+    functionName: "redeemBTCVault",
+    args: [vaultId],
     errorContext: "redeem BTC vault",
   });
 }

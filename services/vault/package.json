@@ -19,6 +19,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/config": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
@@ -26,7 +27,7 @@
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
-    "bitcoinjs-lib": "6.1.5",
+    "bitcoinjs-lib": "6.1.7",
     "graphql": "^16.12.0",
     "graphql-request": "^7.3.4",
     "next-themes": "0.3.0",

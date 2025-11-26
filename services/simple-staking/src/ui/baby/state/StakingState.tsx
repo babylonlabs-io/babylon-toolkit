@@ -21,7 +21,6 @@ import {
 } from "@/ui/common/utils/formTransforms";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
 import { GEO_BLOCK_MESSAGE } from "@/ui/common/types/services/healthCheck";
-import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
 
 import { usePendingOperationsService } from "../hooks/services/usePendingOperationsService";
 
@@ -114,13 +113,6 @@ function StakingState({ children }: PropsWithChildren) {
   );
 
   const isDisabled = useMemo(() => {
-    if (FeatureFlags.IsTestnetSunsetEnabled) {
-      return {
-        title: "This testnet is sunsetting",
-        message:
-          "Staking is disabled on testnet. Please unbond and withdraw your funds as soon as possible.",
-      };
-    }
     if (isGeoBlocked) {
       return {
         title: "Unavailable In Your Region",

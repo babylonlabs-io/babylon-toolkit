@@ -20,7 +20,6 @@ import type {
 } from "@/ui/common/types/delegationsV2";
 import { createStateUtils } from "@/ui/common/utils/createStateUtils";
 import { getExpansionsLocalStorageKey } from "@/ui/common/utils/local_storage/getExpansionsLocalStorageKey";
-import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
 
 import {
   StakingExpansionStep,
@@ -121,9 +120,6 @@ export function StakingExpansionState({ children }: PropsWithChildren) {
   ] = useState<DelegationWithFP | null>(null);
 
   const expansionDisabled = useMemo(() => {
-    if (FeatureFlags.IsTestnetSunsetEnabled) {
-      return true;
-    }
     return failedBtcAddressRiskAssessment;
   }, [failedBtcAddressRiskAssessment]);
 

@@ -34,7 +34,6 @@ import {
   formatStakingAmount,
 } from "@/ui/common/utils/formTransforms";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
-import FeatureFlags from "@/ui/common/utils/FeatureFlagService";
 
 import { GEO_BLOCK_MESSAGE } from "../types/services/healthCheck";
 
@@ -158,10 +157,6 @@ export function StakingState({ children }: PropsWithChildren) {
   const [formData, setFormData] = useState<FormFields>();
   const [processing, setProcessing] = useState(false);
   const [verifiedDelegation, setVerifiedDelegation] = useState<DelegationV2>();
-  const [successModalShown, setSuccessModalShown] = useLocalStorage<boolean>(
-    "bbn-staking-successFeedbackModalOpened",
-    false,
-  );
   const [cancelModalShown, setCancelModalShown] = useLocalStorage<boolean>(
     "bbn-staking-cancelFeedbackModalOpened ",
     false,
@@ -231,14 +226,6 @@ export function StakingState({ children }: PropsWithChildren) {
   }, [latestParam, mempoolFeeRates]);
 
   const isDisabled = useMemo(() => {
-    // Disable staking on testnet when sunsetting flag is enabled
-    if (FeatureFlags.IsTestnetSunsetEnabled) {
-      return {
-        title: "This testnet is sunsetting",
-        message:
-          "Staking is disabled on testnet. Please unbond and withdraw your funds as soon as possible.",
-      };
-    }
     // System wide staking disabled
     if (STAKING_DISABLED) {
       return {
@@ -358,17 +345,6 @@ export function StakingState({ children }: PropsWithChildren) {
 
   const goToStep = useCallback(
     (stepName: StakingStep) => {
-      if (stepName === StakingStep.FEEDBACK_SUCCESS) {
-        // Skip localStorage check when co-staking is enabled - we always want to show the boost modal
-        if (!FeatureFlags.IsCoStakingEnabled) {
-          if (successModalShown) {
-            return;
-          } else {
-            setSuccessModalShown(true);
-          }
-        }
-      }
-
       if (stepName === StakingStep.FEEDBACK_CANCEL) {
         if (cancelModalShown) {
           return;
@@ -379,13 +355,7 @@ export function StakingState({ children }: PropsWithChildren) {
 
       setCurrentStep(stepName);
     },
-    [
-      successModalShown,
-      cancelModalShown,
-      setCancelModalShown,
-      setSuccessModalShown,
-      setCurrentStep,
-    ],
+    [cancelModalShown, setCancelModalShown, setCurrentStep],
   );
 
   const reset = useCallback(() => {

@@ -26,9 +26,8 @@ export interface MarketPosition {
   };
   marketId: Hex;
   proxyContract: Address;
-  pegInTxHashes: Hex[]; // Array of vault transaction hashes (pegin tx hashes)
+  vaultIds: Hex[]; // Array of vault IDs (pegin tx hashes)
   totalCollateral: bigint;
-  totalBorrowed: bigint;
   lastUpdateTimestamp: bigint;
 }
 
@@ -144,9 +143,8 @@ export async function getPosition(
       depositor: DepositorStruct;
       marketId: Hex;
       proxyContract: Address;
-      pegInTxHashes: Hex[];
+      vaultIds: Hex[];
       totalCollateral: bigint;
-      totalBorrowed: bigint;
       lastUpdateTimestamp: bigint;
     };
 
@@ -166,9 +164,8 @@ export async function getPosition(
       },
       marketId: position.marketId,
       proxyContract: position.proxyContract,
-      pegInTxHashes: position.pegInTxHashes,
+      vaultIds: position.vaultIds,
       totalCollateral: position.totalCollateral,
-      totalBorrowed: position.totalBorrowed,
       lastUpdateTimestamp: position.lastUpdateTimestamp,
     };
 
@@ -190,8 +187,8 @@ export async function getPosition(
  * Note: Filters out failed requests automatically. If you need to track which requests failed,
  * consider using the return value's length compared to input length.
  *
- * IMPORTANT: This fetches from `positions` mapping which does NOT include pegInTxHashes.
- * To get complete position data with pegInTxHashes, you need to call getPosition() for each position,
+ * IMPORTANT: This fetches from `positions` mapping which does NOT include vaultIds.
+ * To get complete position data with vaultIds, you need to call getPosition() for each position,
  * but that requires depositor address + marketId (not position ID).
  *
  * @param contractAddress - MorphoIntegrationController contract address
@@ -210,16 +207,9 @@ export async function getPositionsBulk(
     const publicClient = ethClient.getPublicClient();
 
     // Use shared multicall helper
-    // NOTE: The `positions` mapping returns data WITHOUT pegInTxHashes
-    // The ABI output is: [depositor, marketId, proxyContract, totalCollateral, totalBorrowed, lastUpdateTimestamp]
-    type MarketPositionRaw = [
-      DepositorStruct,
-      Hex,
-      Address,
-      bigint,
-      bigint,
-      bigint,
-    ];
+    // NOTE: The `positions` mapping returns data WITHOUT vaultIds
+    // The ABI output is: [depositor, marketId, proxyContract, totalCollateral, lastUpdateTimestamp]
+    type MarketPositionRaw = [DepositorStruct, Hex, Address, bigint, bigint];
     const results = await executeMulticall<MarketPositionRaw>(
       publicClient,
       contractAddress,
@@ -229,14 +219,13 @@ export async function getPositionsBulk(
     );
 
     // Transform raw results to MarketPosition format
-    // pegInTxHashes will be empty array since positions mapping doesn't return it
+    // vaultIds will be empty array since positions mapping doesn't return it
     return results.map(
       ([
         depositor,
         marketId,
         proxyContract,
         totalCollateral,
-        totalBorrowed,
         lastUpdateTimestamp,
       ]) => ({
         depositor: {
@@ -245,9 +234,8 @@ export async function getPositionsBulk(
         },
         marketId,
         proxyContract,
-        pegInTxHashes: [], // positions mapping doesn't return this - must use getPosition() instead
+        vaultIds: [], // positions mapping doesn't return this - must use getPosition() instead
         totalCollateral,
-        totalBorrowed,
         lastUpdateTimestamp,
       }),
     );

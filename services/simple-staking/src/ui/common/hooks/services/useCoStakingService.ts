@@ -9,7 +9,6 @@ import {
   calculateAdditionalBabyNeeded,
   calculateRequiredBabyTokens,
 } from "@/ui/common/utils/coStakingCalculations";
-import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 import { ubbnToBaby } from "@/ui/common/utils/bbn";
 import { getPersonalizedAPR } from "@/ui/common/api/getAPR";
 
@@ -30,9 +29,6 @@ export const useCoStakingService = (
   totalBabyStakedUbbn: number,
 ) => {
   const logger = useLogger();
-
-  // Check if co-staking is enabled
-  const isCoStakingEnabled = FeatureFlagService.IsCoStakingEnabled;
 
   // Query for co-staking parameters
   const coStakingParamsQuery = useClientQuery({
@@ -56,25 +52,14 @@ export const useCoStakingService = (
         return null;
       }
     },
-    enabled: isCoStakingEnabled,
     staleTime: ONE_MINUTE * 5, // Cache for 5 minutes
     retry: 3,
   });
 
   // Query for personalized APR data from backend
   const aprQuery = useClientQuery({
-    queryKey: [
-      CO_STAKING_APR_KEY,
-      totalBtcStakedSat,
-      totalBabyStakedUbbn,
-      isCoStakingEnabled,
-    ],
+    queryKey: [CO_STAKING_APR_KEY, totalBtcStakedSat, totalBabyStakedUbbn],
     queryFn: async () => {
-      // Double-check feature flag inside queryFn to prevent any race conditions
-      if (!isCoStakingEnabled) {
-        return null;
-      }
-
       try {
         const result = await getPersonalizedAPR(
           totalBtcStakedSat,
@@ -93,7 +78,6 @@ export const useCoStakingService = (
         return null;
       }
     },
-    enabled: isCoStakingEnabled,
     staleTime: ONE_MINUTE, // Cache for 1 minute
     retry: 3,
   });
@@ -237,8 +221,5 @@ export const useCoStakingService = (
 
     // Error states
     error,
-
-    // Feature flag
-    isCoStakingEnabled,
   };
 };
