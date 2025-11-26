@@ -50,12 +50,28 @@ export function trackEvent(
   message: AnalyticsMessage,
   data: AnalyticsData = {},
 ) {
+  const tags: Record<string, string | number | boolean> = {
+    "analytics.category": category,
+  };
+
+  // Promote primitives from data to tags for searchability
+  // We add "extra.key" to support specific query patterns
+  if (data) {
+    Object.entries(data).forEach(([key, value]) => {
+      if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        tags[`extra.${key}`] = value;
+      }
+    });
+  }
+
   Sentry.captureEvent({
     message,
     level: "debug",
-    tags: {
-      "analytics.category": category,
-    },
+    tags,
     extra: {
       timestamp: new Date().toISOString(),
       ...data,
