@@ -56,17 +56,16 @@ export function useDepositForm(): UseDepositFormResult {
   const { address: btcAddress } = useBTCWallet();
 
   // Get providers
-  const { providers: rawProviders, loading: isLoadingProviders } =
-    useVaultProviders();
+  const { vaultProviders, loading: isLoadingProviders } = useVaultProviders();
 
   // Transform providers for form
   const providers = useMemo(() => {
-    return rawProviders.map((p) => ({
+    return vaultProviders.map((p) => ({
       id: p.id,
       name: `Provider ${p.id.slice(0, 6)}...${p.id.slice(-4)}`,
-      btcPubkey: p.btc_pub_key || "",
+      btcPubkey: p.btcPubKey || "",
     }));
-  }, [rawProviders]);
+  }, [vaultProviders]);
 
   // Get validation functions - pass provider IDs
   const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);

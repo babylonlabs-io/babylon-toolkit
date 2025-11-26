@@ -9,7 +9,7 @@ import { DEFAULT_TIMEOUT, getVaultApiUrl } from "./config";
 
 export { VaultApiClient } from "./api";
 export { DEFAULT_TIMEOUT, getVaultApiUrl } from "./config";
-export type { MorphoAsset, MorphoMarket, Vault, VaultProvider } from "./types";
+export type { MorphoAsset, MorphoMarket, Vault } from "./types";
 
 // Create singleton instance
 export const vaultApiClient = new VaultApiClient(

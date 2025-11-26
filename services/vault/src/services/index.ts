@@ -17,3 +17,6 @@ export * from "./vault/vaultTransactionService";
 
 // Position services
 export * from "./position";
+
+// Provider services
+export * from "./providers";

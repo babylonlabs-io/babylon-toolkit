@@ -4,3 +4,4 @@ export * from "./market";
 export * from "./position";
 export * from "./rpc";
 export * from "./vault";
+export * from "./vaultProvider";

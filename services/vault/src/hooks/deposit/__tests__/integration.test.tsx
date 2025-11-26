@@ -24,16 +24,27 @@ vi.mock("@/hooks/useUTXOs", () => ({
 }));
 
 // Mock vault providers
-vi.mock("@/hooks/useVaultProviders", () => ({
+vi.mock("@/components/Overview/Deposits/hooks/useVaultProviders", () => ({
   useVaultProviders: vi.fn(() => ({
-    providers: [
+    vaultProviders: [
       {
-        address: "0x1234567890abcdef1234567890abcdef12345678",
-        btc_pub_key: "0xproviderkey",
-        name: "Test Provider",
+        id: "0x1234567890abcdef1234567890abcdef12345678",
+        btcPubKey: "0xproviderkey",
+        status: "active",
+        url: "https://test-provider.example.com",
       },
     ],
-    isLoading: false,
+    liquidators: [
+      {
+        address: "0xliquidator1",
+        btcPubKey: "0xliquidatorkey1",
+      },
+    ],
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+    findProvider: vi.fn(),
+    findProviders: vi.fn(),
   })),
 }));
 
@@ -66,15 +77,24 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
 
-// Mock API calls for vault providers
-vi.mock("@/api/vaultIndexer", () => ({
-  getVaultProviders: vi.fn().mockResolvedValue([
-    {
-      address: "0x1234567890abcdef1234567890abcdef12345678",
-      btc_pub_key: "0xproviderkey",
-      name: "Test Provider",
-    },
-  ]),
+// Mock fetchProviders service
+vi.mock("@/services/providers/fetchProviders", () => ({
+  fetchProviders: vi.fn().mockResolvedValue({
+    vaultProviders: [
+      {
+        id: "0x1234567890abcdef1234567890abcdef12345678",
+        btcPubKey: "0xproviderkey",
+        status: "active",
+        url: "https://test-provider.example.com",
+      },
+    ],
+    liquidators: [
+      {
+        address: "0xliquidator1",
+        btcPubKey: "0xliquidatorkey1",
+      },
+    ],
+  }),
 }));
 
 // Mock useQuery to return mocked providers
@@ -83,13 +103,28 @@ vi.mock("@tanstack/react-query", async () => {
   return {
     ...actual,
     useQuery: vi.fn((options: any) => {
-      // Mock provider query
+      // Mock provider query (query key is now "providers")
       if (
         options.queryKey &&
-        JSON.stringify(options.queryKey).includes("vaultProviders")
+        JSON.stringify(options.queryKey).includes("providers")
       ) {
         return {
-          data: ["0x1234567890abcdef1234567890abcdef12345678"],
+          data: {
+            vaultProviders: [
+              {
+                id: "0x1234567890abcdef1234567890abcdef12345678",
+                btcPubKey: "0xproviderkey",
+                status: "active",
+                url: "https://test-provider.example.com",
+              },
+            ],
+            liquidators: [
+              {
+                address: "0xliquidator1",
+                btcPubKey: "0xliquidatorkey1",
+              },
+            ],
+          },
           isLoading: false,
           error: null,
           refetch: vi.fn(),
