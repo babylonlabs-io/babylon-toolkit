@@ -21,7 +21,6 @@ export enum AnalyticsCategory {
  * Analytics event messages
  */
 export enum AnalyticsMessage {
-  BOOST_APR_STAKE_BABY = "boost_apr_stake_baby",
   PREFILL_COSTAKING_AMOUNT = "prefill_costaking_amount",
   DISMISS_COSTAKING_PREFILL_CTA = "dismiss_costaking_prefill_cta",
   CLOSE_MODAL = "close_modal",

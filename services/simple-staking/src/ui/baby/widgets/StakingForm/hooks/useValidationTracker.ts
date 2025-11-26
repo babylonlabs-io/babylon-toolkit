@@ -117,6 +117,9 @@ export function useValidationTracker({
 
     if (lastLoggedErrorsRef.current.amount === message) return;
 
+    // Ignore "optionality" validation errors to reduce noise
+    if (debouncedAmountFieldError?.errorType === "optionality") return;
+
     trackEvent(
       AnalyticsCategory.FORM_INTERACTION,
       AnalyticsMessage.FORM_VALIDATION_ERROR,
