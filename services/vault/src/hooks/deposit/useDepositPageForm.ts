@@ -6,6 +6,7 @@ import { depositService } from "../../services/deposit";
 import { useApplications } from "../api/useApplications";
 import { useBTCPrice } from "../useBTCPrice";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
+import { formatProviderName } from "../../utils/formatting";
 
 import { useDepositValidation } from "./useDepositValidation";
 
@@ -70,7 +71,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const providers = useMemo(() => {
     return rawProviders.map((p: { id: string; btcPubKey: string }) => ({
       id: p.id,
-      name: `Provider ${p.id.slice(0, 6)}...${p.id.slice(-4)}`,
+      name: formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
     }));
   }, [rawProviders]);

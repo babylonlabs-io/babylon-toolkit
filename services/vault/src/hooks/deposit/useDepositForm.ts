@@ -11,6 +11,7 @@ import { useVaultProviders } from "../../components/Overview/Deposits/hooks/useV
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
+import { formatProviderName } from "../../utils/formatting";
 
 import { useDepositValidation } from "./useDepositValidation";
 
@@ -58,11 +59,10 @@ export function useDepositForm(): UseDepositFormResult {
   // Get providers
   const { vaultProviders, loading: isLoadingProviders } = useVaultProviders();
 
-  // Transform providers for form
   const providers = useMemo(() => {
     return vaultProviders.map((p) => ({
       id: p.id,
-      name: `Provider ${p.id.slice(0, 6)}...${p.id.slice(-4)}`,
+      name: formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
     }));
   }, [vaultProviders]);
