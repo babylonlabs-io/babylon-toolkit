@@ -1,5 +1,8 @@
 // Business logic layer orchestrating clients and transactions
 
+// Applications services
+export * from "./applications";
+
 // Market services
 export * from "./market";
 
