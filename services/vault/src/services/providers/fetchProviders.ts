@@ -83,7 +83,7 @@ export async function fetchProviders(
   // Extract liquidators with btcPubKey from nested relation
   const liquidators: Liquidator[] = response.liquidatorApplications.items.map(
     (item) => ({
-      address: item.liquidator,
+      id: item.liquidator,
       btcPubKey: item.liquidatorInfo.btcPubKey,
     }),
   );

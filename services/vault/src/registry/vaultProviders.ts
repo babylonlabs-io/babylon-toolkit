@@ -29,7 +29,7 @@ export function getVaultProviderMetadata(
 ): VaultProviderMetadata {
   const metadata = VAULT_PROVIDER_REGISTRY[providerAddress.toLowerCase()];
   if (!metadata) {
-    throw new Error(
+    console.error(
       `Vault provider ${providerAddress} not found in registry. Please add the provider metadata.`,
     );
   }

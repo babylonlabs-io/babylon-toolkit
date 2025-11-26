@@ -9,7 +9,7 @@
  */
 export interface Liquidator {
   /** Liquidator's Ethereum address */
-  address: string;
+  id: string;
   /** Liquidator's BTC public key (x-only, 32 bytes hex with 0x prefix) */
   btcPubKey: string;
 }
