@@ -91,8 +91,8 @@ export const questionsBtc = (coinName: string): Question[] => {
           <br />
           <p>
             <b>Current APR:</b> Your total APR right now, which includes your{" "}
-            {coinName} staking APR, BABY staking APR, and any co-staking bonus
-            you&apos;re currently earning based on your BABY stake.
+            {coinName} staking APR and any co-staking bonus you&apos;re
+            currently earning based on your BABY stake.
           </p>
           <br />
           <p>
