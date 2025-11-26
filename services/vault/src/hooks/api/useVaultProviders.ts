@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { gql } from "graphql-request";
 
-import { graphqlClient } from "../../clients/graphql/config";
+import { graphqlClient } from "../../clients/graphql/client";
 
 export const VAULT_PROVIDERS_KEY = "vaultProviders";
 
