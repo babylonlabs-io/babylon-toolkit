@@ -34,19 +34,6 @@ export interface SignPayoutTransactionParams {
  * @param params - Payout transaction parameters
  * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)
  *
- * @example
- * ```typescript
- * const signature = await signPayoutTransaction({
- *   payoutTxHex: '0200000...',
- *   peginTxHex: '0200000...',
- *   claimTxHex: '0200000...',
- *   depositorBtcPubkey: 'abc123...',
- *   vaultProviderBtcPubkey: 'def456...',
- *   liquidatorBtcPubkeys: ['ghi789...'],
- *   network: 'testnet',
- *   btcWalletProvider: wallet,
- * });
- * ```
  */
 export async function signPayoutTransaction(
   params: SignPayoutTransactionParams,
