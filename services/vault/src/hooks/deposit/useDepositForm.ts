@@ -10,8 +10,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useVaultProviders } from "../../components/Overview/Deposits/hooks/useVaultProviders";
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
-import { calculateBalance, useUTXOs } from "../useUTXOs";
 import { formatProviderName } from "../../utils/formatting";
+import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
 
