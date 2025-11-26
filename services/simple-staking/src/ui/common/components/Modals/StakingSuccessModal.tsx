@@ -1,13 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router";
 
-import { useCoStakingState } from "@/ui/common/state/CoStakingState";
-import {
-  AnalyticsCategory,
-  AnalyticsMessage,
-  trackEvent,
-} from "@/ui/common/utils/analytics";
-
 import { CoStakingBoostModal } from "./CoStakingBoostModal";
 
 interface StakingSuccessModalProps {
@@ -28,17 +21,8 @@ export function StakingSuccessModal({
   onClose,
 }: StakingSuccessModalProps) {
   const navigate = useNavigate();
-  const { eligibility } = useCoStakingState();
 
   const handleSubmitBoost = useCallback(() => {
-    trackEvent(
-      AnalyticsCategory.CTA_CLICK,
-      AnalyticsMessage.PREFILL_COSTAKING_AMOUNT,
-      {
-        component: "StakingSuccessModal",
-        babyAmount: eligibility.additionalBabyNeeded,
-      },
-    );
     onClose();
 
     // Navigate to baby page with flag to trigger prefill
@@ -47,7 +31,7 @@ export function StakingSuccessModal({
         shouldPrefillCoStaking: true,
       },
     });
-  }, [navigate, onClose, eligibility.additionalBabyNeeded]);
+  }, [navigate, onClose]);
 
   return (
     <CoStakingBoostModal

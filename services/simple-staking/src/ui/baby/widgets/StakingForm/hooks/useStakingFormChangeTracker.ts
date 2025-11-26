@@ -56,16 +56,10 @@ export function useStakingFormChangeTracker({
         previous.amount ? previous : { ...previous, amount: true },
       );
 
-      const wasPrefilledFromCoStaking =
-        amountValue !== undefined &&
-        prefilledAmountRef.current !== null &&
-        amountValue === prefilledAmountRef.current;
-
       setAmountTrackingPayload({
         fieldName: "amount",
         hasValue: Boolean(rawAmount),
         valueType: typeof rawAmount,
-        wasPrefilledFromCoStaking,
         changeType,
       });
 
