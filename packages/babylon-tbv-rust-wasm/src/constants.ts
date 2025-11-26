@@ -9,7 +9,9 @@
 export const TAP_INTERNAL_KEY = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
 
 /**
- * Taproot internal public key as a Buffer (x-only coordinate).
- * This is the same as TAP_INTERNAL_KEY but in Buffer format for convenience.
+ * Taproot internal public key as a Uint8Array (x-only coordinate).
+ * This is the same as TAP_INTERNAL_KEY but in Uint8Array format for convenience.
  */
-export const tapInternalPubkey = Buffer.from(TAP_INTERNAL_KEY, "hex");
+export const tapInternalPubkey = new Uint8Array(
+  TAP_INTERNAL_KEY.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)),
+);

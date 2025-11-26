@@ -25,6 +25,13 @@ const enableSentryPlugin =
 
 // https://vite.dev/config/
 export default defineConfig({
+  optimizeDeps: {
+    include: [
+      "bitcoinjs-lib",
+      "@bitcoin-js/tiny-secp256k1-asmjs",
+      "@babylonlabs-io/btc-staking-ts",
+    ],
+  },
   build: {
     outDir: "dist",
     sourcemap: true,
