@@ -58,7 +58,11 @@ export default tseslint.config(
       "import-x/no-unresolved": [
         "error",
         {
-          ignore: ["@bitcoin-js/tiny-secp256k1-asmjs"],
+          ignore: [
+            "@bitcoin-js/tiny-secp256k1-asmjs",
+            "@babylonlabs-io/ts-sdk",
+            "@babylonlabs-io/ts-sdk/tbv/core",
+          ],
         },
       ],
       "import-x/order": [

@@ -4,7 +4,7 @@
  * Common pure utility functions for Bitcoin operations including:
  * - Public key conversions (x-only format)
  * - Hex string manipulation
- * - Buffer conversions and validation
+ * - Uint8Array conversions and validation
  *
  * All functions are pure (no side effects) and work in Node.js, browsers,
  * and serverless environments.
@@ -33,24 +33,68 @@ export function stripHexPrefix(hex: string): string {
 }
 
 /**
+ * Convert hex string to Uint8Array
+ *
+ * @param hex - Hex string (with or without 0x prefix)
+ * @returns Uint8Array
+ * @throws Error if hex is invalid
+ *
+ * @example
+ * ```typescript
+ * hexToUint8Array('abc123')     // Uint8Array [0xab, 0xc1, 0x23]
+ * hexToUint8Array('0xabc123')   // Uint8Array [0xab, 0xc1, 0x23]
+ * hexToUint8Array('xyz')        // throws Error
+ * ```
+ */
+export function hexToUint8Array(hex: string): Uint8Array {
+  const cleanHex = stripHexPrefix(hex);
+  if (!isValidHexRaw(cleanHex)) {
+    throw new Error(`Invalid hex string: ${hex}`);
+  }
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Convert Uint8Array to hex string (without 0x prefix)
+ *
+ * @param bytes - Uint8Array to convert
+ * @returns Hex string without 0x prefix
+ *
+ * @example
+ * ```typescript
+ * const bytes = new Uint8Array([0xab, 0xc1, 0x23]);
+ * uint8ArrayToHex(bytes)  // 'abc123'
+ * ```
+ */
+export function uint8ArrayToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
  * Convert a 33-byte public key to 32-byte x-only format (removes first byte)
  *
  * Used for Taproot/Schnorr signatures which only need the x-coordinate.
  * If the input is already 32 bytes, returns it unchanged.
  *
- * @param pubKey - 33-byte or 32-byte public key buffer
- * @returns 32-byte x-only public key buffer
+ * @param pubKey - 33-byte or 32-byte public key
+ * @returns 32-byte x-only public key
  *
  * @example
  * ```typescript
- * const compressedPubkey = Buffer.from('02abc123...', 'hex'); // 33 bytes
+ * const compressedPubkey = hexToUint8Array('02abc123...'); // 33 bytes
  * const xOnly = toXOnly(compressedPubkey); // 32 bytes
  *
- * const alreadyXOnly = Buffer.from('abc123...', 'hex'); // 32 bytes
- * toXOnly(alreadyXOnly); // Returns same buffer
+ * const alreadyXOnly = hexToUint8Array('abc123...'); // 32 bytes
+ * toXOnly(alreadyXOnly); // Returns same array
  * ```
  */
-export function toXOnly(pubKey: Buffer): Buffer {
+export function toXOnly(pubKey: Uint8Array): Uint8Array {
   return pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
 }
 
@@ -107,7 +151,6 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
   const cleanHex = stripHexPrefix(publicKeyHex);
 
   // Validate hex characters early to prevent silent failures
-  // Buffer.from() silently converts invalid hex chars to 0x00
   if (!isValidHexRaw(cleanHex)) {
     throw new Error(`Invalid hex characters in public key: ${publicKeyHex}`);
   }
@@ -124,8 +167,8 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
     );
   }
 
-  const pubkeyBuffer = Buffer.from(cleanHex, "hex");
-  return toXOnly(pubkeyBuffer).toString("hex");
+  const pubkeyBytes = hexToUint8Array(cleanHex);
+  return uint8ArrayToHex(toXOnly(pubkeyBytes));
 }
 
 /**
@@ -149,43 +192,4 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
 export function isValidHex(hex: string): boolean {
   const cleanHex = stripHexPrefix(hex);
   return isValidHexRaw(cleanHex);
-}
-
-/**
- * Convert hex string to Buffer
- *
- * @param hex - Hex string (with or without 0x prefix)
- * @returns Buffer
- * @throws Error if hex is invalid
- *
- * @example
- * ```typescript
- * hexToBuffer('abc123')     // Buffer [0xab, 0xc1, 0x23]
- * hexToBuffer('0xabc123')   // Buffer [0xab, 0xc1, 0x23]
- * hexToBuffer('xyz')        // throws Error
- * ```
- */
-export function hexToBuffer(hex: string): Buffer {
-  const cleanHex = stripHexPrefix(hex);
-  // Use isValidHexRaw to avoid redundant prefix stripping
-  if (!isValidHexRaw(cleanHex)) {
-    throw new Error(`Invalid hex string: ${hex}`);
-  }
-  return Buffer.from(cleanHex, "hex");
-}
-
-/**
- * Convert Buffer to hex string (without 0x prefix)
- *
- * @param buffer - Buffer to convert
- * @returns Hex string without 0x prefix
- *
- * @example
- * ```typescript
- * const buf = Buffer.from([0xab, 0xc1, 0x23]);
- * bufferToHex(buf)  // 'abc123'
- * ```
- */
-export function bufferToHex(buffer: Buffer): string {
-  return buffer.toString("hex");
 }

@@ -18,9 +18,9 @@ import {
 import { useState } from "react";
 
 import {
-  buildPeginPsbt,
+  fundPeginTransaction,
   getNetwork,
-} from "../../../../utils/transaction/buildPeginPsbt";
+} from "../../../../utils/transaction/fundPeginTransaction";
 import {
   selectUtxosForPegin,
   type UTXO,
@@ -128,9 +128,9 @@ export function useBuildPeginTx(
 
       const { selectedUTXOs, changeAmount } = selectionResult;
 
-      // Step 3: Build transaction hex
+      // Step 3: Fund transaction
       const network = getNetwork(params.network);
-      const txHex = buildPeginPsbt({
+      const txHex = fundPeginTransaction({
         unfundedTxHex: unfundedTxResult.txHex,
         selectedUTXOs,
         changeAddress,

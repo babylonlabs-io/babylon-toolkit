@@ -70,7 +70,7 @@
   "dependencies": {
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
-    "bitcoinjs-lib": "6.1.5"
+    "bitcoinjs-lib": "6.1.7"
   },
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",

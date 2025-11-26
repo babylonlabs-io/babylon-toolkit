@@ -31,10 +31,10 @@ export type { PayoutScriptParams, PayoutScriptResult } from "./scripts/payout";
 
 // Bitcoin utilities
 export {
-  bufferToHex,
-  hexToBuffer,
+  hexToUint8Array,
   isValidHex,
   processPublicKeyToXOnly,
   stripHexPrefix,
   toXOnly,
+  uint8ArrayToHex,
 } from "./utils/bitcoin";

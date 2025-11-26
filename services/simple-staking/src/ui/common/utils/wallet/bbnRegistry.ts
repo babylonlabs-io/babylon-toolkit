@@ -1,9 +1,10 @@
 import {
   btcstakingtx,
   epochingtx,
+  googleProtoAny,
   incentivetx,
 } from "@babylonlabs-io/babylon-proto-ts";
-import { MessageFns } from "@babylonlabs-io/babylon-proto-ts/dist/generated/google/protobuf/any";
+type MessageFns<T> = googleProtoAny.MessageFns<T>;
 import { GeneratedType, Registry } from "@cosmjs/proto-signing";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
