@@ -202,7 +202,7 @@ export async function redeemVaults(
   // If any fails, throw error immediately (fail-entire operation)
   for (const pegInTxHash of pegInTxHashes) {
     try {
-      const result = await MorphoControllerTx.depositorRedeemBTCVault(
+      const result = await MorphoControllerTx.redeemBTCVault(
         walletClient,
         chain,
         morphoControllerAddress,
