@@ -72,6 +72,7 @@ export const DEFAULT_SOCIAL_LINKS: SocialLink[] = [
   },
   {
     name: "Discord",
+    url: "https://discord.gg/babylonglobal",
     Icon: BsDiscord,
   },
 ];
