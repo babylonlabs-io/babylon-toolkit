@@ -11,7 +11,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
-import type { Deposit } from "../../../../types/vault";
+import type { Deposit } from "../../../types/vault";
 
 interface RedeemCollateralModalProps {
   open: boolean;

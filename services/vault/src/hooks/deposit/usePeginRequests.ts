@@ -9,16 +9,16 @@ import type { Address } from "viem";
 
 import { FAST_POLL_INTERVAL, NORMAL_POLL_INTERVAL } from "@/constants";
 
-import { CONTRACTS } from "../../../../config/contracts";
+import { CONTRACTS } from "../../config/contracts";
 import {
   ContractStatus,
   getPeginState,
   LocalStorageStatus,
-} from "../../../../models/peginStateMachine";
-import { getPeginRequestsWithUsageStatus } from "../../../../services/vault/vaultQueryService";
-import { getPendingPegins } from "../../../../storage/peginStorage";
-import type { VaultActivity } from "../../../../types";
-import { transformPeginToActivity } from "../../../../utils/peginTransformers";
+} from "../../models/peginStateMachine";
+import { getPeginRequestsWithUsageStatus } from "../../services/vault/vaultQueryService";
+import { getPendingPegins } from "../../storage/peginStorage";
+import type { VaultActivity } from "../../types";
+import { transformPeginToActivity } from "../../utils/peginTransformers";
 
 /**
  * Result interface for usePeginRequests hook

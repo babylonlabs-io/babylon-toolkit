@@ -12,15 +12,14 @@
 
 import { Button } from "@babylonlabs-io/core-ui";
 
+import { useDepositRowPolling } from "../../hooks/deposit/useDepositRowPolling";
 import {
   getPrimaryActionButton,
   PeginAction,
-} from "../../../models/peginStateMachine";
-import type { PendingPeginRequest } from "../../../storage/peginStorage";
-import type { VaultActivity } from "../../../types/activity";
-import type { Deposit } from "../../../types/vault";
-
-import { useDepositRowPolling } from "./hooks/useDepositRowPolling";
+} from "../../models/peginStateMachine";
+import type { PendingPeginRequest } from "../../storage/peginStorage";
+import type { VaultActivity } from "../../types/activity";
+import type { Deposit } from "../../types/vault";
 
 interface DepositTableRowData {
   /** Deposit data for table display */

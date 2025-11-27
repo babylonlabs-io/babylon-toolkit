@@ -13,12 +13,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import { fetchProviders } from "../../../../services/providers";
-import type {
-  Liquidator,
-  ProvidersResponse,
-  VaultProvider,
-} from "../../../../types";
+import { fetchProviders } from "../../services/providers";
+import type { Liquidator, ProvidersResponse, VaultProvider } from "../../types";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */

@@ -19,9 +19,9 @@ import {
   LocalStorageStatus,
   PeginAction,
   getPeginState,
-} from "../../../../models/peginStateMachine";
-import type { PendingPeginRequest } from "../../../../storage/peginStorage";
-import type { VaultActivity } from "../../../../types/activity";
+} from "../../models/peginStateMachine";
+import type { PendingPeginRequest } from "../../storage/peginStorage";
+import type { VaultActivity } from "../../types/activity";
 
 import { usePendingPeginTxPolling } from "./usePendingPeginTxPolling";
 

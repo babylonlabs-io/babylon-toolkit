@@ -18,9 +18,9 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { useVaultActivityActions } from "../../../../hooks/useVaultActivityActions";
-import { usePeginStorage } from "../../../../storage/usePeginStorage";
-import type { VaultActivity } from "../../../../types/activity";
+import { useVaultActivityActions } from "../../../hooks/useVaultActivityActions";
+import { usePeginStorage } from "../../../storage/usePeginStorage";
+import type { VaultActivity } from "../../../types/activity";
 
 interface BroadcastSignModalProps {
   /** Modal open state */

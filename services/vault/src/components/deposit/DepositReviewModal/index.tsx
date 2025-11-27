@@ -8,11 +8,11 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
-import { useEstimatedBtcFee } from "../../../../hooks/deposit/useEstimatedBtcFee";
-import { useEstimatedEthFee } from "../../../../hooks/deposit/useEstimatedEthFee";
-import { useBTCPrice } from "../../../../hooks/useBTCPrice";
-import { satoshiToBtcNumber } from "../../../../utils/btcConversion";
-import { useVaultProviders } from "../hooks/useVaultProviders";
+import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
+import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
+import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
+import { useBTCPrice } from "../../../hooks/useBTCPrice";
+import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 
 interface CollateralDepositReviewModalProps {
   open: boolean;

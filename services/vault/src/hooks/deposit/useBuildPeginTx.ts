@@ -20,11 +20,8 @@ import { useState } from "react";
 import {
   fundPeginTransaction,
   getNetwork,
-} from "../../../../utils/transaction/fundPeginTransaction";
-import {
-  selectUtxosForPegin,
-  type UTXO,
-} from "../../../../utils/utxo/selectUtxos";
+} from "../../utils/transaction/fundPeginTransaction";
+import { selectUtxosForPegin, type UTXO } from "../../utils/utxo/selectUtxos";
 
 export interface UseBuildPeginTxParams {
   /** X-only public key of the depositor (hex encoded) */

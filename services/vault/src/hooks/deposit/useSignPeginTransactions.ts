@@ -9,8 +9,8 @@
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import { signAndSubmitPayoutSignatures } from "../../../../services/vault";
-import type { ClaimerTransactions } from "../../../../types";
+import { signAndSubmitPayoutSignatures } from "../../services/vault";
+import type { ClaimerTransactions } from "../../types";
 
 import { useVaultProviders } from "./useVaultProviders";
 

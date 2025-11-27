@@ -7,7 +7,6 @@ import { useCallback, useState } from "react";
 import type { Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { useVaultProviders } from "@/components/Overview/Deposits/hooks/useVaultProviders";
 import { BTC_TRANSACTION_FEE } from "@/config/pegin";
 import { useError } from "@/context/error";
 import { useBTCWallet } from "@/context/wallet";
@@ -19,6 +18,8 @@ import { createProofOfPossession } from "@/services/vault/vaultProofOfPossession
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { processPublicKeyToXOnly } from "@/utils/btc";
+
+import { useVaultProviders } from "./useVaultProviders";
 
 export interface CreateDepositTransactionParams {
   amount: string;

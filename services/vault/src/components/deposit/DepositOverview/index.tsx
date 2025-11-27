@@ -10,18 +10,18 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
-import { useBTCWallet, useETHWallet } from "../../../../context/wallet";
-import { useBtcPublicKey } from "../../../../hooks/useBtcPublicKey";
-import { useVaultDeposits } from "../../../../hooks/useVaultDeposits";
-import { usePeginStorage } from "../../../../storage/usePeginStorage";
-import type { VaultActivity } from "../../../../types/activity";
-import type { Deposit } from "../../../../types/vault";
-import { truncateAddress } from "../../../../utils/addressUtils";
+import { useBTCWallet, useETHWallet } from "../../../context/wallet";
+import { useDepositRowPolling } from "../../../hooks/deposit/useDepositRowPolling";
+import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
+import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
+import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
+import { usePeginStorage } from "../../../storage/usePeginStorage";
+import type { VaultActivity } from "../../../types/activity";
+import type { Deposit } from "../../../types/vault";
+import { truncateAddress } from "../../../utils/addressUtils";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { DepositTableRowActions } from "../DepositTableRow";
-import { useDepositRowPolling } from "../hooks/useDepositRowPolling";
-import { usePayoutSignModal } from "../hooks/usePayoutSignModal";
 import { PayoutSignModal } from "../PayoutSignModal";
 
 function EmptyState({ isConnected }: { isConnected: boolean }) {

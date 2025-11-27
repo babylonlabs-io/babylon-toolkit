@@ -24,7 +24,7 @@ vi.mock("@/hooks/useUTXOs", () => ({
 }));
 
 // Mock vault providers
-vi.mock("@/components/Overview/Deposits/hooks/useVaultProviders", () => ({
+vi.mock("@/hooks/deposit/useVaultProviders", () => ({
   useVaultProviders: vi.fn(() => ({
     vaultProviders: [
       {

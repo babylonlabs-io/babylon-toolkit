@@ -7,7 +7,6 @@ import { useState } from "react";
 import type { Hex } from "viem";
 
 import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
-import { useSignPeginTransactions } from "../components/Overview/Deposits/hooks/useSignPeginTransactions";
 import { CONTRACTS } from "../config/contracts";
 import {
   getNextLocalStatus,
@@ -17,6 +16,8 @@ import {
 import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import { stripHexPrefix } from "../utils/btc";
+
+import { useSignPeginTransactions } from "./deposit/useSignPeginTransactions";
 
 export interface BroadcastPeginParams {
   activityId: string;
