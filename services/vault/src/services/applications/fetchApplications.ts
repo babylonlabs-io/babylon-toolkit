@@ -2,10 +2,22 @@ import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
 import { getApplicationMetadata } from "../../registry";
-import type {
-  Application,
-  ApplicationsResponse,
-} from "../../types/application";
+import type { Application } from "../../types/application";
+
+/**
+ * GraphQL response shape for applications query
+ */
+interface GraphQLApplicationsResponse {
+  applications: {
+    items: Array<{
+      id: string;
+      name: string | null;
+      registeredAt: string;
+      blockNumber: string;
+      transactionHash: string;
+    }>;
+  };
+}
 
 const GET_APPLICATIONS = gql`
   query GetApplications {
@@ -13,11 +25,9 @@ const GET_APPLICATIONS = gql`
       items {
         id
         name
-        type
-        description
-        logoUrl
-        websiteUrl
         registeredAt
+        blockNumber
+        transactionHash
       }
     }
   }
@@ -25,28 +35,29 @@ const GET_APPLICATIONS = gql`
 
 /**
  * Fetches the list of registered applications from the backend GraphQL API
- * and enriches them with hardcoded metadata when available.
+ * and enriches them with metadata from the local registry.
  *
- * @returns Array of application items
+ * Only returns applications that have metadata in the registry.
+ *
+ * @returns Array of application items with enriched metadata
  */
 export async function fetchApplications(): Promise<Application[]> {
   const data =
-    await graphqlClient.request<ApplicationsResponse>(GET_APPLICATIONS);
+    await graphqlClient.request<GraphQLApplicationsResponse>(GET_APPLICATIONS);
 
-  return data.applications.items.map((app: Application) => {
-    const metadata = getApplicationMetadata(app.id);
+  return data.applications.items
+    .map((app) => {
+      const metadata = getApplicationMetadata(app.id);
+      if (!metadata) return null;
 
-    if (!metadata) {
-      return app;
-    }
-
-    return {
-      ...app,
-      name: metadata.name,
-      type: metadata.type,
-      description: metadata.description,
-      logoUrl: metadata.logoUrl,
-      websiteUrl: metadata.websiteUrl,
-    };
-  });
+      return {
+        ...app,
+        name: metadata.name,
+        type: metadata.type,
+        description: metadata.description,
+        logoUrl: metadata.logoUrl,
+        websiteUrl: metadata.websiteUrl,
+      };
+    })
+    .filter((app): app is Application => app !== null);
 }

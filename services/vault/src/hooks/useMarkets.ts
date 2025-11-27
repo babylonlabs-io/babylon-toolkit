@@ -1,11 +1,13 @@
 /**
- * Hook for fetching markets from the Vault Indexer API
+ * Hook for fetching Morpho markets from the GraphQL indexer
  */
 
 import { useQuery } from "@tanstack/react-query";
 
-import { getMarkets } from "../services/market";
-import type { MorphoMarket } from "../types";
+import {
+  fetchMorphoMarkets,
+  type MorphoMarket,
+} from "../services/applications/morpho";
 
 /**
  * Result interface for useMarkets hook
@@ -22,16 +24,17 @@ export interface UseMarketsResult {
 }
 
 /**
- * Custom hook to fetch markets from the Vault Indexer API
+ * Custom hook to fetch Morpho markets from the GraphQL indexer
  *
  * @returns Object containing markets array, loading state, error state, and refetch function
  */
 export function useMarkets(): UseMarketsResult {
-  // Use React Query to fetch data from service layer
+  // Use React Query to fetch data from GraphQL service
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["markets"],
+    queryKey: ["morphoMarkets"],
     queryFn: async () => {
-      return getMarkets();
+      const { markets } = await fetchMorphoMarkets();
+      return markets;
     },
     retry: 2,
     staleTime: 60000, // 1 minute

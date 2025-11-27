@@ -24,6 +24,7 @@ import {
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { ContractError, ErrorCode } from "../../utils/errors";
+import { getBasicMarketParams } from "../applications/morpho";
 
 /**
  * Result of adding collateral to position (with optional borrowing)
@@ -56,8 +57,8 @@ export async function addCollateralWithMarketId(
   marketId: string | bigint,
   borrowAmount?: bigint,
 ): Promise<AddCollateralResult> {
-  // Step 1: Fetch market parameters from Morpho contract
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  // Step 1: Fetch market parameters from GraphQL indexer
+  const marketParams = await getBasicMarketParams(marketId);
 
   // Step 2: Execute transaction based on whether borrowing is requested
   if (borrowAmount !== undefined && borrowAmount > 0n) {
@@ -107,8 +108,8 @@ export async function approveLoanTokenForRepay(
   chain: Chain,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  // Fetch loan token address from Morpho market params
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  // Fetch loan token address from GraphQL indexer
+  const marketParams = await getBasicMarketParams(marketId);
   const loanTokenAddress = marketParams.loanToken;
 
   // Approve MorphoController to spend loan tokens (not Morpho directly)
@@ -199,7 +200,7 @@ export async function repayDebtFull(
   positionId: string,
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  const marketParams = await getBasicMarketParams(marketId);
 
   // Fetch position data
   const positions = await MorphoController.getPositionsBulk(
@@ -314,7 +315,7 @@ export async function repayDebtPartial(
   marketId: string | bigint,
   repayAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  const marketParams = await getBasicMarketParams(marketId);
 
   // Fetch position data
   const positions = await MorphoController.getPositionsBulk(
@@ -427,7 +428,7 @@ export async function borrowMoreFromPosition(
   borrowAmount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  const marketParams = await getBasicMarketParams(marketId);
 
   return MorphoControllerTx.borrowFromPosition(
     walletClient,
@@ -454,7 +455,7 @@ export async function withdrawAllCollateralFromPosition(
   marketId: string | bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   // Fetch market parameters from Morpho contract
-  const marketParams = await Morpho.getBasicMarketParams(marketId);
+  const marketParams = await getBasicMarketParams(marketId);
 
   return MorphoControllerTx.withdrawAllCollateralFromPosition(
     walletClient,
