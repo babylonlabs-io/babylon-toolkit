@@ -54,24 +54,21 @@ vi.mock("../../../hooks/api/useApplications", () => ({
   })),
 }));
 
-vi.mock(
-  "../../../components/Overview/Deposits/hooks/useVaultProviders",
-  () => ({
-    useVaultProviders: vi.fn(() => ({
-      vaultProviders: [
-        {
-          id: "0x1234567890abcdef1234567890abcdef12345678",
-          btcPubKey: "pubkey1",
-        },
-        {
-          id: "0xabcdef1234567890abcdef1234567890abcdef12",
-          btcPubKey: "pubkey2",
-        },
-      ],
-      loading: false,
-    })),
-  }),
-);
+vi.mock("../useVaultProviders", () => ({
+  useVaultProviders: vi.fn(() => ({
+    vaultProviders: [
+      {
+        id: "0x1234567890abcdef1234567890abcdef12345678",
+        btcPubKey: "pubkey1",
+      },
+      {
+        id: "0xabcdef1234567890abcdef1234567890abcdef12",
+        btcPubKey: "pubkey2",
+      },
+    ],
+    loading: false,
+  })),
+}));
 
 vi.mock("../../../utils/formatting", () => ({
   formatProviderName: vi.fn((id: string) => `Provider ${id.slice(0, 6)}...`),

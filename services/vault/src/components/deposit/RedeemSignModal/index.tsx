@@ -14,9 +14,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { CONTRACTS } from "../../../../config";
-import { redeemVaults } from "../../../../services/vault/vaultTransactionService";
-import type { VaultActivity } from "../../../../types/activity";
+import { CONTRACTS } from "../../../config";
+import { redeemVaults } from "../../../services/vault/vaultTransactionService";
+import type { VaultActivity } from "../../../types/activity";
 
 interface RedeemCollateralSignModalProps {
   open: boolean;

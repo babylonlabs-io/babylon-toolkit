@@ -20,14 +20,14 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import {
   getNextLocalStatus,
   PeginAction,
-} from "../../../../models/peginStateMachine";
-import { signAndSubmitPayoutSignatures } from "../../../../services/vault/vaultPayoutSignatureService";
-import { updatePendingPeginStatus } from "../../../../storage/peginStorage";
-import type { VaultActivity } from "../../../../types/activity";
-import { useVaultProviders } from "../hooks/useVaultProviders";
+} from "../../../models/peginStateMachine";
+import { signAndSubmitPayoutSignatures } from "../../../services/vault/vaultPayoutSignatureService";
+import { updatePendingPeginStatus } from "../../../storage/peginStorage";
+import type { VaultActivity } from "../../../types/activity";
 
 interface PayoutSignModalProps {
   /** Modal open state */

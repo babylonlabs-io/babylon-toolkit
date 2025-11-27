@@ -33,8 +33,8 @@ export type { DepositFormData, UseDepositFormResult } from "./useDepositForm";
 export {
   DepositStep as DepositStateStep,
   useDepositState,
-} from "../../components/Overview/Deposits/state/DepositState";
-export type { DepositStateData } from "../../components/Overview/Deposits/state/DepositState";
+} from "../../context/deposit/DepositState";
+export type { DepositStateData } from "../../context/deposit/DepositState";
 
 // Keep the old hook result type for backwards compatibility
 export type { UseDepositStateResult } from "./useDepositState";

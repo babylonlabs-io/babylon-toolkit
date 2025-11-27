@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
-import { createStateUtils } from "../../../../utils/createStateUtils";
+import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
   FORM = "form",

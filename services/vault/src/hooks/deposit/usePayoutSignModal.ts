@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 
-import type { VaultActivity } from "../../../../types/activity";
+import type { VaultActivity } from "../../types/activity";
 
 /**
  * Hook to manage payout sign modal state and actions

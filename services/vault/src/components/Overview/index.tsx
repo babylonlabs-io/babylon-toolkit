@@ -10,34 +10,34 @@ import type { Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
 import { CONTRACTS } from "../../config";
+import {
+  DepositState,
+  DepositStep as DepositStateStep,
+  useDepositState,
+} from "../../context/deposit/DepositState";
+import {
+  useVaultRedeemState,
+  VaultRedeemState,
+  VaultRedeemStep,
+} from "../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useVaultProviders } from "../../hooks/deposit/useVaultProviders";
 import { useBTCPrice } from "../../hooks/useBTCPrice";
 import { calculateBalance, useUTXOs } from "../../hooks/useUTXOs";
 import { useVaultDeposits } from "../../hooks/useVaultDeposits";
 import { getPeginState } from "../../models/peginStateMachine";
 import { redeemVaults } from "../../services/vault/vaultTransactionService";
 import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
+import { CollateralDepositModal } from "../deposit/DepositFormModal";
+import { DepositOverview } from "../deposit/DepositOverview";
+import { CollateralDepositReviewModal } from "../deposit/DepositReviewModal";
+import { CollateralDepositSignModal } from "../deposit/DepositSignModal";
+import { CollateralDepositSuccessModal } from "../deposit/DepositSuccessModal";
+import { RedeemCollateralModal } from "../deposit/RedeemFormModal";
+import { RedeemCollateralReviewModal } from "../deposit/RedeemReviewModal";
+import { RedeemCollateralSuccessModal } from "../deposit/RedeemSuccessModal";
 
 import { Activity } from "./Activity";
-import { CollateralDepositModal } from "./Deposits/DepositFormModal";
-import { DepositOverview } from "./Deposits/DepositOverview";
-import { CollateralDepositReviewModal } from "./Deposits/DepositReviewModal";
-import { CollateralDepositSignModal } from "./Deposits/DepositSignModal";
-import { CollateralDepositSuccessModal } from "./Deposits/DepositSuccessModal";
-import { RedeemCollateralModal } from "./Deposits/RedeemFormModal";
-import { RedeemCollateralReviewModal } from "./Deposits/RedeemReviewModal";
-import { RedeemCollateralSuccessModal } from "./Deposits/RedeemSuccessModal";
-import { useVaultProviders } from "./Deposits/hooks/useVaultProviders";
-import {
-  DepositState,
-  DepositStep as DepositStateStep,
-  useDepositState,
-} from "./Deposits/state/DepositState";
-import {
-  useVaultRedeemState,
-  VaultRedeemState,
-  VaultRedeemStep,
-} from "./Deposits/state/VaultRedeemState";
 import { Market } from "./Market";
 import { Position } from "./Position";
 

@@ -5,10 +5,7 @@
 
 import { useMemo } from "react";
 
-import type {
-  Liquidator,
-  VaultProvider,
-} from "../../../../types/vaultProvider";
+import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
 
 export interface UseSelectedProviderDataParams {
   selectedProviders: string[];

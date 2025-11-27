@@ -9,7 +9,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
-import type { Deposit } from "../../../../types/vault";
+import type { Deposit } from "../../../types/vault";
 
 interface RedeemCollateralReviewModalProps {
   open: boolean;
