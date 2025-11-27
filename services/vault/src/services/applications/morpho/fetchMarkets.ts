@@ -61,33 +61,41 @@ export interface MorphoMarketsResponse {
   markets: MorphoMarket[];
 }
 
+/** GraphQL market item shape */
+interface GraphQLMarketItem {
+  id: string;
+  loanTokenAddress: string;
+  collateralTokenAddress: string;
+  oracleAddress: string;
+  irm: string;
+  lltv: string;
+  createdAt: string;
+  blockNumber: string;
+  transactionHash: string;
+  loanToken: {
+    address: string;
+    symbol: string;
+    name: string;
+    decimals: number;
+  } | null;
+  collateralToken: {
+    address: string;
+    symbol: string;
+    name: string;
+    decimals: number;
+  } | null;
+}
+
 /** GraphQL response shape for markets query */
 interface GraphQLMarketsResponse {
   markets: {
-    items: Array<{
-      id: string;
-      loanTokenAddress: string;
-      collateralTokenAddress: string;
-      oracleAddress: string;
-      irm: string;
-      lltv: string;
-      createdAt: string;
-      blockNumber: string;
-      transactionHash: string;
-      loanToken: {
-        address: string;
-        symbol: string;
-        name: string;
-        decimals: number;
-      } | null;
-      collateralToken: {
-        address: string;
-        symbol: string;
-        name: string;
-        decimals: number;
-      } | null;
-    }>;
+    items: GraphQLMarketItem[];
   };
+}
+
+/** GraphQL response shape for single market query */
+interface GraphQLMarketByIdResponse {
+  market: GraphQLMarketItem | null;
 }
 
 const GET_MORPHO_MARKETS = gql`
@@ -120,19 +128,39 @@ const GET_MORPHO_MARKETS = gql`
   }
 `;
 
-/**
- * Fetches all Morpho markets from the GraphQL indexer.
- *
- * Uses field resolvers to include loan and collateral token details
- * in a single query.
- *
- * @returns Object containing array of Morpho markets with token details
- */
-export async function fetchMorphoMarkets(): Promise<MorphoMarketsResponse> {
-  const response =
-    await graphqlClient.request<GraphQLMarketsResponse>(GET_MORPHO_MARKETS);
+const GET_MORPHO_MARKET_BY_ID = gql`
+  query GetMorphoMarketById($id: String!) {
+    market(id: $id) {
+      id
+      loanTokenAddress
+      collateralTokenAddress
+      oracleAddress
+      irm
+      lltv
+      createdAt
+      blockNumber
+      transactionHash
+      loanToken {
+        address
+        symbol
+        name
+        decimals
+      }
+      collateralToken {
+        address
+        symbol
+        name
+        decimals
+      }
+    }
+  }
+`;
 
-  const markets: MorphoMarket[] = response.markets.items.map((item) => ({
+/**
+ * Maps a GraphQL market item to MorphoMarket
+ */
+function mapGraphQLMarketToMorphoMarket(item: GraphQLMarketItem): MorphoMarket {
+  return {
     id: item.id,
     loanTokenAddress: item.loanTokenAddress,
     collateralTokenAddress: item.collateralTokenAddress,
@@ -158,7 +186,22 @@ export async function fetchMorphoMarkets(): Promise<MorphoMarketsResponse> {
           decimals: item.collateralToken.decimals,
         }
       : null,
-  }));
+  };
+}
+
+/**
+ * Fetches all Morpho markets from the GraphQL indexer.
+ *
+ * Uses field resolvers to include loan and collateral token details
+ * in a single query.
+ *
+ * @returns Object containing array of Morpho markets with token details
+ */
+export async function fetchMorphoMarkets(): Promise<MorphoMarketsResponse> {
+  const response =
+    await graphqlClient.request<GraphQLMarketsResponse>(GET_MORPHO_MARKETS);
+
+  const markets = response.markets.items.map(mapGraphQLMarketToMorphoMarket);
 
   return { markets };
 }
@@ -172,8 +215,14 @@ export async function fetchMorphoMarkets(): Promise<MorphoMarketsResponse> {
 export async function fetchMorphoMarketById(
   marketId: string,
 ): Promise<MorphoMarket | null> {
-  const { markets } = await fetchMorphoMarkets();
-  return (
-    markets.find((m) => m.id.toLowerCase() === marketId.toLowerCase()) ?? null
+  const response = await graphqlClient.request<GraphQLMarketByIdResponse>(
+    GET_MORPHO_MARKET_BY_ID,
+    { id: marketId },
   );
+
+  if (!response.market) {
+    return null;
+  }
+
+  return mapGraphQLMarketToMorphoMarket(response.market);
 }

@@ -16,9 +16,9 @@ export interface Application {
   /** Application type (e.g., "Lending", "DEX") */
   type: "Lending" | "Staking" | "DEX";
   /** Application description */
-  description: string;
+  description: string | null;
   /** Logo URL */
-  logoUrl: string;
+  logoUrl: string | null;
   /** Website URL */
-  websiteUrl: string;
+  websiteUrl: string | null;
 }

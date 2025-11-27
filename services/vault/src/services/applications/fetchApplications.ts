@@ -46,13 +46,22 @@ export async function fetchApplications(): Promise<Application[]> {
     await graphqlClient.request<GraphQLApplicationsResponse>(GET_APPLICATIONS);
 
   return data.applications.items
-    .map((app) => {
+    .map((app): Application | null => {
       const metadata = getApplicationMetadata(app.id);
-      if (!metadata) return null;
+      if (!metadata) {
+        console.warn(
+          `Application ${app.id} has no metadata in registry, skipping`,
+        );
+        return null;
+      }
 
       return {
-        ...app,
-        name: metadata.name,
+        id: app.id,
+        registeredAt: app.registeredAt,
+        blockNumber: app.blockNumber,
+        transactionHash: app.transactionHash,
+        // Use indexer name, fall back to registry if null
+        name: app.name ?? metadata.name,
         type: metadata.type,
         description: metadata.description,
         logoUrl: metadata.logoUrl,
