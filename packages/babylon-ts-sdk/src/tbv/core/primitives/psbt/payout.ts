@@ -16,6 +16,7 @@ import {
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { Buffer } from "buffer";
 import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { createPayoutScript } from "../scripts/payout";
 import {
@@ -23,9 +24,6 @@ import {
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
-
-// Use Buffer from global scope (provided by bitcoinjs-lib or polyfills)
-declare const Buffer: typeof import("buffer").Buffer;
 
 // Initialize ECC library for bitcoinjs-lib
 initEccLib(ecc);
