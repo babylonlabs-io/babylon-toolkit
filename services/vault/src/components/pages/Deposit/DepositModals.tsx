@@ -53,7 +53,7 @@ export function DepositModals({
         <CollateralDepositSignModal
           open
           onClose={onClose}
-          onSuccess={onSignSuccess}
+          onSuccess={(btcTxid, ethTxHash) => onSignSuccess(btcTxid, ethTxHash)}
           amount={depositAmount}
           btcWalletProvider={btcWalletProvider}
           depositorEthAddress={ethAddress}

@@ -41,24 +41,32 @@ export function DepositFAQ() {
         FAQs
       </h2>
       <div className="space-y-4">
-        {faqData.map((faq, index) => (
-          <div key={index}>
-            <button
-              onClick={() => handleClick(index)}
-              className="w-full cursor-pointer text-left"
-              aria-expanded={openIndex === index}
-            >
-              <h3 className="text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary">
-                {faq.question}
-              </h3>
-            </button>
-            {openIndex === index && (
-              <p className="mt-2 text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary">
-                {faq.answer}
-              </p>
-            )}
-          </div>
-        ))}
+        {faqData.map((faq, index) => {
+          const answerId = `faq-answer-${index}`;
+          const isOpen = openIndex === index;
+          return (
+            <div key={index}>
+              <button
+                onClick={() => handleClick(index)}
+                className="w-full cursor-pointer text-left"
+                aria-expanded={isOpen}
+                aria-controls={answerId}
+              >
+                <h3 className="text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary">
+                  {faq.question}
+                </h3>
+              </button>
+              {isOpen && (
+                <p
+                  id={answerId}
+                  className="mt-2 text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary"
+                >
+                  {faq.answer}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
