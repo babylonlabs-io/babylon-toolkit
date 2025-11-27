@@ -15,6 +15,7 @@
  */
 
 import * as bitcoin from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import { DUST_THRESHOLD } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
@@ -94,9 +95,7 @@ export function parseUnfundedWasmTransaction(
   );
 
   // Parse version (first 4 bytes, little-endian)
-  const version = Buffer.from(unfundedTxHex.substring(0, 8), "hex").readUInt32LE(
-    0,
-  );
+  const version = Buffer.from(unfundedTxHex.substring(0, 8), "hex").readUInt32LE(0);
 
   // Parse locktime (last 4 bytes, little-endian)
   const locktime = Buffer.from(

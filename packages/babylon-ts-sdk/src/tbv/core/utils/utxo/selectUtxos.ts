@@ -4,6 +4,7 @@
  */
 
 import { script as bitcoinScript } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import {
   BTC_DUST_SAT,
