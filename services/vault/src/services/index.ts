@@ -1,10 +1,7 @@
 // Business logic layer orchestrating clients and transactions
 
-// Applications services
+// Applications services (includes Morpho market operations)
 export * from "./applications";
-
-// Market services
-export * from "./market";
 
 // Token services
 export * from "./token";

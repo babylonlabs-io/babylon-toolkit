@@ -1,5 +1,5 @@
 export * from "./activity";
-export * from "./api";
+export * from "./application";
 export * from "./market";
 export * from "./position";
 export * from "./rpc";

@@ -12,9 +12,9 @@ import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
 
 import { useMarkets } from "../../../hooks/useMarkets";
+import type { MorphoMarket } from "../../../services/applications/morpho";
 import type { MarketTokenPair } from "../../../services/token";
 import { getMarketTokenPairAsync } from "../../../services/token";
-import type { MorphoMarket } from "../../../types";
 import { formatLLTV } from "../../../utils/formatting";
 
 export function Market() {
@@ -28,7 +28,9 @@ export function Market() {
   const { data: tokenPairs } = useQuery({
     queryKey: [
       "marketTokenPairs",
-      markets?.map((m) => `${m.collateral_token}-${m.loan_token}`).join(","),
+      markets
+        ?.map((m) => `${m.collateralTokenAddress}-${m.loanTokenAddress}`)
+        .join(","),
     ],
     queryFn: async () => {
       if (!markets || markets.length === 0)
@@ -37,8 +39,8 @@ export function Market() {
       const pairs = await Promise.all(
         markets.map(async (market) => {
           const pair = await getMarketTokenPairAsync(
-            market.collateral_token,
-            market.loan_token,
+            market.collateralTokenAddress,
+            market.loanTokenAddress,
           );
           return { marketId: market.id, pair };
         }),
@@ -63,18 +65,18 @@ export function Market() {
         `${addr.slice(0, 6)}...${addr.slice(-4)}`;
       return {
         collateral: {
-          address: market.collateral_token as any,
-          symbol: truncateAddr(market.collateral_token),
+          address: market.collateralTokenAddress as any,
+          symbol: truncateAddr(market.collateralTokenAddress),
           name: "Loading...",
           decimals: 18,
         },
         loan: {
-          address: market.loan_token as any,
-          symbol: truncateAddr(market.loan_token),
+          address: market.loanTokenAddress as any,
+          symbol: truncateAddr(market.loanTokenAddress),
           name: "Loading...",
           decimals: 18,
         },
-        pairName: `${truncateAddr(market.collateral_token)} / ${truncateAddr(market.loan_token)}`,
+        pairName: `${truncateAddr(market.collateralTokenAddress)} / ${truncateAddr(market.loanTokenAddress)}`,
       };
     },
     [tokenPairs],
@@ -161,20 +163,20 @@ export function Market() {
         ),
       },
       {
-        key: "created_block",
+        key: "blockNumber",
         header: "Created Block",
         render: (_value: unknown, row: MorphoMarket) => (
           <span className="text-sm text-accent-primary">
-            {row.created_block.toLocaleString()}
+            {Number(row.blockNumber).toLocaleString()}
           </span>
         ),
       },
       {
-        key: "oracle",
+        key: "oracleAddress",
         header: "Oracle",
         render: (_value: unknown, row: MorphoMarket) => (
           <span className="font-mono text-sm text-accent-primary">
-            {truncateAddress(row.oracle)}
+            {truncateAddress(row.oracleAddress)}
           </span>
         ),
       },
@@ -237,11 +239,11 @@ export function Market() {
                       { label: "LLTV", value: formatLLTV(market.lltv) },
                       {
                         label: "Created Block",
-                        value: market.created_block.toLocaleString(),
+                        value: Number(market.blockNumber).toLocaleString(),
                       },
                       {
                         label: "Oracle",
-                        value: truncateAddress(market.oracle),
+                        value: truncateAddress(market.oracleAddress),
                       },
                       { label: "IRM", value: truncateAddress(market.irm) },
                     ]}

@@ -10,9 +10,11 @@ import { CONTRACTS } from "../../../../config/contracts";
 import { useBTCPrice } from "../../../../hooks/useBTCPrice";
 import { useMarkets } from "../../../../hooks/useMarkets";
 import { useTokenPair } from "../../../../hooks/useTokenPair";
+import {
+  getMarketData,
+  type MorphoMarketSummary,
+} from "../../../../services/applications/morpho";
 import { getMarketBorrowAPR } from "../../../../services/irm";
-import type { MorphoMarketSummary } from "../../../../services/market/marketService";
-import { getMarketData } from "../../../../services/market/marketService";
 import { getUserPositionForMarket } from "../../../../services/position";
 import {
   blockToDateString,
@@ -97,7 +99,10 @@ export function useMarketDetail() {
     data: tokenPair,
     isLoading: isTokenPairLoading,
     error: tokenPairError,
-  } = useTokenPair(marketConfig?.collateral_token, marketConfig?.loan_token);
+  } = useTokenPair(
+    marketConfig?.collateralTokenAddress,
+    marketConfig?.loanTokenAddress,
+  );
 
   // Combine loading states
   const loading =
@@ -121,12 +126,13 @@ export function useMarketDetail() {
 
   useEffect(() => {
     const fetchCreationDate = async () => {
-      if (!marketConfig?.created_block) {
+      if (!marketConfig?.blockNumber) {
         setCreationDate("Unknown");
         return;
       }
+      const blockNum = Number(marketConfig.blockNumber);
       try {
-        const actualDate = await blockToDateString(marketConfig.created_block);
+        const actualDate = await blockToDateString(blockNum);
         if (actualDate !== "Unknown") {
           setCreationDate(actualDate);
           return;
@@ -134,11 +140,11 @@ export function useMarketDetail() {
       } catch {
         // noop - will fall back to estimation
       }
-      const estimatedDate = estimateDateFromBlock(marketConfig.created_block);
+      const estimatedDate = estimateDateFromBlock(blockNum);
       setCreationDate(estimatedDate);
     };
     fetchCreationDate();
-  }, [marketConfig?.created_block]);
+  }, [marketConfig?.blockNumber]);
 
   const formatUSDC = (value: bigint) => Number(value) / 1e6;
   // Collateral in Morpho is stored in satoshis (8 decimals)
@@ -252,7 +258,10 @@ export function useMarketDetail() {
       },
       ...(marketConfig
         ? [
-            { label: "Oracle Address", value: String(marketConfig.oracle) },
+            {
+              label: "Oracle Address",
+              value: String(marketConfig.oracleAddress),
+            },
             { label: "IRM Address", value: String(marketConfig.irm) },
           ]
         : []),
@@ -318,9 +327,9 @@ export function useMarketDetail() {
       if (!marketConfig || !marketData) return null;
 
       const marketParams = {
-        loanToken: marketConfig.loan_token as Address,
-        collateralToken: marketConfig.collateral_token as Address,
-        oracle: marketConfig.oracle as Address,
+        loanToken: marketConfig.loanTokenAddress as Address,
+        collateralToken: marketConfig.collateralTokenAddress as Address,
+        oracle: marketConfig.oracleAddress as Address,
         irm: marketConfig.irm as Address,
         lltv: BigInt(marketConfig.lltv),
       };

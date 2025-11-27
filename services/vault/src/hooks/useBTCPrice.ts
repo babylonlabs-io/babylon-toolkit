@@ -32,7 +32,10 @@ export function useBTCPrice(): UseBTCPriceResult {
   // Find the first market with an oracle (BTC/USDC market)
   const btcMarket = useMemo(() => {
     return markets.find(
-      (market) => market.collateral_token && market.oracle && market.loan_token,
+      (market) =>
+        market.collateralTokenAddress &&
+        market.oracleAddress &&
+        market.loanTokenAddress,
     );
   }, [markets]);
 
@@ -42,16 +45,18 @@ export function useBTCPrice(): UseBTCPriceResult {
     error: priceError,
     refetch: refetchPrice,
   } = useQuery<number>({
-    queryKey: ["btcPrice", btcMarket?.oracle, address],
+    queryKey: ["btcPrice", btcMarket?.oracleAddress, address],
     queryFn: async () => {
-      if (!btcMarket?.oracle) {
+      if (!btcMarket?.oracleAddress) {
         throw new Error("No BTC market with oracle found");
       }
 
-      const oraclePrice = await getOraclePrice(btcMarket.oracle as Address);
+      const oraclePrice = await getOraclePrice(
+        btcMarket.oracleAddress as Address,
+      );
       return convertOraclePriceToUSD(oraclePrice);
     },
-    enabled: !!btcMarket?.oracle && !!address,
+    enabled: !!btcMarket?.oracleAddress && !!address,
     retry: 2,
     staleTime: 30000, // 30 seconds
     refetchInterval: 60000, // Refetch every minute
