@@ -7,6 +7,7 @@ import { script as bitcoinScript } from "bitcoinjs-lib";
 
 import {
   BTC_DUST_SAT,
+  DUST_THRESHOLD,
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
   rateBasedTxBufferFee,
@@ -70,9 +71,8 @@ export function selectUtxosForPegin(
   }
 
   // Sort by value: HIGHEST to LOWEST (use big UTXOs first)
-  const sortedUTXOs = validUTXOs.sort((a, b) =>
-    b.value > a.value ? 1 : b.value < a.value ? -1 : 0,
-  );
+  // Use spread to avoid mutating the original array
+  const sortedUTXOs = [...validUTXOs].sort((a, b) => b.value - a.value);
 
   const selectedUTXOs: UTXO[] = [];
   let accumulatedValue = 0n;
@@ -97,7 +97,7 @@ export function selectUtxosForPegin(
     const changeAmount = accumulatedValue - peginAmount - estimatedFee;
 
     // If change is above dust, add fee for change output
-    if (changeAmount > BigInt(BTC_DUST_SAT)) {
+    if (changeAmount > DUST_THRESHOLD) {
       const changeOutputFee = BigInt(
         Math.ceil(MAX_NON_LEGACY_OUTPUT_SIZE * feeRate),
       );
@@ -131,7 +131,7 @@ export function selectUtxosForPegin(
  * @returns true if change should be added as output, false if it should go to miners
  */
 export function shouldAddChangeOutput(changeAmount: bigint): boolean {
-  return changeAmount > BigInt(BTC_DUST_SAT);
+  return changeAmount > DUST_THRESHOLD;
 }
 
 /**

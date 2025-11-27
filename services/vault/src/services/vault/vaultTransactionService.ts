@@ -6,7 +6,6 @@
  */
 
 import type { Address, Chain, Hex, WalletClient } from "viem";
-
 import {
   BTC_DUST_SAT,
   fundPeginTransaction,
@@ -21,7 +20,6 @@ import {
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-
 import * as btcTransactionService from "./vaultBtcTransactionService";
 
 /**

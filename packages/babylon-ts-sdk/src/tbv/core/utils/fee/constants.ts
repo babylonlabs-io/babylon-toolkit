@@ -15,6 +15,9 @@ export const TX_BUFFER_SIZE_OVERHEAD = 11;
 // Dust threshold: outputs below this may not be relayed
 export const BTC_DUST_SAT = 546;
 
+/** Pre-computed BigInt dust threshold to avoid repeated conversions in hot paths */
+export const DUST_THRESHOLD = BigInt(BTC_DUST_SAT);
+
 // Buffer for low fee rate estimation accuracy (when feeRate <= 2 sat/vbyte)
 export const LOW_RATE_ESTIMATION_ACCURACY_BUFFER = 30;
 
