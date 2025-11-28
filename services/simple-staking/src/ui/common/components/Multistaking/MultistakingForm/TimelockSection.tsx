@@ -89,7 +89,7 @@ export function TimelockSection() {
   };
 
   return (
-    <SubSection className="flex w-full flex-col gap-3">
+    <SubSection className="flex w-full flex-col gap-4">
       <div className="flex items-center justify-between">
         <Text variant="body1" className="text-accent-primary">
           Timelock
@@ -103,15 +103,14 @@ export function TimelockSection() {
         </Text>
       </div>
 
-      <div className="px-1 pt-2">
-        <Slider
-          value={sliderValue}
-          min={minStakingTimeBlocks}
-          max={maxStakingTimeBlocks}
-          step={1}
-          onChange={handleSliderChange}
-        />
-      </div>
+      <Slider
+        value={sliderValue}
+        min={minStakingTimeBlocks}
+        max={maxStakingTimeBlocks}
+        step={1}
+        steps={[]}
+        onChange={handleSliderChange}
+      />
 
       <Text variant="caption" className="text-accent-secondary">
         Min term {minStakingTimeBlocks} Blocks
