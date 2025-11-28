@@ -59,7 +59,7 @@ export function parseUnfundedWasmTransaction(
 ): ParsedUnfundedTx {
   // Check if witness markers are present (0x00 0x01 after version)
   const hasWitnessMarkers = unfundedTxHex.substring(8, 12) === "0001";
-  let dataOffset = hasWitnessMarkers ? 12 : 8; // Skip version (8) + optional witness markers (4)
+  const dataOffset = hasWitnessMarkers ? 12 : 8; // Skip version (8) + optional witness markers (4)
 
   // Parse input/output counts
   const inputCount = parseInt(

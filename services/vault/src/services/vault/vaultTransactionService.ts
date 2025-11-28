@@ -5,7 +5,6 @@
  * or fetching data before executing transactions.
  */
 
-import type { Address, Chain, Hex, WalletClient } from "viem";
 import {
   BTC_DUST_SAT,
   fundPeginTransaction,
@@ -13,6 +12,7 @@ import {
   selectUtxosForPegin,
   type UTXO as SDKUtxo,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import type { Address, Chain, Hex, WalletClient } from "viem";
 
 import {
   BTCVaultsManagerTx,
