@@ -1,5 +1,5 @@
 .bbn-select-with-icon {
-  @apply relative flex w-full cursor-pointer items-center rounded border-0 bg-surface text-accent-secondary outline-none transition-all;
+  @apply relative flex w-full cursor-pointer items-center rounded border bg-surface text-accent-secondary outline-none transition-all;
   padding: 17.5px 24px;
 
   &:focus-visible {
@@ -55,6 +55,10 @@
 
     &-selected {
       @apply bg-accent-secondary/5;
+    }
+
+    &-focused {
+      @apply bg-accent-secondary/10;
     }
 
     &-image {

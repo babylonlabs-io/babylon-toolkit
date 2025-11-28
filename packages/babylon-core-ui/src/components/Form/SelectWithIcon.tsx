@@ -6,6 +6,8 @@ import {
   useRef,
   useMemo,
   useImperativeHandle,
+  useState,
+  useEffect,
 } from "react";
 import { twJoin } from "tailwind-merge";
 import { RiArrowDownSLine } from "react-icons/ri";
@@ -87,6 +89,17 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
       [options, selectedValue],
     );
 
+    const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+
+    useEffect(() => {
+      if (isOpen) {
+        const selectedIndex = options.findIndex((option) => option.value === selectedValue);
+        setFocusedIndex(selectedIndex >= 0 ? selectedIndex : 0);
+      } else {
+        setFocusedIndex(-1);
+      }
+    }, [isOpen, options, selectedValue]);
+
     const handleSelect = useCallback(
       (option: OptionWithIcon) => {
         setSelectedValue(option.value);
@@ -105,6 +118,70 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
       setIsOpen(!isOpen);
     }, [isOpen, disabled, setIsOpen]);
 
+    const handleKeyDown = useCallback(
+      (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (disabled) return;
+
+        switch (event.key) {
+          case "ArrowDown":
+            event.preventDefault();
+            if (!isOpen) {
+              setIsOpen(true);
+            } else if (focusedIndex < options.length - 1) {
+              setFocusedIndex(focusedIndex + 1);
+            }
+            break;
+
+          case "ArrowUp":
+            event.preventDefault();
+            if (!isOpen) {
+              setIsOpen(true);
+            } else if (focusedIndex > 0) {
+              setFocusedIndex(focusedIndex - 1);
+            }
+            break;
+
+          case "Home":
+            event.preventDefault();
+            if (isOpen && options.length > 0) {
+              setFocusedIndex(0);
+            }
+            break;
+
+          case "End":
+            event.preventDefault();
+            if (isOpen && options.length > 0) {
+              setFocusedIndex(options.length - 1);
+            }
+            break;
+
+          case "Enter":
+          case " ":
+            event.preventDefault();
+            if (!isOpen) {
+              setIsOpen(true);
+            } else if (focusedIndex >= 0 && focusedIndex < options.length) {
+              handleSelect(options[focusedIndex]);
+            }
+            break;
+
+          case "Escape":
+            event.preventDefault();
+            if (isOpen) {
+              setIsOpen(false);
+            }
+            break;
+
+          case "Tab":
+            if (isOpen) {
+              setIsOpen(false);
+            }
+            break;
+        }
+      },
+      [disabled, isOpen, focusedIndex, options, setIsOpen, handleSelect],
+    );
+
     return (
       <>
         <div
@@ -115,7 +192,13 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
             `bbn-select-with-icon-${state}`,
             className,
           )}
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-haspopup="listbox"
+          aria-label={selectedOption ? selectedOption.label : placeholder}
+          aria-disabled={disabled}
           onClick={handleClick}
+          onKeyDown={handleKeyDown}
           tabIndex={disabled ? -1 : 0}
           {...props}
         >
@@ -140,20 +223,25 @@ export const SelectWithIcon = forwardRef<HTMLDivElement, SelectWithIconProps>(
           placement="bottom-start"
           style={{ width }}
         >
-          {options.map((option) => (
-            <div
-              key={option.value}
-              className={twJoin(
-                "bbn-select-with-icon-option",
-                selectedOption?.value === option.value && "bbn-select-with-icon-option-selected",
-                optionClassName,
-              )}
-              onClick={() => handleSelect(option)}
-            >
-              {option.icon && <div className="bbn-select-with-icon-option-image">{option.icon}</div>}
-              <span className="bbn-select-with-icon-option-text">{option.label}</span>
-            </div>
-          ))}
+          <div role="listbox">
+            {options.map((option, index) => (
+              <div
+                key={option.value}
+                role="option"
+                aria-selected={selectedOption?.value === option.value}
+                className={twJoin(
+                  "bbn-select-with-icon-option",
+                  selectedOption?.value === option.value && "bbn-select-with-icon-option-selected",
+                  focusedIndex === index && "bbn-select-with-icon-option-focused",
+                  optionClassName,
+                )}
+                onClick={() => handleSelect(option)}
+              >
+                {option.icon && <div className="bbn-select-with-icon-option-image">{option.icon}</div>}
+                <span className="bbn-select-with-icon-option-text">{option.label}</span>
+              </div>
+            ))}
+          </div>
         </Popover>
       </>
     );

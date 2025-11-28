@@ -31,7 +31,7 @@ export function SelectVaultProviderSection({
     value: provider.id,
     label: provider.name,
     icon: (
-      <div className="flex items-center justify-center rounded-full bg-primary-main text-sm font-semibold text-white">
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-main text-sm font-semibold text-white">
         {provider.id.replace(/^0x/, "").charAt(0).toUpperCase()}
       </div>
     ),
