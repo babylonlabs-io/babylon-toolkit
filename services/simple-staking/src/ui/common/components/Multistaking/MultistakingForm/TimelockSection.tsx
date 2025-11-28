@@ -71,9 +71,9 @@ export function TimelockSection() {
     }
   }, [rawTerm, minStakingTimeBlocks, setValue]);
 
-  // Update form when debounced value settles
+  // Update form when debounced value settles after dragging
   useEffect(() => {
-    if (isDraggingRef.current && debouncedSliderValue > 0) {
+    if (isDraggingRef.current) {
       isDraggingRef.current = false;
       setValue("term", debouncedSliderValue, {
         shouldValidate: true,
