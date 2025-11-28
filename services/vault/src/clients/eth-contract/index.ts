@@ -10,8 +10,6 @@ export * as MorphoControllerTx from "./morpho-controller/transaction";
 export type { MarketParams } from "./morpho-controller/transaction";
 
 // BTC Vaults Manager
-export * as BTCVaultsManager from "./btc-vaults-manager/query";
-export type { PeginRequest } from "./btc-vaults-manager/query";
 export * as BTCVaultsManagerTx from "./btc-vaults-manager/transaction";
 
 // Morpho (using direct contract calls)

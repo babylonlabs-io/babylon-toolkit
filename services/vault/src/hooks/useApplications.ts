@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchApplications } from "../../services/applications";
+import { fetchApplications } from "../services/applications";
 
 export const APPLICATIONS_KEY = "applications";
 

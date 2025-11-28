@@ -24,10 +24,12 @@ export type {
 
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useEstimatedEthFee } from "./useEstimatedEthFee";
-
-// New hooks for migration
-export { useDepositForm } from "./useDepositForm";
-export type { DepositFormData, UseDepositFormResult } from "./useDepositForm";
+export { useVaultActions } from "./useVaultActions";
+export type {
+  BroadcastPeginParams,
+  SignPayoutParams,
+  UseVaultActionsReturn,
+} from "./useVaultActions";
 
 // Export from the new context-based state
 export {

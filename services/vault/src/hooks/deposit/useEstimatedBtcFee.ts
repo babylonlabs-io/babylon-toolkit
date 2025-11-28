@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import { satoshiToBtcNumber } from "../../utils/btcConversion";
 import { estimatePeginFee } from "../../utils/fee/peginFee";
-import { useNetworkFees } from "../api/useNetworkFees";
+import { useNetworkFees } from "../useNetworkFees";
 
 /**
  * Hook to calculate estimated BTC transaction fee

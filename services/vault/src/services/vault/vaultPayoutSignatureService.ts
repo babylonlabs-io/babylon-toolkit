@@ -2,12 +2,12 @@ import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
-import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import { stripHexPrefix, type Network } from "../../utils/btc";
 
 import { signPayoutTransaction } from "./btcPayoutSigner";
-import { getPeginRequest, getProviderBTCKey } from "./vaultQueryService";
+import { fetchVaultProviderById } from "./fetchVaultProviders";
+import { fetchVaultById } from "./fetchVaults";
 
 /** Vault provider info needed for payout signing */
 export interface PayoutVaultProvider {
@@ -91,28 +91,25 @@ export async function signAndSubmitPayoutSignatures(
     throw new Error("Invalid liquidators: must be a non-empty array");
   }
 
-  // Fetch pegin transaction from smart contract
-  const peginRequest = await getPeginRequest(
-    CONTRACTS.BTC_VAULTS_MANAGER,
-    peginTxId as Hex,
-  );
+  // Fetch vault data from GraphQL
+  const vault = await fetchVaultById(peginTxId as Hex);
 
-  if (!peginRequest.unsignedBtcTx) {
-    throw new Error("Pegin transaction not found in contract");
+  if (!vault?.unsignedBtcTx) {
+    throw new Error("Vault or pegin transaction not found");
   }
 
-  const peginTxHex = peginRequest.unsignedBtcTx;
+  const peginTxHex = vault.unsignedBtcTx;
 
   // Fetch vault provider's BTC public key (if not provided)
   let vaultProviderBtcPubkey: string;
   if (vaultProvider.btcPubKey) {
     vaultProviderBtcPubkey = stripHexPrefix(vaultProvider.btcPubKey);
   } else {
-    const btcPubkeyHex = await getProviderBTCKey(
-      CONTRACTS.BTC_VAULTS_MANAGER,
-      vaultProvider.address,
-    );
-    vaultProviderBtcPubkey = stripHexPrefix(btcPubkeyHex);
+    const provider = await fetchVaultProviderById(vaultProvider.address);
+    if (!provider) {
+      throw new Error("Vault provider not found");
+    }
+    vaultProviderBtcPubkey = stripHexPrefix(provider.btcPubKey);
   }
 
   // Get liquidator BTC public keys
