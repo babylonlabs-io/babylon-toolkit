@@ -15,6 +15,8 @@ export default defineConfig({
     alias: {
       // Provide empty stubs for Node.js-only modules
       ws: resolve(__dirname, "src/stubs/ws.ts"),
+      // Resolve buffer to the actual package to prevent nodePolyfills from transforming SDK imports
+      buffer: "buffer",
     },
   },
   optimizeDeps: {
@@ -41,9 +43,13 @@ export default defineConfig({
       projects: [resolve(__dirname, "./tsconfig.lib.json")],
     }),
     nodePolyfills({
-      include: ["buffer", "crypto"],
+      include: ["crypto"],
       globals: {
         Buffer: true,
+      },
+      overrides: {
+        // Use the actual buffer package instead of the polyfill shim
+        buffer: "buffer",
       },
     }),
     EnvironmentPlugin("all", { prefix: "NEXT_PUBLIC_" }),
