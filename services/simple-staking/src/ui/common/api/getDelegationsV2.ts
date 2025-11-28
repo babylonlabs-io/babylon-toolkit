@@ -44,6 +44,9 @@ interface DelegationV2API {
   };
   state: string;
   previous_staking_tx_hash_hex?: string;
+  withdrawal_tx?: {
+    tx_hash: string;
+  };
 }
 
 export const getDelegationV2 = async (
@@ -134,5 +137,10 @@ const apiToDelegationV2 = (apiDelegation: DelegationV2API): DelegationV2 => {
           stakeExpansionSignatureHex: signature.stake_expansion_signature_hex,
         }),
       ),
+    withdrawalTx: apiDelegation.withdrawal_tx
+      ? {
+          txHash: apiDelegation.withdrawal_tx.tx_hash,
+        }
+      : undefined,
   };
 };

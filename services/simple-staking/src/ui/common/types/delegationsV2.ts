@@ -32,6 +32,9 @@ export interface DelegationV2 extends DelegationLike {
     unbondingSlashingTxHex: string;
     spendingHeight: number;
   };
+  withdrawalTx?: {
+    txHash: string;
+  };
 }
 
 export interface DelegationWithFP extends DelegationV2 {

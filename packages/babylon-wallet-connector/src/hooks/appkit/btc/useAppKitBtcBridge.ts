@@ -6,7 +6,6 @@ import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 import { APPKIT_BTC_CONNECTED_EVENT } from "@/core/wallets/btc/appkit/constants";
 import { getSharedBtcAppKitConfig } from "@/core/wallets/btc/appkit/sharedConfig";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
-
 import { useChainConnector } from "@/hooks/useChainConnector";
 
 interface UseAppKitBtcBridgeOptions {

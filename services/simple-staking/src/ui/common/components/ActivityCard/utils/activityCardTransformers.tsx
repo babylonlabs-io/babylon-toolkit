@@ -12,11 +12,12 @@ import { satoshiToBtc } from "@/ui/common/utils/btc";
 import { maxDecimals } from "@/ui/common/utils/maxDecimals";
 import { getExpansionType } from "@/ui/common/utils/stakingExpansionUtils";
 import { blocksToDisplayTime, durationTillNow } from "@/ui/common/utils/time";
+import { trim } from "@/ui/common/utils/trim";
 
 import { createBsnFpGroupedDetails } from "../../../utils/bsnFpGroupingUtils";
 import { ActivityCardData, ActivityCardDetailItem } from "../ActivityCard";
 
-const { coinName, icon } = getNetworkConfigBTC();
+const { coinName, icon, mempoolApiUrl } = getNetworkConfigBTC();
 
 export interface ActivityCardTransformOptions {
   showExpansionSection?: boolean;
@@ -82,6 +83,22 @@ export function transformDelegationToActivityCard(
       ),
     },
   ];
+
+  if (delegation.withdrawalTx?.txHash) {
+    details.push({
+      label: "Withdrawal Tx",
+      value: (
+        <a
+          href={`${mempoolApiUrl}/tx/${delegation.withdrawalTx.txHash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-accent-primary hover:underline"
+        >
+          {trim(delegation.withdrawalTx.txHash, 8)}
+        </a>
+      ),
+    });
+  }
 
   // Create grouped details for BSN/FP pairs using shared utility
   const groupedDetails = createBsnFpGroupedDetails(
