@@ -18,7 +18,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { useVaultActivityActions } from "../../../hooks/useVaultActivityActions";
+import { useVaultActions } from "../../../hooks/deposit/useVaultActions";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
 
@@ -96,8 +96,7 @@ export function BroadcastSignModal({
 }: BroadcastSignModalProps) {
   const [localBroadcasting, setLocalBroadcasting] = useState(false);
 
-  const { broadcasting, broadcastError, handleBroadcast } =
-    useVaultActivityActions();
+  const { broadcasting, broadcastError, handleBroadcast } = useVaultActions();
 
   const { pendingPegins, updatePendingPeginStatus, addPendingPegin } =
     usePeginStorage({

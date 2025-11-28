@@ -24,6 +24,12 @@ export type {
 
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useEstimatedEthFee } from "./useEstimatedEthFee";
+export { useVaultActions } from "./useVaultActions";
+export type {
+  BroadcastPeginParams,
+  SignPayoutParams,
+  UseVaultActionsReturn,
+} from "./useVaultActions";
 
 // Export from the new context-based state
 export {

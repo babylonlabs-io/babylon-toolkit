@@ -1,22 +1,25 @@
 /**
- * Custom hook for managing vault activity actions
+ * Custom hook for vault actions (broadcast and sign payout)
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
+import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
 import {
   getNextLocalStatus,
   PeginAction,
   type LocalStorageStatus,
-} from "../models/peginStateMachine";
-import { broadcastPeginTransaction, fetchVaultById } from "../services/vault";
-import type { PendingPeginRequest } from "../storage/peginStorage";
-import { stripHexPrefix } from "../utils/btc";
+} from "../../models/peginStateMachine";
+import {
+  broadcastPeginTransaction,
+  fetchVaultById,
+} from "../../services/vault";
+import type { PendingPeginRequest } from "../../storage/peginStorage";
+import { stripHexPrefix } from "../../utils/btc";
 
-import { useSignPeginTransactions } from "./deposit/useSignPeginTransactions";
+import { useSignPeginTransactions } from "./useSignPeginTransactions";
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -51,7 +54,7 @@ export interface SignPayoutParams {
   onRefetchActivities?: () => void;
 }
 
-export interface UseVaultActivityActionsReturn {
+export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
@@ -64,9 +67,9 @@ export interface UseVaultActivityActionsReturn {
 }
 
 /**
- * Custom hook for vault activity actions (broadcast and sign)
+ * Custom hook for vault actions (broadcast and sign payout)
  */
-export function useVaultActivityActions(): UseVaultActivityActionsReturn {
+export function useVaultActions(): UseVaultActionsReturn {
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
