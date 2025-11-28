@@ -5,11 +5,14 @@ import {
   useFormContext,
   useWatch,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useMemo, useState } from "react";
+import { useDebounce } from "@uidotdev/usehooks";
+import { useEffect, useRef, useState } from "react";
 
 import { type MultistakingFormFields } from "@/ui/common/state/MultistakingState";
 import { useStakingState } from "@/ui/common/state/StakingState";
 import { blocksToDisplayTime } from "@/ui/common/utils/time";
+
+const DEBOUNCE_DELAY = 150;
 
 /**
  * TimelockSection
@@ -29,33 +32,33 @@ export function TimelockSection() {
   const minStakingTimeBlocks = stakingInfo?.minStakingTimeBlocks ?? 0;
   const maxStakingTimeBlocks = stakingInfo?.maxStakingTimeBlocks ?? 0;
 
-  // Keep track of the last valid numeric term so the slider stays stable
-  const [lastValidTerm, setLastValidTerm] =
+  // Local slider value for immediate visual feedback (no lag)
+  const [localSliderValue, setLocalSliderValue] =
     useState<number>(minStakingTimeBlocks);
 
-  // Ensure local state stays in sync if network params change
+  // Debounced value for form updates (prevents lag during rapid slider changes)
+  const debouncedSliderValue = useDebounce(localSliderValue, DEBOUNCE_DELAY);
+
+  // Track whether we're actively dragging (to ignore form updates during drag)
+  const isDraggingRef = useRef(false);
+
+  // Sync local state when network params change
   useEffect(() => {
-    if (minStakingTimeBlocks > 0) {
-      setLastValidTerm(minStakingTimeBlocks);
+    if (minStakingTimeBlocks > 0 && !isDraggingRef.current) {
+      setLocalSliderValue(minStakingTimeBlocks);
     }
   }, [minStakingTimeBlocks]);
 
-  const clampedTerm = useMemo(() => {
-    if (rawTerm === undefined || minStakingTimeBlocks === 0) {
-      return undefined;
-    }
-    return Math.min(
-      Math.max(Math.round(rawTerm), minStakingTimeBlocks),
-      maxStakingTimeBlocks,
-    );
-  }, [rawTerm, minStakingTimeBlocks, maxStakingTimeBlocks]);
-
-  // Keep `lastValidTerm` in sync with a valid parsed value
+  // Sync local state from form when not dragging (e.g. external updates)
   useEffect(() => {
-    if (clampedTerm !== undefined && clampedTerm !== lastValidTerm) {
-      setLastValidTerm(clampedTerm);
+    if (rawTerm !== undefined && !isDraggingRef.current) {
+      const clamped = Math.min(
+        Math.max(Math.round(rawTerm), minStakingTimeBlocks || 1),
+        maxStakingTimeBlocks || rawTerm,
+      );
+      setLocalSliderValue(clamped);
     }
-  }, [clampedTerm, lastValidTerm]);
+  }, [rawTerm, minStakingTimeBlocks, maxStakingTimeBlocks]);
 
   // Initialise the form field with the minimum if it is empty
   useEffect(() => {
@@ -68,11 +71,21 @@ export function TimelockSection() {
     }
   }, [rawTerm, minStakingTimeBlocks, setValue]);
 
+  // Update form when debounced value settles
+  useEffect(() => {
+    if (isDraggingRef.current && debouncedSliderValue > 0) {
+      isDraggingRef.current = false;
+      setValue("term", debouncedSliderValue, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    }
+  }, [debouncedSliderValue, setValue]);
+
   if (!stakingInfo) {
     return null;
   }
-
-  const sliderValue = clampedTerm !== undefined ? clampedTerm : lastValidTerm;
 
   const handleSliderChange = (value: number) => {
     const clamped = Math.min(
@@ -80,12 +93,9 @@ export function TimelockSection() {
       maxStakingTimeBlocks,
     );
 
-    setLastValidTerm(clamped);
-    setValue("term", clamped, {
-      shouldValidate: true,
-      shouldDirty: true,
-      shouldTouch: true,
-    });
+    // Mark as dragging and update local state immediately (no lag)
+    isDraggingRef.current = true;
+    setLocalSliderValue(clamped);
   };
 
   return (
@@ -96,15 +106,15 @@ export function TimelockSection() {
         </Text>
 
         <Text variant="body1" className="text-accent-primary">
-          {sliderValue} Blocks{" "}
+          {localSliderValue} Blocks{" "}
           <span className="text-accent-secondary">
-            ({blocksToDisplayTime(sliderValue)})
+            ({blocksToDisplayTime(localSliderValue)})
           </span>
         </Text>
       </div>
 
       <Slider
-        value={sliderValue}
+        value={localSliderValue}
         min={minStakingTimeBlocks}
         max={maxStakingTimeBlocks}
         step={1}
