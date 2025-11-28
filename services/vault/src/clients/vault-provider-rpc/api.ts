@@ -39,7 +39,7 @@ export class VaultProviderRpcApi {
     return this.client.call<
       RequestClaimAndPayoutTransactionsParams,
       RequestClaimAndPayoutTransactionsResponse
-    >("vlt_requestClaimAndPayoutTransactions", params);
+    >("vaultProvider_requestClaimAndPayoutTransactions", params);
   }
 
   /**
@@ -52,7 +52,7 @@ export class VaultProviderRpcApi {
     params: SubmitPayoutSignaturesParams,
   ): Promise<void> {
     return this.client.call<SubmitPayoutSignaturesParams, void>(
-      "vlt_submitPayoutSignatures",
+      "vaultProvider_submitPayoutSignatures",
       params,
     );
   }
@@ -67,7 +67,7 @@ export class VaultProviderRpcApi {
     params: GetPeginStatusParams,
   ): Promise<GetPeginStatusResponse> {
     return this.client.call<GetPeginStatusParams, GetPeginStatusResponse>(
-      "vlt_getPeginStatus",
+      "vaultProvider_getPeginStatus",
       params,
     );
   }
@@ -87,6 +87,6 @@ export class VaultProviderRpcApi {
     return this.client.call<
       GetPeginClaimTxGraphParams,
       GetPeginClaimTxGraphResponse
-    >("vlt_getPeginClaimTxGraph", params);
+    >("vaultProvider_getPeginClaimTxGraph", params);
   }
 }
