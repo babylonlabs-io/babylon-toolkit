@@ -4,15 +4,6 @@
  * This module funds an unfunded transaction template from the SDK by adding
  * UTXO inputs and change outputs, creating a transaction ready for wallet signing.
  *
- * ⚠️ MIGRATION NOTICE:
- * This is a TEMPORARY local utility. It will be moved to @babylonlabs-io/ts-sdk
- * as part of Phase 2
- *
- * After migration:
- * - This file will be DELETED from vault service
- * - Import will change to: @babylonlabs-io/ts-sdk/tbv/core/utils
- * - Function signature and behavior will remain the same
- *
  * Transaction Flow:
  * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, 1 vault output)
  * 2. selectUtxosForPegin() → select UTXOs and calculate fees
@@ -24,8 +15,9 @@
  */
 
 import * as bitcoin from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
-import { BTC_DUST_SAT } from "../fee/constants";
+import { DUST_THRESHOLD } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
 export interface FundPeginTransactionParams {
@@ -41,43 +33,35 @@ export interface FundPeginTransactionParams {
   network: bitcoin.Network;
 }
 
+/** Parsed data from an unfunded WASM transaction */
+interface ParsedUnfundedTx {
+  version: number;
+  locktime: number;
+  vaultValue: number;
+  vaultScript: Buffer;
+}
+
 /**
- * Funds an unfunded peg-in transaction by adding inputs and change output.
+ * Parses an unfunded transaction hex from WASM.
  *
- * Takes an unfunded transaction template (0 inputs, 1 vault output) from the SDK
- * and adds UTXO inputs and a change output to create a funded transaction ready
- * for wallet signing.
+ * WASM produces witness-format transactions with 0 inputs, which bitcoinjs-lib cannot parse.
+ * This function manually extracts the transaction components.
  *
- * Process:
- * 1. Manually extract vault output from SDK hex (bitcoinjs-lib cannot parse 0-input txs)
- * 2. Add inputs for each selected UTXO
- * 3. Add vault output at index 0
- * 4. Add change output if changeAmount > DUST_THRESHOLD
- * 5. Return transaction hex ready for wallet signing
+ * Format: [version:4bytes][marker:0x00][flag:0x01][inputs:1byte=0x00][outputs:1byte=0x01]
+ *         [value:8bytes][scriptLen:1byte][script:N bytes][locktime:4bytes]
  *
- * @param params - Transaction funding parameters
- * @returns Transaction hex string ready for wallet signing
+ * @param unfundedTxHex - Raw transaction hex from WASM
+ * @returns Parsed transaction components
+ * @throws Error if transaction structure is invalid
  */
-export function fundPeginTransaction(
-  params: FundPeginTransactionParams,
-): string {
-  const { unfundedTxHex, selectedUTXOs, changeAddress, changeAmount, network } =
-    params;
-
-  // Extract vault output data from SDK hex manually
-  // SDK produces witness-format transaction with 0 inputs, which bitcoinjs-lib cannot parse
-  // Format: [version:4bytes][marker:0x00][flag:0x01][inputs:1byte=0x00][outputs:1byte=0x01][value:8bytes][scriptLen:1byte][script:34bytes][locktime:4bytes]
-
-  // Check if witness markers are present
+export function parseUnfundedWasmTransaction(
+  unfundedTxHex: string,
+): ParsedUnfundedTx {
+  // Check if witness markers are present (0x00 0x01 after version)
   const hasWitnessMarkers = unfundedTxHex.substring(8, 12) === "0001";
+  const dataOffset = hasWitnessMarkers ? 12 : 8; // Skip version (8) + optional witness markers (4)
 
-  let dataOffset = 8; // Start after version
-  if (hasWitnessMarkers) {
-    dataOffset += 4; // Skip witness marker (00) and flag (01)
-  }
-
-  // Parse structure manually
-  const versionHex = unfundedTxHex.substring(0, 8);
+  // Parse input/output counts
   const inputCount = parseInt(
     unfundedTxHex.substring(dataOffset, dataOffset + 2),
     16,
@@ -88,42 +72,63 @@ export function fundPeginTransaction(
   );
 
   if (inputCount !== 0) {
-    throw new Error(`Expected 0 inputs from SDK, got ${inputCount}`);
+    throw new Error(`Expected 0 inputs from WASM, got ${inputCount}`);
   }
   if (outputCount !== 1) {
-    throw new Error(`Expected 1 output from SDK, got ${outputCount}`);
+    throw new Error(`Expected 1 output from WASM, got ${outputCount}`);
   }
 
-  // Extract vault output (starting after input/output counts)
-  const outputDataStart = dataOffset + 4; // After input count (1 byte) and output count (1 byte)
+  // Extract vault output (after input/output counts)
+  const outputDataStart = dataOffset + 4;
   const valueHex = unfundedTxHex.substring(
     outputDataStart,
     outputDataStart + 16,
-  ); // 8 bytes = 16 hex chars
+  );
   const scriptLenPos = outputDataStart + 16;
   const scriptLen = parseInt(
     unfundedTxHex.substring(scriptLenPos, scriptLenPos + 2),
     16,
   );
-  const scriptStart = scriptLenPos + 2;
   const scriptHex = unfundedTxHex.substring(
-    scriptStart,
-    scriptStart + scriptLen * 2,
+    scriptLenPos + 2,
+    scriptLenPos + 2 + scriptLen * 2,
   );
 
-  // Parse value as little-endian uint64
-  const valueBuffer = Buffer.from(valueHex, "hex");
-  const vaultValue = Number(valueBuffer.readBigUInt64LE(0));
+  // Parse version (first 4 bytes, little-endian)
+  const version = Buffer.from(unfundedTxHex.substring(0, 8), "hex").readUInt32LE(0);
+
+  // Parse locktime (last 4 bytes, little-endian)
+  const locktime = Buffer.from(
+    unfundedTxHex.substring(unfundedTxHex.length - 8),
+    "hex",
+  ).readUInt32LE(0);
+
+  // Parse vault output value (little-endian uint64)
+  const vaultValue = Number(Buffer.from(valueHex, "hex").readBigUInt64LE(0));
   const vaultScript = Buffer.from(scriptHex, "hex");
 
-  // Extract locktime (last 4 bytes)
-  const locktimeHex = unfundedTxHex.substring(unfundedTxHex.length - 8);
-  const locktimeBuffer = Buffer.from(locktimeHex, "hex");
-  const locktime = locktimeBuffer.readUInt32LE(0);
+  return { version, locktime, vaultValue, vaultScript };
+}
 
-  // Extract version
-  const versionBuffer = Buffer.from(versionHex, "hex");
-  const version = versionBuffer.readUInt32LE(0);
+/**
+ * Funds an unfunded peg-in transaction by adding inputs and change output.
+ *
+ * Takes an unfunded transaction template (0 inputs, 1 vault output) from the SDK
+ * and adds UTXO inputs and a change output to create a funded transaction ready
+ * for wallet signing.
+ *
+ * @param params - Transaction funding parameters
+ * @returns Transaction hex string ready for wallet signing
+ */
+export function fundPeginTransaction(
+  params: FundPeginTransactionParams,
+): string {
+  const { unfundedTxHex, selectedUTXOs, changeAddress, changeAmount, network } =
+    params;
+
+  // Parse the unfunded transaction from WASM
+  const { version, locktime, vaultValue, vaultScript } =
+    parseUnfundedWasmTransaction(unfundedTxHex);
 
   // Create a new transaction with the extracted data
   const tx = new bitcoin.Transaction();
@@ -132,21 +137,20 @@ export function fundPeginTransaction(
 
   // Add inputs from selected UTXOs
   for (const utxo of selectedUTXOs) {
-    const txHash = Buffer.from(utxo.txid, "hex").reverse(); // Bitcoin uses reversed byte order
+    // Bitcoin uses reversed byte order for txid
+    const txHash = Buffer.from(utxo.txid, "hex").reverse();
     tx.addInput(txHash, utxo.vout);
   }
 
-  // Add the vault output
+  // Add the vault output at index 0
   tx.addOutput(vaultScript, vaultValue);
 
   // Add change output if above dust threshold
-  if (changeAmount > BigInt(BTC_DUST_SAT)) {
+  if (changeAmount > DUST_THRESHOLD) {
     const changeScript = bitcoin.address.toOutputScript(changeAddress, network);
     tx.addOutput(changeScript, Number(changeAmount));
   }
 
-  // Return transaction hex (not PSBT)
-  // The wallet will sign this transaction directly
   return tx.toHex();
 }
 

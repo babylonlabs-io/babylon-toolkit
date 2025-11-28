@@ -5,6 +5,13 @@
  * or fetching data before executing transactions.
  */
 
+import {
+  BTC_DUST_SAT,
+  fundPeginTransaction,
+  getNetwork,
+  selectUtxosForPegin,
+  type UTXO as SDKUtxo,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
 import {
@@ -13,9 +20,6 @@ import {
 } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import { BTC_DUST_SAT } from "../../utils/fee/constants";
-import { fundPeginTransaction, getNetwork } from "../../utils/transaction";
-import { selectUtxosForPegin } from "../../utils/utxo";
 
 import * as btcTransactionService from "./vaultBtcTransactionService";
 
@@ -31,13 +35,9 @@ export interface PeginUTXOParams {
 
 /**
  * UTXO interface for multi-UTXO support
+ * Re-exported from SDK for convenience
  */
-export interface UTXO {
-  txid: string;
-  vout: number;
-  value: number; // in satoshis
-  scriptPubKey: string;
-}
+export type UTXO = SDKUtxo;
 
 /**
  * Submit a pegin request
