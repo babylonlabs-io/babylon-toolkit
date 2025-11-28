@@ -30,6 +30,23 @@ describe("FeatureFlagService", () => {
     });
   });
 
+  describe("IsTimelockSelectorEnabled", () => {
+    it("should return false when NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR is not set", () => {
+      delete process.env.NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR;
+      expect(FeatureFlagService.IsTimelockSelectorEnabled).toBe(false);
+    });
+
+    it('should return false when NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR is set to "false"', () => {
+      process.env.NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR = "false";
+      expect(FeatureFlagService.IsTimelockSelectorEnabled).toBe(false);
+    });
+
+    it('should return true when NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR is set to "true"', () => {
+      process.env.NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR = "true";
+      expect(FeatureFlagService.IsTimelockSelectorEnabled).toBe(true);
+    });
+  });
+
   describe("Feature flag behavior", () => {
     it("should handle case sensitivity correctly", () => {
       process.env.NEXT_PUBLIC_FF_ENABLE_LEDGER = "True";

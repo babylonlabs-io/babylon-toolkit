@@ -23,4 +23,16 @@ export default {
   get IsLedgerEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_LEDGER === "true";
   },
+
+  /**
+   * ENABLE_TIMELOCK_SELECTOR feature flag
+   *
+   * Purpose: Enables the timelock selector slider in the staking form
+   * Why needed: Allows users to select custom timelock values when min !== max staking time.
+   *             Useful for devnet testing where faster timelock expiry is needed.
+   * ETA for removal: TBD - May become permanent if needed for all environments
+   */
+  get IsTimelockSelectorEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_TIMELOCK_SELECTOR === "true";
+  },
 };
