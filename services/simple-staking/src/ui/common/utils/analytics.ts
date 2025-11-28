@@ -66,12 +66,18 @@ export function trackEvent(
     }
   });
 
+  const timestamp = new Date().toISOString();
+
   Sentry.captureEvent({
     message,
     level: "debug",
     tags,
+    // Add a simple nonce into the fingerprint so that Sentry's
+    // client-side Dedupe integration does not drop consecutive
+    // analytics events that reuse the same `message`.
+    fingerprint: [message, timestamp],
     extra: {
-      timestamp: new Date().toISOString(),
+      timestamp,
       ...data,
     },
   });

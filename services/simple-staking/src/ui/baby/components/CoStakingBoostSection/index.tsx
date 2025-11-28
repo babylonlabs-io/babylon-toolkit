@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { MdRocketLaunch } from "react-icons/md";
 import { useSessionStorage } from "usehooks-ts";
 import { useNavigate } from "react-router";
@@ -51,7 +51,7 @@ export function CoStakingBoostSection({
     });
   };
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     trackEvent(
       AnalyticsCategory.CTA_CLICK,
       AnalyticsMessage.DISMISS_COSTAKING_PREFILL_CTA,
@@ -60,7 +60,7 @@ export function CoStakingBoostSection({
       },
     );
     setShowCoStakingBoostSection(false);
-  };
+  }, [setShowCoStakingBoostSection]);
 
   const formattedSuggestedAmount = useMemo(
     () => formatBalance(eligibility.additionalBabyNeeded || 0, babyCoinSymbol),
