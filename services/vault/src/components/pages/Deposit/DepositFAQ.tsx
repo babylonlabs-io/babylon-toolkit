@@ -2,26 +2,31 @@ import { useState } from "react";
 
 const faqData = [
   {
+    id: "how-to-deposit",
     question: "How do I make a deposit?",
     answer:
       "To make a deposit, select your preferred vault provider and application, enter the amount you wish to deposit, and follow the on-screen instructions. You will need a supported wallet to complete the transaction.",
   },
   {
+    id: "min-max-amount",
     question: "What is the minimum and maximum deposit amount?",
     answer:
       "The minimum and maximum deposit amounts depend on the selected vault provider and application. Please refer to the deposit form for specific limits.",
   },
   {
+    id: "processing-time",
     question: "How long does it take for my deposit to be processed?",
     answer:
       "Deposits are typically processed within a few minutes, but processing times may vary depending on network congestion and provider policies.",
   },
   {
+    id: "fees",
     question: "Are there any fees for making a deposit?",
     answer:
       "Some vault providers may charge a small fee for processing deposits. Any applicable fees will be displayed before you confirm your transaction.",
   },
   {
+    id: "security",
     question: "Is my deposit secure?",
     answer:
       "All deposits are secured using industry-standard encryption and security protocols. Please ensure you are using a trusted wallet and provider.",
@@ -29,10 +34,10 @@ const faqData = [
 ];
 
 export function DepositFAQ() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
-  const handleClick = (index: number) => {
-    setOpenIndex(openIndex === index ? null : index);
+  const handleClick = (id: string) => {
+    setOpenId(openId === id ? null : id);
   };
 
   return (
@@ -41,13 +46,13 @@ export function DepositFAQ() {
         FAQs
       </h2>
       <div className="space-y-4">
-        {faqData.map((faq, index) => {
-          const answerId = `faq-answer-${index}`;
-          const isOpen = openIndex === index;
+        {faqData.map((faq) => {
+          const answerId = `faq-answer-${faq.id}`;
+          const isOpen = openId === faq.id;
           return (
-            <div key={index}>
+            <div key={faq.id}>
               <button
-                onClick={() => handleClick(index)}
+                onClick={() => handleClick(faq.id)}
                 className="w-full cursor-pointer text-left"
                 aria-expanded={isOpen}
                 aria-controls={answerId}

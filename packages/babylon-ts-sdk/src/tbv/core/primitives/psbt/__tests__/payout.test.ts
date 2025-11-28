@@ -6,6 +6,8 @@
  * from etc/btc-vault/crates/vault/tests.
  */
 
+import { Buffer } from "buffer";
+
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";

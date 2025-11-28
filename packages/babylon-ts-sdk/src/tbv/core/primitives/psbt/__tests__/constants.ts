@@ -8,6 +8,8 @@
  * @module primitives/psbt/__tests__/constants
  */
 
+import { Buffer } from "buffer";
+
 // ==================== Bitcoin Protocol Constants ====================
 
 /**
