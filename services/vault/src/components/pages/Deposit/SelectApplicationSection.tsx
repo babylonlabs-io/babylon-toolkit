@@ -1,7 +1,7 @@
 import {
   Card,
   Loader,
-  ProviderCard,
+  SelectWithIcon,
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
@@ -30,6 +30,14 @@ export function SelectApplicationSection({
   error,
   onSelect,
 }: SelectApplicationSectionProps) {
+  const options = applications.map((app) => ({
+    value: app.id,
+    label: app.name,
+    icon: (
+      <ApplicationLogo logoUrl={app.logoUrl} name={app.name} size="small" />
+    ),
+  }));
+
   return (
     <Card>
       <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -46,23 +54,21 @@ export function SelectApplicationSection({
           </Text>
         </SubSection>
       ) : (
-        <SubSection>
-          {applications.map((app) => (
-            <ProviderCard
-              key={app.id}
-              id={app.id}
-              name={app.name}
-              icon={<ApplicationLogo logoUrl={app.logoUrl} name={app.name} />}
-              isSelected={selectedApplication === app.id}
-              onToggle={onSelect}
-            />
-          ))}
+        <>
+          <SelectWithIcon
+            value={selectedApplication}
+            options={options}
+            placeholder="Select an application"
+            onSelect={(value: string | number) => onSelect(value as string)}
+            state={error ? "error" : "default"}
+            className="w-full"
+          />
           {error && (
             <Text variant="body2" className="text-error mt-2 text-sm">
               {error}
             </Text>
           )}
-        </SubSection>
+        </>
       )}
     </Card>
   );

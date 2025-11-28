@@ -1,7 +1,7 @@
 import {
   Card,
   Loader,
-  ProviderCard,
+  SelectWithIcon,
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
@@ -27,6 +27,16 @@ export function SelectVaultProviderSection({
   error,
   onSelect,
 }: SelectVaultProviderSectionProps) {
+  const options = providers.map((provider) => ({
+    value: provider.id,
+    label: provider.name,
+    icon: (
+      <div className="flex items-center justify-center rounded-full bg-primary-main text-sm font-semibold text-white">
+        {provider.id.replace(/^0x/, "").charAt(0).toUpperCase()}
+      </div>
+    ),
+  }));
+
   return (
     <Card>
       <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -43,30 +53,21 @@ export function SelectVaultProviderSection({
           </Text>
         </SubSection>
       ) : (
-        <SubSection>
-          {providers.map((provider) => (
-            <ProviderCard
-              key={provider.id}
-              id={provider.id}
-              name={provider.name}
-              icon={
-                <Text
-                  variant="body2"
-                  className="text-sm font-medium text-accent-contrast"
-                >
-                  {provider.id.replace(/^0x/, "").charAt(0).toUpperCase()}
-                </Text>
-              }
-              isSelected={selectedProvider === provider.id}
-              onToggle={onSelect}
-            />
-          ))}
+        <>
+          <SelectWithIcon
+            value={selectedProvider}
+            options={options}
+            placeholder="Select a vault provider"
+            onSelect={(value: string | number) => onSelect(value as string)}
+            state={error ? "error" : "default"}
+            className="w-full"
+          />
           {error && (
             <Text variant="body2" className="text-error mt-2 text-sm">
               {error}
             </Text>
           )}
-        </SubSection>
+        </>
       )}
     </Card>
   );
