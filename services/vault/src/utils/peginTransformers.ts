@@ -4,7 +4,7 @@
 
 import type { Hex } from "viem";
 
-import type { PeginRequest } from "../clients/eth-contract";
+import type { Vault } from "../clients/eth-contract";
 import { getPeginState } from "../models/peginStateMachine";
 import type { VaultActivity } from "../types";
 
@@ -62,23 +62,23 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
 }
 
 /**
- * Transform PeginRequest data from contract to VaultActivity UI format
+ * Transform Vault data to VaultActivity UI format
  * For Deposit tab - shows vault status but not full Morpho loan details
- * @param peginRequest - Pegin request data from BTCVaultsManager contract
+ * @param vault - Vault data from GraphQL/contract
  * @param txHash - Transaction hash used as unique ID
  * @param isInUse - Optional: Whether vault is in use by application (from ApplicationVaultTracker.isVaultInUse())
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
-export function transformPeginToActivity(
-  peginRequest: PeginRequest,
+export function transformVaultToActivity(
+  vault: Vault,
   txHash: Hex,
   isInUse?: boolean,
 ): VaultActivity {
   // Convert amount from satoshis to BTC
-  const btcAmount = formatBTCAmount(peginRequest.amount);
+  const btcAmount = formatBTCAmount(vault.amount);
 
   // Compute display label from state machine
-  const state = getPeginState(peginRequest.status, { isInUse });
+  const state = getPeginState(vault.status, { isInUse });
 
   // Create VaultActivity object (deposit/collateral info)
   const activity: VaultActivity = {
@@ -89,12 +89,12 @@ export function transformPeginToActivity(
       symbol: "BTC",
       icon: BITCOIN_ICON_DATA_URI,
     },
-    contractStatus: peginRequest.status,
+    contractStatus: vault.status,
     isInUse,
     displayLabel: state.displayLabel,
     providers: [
       {
-        id: peginRequest.vaultProvider,
+        id: vault.vaultProvider,
       },
     ],
     // No action handlers - these are attached at the component level
@@ -110,14 +110,14 @@ export function transformPeginToActivity(
 }
 
 /**
- * Transform multiple PeginRequests to VaultActivities
- * @param peginRequestsWithHashes - Array of tuples containing pegin request data and transaction hash
+ * Transform multiple Vaults to VaultActivities
+ * @param vaultsWithHashes - Array of tuples containing vault data and transaction hash
  * @returns Array of VaultActivity objects (without action handlers)
  */
-export function transformPeginRequestsToActivities(
-  peginRequestsWithHashes: Array<{ peginRequest: PeginRequest; txHash: Hex }>,
+export function transformVaultsToActivities(
+  vaultsWithHashes: Array<{ vault: Vault; txHash: Hex }>,
 ): VaultActivity[] {
-  return peginRequestsWithHashes.map(({ peginRequest, txHash }) =>
-    transformPeginToActivity(peginRequest, txHash),
+  return vaultsWithHashes.map(({ vault, txHash }) =>
+    transformVaultToActivity(vault, txHash),
   );
 }

@@ -6,10 +6,11 @@ export * from "./applications";
 // Token services
 export * from "./token";
 
-// Vault services
+// Vault services (GraphQL-based)
+export * from "./vault/fetchVaultProviders";
+export * from "./vault/fetchVaults";
 export * from "./vault/vaultPayoutSignatureService";
 export * from "./vault/vaultPeginBroadcastService";
-export * from "./vault/vaultQueryService";
 export * from "./vault/vaultTransactionService";
 
 // Position services

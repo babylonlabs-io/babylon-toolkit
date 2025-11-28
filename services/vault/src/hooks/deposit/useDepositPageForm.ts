@@ -3,7 +3,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
-import { useApplications } from "../api/useApplications";
+import { useApplications } from "../useApplications";
 import { useBTCPrice } from "../useBTCPrice";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 

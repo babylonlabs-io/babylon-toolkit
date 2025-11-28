@@ -25,10 +25,6 @@ export type {
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useEstimatedEthFee } from "./useEstimatedEthFee";
 
-// New hooks for migration
-export { useDepositForm } from "./useDepositForm";
-export type { DepositFormData, UseDepositFormResult } from "./useDepositForm";
-
 // Export from the new context-based state
 export {
   DepositStep as DepositStateStep,

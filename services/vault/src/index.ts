@@ -7,7 +7,6 @@ export {
   // Hooks
   useDepositFlow,
   useDepositFlow as useDepositFlowCompat,
-  useDepositForm,
   useDepositState,
   useDepositTransaction,
   useDepositValidation,
@@ -20,7 +19,6 @@ export {
   type UseDepositFlowCompatParams,
   type UseDepositFlowCompatReturn,
   type UseDepositFlowResult,
-  type UseDepositFormResult,
   type UseDepositStateResult,
   type UseDepositTransactionResult,
   type UseDepositValidationResult,

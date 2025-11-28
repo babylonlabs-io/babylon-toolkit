@@ -1,7 +1,6 @@
 import { Button, Card, Container } from "@babylonlabs-io/core-ui";
 
 import { DepositState } from "../../context/deposit/DepositState";
-import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 import { DepositOverview } from "../deposit/DepositOverview";
@@ -136,9 +135,7 @@ function DepositContent() {
 export default function Deposit() {
   return (
     <DepositState>
-      <VaultRedeemState>
-        <DepositContent />
-      </VaultRedeemState>
+      <DepositContent />
     </DepositState>
   );
 }

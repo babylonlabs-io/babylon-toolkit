@@ -1,9 +1,10 @@
 // Vault services - queries and transactions
+export * from "./fetchVaultProviders";
+export * from "./fetchVaults";
 export * from "./vaultBtcTransactionService";
 export * from "./vaultPayoutSignatureService";
 export * from "./vaultPeginBroadcastService";
 export * from "./vaultProofOfPossessionService";
 export * from "./vaultProviderService";
-export * from "./vaultQueryService";
 export * from "./vaultRpcService";
 export * from "./vaultTransactionService";

@@ -2,12 +2,11 @@
  * Hook to fetch vaults available for use as collateral in Morpho borrowing
  */
 
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { CONTRACTS } from "../../../../config/contracts";
-import { getAvailableCollaterals } from "../../../../services/vault/vaultQueryService";
+import { useVaults } from "../../../../hooks/useVaults";
+import { ContractStatus } from "../../../../models/peginStateMachine";
 
 export interface BorrowableVault {
   txHash: string;
@@ -24,31 +23,23 @@ interface UseVaultsForBorrowingResult {
 export function useVaultsForBorrowing(
   address: Address | undefined,
 ): UseVaultsForBorrowingResult {
-  const {
-    data: vaultsData,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["borrowableVaults", address],
-    queryFn: () =>
-      getAvailableCollaterals(
-        address as Address,
-        CONTRACTS.BTC_VAULTS_MANAGER,
-        CONTRACTS.MORPHO_CONTROLLER,
-      ),
-    enabled: !!address,
-    retry: 2,
-    staleTime: 30000,
-  });
+  const { data, isLoading, error, refetch } = useVaults(address);
 
+  // Filter for available vaults (active status and not in use)
   const vaults: BorrowableVault[] = useMemo(() => {
-    if (!vaultsData) return [];
-    return vaultsData.map((vault) => ({
-      txHash: vault.txHash,
-      amountSatoshis: vault.amountSatoshis,
-    }));
-  }, [vaultsData]);
+    if (!data) return [];
+
+    return data
+      .filter(
+        (vaultWithStatus) =>
+          vaultWithStatus.vault.status === ContractStatus.ACTIVE &&
+          !vaultWithStatus.isInUse,
+      )
+      .map((vaultWithStatus) => ({
+        txHash: vaultWithStatus.txHash,
+        amountSatoshis: vaultWithStatus.vault.amount,
+      }));
+  }, [data]);
 
   const wrappedRefetch = async () => {
     await refetch();

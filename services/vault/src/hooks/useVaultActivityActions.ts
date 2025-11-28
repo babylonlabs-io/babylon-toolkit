@@ -7,13 +7,12 @@ import { useState } from "react";
 import type { Hex } from "viem";
 
 import type { ClaimerTransactions } from "../clients/vault-provider-rpc/types";
-import { CONTRACTS } from "../config/contracts";
 import {
   getNextLocalStatus,
   PeginAction,
   type LocalStorageStatus,
 } from "../models/peginStateMachine";
-import { broadcastPeginTransaction, getPeginRequest } from "../services/vault";
+import { broadcastPeginTransaction, fetchVaultById } from "../services/vault";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import { stripHexPrefix } from "../utils/btc";
 
@@ -100,13 +99,14 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
     setBroadcastError(null);
 
     try {
-      // Fetch pegin request from BTCVaultsManager contract (source of truth)
-      const peginRequest = await getPeginRequest(
-        CONTRACTS.BTC_VAULTS_MANAGER,
-        activityId as Hex,
-      );
+      // Fetch vault data from GraphQL
+      const vault = await fetchVaultById(activityId as Hex);
 
-      const unsignedTxHex = peginRequest.unsignedBtcTx;
+      if (!vault) {
+        throw new Error("Vault not found. Please try again.");
+      }
+
+      const unsignedTxHex = vault.vault.unsignedBtcTx;
 
       if (!unsignedTxHex) {
         throw new Error(
@@ -123,10 +123,8 @@ export function useVaultActivityActions(): UseVaultActivityActionsReturn {
       }
 
       // Get depositor's BTC public key (needed for Taproot signing)
-      // Strip "0x" prefix since it comes from contract (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(
-        peginRequest.depositorBtcPubkey,
-      );
+      // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
+      const depositorBtcPubkey = stripHexPrefix(vault.vault.depositorBtcPubkey);
       if (!depositorBtcPubkey) {
         throw new Error(
           "Depositor BTC public key not found. Please try creating the peg-in request again.",

@@ -2,7 +2,7 @@ import { Button, Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
-import { Applications } from "../Overview/Applications";
+import { Applications } from "../Applications";
 import { Connect } from "../Wallet";
 
 export default function ApplicationsHome() {

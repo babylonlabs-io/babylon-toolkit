@@ -1,7 +1,7 @@
 import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
 
-import { useApplications } from "../../../hooks/api/useApplications";
-import { ApplicationLogo } from "../../ApplicationLogo";
+import { useApplications } from "../../hooks/useApplications";
+import { ApplicationLogo } from "../ApplicationLogo";
 
 export function Applications() {
   const { data: applications, isLoading, error } = useApplications();
