@@ -45,7 +45,7 @@ export const blocksToDisplayTime = (blocks: number | undefined): string => {
       roundingMethod: "ceil",
     });
     const roundedWeeks = Math.round(weeks / WEEKS_PRECISION) * WEEKS_PRECISION;
-    return `${roundedWeeks} weeks`;
+    return `~${roundedWeeks} weeks`;
   }
 
   // Hybrid day formatting under 30 days:

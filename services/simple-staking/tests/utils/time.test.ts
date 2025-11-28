@@ -55,49 +55,49 @@ describe("blocksToDisplayTime", () => {
     expect(blocksToDisplayTime(4176)).toContain("day");
   });
 
-  it("should convert 4320 blocks to 5 weeks", () => {
-    // 4320 blocks = 30 days = exactly at threshold, should be rounded to 5 weeks
-    expect(blocksToDisplayTime(4320)).toBe("5 weeks");
+  it("should convert 4320 blocks to ~5 weeks", () => {
+    // 4320 blocks = 30 days = exactly at threshold, should be rounded to ~5 weeks
+    expect(blocksToDisplayTime(4320)).toBe("~5 weeks");
   });
 
   it("should convert blocks at 30 days threshold to weeks", () => {
     // 4320 blocks = 30 days = threshold
-    expect(blocksToDisplayTime(4320)).toBe("5 weeks");
+    expect(blocksToDisplayTime(4320)).toBe("~5 weeks");
   });
 
   it("should convert blocks slightly over 30 days to weeks", () => {
-    // 4321 blocks = 30 days + 10 minutes, should round to 5 weeks
-    expect(blocksToDisplayTime(4321)).toBe("5 weeks");
+    // 4321 blocks = 30 days + 10 minutes, should round to ~5 weeks
+    expect(blocksToDisplayTime(4321)).toBe("~5 weeks");
   });
 
-  it("should convert 30000 blocks to 30 weeks", () => {
-    expect(blocksToDisplayTime(30000)).toBe("30 weeks");
+  it("should convert 30000 blocks to ~30 weeks", () => {
+    expect(blocksToDisplayTime(30000)).toBe("~30 weeks");
   });
 
-  it("should convert 63000 blocks to 65 weeks", () => {
-    expect(blocksToDisplayTime(63000)).toBe("65 weeks");
+  it("should convert 63000 blocks to ~65 weeks", () => {
+    expect(blocksToDisplayTime(63000)).toBe("~65 weeks");
   });
 
   it("should round weeks to nearest 5 weeks", () => {
-    // 21600 blocks = 150 days = ~21.4 weeks, should round to 20 weeks
-    expect(blocksToDisplayTime(21600)).toBe("20 weeks");
+    // 21600 blocks = 150 days = ~21.4 weeks, should round to ~20 weeks
+    expect(blocksToDisplayTime(21600)).toBe("~20 weeks");
   });
 
   it("should round weeks up to nearest 5 weeks when above midpoint", () => {
-    // 25200 blocks = 175 days = ~25 weeks, should round to 25 weeks
-    expect(blocksToDisplayTime(25200)).toBe("25 weeks");
+    // 25200 blocks = 175 days = ~25 weeks, should round to ~25 weeks
+    expect(blocksToDisplayTime(25200)).toBe("~25 weeks");
   });
 
   it("should round weeks to nearest 5 weeks for values between 5-week intervals", () => {
     // 33000 blocks = 5500 hours = ~229 days
     // With mocked start date 2024-01-01, differenceInWeeks with ceil = 33 weeks
-    // Math.round(33 / 5) * 5 = 35 weeks
-    expect(blocksToDisplayTime(33000)).toBe("35 weeks");
+    // Math.round(33 / 5) * 5 = ~35 weeks
+    expect(blocksToDisplayTime(33000)).toBe("~35 weeks");
   });
 
   it("should handle large block values", () => {
-    // 100000 blocks = ~694 days = ~99 weeks, should round to 100 weeks
-    expect(blocksToDisplayTime(100000)).toBe("100 weeks");
+    // 100000 blocks = ~694 days = ~99 weeks, should round to ~100 weeks
+    expect(blocksToDisplayTime(100000)).toBe("~100 weeks");
   });
 });
 
