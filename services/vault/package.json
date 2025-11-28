@@ -25,6 +25,7 @@
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "buffer": "6.0.3",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
     "bitcoinjs-lib": "6.1.7",
