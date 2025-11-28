@@ -8,9 +8,8 @@
 import { gql } from "graphql-request";
 import type { Address, Hex } from "viem";
 
-import type { Vault } from "../../clients/eth-contract";
 import { graphqlClient } from "../../clients/graphql/client";
-import { ContractStatus } from "../../models/peginStateMachine";
+import { type Vault, VaultStatus } from "../../types/vault";
 
 /**
  * Common vault fields fragment
@@ -117,54 +116,41 @@ interface VaultGraphQLResponse {
 }
 
 /**
- * Vault with usage status
+ * Map GraphQL status string to VaultStatus enum
  */
-export interface VaultWithUsageStatus {
-  vault: Vault;
-  txHash: Hex;
-  isInUse: boolean;
-}
-
-/**
- * Map GraphQL status string to contract status number
- */
-function mapGraphQLStatusToContract(status: GraphQLVaultStatus): number {
+function mapGraphQLStatusToVaultStatus(
+  status: GraphQLVaultStatus,
+): VaultStatus {
   switch (status) {
     case "pending":
-      return ContractStatus.PENDING;
+      return VaultStatus.PENDING;
     case "verified":
-      return ContractStatus.VERIFIED;
+      return VaultStatus.VERIFIED;
     case "available":
-      return ContractStatus.ACTIVE;
+      return VaultStatus.ACTIVE;
     case "redeemed":
-      return ContractStatus.REDEEMED;
+      return VaultStatus.REDEEMED;
     case "invalid":
-      return ContractStatus.PENDING;
+      return VaultStatus.PENDING;
     default:
-      return ContractStatus.PENDING;
+      return VaultStatus.PENDING;
   }
 }
 
 /**
- * Transform GraphQL vault item to VaultWithUsageStatus
+ * Transform GraphQL vault item to Vault
  */
-function transformVaultItem(item: GraphQLVaultItem): VaultWithUsageStatus {
-  const vault: Vault = {
+function transformVaultItem(item: GraphQLVaultItem): Vault {
+  return {
+    id: item.id as Hex,
     depositor: item.depositor as Address,
     depositorBtcPubkey: item.depositorBtcPubKey as Hex,
     unsignedBtcTx: item.unsignedPegInTx as Hex,
     amount: BigInt(item.amount),
     vaultProvider: item.vaultProvider as Address,
-    status: mapGraphQLStatusToContract(item.status),
+    status: mapGraphQLStatusToVaultStatus(item.status),
     applicationController: item.applicationController as Address,
-  };
-
-  const isInUse = item.app?.status === "InUse";
-
-  return {
-    vault,
-    txHash: item.id as Hex,
-    isInUse,
+    isInUse: item.app?.status === "InUse",
   };
 }
 
@@ -172,11 +158,11 @@ function transformVaultItem(item: GraphQLVaultItem): VaultWithUsageStatus {
  * Fetch vaults by depositor address from GraphQL
  *
  * @param depositorAddress - Depositor's Ethereum address
- * @returns Array of vaults with usage status
+ * @returns Array of vaults
  */
 export async function fetchVaultsByDepositor(
   depositorAddress: Address,
-): Promise<VaultWithUsageStatus[]> {
+): Promise<Vault[]> {
   const data = await graphqlClient.request<VaultsGraphQLResponse>(
     GET_VAULTS_BY_DEPOSITOR,
     { depositor: depositorAddress.toLowerCase() },
@@ -189,11 +175,9 @@ export async function fetchVaultsByDepositor(
  * Fetch a single vault by ID from GraphQL
  *
  * @param vaultId - Vault ID (pegin tx hash)
- * @returns Vault with usage status, or null if not found
+ * @returns Vault, or null if not found
  */
-export async function fetchVaultById(
-  vaultId: Hex,
-): Promise<VaultWithUsageStatus | null> {
+export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
   const data = await graphqlClient.request<VaultGraphQLResponse>(
     GET_VAULT_BY_ID,
     { id: vaultId.toLowerCase() },

@@ -209,24 +209,27 @@ export function useDepositFlow(
         btcPopSignatureRaw,
       );
 
-      // Store pending pegin in localStorage
+      // Store pending pegin in localStorage for immediate UI feedback
       const btcTxid = "0x" + result.btcTxid;
       const ethTxHash = result.transactionHash;
 
-      const pendingPeginData = {
-        id: btcTxid,
-        depositAmount: amount.toString(),
-        btcAddress,
-        ethAddress: depositorEthAddress,
-        contractStatus: 0,
-        localStatus: LocalStorageStatus.PENDING,
-        ethTxHash,
-        timestamp: Date.now(),
-        vaultProviderBtcPubkey: processedVaultProviderKey,
-        selectedProviders,
-      };
+      // Format amount for display (satoshis to BTC string)
+      const amountBtc = depositService.formatSatoshisToBtc(amount);
 
-      addPendingPegin(depositorEthAddress, pendingPeginData);
+      addPendingPegin(depositorEthAddress, {
+        id: btcTxid,
+        amount: amountBtc,
+        providerIds: selectedProviders,
+        status: LocalStorageStatus.PENDING,
+        btcTxHash: ethTxHash, // Store ETH tx hash for tracking
+        unsignedTxHex: result.btcTxHex,
+        selectedUTXOs: result.selectedUTXOs.map((utxo) => ({
+          txid: utxo.txid,
+          vout: utxo.vout,
+          value: utxo.value.toString(),
+          scriptPubKey: utxo.scriptPubKey,
+        })),
+      });
 
       // Step 4: Complete
       setCurrentStep(3);

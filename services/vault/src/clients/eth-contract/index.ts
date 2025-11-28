@@ -11,7 +11,6 @@ export type { MarketParams } from "./morpho-controller/transaction";
 
 // BTC Vaults Manager
 export * as BTCVaultsManagerTx from "./btc-vaults-manager/transaction";
-export type { Vault } from "./btc-vaults-manager/types";
 
 // Morpho (using direct contract calls)
 export * as Morpho from "./morpho";

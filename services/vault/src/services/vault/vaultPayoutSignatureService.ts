@@ -94,11 +94,11 @@ export async function signAndSubmitPayoutSignatures(
   // Fetch vault data from GraphQL
   const vault = await fetchVaultById(peginTxId as Hex);
 
-  if (!vault || !vault.vault.unsignedBtcTx) {
+  if (!vault?.unsignedBtcTx) {
     throw new Error("Vault or pegin transaction not found");
   }
 
-  const peginTxHex = vault.vault.unsignedBtcTx;
+  const peginTxHex = vault.unsignedBtcTx;
 
   // Fetch vault provider's BTC public key (if not provided)
   let vaultProviderBtcPubkey: string;

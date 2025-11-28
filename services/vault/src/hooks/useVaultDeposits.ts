@@ -16,7 +16,7 @@ import {
 } from "../models/peginStateMachine";
 import { getPendingPegins } from "../storage/peginStorage";
 import { usePeginStorage } from "../storage/usePeginStorage";
-import { transformVaultToActivity } from "../utils/peginTransformers";
+import { transformVaultToActivity } from "../utils/vaultTransformers";
 
 import { useVaults } from "./useVaults";
 
@@ -59,9 +59,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   const confirmedActivities = useMemo(() => {
     if (!data) return [];
 
-    return data.map(({ vault, txHash, isInUse }) =>
-      transformVaultToActivity(vault, txHash, isInUse),
-    );
+    return data.map(transformVaultToActivity);
   }, [data]);
 
   // Check if any activity has "Processing" status and update fast polling flag

@@ -109,7 +109,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error("Vault not found. Please try again.");
       }
 
-      const unsignedTxHex = vault.vault.unsignedBtcTx;
+      const unsignedTxHex = vault.unsignedBtcTx;
 
       if (!unsignedTxHex) {
         throw new Error(
@@ -127,7 +127,7 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Get depositor's BTC public key (needed for Taproot signing)
       // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(vault.vault.depositorBtcPubkey);
+      const depositorBtcPubkey = stripHexPrefix(vault.depositorBtcPubkey);
       if (!depositorBtcPubkey) {
         throw new Error(
           "Depositor BTC public key not found. Please try creating the peg-in request again.",

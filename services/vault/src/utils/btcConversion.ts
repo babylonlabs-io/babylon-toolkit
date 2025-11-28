@@ -6,6 +6,12 @@
  */
 
 /**
+ * Satoshis per Bitcoin constant
+ * 1 BTC = 100,000,000 satoshis
+ */
+export const SATOSHIS_PER_BTC = 100_000_000n;
+
+/**
  * Convert satoshis (bigint) to BTC display string
  * Only use this function when displaying to users
  *
@@ -69,7 +75,6 @@ export function formatSatoshisToBtc(
   satoshis: bigint,
   decimals: number = 8,
 ): string {
-  const SATOSHIS_PER_BTC = 100_000_000n;
   const whole = satoshis / SATOSHIS_PER_BTC;
   const fraction = satoshis % SATOSHIS_PER_BTC;
 

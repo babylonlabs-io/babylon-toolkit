@@ -6,7 +6,7 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useVaults } from "../../../../hooks/useVaults";
-import { ContractStatus } from "../../../../models/peginStateMachine";
+import { VaultStatus } from "../../../../types/vault";
 
 export interface BorrowableVault {
   txHash: string;
@@ -30,14 +30,10 @@ export function useVaultsForBorrowing(
     if (!data) return [];
 
     return data
-      .filter(
-        (vaultWithStatus) =>
-          vaultWithStatus.vault.status === ContractStatus.ACTIVE &&
-          !vaultWithStatus.isInUse,
-      )
-      .map((vaultWithStatus) => ({
-        txHash: vaultWithStatus.txHash,
-        amountSatoshis: vaultWithStatus.vault.amount,
+      .filter((vault) => vault.status === VaultStatus.ACTIVE && !vault.isInUse)
+      .map((vault) => ({
+        txHash: vault.id,
+        amountSatoshis: vault.amount,
       }));
   }, [data]);
 

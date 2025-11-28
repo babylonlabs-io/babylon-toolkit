@@ -9,9 +9,6 @@ import { fetchVaultsByDepositor } from "../services/vault/fetchVaults";
 
 export const VAULTS_QUERY_KEY = "vaults";
 
-// Re-export the type for convenience
-export type { VaultWithUsageStatus } from "../services/vault/fetchVaults";
-
 /**
  * Hook to fetch vaults for a depositor
  *
