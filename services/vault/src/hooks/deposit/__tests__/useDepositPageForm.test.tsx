@@ -3,6 +3,50 @@ import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Mock env before importing modules that use it
+vi.mock("@/config/env", () => ({
+  ENV: {
+    BTC_VAULTS_MANAGER: "0x1234567890123456789012345678901234567890",
+    MORPHO_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    BTC_VAULT: "0x1234567890123456789012345678901234567890",
+    MORPHO: "0x1234567890123456789012345678901234567890",
+    GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
+  },
+}));
+
+// Mock babylon-config to avoid env var requirements
+vi.mock("@babylonlabs-io/config", () => ({
+  getNetworkConfigETH: vi.fn(() => ({
+    chainId: 11155111,
+    name: "sepolia",
+  })),
+  getNetworkConfigBTC: vi.fn(() => ({
+    network: "signet",
+    mempoolApiUrl: "https://mempool.space/signet/api",
+  })),
+  getETHChain: vi.fn(() => ({
+    id: 11155111,
+    name: "Sepolia",
+  })),
+}));
+
+// Mock eth-contract client to avoid viem initialization
+vi.mock("@/clients/eth-contract", () => ({
+  ethClient: {
+    readContract: vi.fn(),
+    getTransactionReceipt: vi.fn(),
+  },
+  BTCVaultsManagerQuery: {
+    getPeginRequest: vi.fn(),
+  },
+  BTCVaultsManagerTx: {
+    submitPeginRequest: vi.fn(),
+  },
+  MorphoControllerTx: {
+    redeemBTCVault: vi.fn(),
+  },
+}));
+
 import { useDepositPageForm } from "../useDepositPageForm";
 
 vi.mock("../../../context/wallet", () => ({
@@ -11,13 +55,13 @@ vi.mock("../../../context/wallet", () => ({
   })),
 }));
 
-vi.mock("../../../hooks/useBTCPrice", () => ({
+vi.mock("../../useBTCPrice", () => ({
   useBTCPrice: vi.fn(() => ({
     btcPriceUSD: 95000.5,
   })),
 }));
 
-vi.mock("../../../hooks/useUTXOs", () => ({
+vi.mock("../../useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
     confirmedUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
@@ -34,7 +78,7 @@ vi.mock("../../../hooks/useUTXOs", () => ({
   }),
 }));
 
-vi.mock("../../../hooks/api/useApplications", () => ({
+vi.mock("../../useApplications", () => ({
   useApplications: vi.fn(() => ({
     data: [
       {

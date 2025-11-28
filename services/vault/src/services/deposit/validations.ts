@@ -148,7 +148,9 @@ export function validateProviderSelection(
   }
 
   // Check if selected providers are valid (case-insensitive comparison for Ethereum addresses)
-  const availableProvidersLower = availableProviders.map((p) => p.toLowerCase());
+  const availableProvidersLower = availableProviders.map((p) =>
+    p.toLowerCase(),
+  );
   const invalidProviders = selectedProviders.filter(
     (p) => !availableProvidersLower.includes(p.toLowerCase()),
   );

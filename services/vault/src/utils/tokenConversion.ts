@@ -2,6 +2,8 @@
  * Token conversion utilities for handling ERC20 tokens with decimals
  */
 
+import { formatUnits } from "viem";
+
 /**
  * USDC decimals constant (USDC uses 6 decimals)
  */
@@ -9,6 +11,8 @@ export const USDC_DECIMALS = 6;
 
 /**
  * Format token amount from smallest unit to human-readable string
+ * Uses viem's formatUnits to avoid precision loss with large bigint values.
+ *
  * @param amount - Amount in smallest unit (wei equivalent)
  * @param decimals - Number of decimals for the token (default: 18 for standard ERC20)
  * @param displayDecimals - Number of decimal places to show (default: 2)
@@ -19,11 +23,12 @@ export function formatTokenAmount(
   decimals: number = 18,
   displayDecimals: number = 2,
 ): string {
-  const divisor = 10 ** decimals;
-  const tokenAmount = Number(amount) / divisor;
+  // Use viem's formatUnits for precise bigint conversion
+  const formatted = formatUnits(amount, decimals);
 
-  // Format with specified decimal places, removing trailing zeros
-  return tokenAmount.toFixed(displayDecimals).replace(/\.?0+$/, "") || "0";
+  // Parse and format with specified decimal places, removing trailing zeros
+  const num = parseFloat(formatted);
+  return num.toFixed(displayDecimals).replace(/\.?0+$/, "") || "0";
 }
 
 /**

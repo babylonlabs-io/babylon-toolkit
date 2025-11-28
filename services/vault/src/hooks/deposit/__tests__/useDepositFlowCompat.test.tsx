@@ -60,6 +60,10 @@ vi.mock("@/services/deposit", () => ({
       btcNetworkFee: 1000n,
       protocolFee: 500n,
     })),
+    formatSatoshisToBtc: vi.fn((amount: bigint) => {
+      const btc = Number(amount) / 100_000_000;
+      return btc.toString();
+    }),
   },
 }));
 
