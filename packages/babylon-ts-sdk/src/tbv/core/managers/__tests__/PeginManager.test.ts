@@ -62,8 +62,9 @@ const TEST_UTXOS: UTXO[] = [
 const TEST_CONTRACT_ADDRESS =
   "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as Address;
 
+// Valid testnet P2TR address (Bech32m) for change output
 const TEST_CHANGE_ADDRESS =
-  "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks";
+  "tb1plqg44wluw66vpkfccz23rdmtlepnx2m3yef57yyz66flgxdf4h8q7wu6pf";
 
 describe("PeginManager", () => {
   // Initialize WASM before running tests
@@ -117,7 +118,6 @@ describe("PeginManager", () => {
     it("should prepare a peg-in transaction with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKey: TEST_KEYS.DEPOSITOR,
-        address: TEST_CHANGE_ADDRESS,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -551,4 +551,6 @@ describe("PeginManager", () => {
     });
   });
 });
+
+
 
