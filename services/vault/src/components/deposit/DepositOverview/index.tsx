@@ -88,10 +88,12 @@ export function DepositOverview() {
       ),
     },
     {
-      key: "vaultProvider",
-      header: "Vault(s)",
+      key: "appName",
+      header: "Application",
       render: (_value: unknown, row: Deposit) => (
-        <CopyableAddressCell address={row.vaultProvider.address} />
+        <span className="text-sm text-accent-primary">
+          {row.appName || "Unknown"}
+        </span>
       ),
     },
     {

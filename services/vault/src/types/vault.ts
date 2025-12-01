@@ -76,4 +76,6 @@ export interface Deposit {
   };
   pegInTxHash: string;
   status: PeginDisplayLabel;
+  /** Application name (e.g., "Morpho") */
+  appName?: string;
 }

@@ -12,6 +12,7 @@ import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProv
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
+import { getApplicationMetadata } from "../../../registry/applications";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { Deposit } from "../../../types/vault";
@@ -84,15 +85,21 @@ export function useDepositOverviewState() {
 
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
-    return allActivities.map((activity: VaultActivity) => ({
-      id: activity.id,
-      amount: parseFloat(activity.collateral.amount),
-      vaultProvider: {
-        address: activity.providers[0]?.id || "",
-      },
-      pegInTxHash: activity.txHash || activity.id,
-      status: activity.displayLabel,
-    }));
+    return allActivities.map((activity: VaultActivity) => {
+      const appMetadata = activity.applicationController
+        ? getApplicationMetadata(activity.applicationController)
+        : undefined;
+      return {
+        id: activity.id,
+        amount: parseFloat(activity.collateral.amount),
+        vaultProvider: {
+          address: activity.providers[0]?.id || "",
+        },
+        pegInTxHash: activity.txHash || activity.id,
+        status: activity.displayLabel,
+        appName: appMetadata?.name,
+      };
+    });
   }, [allActivities]);
 
   return {

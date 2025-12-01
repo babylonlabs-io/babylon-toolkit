@@ -56,9 +56,11 @@ export function DepositMobileCard({
           value: <CopyableAddressCell address={deposit.pegInTxHash} />,
         },
         {
-          label: "Vault",
+          label: "Application",
           value: (
-            <CopyableAddressCell address={deposit.vaultProvider.address} />
+            <span className="text-sm text-accent-primary">
+              {deposit.appName || "Unknown"}
+            </span>
           ),
         },
         {

@@ -20,9 +20,11 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import {
   getNextLocalStatus,
+  LocalStorageStatus,
   PeginAction,
 } from "../../../models/peginStateMachine";
 import { signAndSubmitPayoutSignatures } from "../../../services/vault/vaultPayoutSignatureService";
@@ -69,6 +71,9 @@ export function PayoutSignModal({
     activity.applicationController,
   );
   const btcConnector = useChainConnector("BTC");
+
+  // Get optimistic update from polling context
+  const { setOptimisticStatus } = usePeginPolling();
 
   const handleSign = useCallback(async () => {
     if (!transactions || transactions.length === 0) {
@@ -121,6 +126,9 @@ export function PayoutSignModal({
           activity.txHash,
           nextStatus,
         );
+
+        // Optimistically update UI immediately (before refetch completes)
+        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
       }
 
       // Success - refetch and close
@@ -139,6 +147,7 @@ export function PayoutSignModal({
     transactions,
     activity.providers,
     activity.txHash,
+    activity.id,
     findProvider,
     liquidators,
     btcConnector?.connectedWallet?.provider,
@@ -146,6 +155,7 @@ export function PayoutSignModal({
     onSuccess,
     onClose,
     depositorEthAddress,
+    setOptimisticStatus,
   ]);
 
   return (
