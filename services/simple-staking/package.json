@@ -36,7 +36,7 @@
     "@cosmjs/proto-signing": "0.36.0",
     "@cosmjs/stargate": "0.36.0",
     "@cosmjs/tendermint-rpc": "0.36.0",
-    "@reown/appkit": "1.8.12",
+    "@reown/appkit": "1.8.14",
     "@sentry/react": "8.33.0",
     "@tanstack/react-query": "5.28.14",
     "@uidotdev/usehooks": "2.4.1",
