@@ -17,6 +17,11 @@ import { fetchProviders } from "../../services/providers";
 import type { Liquidator, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 
+/** Provider data rarely changes, cache for 5 minutes */
+const PROVIDER_STALE_TIME_MS = 5 * 60 * 1000;
+/** Keep provider data in cache for 10 minutes */
+const PROVIDER_GC_TIME_MS = 10 * 60 * 1000;
+
 export interface UseAllDepositProvidersResult {
   /** All vault providers across all applications */
   vaultProviders: VaultProvider[];
@@ -55,9 +60,8 @@ export function useAllDepositProviders(
     queries: applicationControllers.map((appController) => ({
       queryKey: ["providers", appController],
       queryFn: () => fetchProviders(appController),
-      // Provider data rarely changes
-      staleTime: 5 * 60 * 1000,
-      gcTime: 10 * 60 * 1000,
+      staleTime: PROVIDER_STALE_TIME_MS,
+      gcTime: PROVIDER_GC_TIME_MS,
       refetchOnMount: false,
       refetchOnWindowFocus: false,
     })),

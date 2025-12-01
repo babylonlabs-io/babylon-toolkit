@@ -8,13 +8,10 @@
 import { StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
-import {
-  getPrimaryActionButton,
-  PeginAction,
-} from "../../../models/peginStateMachine";
+import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 
-import { CopyableAddressCell } from "./DepositTableCells";
+import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
 
 interface DepositMobileCardProps {
   deposit: Deposit;
@@ -33,14 +30,7 @@ export function DepositMobileCard({
 
   const { peginState, transactions } = pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
-
-  // Determine actions based on state machine
-  const actions =
-    actionButton?.action === PeginAction.SIGN_PAYOUT_TRANSACTIONS
-      ? [{ name: "Sign", action: "sign" }]
-      : actionButton?.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN
-        ? [{ name: "Sign & Broadcast", action: "broadcast" }]
-        : undefined;
+  const actions = getCardActions(actionButton);
 
   return (
     <VaultDetailCard

@@ -23,6 +23,15 @@ import {
   groupDepositsByProvider,
 } from "../../utils/peginPolling";
 
+/** Timeout for RPC requests to vault provider (30 seconds) */
+const RPC_TIMEOUT_MS = 30 * 1000;
+/** Interval between polling attempts (30 seconds) */
+const POLLING_INTERVAL_MS = 30 * 1000;
+/** Number of retry attempts on failure */
+const POLLING_RETRY_COUNT = 3;
+/** Delay between retry attempts (5 seconds) */
+const POLLING_RETRY_DELAY_MS = 5 * 1000;
+
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
   pendingPegins: PendingPeginRequest[];
@@ -50,7 +59,7 @@ async function fetchFromProvider(
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(providerUrl, 30000);
+  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
   for (const deposit of deposits) {
     try {
@@ -162,10 +171,10 @@ export function usePeginPollingQuery({
         });
         if (allReady) return false;
       }
-      return 30000; // Poll every 30 seconds
+      return POLLING_INTERVAL_MS;
     },
-    retry: 3,
-    retryDelay: 5000,
+    retry: POLLING_RETRY_COUNT,
+    retryDelay: POLLING_RETRY_DELAY_MS,
   });
 
   // Trigger immediate fetch when query becomes enabled

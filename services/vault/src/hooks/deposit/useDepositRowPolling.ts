@@ -73,6 +73,7 @@ export function useDepositRowPolling(
 
   const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
   const localStatus = pendingPegin?.status as LocalStorageStatus | undefined;
+  // Note: Currently only single vault provider per deposit is supported
   const vaultProviderAddress = activity.providers[0]?.id as Hex | undefined;
 
   // Determine if should poll for payout transactions

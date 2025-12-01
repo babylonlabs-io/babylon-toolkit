@@ -85,6 +85,7 @@ export function PayoutSignModal({
     setError(null);
 
     try {
+      // Note: Currently only single vault provider per deposit is supported
       const vaultProviderAddress = activity.providers[0]?.id as Hex;
       const provider = findProvider(vaultProviderAddress);
 

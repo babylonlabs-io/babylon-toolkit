@@ -44,6 +44,7 @@ export function getDepositsNeedingPolling(
       const localStatus = pendingPegin?.status as
         | LocalStorageStatus
         | undefined;
+      // Note: Currently only single vault provider per deposit is supported
       const vaultProviderAddress = activity.providers[0]?.id as Hex | undefined;
 
       // Check if this deposit should be polled

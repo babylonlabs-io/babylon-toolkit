@@ -16,6 +16,35 @@ import {
 import { truncateAddress } from "../../../utils/addressUtils";
 
 /**
+ * Card action format for VaultDetailCard component
+ */
+export interface CardAction {
+  name: string;
+  action: string;
+}
+
+/** Return type of getPrimaryActionButton */
+type ActionButton = ReturnType<typeof getPrimaryActionButton>;
+
+/**
+ * Convert PeginAction to card actions format for VaultDetailCard
+ */
+export function getCardActions(
+  actionButton: ActionButton,
+): CardAction[] | undefined {
+  if (!actionButton) return undefined;
+
+  switch (actionButton.action) {
+    case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
+      return [{ name: "Sign", action: "sign" }];
+    case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
+      return [{ name: "Sign & Broadcast", action: "broadcast" }];
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Status cell using centralized polling context
  *
  * Uses displayVariant from the state machine directly instead of

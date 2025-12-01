@@ -60,6 +60,7 @@ export function Applications() {
             )}
 
             {/* For Morpho (Lending type), navigate to first market if available */}
+            {/* Note: Currently assumes single market (vBTC/USDC). Update when multiple markets are supported. */}
             {app.type === "Lending" && markets.length > 0 ? (
               <Button
                 variant="outlined"
