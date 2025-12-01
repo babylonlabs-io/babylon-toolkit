@@ -92,9 +92,6 @@ export function useDepositOverviewState() {
       return {
         id: activity.id,
         amount: parseFloat(activity.collateral.amount),
-        vaultProvider: {
-          address: activity.providers[0]?.id || "",
-        },
         pegInTxHash: activity.txHash || activity.id,
         status: activity.displayLabel,
         appName: appMetadata?.name,
