@@ -73,6 +73,7 @@ export function useDepositRowPolling(
 
   const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
   const localStatus = pendingPegin?.status as LocalStorageStatus | undefined;
+  // Note: Currently only single vault provider per deposit is supported
   const vaultProviderAddress = activity.providers[0]?.id as Hex | undefined;
 
   // Determine if should poll for payout transactions
@@ -95,11 +96,12 @@ export function useDepositRowPolling(
 
   // Poll vault provider RPC for claim/payout transactions
   const { transactions, loading, error, isReady } = usePendingPeginTxPolling(
-    shouldPoll
+    shouldPoll && activity.applicationController
       ? {
           peginTxId: activity.txHash!,
           vaultProviderAddress: vaultProviderAddress!,
           depositorBtcPubkey: btcPublicKey!,
+          applicationController: activity.applicationController,
         }
       : null,
   );

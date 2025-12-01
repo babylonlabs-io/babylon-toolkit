@@ -66,14 +66,13 @@ export interface VaultData {
 }
 
 /**
- * Deposit - simplified deposit representation
+ * Deposit - simplified deposit representation for display
  */
 export interface Deposit {
   id: string;
   amount: number;
-  vaultProvider: {
-    address: string;
-  };
   pegInTxHash: string;
   status: PeginDisplayLabel;
+  /** Application name (e.g., "Morpho") */
+  appName?: string;
 }

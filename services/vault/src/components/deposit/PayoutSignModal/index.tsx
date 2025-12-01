@@ -20,9 +20,11 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import {
   getNextLocalStatus,
+  LocalStorageStatus,
   PeginAction,
 } from "../../../models/peginStateMachine";
 import { signAndSubmitPayoutSignatures } from "../../../services/vault/vaultPayoutSignatureService";
@@ -64,8 +66,14 @@ export function PayoutSignModal({
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { findProvider, liquidators } = useVaultProviders();
+  // Use applicationController from activity to fetch the correct providers
+  const { findProvider, liquidators } = useVaultProviders(
+    activity.applicationController,
+  );
   const btcConnector = useChainConnector("BTC");
+
+  // Get optimistic update from polling context
+  const { setOptimisticStatus } = usePeginPolling();
 
   const handleSign = useCallback(async () => {
     if (!transactions || transactions.length === 0) {
@@ -77,6 +85,7 @@ export function PayoutSignModal({
     setError(null);
 
     try {
+      // Note: Currently only single vault provider per deposit is supported
       const vaultProviderAddress = activity.providers[0]?.id as Hex;
       const provider = findProvider(vaultProviderAddress);
 
@@ -118,6 +127,9 @@ export function PayoutSignModal({
           activity.txHash,
           nextStatus,
         );
+
+        // Optimistically update UI immediately (before refetch completes)
+        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
       }
 
       // Success - refetch and close
@@ -136,6 +148,7 @@ export function PayoutSignModal({
     transactions,
     activity.providers,
     activity.txHash,
+    activity.id,
     findProvider,
     liquidators,
     btcConnector?.connectedWallet?.provider,
@@ -143,6 +156,7 @@ export function PayoutSignModal({
     onSuccess,
     onClose,
     depositorEthAddress,
+    setOptimisticStatus,
   ]);
 
   return (

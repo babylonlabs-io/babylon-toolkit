@@ -23,6 +23,7 @@ export interface UseDepositPageFlowResult {
   // Deposit state
   depositStep: DepositStep | undefined;
   depositAmount: bigint;
+  selectedApplication: string;
   selectedProviders: string[];
 
   // Wallet data
@@ -34,7 +35,11 @@ export interface UseDepositPageFlowResult {
   liquidatorBtcPubkeys: string[];
 
   // Actions
-  startDeposit: (amountSats: bigint, providers: string[]) => void;
+  startDeposit: (
+    amountSats: bigint,
+    application: string,
+    providers: string[],
+  ) => void;
   confirmReview: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
@@ -48,22 +53,25 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   const { address: ethAddressRaw } = useETHWallet();
   const ethAddress = ethAddressRaw as Address | undefined;
 
-  // Fetch vault providers and liquidators
-  const { vaultProviders, liquidators } = useVaultProviders();
-
-  // Get activities refetch function
-  const { refetchActivities } = useVaultDeposits(ethAddress);
-
   // Deposit flow state from context
   const {
     step: depositStep,
     amount: depositAmount,
+    selectedApplication,
     selectedProviders,
     goToStep,
     setDepositData,
     setTransactionHashes,
     reset: resetDeposit,
   } = useDepositState();
+
+  // Fetch vault providers and liquidators based on selected application
+  const { vaultProviders, liquidators } = useVaultProviders(
+    selectedApplication || undefined,
+  );
+
+  // Get activities refetch function
+  const { refetchActivities } = useVaultDeposits(ethAddress);
 
   // Get selected provider's BTC public key and liquidators
   const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
@@ -86,8 +94,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   }, [selectedProviders, vaultProviders, liquidators]);
 
   // Actions
-  const startDeposit = (amountSats: bigint, providers: string[]) => {
-    setDepositData(amountSats, providers);
+  const startDeposit = (
+    amountSats: bigint,
+    application: string,
+    providers: string[],
+  ) => {
+    setDepositData(amountSats, application, providers);
     goToStep(DepositStep.REVIEW);
   };
 
@@ -103,6 +115,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   return {
     depositStep,
     depositAmount,
+    selectedApplication,
     selectedProviders,
     btcWalletProvider,
     ethAddress,

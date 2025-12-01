@@ -25,6 +25,8 @@ export interface PendingPeginTx {
   vaultProviderAddress: Hex;
   /** Depositor's BTC public key (32-byte x-only, no 0x prefix) */
   depositorBtcPubkey: string;
+  /** Application controller address for fetching providers */
+  applicationController: string;
 }
 
 export interface UsePendingPeginTxPollingResult {
@@ -61,12 +63,12 @@ export interface UsePendingPeginTxPollingResult {
 export function usePendingPeginTxPolling(
   params: PendingPeginTx | null,
 ): UsePendingPeginTxPollingResult {
-  // Step 1: Get cached vault providers (fetched once globally)
+  // Step 1: Get cached vault providers for the specific application
   const {
     findProvider,
     loading: providersLoading,
     error: providersError,
-  } = useVaultProviders();
+  } = useVaultProviders(params?.applicationController);
 
   // Step 2: Find the specific provider URL from cached data
   const providerUrl = useMemo(() => {

@@ -48,15 +48,20 @@ export interface UseSignPeginTransactionsResult {
  * 2. Delegates business logic to peginPayoutSignatureService
  * 3. Manages state updates based on success/failure
  *
+ * @param applicationController - Application controller address for fetching providers
  * @returns Hook result with signPayoutsAndSubmit function and state
  */
-export function useSignPeginTransactions(): UseSignPeginTransactionsResult {
+export function useSignPeginTransactions(
+  applicationController?: string,
+): UseSignPeginTransactionsResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Get cached vault providers and liquidators
-  const { findProvider, liquidators } = useVaultProviders();
+  // Get cached vault providers and liquidators for the specific application
+  const { findProvider, liquidators } = useVaultProviders(
+    applicationController,
+  );
 
   const signPayoutsAndSubmit = useCallback(
     async (params: SignPeginTransactionsParams) => {

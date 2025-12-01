@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
@@ -55,6 +55,15 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
   const { btcPriceUSD } = useBTCPrice();
 
+  const [formData, setFormDataInternal] = useState<DepositPageFormData>({
+    amountBtc: "",
+    selectedApplication: "",
+    selectedProvider: "",
+  });
+
+  // Track previous application to detect changes
+  const prevApplicationRef = useRef<string>("");
+
   const { data: applicationsData, isLoading: isLoadingApplications } =
     useApplications();
   const applications = useMemo(() => {
@@ -66,8 +75,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }));
   }, [applicationsData]);
 
+  // Fetch providers based on selected application
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
-    useVaultProviders();
+    useVaultProviders(formData.selectedApplication || undefined);
   const providers = useMemo(() => {
     return rawProviders.map((p: { id: string; btcPubKey: string }) => ({
       id: p.id,
@@ -75,6 +85,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       btcPubkey: p.btcPubKey || "",
     }));
   }, [rawProviders]);
+
+  // Reset provider selection when application changes
+  useEffect(() => {
+    const currentApp = formData.selectedApplication;
+    const prevApp = prevApplicationRef.current;
+
+    // Only reset if application actually changed (not on initial mount)
+    if (prevApp && currentApp !== prevApp) {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        selectedProvider: "",
+      }));
+    }
+
+    prevApplicationRef.current = currentApp;
+  }, [formData.selectedApplication]);
 
   const providerIds = useMemo(
     () => providers.map((p: { id: string }) => p.id),
@@ -91,12 +117,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     if (!btcBalance) return 0;
     return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
   }, [btcBalance]);
-
-  const [formData, setFormDataInternal] = useState<DepositPageFormData>({
-    amountBtc: "",
-    selectedApplication: "",
-    selectedProvider: "",
-  });
 
   const [errors, setErrors] = useState<{
     amount?: string;
@@ -176,8 +196,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const hasApplication = formData.selectedApplication !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
-    return hasAmount && hasApplication && hasProvider && noErrors;
-  }, [formData, errors]);
+    const meetsMinimum = amountSats >= validation.minDeposit;
+    return (
+      hasAmount && hasApplication && hasProvider && noErrors && meetsMinimum
+    );
+  }, [formData, errors, amountSats, validation.minDeposit]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
