@@ -18,10 +18,10 @@
   "private": true,
   "pnpm": {
     "overrides": {
-      "axios": ">=1.12.0",
       "@walletconnect/logger": "3.0.0",
       "js-yaml": ">=4.1.1",
-      "bitcoinjs-lib": "6.1.7"
+      "bitcoinjs-lib": "6.1.7",
+      "@sats-connect/core>axios": "1.12.2"
     }
   },
   "devDependencies": {
