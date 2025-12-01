@@ -2,7 +2,7 @@
  * Hook to fetch and cache vault providers and liquidators
  *
  * This hook fetches vault providers and liquidators from the GraphQL indexer.
- * The data is cached globally using React Query and shared across all components.
+ * The data is cached per application controller using React Query.
  *
  * Since provider data rarely changes, we use aggressive caching:
  * - Cache for 5 minutes (staleTime)
@@ -40,15 +40,21 @@ export interface UseVaultProvidersResult {
 /**
  * Hook to fetch vault providers and liquidators from the GraphQL indexer
  *
- * Data is cached globally and shared across all components.
- * Will only fetch once unless manually refetched.
+ * Data is cached per application controller and shared across all components.
+ * When applicationController changes, providers are re-fetched for the new application.
  *
+ * @param applicationController - The application controller address to filter by.
+ *                                If undefined or empty, the query is disabled.
  * @returns Hook result with vaultProviders, liquidators, loading, error states
  */
-export function useVaultProviders(): UseVaultProvidersResult {
+export function useVaultProviders(
+  applicationController?: string,
+): UseVaultProvidersResult {
   const { data, isLoading, error, refetch } = useQuery<ProvidersResponse>({
-    queryKey: ["providers"],
-    queryFn: () => fetchProviders(),
+    queryKey: ["providers", applicationController],
+    queryFn: () => fetchProviders(applicationController!),
+    // Only fetch when applicationController is provided
+    enabled: Boolean(applicationController),
     // Fetch once on mount
     refetchOnMount: false,
     // Don't refetch on window focus

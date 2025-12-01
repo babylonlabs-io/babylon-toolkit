@@ -1,7 +1,6 @@
 import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
-import { CONTRACTS } from "../../config/contracts";
 import { getVaultProviderMetadata } from "../../registry";
 import type {
   Liquidator,
@@ -55,11 +54,10 @@ const GET_PROVIDERS_AND_LIQUIDATORS = gql`
  * and liquidators (with their BTC public keys) in one request.
  *
  * @param applicationController - The application controller address to filter by.
- *                                Defaults to MORPHO_CONTROLLER from env config.
  * @returns Object containing vaultProviders and liquidators arrays
  */
 export async function fetchProviders(
-  applicationController: string = CONTRACTS.MORPHO_CONTROLLER,
+  applicationController: string,
 ): Promise<ProvidersResponse> {
   const response = await graphqlClient.request<GraphQLProvidersResponse>(
     GET_PROVIDERS_AND_LIQUIDATORS,
@@ -98,11 +96,10 @@ export async function fetchProviders(
  * Fetches only active vault providers and liquidators for a specific application.
  *
  * @param applicationController - The application controller address to filter by.
- *                                Defaults to MORPHO_CONTROLLER from env config.
  * @returns Object containing active vaultProviders and liquidators arrays
  */
 export async function fetchActiveProviders(
-  applicationController: string = CONTRACTS.MORPHO_CONTROLLER,
+  applicationController: string,
 ): Promise<ProvidersResponse> {
   const { vaultProviders, liquidators } = await fetchProviders(
     applicationController,

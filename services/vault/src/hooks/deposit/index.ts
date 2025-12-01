@@ -31,15 +31,12 @@ export type {
   UseVaultActionsReturn,
 } from "./useVaultActions";
 
-// Export from the new context-based state
+// Export from the context-based state
 export {
   DepositStep as DepositStateStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";
-
-// Keep the old hook result type for backwards compatibility
-export type { UseDepositStateResult } from "./useDepositState";
 
 // Compatibility layer for migration
 export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";

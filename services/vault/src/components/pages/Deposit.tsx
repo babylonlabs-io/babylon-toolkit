@@ -54,7 +54,9 @@ function DepositContent() {
 
   const handleDeposit = () => {
     if (validateForm()) {
-      startDeposit(amountSats, [formData.selectedProvider]);
+      startDeposit(amountSats, formData.selectedApplication, [
+        formData.selectedProvider,
+      ]);
     }
   };
 

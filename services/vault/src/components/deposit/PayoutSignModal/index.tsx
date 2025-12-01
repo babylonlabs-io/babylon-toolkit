@@ -64,7 +64,10 @@ export function PayoutSignModal({
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { findProvider, liquidators } = useVaultProviders();
+  // Use applicationController from activity to fetch the correct providers
+  const { findProvider, liquidators } = useVaultProviders(
+    activity.applicationController,
+  );
   const btcConnector = useChainConnector("BTC");
 
   const handleSign = useCallback(async () => {

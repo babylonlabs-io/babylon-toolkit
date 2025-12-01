@@ -19,7 +19,6 @@ export {
   type UseDepositFlowCompatParams,
   type UseDepositFlowCompatReturn,
   type UseDepositFlowResult,
-  type UseDepositStateResult,
   type UseDepositTransactionResult,
   type UseDepositValidationResult,
 } from "./hooks/deposit";

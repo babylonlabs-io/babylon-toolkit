@@ -1,10 +1,14 @@
 import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
+import { useNavigate } from "react-router";
 
 import { useApplications } from "../../hooks/useApplications";
+import { useMarkets } from "../../hooks/useMarkets";
 import { ApplicationLogo } from "../ApplicationLogo";
 
 export function Applications() {
+  const navigate = useNavigate();
   const { data: applications, isLoading, error } = useApplications();
+  const { markets } = useMarkets();
 
   const header = (
     <h3 className="text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -55,17 +59,29 @@ export function Applications() {
               </p>
             )}
 
-            {app.websiteUrl && (
-              <a
-                href={app.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+            {/* For Morpho (Lending type), navigate to first market if available */}
+            {app.type === "Lending" && markets.length > 0 ? (
+              <Button
+                variant="outlined"
+                rounded
                 className="self-start"
+                onClick={() => navigate(`/market/${markets[0].id}`)}
               >
-                <Button variant="outlined" rounded>
-                  Explore
-                </Button>
-              </a>
+                Explore
+              </Button>
+            ) : (
+              app.websiteUrl && (
+                <a
+                  href={app.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="self-start"
+                >
+                  <Button variant="outlined" rounded>
+                    Explore
+                  </Button>
+                </a>
+              )
             )}
           </SubSection>
         ))}

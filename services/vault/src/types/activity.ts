@@ -91,6 +91,9 @@ export interface VaultActivity {
 
   /** Timestamp (for sorting/ordering) - milliseconds since epoch */
   timestamp?: number;
+
+  /** Application controller address (for fetching providers/liquidators) */
+  applicationController?: string;
 }
 
 /**

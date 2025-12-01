@@ -60,6 +60,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
         id: vault.vaultProvider,
       },
     ],
+    applicationController: vault.applicationController,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No Morpho position details in deposit tab

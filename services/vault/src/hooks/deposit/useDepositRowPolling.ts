@@ -95,11 +95,12 @@ export function useDepositRowPolling(
 
   // Poll vault provider RPC for claim/payout transactions
   const { transactions, loading, error, isReady } = usePendingPeginTxPolling(
-    shouldPoll
+    shouldPoll && activity.applicationController
       ? {
           peginTxId: activity.txHash!,
           vaultProviderAddress: vaultProviderAddress!,
           depositorBtcPubkey: btcPublicKey!,
+          applicationController: activity.applicationController,
         }
       : null,
   );
