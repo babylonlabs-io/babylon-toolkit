@@ -59,7 +59,9 @@ export function useSignPeginTransactions(
   const [success, setSuccess] = useState(false);
 
   // Get cached vault providers and liquidators for the specific application
-  const { findProvider, liquidators } = useVaultProviders(applicationController);
+  const { findProvider, liquidators } = useVaultProviders(
+    applicationController,
+  );
 
   const signPayoutsAndSubmit = useCallback(
     async (params: SignPeginTransactionsParams) => {

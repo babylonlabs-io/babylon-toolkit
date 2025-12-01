@@ -197,7 +197,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
     const meetsMinimum = amountSats >= validation.minDeposit;
-    return hasAmount && hasApplication && hasProvider && noErrors && meetsMinimum;
+    return (
+      hasAmount && hasApplication && hasProvider && noErrors && meetsMinimum
+    );
   }, [formData, errors, amountSats, validation.minDeposit]);
 
   const resetForm = useCallback(() => {
