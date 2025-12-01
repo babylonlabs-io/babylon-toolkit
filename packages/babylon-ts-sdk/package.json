@@ -85,7 +85,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
     "typescript": "^5.8.3",
-    "vite": "^6.4.1",
+    "vite": "^7.2.6",
     "vite-plugin-dts": "^4.3.0",
     "vitest": "^4.0.8"
   },
