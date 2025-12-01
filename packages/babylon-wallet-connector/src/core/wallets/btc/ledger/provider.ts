@@ -3,7 +3,7 @@ import TransportWebHID from "@ledgerhq/hw-transport-webhid";
 import TransportWebUSB from "@ledgerhq/hw-transport-webusb";
 import { Transaction } from "@scure/btc-signer";
 import { Buffer } from "buffer";
-import AppClient, { DefaultWalletPolicy, signMessage, signPsbt } from "@tomo-inc/ledger-bitcoin-babylon";
+import AppClient, { DefaultWalletPolicy, getBbnVersion, signMessage, signPsbt } from "ledger-bitcoin-babylon-boilerplate";
 
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
@@ -22,14 +22,48 @@ type LedgerWalletInfo = {
   publicKeyHex: string | undefined;
 };
 
+/**
+ * Derivation configuration for Ledger wallet
+ * - purpose 84: Native SegWit (wpkh) addresses - BIP84
+ * - purpose 86: Taproot (tr) addresses - BIP86
+ */
+interface DerivationConfig {
+  purpose: 84 | 86;
+  addressIndex: number;
+}
+
 export const WALLET_PROVIDER_NAME = "Ledger";
 
 export class LedgerProvider implements IBTCProvider {
   private ledgerWalletInfo: LedgerWalletInfo | undefined;
   private config: BTCConfig;
+  private derivationConfig: DerivationConfig;
 
   constructor(_wallet: any, config: BTCConfig) {
     this.config = config;
+    this.derivationConfig = {
+      purpose: 84,
+      addressIndex: 0,
+    };
+  }
+
+  /**
+   * Set the derivation configuration for address generation
+   * @param config - Partial derivation config to merge with current settings
+   */
+  setDerivationConfig(config: Partial<DerivationConfig>): void {
+    this.derivationConfig = {
+      ...this.derivationConfig,
+      ...config,
+    };
+  }
+
+  /**
+   * Get the current derivation configuration
+   * @returns A copy of the current derivation config
+   */
+  getDerivationConfig(): DerivationConfig {
+    return { ...this.derivationConfig };
   }
 
   // Create a transport instance for Ledger devices
@@ -57,7 +91,7 @@ export class LedgerProvider implements IBTCProvider {
 
   private getDerivationPath(): string {
     const networkDerivationIndex = this.getNetworkDerivationIndex();
-    return `m/86'/${networkDerivationIndex}'/0'`;
+    return `m/${this.derivationConfig.purpose}'/${networkDerivationIndex}'/0'`;
   }
 
   // Create a new AppClient instance using the transport
@@ -71,15 +105,30 @@ export class LedgerProvider implements IBTCProvider {
     if (!extendedPubKey) {
       throw new Error("Could not retrieve the extended public key for policy");
     }
+
     const networkDerivationIndex = this.getNetworkDerivationIndex();
-    const policy = new DefaultWalletPolicy("tr(@0/**)", `[${fpr}/86'/${networkDerivationIndex}'/0']${extendedPubKey}`);
+    const purpose = this.derivationConfig.purpose;
+
+    // Select policy template based on purpose
+    // purpose 86: Taproot (tr)
+    // purpose 84: Native SegWit (wpkh)
+    let policyTemplate: string;
+    if (purpose === 86) {
+      policyTemplate = "tr(@0/**)";
+    } else {
+      policyTemplate = "wpkh(@0/**)";
+    }
+
+    const policyDescriptor = `[${fpr}/${purpose}'/${networkDerivationIndex}'/0']${extendedPubKey}`;
+    const policy = new DefaultWalletPolicy(policyTemplate as any, policyDescriptor);
+
     if (!policy) {
       throw new Error("Could not create the wallet policy");
     }
     return policy;
   }
 
-  private async getTaprootAccount(
+  private async getLedgerAccount(
     app: AppClient,
     policy: DefaultWalletPolicy,
     extendedPublicKey: string,
@@ -88,12 +137,16 @@ export class LedgerProvider implements IBTCProvider {
       policy,
       null,
       0, // 0 - normal, 1 - change
-      0, // address index
+      this.derivationConfig.addressIndex,
       true, // show address on the wallet's screen
     );
 
     const currentNetwork = await this.getNetwork();
-    const publicKeyBuffer = getPublicKeyFromXpub(extendedPublicKey, "M/0/0", toNetwork(currentNetwork));
+    const publicKeyBuffer = getPublicKeyFromXpub(
+      extendedPublicKey,
+      `M/0/${this.derivationConfig.addressIndex}`,
+      toNetwork(currentNetwork),
+    );
 
     return { address, publicKeyHex: publicKeyBuffer.toString("hex") };
   }
@@ -101,30 +154,33 @@ export class LedgerProvider implements IBTCProvider {
   connectWallet = async (): Promise<void> => {
     const app = await this.createAppClient();
 
+    // Detect firmware version - v2 required
+    const firmwareVersion = await getBbnVersion(app.transport);
+
+    if (firmwareVersion < 2) {
+      throw new Error(`Ledger firmware version too low. Required: v2 or higher, Found: v${firmwareVersion}`);
+    }
+
     // Get the master key fingerprint
     const fpr = await app.getMasterFingerprint();
 
-    const taprootPath = this.getDerivationPath();
+    const derivationPathLv3 = this.getDerivationPath();
 
-    // Get and display on the screen the first taproot address
-    const firstTaprootAccountExtendedPubkey = await app.getExtendedPubkey(taprootPath);
+    // Get the extended public key for the derivation path
+    const extendedPubkey = await app.getExtendedPubkey(derivationPathLv3);
 
-    const firstTaprootAccountPolicy = await this.getWalletPolicy(app, fpr, taprootPath);
+    const accountPolicy = await this.getWalletPolicy(app, fpr, derivationPathLv3);
 
-    if (!firstTaprootAccountPolicy) throw new Error("Could not retrieve the policy");
+    if (!accountPolicy) throw new Error("Could not retrieve the policy");
 
-    const { address, publicKeyHex } = await this.getTaprootAccount(
-      app,
-      firstTaprootAccountPolicy,
-      firstTaprootAccountExtendedPubkey,
-    );
+    const { address, publicKeyHex } = await this.getLedgerAccount(app, accountPolicy, extendedPubkey);
 
     this.ledgerWalletInfo = {
       app,
-      policy: firstTaprootAccountPolicy,
+      policy: accountPolicy,
       mfp: fpr,
-      extendedPublicKey: firstTaprootAccountExtendedPubkey,
-      path: taprootPath,
+      extendedPublicKey: extendedPubkey,
+      path: derivationPathLv3,
       address,
       publicKeyHex,
     };
@@ -163,22 +219,17 @@ export class LedgerProvider implements IBTCProvider {
     }
 
     // Get the appropriate policy based on transaction type
-    const policy = await getPolicyForTransaction(
-      transport,
-      this.config.network,
-      this.ledgerWalletInfo.path,
-      psbtBase64,
-      {
-        contracts: options.contracts,
-        action: options.action,
-      },
-    );
+    const policy = await getPolicyForTransaction(transport, this.ledgerWalletInfo.path, {
+      contracts: options.contracts,
+      action: options.action,
+    });
 
     const deviceTransaction = await signPsbt({
       transport,
       psbt: psbtBase64,
       policy,
     });
+
     const tx = Transaction.fromPSBT(deviceTransaction.toPSBT(), {
       allowUnknownInputs: true,
       allowUnknownOutputs: true,
@@ -220,18 +271,17 @@ export class LedgerProvider implements IBTCProvider {
     return this.config.network;
   };
 
-  signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> => {
+  signMessage = async (message: string): Promise<string> => {
     if (!this.ledgerWalletInfo?.app.transport || !this.ledgerWalletInfo?.path) {
       throw new Error("Ledger is not connected");
     }
-    const isTestnet = this.config.network !== Network.MAINNET;
+
+    const fullDerivationPath = `${this.ledgerWalletInfo.path}/0/${this.derivationConfig.addressIndex}`;
 
     const signedMessage = await signMessage({
       transport: this.ledgerWalletInfo?.app.transport,
       message,
-      type,
-      isTestnet,
-      derivationPath: this.ledgerWalletInfo.path,
+      derivationPath: fullDerivationPath,
     });
 
     return signedMessage.signature;
