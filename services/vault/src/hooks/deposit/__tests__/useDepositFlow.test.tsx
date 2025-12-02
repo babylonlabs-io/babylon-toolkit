@@ -1,12 +1,12 @@
 /**
- * Tests for useDepositFlowCompat hook - focusing on chain switching logic
+ * Tests for useDepositFlow hook - focusing on chain switching logic
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDepositFlow } from "../useDepositFlowCompat";
+import { useDepositFlow } from "../useDepositFlow";
 
 // Mock config/contracts to avoid env var validation
 vi.mock("@/config/contracts", () => ({
@@ -85,6 +85,12 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
+}));
+
+vi.mock("@/context/deposit/DepositState", () => ({
+  useDepositState: vi.fn(() => ({
+    selectedApplication: "0xMorphoController123",
+  })),
 }));
 
 vi.mock("@/utils/btc", () => ({

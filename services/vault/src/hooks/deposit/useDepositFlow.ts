@@ -1,255 +1,276 @@
 /**
- * Main deposit flow orchestration hook
+ * Deposit flow orchestration hook
  *
- * This hook manages the complete deposit flow from form submission
- * to transaction completion. All business logic for deposits lives here.
+ * This hook manages the complete deposit flow from proof of possession
+ * to transaction submission.
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
-import type { Hex } from "viem";
+import { getETHChain } from "@babylonlabs-io/config";
+import {
+  getSharedWagmiConfig,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
+import { useCallback, useState } from "react";
+import type { Address } from "viem";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
-import { depositService, type DepositFormData } from "../../services/deposit";
-import { formatErrorMessage } from "../../utils/errors";
+import { useDepositState } from "@/context/deposit/DepositState";
+import { useUTXOs } from "@/hooks/useUTXOs";
+import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { depositService } from "@/services/deposit";
+import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
+import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
+import { addPendingPegin } from "@/storage/peginStorage";
+import { processPublicKeyToXOnly } from "@/utils/btc";
 
-import { useDepositTransaction } from "./useDepositTransaction";
-import { useDepositValidation } from "./useDepositValidation";
-
-export type DepositStep =
-  | "idle"
-  | "form"
-  | "validating"
-  | "signing"
-  | "submitting"
-  | "confirming"
-  | "complete"
-  | "error";
-
-export interface DepositFlowState {
-  step: DepositStep;
-  formData: DepositFormData | null;
-  transactionData: any | null;
-  error: string | null;
-  warnings: string[];
+/**
+ * BTC wallet provider interface
+ */
+interface BtcWalletProvider {
+  signMessage: (
+    message: string,
+    type: "ecdsa" | "bip322-simple",
+  ) => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
 }
 
-export interface UseDepositFlowResult {
-  // State
-  state: DepositFlowState;
-  isProcessing: boolean;
-  canSubmit: boolean;
+export interface UseDepositFlowParams {
+  amount: bigint;
+  btcWalletProvider: BtcWalletProvider;
+  depositorEthAddress: Address | undefined;
+  selectedProviders: string[];
+  vaultProviderBtcPubkey: string;
+  liquidatorBtcPubkeys: string[];
+  modalOpen: boolean;
+  onSuccess: (
+    btcTxid: string,
+    ethTxHash: string,
+    depositorBtcPubkey: string,
+    transactionData?: {
+      unsignedTxHex: string;
+      selectedUTXOs: Array<{
+        txid: string;
+        vout: number;
+        value: number;
+        scriptPubKey: string;
+      }>;
+      fee: bigint;
+    },
+  ) => void;
+}
 
-  // Actions
-  startDeposit: () => void;
-  submitDeposit: (data: DepositFormData) => Promise<void>;
-  cancelDeposit: () => void;
-  reset: () => void;
-
-  // Computed values
-  estimatedFees: ReturnType<typeof depositService.calculateDepositFees> | null;
-  progress: number;
+export interface UseDepositFlowReturn {
+  executeDepositFlow: () => Promise<void>;
+  currentStep: number;
+  processing: boolean;
+  error: string | null;
 }
 
 /**
- * Hook to orchestrate the complete deposit flow
+ * Hook to orchestrate deposit flow execution - Compatible with old API
  *
- * @param btcAddress - User's Bitcoin address
- * @param ethAddress - User's Ethereum address
- * @returns Deposit flow state and actions
+ * This is a bridge between old and new architecture.
+ * It maintains the old API while using new services internally.
+ *
+ * @param params - Deposit parameters (old format)
+ * @returns Execution function and state (old format)
  */
 export function useDepositFlow(
-  btcAddress: string | undefined,
-  ethAddress: Hex | undefined,
-): UseDepositFlowResult {
-  const queryClient = useQueryClient();
+  params: UseDepositFlowParams,
+): UseDepositFlowReturn {
+  const {
+    amount,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+    onSuccess,
+  } = params;
 
-  // Flow state management
-  const [state, setState] = useState<DepositFlowState>({
-    step: "idle",
-    formData: null,
-    transactionData: null,
-    error: null,
-    warnings: [],
-  });
+  // Get selectedApplication from context instead of props
+  const { selectedApplication } = useDepositState();
 
-  // Use validation hook
-  const validation = useDepositValidation(btcAddress);
+  // State management
+  const [currentStep, setCurrentStep] = useState(1);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Use transaction hook
-  const transaction = useDepositTransaction();
+  // Get BTC address from wallet
+  const btcConnector = useChainConnector("BTC");
+  const btcAddress = btcConnector?.connectedWallet?.account?.address;
 
-  // Step transitions
-  const setStep = useCallback((step: DepositStep) => {
-    setState((prev) => ({ ...prev, step }));
-  }, []);
+  // Fetch UTXOs
+  const {
+    confirmedUTXOs,
+    isLoading: isUTXOsLoading,
+    error: utxoError,
+  } = useUTXOs(btcAddress);
 
-  const setError = useCallback((error: string | null) => {
-    setState((prev) => ({
-      ...prev,
-      error,
-      step: error ? "error" : prev.step,
-    }));
-  }, []);
+  const executeDepositFlow = useCallback(async () => {
+    try {
+      setProcessing(true);
+      setError(null);
 
-  // Start deposit flow
-  const startDeposit = useCallback(() => {
-    setState({
-      step: "form",
-      formData: null,
-      transactionData: null,
-      error: null,
-      warnings: [],
-    });
-  }, []);
-
-  // Cancel deposit flow
-  const cancelDeposit = useCallback(() => {
-    setState({
-      step: "idle",
-      formData: null,
-      transactionData: null,
-      error: null,
-      warnings: [],
-    });
-  }, []);
-
-  // Reset entire flow
-  const reset = useCallback(() => {
-    setState({
-      step: "idle",
-      formData: null,
-      transactionData: null,
-      error: null,
-      warnings: [],
-    });
-    transaction.reset();
-  }, [transaction]);
-
-  // Submit deposit mutation
-  const submitMutation = useMutation({
-    mutationFn: async (data: DepositFormData) => {
-      if (!btcAddress || !ethAddress) {
-        throw new Error("Wallet not connected");
+      // Step 1: Validation using new service layer
+      if (!btcAddress) {
+        throw new Error("BTC wallet not connected");
+      }
+      if (!depositorEthAddress) {
+        throw new Error("ETH wallet not connected");
       }
 
-      // Step 1: Validate
-      setStep("validating");
-      const validationResult = await validation.validateDeposit(data);
-
-      if (!validationResult.valid) {
-        throw new Error(validationResult.error);
+      // Use new validation service
+      const amountValidation = depositService.validateDepositAmount(
+        amount,
+        10000n, // MIN_DEPOSIT
+        21000000_00000000n, // MAX_DEPOSIT
+      );
+      if (!amountValidation.valid) {
+        throw new Error(amountValidation.error);
       }
 
-      if (validationResult.warnings?.length) {
-        setState((prev) => ({
-          ...prev,
-          warnings: validationResult.warnings || [],
-        }));
+      if (selectedProviders.length === 0) {
+        throw new Error("No providers selected");
       }
 
-      // Step 2: Create and sign transaction
-      setStep("signing");
-      const txResult = await transaction.createDepositTransaction({
-        ...data,
-        ethAddress,
+      if (isUTXOsLoading) {
+        throw new Error("Loading UTXOs...");
+      }
+      if (utxoError) {
+        throw new Error(`Failed to load UTXOs: ${utxoError}`);
+      }
+      if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+        throw new Error("No confirmed UTXOs available");
+      }
+
+      // Step 2: Create proof of possession
+      setCurrentStep(1);
+
+      const btcPopSignatureRaw = await createProofOfPossession({
+        ethAddress: depositorEthAddress,
+        btcAddress,
+        chainId: getETHChain().id,
+        signMessage: (message: string) =>
+          btcWalletProvider.signMessage(message, "ecdsa"),
       });
 
-      if (!txResult.success) {
-        throw new Error(txResult.error);
+      // Step 3: Create transaction and submit
+      setCurrentStep(2);
+
+      // Get depositor's BTC public key
+      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+
+      // Process keys
+      const processedVaultProviderKey = vaultProviderBtcPubkey.startsWith("0x")
+        ? vaultProviderBtcPubkey.slice(2)
+        : vaultProviderBtcPubkey;
+
+      const processedLiquidatorKeys = liquidatorBtcPubkeys.map((key) =>
+        key.startsWith("0x") ? key.slice(2) : key,
+      );
+
+      // Get wallet client for ETH transactions
+      const wagmiConfig = getSharedWagmiConfig();
+      const expectedChainId = getETHChain().id;
+
+      // Switch to the correct chain if needed
+      try {
+        await switchChain(wagmiConfig, { chainId: expectedChainId });
+      } catch (switchError) {
+        console.error("Failed to switch chain:", switchError);
+        throw new Error(
+          `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
+        );
       }
 
-      // Step 3: Submit transaction
-      setStep("submitting");
-      const submitResult = await transaction.submitTransaction(txResult.data!);
+      const walletClient = await getWalletClient(wagmiConfig, {
+        chainId: expectedChainId,
+        account: depositorEthAddress,
+      });
 
-      if (!submitResult.success) {
-        throw new Error(submitResult.error);
+      if (!walletClient) {
+        throw new Error("Failed to get wallet client");
       }
 
-      // Step 4: Wait for confirmation
-      setStep("confirming");
-      setState((prev) => ({
-        ...prev,
-        transactionData: submitResult.data,
-      }));
+      // Use new service for fee calculation
+      const fees = depositService.calculateDepositFees(amount);
 
-      // Simulate confirmation (in real app, would poll for status)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Submit pegin request (using existing service)
+      const result = await submitPeginRequest(
+        walletClient,
+        getETHChain(),
+        depositorEthAddress,
+        depositorBtcPubkey,
+        amount,
+        confirmedUTXOs,
+        Number(fees.btcNetworkFee),
+        btcAddress,
+        selectedProviders[0] as Address,
+        processedVaultProviderKey,
+        processedLiquidatorKeys,
+        btcPopSignatureRaw,
+      );
 
-      return submitResult.data;
-    },
-    onSuccess: () => {
-      setStep("complete");
+      // Store pending pegin in localStorage for immediate UI feedback
+      const btcTxid = "0x" + result.btcTxid;
+      const ethTxHash = result.transactionHash;
 
-      // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ["deposits"] });
-      queryClient.invalidateQueries({ queryKey: ["utxos"] });
-      queryClient.invalidateQueries({ queryKey: ["balance"] });
-    },
-    onError: (error) => {
-      setError(formatErrorMessage(error));
-    },
-  });
+      // Format amount for display (satoshis to BTC string)
+      const amountBtc = depositService.formatSatoshisToBtc(amount);
 
-  // Submit deposit handler
-  const submitDeposit = useCallback(
-    async (data: DepositFormData) => {
-      setState((prev) => ({ ...prev, formData: data }));
-      await submitMutation.mutateAsync(data);
-    },
-    [submitMutation],
-  );
+      addPendingPegin(depositorEthAddress, {
+        id: btcTxid,
+        amount: amountBtc,
+        providerIds: selectedProviders,
+        applicationController: selectedApplication,
+        status: LocalStorageStatus.PENDING,
+        btcTxHash: ethTxHash, // Store ETH tx hash for tracking
+        unsignedTxHex: result.btcTxHex,
+        selectedUTXOs: result.selectedUTXOs.map((utxo) => ({
+          txid: utxo.txid,
+          vout: utxo.vout,
+          value: utxo.value.toString(),
+          scriptPubKey: utxo.scriptPubKey,
+        })),
+      });
 
-  // Calculate estimated fees
-  const estimatedFees = useMemo(() => {
-    if (!state.formData?.amount) return null;
+      // Step 4: Complete
+      setCurrentStep(3);
 
-    try {
-      const amount = depositService.parseBtcToSatoshis(state.formData.amount);
-      return depositService.calculateDepositFees(amount);
-    } catch {
-      return null;
+      // Call success callback
+      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey, {
+        unsignedTxHex: result.btcTxHex,
+        selectedUTXOs: result.selectedUTXOs,
+        fee: result.fee,
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      setError(errorMessage);
+      console.error("Deposit flow error:", err);
+    } finally {
+      setProcessing(false);
     }
-  }, [state.formData]);
-
-  // Calculate progress
-  const progress = useMemo(() => {
-    switch (state.step) {
-      case "idle":
-        return 0;
-      case "form":
-        return 10;
-      case "validating":
-        return 25;
-      case "signing":
-        return 40;
-      case "submitting":
-        return 60;
-      case "confirming":
-        return 80;
-      case "complete":
-        return 100;
-      case "error":
-        return 0;
-      default:
-        return 0;
-    }
-  }, [state.step]);
-
-  // Computed flags
-  const isProcessing = submitMutation.isPending;
-  const canSubmit =
-    state.step === "form" && !isProcessing && !!btcAddress && !!ethAddress;
+  }, [
+    amount,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+    onSuccess,
+    btcAddress,
+    confirmedUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    selectedApplication,
+  ]);
 
   return {
-    state,
-    isProcessing,
-    canSubmit,
-    startDeposit,
-    submitDeposit,
-    cancelDeposit,
-    reset,
-    estimatedFees,
-    progress,
+    executeDepositFlow,
+    currentStep,
+    processing,
+    error,
   };
 }

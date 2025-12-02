@@ -6,19 +6,14 @@ export {
   DepositStateStep,
   // Hooks
   useDepositFlow,
-  useDepositFlow as useDepositFlowCompat,
   useDepositState,
   useDepositTransaction,
   useDepositValidation,
   type CreateDepositTransactionParams,
   // Types
-  type DepositFlowState,
-  type DepositStateData,
-  type DepositStep,
   type TransactionResult,
-  type UseDepositFlowCompatParams,
-  type UseDepositFlowCompatReturn,
-  type UseDepositFlowResult,
+  type UseDepositFlowParams,
+  type UseDepositFlowReturn,
   type UseDepositTransactionResult,
   type UseDepositValidationResult,
 } from "./hooks/deposit";

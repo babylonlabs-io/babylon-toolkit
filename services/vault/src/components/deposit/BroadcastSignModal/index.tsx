@@ -119,6 +119,7 @@ export function BroadcastSignModal({
         activityId: activity.id,
         activityAmount: activity.collateral.amount,
         activityProviders: activity.providers,
+        activityApplicationController: activity.applicationController,
         connectedAddress: depositorEthAddress,
         pendingPegin,
         updatePendingPeginStatus,

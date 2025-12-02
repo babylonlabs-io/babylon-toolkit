@@ -40,6 +40,7 @@ export interface PendingPeginRequest {
   timestamp: number; // When the peg-in was initiated
   amount?: string; // Amount in BTC (formatted for display)
   providerIds?: string[]; // Vault provider's Ethereum addresses
+  applicationController?: string; // Application controller address (for identifying the app)
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
   btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
   // Fields for cross-device broadcasting support
