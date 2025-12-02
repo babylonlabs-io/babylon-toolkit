@@ -7,7 +7,6 @@ settings:
 overrides:
   '@walletconnect/logger': 3.0.0
   js-yaml: '>=4.1.1'
-  bitcoinjs-lib: 6.1.7
   '@sats-connect/core>axios': 1.12.2
 
 importers:
@@ -4081,7 +4080,7 @@ packages:
       '@ledgerhq/hw-transport': 6.31.10
       '@ledgerhq/hw-transport-webhid': 6.30.6
       '@ledgerhq/hw-transport-webusb': 6.29.10
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: 6.1.5
 
   '@tomo-inc/tomo-wallet-provider@1.1.19':
     resolution: {integrity: sha512-wkr6Bqel6O2XGHr+ujQH6C9sfFkKwLiMbf+YBJMZOMB2e1vqh/wF70QpZIhzlnScaSpj4W9U+IFiiRXkzl5IEA==}
@@ -4093,7 +4092,7 @@ packages:
       '@keystonehq/keystone-sdk': 0.9.0
       '@keystonehq/sdk': 0.22.1
       '@scure/bip32': ^1.4.0
-      bitcoinjs-lib: 6.1.7
+      bitcoinjs-lib: ^6.1.5
       react: ^18
       react-dom: ^18
 
