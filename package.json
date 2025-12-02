@@ -20,7 +20,8 @@
     "overrides": {
       "@walletconnect/logger": "3.0.0",
       "js-yaml": ">=4.1.1",
-      "@sats-connect/core>axios": "1.12.2"
+      "@sats-connect/core>axios": "1.12.2",
+      "valibot": "1.2.0"
     }
   },
   "devDependencies": {
