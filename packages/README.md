@@ -16,8 +16,7 @@ packages/
 │   └── dist/                           # Built artifacts (generated)
 ├── babylon-wallet-connector/           # Wallet integration
 ├── babylon-proto-ts/                   # Protocol definitions
-├── babylon-campaigns/                  # Campaign functionality
-└── babylon-bsn-registry/               # BSN registry utilities
+└── babylon-campaigns/                  # Campaign functionality
 ```
 
 ## Usage
