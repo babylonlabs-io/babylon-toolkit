@@ -88,19 +88,19 @@ interface GraphQLMarketItem {
 
 /** GraphQL response shape for markets query */
 interface GraphQLMarketsResponse {
-  markets: {
+  morphoMarkets: {
     items: GraphQLMarketItem[];
   };
 }
 
 /** GraphQL response shape for single market query */
 interface GraphQLMarketByIdResponse {
-  market: GraphQLMarketItem | null;
+  morphoMarket: GraphQLMarketItem | null;
 }
 
 const GET_MORPHO_MARKETS = gql`
   query GetMorphoMarkets {
-    markets {
+    morphoMarkets {
       items {
         id
         loanTokenAddress
@@ -130,7 +130,7 @@ const GET_MORPHO_MARKETS = gql`
 
 const GET_MORPHO_MARKET_BY_ID = gql`
   query GetMorphoMarketById($id: String!) {
-    market(id: $id) {
+    morphoMarket(id: $id) {
       id
       loanTokenAddress
       collateralTokenAddress
@@ -201,7 +201,9 @@ export async function fetchMorphoMarkets(): Promise<MorphoMarketsResponse> {
   const response =
     await graphqlClient.request<GraphQLMarketsResponse>(GET_MORPHO_MARKETS);
 
-  const markets = response.markets.items.map(mapGraphQLMarketToMorphoMarket);
+  const markets = response.morphoMarkets.items.map(
+    mapGraphQLMarketToMorphoMarket,
+  );
 
   return { markets };
 }
@@ -220,9 +222,9 @@ export async function fetchMorphoMarketById(
     { id: marketId },
   );
 
-  if (!response.market) {
+  if (!response.morphoMarket) {
     return null;
   }
 
-  return mapGraphQLMarketToMorphoMarket(response.market);
+  return mapGraphQLMarketToMorphoMarket(response.morphoMarket);
 }
