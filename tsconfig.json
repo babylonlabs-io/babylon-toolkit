@@ -16,9 +16,6 @@
       "path": "./packages/babylon-bsn-registry"
     },
     {
-      "path": "./packages/babylon-campaigns"
-    },
-    {
       "path": "./services/simple-staking/tsconfig.json"
     },
     {
