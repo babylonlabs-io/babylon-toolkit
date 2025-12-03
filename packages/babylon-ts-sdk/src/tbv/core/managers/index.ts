@@ -12,4 +12,6 @@ export type {
   CreatePeginParams,
   PeginManagerConfig,
   PeginResult,
+  RegisterPeginParams,
+  SignAndBroadcastParams,
 } from "./PeginManager";

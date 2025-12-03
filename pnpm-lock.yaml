@@ -106,13 +106,13 @@ importers:
       '@babylonlabs-io/wallet-connector':
         specifier: workspace:*
         version: link:../babylon-wallet-connector
-      viem:
-        specifier: 2.38.2
-        version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
     devDependencies:
       typescript:
         specifier: ^5.8.3
         version: 5.9.2
+      viem:
+        specifier: ^2.38.2
+        version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
 
   packages/babylon-core-ui:
     dependencies:
@@ -359,6 +359,9 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.2
+      viem:
+        specifier: ^2.38.2
+        version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
       vite:
         specifier: ^6.4.1
         version: 6.4.1(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.0)(tsx@4.20.3)(yaml@2.8.0)
@@ -456,7 +459,7 @@ importers:
         specifier: 11.1.0
         version: 11.1.0
       viem:
-        specifier: 2.38.2
+        specifier: ^2.38.2
         version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.12)
       wagmi:
         specifier: 2.18.1
@@ -715,7 +718,7 @@ importers:
         specifier: 11.1.0
         version: 11.1.0
       viem:
-        specifier: 2.38.2
+        specifier: ^2.38.2
         version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
       wagmi:
         specifier: 2.18.1
@@ -950,7 +953,7 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1(react@18.3.1)
       viem:
-        specifier: 2.38.2
+        specifier: ^2.38.2
         version: 2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
       wagmi:
         specifier: 2.18.1

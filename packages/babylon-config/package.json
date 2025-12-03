@@ -17,10 +17,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@babylonlabs-io/wallet-connector": "workspace:*",
-    "viem": "2.38.2"
+    "@babylonlabs-io/wallet-connector": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "viem": "^2.38.2"
   }
 }

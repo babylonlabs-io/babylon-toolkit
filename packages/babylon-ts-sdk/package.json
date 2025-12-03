@@ -78,6 +78,9 @@
     "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3"
   },
+  "peerDependencies": {
+    "viem": "^2.38.2"
+  },
   "devDependencies": {
     "@internal/eslint-config": "workspace:*",
     "@vitest/coverage-v8": "^4.0.8",
@@ -85,6 +88,7 @@
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
     "typescript": "^5.8.3",
+    "viem": "^2.38.2",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.3.0",
     "vitest": "^4.0.8"

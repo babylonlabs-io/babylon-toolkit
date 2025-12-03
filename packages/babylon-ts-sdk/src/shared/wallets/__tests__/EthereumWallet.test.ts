@@ -38,7 +38,7 @@ describe("EthereumWallet Interface", () => {
   describe("sendTransaction", () => {
     it("should sign and send a transaction", async () => {
       const tx = {
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as const,
+        to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as const,
         value: "1000000000000000000", // 1 ETH in wei
       };
 
@@ -61,7 +61,7 @@ describe("EthereumWallet Interface", () => {
 
     it("should handle transaction with data field", async () => {
       const tx = {
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as const,
+        to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as const,
         value: "0",
         data: "0x1234abcd",
       };
@@ -77,7 +77,7 @@ describe("EthereumWallet Interface", () => {
 
       await expect(
         failingWallet.sendTransaction({
-          to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         }),
       ).rejects.toThrow("Mock transaction failed");
     });
@@ -85,7 +85,7 @@ describe("EthereumWallet Interface", () => {
     it("should increment nonce with each transaction", async () => {
       const mockWallet = wallet as MockEthereumWallet;
       const tx = {
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0" as const,
+        to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as const,
       };
 
       expect(mockWallet.getCurrentNonce()).toBe(0);
@@ -116,7 +116,7 @@ describe("EthereumWallet Interface", () => {
         },
         primaryType: "Permit",
         message: {
-          owner: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+          owner: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
           spender: "0x1234567890123456789012345678901234567890",
           value: "1000000000000000000",
         },
@@ -303,7 +303,7 @@ describe("EthereumWallet Interface", () => {
   describe("MockEthereumWallet Configuration", () => {
     it("should allow custom configuration", () => {
       const customWallet = new MockEthereumWallet({
-        address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        address: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         chainId: 1,
         transactionDelay: 100,
       });
@@ -327,7 +327,7 @@ describe("EthereumWallet Interface", () => {
 
       mockWallet.updateConfig({ chainId: 1 });
       await mockWallet.sendTransaction({
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       });
 
       mockWallet.reset();
@@ -351,7 +351,7 @@ describe("EthereumWallet Interface", () => {
 
     it("should enforce Hash type format", async () => {
       const hash = await wallet.sendTransaction({
-        to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       });
 
       // TypeScript should enforce this at compile time

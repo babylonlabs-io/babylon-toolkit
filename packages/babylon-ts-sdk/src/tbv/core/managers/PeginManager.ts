@@ -7,16 +7,23 @@
  * @module managers/PeginManager
  */
 
+import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
+import { encodeFunctionData, type Hex } from "viem";
+
 import type {
   Address,
   EthereumWallet,
   Hash,
 } from "../../../shared/wallets/interfaces/EthereumWallet";
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
+import { getUtxoInfo, pushTx, MEMPOOL_API_URLS } from "../clients/mempool";
+import { BTCVaultsManagerABI } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
 import {
   fundPeginTransaction,
   getNetwork,
+  getPsbtInputFields,
   selectUtxosForPegin,
   type UTXO,
 } from "../utils";
@@ -49,6 +56,12 @@ export interface PeginManagerConfig {
      */
     btcVaultsManager: Address;
   };
+
+  /**
+   * Optional custom mempool API URL.
+   * Defaults to mempool.space for the configured network.
+   */
+  mempoolApiUrl?: string;
 }
 
 /**
@@ -128,9 +141,47 @@ export interface PeginResult {
 
   /**
    * Ethereum transaction hash (peg-in registration).
-   * Will be null until registerPeginOnChain is implemented.
+   * Will be null until registerPeginOnChain is called.
    */
   ethTxHash: Hash | null;
+}
+
+/**
+ * Parameters for signing and broadcasting a transaction.
+ */
+export interface SignAndBroadcastParams {
+  /**
+   * Funded transaction hex from preparePegin().
+   */
+  fundedTxHex: string;
+
+  /**
+   * Depositor's BTC public key (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix.
+   * Required for Taproot signing.
+   */
+  depositorBtcPubkey: string;
+}
+
+/**
+ * Parameters for registering a peg-in on Ethereum.
+ */
+export interface RegisterPeginParams {
+  /**
+   * Depositor's BTC public key (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix.
+   */
+  depositorBtcPubkey: string;
+
+  /**
+   * Funded but unsigned BTC transaction hex.
+   */
+  unsignedBtcTx: string;
+
+  /**
+   * Vault provider's Ethereum address.
+   */
+  vaultProvider: Address;
 }
 
 /**
@@ -139,45 +190,10 @@ export interface PeginResult {
  * This manager provides a high-level API for creating peg-in transactions
  * by coordinating between SDK primitives, utilities, and wallet interfaces.
  *
- * Current implementation covers:
- * - Building unfunded peg-in PSBT using primitives
- * - Selecting UTXOs for funding
- * - Funding the transaction with inputs and change output
- *
- * Future implementation will add:
- * - Signing with Bitcoin wallet
- * - Broadcasting to Bitcoin network
- * - Registering on Ethereum
- *
- * @example
- * ```typescript
- * import { PeginManager } from '@babylonlabs-io/ts-sdk/tbv/core';
- * import { UnisatWallet, WagmiWallet } from './wallet-adapters';
- *
- * const peginManager = new PeginManager({
- *   network: 'signet',
- *   btcWallet: new UnisatWallet(),
- *   ethWallet: new WagmiWallet(),
- *   vaultContracts: {
- *     btcVaultsManager: '0x...',
- *   },
- * });
- *
- * // Prepare a peg-in transaction (build + fund)
- * const result = await peginManager.preparePegin({
- *   amount: 90000n,
- *   vaultProvider: '0x...',
- *   vaultProviderBtcPubkey: 'abc123...',
- *   liquidatorBtcPubkeys: ['def456...'],
- *   availableUTXOs: [...],
- *   feeRate: 10,
- *   changeAddress: 'tb1p...',
- * });
- *
- * console.log('Funded TX:', result.fundedTxHex);
- * console.log('Selected UTXOs:', result.selectedUTXOs);
- * console.log('Fee:', result.fee);
- * ```
+ * The complete peg-in flow consists of:
+ * 1. preparePegin() - Build and fund the transaction
+ * 2. registerPeginOnChain() - Submit to Ethereum contract
+ * 3. signAndBroadcast() - Sign and broadcast to Bitcoin network
  */
 export class PeginManager {
   private readonly config: PeginManagerConfig;
@@ -201,24 +217,11 @@ export class PeginManager {
    * 4. Fund transaction by adding inputs and change output
    *
    * The returned transaction is funded but unsigned. Use `signAndBroadcast()`
-   * (when implemented) to complete the flow.
+   * to complete the Bitcoin side, and `registerPeginOnChain()` for Ethereum.
    *
    * @param params - Peg-in parameters including amount, provider, UTXOs, and fee rate
    * @returns Peg-in result with funded transaction and selection details
    * @throws Error if wallet operations fail or insufficient funds
-   *
-   * @example
-   * ```typescript
-   * const result = await peginManager.preparePegin({
-   *   amount: 90000n,
-   *   vaultProvider: '0x1234...',
-   *   vaultProviderBtcPubkey: 'abc123...',
-   *   liquidatorBtcPubkeys: ['def456...'],
-   *   availableUTXOs: utxos,
-   *   feeRate: 10,
-   *   changeAddress: 'tb1p...',
-   * });
-   * ```
    */
   async preparePegin(params: CreatePeginParams): Promise<PeginResult> {
     // Step 1: Get depositor BTC public key from wallet
@@ -259,72 +262,209 @@ export class PeginManager {
       selectedUTXOs: utxoSelection.selectedUTXOs,
       fee: utxoSelection.fee,
       changeAmount: utxoSelection.changeAmount,
-      ethTxHash: null, // Will be populated when registerPeginOnChain is implemented
+      ethTxHash: null,
     };
   }
 
   /**
-   * Signs and broadcasts a funded peg-in transaction.
+   * Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
    *
-   * This method will:
-   * 1. Convert funded transaction to PSBT format
-   * 2. Sign PSBT with Bitcoin wallet
-   * 3. Extract and broadcast signed transaction
+   * This method:
+   * 1. Parses the funded transaction hex
+   * 2. Fetches UTXO data from mempool for each input
+   * 3. Creates a PSBT with proper witnessUtxo/tapInternalKey
+   * 4. Signs via btcWallet.signPsbt()
+   * 5. Finalizes and extracts the transaction
+   * 6. Broadcasts via mempool API
    *
-   * @param fundedTxHex - Funded transaction hex from preparePegin()
-   * @returns Bitcoin transaction ID after broadcasting
-   * @throws Error - Not yet implemented
-   *
-   * @remarks
-   * This method is a placeholder for future implementation.
-   * Currently throws an error indicating it's not implemented.
+   * @param params - Transaction hex and depositor public key
+   * @returns The broadcasted Bitcoin transaction ID
+   * @throws Error if signing or broadcasting fails
    */
-  async signAndBroadcast(fundedTxHex: string): Promise<string> {
-    // TODO: Implement in future PR
-    // 1. Create PSBT from funded transaction
-    // 2. Add witness UTXO data for each input
-    // 3. Sign PSBT with Bitcoin wallet
-    // 4. Finalize and extract transaction
-    // 5. Broadcast to Bitcoin network via mempool API
-    throw new Error(
-      `signAndBroadcast not yet implemented. Received fundedTxHex length: ${fundedTxHex.length}`,
-    );
+  async signAndBroadcast(params: SignAndBroadcastParams): Promise<string> {
+    const { fundedTxHex, depositorBtcPubkey } = params;
+
+    // Step 1: Parse the funded transaction
+    const cleanHex = fundedTxHex.startsWith("0x")
+      ? fundedTxHex.slice(2)
+      : fundedTxHex;
+    const tx = Transaction.fromHex(cleanHex);
+
+    if (tx.ins.length === 0) {
+      throw new Error("Transaction has no inputs");
+    }
+
+    // Step 2: Create PSBT and add inputs with UTXO data from mempool
+    const psbt = new Psbt();
+    psbt.setVersion(tx.version);
+    psbt.setLocktime(tx.locktime);
+
+    // Strip 0x prefix if present before converting to Buffer
+    const cleanPubkey = depositorBtcPubkey.startsWith("0x")
+      ? depositorBtcPubkey.slice(2)
+      : depositorBtcPubkey;
+    // Validate x-only pubkey length and format (32 bytes = 64 hex chars)
+    if (cleanPubkey.length !== 64 || !/^[0-9a-fA-F]+$/.test(cleanPubkey)) {
+      throw new Error(
+        "Invalid depositorBtcPubkey: expected 64 hex characters (x-only pubkey)",
+      );
+    }
+    const publicKeyNoCoord = Buffer.from(cleanPubkey, "hex");
+    if (publicKeyNoCoord.length !== 32) {
+      throw new Error(
+        `Invalid depositorBtcPubkey length: expected 32 bytes, got ${publicKeyNoCoord.length}`,
+      );
+    }
+    const apiUrl = this.getMempoolApiUrl();
+
+    // Fetch all UTXO data in parallel for better performance
+    const utxoDataPromises = tx.ins.map((input) => {
+      const txid = Buffer.from(input.hash).reverse().toString("hex");
+      const vout = input.index;
+      return getUtxoInfo(txid, vout, apiUrl).then((utxoData) => ({
+        input,
+        utxoData,
+        txid,
+        vout,
+      }));
+    });
+
+    const inputsWithUtxoData = await Promise.all(utxoDataPromises);
+
+    // Add inputs with proper PSBT fields based on script type
+    for (const { input, utxoData, txid, vout } of inputsWithUtxoData) {
+      const psbtInputFields = getPsbtInputFields(
+        {
+          txid,
+          vout,
+          value: utxoData.value,
+          scriptPubKey: utxoData.scriptPubKey,
+        },
+        publicKeyNoCoord,
+      );
+
+      psbt.addInput({
+        hash: input.hash,
+        index: input.index,
+        sequence: input.sequence,
+        ...psbtInputFields,
+      });
+    }
+
+    // Step 3: Add outputs
+    for (const output of tx.outs) {
+      psbt.addOutput({
+        script: output.script,
+        value: output.value,
+      });
+    }
+
+    // Step 4: Sign PSBT via wallet
+    const signedPsbtHex = await this.config.btcWallet.signPsbt(psbt.toHex());
+    const signedPsbt = Psbt.fromHex(signedPsbtHex);
+
+    // Step 5: Finalize and extract transaction
+    try {
+      signedPsbt.finalizeAllInputs();
+    } catch {
+      // Some wallets finalize automatically, ignore errors
+    }
+
+    const signedTxHex = signedPsbt.extractTransaction().toHex();
+
+    // Step 6: Broadcast to Bitcoin network
+    const btcTxid = await pushTx(signedTxHex, apiUrl);
+
+    return btcTxid;
   }
 
   /**
    * Registers a peg-in on Ethereum by calling the BTCVaultsManager contract.
    *
-   * This method will:
-   * 1. Create proof of possession (BTC signature of ETH address)
-   * 2. Submit peg-in request to BTCVaultsManager contract
-   * 3. Wait for transaction confirmation
+   * This method:
+   * 1. Gets depositor ETH address from wallet
+   * 2. Creates proof of possession (BTC signature of ETH address)
+   * 3. Encodes the contract call using viem
+   * 4. Sends transaction via ethWallet.sendTransaction()
    *
-   * @param params - Registration parameters
+   * @param params - Registration parameters including BTC pubkey and unsigned tx
    * @returns Ethereum transaction hash
-   * @throws Error - Not yet implemented
-   *
-   * @remarks
-   * This method is a placeholder for future implementation.
-   * Currently throws an error indicating it's not implemented.
+   * @throws Error if signing or transaction fails
    */
-  async registerPeginOnChain(params: {
-    depositorBtcPubkey: string;
-    unsignedBtcTx: string;
-    vaultProvider: Address;
-  }): Promise<Hash> {
-    // TODO: Implement in future PR
-    // 1. Get depositor ETH address from wallet
-    // 2. Create proof of possession (BTC signs ETH address)
-    // 3. Call BTCVaultsManager.submitPeginRequest()
-    // 4. Wait for transaction confirmation
-    // 5. Return transaction hash
-    throw new Error(
-      `registerPeginOnChain not yet implemented. Params: ${JSON.stringify({
-        depositorBtcPubkey: params.depositorBtcPubkey.slice(0, 8) + "...",
-        unsignedBtcTxLength: params.unsignedBtcTx.length,
-        vaultProvider: params.vaultProvider,
-      })}`,
-    );
+  async registerPeginOnChain(params: RegisterPeginParams): Promise<Hash> {
+    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider } = params;
+
+    // Step 1: Get depositor ETH address
+    const depositorEthAddress = await this.config.ethWallet.getAddress();
+
+    // Step 2: Create proof of possession
+    // The depositor signs their ETH address with their BTC key
+    const popMessage = depositorEthAddress.toLowerCase();
+    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(popMessage);
+
+    // Convert PoP signature to hex format
+    // BTC wallets return base64, Ethereum contracts expect hex
+    let btcPopSignature: Hex;
+    if (btcPopSignatureRaw.startsWith("0x")) {
+      btcPopSignature = btcPopSignatureRaw as Hex;
+    } else {
+      const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
+      btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
+    }
+
+    // Step 3: Format parameters for contract call
+    // Ensure depositor BTC pubkey is 32 bytes (bytes32)
+    const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
+      ? (depositorBtcPubkey as Hex)
+      : (`0x${depositorBtcPubkey}` as Hex);
+
+    // Ensure unsigned tx has 0x prefix
+    const unsignedPegInTx = unsignedBtcTx.startsWith("0x")
+      ? (unsignedBtcTx as Hex)
+      : (`0x${unsignedBtcTx}` as Hex);
+
+    // Step 4: Encode the contract call
+    const callData = encodeFunctionData({
+      abi: BTCVaultsManagerABI,
+      functionName: "submitPeginRequest",
+      args: [
+        depositorEthAddress,
+        depositorBtcPubkeyHex,
+        btcPopSignature,
+        unsignedPegInTx,
+        vaultProvider,
+      ],
+    });
+
+    // Step 5: Send transaction via wallet interface
+    const txHash = await this.config.ethWallet.sendTransaction({
+      to: this.config.vaultContracts.btcVaultsManager,
+      data: callData,
+    });
+
+    return txHash;
+  }
+
+  /**
+   * Gets the mempool API URL for the configured network.
+   *
+   * @returns The mempool API URL
+   */
+  private getMempoolApiUrl(): string {
+    if (this.config.mempoolApiUrl) {
+      return this.config.mempoolApiUrl;
+    }
+
+    // Map SDK network to mempool network
+    const networkMap: Record<Network, keyof typeof MEMPOOL_API_URLS> = {
+      bitcoin: "mainnet",
+      testnet: "testnet",
+      signet: "signet",
+      regtest: "signet", // Use signet for regtest (no public regtest mempool)
+    };
+
+    const mempoolNetwork = networkMap[this.config.network] || "signet";
+    return MEMPOOL_API_URLS[mempoolNetwork];
   }
 
   /**
@@ -345,8 +485,3 @@ export class PeginManager {
     return this.config.vaultContracts.btcVaultsManager;
   }
 }
-
-
-
-
-
