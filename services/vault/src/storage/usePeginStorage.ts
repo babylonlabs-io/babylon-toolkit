@@ -142,6 +142,7 @@ export function usePeginStorage({
               },
             ]
           : [],
+        applicationController: pending.applicationController,
         contractStatus: ContractStatus.PENDING,
         displayLabel: getPeginState(ContractStatus.PENDING).displayLabel,
         isPending: true,
