@@ -2,7 +2,6 @@ import { OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types/src
 import { Buffer } from "buffer";
 
 import { BBNConfig, IBBNProvider, WalletInfo } from "@/core/types";
-import { compareVersions } from "@/core/utils/version";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -49,20 +48,6 @@ export class OKXBabylonProvider implements IBBNProvider {
         code: ERROR_CODES.EXTENSION_NOT_FOUND,
         message: "OKX Wallet extension not found",
         wallet: WALLET_PROVIDER_NAME,
-      });
-    }
-
-    // Version check - BABY Token
-    const compatibleVersion = "3.54.12";
-    const version = await this.wallet.getVersion();
-
-    // Check that version is higher than or equal to compatibleVersion
-    if (version && compareVersions(version, compatibleVersion) < 0) {
-      throw new WalletError({
-        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-        message: `OKX Wallet version ${version} is not compatible. Please update to version ${compatibleVersion} or higher.`,
-        wallet: WALLET_PROVIDER_NAME,
-        version: version,
       });
     }
 
