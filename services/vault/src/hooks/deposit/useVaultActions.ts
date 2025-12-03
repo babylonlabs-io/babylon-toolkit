@@ -25,6 +25,7 @@ export interface BroadcastPeginParams {
   activityId: string;
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
+  activityApplicationController?: string;
   connectedAddress: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
@@ -45,6 +46,7 @@ export interface SignPayoutParams {
   activityId: string;
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
+  activityApplicationController?: string;
   connectedAddress: string;
   updatePendingPeginStatus?: (
     peginId: string,
@@ -90,6 +92,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       activityId,
       activityAmount,
       activityProviders,
+      activityApplicationController,
       // connectedAddress,
       pendingPegin,
       updatePendingPeginStatus,
@@ -158,6 +161,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           id: activityId,
           amount: activityAmount,
           providerIds: activityProviders.map((p) => p.id),
+          applicationController: activityApplicationController,
           status: nextStatus,
           btcTxHash: txId,
         });
@@ -188,6 +192,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       activityId,
       activityAmount,
       activityProviders,
+      activityApplicationController,
       // connectedAddress,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -230,6 +235,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           id: activityId,
           amount: activityAmount,
           providerIds: activityProviders.map((p) => p.id),
+          applicationController: activityApplicationController,
           status: nextStatus,
         });
       }

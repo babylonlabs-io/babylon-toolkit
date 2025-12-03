@@ -87,6 +87,12 @@ vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
 }));
 
+vi.mock("@/context/deposit/DepositState", () => ({
+  useDepositState: vi.fn(() => ({
+    selectedApplication: "0xMorphoController123",
+  })),
+}));
+
 vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
 }));
