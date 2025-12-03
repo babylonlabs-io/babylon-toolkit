@@ -7,6 +7,10 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import {
+  useVaultRedeemState,
+  VaultRedeemStep,
+} from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
@@ -83,6 +87,43 @@ export function useDepositOverviewState() {
     setBroadcastSuccessOpen(false);
   }, []);
 
+  const {
+    step: redeemStep,
+    redeemDepositIds,
+    goToStep: goToRedeemStep,
+    setRedeemData,
+    reset: resetRedeem,
+  } = useVaultRedeemState();
+
+  const handleRedeemClick = useCallback(
+    (depositId: string) => {
+      setRedeemData([depositId]);
+      goToRedeemStep(VaultRedeemStep.FORM);
+    },
+    [setRedeemData, goToRedeemStep],
+  );
+
+  const handleRedeemFormNext = useCallback(
+    (depositIds: string[]) => {
+      setRedeemData(depositIds);
+      goToRedeemStep(VaultRedeemStep.REVIEW);
+    },
+    [setRedeemData, goToRedeemStep],
+  );
+
+  const handleRedeemReviewConfirm = useCallback(() => {
+    goToRedeemStep(VaultRedeemStep.SIGN);
+  }, [goToRedeemStep]);
+
+  const handleRedeemSignSuccess = useCallback(() => {
+    goToRedeemStep(VaultRedeemStep.SUCCESS);
+    refetchActivities();
+  }, [goToRedeemStep, refetchActivities]);
+
+  const handleRedeemClose = useCallback(() => {
+    resetRedeem();
+  }, [resetRedeem]);
+
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
     return allActivities.map((activity: VaultActivity) => {
@@ -126,5 +167,14 @@ export function useDepositOverviewState() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
+
+    // Redeem modal
+    redeemStep,
+    redeemDepositIds,
+    handleRedeemClick,
+    handleRedeemFormNext,
+    handleRedeemReviewConfirm,
+    handleRedeemSignSuccess,
+    handleRedeemClose,
   };
 }
