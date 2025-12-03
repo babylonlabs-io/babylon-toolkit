@@ -15,8 +15,9 @@ export default defineConfig({
     alias: {
       // Provide empty stubs for Node.js-only modules
       ws: resolve(__dirname, "src/stubs/ws.ts"),
-      // Resolve buffer to the actual package to prevent nodePolyfills from transforming SDK imports
+      // Resolve buffer to the actual package to prevent nodePolyfills from transforming imports
       buffer: "buffer",
+      "vite-plugin-node-polyfills/shims/buffer": "buffer",
     },
   },
   optimizeDeps: {
