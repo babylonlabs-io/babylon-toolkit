@@ -41,7 +41,7 @@
     "typescript": "^5.8.3",
     "vite": "^7.2.6",
     "vite-plugin-dts": "^4.3.0",
-    "vite-plugin-node-polyfills": "^0.25.4"
+    "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.2.0",
