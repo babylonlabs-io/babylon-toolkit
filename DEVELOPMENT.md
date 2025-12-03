@@ -87,12 +87,12 @@ This is only a one time setup for each newly added package. Release process will
 
 For a new package, do
 ```
-git tag @babylonlabs-io/bsn-registry/0.0.1
-git push origin @babylonlabs-io/bsn-registry/0.0.1
+git tag @babylonlabs-io/my-package/0.0.1
+git push origin @babylonlabs-io/my-package/0.0.1
 ```
 
 For a migrated package, make sure the tag version matches the released version in NPM
 ```
-git tag @babylonlabs-io/bsn-registry/1.2.3
-git push origin @babylonlabs-io/bsn-registry/1.2.3
+git tag @babylonlabs-io/my-package/1.2.3
+git push origin @babylonlabs-io/my-package/1.2.3
 ```

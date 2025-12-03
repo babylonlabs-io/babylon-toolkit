@@ -15,8 +15,7 @@ packages/
 │   ├── src/                            # Source code
 │   └── dist/                           # Built artifacts (generated)
 ├── babylon-wallet-connector/           # Wallet integration
-├── babylon-proto-ts/                   # Protocol definitions
-└── babylon-bsn-registry/               # BSN registry utilities
+└── babylon-proto-ts/                   # Protocol definitions
 ```
 
 ## Usage

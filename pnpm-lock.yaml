@@ -92,15 +92,6 @@ importers:
         specifier: 11.1.0
         version: 11.1.0
 
-  packages/babylon-bsn-registry:
-    devDependencies:
-      prettier:
-        specifier: ^3.6.2
-        version: 3.6.2
-      typescript:
-        specifier: ^5.8.3
-        version: 5.9.2
-
   packages/babylon-config:
     dependencies:
       '@babylonlabs-io/wallet-connector':
@@ -609,9 +600,6 @@ importers:
       '@babylonlabs-io/babylon-proto-ts':
         specifier: workspace:*
         version: link:../../packages/babylon-proto-ts
-      '@babylonlabs-io/bsn-registry':
-        specifier: workspace:*
-        version: link:../../packages/babylon-bsn-registry
       '@babylonlabs-io/btc-staking-ts':
         specifier: 2.8.6
         version: 2.8.6(@babylonlabs-io/babylon-proto-ts@packages+babylon-proto-ts)(bitcoinjs-lib@6.1.7)

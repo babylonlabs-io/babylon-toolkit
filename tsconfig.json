@@ -13,9 +13,6 @@
       "path": "./packages/babylon-core-ui"
     },
     {
-      "path": "./packages/babylon-bsn-registry"
-    },
-    {
       "path": "./services/simple-staking/tsconfig.json"
     },
     {
