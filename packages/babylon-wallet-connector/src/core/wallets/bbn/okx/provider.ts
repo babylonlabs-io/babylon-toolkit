@@ -51,20 +51,6 @@ export class OKXBabylonProvider implements IBBNProvider {
       });
     }
 
-    // Version check - BABY Token
-    const compatibleVersion = "3.54.12";
-    const version = await this.wallet.getVersion();
-
-    // Check that version is higher than or equal to compatibleVersion
-    if (version && version < compatibleVersion) {
-      throw new WalletError({
-        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-        message: `OKX Wallet version ${version} is not compatible. Please update to version ${compatibleVersion} or higher.`,
-        wallet: WALLET_PROVIDER_NAME,
-        version: version,
-      });
-    }
-
     try {
       await this.wallet.keplr.enable(this.chainId);
     } catch (error: Error | any) {
