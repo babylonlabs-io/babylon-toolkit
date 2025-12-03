@@ -7,6 +7,37 @@ export {
   type MorphoToken,
 } from "./fetchMarkets";
 
+// GraphQL position data fetching
+export {
+  fetchMorphoActivePositions,
+  fetchMorphoPositionCollaterals,
+  fetchMorphoPositionWithCollaterals,
+  fetchMorphoUserPositions,
+  type MorphoPositionCollateralItem,
+  type MorphoPositionFromIndexer,
+  type MorphoPositionStatus,
+  type MorphoUserPositionsResponse,
+} from "./fetchPositions";
+
+// Position service - hybrid indexer + RPC approach
+export {
+  getSinglePositionOptimized,
+  getUserPositionForMarket,
+  getUserPositionsOptimized,
+  type PositionWithMorphoOptimized,
+} from "./positionService";
+
+// Position transactions (borrow, repay, withdraw)
+export {
+  addCollateralWithMarketId,
+  approveLoanTokenForRepay,
+  borrowMoreFromPosition,
+  repayDebtFull,
+  repayDebtPartial,
+  withdrawAllCollateralFromPosition,
+  type AddCollateralResult,
+} from "./positionTransactions";
+
 // Market operations (cached params + on-chain data)
 export {
   clearMarketParamsCache,

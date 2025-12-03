@@ -14,17 +14,18 @@ import {
   type WalletClient,
 } from "viem";
 
-import type { MarketParams } from "../../clients/eth-contract";
+import type { MarketParams } from "../../../clients/eth-contract";
 import {
   ERC20,
   Morpho,
   MorphoController,
   MorphoControllerTx,
   MorphoOracle,
-} from "../../clients/eth-contract";
-import { CONTRACTS } from "../../config/contracts";
-import { ContractError, ErrorCode } from "../../utils/errors";
-import { getBasicMarketParams } from "../applications/morpho";
+} from "../../../clients/eth-contract";
+import { CONTRACTS } from "../../../config/contracts";
+import { ContractError, ErrorCode } from "../../../utils/errors";
+
+import { getBasicMarketParams } from "./marketContract";
 
 /**
  * Result of adding collateral to position (with optional borrowing)

@@ -1,8 +1,8 @@
 import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
+import { useMarkets } from "../../hooks/morpho";
 import { useApplications } from "../../hooks/useApplications";
-import { useMarkets } from "../../hooks/useMarkets";
 import { ApplicationLogo } from "../ApplicationLogo";
 
 export function Applications() {

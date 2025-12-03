@@ -1,6 +1,6 @@
 // Business logic layer orchestrating clients and transactions
 
-// Applications services (includes Morpho market operations)
+// Applications services (includes Morpho market and position operations)
 export * from "./applications";
 
 // Token services
@@ -12,9 +12,6 @@ export * from "./vault/fetchVaults";
 export * from "./vault/vaultPayoutSignatureService";
 export * from "./vault/vaultPeginBroadcastService";
 export * from "./vault/vaultTransactionService";
-
-// Position services
-export * from "./position";
 
 // Provider services
 export * from "./providers";

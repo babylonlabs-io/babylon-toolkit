@@ -12,7 +12,7 @@ import { useError } from "../../../../context/error";
 import {
   addCollateralWithMarketId,
   borrowMoreFromPosition,
-} from "../../../../services/position/positionTransactionService";
+} from "../../../../services/applications/morpho";
 import {
   ErrorCode,
   WalletError,

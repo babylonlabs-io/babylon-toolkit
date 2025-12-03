@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchMorphoMarkets,
   type MorphoMarket,
-} from "../services/applications/morpho";
+} from "../../services/applications/morpho";
 
 /**
  * Result interface for useMarkets hook
