@@ -33,24 +33,17 @@ const { coinName } = getNetworkConfigBTC();
 
 /**
  * Helper function to get the status info for INTERMEDIATE_PENDING_BTC_CONFIRMATION state
- * Handles both regular staking and expansion scenarios
  */
 const getIntermediatePendingBtcStatus = ({
-  delegation,
   networkInfo,
 }: StatusParams) => {
   const confirmationDepth =
     networkInfo?.params?.btcEpochCheckParams.latestParam.btcConfirmationDepth ??
     0;
-  const isExpansion = !!delegation.previousStakingTxHashHex;
 
   return {
-    label: isExpansion
-      ? `Extension Pending ${coinName} Confirmation`
-      : `Pending ${coinName} Confirmation`,
-    tooltip: isExpansion
-      ? `Stake extension is pending ${confirmationDepth} ${coinName} confirmations`
-      : `Stake is pending ${confirmationDepth} ${coinName} confirmations`,
+    label: `Pending ${coinName} Confirmation`,
+    tooltip: `Stake is pending ${confirmationDepth} ${coinName} confirmations`,
   };
 };
 
@@ -108,10 +101,6 @@ const STATUSES: Record<string, StatusAdapter> = {
       <SlashingContent delegation={delegation} networkInfo={networkInfo} />
     ),
     status: "error",
-  }),
-  [State.EXPANDED]: () => ({
-    label: "Expanded",
-    tooltip: "Delegation has been expanded/renewed to a new delegation",
   }),
   [State.TIMELOCK_WITHDRAWN]: () => ({
     label: "Withdrawn",

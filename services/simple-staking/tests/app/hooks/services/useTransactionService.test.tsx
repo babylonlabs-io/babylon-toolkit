@@ -11,7 +11,6 @@ import { DELEGATIONS_V2_KEY } from "@/ui/common/hooks/client/api/useDelegationsV
 import { useStakingManagerService } from "@/ui/common/hooks/services/useStakingManagerService";
 import {
   BtcStakingInputs,
-  BtcStakingExpansionInputs,
   useTransactionService,
 } from "@/ui/common/hooks/services/useTransactionService";
 import { useAppState } from "@/ui/common/state";
@@ -113,9 +112,6 @@ describe("useTransactionService", () => {
     createSignedBtcWithdrawEarlyUnbondedTransaction: jest.fn(),
     createSignedBtcWithdrawStakingExpiredTransaction: jest.fn(),
     createSignedBtcWithdrawSlashingTransaction: jest.fn(),
-    stakingExpansionRegistrationBabylonTransaction: jest.fn(),
-    estimateBtcStakingExpansionFee: jest.fn(),
-    createSignedBtcStakingExpansionTransaction: jest.fn(),
   };
 
   // Mock transaction and other values
@@ -499,87 +495,6 @@ describe("useTransactionService", () => {
       await expect(
         result.current.submitStakingTx(mockStakingInputs, 1, mockTxId, "hex"),
       ).rejects.toThrow("Available UTXOs not initialized");
-    });
-  });
-
-  describe("expansion flows", () => {
-    const baseExpansion: BtcStakingExpansionInputs = {
-      finalityProviderPksNoCoordHex: ["hex"],
-      stakingAmountSat: 1000,
-      stakingTimelock: 100,
-      previousStakingTxHex: "prev-hex",
-      previousStakingParamsVersion: 1,
-      previousStakingInput: {
-        finalityProviderPksNoCoordHex: ["hex"],
-        stakingAmountSat: 1000,
-        stakingTimelock: 100,
-      },
-    };
-
-    it("createStakingExpansionEoi works and calls refetchBtcTip", async () => {
-      (mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction as jest.Mock).mockResolvedValue(
-        { stakingTx: mockTransaction, signedBabylonTx: mockSignedBabylonTx },
-      );
-      const { result } = renderHook(() => useTransactionService(), { wrapper });
-      await act(async () => {
-        await result.current.createStakingExpansionEoi(baseExpansion, 5);
-      });
-      expect(mockRefetchBtcTip).toHaveBeenCalled();
-      expect(
-        mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction,
-      ).toHaveBeenCalled();
-    });
-
-    it("estimateStakingExpansionFee returns value", () => {
-      (mockBtcStakingManager.estimateBtcStakingExpansionFee as jest.Mock).mockReturnValue(777);
-      const { result } = renderHook(() => useTransactionService(), { wrapper });
-      const fee = result.current.estimateStakingExpansionFee(baseExpansion, 5);
-      expect(fee).toBe(777);
-    });
-
-    it("submitStakingExpansionTx refetches UTXOs", async () => {
-      (mockBtcStakingManager.createSignedBtcStakingExpansionTransaction as jest.Mock).mockResolvedValue(
-        mockTransaction,
-      );
-      const refetchSpy = jest.fn();
-      (useAppState as jest.Mock).mockReturnValue({
-        availableUTXOs: mockAvailableUTXOs,
-        refetchUTXOs: refetchSpy,
-      });
-      const { result } = renderHook(() => useTransactionService(), { wrapper });
-      await act(async () => {
-        await result.current.submitStakingExpansionTx(
-          baseExpansion,
-          1,
-          mockTxId,
-          "hex",
-          [{ btcPkHex: "pk", sigHex: "sig" }],
-        );
-      });
-      expect(refetchSpy).toHaveBeenCalled();
-    });
-
-    it("createStakingExpansionEoi throws when UTXOs loading", async () => {
-      (useAppState as jest.Mock).mockReturnValue({
-        availableUTXOs: mockAvailableUTXOs,
-        refetchUTXOs: jest.fn(),
-        isLoading: true,
-      });
-      const { result } = renderHook(() => useTransactionService(), { wrapper });
-      await expect(
-        result.current.createStakingExpansionEoi(baseExpansion, 5),
-      ).rejects.toThrow("Wallet UTXOs are still loading");
-    });
-
-    it("estimateStakingExpansionFee throws when UTXOs empty", () => {
-      (useAppState as jest.Mock).mockReturnValue({
-        availableUTXOs: [],
-        refetchUTXOs: jest.fn(),
-      });
-      const { result } = renderHook(() => useTransactionService(), { wrapper });
-      expect(() =>
-        result.current.estimateStakingExpansionFee(baseExpansion, 5),
-      ).toThrow("No available UTXOs found");
     });
   });
 

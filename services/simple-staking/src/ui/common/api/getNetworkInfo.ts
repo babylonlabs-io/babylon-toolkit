@@ -15,13 +15,8 @@ export interface BtcCheckpointParams {
   btc_confirmation_depth: number;
 }
 
-interface AllowList {
-  is_expired: boolean;
-}
-
 interface StakingStatus {
   is_staking_open: boolean;
-  staking_expansion_allow_list?: AllowList;
 }
 
 interface NetworkInfoAPI {

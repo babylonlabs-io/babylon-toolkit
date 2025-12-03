@@ -6,7 +6,7 @@
 export interface BsnFpDisplayItem {
   icon: React.ReactNode;
   name: string;
-  isExisting?: boolean; // For expansion: mark existing BSN/FPs with reduced opacity
+  isExisting?: boolean; // Used to indicate already-selected items in chain selection UI
 }
 
 /** Staking term information */

@@ -12,7 +12,6 @@ export const getActionButton = (
   delegation: DelegationWithFP,
   onAction: (action: ActionType, delegation: DelegationWithFP) => void,
   isStakingManagerReady: boolean,
-  isBroadcastedExpansion?: boolean,
 ): ActivityCardActionButton | undefined => {
   const { state, fp } = delegation;
 
@@ -125,16 +124,6 @@ export const getActionButton = (
 
   const actionConfig = actionMap[fp?.state]?.[state];
   if (!actionConfig) return undefined;
-
-  // Don't show "Stake" button for broadcasted VERIFIED expansions
-  // since they're already broadcasted to Bitcoin
-  if (
-    isBroadcastedExpansion &&
-    actionConfig.action === ACTIONS.STAKE &&
-    state === DelegationV2StakingState.VERIFIED
-  ) {
-    return undefined;
-  }
 
   const isUnbondDisabled =
     state === DelegationV2StakingState.ACTIVE && !isStakingManagerReady;

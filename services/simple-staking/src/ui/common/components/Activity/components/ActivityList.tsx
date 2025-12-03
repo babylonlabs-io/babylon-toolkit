@@ -1,10 +1,8 @@
 import { useCallback, useState } from "react";
 
-import { ExpansionHistoryModal } from "@/ui/common/components/ExpansionHistory/ExpansionHistoryModal";
 import { getNetworkConfig } from "@/ui/common/config/network";
 import { useActivityDelegations } from "@/ui/common/hooks/services/useActivityDelegations";
 import { ActionType } from "@/ui/common/hooks/services/useDelegationService";
-import { useStakingExpansionState } from "@/ui/common/state/StakingExpansionState";
 import { StakingSuccessModal } from "@/ui/common/components/Modals/StakingSuccessModal";
 import { DelegationWithFP } from "@/ui/common/types/delegationsV2";
 import { DELEGATION_ACTIONS } from "@/ui/common/constants";
@@ -13,7 +11,6 @@ import { useLogger } from "@/ui/common/hooks/useLogger";
 
 import { ActivityCard } from "../../ActivityCard/ActivityCard";
 import { DelegationModal } from "../../Delegations/DelegationList/components/DelegationModal";
-import { StakingExpansionModalSystem } from "../../StakingExpansion/StakingExpansionModalSystem";
 
 const networkConfig = getNetworkConfig();
 
@@ -30,12 +27,6 @@ export function ActivityList() {
     closeConfirmationModal,
     delegations,
   } = useActivityDelegations();
-
-  const {
-    expansionHistoryModalOpen,
-    expansionHistoryTargetDelegation,
-    closeExpansionHistoryModal,
-  } = useStakingExpansionState();
 
   const { handleError } = useError();
   const logger = useLogger();
@@ -105,15 +96,6 @@ export function ActivityList() {
         onSubmit={handleSubmit}
         onClose={closeConfirmationModal}
         networkConfig={networkConfig}
-      />
-
-      <StakingExpansionModalSystem />
-
-      <ExpansionHistoryModal
-        open={expansionHistoryModalOpen}
-        onClose={closeExpansionHistoryModal}
-        targetDelegation={expansionHistoryTargetDelegation}
-        allDelegations={delegations}
       />
 
       <StakingSuccessModal

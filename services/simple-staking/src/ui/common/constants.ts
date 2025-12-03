@@ -48,14 +48,6 @@ export const DEFAULT_CONFIRMATION_DEPTH = 30;
 export const MODAL_CLOSE_DELAY = 400;
 
 /**
- * Staking expansion operation types
- */
-export const EXPANSION_OPERATIONS = {
-  ADD_BSN_FP: "ADD_BSN_FP",
-  RENEW_TIMELOCK: "RENEW_TIMELOCK",
-};
-
-/**
  * Shared EOI steps used across staking workflows
  */
 export enum EOIStep {

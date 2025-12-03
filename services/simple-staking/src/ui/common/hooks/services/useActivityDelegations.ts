@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 
-import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useDelegationService } from "@/ui/common/hooks/services/useDelegationService";
-import { useExpansionVisibilityService } from "@/ui/common/hooks/services/useExpansionVisibilityService";
 import { useStakingManagerService } from "@/ui/common/hooks/services/useStakingManagerService";
 import { useFinalityProviderState } from "@/ui/common/state/FinalityProviderState";
 
@@ -14,7 +12,7 @@ import { useActivityValidation } from "./useActivityValidation";
 
 /**
  * Main hook orchestrating all activity-related delegation logic.
- * Combines validation, visibility filtering, and card transformation.
+ * Combines validation and card transformation.
  */
 export function useActivityDelegations() {
   // Core delegation and wallet data
@@ -33,25 +31,13 @@ export function useActivityDelegations() {
   const isStakingManagerReady = !isStakingManagerLoading;
 
   const { finalityProviderMap } = useFinalityProviderState();
-  const { publicKeyNoCoord } = useBTCWallet();
 
-  // Expansion visibility service for filtering logic
-  const { getActivityTabDelegations } =
-    useExpansionVisibilityService(publicKeyNoCoord);
+  // Step 1: Apply validation logic
+  const validatedDelegations = useActivityValidation(delegations, validations);
 
-  // Step 1: Apply validation logic (including special VERIFIED expansion handling)
-  const validatedDelegations = useActivityValidation(
-    delegations,
-    validations,
-    publicKeyNoCoord,
-  );
-
-  // Step 2: Apply expansion visibility filtering
-  const visibleDelegations = getActivityTabDelegations(validatedDelegations);
-
-  // Step 3: Transform to activity card data
+  // Step 2: Transform to activity card data
   const activityData: ActivityCardData[] = useActivityCardTransformation(
-    visibleDelegations,
+    validatedDelegations,
     finalityProviderMap,
     openConfirmationModal,
     isStakingManagerReady,

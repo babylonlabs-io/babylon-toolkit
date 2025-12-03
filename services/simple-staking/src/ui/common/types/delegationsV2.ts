@@ -21,11 +21,9 @@ export interface DelegationV2 extends DelegationLike {
   endHeight: number;
   unbondingTimelock: number;
   unbondingTxHex: string;
-  previousStakingTxHashHex?: string;
   covenantUnbondingSignatures?: {
     covenantBtcPkHex: string;
     signatureHex: string;
-    stakeExpansionSignatureHex?: string;
   }[];
   slashing: {
     stakingSlashingTxHex: string;
@@ -62,9 +60,6 @@ export enum DelegationV2StakingState {
   EARLY_UNBONDING_WITHDRAWN = "EARLY_UNBONDING_WITHDRAWN",
   TIMELOCK_SLASHING_WITHDRAWN = "TIMELOCK_SLASHING_WITHDRAWN",
   EARLY_UNBONDING_SLASHING_WITHDRAWN = "EARLY_UNBONDING_SLASHING_WITHDRAWN",
-
-  // Expansion states
-  EXPANDED = "EXPANDED",
 
   // Slashed states
   SLASHED = "SLASHED",
@@ -105,8 +100,6 @@ export const DELEGATION_STATUSES = {
   [DelegationV2StakingState.TIMELOCK_SLASHING_WITHDRAWABLE]: 5,
   [DelegationV2StakingState.INTERMEDIATE_TIMELOCK_SLASHING_WITHDRAWAL_SUBMITTED]: 5.5,
   [DelegationV2StakingState.TIMELOCK_SLASHING_WITHDRAWN]: 6,
-
-  [DelegationV2StakingState.EXPANDED]: 6,
 } as const;
 
 export const getDelegationV2StakingState = (

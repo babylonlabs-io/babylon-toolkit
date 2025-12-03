@@ -20,11 +20,6 @@ const protosToRegister: ProtoToRegister<any>[] = [
     typeUrl: REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
   },
-  // BTC Staking - Expanding a BTC delegation
-  {
-    typeUrl: REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
-    messageType: btcstakingtx.MsgBtcStakeExpand,
-  },
   // Incentives - Withdrawing BABY rewards from BTC Staking
   {
     typeUrl: REGISTRY_TYPE_URLS.MsgWithdrawRewardForBTCStaking,

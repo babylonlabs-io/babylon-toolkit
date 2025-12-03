@@ -35,7 +35,6 @@ interface DelegationV2API {
     covenant_unbonding_signatures?: {
       covenant_btc_pk_hex: string;
       signature_hex: string;
-      stake_expansion_signature_hex?: string;
     }[];
     slashing: {
       unbonding_slashing_tx_hex: string;
@@ -43,7 +42,6 @@ interface DelegationV2API {
     };
   };
   state: string;
-  previous_staking_tx_hash_hex?: string;
   withdrawal_tx?: {
     tx_hash: string;
   };
@@ -120,7 +118,6 @@ const apiToDelegationV2 = (apiDelegation: DelegationV2API): DelegationV2 => {
     state,
     unbondingTimelock: apiDelegation.delegation_unbonding.unbonding_timelock,
     unbondingTxHex: apiDelegation.delegation_unbonding.unbonding_tx,
-    previousStakingTxHashHex: apiDelegation.previous_staking_tx_hash_hex,
     slashing: {
       stakingSlashingTxHex:
         apiDelegation.delegation_staking.slashing.slashing_tx_hex,
@@ -134,7 +131,6 @@ const apiToDelegationV2 = (apiDelegation: DelegationV2API): DelegationV2 => {
         (signature) => ({
           covenantBtcPkHex: signature.covenant_btc_pk_hex,
           signatureHex: signature.signature_hex,
-          stakeExpansionSignatureHex: signature.stake_expansion_signature_hex,
         }),
       ),
     withdrawalTx: apiDelegation.withdrawal_tx

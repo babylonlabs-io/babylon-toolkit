@@ -16,7 +16,6 @@ type ProtoToRegister<T> = {
 
 export const BBN_REGISTRY_TYPE_URLS = {
   MsgCreateBTCDelegation: "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
-  MsgBtcStakeExpand: "/babylon.btcstaking.v1.MsgBtcStakeExpand",
   MsgWithdrawReward: "/babylon.incentive.MsgWithdrawReward",
   MsgWrappedDelegation: "/babylon.epoching.v1.MsgWrappedDelegate",
   MsgWrappedUndelegation: "/babylon.epoching.v1.MsgWrappedUndelegate",
@@ -30,11 +29,6 @@ const protosToRegister: ProtoToRegister<any>[] = [
   {
     typeUrl: BBN_REGISTRY_TYPE_URLS.MsgCreateBTCDelegation,
     messageType: btcstakingtx.MsgCreateBTCDelegation,
-  },
-  // BTC Staking - Expand Delegation
-  {
-    typeUrl: BBN_REGISTRY_TYPE_URLS.MsgBtcStakeExpand,
-    messageType: btcstakingtx.MsgBtcStakeExpand,
   },
   // BTC Staking - Withdraw Reward
   {

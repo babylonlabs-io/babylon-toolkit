@@ -7,11 +7,6 @@ import { ActivityCardDetailItem } from "../components/ActivityCard/ActivityCard"
 
 const { chainId: BBN_CHAIN_ID } = getNetworkConfigBBN();
 
-export interface ExpansionBsnFpOptions {
-  /** Original FP keys to compare against for new/old detection */
-  originalFinalityProviderBtcPksHex?: string[];
-}
-
 /**
  * Helper function to get display name for a finality provider
  */
@@ -35,13 +30,11 @@ function getFinalityProviderDisplayName(
 
 /**
  * Creates grouped details for BSN/FP pairs from finality provider Bitcoin public keys
- * This utility is shared between main activity cards and expansion history
- * Supports expansion-specific features like old/new visual differentiation
+ * Used by activity cards to display BSN and finality provider information
  */
 export function createBsnFpGroupedDetails(
   finalityProviderBtcPksHex: string[],
   finalityProviderMap: Map<string, FinalityProvider>,
-  options: ExpansionBsnFpOptions = {},
 ): { label?: string; items: ActivityCardDetailItem[] }[] {
   const groupedDetails: { label?: string; items: ActivityCardDetailItem[] }[] =
     [];
@@ -60,15 +53,6 @@ export function createBsnFpGroupedDetails(
     const shouldShowBsnItem = !!fp.bsnId;
     const bsnId = fp.bsnId || BBN_CHAIN_ID;
 
-    // Determine if this is a new FP pair
-    const isNew = options.originalFinalityProviderBtcPksHex
-      ? !options.originalFinalityProviderBtcPksHex.includes(fpBtcPk)
-      : false;
-
-    // Apply opacity based on new/old status for expansions
-    const opacityClass =
-      options.originalFinalityProviderBtcPksHex && !isNew ? "opacity-60" : "";
-
     groupedDetails.push({
       items: [
         ...(shouldShowBsnItem
@@ -76,7 +60,7 @@ export function createBsnFpGroupedDetails(
               {
                 label: "BSN",
                 value: (
-                  <div className={`flex items-center gap-2 ${opacityClass}`}>
+                  <div className="flex items-center gap-2">
                     <img
                       src={fp.bsnLogoUrl || ""}
                       alt={bsnId}
@@ -91,7 +75,7 @@ export function createBsnFpGroupedDetails(
         {
           label: "Finality Provider",
           value: (
-            <div className={`flex items-center gap-2 ${opacityClass}`}>
+            <div className="flex items-center gap-2">
               <FinalityProviderLogo
                 logoUrl={fp.logo_url}
                 rank={fp.rank || 0}

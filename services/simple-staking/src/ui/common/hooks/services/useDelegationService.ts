@@ -16,8 +16,6 @@ import { FinalityProvider } from "@/ui/common/types/finalityProviders";
 import { BbnStakingParamsVersion } from "@/ui/common/types/networkInfo";
 import { getBbnParamByVersion } from "@/ui/common/utils/params";
 
-import { useStakingExpansionState } from "../../state/StakingExpansionState";
-
 import { useTransactionService } from "./useTransactionService";
 
 export type ActionType = keyof typeof ACTIONS;
@@ -82,11 +80,7 @@ export function useDelegationService() {
   const { isFetching: isFPLoading, finalityProviderMap } =
     useFinalityProviderState();
 
-  const { isExpansionModalOpen } = useStakingExpansionState();
-
-  // Stop loading when any expansion modal is open
-  const isLoading =
-    (isDelegationLoading || isFPLoading) && !isExpansionModalOpen;
+  const isLoading = isDelegationLoading || isFPLoading;
 
   const delegationsWithFP = useMemo(
     () =>
