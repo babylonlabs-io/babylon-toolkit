@@ -1196,8 +1196,8 @@ importers:
         specifier: ^1.1.3
         version: 1.1.3(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0))
       vite-plugin-node-polyfills:
-        specifier: ^0.23.0
-        version: 0.23.0(rollup@4.46.1)(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0))
+        specifier: ^0.24.0
+        version: 0.24.0(rollup@4.46.1)(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0))
       vite-tsconfig-paths:
         specifier: ^5.1.4
         version: 5.1.4(typescript@5.9.2)(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0))
@@ -10341,11 +10341,6 @@ packages:
     resolution: {integrity: sha512-9LBhB0lx+2lXVBEWxFZC+WO7PKEyE/ykJ7EPWCq95NEcCpblxamTbs5Dm3DLBGzwODpJMEnzQywJU8fw6XGGGA==}
     peerDependencies:
       vite: '>= 2.7'
-
-  vite-plugin-node-polyfills@0.23.0:
-    resolution: {integrity: sha512-4n+Ys+2bKHQohPBKigFlndwWQ5fFKwaGY6muNDMTb0fSQLyBzS+jjUNRZG9sKF0S/Go4ApG6LFnUGopjkILg3w==}
-    peerDependencies:
-      vite: ^2.0.0 || ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0
 
   vite-plugin-node-polyfills@0.24.0:
     resolution: {integrity: sha512-GA9QKLH+vIM8NPaGA+o2t8PDfFUl32J8rUp1zQfMKVJQiNkOX4unE51tR6ppl6iKw5yOrDAdSH7r/UIFLCVhLw==}
@@ -24275,14 +24270,6 @@ snapshots:
   vite-plugin-environment@1.1.3(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0)):
     dependencies:
       vite: 7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0)
-
-  vite-plugin-node-polyfills@0.23.0(rollup@4.46.1)(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0)):
-    dependencies:
-      '@rollup/plugin-inject': 5.0.5(rollup@4.46.1)
-      node-stdlib-browser: 1.3.1
-      vite: 7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0)
-    transitivePeerDependencies:
-      - rollup
 
   vite-plugin-node-polyfills@0.24.0(rollup@4.46.1)(vite@7.2.6(@types/node@22.17.0)(jiti@2.5.1)(terser@5.44.1)(tsx@4.20.3)(yaml@2.8.0)):
     dependencies:
