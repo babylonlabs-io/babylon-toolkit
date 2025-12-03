@@ -11,7 +11,8 @@ import {
 import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
+// Migration: Using new architecture with compatibility layer
+import { useDepositFlow } from "@/hooks/deposit/useDepositFlowCompat";
 
 interface CollateralDepositSignModalProps {
   open: boolean;

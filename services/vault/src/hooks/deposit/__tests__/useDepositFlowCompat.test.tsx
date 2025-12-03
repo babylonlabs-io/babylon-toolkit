@@ -1,12 +1,12 @@
 /**
- * Tests for useDepositFlow hook - focusing on chain switching logic
+ * Tests for useDepositFlowCompat hook - focusing on chain switching logic
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDepositFlow } from "../useDepositFlow";
+import { useDepositFlow } from "../useDepositFlowCompat";
 
 // Mock config/contracts to avoid env var validation
 vi.mock("@/config/contracts", () => ({
