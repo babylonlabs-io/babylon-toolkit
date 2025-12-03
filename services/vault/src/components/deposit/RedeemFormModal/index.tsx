@@ -11,6 +11,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
+import { PEGIN_DISPLAY_LABELS } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 
 interface RedeemCollateralModalProps {
@@ -30,7 +31,7 @@ export function RedeemCollateralModal({
 
   // Filter only "Available" deposits
   const availableDeposits = useMemo(() => {
-    return deposits.filter((d) => d.status === "Available");
+    return deposits.filter((d) => d.status === PEGIN_DISPLAY_LABELS.AVAILABLE);
   }, [deposits]);
 
   const handleClose = () => {

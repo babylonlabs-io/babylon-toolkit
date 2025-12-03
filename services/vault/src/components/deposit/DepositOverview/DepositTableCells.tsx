@@ -39,6 +39,8 @@ export function getCardActions(
       return [{ name: "Sign", action: "sign" }];
     case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
       return [{ name: "Sign & Broadcast", action: "broadcast" }];
+    case PeginAction.REDEEM:
+      return [{ name: "Redeem", action: "redeem" }];
     default:
       return undefined;
   }
@@ -74,10 +76,12 @@ export function ActionCell({
   depositId,
   onSignClick,
   onBroadcastClick,
+  onRedeemClick,
 }: {
   depositId: string;
   onSignClick: (depositId: string, transactions: any[]) => void;
   onBroadcastClick: (depositId: string) => void;
+  onRedeemClick: (depositId: string) => void;
 }) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -115,7 +119,15 @@ export function ActionCell({
       );
 
     case PeginAction.REDEEM:
-      return null;
+      return (
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => onRedeemClick(depositId)}
+        >
+          {label}
+        </Button>
+      );
 
     default:
       return null;

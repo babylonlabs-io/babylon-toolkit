@@ -10,6 +10,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
+import { useRedeemModal } from "../../../hooks/deposit/useRedeemModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
 import { getApplicationMetadata } from "../../../registry/applications";
@@ -83,6 +84,19 @@ export function useDepositOverviewState() {
     setBroadcastSuccessOpen(false);
   }, []);
 
+  // Redeem modal state
+  const {
+    redeemStep,
+    redeemDepositIds,
+    handleRedeemClick,
+    handleFormNext: handleRedeemFormNext,
+    handleReviewConfirm: handleRedeemReviewConfirm,
+    handleSignSuccess: handleRedeemSignSuccess,
+    handleClose: handleRedeemClose,
+  } = useRedeemModal({
+    onSuccess: refetchActivities,
+  });
+
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
     return allActivities.map((activity: VaultActivity) => {
@@ -126,5 +140,14 @@ export function useDepositOverviewState() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
+
+    // Redeem modal
+    redeemStep,
+    redeemDepositIds,
+    handleRedeemClick,
+    handleRedeemFormNext,
+    handleRedeemReviewConfirm,
+    handleRedeemSignSuccess,
+    handleRedeemClose,
   };
 }

@@ -12,13 +12,19 @@ import {
   useIsMobile,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
+import { useMemo } from "react";
 import type { Hex } from "viem";
 
 import { PeginPollingProvider } from "../../../context/deposit/PeginPollingContext";
+import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
+import { RedeemCollateralModal } from "../RedeemFormModal";
+import { RedeemCollateralReviewModal } from "../RedeemReviewModal";
+import { RedeemCollateralSignModal } from "../RedeemSignModal";
+import { RedeemCollateralSuccessModal } from "../RedeemSuccessModal";
 
 import { DepositMobileCard } from "./DepositMobileCard";
 import {
@@ -53,7 +59,20 @@ export function DepositOverview() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
+    redeemStep,
+    redeemDepositIds,
+    handleRedeemClick,
+    handleRedeemFormNext,
+    handleRedeemReviewConfirm,
+    handleRedeemSignSuccess,
+    handleRedeemClose,
   } = state;
+
+  const redeemTotalAmount = useMemo(() => {
+    return deposits
+      .filter((d) => redeemDepositIds.includes(d.id))
+      .reduce((sum, d) => sum + d.amount, 0);
+  }, [deposits, redeemDepositIds]);
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || allActivities.length === 0) {
@@ -111,6 +130,7 @@ export function DepositOverview() {
           depositId={row.id}
           onSignClick={handleSignClick}
           onBroadcastClick={handleBroadcastClick}
+          onRedeemClick={handleRedeemClick}
         />
       ),
     },
@@ -133,6 +153,7 @@ export function DepositOverview() {
                 deposit={deposit}
                 onSignClick={handleSignClick}
                 onBroadcastClick={handleBroadcastClick}
+                onRedeemClick={handleRedeemClick}
               />
             ))}
           </div>
@@ -171,6 +192,40 @@ export function DepositOverview() {
           open={broadcastSuccessOpen}
           onClose={handleBroadcastSuccessClose}
           amount={broadcastingActivity?.collateral.amount || "0"}
+        />
+
+        {/* Redeem Form Modal */}
+        <RedeemCollateralModal
+          open={redeemStep === VaultRedeemStep.FORM}
+          onClose={handleRedeemClose}
+          onNext={handleRedeemFormNext}
+          deposits={deposits}
+        />
+
+        {/* Redeem Review Modal */}
+        <RedeemCollateralReviewModal
+          open={redeemStep === VaultRedeemStep.REVIEW}
+          onClose={handleRedeemClose}
+          onConfirm={handleRedeemReviewConfirm}
+          depositIds={redeemDepositIds}
+          deposits={deposits}
+        />
+
+        {/* Redeem Sign Modal */}
+        <RedeemCollateralSignModal
+          open={redeemStep === VaultRedeemStep.SIGN}
+          onClose={handleRedeemClose}
+          onSuccess={handleRedeemSignSuccess}
+          activities={allActivities}
+          depositIds={redeemDepositIds}
+        />
+
+        {/* Redeem Success Modal */}
+        <RedeemCollateralSuccessModal
+          open={redeemStep === VaultRedeemStep.SUCCESS}
+          onClose={handleRedeemClose}
+          totalAmount={redeemTotalAmount}
+          depositCount={redeemDepositIds.length}
         />
       </div>
     </PeginPollingProvider>

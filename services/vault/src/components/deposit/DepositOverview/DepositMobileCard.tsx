@@ -17,12 +17,14 @@ interface DepositMobileCardProps {
   deposit: Deposit;
   onSignClick: (depositId: string, transactions: any[]) => void;
   onBroadcastClick: (depositId: string) => void;
+  onRedeemClick: (depositId: string) => void;
 }
 
 export function DepositMobileCard({
   deposit,
   onSignClick,
   onBroadcastClick,
+  onRedeemClick,
 }: DepositMobileCardProps) {
   const pollingResult = useDepositPollingResult(deposit.id);
 
@@ -71,6 +73,8 @@ export function DepositMobileCard({
           onSignClick(id, transactions);
         } else if (action === "broadcast") {
           onBroadcastClick(id);
+        } else if (action === "redeem") {
+          onRedeemClick(id);
         }
       }}
     />
