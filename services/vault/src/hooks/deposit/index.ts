@@ -44,3 +44,7 @@ export type {
   UseDepositFlowParams as UseDepositFlowCompatParams,
   UseDepositFlowReturn as UseDepositFlowCompatReturn,
 } from "./useDepositFlowCompat";
+
+// Modal hooks
+export { usePayoutSignModal } from "./usePayoutSignModal";
+export { useRedeemModal } from "./useRedeemModal";

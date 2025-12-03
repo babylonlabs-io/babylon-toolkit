@@ -69,19 +69,27 @@ export enum DaemonStatus {
 // ============================================================================
 
 /**
+ * Display label constants for peg-in states
+ * These are the labels shown to users in the UI
+ */
+export const PEGIN_DISPLAY_LABELS = {
+  PENDING: "Pending",
+  SIGNING_REQUIRED: "Signing required",
+  PROCESSING: "Processing",
+  VERIFIED: "Verified",
+  PENDING_BITCOIN_CONFIRMATIONS: "Pending Bitcoin Confirmations",
+  AVAILABLE: "Available",
+  IN_USE: "In Use",
+  REDEEMED: "Redeemed",
+  UNKNOWN: "Unknown",
+} as const;
+
+/**
  * All possible display labels for peg-in states
  * These are the labels shown to users in the UI
  */
 export type PeginDisplayLabel =
-  | "Pending"
-  | "Signing required"
-  | "Processing"
-  | "Verified"
-  | "Pending Bitcoin Confirmations"
-  | "Available"
-  | "In Use"
-  | "Redeemed"
-  | "Unknown";
+  (typeof PEGIN_DISPLAY_LABELS)[keyof typeof PEGIN_DISPLAY_LABELS];
 
 /**
  * Unified peg-in state combining all sources

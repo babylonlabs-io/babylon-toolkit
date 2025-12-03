@@ -7,13 +7,10 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import {
-  useVaultRedeemState,
-  VaultRedeemStep,
-} from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
+import { useRedeemModal } from "../../../hooks/deposit/useRedeemModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
 import { getApplicationMetadata } from "../../../registry/applications";
@@ -87,42 +84,18 @@ export function useDepositOverviewState() {
     setBroadcastSuccessOpen(false);
   }, []);
 
+  // Redeem modal state
   const {
-    step: redeemStep,
+    redeemStep,
     redeemDepositIds,
-    goToStep: goToRedeemStep,
-    setRedeemData,
-    reset: resetRedeem,
-  } = useVaultRedeemState();
-
-  const handleRedeemClick = useCallback(
-    (depositId: string) => {
-      setRedeemData([depositId]);
-      goToRedeemStep(VaultRedeemStep.FORM);
-    },
-    [setRedeemData, goToRedeemStep],
-  );
-
-  const handleRedeemFormNext = useCallback(
-    (depositIds: string[]) => {
-      setRedeemData(depositIds);
-      goToRedeemStep(VaultRedeemStep.REVIEW);
-    },
-    [setRedeemData, goToRedeemStep],
-  );
-
-  const handleRedeemReviewConfirm = useCallback(() => {
-    goToRedeemStep(VaultRedeemStep.SIGN);
-  }, [goToRedeemStep]);
-
-  const handleRedeemSignSuccess = useCallback(() => {
-    goToRedeemStep(VaultRedeemStep.SUCCESS);
-    refetchActivities();
-  }, [goToRedeemStep, refetchActivities]);
-
-  const handleRedeemClose = useCallback(() => {
-    resetRedeem();
-  }, [resetRedeem]);
+    handleRedeemClick,
+    handleFormNext: handleRedeemFormNext,
+    handleReviewConfirm: handleRedeemReviewConfirm,
+    handleSignSuccess: handleRedeemSignSuccess,
+    handleClose: handleRedeemClose,
+  } = useRedeemModal({
+    onSuccess: refetchActivities,
+  });
 
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {

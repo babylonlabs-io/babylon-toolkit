@@ -12,7 +12,6 @@ export enum VaultRedeemStep {
 
 interface VaultRedeemState {
   step: VaultRedeemStep | undefined;
-  processing: boolean;
   redeemDepositIds: string[];
   btcTxid: string;
   ethTxHash: string;
@@ -25,7 +24,6 @@ interface VaultRedeemState {
 const { StateProvider, useState: useVaultRedeemState } =
   createStateUtils<VaultRedeemState>({
     step: undefined,
-    processing: false,
     redeemDepositIds: [],
     btcTxid: "",
     ethTxHash: "",
@@ -40,7 +38,6 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
   const [redeemDepositIds, setRedeemDepositIds] = useState<string[]>([]);
   const [btcTxid, setBtcTxid] = useState("");
   const [ethTxHash, setEthTxHash] = useState("");
-  const [processing, setProcessing] = useState(false);
 
   const goToStep = useCallback((newStep: VaultRedeemStep) => {
     setStep(newStep);
@@ -60,13 +57,11 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
     setRedeemDepositIds([]);
     setBtcTxid("");
     setEthTxHash("");
-    setProcessing(false);
   }, []);
 
   const context = useMemo(
     () => ({
       step,
-      processing,
       redeemDepositIds,
       btcTxid,
       ethTxHash,
@@ -77,7 +72,6 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
     }),
     [
       step,
-      processing,
       redeemDepositIds,
       btcTxid,
       ethTxHash,
