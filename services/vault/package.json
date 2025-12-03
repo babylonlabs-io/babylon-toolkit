@@ -40,7 +40,7 @@
     "react-tooltip": "5.29.1",
     "tailwind-merge": "2.5.4",
     "usehooks-ts": "^3.1.1",
-    "viem": "2.38.2",
+    "viem": "^2.38.2",
     "wagmi": "2.18.1"
   },
   "devDependencies": {

@@ -106,7 +106,7 @@ describe("My SDK Feature", () => {
     });
 
     const txHash = await wallet.sendTransaction({
-      to: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       value: "1000000000000000000", // 1 ETH
     });
 
@@ -132,7 +132,7 @@ describe("My SDK Feature", () => {
       },
       primaryType: "Permit",
       message: {
-        owner: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        owner: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
         spender: "0x1234567890123456789012345678901234567890",
         value: "1000000000000000000",
       },

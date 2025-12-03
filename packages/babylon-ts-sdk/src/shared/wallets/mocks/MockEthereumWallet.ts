@@ -26,10 +26,11 @@ export class MockEthereumWallet implements EthereumWallet {
   private nonce: number = 0;
 
   constructor(config: MockEthereumWalletConfig = {}) {
+    // Use lowercase addresses to avoid EIP-55 checksum validation issues
     this.config = {
       address:
         (config.address as Address) ||
-        "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       chainId: config.chainId ?? 11155111, // Sepolia by default
       shouldFailOperations: config.shouldFailOperations ?? false,
       transactionDelay: config.transactionDelay ?? 0,
@@ -138,7 +139,7 @@ export class MockEthereumWallet implements EthereumWallet {
   /** Resets to default configuration and nonce. */
   reset(): void {
     this.config = {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+      address: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
       chainId: 11155111,
       shouldFailOperations: false,
       transactionDelay: 0,
