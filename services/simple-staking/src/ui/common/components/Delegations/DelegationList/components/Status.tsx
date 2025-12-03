@@ -34,9 +34,7 @@ const { coinName } = getNetworkConfigBTC();
 /**
  * Helper function to get the status info for INTERMEDIATE_PENDING_BTC_CONFIRMATION state
  */
-const getIntermediatePendingBtcStatus = ({
-  networkInfo,
-}: StatusParams) => {
+const getIntermediatePendingBtcStatus = ({ networkInfo }: StatusParams) => {
   const confirmationDepth =
     networkInfo?.params?.btcEpochCheckParams.latestParam.btcConfirmationDepth ??
     0;
