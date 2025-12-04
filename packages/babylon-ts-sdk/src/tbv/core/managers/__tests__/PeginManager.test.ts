@@ -76,7 +76,7 @@ describe("PeginManager", () => {
   describe("Constructor", () => {
     it("should create a manager with valid config", () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -118,7 +118,7 @@ describe("PeginManager", () => {
   describe("preparePegin", () => {
     it("should prepare a peg-in transaction with valid params", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -167,7 +167,7 @@ describe("PeginManager", () => {
 
     it("should select appropriate UTXOs for the amount", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -204,7 +204,7 @@ describe("PeginManager", () => {
 
     it("should handle multiple liquidators", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -231,7 +231,7 @@ describe("PeginManager", () => {
 
     it("should calculate change correctly", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -264,7 +264,7 @@ describe("PeginManager", () => {
 
     it("should throw error for insufficient funds", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -297,7 +297,7 @@ describe("PeginManager", () => {
 
     it("should throw error for empty UTXOs", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -323,7 +323,7 @@ describe("PeginManager", () => {
 
     it("should throw error for invalid public keys", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -350,7 +350,7 @@ describe("PeginManager", () => {
 
     it("should throw error for empty liquidators", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -379,7 +379,7 @@ describe("PeginManager", () => {
     it("should use wallet public key for depositor", async () => {
       const customPubkey = TEST_KEYS.LIQUIDATOR_2;
       const btcWallet = new MockBitcoinWallet({
-        publicKey: customPubkey,
+        publicKeyHex: customPubkey,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -391,7 +391,7 @@ describe("PeginManager", () => {
       });
 
       // Spy on wallet method
-      const getPublicKeySpy = vi.spyOn(btcWallet, "getPublicKey");
+      const getPublicKeySpy = vi.spyOn(btcWallet, "getPublicKeyHex");
 
       await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
@@ -409,13 +409,13 @@ describe("PeginManager", () => {
 
     it("should handle wallet errors gracefully", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
         shouldFailSigning: true, // This doesn't affect getPublicKey
       });
       const ethWallet = new MockEthereumWallet();
 
-      // Override getPublicKey to throw
-      btcWallet.getPublicKey = async () => {
+      // Override getPublicKeyHex to throw
+      btcWallet.getPublicKeyHex = async () => {
         throw new Error("Wallet connection failed");
       };
 
@@ -443,7 +443,7 @@ describe("PeginManager", () => {
   describe("registerPeginOnChain", () => {
     it("should call ethWallet.sendTransaction with encoded contract data", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -486,7 +486,7 @@ describe("PeginManager", () => {
 
     it("should handle BTC wallet signing failure", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
         shouldFailSigning: true,
       });
       const ethWallet = new MockEthereumWallet();
@@ -509,7 +509,7 @@ describe("PeginManager", () => {
 
     it("should handle ETH wallet transaction failure", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet({
         shouldFailOperations: true,
@@ -533,7 +533,7 @@ describe("PeginManager", () => {
 
     it("should handle hex-prefixed and non-prefixed inputs", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
       const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
@@ -569,7 +569,7 @@ describe("PeginManager", () => {
   describe("signAndBroadcast", () => {
     it("should reject invalid transaction hex", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -657,7 +657,7 @@ describe("PeginManager", () => {
   describe("Deterministic output", () => {
     it("should produce consistent results for same inputs", async () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -689,10 +689,10 @@ describe("PeginManager", () => {
 
     it("should produce different results for different depositors", async () => {
       const btcWallet1 = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const btcWallet2 = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.LIQUIDATOR_1, // Different key
+        publicKeyHex: TEST_KEYS.LIQUIDATOR_1, // Different key
       });
       const ethWallet = new MockEthereumWallet();
 

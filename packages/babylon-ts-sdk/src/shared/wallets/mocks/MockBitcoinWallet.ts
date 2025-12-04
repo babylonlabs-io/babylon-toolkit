@@ -1,15 +1,13 @@
 import { Buffer } from "buffer";
 
-import type {
-  BitcoinNetwork,
-  BitcoinWallet,
-} from "../interfaces/BitcoinWallet";
+import { BitcoinNetwork } from "../interfaces";
+import type { BitcoinWallet } from "../interfaces/BitcoinWallet";
 
 /**
  * Configuration for MockBitcoinWallet.
  */
 export interface MockBitcoinWalletConfig {
-  publicKey?: string;
+  publicKeyHex?: string;
   address?: string;
   network?: BitcoinNetwork;
   shouldFailSigning?: boolean;
@@ -23,19 +21,19 @@ export class MockBitcoinWallet implements BitcoinWallet {
 
   constructor(config: MockBitcoinWalletConfig = {}) {
     this.config = {
-      publicKey:
-        config.publicKey ||
+      publicKeyHex:
+        config.publicKeyHex ||
         "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
       address:
         config.address ||
         "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
-      network: config.network || "signet",
+      network: config.network ?? BitcoinNetwork.SIGNET,
       shouldFailSigning: config.shouldFailSigning ?? false,
     };
   }
 
-  async getPublicKey(): Promise<string> {
-    return this.config.publicKey;
+  async getPublicKeyHex(): Promise<string> {
+    return this.config.publicKeyHex;
   }
 
   async getAddress(): Promise<string> {
@@ -56,7 +54,10 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return psbtHex + "deadbeef";
   }
 
-  async signMessage(message: string): Promise<string> {
+  async signMessage(
+    message: string,
+    type: "bip322-simple" | "ecdsa",
+  ): Promise<string> {
     if (this.config.shouldFailSigning) {
       throw new Error("Mock signing failed");
     }
@@ -68,7 +69,7 @@ export class MockBitcoinWallet implements BitcoinWallet {
     // In a real implementation, this would create a proper signature
     // For the mock, we return a base64-like mock signature
     const mockSignature = Buffer.from(
-      `mock-signature-${message}-${this.config.publicKey}`,
+      `mock-signature-${type}-${message}-${this.config.publicKeyHex}`,
     ).toString("base64");
     return mockSignature;
   }
@@ -88,10 +89,10 @@ export class MockBitcoinWallet implements BitcoinWallet {
   /** Resets to default configuration. */
   reset(): void {
     this.config = {
-      publicKey:
+      publicKeyHex:
         "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
       address: "tb1pqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkx6jks",
-      network: "signet",
+      network: BitcoinNetwork.SIGNET,
       shouldFailSigning: false,
     };
   }

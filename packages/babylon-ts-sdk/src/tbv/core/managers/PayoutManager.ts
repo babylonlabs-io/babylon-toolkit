@@ -112,7 +112,11 @@ export class PayoutManager {
     params: SignPayoutParams,
   ): Promise<PayoutSignatureResult> {
     // Step 1: Get depositor BTC public key from wallet
-    const depositorBtcPubkey = await this.config.btcWallet.getPublicKey();
+    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
+    const depositorBtcPubkey = depositorBtcPubkeyRaw.length === 66
+      ? depositorBtcPubkeyRaw.slice(2)  // Strip first byte (02 or 03)
+      : depositorBtcPubkeyRaw;           // Already x-only
 
     // Step 2: Build unsigned PSBT using primitives
     const payoutPsbt = await buildPayoutPsbt({

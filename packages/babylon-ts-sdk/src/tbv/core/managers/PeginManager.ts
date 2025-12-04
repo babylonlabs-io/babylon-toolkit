@@ -225,7 +225,11 @@ export class PeginManager {
    */
   async preparePegin(params: CreatePeginParams): Promise<PeginResult> {
     // Step 1: Get depositor BTC public key from wallet
-    const depositorBtcPubkey = await this.config.btcWallet.getPublicKey();
+    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
+    const depositorBtcPubkey = depositorBtcPubkeyRaw.length === 66
+      ? depositorBtcPubkeyRaw.slice(2)  // Strip first byte (02 or 03)
+      : depositorBtcPubkeyRaw;           // Already x-only
 
     // Step 2: Build unfunded PSBT using primitives
     // This creates a transaction with 0 inputs and 1 output (the vault output)
@@ -398,9 +402,9 @@ export class PeginManager {
     const depositorEthAddress = await this.config.ethWallet.getAddress();
 
     // Step 2: Create proof of possession
-    // The depositor signs their ETH address with their BTC key
+    // The depositor signs their ETH address with their BTC key using ECDSA
     const popMessage = depositorEthAddress.toLowerCase();
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(popMessage);
+    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(popMessage, "ecdsa");
 
     // Convert PoP signature to hex format
     // BTC wallets return base64, Ethereum contracts expect hex
