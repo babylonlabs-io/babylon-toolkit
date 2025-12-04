@@ -225,9 +225,7 @@ export async function repayDebtFull(
 
   // Fetch market data and validate position health
   const marketData = await Morpho.getMarketWithData(marketId);
-  const oraclePrice = await Morpho.getOraclePrice(
-    marketData.oracle as Address,
-  );
+  const oraclePrice = await Morpho.getOraclePrice(marketData.oracle as Address);
   const btcPriceUSD = Morpho.convertOraclePriceToUSD(oraclePrice);
   const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
@@ -353,9 +351,7 @@ export async function repayDebtPartial(
 
   // Fetch market data and validate position health BEFORE repayment
   const marketData = await Morpho.getMarketWithData(marketId);
-  const oraclePrice = await Morpho.getOraclePrice(
-    marketData.oracle as Address,
-  );
+  const oraclePrice = await Morpho.getOraclePrice(marketData.oracle as Address);
   const btcPriceUSD = Morpho.convertOraclePriceToUSD(oraclePrice);
   const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 

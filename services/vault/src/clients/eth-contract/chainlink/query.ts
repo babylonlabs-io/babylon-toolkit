@@ -131,10 +131,21 @@ export async function getDecimals(feedAddress: Address): Promise<number> {
  * Chainlink BTC/USD feeds return price with 8 decimals.
  *
  * @returns BTC price in USD as a number
+ * @throws Error if price data is stale (older than 1 hour)
  */
 export async function getBTCPriceUSD(): Promise<number> {
   const feedAddress = getChainlinkBTCUSDFeedAddress();
   const roundData = await getLatestRoundData(feedAddress);
+
+  // Validate answer is positive (can be 0 or negative on oracle malfunction)
+  if (roundData.answer <= 0n) {
+    throw new Error("Invalid BTC price from Chainlink oracle");
+  }
+
+  // Validate price is fresh (within 1 hour)
+  if (!isPriceFresh(roundData)) {
+    throw new Error("Chainlink BTC/USD price data is stale");
+  }
 
   // Chainlink BTC/USD uses 8 decimals
   // answer = price * 10^8, so divide by 10^8 to get USD price
