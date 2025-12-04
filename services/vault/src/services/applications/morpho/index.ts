@@ -21,7 +21,6 @@ export {
 
 // Position service - hybrid indexer + RPC approach
 export {
-  getSinglePositionOptimized,
   getUserPositionForMarket,
   getUserPositionsOptimized,
   type PositionWithMorphoOptimized,

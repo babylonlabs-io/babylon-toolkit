@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo } from "react";
 
 import { useDepositForm } from "@/hooks/deposit/useDepositForm";
+import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { depositService } from "@/services/deposit";
 
 interface CollateralDepositModalProps {
@@ -20,7 +21,6 @@ interface CollateralDepositModalProps {
   onClose: () => void;
   onDeposit: (amount: bigint, providers: string[]) => void;
   btcBalance?: bigint;
-  btcPrice?: number; // USD price per BTC
 }
 
 export function CollateralDepositModal({
@@ -28,9 +28,10 @@ export function CollateralDepositModal({
   onClose,
   onDeposit,
   btcBalance: propBtcBalance,
-  // TODO: Fetch BTC price from oracle service
-  btcPrice = 97833.68, // Default: ~$97,834 (to match $489,168.43 for 5 BTC)
 }: CollateralDepositModalProps) {
+  // Fetch real-time BTC price from Chainlink
+  const { btcPriceUSD } = useBTCPrice();
+
   // Use the new deposit form hook
   const {
     formData,
@@ -57,13 +58,13 @@ export function CollateralDepositModal({
 
   // Calculate USD value
   const amountUsd = useMemo(() => {
-    if (!btcPrice || !formData.amountBtc || formData.amountBtc === "0")
+    if (!btcPriceUSD || !formData.amountBtc || formData.amountBtc === "0")
       return "";
     const btcNum = parseFloat(formData.amountBtc);
     if (isNaN(btcNum)) return "";
-    const usdValue = btcNum * btcPrice;
+    const usdValue = btcNum * btcPriceUSD;
     return `$${usdValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }, [formData.amountBtc, btcPrice]);
+  }, [formData.amountBtc, btcPriceUSD]);
 
   // Handler: Toggle provider selection
   const handleToggleProvider = (providerId: string) => {
@@ -140,7 +141,7 @@ export function CollateralDepositModal({
               balanceDetails={{
                 balance: btcBalanceFormatted,
                 symbol: "BTC",
-                price: btcPrice,
+                price: btcPriceUSD,
                 displayUSD: true,
                 decimals: 4,
               }}

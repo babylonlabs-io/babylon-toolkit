@@ -10,11 +10,7 @@
 import type { Address, Hex } from "viem";
 
 import type { MorphoUserPosition } from "../../../clients/eth-contract";
-import {
-  Morpho,
-  MorphoController,
-  MorphoOracle,
-} from "../../../clients/eth-contract";
+import { Morpho, MorphoController } from "../../../clients/eth-contract";
 
 import {
   fetchMorphoActivePositions,
@@ -43,8 +39,6 @@ export interface PositionWithMorphoOptimized {
     irm: string;
     lltv: string;
   };
-  /** BTC price in USD from oracle */
-  btcPriceUSD: number;
 }
 
 /**
@@ -53,7 +47,6 @@ export interface PositionWithMorphoOptimized {
  * Data flow:
  * 1. Fetch active positions from GraphQL indexer (includes market config)
  * 2. Batch fetch real-time borrow data from Morpho contract
- * 3. Fetch BTC price from oracle (single call for all positions)
  *
  * @param userAddress - User's Ethereum address
  * @returns Array of positions with real-time borrow data
@@ -97,25 +90,7 @@ export async function getUserPositionsOptimized(
     ),
   );
 
-  // Step 4: Get BTC price from oracle (use first market's oracle)
-  // All markets should use the same BTC oracle, so we only need one call
-  const firstPosition = indexedPositions[0];
-  const oracleAddress = firstPosition.market?.oracleAddress;
-
-  let btcPriceUSD = 0;
-  if (oracleAddress) {
-    try {
-      const oraclePrice = await MorphoOracle.getOraclePrice(
-        oracleAddress as Address,
-      );
-      btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
-    } catch {
-      // Oracle fetch failed, continue with 0 price
-      console.warn("Failed to fetch BTC price from oracle");
-    }
-  }
-
-  // Step 5: Combine indexed data with real-time data
+  // Step 4: Combine indexed data with real-time data
   const positionsWithMorpho: PositionWithMorphoOptimized[] = [];
 
   for (const indexed of indexedPositions) {
@@ -148,43 +123,10 @@ export async function getUserPositionsOptimized(
         irm: indexed.market?.irm || "",
         lltv: indexed.market?.lltv || "0",
       },
-      btcPriceUSD,
     });
   }
 
   return positionsWithMorpho;
-}
-
-/**
- * Get a single position with real-time data
- *
- * @param positionId - Position ID
- * @param marketId - Market ID
- * @param proxyContract - Proxy contract address
- * @returns Position with real-time Morpho data
- */
-export async function getSinglePositionOptimized(
-  marketId: string,
-  proxyContract: Address,
-  oracleAddress?: Address,
-): Promise<{
-  morphoPosition: MorphoUserPosition;
-  btcPriceUSD: number;
-}> {
-  // Fetch Morpho position and oracle price in parallel
-  const [morphoPosition, btcPriceUSD] = await Promise.all([
-    Morpho.getUserPosition(marketId, proxyContract),
-    oracleAddress
-      ? MorphoOracle.getOraclePrice(oracleAddress).then((price) =>
-          MorphoOracle.convertOraclePriceToUSD(price),
-        )
-      : Promise.resolve(0),
-  ]);
-
-  return {
-    morphoPosition,
-    btcPriceUSD,
-  };
 }
 
 /**

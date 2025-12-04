@@ -20,7 +20,6 @@ import {
   Morpho,
   MorphoController,
   MorphoControllerTx,
-  MorphoOracle,
 } from "../../../clients/eth-contract";
 import { CONTRACTS } from "../../../config/contracts";
 import { ContractError, ErrorCode } from "../../../utils/errors";
@@ -226,10 +225,8 @@ export async function repayDebtFull(
 
   // Fetch market data and validate position health
   const marketData = await Morpho.getMarketWithData(marketId);
-  const oraclePrice = await MorphoOracle.getOraclePrice(
-    marketData.oracle as Address,
-  );
-  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+  const oraclePrice = await Morpho.getOraclePrice(marketData.oracle as Address);
+  const btcPriceUSD = Morpho.convertOraclePriceToUSD(oraclePrice);
   const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);
@@ -354,10 +351,8 @@ export async function repayDebtPartial(
 
   // Fetch market data and validate position health BEFORE repayment
   const marketData = await Morpho.getMarketWithData(marketId);
-  const oraclePrice = await MorphoOracle.getOraclePrice(
-    marketData.oracle as Address,
-  );
-  const btcPriceUSD = MorphoOracle.convertOraclePriceToUSD(oraclePrice);
+  const oraclePrice = await Morpho.getOraclePrice(marketData.oracle as Address);
+  const btcPriceUSD = Morpho.convertOraclePriceToUSD(oraclePrice);
   const liquidationLTV = Number(formatUnits(marketData.lltv, 18));
 
   validatePositionHealth(collateral, borrowAssets, btcPriceUSD, liquidationLTV);

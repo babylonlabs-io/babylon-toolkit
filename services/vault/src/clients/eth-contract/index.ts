@@ -12,12 +12,13 @@ export type { MarketParams } from "./morpho-controller/transaction";
 // BTC Vaults Manager
 export * as BTCVaultsManagerTx from "./btc-vaults-manager/transaction";
 
-// Morpho (using direct contract calls)
+// Morpho (using direct contract calls, includes market oracle)
 export * as Morpho from "./morpho";
 export type { MorphoMarketSummary, MorphoUserPosition } from "./morpho/types";
 
-// Morpho Oracle (for price feeds in Morpho markets)
-export * as MorphoOracle from "./oracle/query";
+// Chainlink Oracle (for independent BTC/USD price)
+export * as ChainlinkOracle from "./chainlink";
+export type { ChainlinkRoundData } from "./chainlink";
 
 // ERC20
 export * as ERC20 from "./erc20";
