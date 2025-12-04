@@ -6,6 +6,7 @@
  */
 
 import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import { pushTx } from "../../clients/btc/mempool";
 import { getPsbtInputFields } from "../../utils/btc";

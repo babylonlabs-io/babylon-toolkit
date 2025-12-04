@@ -12,6 +12,7 @@
  */
 
 import { Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import { getTxInfo } from "../../clients/btc/mempool";
 

@@ -15,3 +15,10 @@ export type {
   RegisterPeginParams,
   SignAndBroadcastParams,
 } from "./PeginManager";
+
+export { PayoutManager } from "./PayoutManager";
+export type {
+  PayoutManagerConfig,
+  PayoutSignatureResult,
+  SignPayoutParams,
+} from "./PayoutManager";

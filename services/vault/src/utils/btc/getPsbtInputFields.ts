@@ -6,6 +6,8 @@
  * the appropriate PSBT input fields required for that UTXO.
  */
 
+import { Buffer } from "buffer";
+
 import { BitcoinScriptType, getScriptType } from "./btcScriptType";
 
 /**

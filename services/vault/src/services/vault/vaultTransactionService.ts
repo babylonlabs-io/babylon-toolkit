@@ -12,6 +12,7 @@ import {
   selectUtxosForPegin,
   type UTXO as SDKUtxo,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { Buffer } from "buffer";
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
 import {

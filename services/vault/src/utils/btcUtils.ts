@@ -4,6 +4,8 @@
  * Common utility functions for Bitcoin operations
  */
 
+import { Buffer } from "buffer";
+
 /**
  * Strip "0x" prefix from hex string if present
  * Bitcoin expects plain hex (no "0x" prefix), but frontend uses Ethereum-style "0x"-prefixed hex
