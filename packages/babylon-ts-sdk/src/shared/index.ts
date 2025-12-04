@@ -8,6 +8,7 @@ export type {
   BitcoinWallet,
   EthereumWallet,
   Hash,
+  SignPsbtOptions,
   TransactionRequest,
   TypedData,
 } from "./wallets";

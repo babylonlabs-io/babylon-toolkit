@@ -90,7 +90,7 @@ describe("PayoutManager", () => {
   describe("Constructor", () => {
     it("should create a manager with valid config", () => {
       const btcWallet = new MockBitcoinWallet({
-        publicKey: TEST_KEYS.DEPOSITOR,
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
 
       const config: PayoutManagerConfig = {
@@ -126,7 +126,7 @@ describe("PayoutManager", () => {
       const payoutTxHex = createTestPayoutTransaction(peginTxHex);
       const deterministicSignature = "11".repeat(64);
 
-      const getPublicKey = vi
+      const getPublicKeyHex = vi
         .fn<() => Promise<string>>()
         .mockResolvedValue(TEST_KEYS.DEPOSITOR);
       const signPsbt = vi
@@ -144,7 +144,7 @@ describe("PayoutManager", () => {
         });
 
       const wallet: BitcoinWallet = {
-        getPublicKey,
+        getPublicKeyHex,
         signPsbt,
         getAddress: vi.fn(),
         signMessage: vi.fn(),
@@ -167,7 +167,7 @@ describe("PayoutManager", () => {
       expect(result.signature).toBe(deterministicSignature);
       expect(result.signature).toHaveLength(128);
       expect(result.depositorBtcPubkey).toBe(TEST_KEYS.DEPOSITOR);
-      expect(getPublicKey).toHaveBeenCalledTimes(1);
+      expect(getPublicKeyHex).toHaveBeenCalledTimes(1);
       expect(signPsbt).toHaveBeenCalledTimes(1);
     });
 
