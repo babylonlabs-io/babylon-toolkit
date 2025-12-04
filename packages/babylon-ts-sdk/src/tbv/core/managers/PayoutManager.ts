@@ -1,8 +1,9 @@
 /**
- * Payout Manager - Wallet Orchestration for Payout Operations
+ * Payout Manager
  *
- * This module provides the PayoutManager class that orchestrates payout transaction
- * signing using SDK primitives and wallet interfaces.
+ * High-level manager that orchestrates the payout signing flow by coordinating
+ * SDK primitives (buildPayoutPsbt, extractPayoutSignature) with a user-provided
+ * Bitcoin wallet.
  *
  * @module managers/PayoutManager
  */
@@ -78,16 +79,7 @@ export interface PayoutSignatureResult {
 }
 
 /**
- * Manager for orchestrating payout operations.
- *
- * This manager provides a high-level API for signing payout transactions
- * by coordinating between SDK primitives and wallet interfaces.
- *
- * The payout signing flow consists of:
- * 1. Get depositor public key from wallet
- * 2. Build unsigned PSBT using primitives
- * 3. Sign PSBT with Bitcoin wallet
- * 4. Extract Schnorr signature using primitives
+ * High-level manager for payout transaction signing.
  */
 export class PayoutManager {
   private readonly config: PayoutManagerConfig;

@@ -5,6 +5,8 @@
  * for proper PSBT input construction.
  */
 
+import { Buffer } from "buffer";
+
 export enum BitcoinScriptType {
   P2PKH = "P2PKH",
   P2SH = "P2SH",
