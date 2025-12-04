@@ -1,14 +1,7 @@
-import { useETHWallet } from "@babylonlabs-io/wallet-connector";
+import { getBTCNetwork } from "@babylonlabs-io/config";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
-import type { Address } from "viem";
 
-import {
-  convertOraclePriceToUSD,
-  getOraclePrice,
-} from "../clients/eth-contract/oracle/query";
-
-import { useMarkets } from "./morpho";
+import { getBTCPriceUSD } from "../clients/eth-contract/chainlink/query";
 
 export interface UseBTCPriceResult {
   btcPriceUSD: number;
@@ -18,45 +11,24 @@ export interface UseBTCPriceResult {
 }
 
 /**
- * Hook to fetch BTC price from Morpho oracle
- * Uses the first available market's oracle to get BTC/USDC price
+ * Hook to fetch BTC price from Chainlink oracle
+ *
+ * Uses Chainlink's decentralized BTC/USD price feed for reliable, independent pricing.
+ * Automatically selects the correct feed address based on the configured network:
+ * - mainnet -> Ethereum mainnet Chainlink feed (0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c)
+ * - signet -> Sepolia testnet Chainlink feed (0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43)
  */
 export function useBTCPrice(): UseBTCPriceResult {
-  const { address } = useETHWallet();
-  const {
-    markets,
-    loading: isMarketsLoading,
-    error: marketsError,
-  } = useMarkets();
-
-  // Find the first market with an oracle (BTC/USDC market)
-  const btcMarket = useMemo(() => {
-    return markets.find(
-      (market) =>
-        market.collateralTokenAddress &&
-        market.oracleAddress &&
-        market.loanTokenAddress,
-    );
-  }, [markets]);
+  const network = getBTCNetwork();
 
   const {
     data: btcPriceUSD,
-    isLoading: isPriceLoading,
-    error: priceError,
+    isLoading,
+    error,
     refetch: refetchPrice,
   } = useQuery<number>({
-    queryKey: ["btcPrice", btcMarket?.oracleAddress, address],
-    queryFn: async () => {
-      if (!btcMarket?.oracleAddress) {
-        throw new Error("No BTC market with oracle found");
-      }
-
-      const oraclePrice = await getOraclePrice(
-        btcMarket.oracleAddress as Address,
-      );
-      return convertOraclePriceToUSD(oraclePrice);
-    },
-    enabled: !!btcMarket?.oracleAddress && !!address,
+    queryKey: ["btcPrice", "chainlink", network],
+    queryFn: getBTCPriceUSD,
     retry: 2,
     staleTime: 30000, // 30 seconds
     refetchInterval: 60000, // Refetch every minute
@@ -68,8 +40,8 @@ export function useBTCPrice(): UseBTCPriceResult {
 
   return {
     btcPriceUSD: btcPriceUSD || 0,
-    loading: isMarketsLoading || isPriceLoading,
-    error: (marketsError || priceError) as Error | null,
+    loading: isLoading,
+    error: error as Error | null,
     refetch: wrappedRefetch,
   };
 }

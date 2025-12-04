@@ -1,4 +1,9 @@
-// Oracle - Read operations for price feeds
+/**
+ * Morpho Oracle - Read operations for Morpho market price feeds
+ *
+ * Each Morpho market has its own oracle that determines collateral/loan pricing
+ * for liquidation calculations. This is different from general price feeds like Chainlink.
+ */
 
 import type { Address } from "viem";
 
@@ -19,7 +24,7 @@ const MORPHO_ORACLE_ABI = [
 ] as const;
 
 /**
- * Get price from Morpho oracle
+ * Get price from Morpho market oracle
  * Morpho oracles return prices with 36 decimals (price of 1 collateral token in loan token)
  * For BTC/USDC market: returns how many USDC (with 6 decimals) equals 1 BTC (with 8 decimals)
  * Price = USDC amount * 10^(36 - 6) / BTC amount * 10^(36 - 8)

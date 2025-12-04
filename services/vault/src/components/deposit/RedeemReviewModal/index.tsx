@@ -9,6 +9,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { useBTCPrice } from "../../../hooks/useBTCPrice";
 import type { Deposit } from "../../../types/vault";
 
 interface RedeemCollateralReviewModalProps {
@@ -17,7 +18,6 @@ interface RedeemCollateralReviewModalProps {
   onConfirm: () => void;
   depositIds: string[];
   deposits: Deposit[];
-  btcPrice?: number;
   isSigning?: boolean;
 }
 
@@ -27,9 +27,11 @@ export function RedeemCollateralReviewModal({
   onConfirm,
   depositIds,
   deposits,
-  btcPrice = 112694.16,
   isSigning = false,
 }: RedeemCollateralReviewModalProps) {
+  // Fetch real-time BTC price from Chainlink
+  const { btcPriceUSD } = useBTCPrice();
+
   // Get selected deposits
   const selectedDeposits = useMemo(
     () => deposits.filter((d) => depositIds.includes(d.id)),
@@ -43,7 +45,7 @@ export function RedeemCollateralReviewModal({
   );
 
   // Calculate USD value
-  const totalUsd = totalAmount * btcPrice;
+  const totalUsd = totalAmount * btcPriceUSD;
 
   return (
     <ResponsiveDialog open={open} onClose={!isSigning ? onClose : undefined}>
