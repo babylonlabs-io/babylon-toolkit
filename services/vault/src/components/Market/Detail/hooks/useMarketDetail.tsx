@@ -7,15 +7,15 @@ import { useParams } from "react-router";
 import type { Address } from "viem";
 
 import { CONTRACTS } from "../../../../config/contracts";
+import { useMarkets } from "../../../../hooks/morpho";
 import { useBTCPrice } from "../../../../hooks/useBTCPrice";
-import { useMarkets } from "../../../../hooks/useMarkets";
 import { useTokenPair } from "../../../../hooks/useTokenPair";
 import {
   getMarketData,
+  getUserPositionForMarket,
   type MorphoMarketSummary,
 } from "../../../../services/applications/morpho";
 import { getMarketBorrowAPR } from "../../../../services/irm";
-import { getUserPositionForMarket } from "../../../../services/position";
 import {
   blockToDateString,
   estimateDateFromBlock,

@@ -8,7 +8,7 @@ import {
   getOraclePrice,
 } from "../clients/eth-contract/oracle/query";
 
-import { useMarkets } from "./useMarkets";
+import { useMarkets } from "./morpho";
 
 export interface UseBTCPriceResult {
   btcPriceUSD: number;

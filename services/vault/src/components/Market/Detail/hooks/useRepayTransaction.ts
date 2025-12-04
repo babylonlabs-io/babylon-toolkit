@@ -14,7 +14,7 @@ import {
   repayDebtFull,
   repayDebtPartial,
   withdrawAllCollateralFromPosition,
-} from "../../../../services/position/positionTransactionService";
+} from "../../../../services/applications/morpho";
 import {
   ErrorCode,
   WalletError,

@@ -1,22 +1,26 @@
 /**
  * Hook for fetching user positions with Morpho data
  * Used in Positions tab to show borrowing positions
+ *
+ * Uses hybrid approach: fetches static data from GraphQL indexer,
+ * then enriches with real-time borrow data from on-chain.
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import type { Address } from "viem";
 
-import { CONTRACTS } from "../config/contracts";
-import type { PositionWithMorpho } from "../services/position";
-import { getUserPositionsWithMorpho } from "../services/position";
+import {
+  getUserPositionsOptimized,
+  type PositionWithMorphoOptimized,
+} from "../../services/applications/morpho";
 
 /**
  * Result interface for useUserPositions hook
  */
 export interface UseUserPositionsResult {
   /** Array of positions with Morpho data */
-  positions: PositionWithMorpho[];
+  positions: PositionWithMorphoOptimized[];
   /** Loading state - true while fetching data */
   loading: boolean;
   /** Error state - contains error if fetch failed */
@@ -28,7 +32,11 @@ export interface UseUserPositionsResult {
 /**
  * Custom hook to fetch user positions with Morpho data
  *
- * This hook fetches all positions for a user (borrowing positions in Morpho markets).
+ * This hook uses a hybrid approach:
+ * 1. Fetches active positions from GraphQL indexer (fast, includes market config)
+ * 2. Enriches with real-time borrow data from Morpho contract (for interest accrual)
+ * 3. Gets BTC price from oracle
+ *
  * Each position can contain MULTIPLE vaults as collateral (N:1 relationship).
  *
  * @param connectedAddress - Ethereum address of connected wallet (undefined if not connected)
@@ -37,14 +45,10 @@ export interface UseUserPositionsResult {
 export function useUserPositions(
   connectedAddress: Address | undefined,
 ): UseUserPositionsResult {
-  // Use React Query to fetch data from service layer
+  // Use React Query to fetch data from optimized service
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["userPositions", connectedAddress, CONTRACTS.MORPHO_CONTROLLER],
-    queryFn: () =>
-      getUserPositionsWithMorpho(
-        connectedAddress!,
-        CONTRACTS.MORPHO_CONTROLLER,
-      ),
+    queryKey: ["userPositions", connectedAddress],
+    queryFn: () => getUserPositionsOptimized(connectedAddress!),
     enabled: !!connectedAddress,
     // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
@@ -57,26 +61,13 @@ export function useUserPositions(
     }
   }, [connectedAddress, refetch]);
 
-  // Filter positions to include:
-  // 1. Active borrowing (borrowShares > 0) - can repay/borrow more
-  // 2. Collateral only (borrowShares = 0, collateral > 0) - can withdraw
-  const activePositions = useMemo(() => {
-    if (!data) return [];
-
-    return data.filter(
-      (position) =>
-        position.morphoPosition.borrowShares > 0n ||
-        position.morphoPosition.collateral > 0n,
-    );
-  }, [data]);
-
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {
     await refetch();
   };
 
   return {
-    positions: activePositions,
+    positions: data ?? [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,
