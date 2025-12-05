@@ -474,8 +474,8 @@ export class PeginManager {
     if (exists) {
       throw new Error(
         `Vault already exists for this transaction (ID: ${vaultId}). ` +
-          `This Bitcoin transaction was already registered. ` +
-          `Please use different UTXOs or a different amount to create a unique transaction.`,
+          `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
+          `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
       );
     }
 
