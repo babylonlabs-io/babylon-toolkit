@@ -143,7 +143,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
 
         // Use PeginManager for complete flow
         const result = await vaultTransactionService.submitPeginRequest(
-          btcWalletProvider as any,
+          btcWalletProvider,
           walletClient,
           {
             pegInAmount,
@@ -234,7 +234,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         const feeRate = Math.ceil(Number(txData.fee) / 250);
 
         const result = await vaultTransactionService.submitPeginRequest(
-          btcWalletProvider as any,
+          btcWalletProvider,
           walletClient,
           {
             pegInAmount: txData.pegInAmount,
