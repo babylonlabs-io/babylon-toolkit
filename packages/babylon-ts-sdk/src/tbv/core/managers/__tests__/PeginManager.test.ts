@@ -6,6 +6,7 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import type { Chain } from "viem";
 
 import {
   MockBitcoinWallet,
@@ -15,6 +16,21 @@ import type { Address } from "../../../../shared/wallets/interfaces/EthereumWall
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import type { UTXO } from "../../utils";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
+
+// Mock calculateBtcTxHash to avoid parsing fake transaction hex in tests
+vi.mock("../../utils/transaction/btcTxHash", () => ({
+  calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
+}));
+
+// Test chain configuration (minimal viem Chain)
+const TEST_CHAIN: Chain = {
+  id: 11155111,
+  name: "Sepolia",
+  nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.sepolia.org"] },
+  },
+};
 
 // Test constants
 const TEST_KEYS = {
@@ -83,7 +99,8 @@ describe("PeginManager", () => {
       const config: PeginManagerConfig = {
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any, // Mock wallet for testing
+        chain: TEST_CHAIN,
         vaultContracts: {
           btcVaultsManager: TEST_CONTRACT_ADDRESS,
         },
@@ -106,8 +123,9 @@ describe("PeginManager", () => {
         const manager = new PeginManager({
           network,
           btcWallet,
-          ethWallet,
-          vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
+          ethWallet: ethWallet as any,
+          chain: TEST_CHAIN,
+        vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         });
 
         expect(manager.getNetwork()).toBe(network);
@@ -125,7 +143,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -174,7 +193,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -211,7 +231,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -238,7 +259,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -271,7 +293,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -304,7 +327,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -330,7 +354,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -357,7 +382,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -386,7 +412,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -422,7 +449,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -454,7 +482,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -479,9 +508,12 @@ describe("PeginManager", () => {
       expect(txRequest.data).toBeDefined();
       expect(txRequest.data).toContain("0x"); // Encoded call data
 
-      // Verify result is a hash
+      // Verify result contains ethTxHash and vaultId
       expect(result).toBeDefined();
-      expect(result.startsWith("0x")).toBe(true);
+      expect(result.ethTxHash).toBeDefined();
+      expect(result.ethTxHash.startsWith("0x")).toBe(true);
+      expect(result.vaultId).toBeDefined();
+      expect(result.vaultId.startsWith("0x")).toBe(true);
     });
 
     it("should handle BTC wallet signing failure", async () => {
@@ -494,7 +526,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -518,7 +551,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -541,7 +575,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -576,7 +611,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -597,7 +633,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: customUrl,
       });
@@ -614,7 +651,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -630,7 +668,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "bitcoin",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -645,7 +684,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "testnet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -664,7 +704,8 @@ describe("PeginManager", () => {
       const manager = new PeginManager({
         network: "signet",
         btcWallet,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
@@ -699,14 +740,16 @@ describe("PeginManager", () => {
       const manager1 = new PeginManager({
         network: "signet",
         btcWallet: btcWallet1,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 
       const manager2 = new PeginManager({
         network: "signet",
         btcWallet: btcWallet2,
-        ethWallet,
+        ethWallet: ethWallet as any,
+        chain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
       });
 

@@ -1,6 +1,6 @@
 // Export Bitcoin wallet interfaces
-export { BitcoinNetwork } from "./BitcoinWallet";
-export type { BitcoinWallet, SignPsbtOptions } from "./BitcoinWallet";
+export { BitcoinNetworks } from "./BitcoinWallet";
+export type { BitcoinNetwork, BitcoinWallet, SignPsbtOptions } from "./BitcoinWallet";
 export type {
   Address,
   EthereumWallet,
