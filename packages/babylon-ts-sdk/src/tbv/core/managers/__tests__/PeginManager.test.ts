@@ -17,6 +17,11 @@ import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers"
 import type { UTXO } from "../../utils";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
 
+// Mock calculateBtcTxHash to avoid parsing fake transaction hex in tests
+vi.mock("../../utils/transaction/btcTxHash", () => ({
+  calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
+}));
+
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {
   id: 11155111,
