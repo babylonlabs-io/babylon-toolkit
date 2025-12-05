@@ -239,7 +239,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           {
             pegInAmount: txData.pegInAmount,
             feeRate,
-            changeAddress: "",
+            changeAddress: btcAddress,
             vaultProviderAddress: txData.vaultProviderAddress,
             vaultProviderBtcPubkey: txData.vaultProviderBtcPubkey.startsWith(
               "0x",
