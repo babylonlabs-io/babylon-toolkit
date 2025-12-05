@@ -147,7 +147,7 @@ export function useDepositFlow(
         }));
       }
 
-      // Step 2: Create and sign transaction
+      // Step 2: Create and submit transaction (PeginManager handles everything)
       setStep("signing");
       const txResult = await transaction.createDepositTransaction({
         ...data,
@@ -158,25 +158,17 @@ export function useDepositFlow(
         throw new Error(txResult.error);
       }
 
-      // Step 3: Submit transaction
-      setStep("submitting");
-      const submitResult = await transaction.submitTransaction(txResult.data!);
-
-      if (!submitResult.success) {
-        throw new Error(submitResult.error);
-      }
-
-      // Step 4: Wait for confirmation
+      // Step 3: Wait for confirmation
       setStep("confirming");
       setState((prev) => ({
         ...prev,
-        transactionData: submitResult.data,
+        transactionData: txResult.data,
       }));
 
       // Simulate confirmation (in real app, would poll for status)
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      return submitResult.data;
+      return txResult.data;
     },
     onSuccess: () => {
       setStep("complete");

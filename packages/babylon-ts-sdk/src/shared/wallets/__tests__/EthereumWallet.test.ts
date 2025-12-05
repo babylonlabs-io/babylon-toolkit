@@ -11,7 +11,7 @@ describe("EthereumWallet Interface", () => {
 
   describe("getAddress", () => {
     it("should return a valid Ethereum address", async () => {
-      const address = await wallet.getAddress();
+      const address = wallet.account.address;
 
       expect(address).toBeDefined();
       expect(typeof address).toBe("string");
@@ -19,7 +19,7 @@ describe("EthereumWallet Interface", () => {
     });
 
     it("should return checksummed address", async () => {
-      const address = await wallet.getAddress();
+      const address = wallet.account.address;
 
       // Should start with 0x
       expect(address.startsWith("0x")).toBe(true);
@@ -28,8 +28,8 @@ describe("EthereumWallet Interface", () => {
     });
 
     it("should return consistent address", async () => {
-      const addr1 = await wallet.getAddress();
-      const addr2 = await wallet.getAddress();
+      const addr1 = wallet.account.address;
+      const addr2 = wallet.account.address;
 
       expect(addr1).toBe(addr2);
     });
@@ -122,7 +122,7 @@ describe("EthereumWallet Interface", () => {
         },
       };
 
-      const signature = await wallet.signTypedData(typedData);
+      const signature = await wallet.signTypedData?.(typedData);
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe("string");
@@ -144,8 +144,8 @@ describe("EthereumWallet Interface", () => {
         message: { value: "200" },
       };
 
-      const sig1 = await wallet.signTypedData(typedData1);
-      const sig2 = await wallet.signTypedData(typedData2);
+      const sig1 = await wallet.signTypedData?.(typedData1);
+      const sig2 = await wallet.signTypedData?.(typedData2);
 
       expect(sig1).not.toBe(sig2);
     });
@@ -158,7 +158,7 @@ describe("EthereumWallet Interface", () => {
         message: {},
       };
 
-      await expect(wallet.signTypedData(invalidData)).rejects.toThrow(
+      await expect(wallet.signTypedData?.(invalidData)).rejects.toThrow(
         "missing required fields",
       );
     });
@@ -195,8 +195,8 @@ describe("EthereumWallet Interface", () => {
         message: { value: "100" },
       };
 
-      const sig1 = await wallet1.signTypedData(typedData);
-      const sig2 = await wallet2.signTypedData(typedData);
+      const sig1 = await wallet1.signTypedData?.(typedData);
+      const sig2 = await wallet2.signTypedData?.(typedData);
 
       expect(sig1).not.toBe(sig2);
     });
@@ -210,8 +210,8 @@ describe("EthereumWallet Interface", () => {
         message: {},
       };
 
-      const messageSig = await wallet.signMessage(message);
-      const typedDataSig = await wallet.signTypedData(typedData);
+      const messageSig = await wallet.signMessage({ message });
+      const typedDataSig = await wallet.signTypedData?.(typedData);
 
       expect(messageSig).not.toBe(typedDataSig);
     });
@@ -220,7 +220,7 @@ describe("EthereumWallet Interface", () => {
   describe("signMessage", () => {
     it("should sign a message and return signature", async () => {
       const message = "Hello, Ethereum!";
-      const signature = await wallet.signMessage(message);
+      const signature = await wallet.signMessage({ message });
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe("string");
@@ -228,14 +228,14 @@ describe("EthereumWallet Interface", () => {
     });
 
     it("should produce different signatures for different messages", async () => {
-      const sig1 = await wallet.signMessage("Message 1");
-      const sig2 = await wallet.signMessage("Message 2");
+      const sig1 = await wallet.signMessage({ message: "Message 1" });
+      const sig2 = await wallet.signMessage({ message: "Message 2" });
 
       expect(sig1).not.toBe(sig2);
     });
 
     it("should throw error for empty message", async () => {
-      await expect(wallet.signMessage("")).rejects.toThrow();
+      await expect(wallet.signMessage({ message: "" })).rejects.toThrow();
     });
 
     it("should handle signing failures", async () => {
@@ -243,7 +243,7 @@ describe("EthereumWallet Interface", () => {
         shouldFailOperations: true,
       });
 
-      await expect(failingWallet.signMessage("test")).rejects.toThrow(
+      await expect(failingWallet.signMessage({ message: "test" })).rejects.toThrow(
         "Mock signing failed",
       );
     });
@@ -256,8 +256,8 @@ describe("EthereumWallet Interface", () => {
         address: "0x2222222222222222222222222222222222222222",
       });
 
-      const sig1 = await wallet1.signMessage("same message");
-      const sig2 = await wallet2.signMessage("same message");
+      const sig1 = await wallet1.signMessage({ message: "same message" });
+      const sig2 = await wallet2.signMessage({ message: "same message" });
 
       expect(sig1).not.toBe(sig2);
     });
@@ -265,7 +265,7 @@ describe("EthereumWallet Interface", () => {
 
   describe("getChainId", () => {
     it("should return a valid chain ID", async () => {
-      const chainId = await wallet.getChainId();
+      const chainId = wallet.chain.id;
 
       expect(chainId).toBeDefined();
       expect(typeof chainId).toBe("number");
@@ -273,14 +273,14 @@ describe("EthereumWallet Interface", () => {
     });
 
     it("should return Sepolia chain ID by default", async () => {
-      const chainId = await wallet.getChainId();
+      const chainId = wallet.chain.id;
 
       expect(chainId).toBe(11155111); // Sepolia
     });
 
     it("should return configured chain ID", async () => {
       const mainnetWallet = new MockEthereumWallet({ chainId: 1 });
-      const chainId = await mainnetWallet.getChainId();
+      const chainId = mainnetWallet.chain.id;
 
       expect(chainId).toBe(1);
     });
@@ -294,7 +294,7 @@ describe("EthereumWallet Interface", () => {
 
       for (const chain of chains) {
         const testWallet = new MockEthereumWallet({ chainId: chain.id });
-        const chainId = await testWallet.getChainId();
+        const chainId = testWallet.chain.id;
         expect(chainId).toBe(chain.id);
       }
     });
@@ -313,10 +313,10 @@ describe("EthereumWallet Interface", () => {
 
     it("should support updateConfig", async () => {
       const mockWallet = wallet as MockEthereumWallet;
-      const originalChainId = await mockWallet.getChainId();
+      const originalChainId = mockWallet.chain.id;
 
       mockWallet.updateConfig({ chainId: 1 });
-      const newChainId = await mockWallet.getChainId();
+      const newChainId = mockWallet.chain.id;
 
       expect(newChainId).not.toBe(originalChainId);
       expect(newChainId).toBe(1);
@@ -332,7 +332,7 @@ describe("EthereumWallet Interface", () => {
 
       mockWallet.reset();
 
-      const chainId = await mockWallet.getChainId();
+      const chainId = mockWallet.chain.id;
       const nonce = mockWallet.getCurrentNonce();
 
       expect(chainId).toBe(11155111); // Default Sepolia
@@ -342,7 +342,7 @@ describe("EthereumWallet Interface", () => {
 
   describe("Type Safety", () => {
     it("should enforce Address type format", async () => {
-      const address = await wallet.getAddress();
+      const address = wallet.account.address;
 
       // TypeScript should enforce this at compile time
       const testAddress: `0x${string}` = address;

@@ -61,20 +61,18 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
   }),
 }));
 
-// Mock BTC transaction service
-vi.mock("@/services/vault/vaultBtcTransactionService", () => ({
-  createPeginTxForSubmission: vi.fn().mockResolvedValue({
-    unsignedTxHex: "0xunsigned",
-    txid: "btc123",
-    vaultScriptPubKey: "0xvaultscript",
-    vaultValue: 100000n,
-    changeValue: 390000n,
+// Mock vault transaction service
+vi.mock("@/services/vault/vaultTransactionService", () => ({
+  submitPeginRequest: vi.fn().mockResolvedValue({
+    transactionHash: "0xeth123",
+    receipt: null,
+    btcTxid: "btc123",
+    btcTxHex: "0xunsigned",
+    selectedUTXOs: [
+      { txid: "utxo1", vout: 0, value: 500000, scriptPubKey: "script" },
+    ],
+    fee: 1000n,
   }),
-}));
-
-// Mock proof of possession
-vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
-  createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
 
 // Mock fetchProviders service

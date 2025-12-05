@@ -22,31 +22,45 @@ export interface MockEthereumWalletConfig {
  * Mock Ethereum wallet for testing.
  */
 export class MockEthereumWallet implements EthereumWallet {
-  private config: Required<MockEthereumWalletConfig>;
+  // Public properties matching viem's WalletClient structure
+  account: { address: Address };
+  chain: { id: number };
+
+  private shouldFailOperations: boolean;
+  private transactionDelay: number;
   private nonce: number = 0;
 
   constructor(config: MockEthereumWalletConfig = {}) {
     // Use lowercase addresses to avoid EIP-55 checksum validation issues
-    this.config = {
+    this.account = {
       address:
         (config.address as Address) ||
-        "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
-      chainId: config.chainId ?? 11155111, // Sepolia by default
-      shouldFailOperations: config.shouldFailOperations ?? false,
-      transactionDelay: config.transactionDelay ?? 0,
+        ("0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address),
     };
+
+    this.chain = {
+      id: config.chainId ?? 11155111, // Sepolia by default
+    };
+
+    this.shouldFailOperations = config.shouldFailOperations ?? false;
+    this.transactionDelay = config.transactionDelay ?? 0;
+
+    // Bind methods to preserve 'this' context when called by viem
+    this.signMessage = this.signMessage.bind(this);
+    this.sendTransaction = this.sendTransaction.bind(this);
+    if (this.signTypedData) {
+      this.signTypedData = this.signTypedData.bind(this);
+    }
   }
 
-  async getAddress(): Promise<Address> {
-    return this.config.address;
-  }
+  async signMessage(args: {
+    message: string;
+    account?: Address;
+  }): Promise<Hash> {
+    const message = args.message;
+    const account = args.account || this.account.address;
 
-  async getChainId(): Promise<number> {
-    return this.config.chainId;
-  }
-
-  async signMessage(message: string): Promise<Hash> {
-    if (this.config.shouldFailOperations) {
+    if (this.shouldFailOperations) {
       throw new Error("Mock signing failed");
     }
 
@@ -56,7 +70,7 @@ export class MockEthereumWallet implements EthereumWallet {
 
     // In a real implementation, this would create a proper ECDSA signature
     // For the mock, we generate a deterministic signature hash
-    const signatureData = `personal_sign:${message}-${this.config.address}-${this.config.chainId}`;
+    const signatureData = `personal_sign:${message}-${account}-${this.chain.id}`;
     const signature = `0x${Buffer.from(signatureData)
       .toString("hex")
       .slice(0, 130)
@@ -65,7 +79,7 @@ export class MockEthereumWallet implements EthereumWallet {
   }
 
   async signTypedData(typedData: TypedData): Promise<Hash> {
-    if (this.config.shouldFailOperations) {
+    if (this.shouldFailOperations) {
       throw new Error("Mock typed data signing failed");
     }
 
@@ -76,8 +90,8 @@ export class MockEthereumWallet implements EthereumWallet {
     // In a real implementation, this would create a proper EIP-712 signature
     // For the mock, we generate a deterministic signature hash based on the typed data
     const typedDataString = JSON.stringify({
-      address: this.config.address,
-      chainId: this.config.chainId,
+      address: this.account.address,
+      chainId: this.chain.id,
       domain: typedData.domain,
       primaryType: typedData.primaryType,
       message: typedData.message,
@@ -94,7 +108,7 @@ export class MockEthereumWallet implements EthereumWallet {
   }
 
   async sendTransaction(tx: TransactionRequest): Promise<Hash> {
-    if (this.config.shouldFailOperations) {
+    if (this.shouldFailOperations) {
       throw new Error("Mock transaction failed");
     }
 
@@ -103,9 +117,9 @@ export class MockEthereumWallet implements EthereumWallet {
     }
 
     // Simulate network delay if configured
-    if (this.config.transactionDelay > 0) {
+    if (this.transactionDelay > 0) {
       await new Promise((resolve) =>
-        setTimeout(resolve, this.config.transactionDelay),
+        setTimeout(resolve, this.transactionDelay),
       );
     }
 
@@ -113,11 +127,11 @@ export class MockEthereumWallet implements EthereumWallet {
     // For the mock, we generate a deterministic transaction hash
     this.nonce++;
     const txData = JSON.stringify({
-      from: this.config.address,
+      from: this.account.address,
       to: tx.to,
       value: tx.value || "0",
       nonce: this.nonce,
-      chainId: this.config.chainId,
+      chainId: this.chain.id,
     });
 
     // Create a mock transaction hash
@@ -130,20 +144,27 @@ export class MockEthereumWallet implements EthereumWallet {
 
   /** Updates configuration for testing different scenarios. */
   updateConfig(updates: Partial<MockEthereumWalletConfig>): void {
-    this.config = {
-      ...this.config,
-      ...updates,
-    };
+    if (updates.address !== undefined) {
+      this.account.address = updates.address;
+    }
+    if (updates.chainId !== undefined) {
+      this.chain.id = updates.chainId;
+    }
+    if (updates.shouldFailOperations !== undefined) {
+      this.shouldFailOperations = updates.shouldFailOperations;
+    }
+    if (updates.transactionDelay !== undefined) {
+      this.transactionDelay = updates.transactionDelay;
+    }
   }
 
   /** Resets to default configuration and nonce. */
   reset(): void {
-    this.config = {
-      address: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
-      chainId: 11155111,
-      shouldFailOperations: false,
-      transactionDelay: 0,
-    };
+    this.account.address =
+      "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address;
+    this.chain.id = 11155111;
+    this.shouldFailOperations = false;
+    this.transactionDelay = 0;
     this.nonce = 0;
   }
 

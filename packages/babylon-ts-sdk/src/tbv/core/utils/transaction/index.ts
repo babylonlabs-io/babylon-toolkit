@@ -5,3 +5,4 @@
  */
 
 export * from "./fundPeginTransaction";
+export * from "./btcTxHash";

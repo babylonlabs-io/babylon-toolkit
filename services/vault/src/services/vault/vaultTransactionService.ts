@@ -5,24 +5,15 @@
  * or fetching data before executing transactions.
  */
 
-import {
-  BTC_DUST_SAT,
-  fundPeginTransaction,
-  getNetwork,
-  selectUtxosForPegin,
-  type UTXO as SDKUtxo,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
-import { Buffer } from "buffer";
+import { getETHChain } from "@babylonlabs-io/config";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
-import {
-  BTCVaultsManagerTx,
-  MorphoControllerTx,
-} from "../../clients/eth-contract";
+import { MorphoControllerTx } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-
-import * as btcTransactionService from "./vaultBtcTransactionService";
 
 /**
  * UTXO parameters for peg-in transaction
@@ -41,131 +32,96 @@ export interface PeginUTXOParams {
 export type UTXO = SDKUtxo;
 
 /**
- * Submit a pegin request
+ * Parameters for submitting a pegin request
+ */
+export interface SubmitPeginParams {
+  pegInAmount: bigint;
+  feeRate: number;
+  changeAddress: string;
+  vaultProviderAddress: Address;
+  vaultProviderBtcPubkey: string;
+  liquidatorBtcPubkeys: string[];
+  availableUTXOs: UTXO[];
+}
+
+/**
+ * Submit a pegin request using PeginManager
  *
- * This orchestrates the complete peg-in submission:
- * 1. Generate Bitcoin proof of possession signature (depositor signs their ETH address with BTC key)
- * 2. Select appropriate UTXO(s) from available UTXOs
- * 3. Create unsigned BTC transaction using WASM (with REAL user data, REAL UTXOs, REAL selected provider)
- * 4. Submit unsigned BTC transaction to BTCVaultsManager smart contract
- * 5. Wait for ETH transaction confirmation
- * 6. Return transaction details including selected UTXOs
+ * This function uses the SDK's PeginManager to orchestrate the complete peg-in flow:
+ * 1. Build unfunded transaction
+ * 2. Select UTXOs automatically
+ * 3. Fund transaction
+ * 4. Create proof of possession (PoP) signature
+ * 5. Submit to smart contract
  *
- * Note: This function does NOT broadcast the BTC transaction to the Bitcoin network.
- * The unsigned transaction hex is returned for later broadcasting.
+ * The PeginManager handles all orchestration internally, dramatically simplifying
+ * the service layer code.
  *
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param depositorEthAddress - Depositor's Ethereum address
- * @param depositorBtcPubkey - Depositor's BTC public key (x-only, 32 bytes hex)
- * @param pegInAmountSats - Amount to peg in (in satoshis)
- * @param availableUTXOs - Array of available UTXOs to select from
- * @param fixedFee - BTC transaction fixed fee in satoshis (used for UTXO selection)
- * @param changeAddress - BTC address for change output
- * @param vaultProviderAddress - Selected vault provider's Ethereum address
- * @param vaultProviderBtcPubkey - Selected vault provider's BTC public key (x-only, 32 bytes hex)
- * @param liquidatorBtcPubkeys - Liquidator BTC public keys from the selected vault provider
- * @param btcPopSignatureRaw - Pre-generated BIP-322 or ECDSA signature (from createProofOfPossession)
- * @returns Transaction hash, receipt, pegin transaction details, selected UTXOs, and unsigned tx hex
+ * @param btcWallet - Bitcoin wallet (from wallet-connector, implements BitcoinWallet interface)
+ * @param ethWallet - Ethereum wallet client (viem WalletClient)
+ * @param params - Pegin parameters
+ * @returns Transaction hash, btc txid, funded tx hex, selected UTXOs, and fee
  */
 export async function submitPeginRequest(
-  walletClient: WalletClient,
-  chain: Chain,
-  depositorEthAddress: Address,
-  depositorBtcPubkey: string,
-  pegInAmountSats: bigint,
-  availableUTXOs: UTXO[],
-  fixedFee: number,
-  changeAddress: string,
-  vaultProviderAddress: Address,
-  vaultProviderBtcPubkey: string,
-  liquidatorBtcPubkeys: string[],
-  btcPopSignatureRaw: string,
+  btcWallet: BitcoinWallet,
+  ethWallet: WalletClient,
+  params: SubmitPeginParams,
 ) {
-  // Step 1: Convert PoP signature from base64 to hex
-  // BTC wallets (Unisat, OKX, etc.) return base64-encoded signatures
-  // Ethereum contracts expect hex-encoded bytes, so we need to convert
-  let btcPopSignature: Hex;
-  if (btcPopSignatureRaw.startsWith("0x")) {
-    // Already in hex format
-    btcPopSignature = btcPopSignatureRaw as Hex;
-  } else {
-    // Convert from base64 to hex
-    const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
-    btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
+  // Validate wallet client has an account
+  if (!ethWallet.account) {
+    throw new Error("Ethereum wallet account not found");
   }
 
-  // Step 2: Create unfunded BTC peg-in transaction using SDK
-  const btcTx = await btcTransactionService.createPeginTxForSubmission({
+  // Step 1: Create PeginManager instance
+  // PeginManager now uses viem's WalletClient directly for proper gas estimation
+  const peginManager = new PeginManager({
+    network: getBTCNetworkForWASM(),
+    btcWallet,
+    ethWallet, // viem's WalletClient - no cast needed!
+    chain: getETHChain(), // Required for proper gas estimation in writeContract
+    vaultContracts: {
+      btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
+    },
+  });
+
+  // Step 2: Prepare peg-in (builds, funds, selects UTXOs automatically)
+  const peginResult = await peginManager.preparePegin({
+    amount: params.pegInAmount,
+    vaultProvider: params.vaultProviderAddress,
+    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey.startsWith("0x")
+      ? params.vaultProviderBtcPubkey.slice(2)
+      : params.vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys.map((key) =>
+      key.startsWith("0x") ? key.slice(2) : key,
+    ),
+    availableUTXOs: params.availableUTXOs,
+    feeRate: params.feeRate,
+    changeAddress: params.changeAddress,
+  });
+
+  // Step 3: Get depositor BTC pubkey (manager handles x-only conversion internally)
+  const depositorBtcPubkeyRaw = await btcWallet.getPublicKeyHex();
+  const depositorBtcPubkey =
+    depositorBtcPubkeyRaw.length === 66
+      ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
+      : depositorBtcPubkeyRaw; // Already x-only
+
+  // Step 4: Register on-chain (submits to contract + creates PoP automatically)
+  const registrationResult = await peginManager.registerPeginOnChain({
     depositorBtcPubkey,
-    pegInAmount: pegInAmountSats,
-    vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    unsignedBtcTx: peginResult.fundedTxHex,
+    vaultProvider: params.vaultProviderAddress,
   });
-  // btcTx.unsignedTxHex = unfunded tx (0 inputs, 1 vault output)
 
-  // Step 3: Select UTXOs and calculate fees using iterative approach
-  // TEMPORARY: Convert legacy fixedFee to feeRate for new UTXO selection logic
-  // TODO: Remove fixedFee parameter and use feeRate directly (breaking change for frontend)
-  // See: services/vault/src/utils/fee/constants.ts for proper fee calculation constants
-  const ESTIMATED_PEGIN_TX_SIZE_VBYTES = 250;
-  const feeRate = Math.ceil(fixedFee / ESTIMATED_PEGIN_TX_SIZE_VBYTES);
-  const utxoSelection = selectUtxosForPegin(
-    availableUTXOs,
-    pegInAmountSats,
-    feeRate,
-  );
-
-  // Step 4: Validate change address if change output is needed
-  if (utxoSelection.changeAmount > BigInt(BTC_DUST_SAT) && !changeAddress) {
-    throw new Error(
-      "Change address is required when change amount exceeds dust threshold",
-    );
-  }
-
-  // Step 5: Fund the transaction (add inputs and change output)
-  const network = getNetwork(getBTCNetworkForWASM());
-  const fundedTxHex = fundPeginTransaction({
-    unfundedTxHex: btcTx.unsignedTxHex,
-    selectedUTXOs: utxoSelection.selectedUTXOs,
-    changeAddress: changeAddress,
-    changeAmount: utxoSelection.changeAmount,
-    network,
-  });
-  // fundedTxHex = funded tx (N inputs, 2 outputs: vault + change)
-
-  // Step 6: Convert funded tx to Hex format for contract (ensure 0x prefix)
-  const unsignedPegInTx = fundedTxHex.startsWith("0x")
-    ? (fundedTxHex as Hex)
-    : (`0x${fundedTxHex}` as Hex);
-
-  // Step 7: Convert depositor BTC pubkey to Hex format (ensure 0x prefix)
-  const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
-    ? (depositorBtcPubkey as Hex)
-    : (`0x${depositorBtcPubkey}` as Hex);
-
-  // Step 8: Submit to smart contract
-  const result = await BTCVaultsManagerTx.submitPeginRequest(
-    walletClient,
-    chain,
-    CONTRACTS.BTC_VAULTS_MANAGER,
-    depositorEthAddress,
-    depositorBtcPubkeyHex,
-    btcPopSignature,
-    unsignedPegInTx,
-    vaultProviderAddress,
-  );
-
-  // Step 9: Return results with actual fee used
-  const actualFee = utxoSelection.fee;
-
+  // Step 5: Return results
   return {
-    transactionHash: result.transactionHash,
-    receipt: result.receipt,
-    btcTxid: btcTx.txid,
-    btcTxHex: fundedTxHex,
-    selectedUTXOs: utxoSelection.selectedUTXOs,
-    fee: actualFee,
+    transactionHash: registrationResult.ethTxHash,
+    vaultId: registrationResult.vaultId, // Bitcoin transaction hash used as vault ID
+    receipt: null, // Manager doesn't wait for receipt
+    btcTxid: peginResult.btcTxid,
+    btcTxHex: peginResult.fundedTxHex,
+    selectedUTXOs: peginResult.selectedUTXOs,
+    fee: peginResult.fee,
   };
 }
 
