@@ -1,11 +1,17 @@
 /**
  * Bitcoin network types.
+ * Using string literal union for maximum compatibility with wallet providers.
  */
-export enum BitcoinNetwork {
-  MAINNET = "mainnet",
-  TESTNET = "testnet",
-  SIGNET = "signet",
-}
+export type BitcoinNetwork = "mainnet" | "testnet" | "signet";
+
+/**
+ * Bitcoin network constants
+ */
+export const BitcoinNetworks = {
+  MAINNET: "mainnet",
+  TESTNET: "testnet",
+  SIGNET: "signet",
+} as const;
 
 /**
  * SignPsbt options for advanced signing scenarios.
