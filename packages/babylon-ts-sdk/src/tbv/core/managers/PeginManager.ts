@@ -13,6 +13,7 @@ import {
   createPublicClient,
   encodeFunctionData,
   http,
+  zeroAddress,
   type Address,
   type Chain,
   type Hex,
@@ -534,9 +535,7 @@ export class PeginManager {
       })) as { depositor: Address };
 
       // If depositor is not zero address, vault exists
-      return (
-        vault.depositor !== "0x0000000000000000000000000000000000000000"
-      );
+      return vault.depositor !== zeroAddress;
     } catch {
       // If reading fails, assume vault doesn't exist and let contract handle it
       return false;
