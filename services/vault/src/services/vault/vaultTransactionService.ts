@@ -45,6 +45,18 @@ export interface SubmitPeginParams {
 }
 
 /**
+ * Result of submitting a pegin request
+ */
+export interface SubmitPeginResult {
+  transactionHash: Hex;
+  vaultId: Hex;
+  btcTxid: string;
+  btcTxHex: string;
+  selectedUTXOs: UTXO[];
+  fee: bigint;
+}
+
+/**
  * Submit a pegin request using PeginManager
  *
  * This function uses the SDK's PeginManager to orchestrate the complete peg-in flow:
@@ -57,16 +69,20 @@ export interface SubmitPeginParams {
  * The PeginManager handles all orchestration internally, dramatically simplifying
  * the service layer code.
  *
+ * **IMPORTANT:** This function returns immediately after the Ethereum transaction is
+ * submitted. It does NOT wait for transaction confirmation. Use polling mechanisms
+ * (e.g., usePeginPollingQuery) to track transaction status separately.
+ *
  * @param btcWallet - Bitcoin wallet (from wallet-connector, implements BitcoinWallet interface)
  * @param ethWallet - Ethereum wallet client (viem WalletClient)
  * @param params - Pegin parameters
- * @returns Transaction hash, btc txid, funded tx hex, selected UTXOs, and fee
+ * @returns Transaction hash, vault ID, BTC txid, funded tx hex, selected UTXOs, and fee
  */
 export async function submitPeginRequest(
   btcWallet: BitcoinWallet,
   ethWallet: WalletClient,
   params: SubmitPeginParams,
-) {
+): Promise<SubmitPeginResult> {
   // Validate wallet client has an account
   if (!ethWallet.account) {
     throw new Error("Ethereum wallet account not found");
@@ -117,7 +133,6 @@ export async function submitPeginRequest(
   return {
     transactionHash: registrationResult.ethTxHash,
     vaultId: registrationResult.vaultId, // Bitcoin transaction hash used as vault ID
-    receipt: null, // Manager doesn't wait for receipt
     btcTxid: peginResult.btcTxid,
     btcTxHex: peginResult.fundedTxHex,
     selectedUTXOs: peginResult.selectedUTXOs,
