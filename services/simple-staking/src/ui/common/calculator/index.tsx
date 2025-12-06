@@ -182,17 +182,6 @@ export default function CalculatorPage() {
                         variant="body2"
                         className="text-xs text-accent-secondary"
                       >
-                        {babySymbol} Staking
-                      </Text>
-                      <Text variant="body1" className="text-accent-primary">
-                        {formatPercent(aprData.current?.baby_staking_apr)}
-                      </Text>
-                    </div>
-                    <div>
-                      <Text
-                        variant="body2"
-                        className="text-xs text-accent-secondary"
-                      >
                         Co-Staking Bonus
                       </Text>
                       <Text variant="body1" className="text-accent-primary">
@@ -204,10 +193,24 @@ export default function CalculatorPage() {
                         variant="body2"
                         className="text-xs text-accent-secondary"
                       >
-                        Total APR
+                        Total {btcSymbol} Staking APR
                       </Text>
                       <Text variant="body1" className="text-accent-primary">
                         {formatPercent(aprData.current?.total_apr)}
+                      </Text>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-primary-light/10 pt-4">
+                    <div>
+                      <Text
+                        variant="body2"
+                        className="text-xs text-accent-secondary"
+                      >
+                        {babySymbol} Staking APR
+                      </Text>
+                      <Text variant="body1" className="text-accent-primary">
+                        {formatPercent(aprData.current?.baby_staking_apr)}
                       </Text>
                     </div>
                   </div>
@@ -246,17 +249,6 @@ export default function CalculatorPage() {
                           variant="body2"
                           className="text-xs text-accent-secondary"
                         >
-                          {babySymbol} Staking
-                        </Text>
-                        <Text variant="body1" className="text-accent-primary">
-                          {formatPercent(aprData.boost?.baby_staking_apr)}
-                        </Text>
-                      </div>
-                      <div>
-                        <Text
-                          variant="body2"
-                          className="text-xs text-accent-secondary"
-                        >
                           Co-Staking Bonus
                         </Text>
                         <Text variant="body1" className="text-accent-primary">
@@ -268,7 +260,7 @@ export default function CalculatorPage() {
                           variant="body2"
                           className="text-xs text-accent-secondary"
                         >
-                          Total APR
+                          Total {btcSymbol} Staking APR
                         </Text>
                         <Text
                           variant="body1"
@@ -278,32 +270,22 @@ export default function CalculatorPage() {
                         </Text>
                       </div>
                     </div>
+
+                    <div className="mt-4 border-t border-secondary-main/10 pt-4">
+                      <div>
+                        <Text
+                          variant="body2"
+                          className="text-xs text-accent-secondary"
+                        >
+                          {babySymbol} Staking APR
+                        </Text>
+                        <Text variant="body1" className="text-accent-primary">
+                          {formatPercent(aprData.boost?.baby_staking_apr)}
+                        </Text>
+                      </div>
+                    </div>
                   </div>
                 )}
-
-                <div className="bg-surface-highlight rounded-lg p-4">
-                  <div className="flex justify-between">
-                    <Text variant="body2" className="text-accent-secondary">
-                      Base {btcSymbol} Staking APR
-                    </Text>
-                    <Text variant="body1" className="text-accent-primary">
-                      {formatPercent(
-                        aprData.btc_staking_apr ??
-                          aprData.current?.btc_staking_apr,
-                      )}
-                    </Text>
-                  </div>
-                  <div className="mt-2 flex justify-between">
-                    <Text variant="body2" className="text-accent-secondary">
-                      Max Staking APR
-                    </Text>
-                    <Text variant="body1" className="text-accent-primary">
-                      {formatPercent(
-                        aprData.max_staking_apr ?? aprData.boost?.total_apr,
-                      )}
-                    </Text>
-                  </div>
-                </div>
               </div>
             </Section>
           )}
