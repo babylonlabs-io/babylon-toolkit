@@ -15,7 +15,16 @@ export interface ButtonProps
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = "contained", size = "large", color = "primary", fluid = false, rounded = false, className, disabled, ...restProps },
+    {
+      variant = "contained",
+      size = "large",
+      color = "primary",
+      fluid = false,
+      rounded = false,
+      className,
+      disabled,
+      ...restProps
+    },
     ref,
   ) => {
     return (
