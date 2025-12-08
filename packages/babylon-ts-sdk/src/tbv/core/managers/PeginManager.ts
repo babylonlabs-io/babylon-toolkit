@@ -41,7 +41,7 @@ export interface PeginManagerConfig {
   /**
    * Bitcoin network to use for transactions.
    */
-  network: Network;
+  btcNetwork: Network;
 
   /**
    * Bitcoin wallet for signing peg-in transactions.
@@ -58,7 +58,7 @@ export interface PeginManagerConfig {
    * Ethereum chain configuration.
    * Required for proper gas estimation in contract calls.
    */
-  chain: Chain;
+  ethChain: Chain;
 
   /**
    * Vault contract addresses.
@@ -272,7 +272,7 @@ export class PeginManager {
       claimerPubkey: params.vaultProviderBtcPubkey,
       challengerPubkeys: params.liquidatorBtcPubkeys,
       pegInAmount: params.amount,
-      network: this.config.network,
+      network: this.config.btcNetwork,
     });
 
     // Step 3: Select UTXOs using iterative fee calculation
@@ -284,7 +284,7 @@ export class PeginManager {
     );
 
     // Step 4: Fund the transaction by adding inputs and change output
-    const network = getNetwork(this.config.network);
+    const network = getNetwork(this.config.btcNetwork);
     const fundedTxHex = fundPeginTransaction({
       unfundedTxHex: peginPsbt.psbtHex,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -445,7 +445,7 @@ export class PeginManager {
     // Step 2: Create proof of possession
     // The depositor signs their ETH address with their BTC key using BIP-322 simple
     // Message format: "<lowercase-address>:<chainId>" to match BTCProofOfPossession.sol
-    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.chain.id}`;
+    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}`;
     const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
       popMessage,
       "bip322-simple",
@@ -505,7 +505,7 @@ export class PeginManager {
         to: this.config.vaultContracts.btcVaultsManager,
         data: callData,
         account: this.config.ethWallet.account,
-        chain: this.config.chain,
+        chain: this.config.ethChain,
       });
 
       return {
@@ -528,7 +528,7 @@ export class PeginManager {
     try {
       // Create a public client to read from the contract
       const publicClient = createPublicClient({
-        chain: this.config.chain,
+        chain: this.config.ethChain,
         transport: http(),
       });
 
@@ -601,7 +601,7 @@ export class PeginManager {
    * @returns The Bitcoin network (mainnet, testnet, signet, regtest)
    */
   getNetwork(): Network {
-    return this.config.network;
+    return this.config.btcNetwork;
   }
 
   /**

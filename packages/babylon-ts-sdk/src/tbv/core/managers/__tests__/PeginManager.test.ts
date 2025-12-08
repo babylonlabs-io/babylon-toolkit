@@ -98,10 +98,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const config: PeginManagerConfig = {
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any, // Mock wallet for testing
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: {
           btcVaultsManager: TEST_CONTRACT_ADDRESS,
         },
@@ -123,10 +123,10 @@ describe("PeginManager", () => {
 
       for (const network of networks) {
         const manager = new PeginManager({
-          network,
+          btcNetwork: network,
           btcWallet,
           ethWallet: ethWallet as any,
-          chain: TEST_CHAIN,
+          ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
           mempoolApiUrl: MEMPOOL_API_URLS.signet,
         });
@@ -144,10 +144,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -195,10 +195,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -234,10 +234,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -263,10 +263,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -298,10 +298,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -333,10 +333,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -361,10 +361,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -390,10 +390,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -421,10 +421,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -459,10 +459,10 @@ describe("PeginManager", () => {
       };
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -493,10 +493,10 @@ describe("PeginManager", () => {
       const signMessageSpy = vi.spyOn(btcWallet, "signMessage");
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -538,10 +538,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -564,10 +564,10 @@ describe("PeginManager", () => {
       });
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -589,10 +589,10 @@ describe("PeginManager", () => {
       const sendTxSpy = vi.spyOn(ethWallet, "sendTransaction");
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -626,10 +626,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -653,10 +653,10 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
@@ -690,19 +690,19 @@ describe("PeginManager", () => {
       const ethWallet = new MockEthereumWallet();
 
       const manager1 = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet: btcWallet1,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });
 
       const manager2 = new PeginManager({
-        network: "signet",
+        btcNetwork: "signet",
         btcWallet: btcWallet2,
         ethWallet: ethWallet as any,
-        chain: TEST_CHAIN,
+        ethChain: TEST_CHAIN,
         vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
         mempoolApiUrl: MEMPOOL_API_URLS.signet,
       });

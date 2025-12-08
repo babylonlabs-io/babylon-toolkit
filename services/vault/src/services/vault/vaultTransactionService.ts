@@ -91,10 +91,10 @@ export async function submitPeginRequest(
   // Step 1: Create PeginManager instance
   // PeginManager now uses viem's WalletClient directly for proper gas estimation
   const peginManager = new PeginManager({
-    network: getBTCNetworkForWASM(),
+    btcNetwork: getBTCNetworkForWASM(),
     btcWallet,
     ethWallet, // viem's WalletClient
-    chain: getETHChain(), // Required for proper gas estimation in writeContract
+    ethChain: getETHChain(), // Required for proper gas estimation in writeContract
     vaultContracts: {
       btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
     },
