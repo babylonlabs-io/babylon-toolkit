@@ -6,6 +6,7 @@
  */
 
 import { getETHChain } from "@babylonlabs-io/config";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   getSharedWagmiConfig,
   useChainConnector,
@@ -17,7 +18,6 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
-import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
@@ -140,34 +140,9 @@ export function useDepositFlow(
         throw new Error("No confirmed UTXOs available");
       }
 
-      // Step 2: Create proof of possession
+      // Step 2: Get wallet client for ETH transactions
       setCurrentStep(1);
 
-      const btcPopSignatureRaw = await createProofOfPossession({
-        ethAddress: depositorEthAddress,
-        btcAddress,
-        chainId: getETHChain().id,
-        signMessage: (message: string) =>
-          btcWalletProvider.signMessage(message, "ecdsa"),
-      });
-
-      // Step 3: Create transaction and submit
-      setCurrentStep(2);
-
-      // Get depositor's BTC public key
-      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
-
-      // Process keys
-      const processedVaultProviderKey = vaultProviderBtcPubkey.startsWith("0x")
-        ? vaultProviderBtcPubkey.slice(2)
-        : vaultProviderBtcPubkey;
-
-      const processedLiquidatorKeys = liquidatorBtcPubkeys.map((key) =>
-        key.startsWith("0x") ? key.slice(2) : key,
-      );
-
-      // Get wallet client for ETH transactions
       const wagmiConfig = getSharedWagmiConfig();
       const expectedChainId = getETHChain().id;
 
@@ -190,27 +165,38 @@ export function useDepositFlow(
         throw new Error("Failed to get wallet client");
       }
 
+      // Step 3: Submit pegin request (PeginManager handles PoP internally)
+      setCurrentStep(2);
+
       // Use new service for fee calculation
       const fees = depositService.calculateDepositFees(amount);
 
-      // Submit pegin request (using existing service)
+      // TODO - implement fee calcs
+      // Current: Calculate fee rate from fixed fee (average pegin tx is ~250 vbytes)
+      const feeRate = Math.ceil(Number(fees.btcNetworkFee) / 250);
+
+      // Submit pegin request with type-safe BitcoinWallet cast
+      // The btcWalletProvider from wallet-connector already implements the BitcoinWallet interface
       const result = await submitPeginRequest(
+        btcWalletProvider as BitcoinWallet,
         walletClient,
-        getETHChain(),
-        depositorEthAddress,
-        depositorBtcPubkey,
-        amount,
-        confirmedUTXOs,
-        Number(fees.btcNetworkFee),
-        btcAddress,
-        selectedProviders[0] as Address,
-        processedVaultProviderKey,
-        processedLiquidatorKeys,
-        btcPopSignatureRaw,
+        {
+          pegInAmount: amount,
+          feeRate,
+          changeAddress: btcAddress,
+          vaultProviderAddress: selectedProviders[0] as Address,
+          vaultProviderBtcPubkey,
+          liquidatorBtcPubkeys,
+          availableUTXOs: confirmedUTXOs,
+        },
       );
 
+      // Get depositor's BTC public key for display
+      const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+      const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+
       // Store pending pegin in localStorage for immediate UI feedback
-      const btcTxid = "0x" + result.btcTxid;
+      const btcTxid = "0x" + result.btcTxHash;
       const ethTxHash = result.transactionHash;
 
       // Format amount for display (satoshis to BTC string)

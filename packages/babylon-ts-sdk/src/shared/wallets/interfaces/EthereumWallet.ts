@@ -51,42 +51,54 @@ export interface TypedData {
 }
 
 /**
- * Framework-agnostic Ethereum wallet interface.
- * Supports MetaMask, WalletConnect, Ledger, and other Ethereum wallets.
+ * Ethereum wallet interface that exactly matches viem's WalletClient.
+ * Can be used as a drop-in replacement for viem's WalletClient.
  */
 export interface EthereumWallet {
   /**
-   * Returns the wallet's Ethereum address.
+   * Wallet account information
    */
-  getAddress(): Promise<Address>;
+  account: {
+    address: Address;
+  };
 
   /**
-   * Returns the chain ID (1: Mainnet, 11155111: Sepolia, 31337: Anvil).
+   * Chain information
    */
-  getChainId(): Promise<number>;
+  chain: {
+    /** Chain ID (1: Mainnet, 11155111: Sepolia, etc.) */
+    id: number;
+  };
 
   /**
    * Signs a message using EIP-191 personal_sign.
    *
-   * @param message - The message to sign
+   * @param args - Message signing arguments
+   * @param args.message - The message to sign
+   * @param args.account - Optional account to sign with (defaults to wallet.account)
+   * @returns A promise that resolves to the signature
    */
-  signMessage(message: string): Promise<Hash>;
+  signMessage(args: { message: string; account?: Address }): Promise<Hash>;
+
+  /**
+   * Signs and broadcasts a transaction to the network.
+   * Compatible with viem's walletClient.sendTransaction()
+   *
+   * @param tx - The transaction request
+   * @throws {Error} If the transaction fails
+   * @returns A promise that resolves to the transaction hash
+   */
+  sendTransaction(tx: TransactionRequest): Promise<Hash>;
 
   /**
    * Signs structured data using EIP-712.
+   * Required method matching viem's WalletClient interface.
    * Used for permits, approvals, and meta-transactions.
    *
    * @param typedData - The EIP-712 structured data to sign
    * @throws {Error} If signing fails or data is invalid
+   * @returns A promise that resolves to the signature
    * @see https://eips.ethereum.org/EIPS/eip-712
    */
   signTypedData(typedData: TypedData): Promise<Hash>;
-
-  /**
-   * Signs and broadcasts a transaction to the network.
-   *
-   * @param tx - The transaction request
-   * @throws {Error} If the transaction fails
-   */
-  sendTransaction(tx: TransactionRequest): Promise<Hash>;
 }

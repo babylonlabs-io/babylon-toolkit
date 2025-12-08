@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BitcoinNetwork } from "../interfaces";
+import { BitcoinNetworks } from "../interfaces";
 import type { BitcoinWallet } from "../interfaces/BitcoinWallet";
 import { MockBitcoinWallet } from "../mocks/MockBitcoinWallet";
 
@@ -114,20 +114,20 @@ describe("BitcoinWallet Interface", () => {
       const network = await wallet.getNetwork();
 
       expect(network).toBeDefined();
-      expect([BitcoinNetwork.MAINNET, BitcoinNetwork.TESTNET, BitcoinNetwork.SIGNET]).toContain(network);
+      expect([BitcoinNetworks.MAINNET, BitcoinNetworks.TESTNET, BitcoinNetworks.SIGNET]).toContain(network);
     });
 
     it("should return signet by default", async () => {
       const network = await wallet.getNetwork();
 
-      expect(network).toBe(BitcoinNetwork.SIGNET);
+      expect(network).toBe(BitcoinNetworks.SIGNET);
     });
 
     it("should return configured network", async () => {
-      const mainnetWallet = new MockBitcoinWallet({ network: BitcoinNetwork.MAINNET });
+      const mainnetWallet = new MockBitcoinWallet({ network: BitcoinNetworks.MAINNET });
       const network = await mainnetWallet.getNetwork();
 
-      expect(network).toBe(BitcoinNetwork.MAINNET);
+      expect(network).toBe(BitcoinNetworks.MAINNET);
     });
   });
 
@@ -136,7 +136,7 @@ describe("BitcoinWallet Interface", () => {
       const customWallet = new MockBitcoinWallet({
         address: "tb1pCustomAddress",
         publicKeyHex: "deadbeef".repeat(8),
-        network: BitcoinNetwork.TESTNET,
+        network: BitcoinNetworks.TESTNET,
       });
 
       expect(customWallet).toBeDefined();

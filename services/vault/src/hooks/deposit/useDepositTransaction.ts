@@ -13,11 +13,8 @@ import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
-import { createPeginTxForSubmission } from "@/services/vault/vaultBtcTransactionService";
-import { createProofOfPossession } from "@/services/vault/vaultProofOfPossessionService";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { processPublicKeyToXOnly } from "@/utils/btc";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -35,10 +32,18 @@ export interface TransactionResult<T = unknown> {
 }
 
 export interface UseDepositTransactionResult {
+  /**
+   * Create and submit deposit transaction using PeginManager
+   * This is the new combined flow that replaces the old two-step process
+   */
   createDepositTransaction: (
     params: CreateDepositTransactionParams,
-  ) => Promise<TransactionResult<DepositTransactionData>>;
+  ) => Promise<TransactionResult>;
 
+  /**
+   * @deprecated Legacy method kept for backward compatibility.
+   * Use createDepositTransaction instead which now handles the complete flow.
+   */
   submitTransaction: (
     txData: DepositTransactionData,
   ) => Promise<TransactionResult>;
@@ -69,10 +74,13 @@ export function useDepositTransaction(): UseDepositTransactionResult {
     setLastTransaction(null);
   }, []);
 
+  /**
+   * Create and submit deposit transaction using PeginManager.
+   */
   const createDepositTransaction = useCallback(
     async (
       params: CreateDepositTransactionParams,
-    ): Promise<TransactionResult<DepositTransactionData>> => {
+    ): Promise<TransactionResult> => {
       setIsCreating(true);
 
       try {
@@ -82,11 +90,11 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         if (!params.ethAddress) {
           throw new Error("ETH address not provided");
         }
+        if (!btcAddress) {
+          throw new Error("BTC address not available");
+        }
 
         const pegInAmount = depositService.parseBtcToSatoshis(params.amount);
-
-        const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-        const btcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
         const providers = params.providers || availableProviders;
         if (!providers || providers.length === 0) {
@@ -115,72 +123,47 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           );
         }
 
-        const providerData = {
-          address: selectedProvider.id as Hex,
-          btcPubkey: selectedProvider.btcPubKey,
-          liquidatorPubkeys: liquidators.map((liq) => liq.btcPubKey),
-        };
-
         if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
           throw new Error("No confirmed UTXOs available");
         }
 
-        const formattedUTXOs = confirmedUTXOs.map((utxo) => ({
-          txid: utxo.txid,
-          vout: utxo.vout,
-          value: utxo.value,
-          scriptPubKey: utxo.scriptPubKey || "",
-        }));
+        // Get ETH wallet client
+        const wagmiConfig = getSharedWagmiConfig();
+        const expectedChainId = getETHChain().id;
+        const walletClient = (await getWalletClient(wagmiConfig, {
+          chainId: expectedChainId,
+        })) as WalletClient;
 
-        // Use the same fixed fee that will be used in the actual transaction
-        const requiredAmount = pegInAmount + BTC_TRANSACTION_FEE;
-
-        const { selected: selectedUTXOs } = depositService.selectOptimalUTXOs(
-          formattedUTXOs,
-          requiredAmount,
-        );
-
-        const txData = depositService.transformFormToTransactionData(
-          {
-            amount: params.amount,
-            selectedProviders: params.selectedProviders,
-          },
-          {
-            btcPubkey,
-            ethAddress: params.ethAddress,
-          },
-          providerData,
-          {
-            selectedUTXOs,
-            fee: BTC_TRANSACTION_FEE,
-          },
-        );
-
-        const selectedUTXO = selectedUTXOs[0];
-        if (!selectedUTXO) {
-          throw new Error("No UTXO selected");
+        if (!walletClient) {
+          throw new Error("No wallet client available");
         }
 
-        const unsignedTx = await createPeginTxForSubmission({
-          depositorBtcPubkey: btcPubkey.startsWith("0x")
-            ? btcPubkey.slice(2)
-            : btcPubkey,
-          pegInAmount,
-          vaultProviderBtcPubkey: providerData.btcPubkey.startsWith("0x")
-            ? providerData.btcPubkey.slice(2)
-            : providerData.btcPubkey,
-          liquidatorBtcPubkeys: (
-            providerData.liquidatorPubkeys as string[]
-          ).map((key) => (key.startsWith("0x") ? key.slice(2) : key)),
-        });
+        // Calculate fee rate from fixed fee
+        const feeRate = Math.ceil(Number(BTC_TRANSACTION_FEE) / 250);
 
-        txData.unsignedTxHex = unsignedTx.unsignedTxHex;
-
-        setLastTransaction(txData);
+        // Use PeginManager for complete flow
+        const result = await vaultTransactionService.submitPeginRequest(
+          btcWalletProvider,
+          walletClient,
+          {
+            pegInAmount,
+            feeRate,
+            changeAddress: btcAddress,
+            vaultProviderAddress: selectedProvider.id as Hex,
+            vaultProviderBtcPubkey: selectedProvider.btcPubKey,
+            liquidatorBtcPubkeys: liquidators.map((liq) => liq.btcPubKey),
+            availableUTXOs: confirmedUTXOs,
+          },
+        );
 
         return {
           success: true,
-          data: txData,
+          data: {
+            ethTxHash: result.transactionHash,
+            btcTxid: result.btcTxHash,
+            btcUnsignedTxHex: result.btcTxHex,
+            timestamp: Date.now(),
+          },
         };
       } catch (error) {
         const handledError =
@@ -205,6 +188,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
     },
     [
       btcWalletProvider,
+      btcAddress,
       confirmedUTXOs,
       availableProviders,
       liquidators,
@@ -234,48 +218,34 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No wallet client available");
         }
 
-        const depositorBtcPubkey = txData.depositorBtcPubkey.startsWith("0x")
-          ? txData.depositorBtcPubkey.slice(2)
-          : txData.depositorBtcPubkey;
-
         const selectedUTXO = txData.selectedUTXOs[0];
         if (!selectedUTXO) {
           throw new Error("No UTXO selected for transaction");
         }
 
-        // Create proof of possession
-        const btcPopSignatureRaw = await createProofOfPossession({
-          ethAddress: txData.depositorEthAddress,
-          btcAddress,
-          chainId: expectedChainId,
-          signMessage: (message: string) =>
-            btcWalletProvider.signMessage(message, "ecdsa"),
-        });
+        // Calculate fee rate from fixed fee
+        // Average pegin tx size is ~250 vbytes
+        const feeRate = Math.ceil(Number(txData.fee) / 250);
 
         const result = await vaultTransactionService.submitPeginRequest(
+          btcWalletProvider,
           walletClient,
-          getETHChain(),
-          txData.depositorEthAddress,
-          depositorBtcPubkey,
-          txData.pegInAmount,
-          [selectedUTXO],
-          Number(txData.fee),
-          "",
-          txData.vaultProviderAddress,
-          txData.vaultProviderBtcPubkey.startsWith("0x")
-            ? txData.vaultProviderBtcPubkey.slice(2)
-            : txData.vaultProviderBtcPubkey,
-          (txData.liquidatorBtcPubkeys as string[]).map((key) =>
-            key.startsWith("0x") ? key.slice(2) : key,
-          ),
-          btcPopSignatureRaw,
+          {
+            pegInAmount: txData.pegInAmount,
+            feeRate,
+            changeAddress: btcAddress,
+            vaultProviderAddress: txData.vaultProviderAddress,
+            vaultProviderBtcPubkey: txData.vaultProviderBtcPubkey,
+            liquidatorBtcPubkeys: txData.liquidatorBtcPubkeys as string[],
+            availableUTXOs: [selectedUTXO],
+          },
         );
 
         return {
           success: true,
           data: {
             ethTxHash: result.transactionHash,
-            btcTxid: result.btcTxid,
+            btcTxid: result.btcTxHash,
             btcUnsignedTxHex: result.btcTxHex,
             timestamp: Date.now(),
           },

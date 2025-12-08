@@ -9,18 +9,25 @@
 
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { encodeFunctionData, type Hex } from "viem";
+import {
+  createPublicClient,
+  encodeFunctionData,
+  http,
+  zeroAddress,
+  type Address,
+  type Chain,
+  type Hex,
+  type WalletClient,
+} from "viem";
 
-import type {
-  Address,
-  EthereumWallet,
-  Hash,
-} from "../../../shared/wallets/interfaces/EthereumWallet";
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
-import { getUtxoInfo, pushTx, MEMPOOL_API_URLS } from "../clients/mempool";
+import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
+import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultsManagerABI } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
+import { stripHexPrefix } from "../primitives/utils/bitcoin";
 import {
+  calculateBtcTxHash,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
@@ -35,7 +42,7 @@ export interface PeginManagerConfig {
   /**
    * Bitcoin network to use for transactions.
    */
-  network: Network;
+  btcNetwork: Network;
 
   /**
    * Bitcoin wallet for signing peg-in transactions.
@@ -44,8 +51,15 @@ export interface PeginManagerConfig {
 
   /**
    * Ethereum wallet for registering peg-in on-chain.
+   * Uses viem's WalletClient directly for proper gas estimation.
    */
-  ethWallet: EthereumWallet;
+  ethWallet: WalletClient;
+
+  /**
+   * Ethereum chain configuration.
+   * Required for proper gas estimation in contract calls.
+   */
+  ethChain: Chain;
 
   /**
    * Vault contract addresses.
@@ -58,10 +72,11 @@ export interface PeginManagerConfig {
   };
 
   /**
-   * Optional custom mempool API URL.
-   * Defaults to mempool.space for the configured network.
+   * Mempool API URL for fetching UTXO data and broadcasting transactions.
+   * Use MEMPOOL_API_URLS constant for standard mempool.space URLs, or provide
+   * a custom URL if running your own mempool instance.
    */
-  mempoolApiUrl?: string;
+  mempoolApiUrl: string;
 }
 
 /**
@@ -79,12 +94,14 @@ export interface CreatePeginParams {
   vaultProvider: Address;
 
   /**
-   * Vault provider's BTC public key (x-only, 64-char hex without 0x prefix).
+   * Vault provider's BTC public key (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   vaultProviderBtcPubkey: string;
 
   /**
    * Liquidator BTC public keys (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   liquidatorBtcPubkeys: string[];
 
@@ -109,9 +126,11 @@ export interface CreatePeginParams {
  */
 export interface PeginResult {
   /**
-   * Bitcoin transaction ID (will change after signing).
+   * Bitcoin transaction hash (without 0x prefix).
+   * This is the hash of the unsigned transaction and will NOT change after signing.
+   * Used as the unique vault identifier in the contract.
    */
-  btcTxid: string;
+  btcTxHash: string;
 
   /**
    * Funded but unsigned transaction hex.
@@ -185,6 +204,23 @@ export interface RegisterPeginParams {
 }
 
 /**
+ * Result of registering a peg-in on Ethereum.
+ */
+export interface RegisterPeginResult {
+  /**
+   * Ethereum transaction hash for the peg-in registration.
+   */
+  ethTxHash: Hash;
+
+  /**
+   * Vault identifier used in the BTCVaultsManager contract.
+   * This is the Bitcoin transaction hash with 0x prefix for Ethereum compatibility.
+   * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
+   */
+  vaultId: Hex;
+}
+
+/**
  * Manager for orchestrating peg-in operations.
  *
  * This manager provides a high-level API for creating peg-in transactions
@@ -227,18 +263,23 @@ export class PeginManager {
     // Step 1: Get depositor BTC public key from wallet
     const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
     // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
-    const depositorBtcPubkey = depositorBtcPubkeyRaw.length === 66
-      ? depositorBtcPubkeyRaw.slice(2)  // Strip first byte (02 or 03)
-      : depositorBtcPubkeyRaw;           // Already x-only
+    const depositorBtcPubkey =
+      depositorBtcPubkeyRaw.length === 66
+        ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
+        : depositorBtcPubkeyRaw; // Already x-only
+
+    // Strip "0x" prefix from BTC public keys if present
+    const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
+    const liquidatorBtcPubkeys = params.liquidatorBtcPubkeys.map(stripHexPrefix);
 
     // Step 2: Build unfunded PSBT using primitives
     // This creates a transaction with 0 inputs and 1 output (the vault output)
     const peginPsbt = await buildPeginPsbt({
       depositorPubkey: depositorBtcPubkey,
-      claimerPubkey: params.vaultProviderBtcPubkey,
-      challengerPubkeys: params.liquidatorBtcPubkeys,
+      claimerPubkey: vaultProviderBtcPubkey,
+      challengerPubkeys: liquidatorBtcPubkeys,
       pegInAmount: params.amount,
-      network: this.config.network,
+      network: this.config.btcNetwork,
     });
 
     // Step 3: Select UTXOs using iterative fee calculation
@@ -250,7 +291,7 @@ export class PeginManager {
     );
 
     // Step 4: Fund the transaction by adding inputs and change output
-    const network = getNetwork(this.config.network);
+    const network = getNetwork(this.config.btcNetwork);
     const fundedTxHex = fundPeginTransaction({
       unfundedTxHex: peginPsbt.psbtHex,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -260,7 +301,7 @@ export class PeginManager {
     });
 
     return {
-      btcTxid: peginPsbt.txid,
+      btcTxHash: peginPsbt.txid,
       fundedTxHex,
       vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -319,7 +360,7 @@ export class PeginManager {
         `Invalid depositorBtcPubkey length: expected 32 bytes, got ${publicKeyNoCoord.length}`,
       );
     }
-    const apiUrl = this.getMempoolApiUrl();
+    const apiUrl = this.config.mempoolApiUrl;
 
     // Fetch all UTXO data in parallel for better performance
     const utxoDataPromises = tx.ins.map((input) => {
@@ -388,23 +429,34 @@ export class PeginManager {
    * This method:
    * 1. Gets depositor ETH address from wallet
    * 2. Creates proof of possession (BTC signature of ETH address)
-   * 3. Encodes the contract call using viem
-   * 4. Sends transaction via ethWallet.sendTransaction()
+   * 3. Checks if vault already exists (pre-flight check)
+   * 4. Encodes the contract call using viem
+   * 5. Sends transaction via ethWallet.sendTransaction()
    *
    * @param params - Registration parameters including BTC pubkey and unsigned tx
-   * @returns Ethereum transaction hash
+   * @returns Result containing Ethereum transaction hash and vault ID
    * @throws Error if signing or transaction fails
+   * @throws Error if vault already exists
    */
-  async registerPeginOnChain(params: RegisterPeginParams): Promise<Hash> {
+  async registerPeginOnChain(
+    params: RegisterPeginParams,
+  ): Promise<RegisterPeginResult> {
     const { depositorBtcPubkey, unsignedBtcTx, vaultProvider } = params;
 
-    // Step 1: Get depositor ETH address
-    const depositorEthAddress = await this.config.ethWallet.getAddress();
+    // Step 1: Get depositor ETH address (from wallet account)
+    if (!this.config.ethWallet.account) {
+      throw new Error("Ethereum wallet account not found");
+    }
+    const depositorEthAddress = this.config.ethWallet.account.address;
 
     // Step 2: Create proof of possession
-    // The depositor signs their ETH address with their BTC key using ECDSA
-    const popMessage = depositorEthAddress.toLowerCase();
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(popMessage, "ecdsa");
+    // The depositor signs their ETH address with their BTC key using BIP-322 simple
+    // Message format: "<lowercase-address>:<chainId>" to match BTCProofOfPossession.sol
+    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}`;
+    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
+      popMessage,
+      "bip322-simple",
+    );
 
     // Convert PoP signature to hex format
     // BTC wallets return base64, Ethereum contracts expect hex
@@ -427,48 +479,127 @@ export class PeginManager {
       ? (unsignedBtcTx as Hex)
       : (`0x${unsignedBtcTx}` as Hex);
 
-    // Step 4: Encode the contract call
-    const callData = encodeFunctionData({
-      abi: BTCVaultsManagerABI,
-      functionName: "submitPeginRequest",
-      args: [
-        depositorEthAddress,
-        depositorBtcPubkeyHex,
-        btcPopSignature,
-        unsignedPegInTx,
-        vaultProvider,
-      ],
-    });
+    // Step 4: Calculate vault ID and check if it already exists (pre-flight check)
+    const vaultId = calculateBtcTxHash(unsignedPegInTx);
+    const exists = await this.checkVaultExists(vaultId);
 
-    // Step 5: Send transaction via wallet interface
-    const txHash = await this.config.ethWallet.sendTransaction({
-      to: this.config.vaultContracts.btcVaultsManager,
-      data: callData,
-    });
+    if (exists) {
+      throw new Error(
+        `Vault already exists for this transaction (ID: ${vaultId}). ` +
+          `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
+          `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
+      );
+    }
 
-    return txHash;
+    // Step 5: Submit peg-in request to contract
+    // Using encodeFunctionData + sendTransaction pattern to avoid simulation issues
+    try {
+      // Encode the contract call data
+      const callData = encodeFunctionData({
+        abi: BTCVaultsManagerABI,
+        functionName: "submitPeginRequest",
+        args: [
+          depositorEthAddress,
+          depositorBtcPubkeyHex,
+          btcPopSignature,
+          unsignedPegInTx,
+          vaultProvider,
+        ],
+      });
+
+      // Send as raw transaction
+      const ethTxHash = await this.config.ethWallet.sendTransaction({
+        to: this.config.vaultContracts.btcVaultsManager,
+        data: callData,
+        account: this.config.ethWallet.account,
+        chain: this.config.ethChain,
+      });
+
+      return {
+        ethTxHash,
+        vaultId,
+      };
+    } catch (error) {
+      // Use proper error handler for better error messages
+      this.handleContractError(error);
+    }
   }
 
   /**
-   * Gets the mempool API URL for the configured network.
+   * Check if a vault already exists for a given vault ID.
    *
-   * @returns The mempool API URL
+   * @param vaultId - The Bitcoin transaction hash (vault ID)
+   * @returns True if vault exists, false otherwise
    */
-  private getMempoolApiUrl(): string {
-    if (this.config.mempoolApiUrl) {
-      return this.config.mempoolApiUrl;
+  private async checkVaultExists(vaultId: Hex): Promise<boolean> {
+    try {
+      // Create a public client to read from the contract
+      const publicClient = createPublicClient({
+        chain: this.config.ethChain,
+        transport: http(),
+      });
+
+      const vault = (await publicClient.readContract({
+        address: this.config.vaultContracts.btcVaultsManager,
+        abi: BTCVaultsManagerABI,
+        functionName: "getBTCVault",
+        args: [vaultId],
+      })) as { depositor: Address };
+
+      // If depositor is not zero address, vault exists
+      return vault.depositor !== zeroAddress;
+    } catch {
+      // If reading fails, assume vault doesn't exist and let contract handle it
+      return false;
+    }
+  }
+
+  /**
+   * Handle contract call errors by detecting known error signatures and
+   * providing user-friendly error messages.
+   *
+   * @param error - The error from the contract call
+   * @throws Always throws an error with a more descriptive message
+   */
+  private handleContractError(error: unknown): never {
+    // Extract error data if available
+    let errorData: string | undefined;
+    if (error && typeof error === "object") {
+      const err = error as any;
+      errorData = err.data || err.cause?.data || err.details;
     }
 
-    // Map SDK network to mempool network
-    const networkMap: Record<Network, keyof typeof MEMPOOL_API_URLS> = {
-      bitcoin: "mainnet",
-      testnet: "testnet",
-      signet: "signet",
-      regtest: "signet", // Use signet for regtest (no public regtest mempool)
-    };
+    // Check for known error signatures
+    if (errorData === "0x04aabf33") {
+      // VaultAlreadyExists()
+      throw new Error(
+        "Vault already exists: This Bitcoin transaction has already been registered. " +
+          "Please select different UTXOs or use a different amount to create a unique transaction.",
+      );
+    }
 
-    const mempoolNetwork = networkMap[this.config.network] || "signet";
-    return MEMPOOL_API_URLS[mempoolNetwork];
+    if (errorData === "0x82b42900") {
+      // Unauthorized()
+      throw new Error(
+        "Unauthorized: You must be the depositor or vault provider to submit this transaction.",
+      );
+    }
+
+    // Check for gas estimation errors
+    const errorMsg = (error as Error)?.message || "";
+    if (
+      errorMsg.includes("gas limit too high") ||
+      errorMsg.includes("21000000")
+    ) {
+      throw new Error(
+        "Transaction gas estimation failed. This usually means the contract would revert. " +
+          "Possible causes: (1) Vault already exists, (2) Unauthorized caller, (3) Invalid signature. " +
+          "Please check your transaction parameters and try again.",
+      );
+    }
+
+    // Default: re-throw original error
+    throw error;
   }
 
   /**
@@ -477,7 +608,7 @@ export class PeginManager {
    * @returns The Bitcoin network (mainnet, testnet, signet, regtest)
    */
   getNetwork(): Network {
-    return this.config.network;
+    return this.config.btcNetwork;
   }
 
   /**
