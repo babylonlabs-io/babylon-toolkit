@@ -48,9 +48,7 @@ export class MockEthereumWallet implements EthereumWallet {
     // Bind methods to preserve 'this' context when called by viem
     this.signMessage = this.signMessage.bind(this);
     this.sendTransaction = this.sendTransaction.bind(this);
-    if (this.signTypedData) {
-      this.signTypedData = this.signTypedData.bind(this);
-    }
+    this.signTypedData = this.signTypedData.bind(this);
   }
 
   async signMessage(args: {

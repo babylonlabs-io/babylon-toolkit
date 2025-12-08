@@ -51,7 +51,8 @@ export interface TypedData {
 }
 
 /**
- * Ethereum wallet interface compatible with viem's WalletClient.
+ * Ethereum wallet interface that exactly matches viem's WalletClient.
+ * Can be used as a drop-in replacement for viem's WalletClient.
  */
 export interface EthereumWallet {
   /**
@@ -90,7 +91,8 @@ export interface EthereumWallet {
   sendTransaction(tx: TransactionRequest): Promise<Hash>;
 
   /**
-   * Signs structured data using EIP-712 (optional).
+   * Signs structured data using EIP-712.
+   * Required method matching viem's WalletClient interface.
    * Used for permits, approvals, and meta-transactions.
    *
    * @param typedData - The EIP-712 structured data to sign
@@ -98,5 +100,5 @@ export interface EthereumWallet {
    * @returns A promise that resolves to the signature
    * @see https://eips.ethereum.org/EIPS/eip-712
    */
-  signTypedData?(typedData: TypedData): Promise<Hash>;
+  signTypedData(typedData: TypedData): Promise<Hash>;
 }

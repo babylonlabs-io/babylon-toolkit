@@ -122,7 +122,7 @@ describe("EthereumWallet Interface", () => {
         },
       };
 
-      const signature = await wallet.signTypedData?.(typedData);
+      const signature = await wallet.signTypedData(typedData);
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe("string");
@@ -144,8 +144,8 @@ describe("EthereumWallet Interface", () => {
         message: { value: "200" },
       };
 
-      const sig1 = await wallet.signTypedData?.(typedData1);
-      const sig2 = await wallet.signTypedData?.(typedData2);
+      const sig1 = await wallet.signTypedData(typedData1);
+      const sig2 = await wallet.signTypedData(typedData2);
 
       expect(sig1).not.toBe(sig2);
     });
@@ -158,7 +158,7 @@ describe("EthereumWallet Interface", () => {
         message: {},
       };
 
-      await expect(wallet.signTypedData?.(invalidData)).rejects.toThrow(
+      await expect(wallet.signTypedData(invalidData)).rejects.toThrow(
         "missing required fields",
       );
     });
@@ -195,8 +195,8 @@ describe("EthereumWallet Interface", () => {
         message: { value: "100" },
       };
 
-      const sig1 = await wallet1.signTypedData?.(typedData);
-      const sig2 = await wallet2.signTypedData?.(typedData);
+      const sig1 = await wallet1.signTypedData(typedData);
+      const sig2 = await wallet2.signTypedData(typedData);
 
       expect(sig1).not.toBe(sig2);
     });
@@ -211,7 +211,7 @@ describe("EthereumWallet Interface", () => {
       };
 
       const messageSig = await wallet.signMessage({ message });
-      const typedDataSig = await wallet.signTypedData?.(typedData);
+      const typedDataSig = await wallet.signTypedData(typedData);
 
       expect(messageSig).not.toBe(typedDataSig);
     });
