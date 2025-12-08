@@ -1,4 +1,4 @@
 export { fetchApplications } from "./fetchApplications";
 
-// Application-specific services
-export * from "./morpho";
+// Morpho services - re-exported from morpho application for backward compatibility
+export * from "../../applications/morpho/services";
