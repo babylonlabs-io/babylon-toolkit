@@ -200,7 +200,7 @@ export function useDepositFlow(
       const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
       // Store pending pegin in localStorage for immediate UI feedback
-      const btcTxid = "0x" + result.btcTxid;
+      const btcTxid = "0x" + result.btcTxHash;
       const ethTxHash = result.transactionHash;
 
       // Format amount for display (satoshis to BTC string)

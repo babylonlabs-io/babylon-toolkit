@@ -166,7 +166,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           success: true,
           data: {
             ethTxHash: result.transactionHash,
-            btcTxid: result.btcTxid,
+            btcTxid: result.btcTxHash,
             btcUnsignedTxHex: result.btcTxHex,
             timestamp: Date.now(),
           },
@@ -257,7 +257,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           success: true,
           data: {
             ethTxHash: result.transactionHash,
-            btcTxid: result.btcTxid,
+            btcTxid: result.btcTxHash,
             btcUnsignedTxHex: result.btcTxHex,
             timestamp: Date.now(),
           },
