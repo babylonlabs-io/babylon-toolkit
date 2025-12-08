@@ -449,9 +449,6 @@ export const injectBBNQueries = async (
       contentType: "application/json",
       body: JSON.stringify({
         data: {
-          staking_status: {
-            is_staking_open: true,
-          },
           params: {
             bbn: [
               {
