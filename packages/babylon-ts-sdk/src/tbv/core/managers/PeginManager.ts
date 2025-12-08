@@ -25,6 +25,7 @@ import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultsManagerABI } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
+import { stripHexPrefix } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
   fundPeginTransaction,
@@ -93,12 +94,14 @@ export interface CreatePeginParams {
   vaultProvider: Address;
 
   /**
-   * Vault provider's BTC public key (x-only, 64-char hex without 0x prefix).
+   * Vault provider's BTC public key (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   vaultProviderBtcPubkey: string;
 
   /**
    * Liquidator BTC public keys (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   liquidatorBtcPubkeys: string[];
 
@@ -265,12 +268,16 @@ export class PeginManager {
         ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
         : depositorBtcPubkeyRaw; // Already x-only
 
+    // Strip "0x" prefix from BTC public keys if present
+    const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
+    const liquidatorBtcPubkeys = params.liquidatorBtcPubkeys.map(stripHexPrefix);
+
     // Step 2: Build unfunded PSBT using primitives
     // This creates a transaction with 0 inputs and 1 output (the vault output)
     const peginPsbt = await buildPeginPsbt({
       depositorPubkey: depositorBtcPubkey,
-      claimerPubkey: params.vaultProviderBtcPubkey,
-      challengerPubkeys: params.liquidatorBtcPubkeys,
+      claimerPubkey: vaultProviderBtcPubkey,
+      challengerPubkeys: liquidatorBtcPubkeys,
       pegInAmount: params.amount,
       network: this.config.btcNetwork,
     });

@@ -105,12 +105,8 @@ export async function submitPeginRequest(
   const peginResult = await peginManager.preparePegin({
     amount: params.pegInAmount,
     vaultProvider: params.vaultProviderAddress,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey.startsWith("0x")
-      ? params.vaultProviderBtcPubkey.slice(2)
-      : params.vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys.map((key) =>
-      key.startsWith("0x") ? key.slice(2) : key,
-    ),
+    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
     availableUTXOs: params.availableUTXOs,
     feeRate: params.feeRate,
     changeAddress: params.changeAddress,
