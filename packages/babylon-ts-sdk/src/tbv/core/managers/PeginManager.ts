@@ -22,7 +22,7 @@ import {
 
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
 import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
-import { getUtxoInfo, MEMPOOL_API_URLS, pushTx } from "../clients/mempool";
+import { getUtxoInfo, pushTx } from "../clients/mempool";
 import { BTCVaultsManagerABI } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
 import {
@@ -71,10 +71,22 @@ export interface PeginManagerConfig {
   };
 
   /**
-   * Optional custom mempool API URL.
-   * Defaults to mempool.space for the configured network.
+   * Mempool API URL for fetching UTXO data and broadcasting transactions.
+   * Use MEMPOOL_API_URLS constant for standard mempool.space URLs, or provide
+   * a custom URL if running your own mempool instance.
+   *
+   * @example
+   * ```typescript
+   * import { MEMPOOL_API_URLS } from '@babylonlabs-io/ts-sdk/tbv/core';
+   *
+   * // Using mempool.space
+   * mempoolApiUrl: MEMPOOL_API_URLS.signet
+   *
+   * // Using custom mempool
+   * mempoolApiUrl: "https://my-mempool.example.com/api"
+   * ```
    */
-  mempoolApiUrl?: string;
+  mempoolApiUrl: string;
 }
 
 /**
@@ -348,7 +360,7 @@ export class PeginManager {
         `Invalid depositorBtcPubkey length: expected 32 bytes, got ${publicKeyNoCoord.length}`,
       );
     }
-    const apiUrl = this.getMempoolApiUrl();
+    const apiUrl = this.config.mempoolApiUrl;
 
     // Fetch all UTXO data in parallel for better performance
     const utxoDataPromises = tx.ins.map((input) => {
@@ -588,28 +600,6 @@ export class PeginManager {
 
     // Default: re-throw original error
     throw error;
-  }
-
-  /**
-   * Gets the mempool API URL for the configured network.
-   *
-   * @returns The mempool API URL
-   */
-  private getMempoolApiUrl(): string {
-    if (this.config.mempoolApiUrl) {
-      return this.config.mempoolApiUrl;
-    }
-
-    // Map SDK network to mempool network
-    const networkMap: Record<Network, keyof typeof MEMPOOL_API_URLS> = {
-      bitcoin: "mainnet",
-      testnet: "testnet",
-      signet: "signet",
-      regtest: "signet", // Use signet for regtest (no public regtest mempool)
-    };
-
-    const mempoolNetwork = networkMap[this.config.network] || "signet";
-    return MEMPOOL_API_URLS[mempoolNetwork];
   }
 
   /**

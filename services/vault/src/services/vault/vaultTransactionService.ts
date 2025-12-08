@@ -11,6 +11,7 @@ import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
+import { getMempoolApiUrl } from "../../clients/btc/config";
 import { MorphoControllerTx } from "../../clients/eth-contract";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
@@ -93,11 +94,12 @@ export async function submitPeginRequest(
   const peginManager = new PeginManager({
     network: getBTCNetworkForWASM(),
     btcWallet,
-    ethWallet, // viem's WalletClient - no cast needed!
+    ethWallet, // viem's WalletClient
     chain: getETHChain(), // Required for proper gas estimation in writeContract
     vaultContracts: {
       btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
     },
+    mempoolApiUrl: getMempoolApiUrl(),
   });
 
   // Step 2: Prepare peg-in (builds, funds, selects UTXOs automatically)
