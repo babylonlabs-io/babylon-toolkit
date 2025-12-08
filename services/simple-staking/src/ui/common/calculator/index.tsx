@@ -8,7 +8,7 @@ import {
   Form,
 } from "@babylonlabs-io/core-ui";
 import { useState, useCallback } from "react";
-import { object, number } from "yup";
+import { object, string } from "yup";
 
 import { Content } from "@/ui/common/components/Content/Content";
 import { Section } from "@/ui/common/components/Section/Section";
@@ -25,18 +25,8 @@ interface CalculatorFormData {
 }
 
 const formSchema = object({
-  btcAmount: number()
-    .transform((value, originalValue) =>
-      originalValue === "" ? undefined : value,
-    )
-    .min(0, "BTC amount must be positive")
-    .required("BTC amount is required"),
-  babyAmount: number()
-    .transform((value, originalValue) =>
-      originalValue === "" ? undefined : value,
-    )
-    .min(0, "BABY amount must be positive")
-    .required("BABY amount is required"),
+  btcAmount: string().required("BTC amount is required"),
+  babyAmount: string().required("BABY amount is required"),
 });
 
 function formatPercent(value: number | string | undefined | null): string {
@@ -72,29 +62,9 @@ export default function CalculatorPage() {
 
         const satoshis = btcToSatoshi(btcNumber);
         const ubbn = babyToUbbn(babyNumber);
-
-        console.log(
-          "[Calculator] Input:",
-          JSON.stringify({ btcAmount, babyAmount, satoshis, ubbn }, null, 2),
-        );
-
         const result = await getPersonalizedAPR(satoshis, ubbn);
-
-        console.log(
-          "[Calculator] API Response:",
-          JSON.stringify(result, null, 2),
-        );
-
         setAprData(result);
       } catch (err) {
-        console.log(
-          "[Calculator] Error:",
-          JSON.stringify(
-            { error: err instanceof Error ? err.message : String(err) },
-            null,
-            2,
-          ),
-        );
         const message =
           err instanceof Error ? err.message : "Failed to calculate APR";
         setError(message);

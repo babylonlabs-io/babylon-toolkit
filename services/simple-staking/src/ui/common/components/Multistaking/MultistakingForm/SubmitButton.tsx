@@ -34,7 +34,6 @@ export function SubmitButton() {
 
   return (
     <Button
-      //@ts-expect-error - fix type issue in core-ui
       type="submit"
       className={twMerge(
         "mt-2 w-full capitalize disabled:!bg-accent-primary/10 disabled:!text-accent-primary",
