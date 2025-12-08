@@ -2,7 +2,7 @@ import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { getAppIdByController } from "../../applications";
-import { useMarkets } from "../../hooks/morpho";
+import { useMarkets } from "../../applications/morpho/hooks";
 import { useApplications } from "../../hooks/useApplications";
 import { ApplicationLogo } from "../ApplicationLogo";
 

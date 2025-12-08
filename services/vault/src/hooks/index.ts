@@ -7,13 +7,13 @@
  */
 
 // Data fetching hooks
-export { useVaultActions } from "./deposit/useVaultActions";
 export {
   useMarkets,
   useUserPositions,
   type PositionWithMorphoOptimized,
   type UseUserPositionsResult,
-} from "./morpho";
+} from "../applications/morpho/hooks";
+export { useVaultActions } from "./deposit/useVaultActions";
 export { useApplications } from "./useApplications";
 export { useBTCBalance, type UseBTCBalanceResult } from "./useBTCBalance";
 export { useBTCPrice } from "./useBTCPrice";

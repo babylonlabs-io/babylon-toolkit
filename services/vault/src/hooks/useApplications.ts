@@ -12,9 +12,11 @@ export const useApplications = () => {
     queryKey: [APPLICATIONS_KEY, enabledAppIds],
     queryFn: async () => {
       const allApps = await fetchApplications();
+
       if (enabledAppIds.length === 0) {
         return allApps;
       }
+
       return allApps.filter((app) => {
         const appId = getAppIdByController(app.id);
         return appId && enabledAppIds.includes(appId);

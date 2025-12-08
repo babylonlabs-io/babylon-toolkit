@@ -34,7 +34,7 @@ export function getAllApplications(): ApplicationRegistration[] {
 }
 
 export function getEnabledAppIds(): string[] {
-  const whitelist = import.meta.env.VITE_ENABLED_APPS;
+  const whitelist = process.env.NEXT_PUBLIC_ENABLED_APPS;
   if (!whitelist || typeof whitelist !== "string") {
     return [];
   }

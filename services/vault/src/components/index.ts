@@ -1,3 +1,5 @@
 export { DepositOverview } from "./deposit/DepositOverview";
-export { MarketDetail as MarketDetailPage } from "./Market/Detail";
-export { MarketInfo } from "./Market/Info";
+
+// Morpho components - re-exported from morpho application for backward compatibility
+export { MarketDetail as MarketDetailPage } from "../applications/morpho/components/Detail";
+export { MarketInfo } from "../applications/morpho/components/Info";

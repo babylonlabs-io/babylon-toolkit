@@ -1,6 +1,6 @@
 import { Route, Routes } from "react-router";
 
-import { MarketDetail } from "../../components/Market/Detail";
+import { MarketDetail } from "./components/Detail";
 
 export function MorphoRoutes() {
   return (
