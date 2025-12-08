@@ -74,17 +74,6 @@ export interface PeginManagerConfig {
    * Mempool API URL for fetching UTXO data and broadcasting transactions.
    * Use MEMPOOL_API_URLS constant for standard mempool.space URLs, or provide
    * a custom URL if running your own mempool instance.
-   *
-   * @example
-   * ```typescript
-   * import { MEMPOOL_API_URLS } from '@babylonlabs-io/ts-sdk/tbv/core';
-   *
-   * // Using mempool.space
-   * mempoolApiUrl: MEMPOOL_API_URLS.signet
-   *
-   * // Using custom mempool
-   * mempoolApiUrl: "https://my-mempool.example.com/api"
-   * ```
    */
   mempoolApiUrl: string;
 }
