@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly NEXT_PUBLIC_COMMIT_HASH: string;
   readonly NEXT_PUBLIC_CANONICAL: string;
+  readonly VITE_ENABLED_APPS?: string;
 }
 
 interface ImportMeta {

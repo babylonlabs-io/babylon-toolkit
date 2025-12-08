@@ -1,6 +1,7 @@
 import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
+import { getAppIdByController } from "../../applications";
 import { useMarkets } from "../../hooks/morpho";
 import { useApplications } from "../../hooks/useApplications";
 import { ApplicationLogo } from "../ApplicationLogo";
@@ -59,31 +60,38 @@ export function Applications() {
               </p>
             )}
 
-            {/* For Morpho (Lending type), navigate to first market if available */}
-            {/* Note: Currently assumes single market (vBTC/USDC). Update when multiple markets are supported. */}
-            {app.type === "Lending" && markets.length > 0 ? (
-              <Button
-                variant="outlined"
-                rounded
-                className="self-start"
-                onClick={() => navigate(`/market/${markets[0].id}`)}
-              >
-                Explore
-              </Button>
-            ) : (
-              app.websiteUrl && (
-                <a
-                  href={app.websiteUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="self-start"
-                >
-                  <Button variant="outlined" rounded>
+            {(() => {
+              const appId = getAppIdByController(app.id);
+              if (app.type === "Lending" && markets.length > 0 && appId) {
+                return (
+                  <Button
+                    variant="outlined"
+                    rounded
+                    className="self-start"
+                    onClick={() =>
+                      navigate(`/app/${appId}/market/${markets[0].id}`)
+                    }
+                  >
                     Explore
                   </Button>
-                </a>
-              )
-            )}
+                );
+              }
+              if (app.websiteUrl) {
+                return (
+                  <a
+                    href={app.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="self-start"
+                  >
+                    <Button variant="outlined" rounded>
+                      Explore
+                    </Button>
+                  </a>
+                );
+              }
+              return null;
+            })()}
           </SubSection>
         ))}
       </div>
