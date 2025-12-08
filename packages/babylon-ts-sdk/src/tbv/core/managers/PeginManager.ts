@@ -454,12 +454,12 @@ export class PeginManager {
     const depositorEthAddress = this.config.ethWallet.account.address;
 
     // Step 2: Create proof of possession
-    // The depositor signs their ETH address with their BTC key using ECDSA
+    // The depositor signs their ETH address with their BTC key using BIP-322 simple
     // Message format: "<lowercase-address>:<chainId>" to match BTCProofOfPossession.sol
     const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.chain.id}`;
     const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
       popMessage,
-      "ecdsa",
+      "bip322-simple",
     );
 
     // Convert PoP signature to hex format
