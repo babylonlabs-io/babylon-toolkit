@@ -36,7 +36,7 @@ export function getAllApplications(): ApplicationRegistration[] {
 export function getEnabledAppIds(): string[] {
   const whitelist = process.env.NEXT_PUBLIC_ENABLED_APPS;
   if (!whitelist || typeof whitelist !== "string") {
-    return [];
+    return Array.from(applicationRegistry.keys());
   }
   return whitelist
     .split(",")
