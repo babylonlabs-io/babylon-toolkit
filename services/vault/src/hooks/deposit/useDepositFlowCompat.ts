@@ -185,12 +185,8 @@ export function useDepositFlow(
           feeRate,
           changeAddress: btcAddress,
           vaultProviderAddress: selectedProviders[0] as Address,
-          vaultProviderBtcPubkey: vaultProviderBtcPubkey.startsWith("0x")
-            ? vaultProviderBtcPubkey.slice(2)
-            : vaultProviderBtcPubkey,
-          liquidatorBtcPubkeys: liquidatorBtcPubkeys.map((key) =>
-            key.startsWith("0x") ? key.slice(2) : key,
-          ),
+          vaultProviderBtcPubkey,
+          liquidatorBtcPubkeys,
           availableUTXOs: confirmedUTXOs,
         },
       );

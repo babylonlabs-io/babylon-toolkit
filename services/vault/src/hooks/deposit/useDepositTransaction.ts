@@ -150,14 +150,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             feeRate,
             changeAddress: btcAddress,
             vaultProviderAddress: selectedProvider.id as Hex,
-            vaultProviderBtcPubkey: selectedProvider.btcPubKey.startsWith("0x")
-              ? selectedProvider.btcPubKey.slice(2)
-              : selectedProvider.btcPubKey,
-            liquidatorBtcPubkeys: liquidators.map((liq) =>
-              liq.btcPubKey.startsWith("0x")
-                ? liq.btcPubKey.slice(2)
-                : liq.btcPubKey,
-            ),
+            vaultProviderBtcPubkey: selectedProvider.btcPubKey,
+            liquidatorBtcPubkeys: liquidators.map((liq) => liq.btcPubKey),
             availableUTXOs: confirmedUTXOs,
           },
         );
@@ -241,14 +235,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             feeRate,
             changeAddress: btcAddress,
             vaultProviderAddress: txData.vaultProviderAddress,
-            vaultProviderBtcPubkey: txData.vaultProviderBtcPubkey.startsWith(
-              "0x",
-            )
-              ? txData.vaultProviderBtcPubkey.slice(2)
-              : txData.vaultProviderBtcPubkey,
-            liquidatorBtcPubkeys: (txData.liquidatorBtcPubkeys as string[]).map(
-              (key) => (key.startsWith("0x") ? key.slice(2) : key),
-            ),
+            vaultProviderBtcPubkey: txData.vaultProviderBtcPubkey,
+            liquidatorBtcPubkeys: txData.liquidatorBtcPubkeys as string[],
             availableUTXOs: [selectedUTXO],
           },
         );
