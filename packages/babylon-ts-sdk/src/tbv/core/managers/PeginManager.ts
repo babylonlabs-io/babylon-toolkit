@@ -221,11 +221,11 @@ export interface RegisterPeginResult {
   ethTxHash: Hash;
 
   /**
-   * Bitcoin transaction hash (with 0x prefix for Ethereum compatibility).
-   * This is the same as btcTxHash from PeginResult, formatted as Hex with '0x' prefix.
-   * Used as the unique vault identifier in the BTCVaultsManager contract.
+   * Vault identifier used in the BTCVaultsManager contract.
+   * This is the Bitcoin transaction hash with 0x prefix for Ethereum compatibility.
+   * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
    */
-  btcTxHash: Hex;
+  vaultId: Hex;
 }
 
 /**
@@ -521,7 +521,7 @@ export class PeginManager {
 
       return {
         ethTxHash,
-        btcTxHash: vaultId,
+        vaultId,
       };
     } catch (error) {
       // Use proper error handler for better error messages

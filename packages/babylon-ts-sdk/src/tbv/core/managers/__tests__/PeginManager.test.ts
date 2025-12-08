@@ -522,12 +522,12 @@ describe("PeginManager", () => {
       expect(txRequest.data).toBeDefined();
       expect(txRequest.data).toContain("0x"); // Encoded call data
 
-      // Verify result contains ethTxHash and btcTxHash
+      // Verify result contains ethTxHash and vaultId
       expect(result).toBeDefined();
       expect(result.ethTxHash).toBeDefined();
       expect(result.ethTxHash.startsWith("0x")).toBe(true);
-      expect(result.btcTxHash).toBeDefined();
-      expect(result.btcTxHash.startsWith("0x")).toBe(true);
+      expect(result.vaultId).toBeDefined();
+      expect(result.vaultId.startsWith("0x")).toBe(true);
     });
 
     it("should handle BTC wallet signing failure", async () => {

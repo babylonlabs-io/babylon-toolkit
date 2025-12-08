@@ -133,7 +133,7 @@ export async function submitPeginRequest(
   // Step 5: Return results
   return {
     transactionHash: registrationResult.ethTxHash,
-    btcTxHash: registrationResult.btcTxHash, // Bitcoin transaction hash used as vault identifier
+    btcTxHash: registrationResult.vaultId, // Vault identifier (Bitcoin transaction hash with 0x prefix)
     btcTxHex: peginResult.fundedTxHex,
     selectedUTXOs: peginResult.selectedUTXOs,
     fee: peginResult.fee,
