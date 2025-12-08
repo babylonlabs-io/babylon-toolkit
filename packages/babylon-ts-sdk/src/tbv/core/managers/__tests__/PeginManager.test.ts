@@ -163,7 +163,7 @@ describe("PeginManager", () => {
       });
 
       // Verify result structure
-      expect(result).toHaveProperty("btcTxid");
+      expect(result).toHaveProperty("btcTxHash");
       expect(result).toHaveProperty("fundedTxHex");
       expect(result).toHaveProperty("vaultScriptPubKey");
       expect(result).toHaveProperty("selectedUTXOs");
@@ -172,7 +172,7 @@ describe("PeginManager", () => {
       expect(result).toHaveProperty("ethTxHash");
 
       // Verify types
-      expect(typeof result.btcTxid).toBe("string");
+      expect(typeof result.btcTxHash).toBe("string");
       expect(typeof result.fundedTxHex).toBe("string");
       expect(typeof result.vaultScriptPubKey).toBe("string");
       expect(Array.isArray(result.selectedUTXOs)).toBe(true);
@@ -181,7 +181,7 @@ describe("PeginManager", () => {
       expect(result.ethTxHash).toBeNull(); // Not implemented yet
 
       // Verify values
-      expect(result.btcTxid.length).toBe(64);
+      expect(result.btcTxHash.length).toBe(64);
       expect(result.fundedTxHex.length).toBeGreaterThan(0);
       expect(result.vaultScriptPubKey.length).toBeGreaterThan(0);
       expect(result.selectedUTXOs.length).toBeGreaterThan(0);
@@ -522,12 +522,12 @@ describe("PeginManager", () => {
       expect(txRequest.data).toBeDefined();
       expect(txRequest.data).toContain("0x"); // Encoded call data
 
-      // Verify result contains ethTxHash and vaultId
+      // Verify result contains ethTxHash and btcTxHash
       expect(result).toBeDefined();
       expect(result.ethTxHash).toBeDefined();
       expect(result.ethTxHash.startsWith("0x")).toBe(true);
-      expect(result.vaultId).toBeDefined();
-      expect(result.vaultId.startsWith("0x")).toBe(true);
+      expect(result.btcTxHash).toBeDefined();
+      expect(result.btcTxHash.startsWith("0x")).toBe(true);
     });
 
     it("should handle BTC wallet signing failure", async () => {
@@ -676,7 +676,7 @@ describe("PeginManager", () => {
 
       // Same inputs should produce same vault script
       expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
-      expect(result1.btcTxid).toBe(result2.btcTxid);
+      expect(result1.btcTxHash).toBe(result2.btcTxHash);
       expect(result1.fee).toBe(result2.fee);
     });
 

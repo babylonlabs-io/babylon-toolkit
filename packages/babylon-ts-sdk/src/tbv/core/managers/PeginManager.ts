@@ -134,9 +134,11 @@ export interface CreatePeginParams {
  */
 export interface PeginResult {
   /**
-   * Bitcoin transaction ID (will change after signing).
+   * Bitcoin transaction hash (without 0x prefix).
+   * This is the hash of the unsigned transaction and will NOT change after signing.
+   * Used as the unique vault identifier in the contract.
    */
-  btcTxid: string;
+  btcTxHash: string;
 
   /**
    * Funded but unsigned transaction hex.
@@ -219,9 +221,11 @@ export interface RegisterPeginResult {
   ethTxHash: Hash;
 
   /**
-   * Bitcoin transaction hash (vault ID) used as unique identifier in contract.
+   * Bitcoin transaction hash (with 0x prefix for Ethereum compatibility).
+   * This is the same as btcTxHash from PeginResult, formatted as Hex with '0x' prefix.
+   * Used as the unique vault identifier in the BTCVaultsManager contract.
    */
-  vaultId: Hex;
+  btcTxHash: Hex;
 }
 
 /**
@@ -301,7 +305,7 @@ export class PeginManager {
     });
 
     return {
-      btcTxid: peginPsbt.txid,
+      btcTxHash: peginPsbt.txid,
       fundedTxHex,
       vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -517,7 +521,7 @@ export class PeginManager {
 
       return {
         ethTxHash,
-        vaultId,
+        btcTxHash: vaultId,
       };
     } catch (error) {
       // Use proper error handler for better error messages

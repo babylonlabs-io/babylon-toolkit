@@ -50,9 +50,8 @@ export interface SubmitPeginParams {
  */
 export interface SubmitPeginResult {
   transactionHash: Hex;
-  vaultId: Hex;
-  btcTxid: string;
-  btcTxHex: string;
+  btcTxHash: Hex; // Bitcoin transaction hash (with 0x prefix)
+  btcTxHex: string; // Full transaction hex
   selectedUTXOs: UTXO[];
   fee: bigint;
 }
@@ -134,8 +133,7 @@ export async function submitPeginRequest(
   // Step 5: Return results
   return {
     transactionHash: registrationResult.ethTxHash,
-    vaultId: registrationResult.vaultId, // Bitcoin transaction hash used as vault ID
-    btcTxid: peginResult.btcTxid,
+    btcTxHash: registrationResult.btcTxHash, // Bitcoin transaction hash used as vault identifier
     btcTxHex: peginResult.fundedTxHex,
     selectedUTXOs: peginResult.selectedUTXOs,
     fee: peginResult.fee,

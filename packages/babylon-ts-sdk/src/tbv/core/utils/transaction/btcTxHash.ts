@@ -9,23 +9,16 @@ import { Transaction } from "bitcoinjs-lib";
 import type { Hex } from "viem";
 
 /**
- * Calculate Bitcoin transaction hash (vault ID)
+ * Calculate Bitcoin transaction hash
  *
  * This matches the contract's BtcUtils.hashBtcTx() implementation:
  * 1. Double SHA256 the transaction bytes
  * 2. Reverse the byte order (Bitcoin convention)
  *
- * The resulting hash is used as the unique vault ID in the BTCVaultsManager contract.
+ * The resulting hash is used as the unique vault identifier in the BTCVaultsManager contract.
  *
  * @param txHex - Transaction hex (with or without 0x prefix)
- * @returns The transaction hash as used by the contract (vault ID)
- *
- * @example
- * ```typescript
- * const vaultId = calculateBtcTxHash(fundedTxHex);
- * console.log('Vault ID:', vaultId);
- * // Output: 0x4ba578557f3381b113405fb05be76e7b31bad18af46734cec6b79b47259c6363
- * ```
+ * @returns The transaction hash as Hex (with 0x prefix)
  */
 export function calculateBtcTxHash(txHex: string): Hex {
   // Remove 0x prefix if present
