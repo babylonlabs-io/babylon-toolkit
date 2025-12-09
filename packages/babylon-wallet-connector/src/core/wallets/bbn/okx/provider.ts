@@ -2,11 +2,13 @@ import { OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types/src
 import { Buffer } from "buffer";
 
 import { BBNConfig, IBBNProvider, WalletInfo } from "@/core/types";
+import { isVersionLessThan } from "@/core/utils/version";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
 
 export const WALLET_PROVIDER_NAME = "OKX";
+const MIN_COMPATIBLE_VERSION = "3.54.12";
 
 export class OKXBabylonProvider implements IBBNProvider {
   private walletInfo: WalletInfo | undefined;
@@ -47,6 +49,15 @@ export class OKXBabylonProvider implements IBBNProvider {
       throw new WalletError({
         code: ERROR_CODES.EXTENSION_NOT_FOUND,
         message: "OKX Wallet extension not found",
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+
+    const version = await this.wallet.getVersion();
+    if (version && isVersionLessThan(version, MIN_COMPATIBLE_VERSION)) {
+      throw new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `OKX Wallet version ${version} is not compatible. Please update to version ${MIN_COMPATIBLE_VERSION} or higher.`,
         wallet: WALLET_PROVIDER_NAME,
       });
     }
