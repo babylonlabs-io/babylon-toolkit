@@ -23,4 +23,17 @@ export default {
   get IsLedgerEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_LEDGER === "true";
   },
+
+  /**
+   * USE_V2_LEDGER_APP feature flag
+   *
+   * Purpose: Switches from v1 to v2 Ledger BTC provider
+   * Why needed: To gradually roll out v2 Ledger app support on devnet/testnet
+   *             before enabling on mainnet
+   * Default: false (uses v1 Ledger provider for backwards compatibility)
+   * ETA for removal: TBD - Will be removed once v2 is fully tested and stable
+   */
+  get IsV2LedgerEnabled() {
+    return process.env.NEXT_PUBLIC_FF_USE_V2_LEDGER_APP === "true";
+  },
 };
