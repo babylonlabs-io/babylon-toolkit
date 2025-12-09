@@ -16,6 +16,7 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
@@ -112,7 +113,7 @@ export function PayoutSignModal({
           },
           liquidators,
         },
-        btcWallet: btcWalletProvider,
+        btcWallet: btcWalletProvider as BitcoinWallet,
       });
 
       // Update localStorage status using state machine
