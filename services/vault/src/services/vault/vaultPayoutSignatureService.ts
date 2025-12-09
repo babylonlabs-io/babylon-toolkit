@@ -1,3 +1,4 @@
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
@@ -33,16 +34,12 @@ export interface PayoutProviders {
   liquidators: PayoutLiquidator[];
 }
 
-export interface BtcWalletProvider {
-  signPsbt: (psbtHex: string) => Promise<string>;
-}
-
 export interface SignAndSubmitPayoutSignaturesParams {
   peginTxId: string;
   depositorBtcPubkey: string;
   claimerTransactions: ClaimerTransactions[];
   providers: PayoutProviders;
-  btcWalletProvider: BtcWalletProvider;
+  btcWallet: BitcoinWallet;
 }
 
 /**
@@ -57,7 +54,7 @@ export async function signAndSubmitPayoutSignatures(
     depositorBtcPubkey,
     claimerTransactions,
     providers,
-    btcWalletProvider,
+    btcWallet,
   } = params;
 
   const { vaultProvider, liquidators } = providers;
@@ -165,15 +162,13 @@ export async function signAndSubmitPayoutSignatures(
     }
 
     // Sign using VP's canonical liquidator order to ensure correct sighash
-    const signature = await signPayoutTransaction({
+    const signature = await signPayoutTransaction(btcWallet, {
       payoutTxHex,
       peginTxHex,
       claimTxHex,
-      depositorBtcPubkey,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys: finalLiquidatorPubkeys,
       network,
-      btcWalletProvider,
     });
 
     signatures[claimerPubkeyXOnly] = signature;

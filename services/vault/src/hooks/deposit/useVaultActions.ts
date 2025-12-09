@@ -2,6 +2,7 @@
  * Custom hook for vault actions (broadcast and sign payout)
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
@@ -215,9 +216,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         vaultProviderAddress,
         depositorBtcPubkey,
         transactions,
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
+        btcWallet: btcWalletProvider as BitcoinWallet,
       });
 
       // Update or create localStorage entry for status tracking

@@ -1,74 +1,59 @@
 /**
  * BTC Payout Transaction Signer
  *
- * Low-level Bitcoin signing utility for payout transactions using Taproot script path spend.
- * Uses SDK primitives to build PSBTs and extract Schnorr signatures.
+ * High-level payout signing service using PayoutManager from the SDK.
+ * Orchestrates the complete payout signing flow: build → sign → extract signature.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
-  buildPayoutPsbt,
-  extractPayoutSignature,
+  PayoutManager,
   type Network,
-} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 
 export interface SignPayoutTransactionParams {
   payoutTxHex: string;
   peginTxHex: string;
   claimTxHex: string;
-  depositorBtcPubkey: string;
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
   network: Network;
-  btcWalletProvider: {
-    signPsbt: (psbtHex: string) => Promise<string>;
-  };
 }
 
 /**
- * Sign a payout transaction using Taproot script path spend
+ * Sign a payout transaction using PayoutManager.
  *
- * This function uses SDK Level 1 primitives:
- * 1. buildPayoutPsbt() - Builds unsigned PSBT with Taproot script path spend info
- * 2. extractPayoutSignature() - Extracts 64-byte Schnorr signature from signed PSBT
+ * The manager handles:
+ * 1. Getting depositor BTC pubkey from wallet
+ * 2. Building PSBT with Taproot script path spend
+ * 3. Signing via wallet.signPsbt()
+ * 4. Extracting 64-byte Schnorr signature
  *
+ * @param btcWallet - Bitcoin wallet adapter implementing BitcoinWallet interface
  * @param params - Payout transaction parameters
- * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)
- *
+ * @returns 64-byte Schnorr signature (128 hex characters)
  */
 export async function signPayoutTransaction(
+  btcWallet: BitcoinWallet,
   params: SignPayoutTransactionParams,
 ): Promise<string> {
-  const {
-    payoutTxHex,
-    peginTxHex,
-    claimTxHex,
-    depositorBtcPubkey,
-    vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
-    network,
-    btcWalletProvider,
-  } = params;
-
   try {
-    // Build PSBT using SDK Level 1 primitive
-    // Note: SDK normalizes hex inputs internally (strips 0x prefix if present)
-    const payoutPsbt = await buildPayoutPsbt({
-      payoutTxHex,
-      peginTxHex,
-      claimTxHex,
-      depositorBtcPubkey,
-      vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys,
-      network,
+    // Create manager with wallet
+    const payoutManager = new PayoutManager({
+      network: params.network,
+      btcWallet,
     });
 
-    // Sign PSBT with user's BTC wallet
-    const signedPsbtHex = await btcWalletProvider.signPsbt(payoutPsbt.psbtHex);
+    // Manager orchestrates the complete flow
+    const result = await payoutManager.signPayoutTransaction({
+      payoutTxHex: params.payoutTxHex,
+      peginTxHex: params.peginTxHex,
+      claimTxHex: params.claimTxHex,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+    });
 
-    // Extract signature using SDK Level 1 primitive
-    const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
-
-    return signature;
+    return result.signature;
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to sign payout transaction: ${error.message}`);
