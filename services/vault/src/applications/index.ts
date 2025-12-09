@@ -10,4 +10,5 @@ export {
   registerApplication,
 } from "./registry";
 
+import "./aave";
 import "./morpho";

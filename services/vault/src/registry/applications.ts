@@ -28,6 +28,15 @@ export const APPLICATION_REGISTRY: Record<string, ApplicationMetadata> = {
       "https://assets.coingecko.com/coins/images/31915/standard/morpho.png",
     websiteUrl: "https://morpho.org",
   },
+  [CONTRACTS.AAVE_CONTROLLER.toLowerCase()]: {
+    name: "Aave V4",
+    type: "Lending",
+    description:
+      "Aave is a decentralized non-custodial liquidity protocol where users can participate as suppliers or borrowers.",
+    logoUrl:
+      "https://assets.coingecko.com/coins/images/12645/standard/aave-token-round.png",
+    websiteUrl: "https://aave.com",
+  },
 };
 
 /**

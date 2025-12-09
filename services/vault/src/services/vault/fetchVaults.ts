@@ -26,7 +26,6 @@ const VAULT_FIELDS = `
   unsignedPegInTx
   pendingAt
   verifiedAt
-  inclusionProofVerifiedAt
   activatedAt
   blockNumber
   transactionHash
@@ -59,11 +58,24 @@ const GET_VAULT_BY_ID = gql`
 
 /**
  * GraphQL query to fetch Morpho vault status by vault IDs
- * Used to determine if vaults are in use as collateral
  */
 const GET_MORPHO_VAULT_STATUSES = gql`
   query GetMorphoVaultStatuses($vaultIds: [String!]!) {
     morphoVaultStatuss(where: { vaultId_in: $vaultIds }) {
+      items {
+        vaultId
+        status
+      }
+    }
+  }
+`;
+
+/**
+ * GraphQL query to fetch Aave vault status by vault IDs
+ */
+const GET_AAVE_VAULT_STATUSES = gql`
+  query GetAaveVaultStatuses($vaultIds: [String!]!) {
+    aaveVaultStatuss(where: { vaultId_in: $vaultIds }) {
       items {
         vaultId
         status
@@ -97,38 +109,46 @@ interface GraphQLVaultItem {
   unsignedPegInTx: string;
   pendingAt: string;
   verifiedAt: string | null;
-  inclusionProofVerifiedAt: string | null;
   activatedAt: string | null;
   blockNumber: string;
   transactionHash: string;
 }
 
 /**
- * Morpho vault usage status values
+ * App-specific vault usage status values
  */
-const MorphoVaultUsageStatus = {
+const AppVaultUsageStatus = {
   AVAILABLE: "available",
   IN_USE: "in_use",
   REDEEMED: "redeemed",
 } as const;
 
-type MorphoVaultUsageStatus =
-  (typeof MorphoVaultUsageStatus)[keyof typeof MorphoVaultUsageStatus];
+type AppVaultUsageStatus =
+  (typeof AppVaultUsageStatus)[keyof typeof AppVaultUsageStatus];
 
 /**
- * Morpho vault status item from GraphQL
+ * App vault status item from GraphQL (shared structure for Morpho/Aave)
  */
-interface GraphQLMorphoVaultStatusItem {
+interface GraphQLAppVaultStatusItem {
   vaultId: string;
-  status: MorphoVaultUsageStatus;
+  status: AppVaultUsageStatus;
 }
 
 /**
- * GraphQL response for morpho vault statuses query
+ * GraphQL response for Morpho vault statuses query
  */
 interface MorphoVaultStatusesResponse {
   morphoVaultStatuss: {
-    items: GraphQLMorphoVaultStatusItem[];
+    items: GraphQLAppVaultStatusItem[];
+  };
+}
+
+/**
+ * GraphQL response for Aave vault statuses query
+ */
+interface AaveVaultStatusesResponse {
+  aaveVaultStatuss: {
+    items: GraphQLAppVaultStatusItem[];
   };
 }
 
@@ -189,25 +209,46 @@ function transformVaultItem(item: GraphQLVaultItem, isInUse: boolean): Vault {
 }
 
 /**
- * Fetch Morpho vault statuses for given vault IDs
+ * Fetch app-specific vault statuses for given vault IDs
+ * Queries both Morpho and Aave vault status tables
+ *
+ * @returns Map of vaultId to isInUse boolean
  */
-async function fetchMorphoVaultStatuses(
+async function fetchAppVaultStatuses(
   vaultIds: string[],
-): Promise<Map<string, MorphoVaultUsageStatus>> {
+): Promise<Map<string, boolean>> {
   if (vaultIds.length === 0) {
     return new Map();
   }
 
-  const data = await graphqlClient.request<MorphoVaultStatusesResponse>(
-    GET_MORPHO_VAULT_STATUSES,
-    { vaultIds },
-  );
+  // Query both Morpho and Aave vault statuses in parallel
+  const [morphoData, aaveData] = await Promise.all([
+    graphqlClient.request<MorphoVaultStatusesResponse>(
+      GET_MORPHO_VAULT_STATUSES,
+      { vaultIds },
+    ),
+    graphqlClient.request<AaveVaultStatusesResponse>(GET_AAVE_VAULT_STATUSES, {
+      vaultIds,
+    }),
+  ]);
 
-  const statusMap = new Map<string, MorphoVaultUsageStatus>();
-  for (const item of data.morphoVaultStatuss.items) {
-    statusMap.set(item.vaultId, item.status);
+  const inUseMap = new Map<string, boolean>();
+
+  // Check Morpho statuses
+  for (const item of morphoData.morphoVaultStatuss.items) {
+    if (item.status === AppVaultUsageStatus.IN_USE) {
+      inUseMap.set(item.vaultId, true);
+    }
   }
-  return statusMap;
+
+  // Check Aave statuses
+  for (const item of aaveData.aaveVaultStatuss.items) {
+    if (item.status === AppVaultUsageStatus.IN_USE) {
+      inUseMap.set(item.vaultId, true);
+    }
+  }
+
+  return inUseMap;
 }
 
 /**
@@ -215,7 +256,7 @@ async function fetchMorphoVaultStatuses(
  *
  * Uses two-query pattern:
  * 1. Fetch core vault data
- * 2. Fetch Morpho vault statuses to determine if vaults are in use
+ * 2. Fetch app-specific vault statuses (Morpho, Aave) to determine if vaults are in use
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @returns Array of vaults with isInUse status
@@ -234,14 +275,13 @@ export async function fetchVaultsByDepositor(
     return [];
   }
 
-  // 2. Fetch Morpho vault statuses
+  // 2. Fetch app-specific vault statuses
   const vaultIds = vaultItems.map((v) => v.id);
-  const statusMap = await fetchMorphoVaultStatuses(vaultIds);
+  const inUseMap = await fetchAppVaultStatuses(vaultIds);
 
   // 3. Merge and transform
   return vaultItems.map((item) => {
-    const morphoStatus = statusMap.get(item.id);
-    const isInUse = morphoStatus === MorphoVaultUsageStatus.IN_USE;
+    const isInUse = inUseMap.get(item.id) ?? false;
     return transformVaultItem(item, isInUse);
   });
 }
@@ -249,7 +289,7 @@ export async function fetchVaultsByDepositor(
 /**
  * Fetch a single vault by ID from GraphQL
  *
- * Uses two-query pattern to include Morpho vault status.
+ * Uses two-query pattern to include app-specific vault status.
  *
  * @param vaultId - Vault ID (pegin tx hash)
  * @returns Vault with isInUse status, or null if not found
@@ -264,10 +304,9 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
     return null;
   }
 
-  // Fetch Morpho vault status
-  const statusMap = await fetchMorphoVaultStatuses([data.vault.id]);
-  const morphoStatus = statusMap.get(data.vault.id);
-  const isInUse = morphoStatus === MorphoVaultUsageStatus.IN_USE;
+  // Fetch app-specific vault statuses
+  const inUseMap = await fetchAppVaultStatuses([data.vault.id]);
+  const isInUse = inUseMap.get(data.vault.id) ?? false;
 
   return transformVaultItem(data.vault, isInUse);
 }
