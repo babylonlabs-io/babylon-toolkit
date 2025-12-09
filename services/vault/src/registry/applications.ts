@@ -15,6 +15,9 @@ export interface ApplicationMetadata {
   websiteUrl: string;
 }
 
+const AAVE_CONTROLLER_ADDRESS =
+  process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER?.toLowerCase() || "";
+
 /**
  * Registry of known applications, keyed by lowercase controller address
  */
@@ -28,6 +31,17 @@ export const APPLICATION_REGISTRY: Record<string, ApplicationMetadata> = {
       "https://assets.coingecko.com/coins/images/31915/standard/morpho.png",
     websiteUrl: "https://morpho.org",
   },
+  ...(AAVE_CONTROLLER_ADDRESS && {
+    [AAVE_CONTROLLER_ADDRESS]: {
+      name: "Aave",
+      type: "Lending",
+      description:
+        "Aave is a decentralized non-custodial liquidity protocol where users can participate as depositors or borrowers.",
+      logoUrl:
+        "https://assets.coingecko.com/coins/images/12645/standard/aave-token-round.png",
+      websiteUrl: "https://aave.com",
+    },
+  }),
 };
 
 /**

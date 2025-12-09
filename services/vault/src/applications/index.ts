@@ -11,3 +11,4 @@ export {
 } from "./registry";
 
 import "./morpho";
+import "./aave";
