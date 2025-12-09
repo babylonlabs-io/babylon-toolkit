@@ -19,13 +19,15 @@ export const getPolicyForTransaction = async (
   {
     contracts,
     action,
+    addressIndex,
   }: {
     contracts: Contract[];
     action: Action;
+    addressIndex: number;
   },
 ): Promise<WalletPolicy> => {
-  // Append the last two levels for address index
-  const fullDerivationPath = derivationPath + "/0/0";
+  // Append the last two levels for address index (normal/change = 0, index = addressIndex)
+  const fullDerivationPath = `${derivationPath}/0/${addressIndex}`;
 
   switch (action.name) {
     case ActionName.SIGN_BTC_STAKING_TRANSACTION:

@@ -115,8 +115,10 @@ export class LedgerProvider implements IBTCProvider {
     let policyTemplate: string;
     if (purpose === 86) {
       policyTemplate = "tr(@0/**)";
-    } else {
+    } else if (purpose === 84) {
       policyTemplate = "wpkh(@0/**)";
+    } else {
+      throw new Error(`Unsupported purpose ${purpose}. Only 84 (wpkh) and 86 (tr) are supported.`);
     }
 
     const policyDescriptor = `[${fpr}/${purpose}'/${networkDerivationIndex}'/0']${extendedPubKey}`;
@@ -164,12 +166,12 @@ export class LedgerProvider implements IBTCProvider {
     // Get the master key fingerprint
     const fpr = await app.getMasterFingerprint();
 
-    const derivationPathLv3 = this.getDerivationPath();
+    const accountDerivationPath = this.getDerivationPath();
 
     // Get the extended public key for the derivation path
-    const extendedPubkey = await app.getExtendedPubkey(derivationPathLv3);
+    const extendedPubkey = await app.getExtendedPubkey(accountDerivationPath);
 
-    const accountPolicy = await this.getWalletPolicy(app, fpr, derivationPathLv3);
+    const accountPolicy = await this.getWalletPolicy(app, fpr, accountDerivationPath);
 
     if (!accountPolicy) throw new Error("Could not retrieve the policy");
 
@@ -180,7 +182,7 @@ export class LedgerProvider implements IBTCProvider {
       policy: accountPolicy,
       mfp: fpr,
       extendedPublicKey: extendedPubkey,
-      path: derivationPathLv3,
+      path: accountDerivationPath,
       address,
       publicKeyHex,
     };
@@ -222,6 +224,7 @@ export class LedgerProvider implements IBTCProvider {
     const policy = await getPolicyForTransaction(transport, this.ledgerWalletInfo.path, {
       contracts: options.contracts,
       action: options.action,
+      addressIndex: this.derivationConfig.addressIndex,
     });
 
     const deviceTransaction = await signPsbt({
