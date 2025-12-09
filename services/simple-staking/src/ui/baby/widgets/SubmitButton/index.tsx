@@ -25,7 +25,6 @@ export function SubmitButton({
       fallback={<ConnectButton disabled={disabled || isGeoBlocked} />}
     >
       <Button
-        //@ts-expect-error - fix type issue in core-ui
         type="submit"
         disabled={disabled || !isValid}
         className="mt-2 w-full capitalize disabled:!bg-accent-primary/10 disabled:!text-accent-primary"

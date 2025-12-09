@@ -1,9 +1,9 @@
-import { type DetailedHTMLProps, type HTMLAttributes, forwardRef } from "react";
+import { type DetailedHTMLProps, type ButtonHTMLAttributes, forwardRef } from "react";
 import { twJoin } from "tailwind-merge";
 import "./Button.css";
 
 export interface ButtonProps
-  extends Omit<DetailedHTMLProps<HTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "size"> {
+  extends Omit<DetailedHTMLProps<ButtonHTMLAttributes<HTMLButtonElement>, HTMLButtonElement>, "size"> {
   className?: string;
   disabled?: boolean;
   fluid?: boolean;
@@ -15,7 +15,16 @@ export interface ButtonProps
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { variant = "contained", size = "large", color = "primary", fluid = false, rounded = false, className, disabled, ...restProps },
+    {
+      variant = "contained",
+      size = "large",
+      color = "primary",
+      fluid = false,
+      rounded = false,
+      className,
+      disabled,
+      ...restProps
+    },
     ref,
   ) => {
     return (
