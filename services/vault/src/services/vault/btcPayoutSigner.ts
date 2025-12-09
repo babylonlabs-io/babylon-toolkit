@@ -6,10 +6,7 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import {
-  PayoutManager,
-  type Network,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 export interface SignPayoutTransactionParams {
   payoutTxHex: string;
