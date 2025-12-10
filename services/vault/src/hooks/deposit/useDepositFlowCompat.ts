@@ -192,7 +192,7 @@ export function useDepositFlow(
 
       // selectedApplication is already the controller address (e.g., "0xcb38...")
       // No need to look it up - just use it directly
-      const applicationController = selectedApplication as Address;
+      const applicationController = selectedApplication;
 
       const peginData = {
         id: btcTxid,
