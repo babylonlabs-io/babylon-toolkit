@@ -112,9 +112,7 @@ export function PayoutSignModal({
           },
           liquidators,
         },
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
+        btcWallet: btcWalletProvider,
       });
 
       // Update localStorage status using state machine

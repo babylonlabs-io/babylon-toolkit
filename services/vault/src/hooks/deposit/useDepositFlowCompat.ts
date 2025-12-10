@@ -22,20 +22,9 @@ import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
 
-/**
- * BTC wallet provider interface
- */
-interface BtcWalletProvider {
-  signMessage: (
-    message: string,
-    type: "ecdsa" | "bip322-simple",
-  ) => Promise<string>;
-  getPublicKeyHex: () => Promise<string>;
-}
-
 export interface UseDepositFlowParams {
   amount: bigint;
-  btcWalletProvider: BtcWalletProvider;
+  btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
@@ -177,19 +166,15 @@ export function useDepositFlow(
 
       // Submit pegin request with type-safe BitcoinWallet cast
       // The btcWalletProvider from wallet-connector already implements the BitcoinWallet interface
-      const result = await submitPeginRequest(
-        btcWalletProvider as BitcoinWallet,
-        walletClient,
-        {
-          pegInAmount: amount,
-          feeRate,
-          changeAddress: btcAddress,
-          vaultProviderAddress: selectedProviders[0] as Address,
-          vaultProviderBtcPubkey,
-          liquidatorBtcPubkeys,
-          availableUTXOs: confirmedUTXOs,
-        },
-      );
+      const result = await submitPeginRequest(btcWalletProvider, walletClient, {
+        pegInAmount: amount,
+        feeRate,
+        changeAddress: btcAddress,
+        vaultProviderAddress: selectedProviders[0] as Address,
+        vaultProviderBtcPubkey,
+        liquidatorBtcPubkeys,
+        availableUTXOs: confirmedUTXOs,
+      });
 
       // Get depositor's BTC public key for display
       const publicKeyHex = await btcWalletProvider.getPublicKeyHex();

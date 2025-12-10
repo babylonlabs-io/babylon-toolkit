@@ -215,9 +215,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         vaultProviderAddress,
         depositorBtcPubkey,
         transactions,
-        btcWalletProvider: {
-          signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-        },
+        btcWallet: btcWalletProvider,
       });
 
       // Update or create localStorage entry for status tracking

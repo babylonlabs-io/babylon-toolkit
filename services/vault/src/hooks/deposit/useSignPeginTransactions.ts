@@ -6,6 +6,7 @@
  * the peginPayoutSignatureService for reusability.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
@@ -23,10 +24,8 @@ export interface SignPeginTransactionsParams {
   depositorBtcPubkey: string;
   /** Transactions to sign from vault provider */
   transactions: ClaimerTransactions[];
-  /** BTC wallet provider for signing */
-  btcWalletProvider: {
-    signPsbt: (psbtHex: string) => Promise<string>;
-  };
+  /** BTC wallet for signing (matches service layer interface) */
+  btcWallet: BitcoinWallet;
 }
 
 export interface UseSignPeginTransactionsResult {
@@ -98,7 +97,7 @@ export function useSignPeginTransactions(
             },
             liquidators,
           },
-          btcWalletProvider: params.btcWalletProvider,
+          btcWallet: params.btcWallet,
         });
 
         setSuccess(true);
