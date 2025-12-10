@@ -26,6 +26,7 @@ export interface UseDepositFlowParams {
   amount: bigint;
   btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
+  selectedApplication: string;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
@@ -70,6 +71,7 @@ export function useDepositFlow(
     amount,
     btcWalletProvider,
     depositorEthAddress,
+    selectedApplication,
     selectedProviders,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,
@@ -188,10 +190,15 @@ export function useDepositFlow(
       // Format amount for display (satoshis to BTC string)
       const amountBtc = depositService.formatSatoshisToBtc(amount);
 
-      addPendingPegin(depositorEthAddress, {
+      // selectedApplication is already the controller address (e.g., "0xcb38...")
+      // No need to look it up - just use it directly
+      const applicationController = selectedApplication;
+
+      const peginData = {
         id: btcTxid,
         amount: amountBtc,
         providerIds: selectedProviders,
+        applicationController,
         status: LocalStorageStatus.PENDING,
         btcTxHash: ethTxHash, // Store ETH tx hash for tracking
         unsignedTxHex: result.btcTxHex,
@@ -201,7 +208,9 @@ export function useDepositFlow(
           value: utxo.value.toString(),
           scriptPubKey: utxo.scriptPubKey,
         })),
-      });
+      };
+
+      addPendingPegin(depositorEthAddress, peginData);
 
       // Step 4: Complete
       setCurrentStep(3);
@@ -223,6 +232,7 @@ export function useDepositFlow(
     amount,
     btcWalletProvider,
     depositorEthAddress,
+    selectedApplication,
     selectedProviders,
     vaultProviderBtcPubkey,
     liquidatorBtcPubkeys,

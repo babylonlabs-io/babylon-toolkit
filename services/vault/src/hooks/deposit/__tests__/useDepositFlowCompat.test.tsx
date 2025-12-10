@@ -110,6 +110,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
     amount: 500000n,
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
+    selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
@@ -431,6 +432,38 @@ describe("useDepositFlowCompat - Chain Switching", () => {
           "Please switch to Ethereum Mainnet in your wallet",
         );
       });
+    });
+  });
+
+  describe("Application Controller", () => {
+    it("should pass selectedApplication as applicationController to addPendingPegin", async () => {
+      const { getWalletClient, switchChain } = await import("wagmi/actions");
+      const { addPendingPegin } = await import("@/storage/peginStorage");
+
+      // Mock wallet client and chain switch
+      vi.mocked(getWalletClient).mockResolvedValue({
+        account: { address: "0xEthAddress123" },
+        chain: { id: 11155111 },
+      } as any);
+      vi.mocked(switchChain).mockResolvedValue({ id: 11155111 } as any);
+
+      const { result } = renderHook(() => useDepositFlow(mockParams));
+
+      // Execute deposit flow
+      await result.current.executeDepositFlow();
+
+      // Wait for deposit flow to complete
+      await waitFor(() => {
+        expect(result.current.currentStep).toBe(3);
+      });
+
+      // Verify addPendingPegin was called with applicationController set to selectedApplication
+      expect(addPendingPegin).toHaveBeenCalledWith(
+        "0xEthAddress123",
+        expect.objectContaining({
+          applicationController: "0xcb3843752798493344c254d8d88640621e202395",
+        }),
+      );
     });
   });
 });

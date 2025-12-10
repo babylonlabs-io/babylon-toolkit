@@ -34,6 +34,7 @@ function DepositContent() {
   const {
     depositStep,
     depositAmount,
+    selectedApplication,
     selectedProviders,
     btcWalletProvider,
     ethAddress,
@@ -121,6 +122,7 @@ function DepositContent() {
       <DepositModals
         depositStep={depositStep}
         depositAmount={depositAmount}
+        selectedApplication={selectedApplication}
         selectedProviders={selectedProviders}
         btcWalletProvider={btcWalletProvider}
         ethAddress={ethAddress}
