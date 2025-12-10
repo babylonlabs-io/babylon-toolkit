@@ -110,6 +110,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
     amount: 500000n,
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
+    selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],

@@ -14,6 +14,7 @@ import { CollateralDepositSuccessModal } from "../../deposit/DepositSuccessModal
 interface DepositModalsProps {
   depositStep: DepositStep | undefined;
   depositAmount: bigint;
+  selectedApplication: string;
   selectedProviders: string[];
   btcWalletProvider: unknown;
   ethAddress: Address | undefined;
@@ -28,6 +29,7 @@ interface DepositModalsProps {
 export function DepositModals({
   depositStep,
   depositAmount,
+  selectedApplication,
   selectedProviders,
   btcWalletProvider,
   ethAddress,
@@ -57,6 +59,7 @@ export function DepositModals({
           amount={depositAmount}
           btcWalletProvider={btcWalletProvider}
           depositorEthAddress={ethAddress}
+          selectedApplication={selectedApplication}
           selectedProviders={selectedProviders}
           vaultProviderBtcPubkey={selectedProviderBtcPubkey}
           liquidatorBtcPubkeys={liquidatorBtcPubkeys}

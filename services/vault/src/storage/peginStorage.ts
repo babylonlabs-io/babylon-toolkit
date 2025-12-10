@@ -167,6 +167,9 @@ export function addPendingPegin(
     status?: LocalStorageStatus;
   },
 ): void {
+  console.log('[addPendingPegin] Called with pegin data:', pegin);
+  console.log('[addPendingPegin] applicationController in input:', pegin.applicationController);
+
   const existingPegins = getPendingPegins(ethAddress);
 
   // Normalize the ID to ensure it has 0x prefix
@@ -181,6 +184,9 @@ export function addPendingPegin(
     status: pegin.status || LocalStorageStatus.PENDING, // Default to PENDING
     timestamp: Date.now(),
   };
+
+  console.log('[addPendingPegin] Final pegin object to store:', newPegin);
+  console.log('[addPendingPegin] applicationController in final object:', newPegin.applicationController);
 
   // Add new pegin
   const updatedPegins = [...filteredPegins, newPegin];
