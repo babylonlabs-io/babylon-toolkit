@@ -1,7 +1,7 @@
 import { List, Button } from "@babylonlabs-io/core-ui";
 import { memo } from "react";
-import { useNavigate } from "react-router";
 
+import calculatorIcon from "@/ui/common/assets/calculator.svg";
 import { Section } from "@/ui/common/components/Section/Section";
 import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
 import { usePrice } from "@/ui/common/hooks/client/api/usePrices";
@@ -20,7 +20,6 @@ const formatter = Intl.NumberFormat("en", {
 });
 
 export const Stats = memo(() => {
-  const navigate = useNavigate();
   const {
     data: {
       total_active_tvl: totalActiveTVL = 0,
@@ -37,9 +36,10 @@ export const Stats = memo(() => {
     <Section title="Babylon Bitcoin Staking Stats" className="relative">
       <Button
         variant="outlined"
-        className="right-0 top-0 md:absolute"
-        onClick={() => navigate("/calculator")}
+        className="right-0 top-0 flex flex-row items-center justify-center gap-[5px] md:absolute"
+        onClick={() => window.open("/calculator", "_blank")}
       >
+        <img src={calculatorIcon} alt="" className="h-4 w-4" />
         Co-staking APR Calculator
       </Button>
       <List orientation="adaptive">
