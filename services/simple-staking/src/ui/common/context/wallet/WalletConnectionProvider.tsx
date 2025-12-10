@@ -73,9 +73,16 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const disabledWallets = useMemo(() => {
     const disabled: string[] = [];
 
-    // Disable Ledger BTC if feature flag is not enabled
+    // Ledger wallet version control:
+    // - If ledger is disabled entirely: disable both v1 and v2
+    // - If ledger is enabled and v2 flag is on: disable v1, use v2
+    // - If ledger is enabled and v2 flag is off: disable v2, use v1 (default)
     if (!FeatureFlagService.IsLedgerEnabled) {
-      disabled.push("ledger_btc");
+      disabled.push("ledger_btc", "ledger_btc_v2");
+    } else if (FeatureFlagService.IsV2LedgerEnabled) {
+      disabled.push("ledger_btc"); // Disable v1, use v2
+    } else {
+      disabled.push("ledger_btc_v2"); // Disable v2, use v1 (default)
     }
 
     // Disable AppKit BTC if:
