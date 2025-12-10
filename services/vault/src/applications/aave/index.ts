@@ -1,9 +1,10 @@
 import { registerApplication } from "../registry";
+import type { ApplicationRegistration } from "../types";
 
 import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
 import { AaveRoutes } from "./routes";
 
-export const aaveApp = {
+export const aaveApp: ApplicationRegistration = {
   metadata: {
     id: AAVE_APP_ID,
     name: "Aave V4",

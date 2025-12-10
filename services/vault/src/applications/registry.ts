@@ -55,3 +55,16 @@ export function isApplicationEnabled(appId: string): boolean {
   const enabledIds = getEnabledAppIds();
   return enabledIds.includes(appId.toLowerCase());
 }
+
+/**
+ * Get application metadata by controller address
+ * Used to enrich GraphQL data with local metadata
+ */
+export function getApplicationMetadataByController(
+  controllerAddress: string,
+): ApplicationRegistration["metadata"] | undefined {
+  const appId = getAppIdByController(controllerAddress);
+  if (!appId) return undefined;
+  const app = applicationRegistry.get(appId);
+  return app?.metadata;
+}
