@@ -62,19 +62,27 @@ export function Applications() {
 
             {(() => {
               const appId = getAppIdByController(app.id);
-              if (app.type === "Lending" && markets.length > 0 && appId) {
-                return (
-                  <Button
-                    variant="outlined"
-                    rounded
-                    className="self-start"
-                    onClick={() =>
-                      navigate(`/app/${appId}/market/${markets[0].id}`)
-                    }
-                  >
-                    Explore
-                  </Button>
-                );
+              if (app.type === "Lending" && appId) {
+                // Aave uses a simple UI-only page, Morpho uses market-based routing
+                const isAave = appId === "aave";
+                const targetPath = isAave
+                  ? `/app/${appId}`
+                  : markets.length > 0
+                    ? `/app/${appId}/market/${markets[0].id}`
+                    : null;
+
+                if (targetPath) {
+                  return (
+                    <Button
+                      variant="outlined"
+                      rounded
+                      className="self-start"
+                      onClick={() => navigate(targetPath)}
+                    >
+                      Explore
+                    </Button>
+                  );
+                }
               }
               if (app.websiteUrl) {
                 return (
