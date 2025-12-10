@@ -14,6 +14,7 @@ interface RequiredEnvVars {
   // Contract addresses
   BTC_VAULTS_MANAGER: Address;
   MORPHO_CONTROLLER: Address;
+  AAVE_CONTROLLER: Address;
   BTC_VAULT: Address;
   MORPHO: Address;
 
@@ -32,6 +33,7 @@ function validateEnvVars(): RequiredEnvVars {
     // Contract addresses (required)
     BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
     MORPHO_CONTROLLER: process.env.NEXT_PUBLIC_TBV_MORPHO_CONTROLLER,
+    AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
     BTC_VAULT: process.env.NEXT_PUBLIC_TBV_BTC_VAULT,
     MORPHO: process.env.NEXT_PUBLIC_TBV_MORPHO,
 
@@ -46,6 +48,7 @@ function validateEnvVars(): RequiredEnvVars {
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
     "MORPHO_CONTROLLER",
+    "AAVE_CONTROLLER",
     "BTC_VAULT",
     "MORPHO",
     "GRAPHQL_ENDPOINT",
@@ -61,6 +64,7 @@ function validateEnvVars(): RequiredEnvVars {
       const envVarMap: Record<string, string> = {
         BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
         MORPHO_CONTROLLER: "NEXT_PUBLIC_TBV_MORPHO_CONTROLLER",
+        AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
         BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
         MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
         GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",

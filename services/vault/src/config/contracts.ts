@@ -21,6 +21,12 @@ export const CONTRACTS = {
   MORPHO_CONTROLLER: ENV.MORPHO_CONTROLLER as Address,
 
   /**
+   * AaveIntegrationController contract - Aave-specific application controller
+   * Controls collateral, borrowing, and lending operations for Aave protocol
+   */
+  AAVE_CONTROLLER: ENV.AAVE_CONTROLLER as Address,
+
+  /**
    * VaultBTC token contract - ERC20 representation of BTC vaults
    */
   BTC_VAULT: ENV.BTC_VAULT as Address,
