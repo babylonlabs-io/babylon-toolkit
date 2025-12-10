@@ -45,12 +45,6 @@ export function CollateralDepositSignModal({
   liquidatorBtcPubkeys,
   onRefetchActivities,
 }: CollateralDepositSignModalProps) {
-  console.log('[DepositSignModal] Props received:', {
-    selectedApplication,
-    selectedProviders,
-    amount: amount.toString(),
-  });
-
   // Track previous open state to detect transitions
   const prevOpenRef = useRef(false);
   const hasExecutedRef = useRef(false);

@@ -190,19 +190,9 @@ export function useDepositFlow(
       // Format amount for display (satoshis to BTC string)
       const amountBtc = depositService.formatSatoshisToBtc(amount);
 
-      console.log(
-        "[useDepositFlowCompat] selectedApplication (controller address):",
-        selectedApplication,
-      );
-
       // selectedApplication is already the controller address (e.g., "0xcb38...")
       // No need to look it up - just use it directly
       const applicationController = selectedApplication as Address;
-
-      console.log(
-        "[useDepositFlowCompat] Using applicationController:",
-        applicationController,
-      );
 
       const peginData = {
         id: btcTxid,
@@ -219,11 +209,6 @@ export function useDepositFlow(
           scriptPubKey: utxo.scriptPubKey,
         })),
       };
-
-      console.log(
-        "[useDepositFlowCompat] Calling addPendingPegin with data:",
-        peginData,
-      );
 
       addPendingPegin(depositorEthAddress, peginData);
 
