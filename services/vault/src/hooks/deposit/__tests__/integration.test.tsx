@@ -52,8 +52,7 @@ vi.mock("@/hooks/deposit/useVaultProviders", () => ({
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   submitPeginRequest: vi.fn().mockResolvedValue({
     transactionHash: "0xeth123",
-    vaultId: "0xvault123",
-    btcTxid: "btc123",
+    btcTxHash: "0xbtc123",
     btcTxHex: "0xunsigned",
     selectedUTXOs: [
       { txid: "utxo1", vout: 0, value: 500000, scriptPubKey: "script" },

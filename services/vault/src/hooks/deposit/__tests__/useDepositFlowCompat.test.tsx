@@ -73,7 +73,7 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   submitPeginRequest: vi.fn().mockResolvedValue({
-    btcTxid: "mocktxid123",
+    btcTxHash: "0xmocktxid123",
     transactionHash: "0xmockhash456",
     btcTxHex: "0xmockhex",
     selectedUTXOs: [
