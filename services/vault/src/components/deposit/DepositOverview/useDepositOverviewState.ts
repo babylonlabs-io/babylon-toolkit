@@ -7,13 +7,13 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { getApplicationMetadataByController } from "../../../applications";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
 import { useRedeemModal } from "../../../hooks/deposit/useRedeemModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
-import { getApplicationMetadata } from "../../../registry/applications";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import type { Deposit } from "../../../types/vault";
@@ -101,7 +101,7 @@ export function useDepositOverviewState() {
   const deposits: Deposit[] = useMemo(() => {
     return allActivities.map((activity: VaultActivity) => {
       const appMetadata = activity.applicationController
-        ? getApplicationMetadata(activity.applicationController)
+        ? getApplicationMetadataByController(activity.applicationController)
         : undefined;
       return {
         id: activity.id,

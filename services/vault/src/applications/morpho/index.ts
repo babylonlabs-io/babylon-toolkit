@@ -1,9 +1,10 @@
 import { registerApplication } from "../registry";
+import type { ApplicationRegistration } from "../types";
 
 import { getMorphoControllerAddress, MORPHO_APP_ID } from "./config";
 import { MorphoRoutes } from "./routes";
 
-export const morphoApp = {
+export const morphoApp: ApplicationRegistration = {
   metadata: {
     id: MORPHO_APP_ID,
     name: "Morpho",

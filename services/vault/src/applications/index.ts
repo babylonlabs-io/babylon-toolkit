@@ -4,6 +4,7 @@ export {
   getAllApplications,
   getAppIdByController,
   getApplication,
+  getApplicationMetadataByController,
   getEnabledAppIds,
   getEnabledApplications,
   isApplicationEnabled,
