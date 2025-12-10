@@ -101,6 +101,9 @@ describe("useDepositFlowCompat - Chain Switching", () => {
   const mockBtcWalletProvider = {
     signMessage: vi.fn().mockResolvedValue("mocksignature"),
     getPublicKeyHex: vi.fn().mockResolvedValue("0xmockpubkey"),
+    getAddress: vi.fn().mockResolvedValue("bc1qtest123"),
+    signPsbt: vi.fn().mockResolvedValue("mocksignedpsbt"),
+    getNetwork: vi.fn().mockResolvedValue("signet"),
   };
 
   const mockParams = {
