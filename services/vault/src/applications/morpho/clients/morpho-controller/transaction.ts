@@ -9,6 +9,7 @@ import {
   type TransactionResult,
 } from "../../../../clients/eth-contract/transactionFactory";
 
+import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
 import MorphoIntegrationControllerABI from "./abis/MorphoIntegrationController.abi.json";
 
 /**
@@ -153,7 +154,8 @@ export async function withdrawAllCollateralFromPosition(
 }
 
 /**
- * Redeem BTC vault
+ * Redeem BTC vault (depositor redemption)
+ * Updated for Aave v4 integration - uses depositorRedeem function
  */
 export async function redeemBTCVault(
   walletClient: WalletClient,
@@ -165,8 +167,11 @@ export async function redeemBTCVault(
     walletClient,
     chain,
     address: contractAddress,
-    abi: MorphoIntegrationControllerABI,
-    functionName: "redeemBTCVault",
+    // abi: MorphoIntegrationControllerABI,
+    // functionName: "redeemBTCVault",
+    // TODO should be extracted to aave controller once FE is ready
+    abi: AaveIntegrationControllerABI,
+    functionName: "depositorRedeem",
     args: [vaultId],
     errorContext: "redeem BTC vault",
   });

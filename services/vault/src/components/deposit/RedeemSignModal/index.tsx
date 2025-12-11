@@ -11,10 +11,9 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useState } from "react";
-import type { Hex, WalletClient } from "viem";
+import type { Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { CONTRACTS } from "../../../config";
 import { redeemVaults } from "../../../services/vault/vaultTransactionService";
 import type { VaultActivity } from "../../../types/activity";
 
@@ -70,10 +69,38 @@ export function RedeemCollateralSignModal({
         throw new Error("Ethereum wallet not connected");
       }
 
-      // Step 2: Get peg-in transaction hashes from activities
+      // Step 2: Get peg-in transaction hashes and application controller from activities
       setCurrentStep(2);
-      const pegInTxHashes = activities
-        .filter((a) => depositIds.includes(a.id))
+      const selectedActivities = activities.filter((a) =>
+        depositIds.includes(a.id),
+      );
+
+      if (selectedActivities.length === 0) {
+        throw new Error("No valid activities found for redemption");
+      }
+
+      // Extract application controllers and validate they're all the same
+      const applicationControllers = selectedActivities
+        .map((a) => a.applicationController)
+        .filter((controller): controller is string => !!controller);
+
+      if (applicationControllers.length === 0) {
+        throw new Error(
+          "No application controller found for selected vaults. This vault may have been created with an older version.",
+        );
+      }
+
+      // Validate all vaults use the same application controller
+      const uniqueControllers = [...new Set(applicationControllers)];
+      if (uniqueControllers.length > 1) {
+        throw new Error(
+          `Cannot redeem vaults from different applications in one transaction. Found ${uniqueControllers.length} different controllers.`,
+        );
+      }
+
+      const applicationController = uniqueControllers[0] as Address;
+
+      const pegInTxHashes = selectedActivities
         .map((a) => (a.txHash || a.id) as Hex)
         .filter((hash): hash is Hex => !!hash);
 
@@ -83,10 +110,11 @@ export function RedeemCollateralSignModal({
 
       // Step 3: Execute redemption transactions
       setCurrentStep(3);
+
       const results = await redeemVaults(
         ethWalletClient as WalletClient,
         ethChain,
-        CONTRACTS.MORPHO_CONTROLLER,
+        applicationController,
         pegInTxHashes,
       );
 
