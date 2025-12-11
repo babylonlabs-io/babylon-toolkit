@@ -3,9 +3,9 @@ export { fetchAaveConfig, type AaveConfig } from "./fetchConfig";
 
 // GraphQL: Reserves
 export {
+  fetchAaveReserveById,
   fetchAllAaveReserves,
   fetchBorrowableAaveReserves,
-  fetchAaveReserveById,
   type AaveReserve,
 } from "./fetchReserves";
 

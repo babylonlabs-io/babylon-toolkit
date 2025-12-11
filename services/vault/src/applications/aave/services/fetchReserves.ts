@@ -140,7 +140,7 @@ const GET_BORROWABLE_RESERVES = gql`
 `;
 
 function mapReserve(
-  raw: GraphQLReservesResponse["aaveReserves"]["items"][0]
+  raw: GraphQLReservesResponse["aaveReserves"]["items"][0],
 ): AaveReserve {
   return {
     id: BigInt(raw.id),
@@ -164,11 +164,11 @@ function mapReserve(
  * @returns Reserve data or null if not found
  */
 export async function fetchAaveReserveById(
-  reserveId: bigint
+  reserveId: bigint,
 ): Promise<AaveReserve | null> {
   const response = await graphqlClient.request<GraphQLReserveResponse>(
     GET_RESERVE_BY_ID,
-    { id: reserveId.toString() }
+    { id: reserveId.toString() },
   );
 
   if (!response.aaveReserve) {
@@ -198,7 +198,7 @@ export async function fetchAllAaveReserves(): Promise<AaveReserve[]> {
  */
 export async function fetchBorrowableAaveReserves(): Promise<AaveReserve[]> {
   const response = await graphqlClient.request<GraphQLReservesResponse>(
-    GET_BORROWABLE_RESERVES
+    GET_BORROWABLE_RESERVES,
   );
 
   return response.aaveReserves.items.map(mapReserve);

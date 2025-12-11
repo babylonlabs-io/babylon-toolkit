@@ -46,7 +46,7 @@ export interface AaveSpokeUserPosition {
 export async function getUserPosition(
   spokeAddress: Address,
   reserveId: bigint,
-  userAddress: Address
+  userAddress: Address,
 ): Promise<AaveSpokeUserPosition> {
   const publicClient = ethClient.getPublicClient();
 
@@ -89,7 +89,7 @@ export async function getUserPosition(
 export async function hasDebt(
   spokeAddress: Address,
   reserveId: bigint,
-  userAddress: Address
+  userAddress: Address,
 ): Promise<boolean> {
   const position = await getUserPosition(spokeAddress, reserveId, userAddress);
   return (
@@ -110,7 +110,7 @@ export async function hasDebt(
 export async function hasCollateral(
   spokeAddress: Address,
   reserveId: bigint,
-  userAddress: Address
+  userAddress: Address,
 ): Promise<boolean> {
   const position = await getUserPosition(spokeAddress, reserveId, userAddress);
   return position.suppliedShares > 0n;
