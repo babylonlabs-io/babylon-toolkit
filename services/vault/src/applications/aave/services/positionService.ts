@@ -8,6 +8,7 @@
 import type { Address } from "viem";
 
 import { AaveSpoke } from "../clients";
+import { hasDebtFromPosition } from "../utils";
 
 import { fetchAaveConfig } from "./fetchConfig";
 import {
@@ -73,11 +74,6 @@ export async function getUserPositionsWithLiveData(
         position.proxyContract as Address,
       );
 
-      const hasDebt =
-        spokePosition.drawnShares > 0n ||
-        spokePosition.premiumShares > 0n ||
-        spokePosition.realizedPremiumRay > 0n;
-
       return {
         ...position,
         collaterals,
@@ -85,7 +81,7 @@ export async function getUserPositionsWithLiveData(
           drawnShares: spokePosition.drawnShares,
           premiumShares: spokePosition.premiumShares,
           suppliedShares: spokePosition.suppliedShares,
-          hasDebt,
+          hasDebt: hasDebtFromPosition(spokePosition),
         },
       };
     }),
@@ -123,11 +119,6 @@ export async function getPositionWithLiveData(
     position.proxyContract as Address,
   );
 
-  const hasDebt =
-    spokePosition.drawnShares > 0n ||
-    spokePosition.premiumShares > 0n ||
-    spokePosition.realizedPremiumRay > 0n;
-
   return {
     ...position,
     collaterals,
@@ -135,7 +126,7 @@ export async function getPositionWithLiveData(
       drawnShares: spokePosition.drawnShares,
       premiumShares: spokePosition.premiumShares,
       suppliedShares: spokePosition.suppliedShares,
-      hasDebt,
+      hasDebt: hasDebtFromPosition(spokePosition),
     },
   };
 }

@@ -5,6 +5,40 @@ import type { Address } from "viem";
 import { ethClient } from "../client";
 
 /**
+ * Standard ERC20 ABI fragments for common read operations
+ */
+const ERC20_ABI = [
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "balance", type: "uint256" }],
+  },
+  {
+    name: "symbol",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "name",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+] as const;
+
+/**
  * Get ERC20 token balance for an address
  * @param tokenAddress - ERC20 token contract address
  * @param holderAddress - Address to check balance for
@@ -18,15 +52,7 @@ export async function getERC20Balance(
 
   const balance = await publicClient.readContract({
     address: tokenAddress,
-    abi: [
-      {
-        name: "balanceOf",
-        type: "function",
-        stateMutability: "view",
-        inputs: [{ name: "account", type: "address" }],
-        outputs: [{ name: "balance", type: "uint256" }],
-      },
-    ],
+    abi: ERC20_ABI,
     functionName: "balanceOf",
     args: [holderAddress],
   });
@@ -44,15 +70,7 @@ export async function getERC20Symbol(tokenAddress: Address): Promise<string> {
 
   const symbol = await publicClient.readContract({
     address: tokenAddress,
-    abi: [
-      {
-        name: "symbol",
-        type: "function",
-        stateMutability: "view",
-        inputs: [],
-        outputs: [{ name: "", type: "string" }],
-      },
-    ],
+    abi: ERC20_ABI,
     functionName: "symbol",
   });
 
@@ -69,15 +87,7 @@ export async function getERC20Name(tokenAddress: Address): Promise<string> {
 
   const name = await publicClient.readContract({
     address: tokenAddress,
-    abi: [
-      {
-        name: "name",
-        type: "function",
-        stateMutability: "view",
-        inputs: [],
-        outputs: [{ name: "", type: "string" }],
-      },
-    ],
+    abi: ERC20_ABI,
     functionName: "name",
   });
 
@@ -94,15 +104,7 @@ export async function getERC20Decimals(tokenAddress: Address): Promise<number> {
 
   const decimals = await publicClient.readContract({
     address: tokenAddress,
-    abi: [
-      {
-        name: "decimals",
-        type: "function",
-        stateMutability: "view",
-        inputs: [],
-        outputs: [{ name: "", type: "uint8" }],
-      },
-    ],
+    abi: ERC20_ABI,
     functionName: "decimals",
   });
 

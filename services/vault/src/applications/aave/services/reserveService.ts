@@ -42,29 +42,15 @@ export interface AaveReserveWithMetadata {
   };
 }
 
-// Cache for config to avoid repeated fetches
-let configCache: AaveConfig | null = null;
-
 /**
- * Get cached or fetch Aave config
+ * Get Aave config from indexer
  */
 async function getConfig(): Promise<AaveConfig> {
-  if (!configCache) {
-    const config = await fetchAaveConfig();
-    if (!config) {
-      throw new Error("Aave config not found in indexer");
-    }
-    configCache = config;
+  const config = await fetchAaveConfig();
+  if (!config) {
+    throw new Error("Aave config not found in indexer");
   }
-  return configCache;
-}
-
-/**
- * Clear the config cache
- * Call this if config needs to be refreshed
- */
-export function clearConfigCache(): void {
-  configCache = null;
+  return config;
 }
 
 /**

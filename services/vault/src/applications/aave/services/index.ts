@@ -43,7 +43,6 @@ export {
 
 // Reserve service
 export {
-  clearConfigCache,
   getAvailableReserves,
   getBorrowableReserves,
   getCoreSpokeAddress,

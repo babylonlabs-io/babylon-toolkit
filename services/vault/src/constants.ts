@@ -11,3 +11,8 @@ export const NORMAL_POLL_INTERVAL = ONE_MINUTE; // 1 minute for other statuses
 export const STORAGE_KEY_PREFIX = "vault-pending-pegins";
 export const STORAGE_UPDATE_EVENT = "vault-pending-pegins-updated";
 export const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup stale items
+
+// Ethereum constants
+export const ZERO_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as const;
+export const MAX_UINT256 = 2n ** 256n - 1n;

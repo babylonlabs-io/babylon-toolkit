@@ -15,6 +15,7 @@ import type {
 } from "viem";
 
 import { ERC20 } from "../../../clients/eth-contract";
+import { MAX_UINT256 } from "../../../constants";
 import { AaveControllerTx, AaveSpoke } from "../clients";
 import { getAaveControllerAddress } from "../config";
 
@@ -125,7 +126,7 @@ export async function approveForRepay(
   // buffer for interest accrual (e.g., amount + 1% buffer). This is safer and
   // follows best practices for token approvals. The buffer accounts for interest
   // that may accrue between approval and repayment transaction.
-  const approvalAmount = amount ?? 2n ** 256n - 1n;
+  const approvalAmount = amount ?? MAX_UINT256;
 
   return ERC20.approveERC20(
     walletClient,

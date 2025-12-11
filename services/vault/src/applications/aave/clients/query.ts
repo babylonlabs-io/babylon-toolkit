@@ -8,6 +8,7 @@
 import { type Address, type Hex } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
+import { ZERO_ADDRESS } from "../../../constants";
 
 import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
 
@@ -69,9 +70,7 @@ export async function getPosition(
     const position = result as PositionResult;
 
     // Check if position exists (proxyContract should not be zero address)
-    if (
-      position.proxyContract === "0x0000000000000000000000000000000000000000"
-    ) {
+    if (position.proxyContract === ZERO_ADDRESS) {
       return null;
     }
 

@@ -11,6 +11,7 @@
 import { type Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
+import { hasDebtFromPosition } from "../utils";
 
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
 
@@ -92,11 +93,7 @@ export async function hasDebt(
   userAddress: Address,
 ): Promise<boolean> {
   const position = await getUserPosition(spokeAddress, reserveId, userAddress);
-  return (
-    position.drawnShares > 0n ||
-    position.premiumShares > 0n ||
-    position.realizedPremiumRay > 0n
-  );
+  return hasDebtFromPosition(position);
 }
 
 /**
