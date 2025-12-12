@@ -16,6 +16,7 @@ import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { useAaveUserPosition } from "../../hooks";
+import { formatHealthFactor, isHealthFactorHealthy } from "../../utils";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
@@ -32,12 +33,8 @@ export function AaveOverview() {
   const ethAddress = ethAddressRaw as Address | undefined;
 
   // Fetch user's Aave position
-  const {
-    collateralBtc,
-    collateralValueUsd,
-    debtValueUsd,
-    healthFactor,
-  } = useAaveUserPosition(ethAddress);
+  const { collateralBtc, collateralValueUsd, debtValueUsd, healthFactor } =
+    useAaveUserPosition(ethAddress);
 
   // Derive display values
   const hasCollateral = collateralBtc > 0;
@@ -45,6 +42,7 @@ export function AaveOverview() {
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
   const debtValueFormatted = formatUsdValue(debtValueUsd);
+  const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   const handleBack = () => navigate("/");
 
@@ -138,7 +136,7 @@ export function AaveOverview() {
         <OverviewCard
           collateralAmount={collateralAmountFormatted}
           collateralValue={collateralValueFormatted}
-          healthFactor={healthFactor?.formatted ?? null}
+          healthFactor={healthFactor}
         />
 
         {/* Section 2: Vaults Table */}
@@ -163,7 +161,8 @@ export function AaveOverview() {
           hasLoans={hasDebt}
           hasCollateral={hasCollateral}
           borrowedAmount={debtValueFormatted}
-          healthFactor={healthFactor?.formatted ?? null}
+          healthFactor={healthFactorFormatted}
+          isHealthy={isHealthFactorHealthy(healthFactor)}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

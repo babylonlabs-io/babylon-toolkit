@@ -45,6 +45,34 @@ export const BPS_SCALE = 10000;
 export const CONFIG_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
+ * Refetch interval for position data (30 seconds)
+ * Positions need to be refreshed regularly for live debt/health data
+ */
+export const POSITION_REFETCH_INTERVAL_MS = 30 * 1000;
+
+/**
+ * Aave base currency decimals
+ * Account data values (collateral, debt) use 1e26 = $1 USD
+ *
+ * Reference: ISpoke.sol UserAccountData
+ */
+export const AAVE_BASE_CURRENCY_DECIMALS = 26;
+
+/**
+ * WAD decimals (1e18 = 1.0)
+ * Used for health factor and collateral factor values
+ *
+ * Reference: ISpoke.sol - "healthFactor expressed in WAD. 1e18 represents a health factor of 1.00"
+ */
+export const WAD_DECIMALS = 18;
+
+/**
+ * Health factor warning threshold
+ * Positions below this are considered at risk of liquidation
+ */
+export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
+
+/**
  * Token icon paths by symbol
  * Used for displaying token icons in the UI
  */

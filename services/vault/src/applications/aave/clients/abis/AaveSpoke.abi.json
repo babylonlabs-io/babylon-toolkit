@@ -1,6 +1,62 @@
 [
   {
     "type": "function",
+    "name": "getUserAccountData",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ISpoke.UserAccountData",
+        "components": [
+          {
+            "name": "riskPremium",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "avgCollateralFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "healthFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalCollateralValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalDebtValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activeCollateralCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "borrowedCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getReserve",
     "inputs": [
       {

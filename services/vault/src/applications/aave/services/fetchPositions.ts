@@ -162,9 +162,11 @@ const GET_AAVE_ACTIVE_POSITIONS = gql`
   }
 `;
 
+// TODO: After indexer is re-indexed with non-nullable status field,
+// restore filter: where: { depositor: $depositor, status: active }
 const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
   query GetAaveActivePositionsWithCollaterals($depositor: String!) {
-    aavePositions(where: { depositor: $depositor, status: active }) {
+    aavePositions(where: { depositor: $depositor }) {
       items {
         id
         depositor
@@ -311,6 +313,8 @@ export async function fetchAaveActivePositions(
  * Fetches active Aave positions with their collaterals in a single GraphQL call.
  * More efficient than fetching positions and collaterals separately (avoids N+1 queries).
  *
+ * Note: Filters by totalCollateral > 0 since indexer status field may not be populated.
+ *
  * @param depositor - User's Ethereum address (lowercase)
  * @returns Array of active Aave positions with collaterals
  */
@@ -323,12 +327,14 @@ export async function fetchAaveActivePositionsWithCollaterals(
       { depositor: depositor.toLowerCase() },
     );
 
-  return response.aavePositions.items.map((item) => ({
-    ...mapGraphQLPositionToAavePosition(item),
-    collaterals: item.collaterals.items.map(
-      mapGraphQLCollateralToAavePositionCollateral,
-    ),
-  }));
+  return response.aavePositions.items
+    .filter((item) => BigInt(item.totalCollateral) > 0n)
+    .map((item) => ({
+      ...mapGraphQLPositionToAavePosition(item),
+      collaterals: item.collaterals.items.map(
+        mapGraphQLCollateralToAavePositionCollateral,
+      ),
+    }));
 }
 
 /**

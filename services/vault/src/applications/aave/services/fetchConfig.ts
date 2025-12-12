@@ -185,9 +185,10 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
  * @returns Combined app config or null if config not found
  */
 export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
-  const response = await graphqlClient.request<GraphQLAaveAppConfigResponse>(
-    GET_AAVE_APP_CONFIG,
-  );
+  const response =
+    await graphqlClient.request<GraphQLAaveAppConfigResponse>(
+      GET_AAVE_APP_CONFIG,
+    );
 
   if (!response.aaveConfig) {
     return null;

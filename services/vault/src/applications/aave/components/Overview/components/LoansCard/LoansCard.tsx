@@ -5,15 +5,16 @@
 
 import { Button, Card, SubSection } from "@babylonlabs-io/core-ui";
 
-import { isHealthFactorHealthy } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
 interface LoansCardProps {
   hasLoans: boolean;
   hasCollateral: boolean;
   borrowedAmount?: string;
-  /** Health factor value, null if still loading */
-  healthFactor?: string | null;
+  /** Formatted health factor for display */
+  healthFactor?: string;
+  /** Whether the health factor is healthy (>= 1.0) */
+  isHealthy?: boolean;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -23,11 +24,10 @@ export function LoansCard({
   hasCollateral,
   borrowedAmount,
   healthFactor,
+  isHealthy = true,
   onBorrow,
   onRepay,
 }: LoansCardProps) {
-  const isHealthy = healthFactor ? isHealthFactorHealthy(healthFactor) : true;
-
   return (
     <Card className="w-full">
       <div className="w-full space-y-6">
