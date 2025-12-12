@@ -4,11 +4,54 @@ import { useTableScroll } from "@/hooks/useTableScroll";
 import { useFrozenColumns } from "@/hooks/useFrozenColumns";
 import { TableContext, TableContextType } from "../../context/Table.context";
 import { Column } from "./components/Column";
-import type { TableData, TableProps } from "./types";
+import type { TableData, TableProps, TableStyleConfig, _TableStyles } from "./types";
+import { TABLE_STYLE_PRESETS } from "./types";
 import "./Table.css";
 import { useControlledState } from "@/hooks/useControlledState";
 import { useTableSort } from "@/hooks/useTableSort";
 import { Row } from "./components/Row";
+
+/**
+ * Default style values
+ */
+const DEFAULT_STYLES: _TableStyles = {
+  // Layout
+  fullWidth: false,
+  rowGap: false,
+  rowGapSize: undefined,
+  // Header
+  background: true,
+  backgroundColor: undefined,
+  // Rows
+  alternateColors: true,
+  hoverEffect: true,
+  rounded: false,
+  border: false,
+  borderRadius: undefined,
+  borderColor: undefined,
+  rowBackgroundColor: undefined,
+  hoverColor: undefined,
+  clickable: false,
+};
+
+/**
+ * Flat style constructor with defaults applied
+ */
+function resolveStyleConfig(styleConfig?: string | TableStyleConfig): _TableStyles {
+  if (!styleConfig) {
+    return { ...DEFAULT_STYLES };
+  }
+
+  const config =
+    typeof styleConfig === "string" ? (TABLE_STYLE_PRESETS[styleConfig] ?? {}) : styleConfig;
+
+  return {
+    ...DEFAULT_STYLES,
+    ...config.layout,
+    ...config.header,
+    ...config.rows,
+  };
+}
 
 function TableBase<T extends TableData>(
   {
@@ -23,6 +66,7 @@ function TableBase<T extends TableData>(
     onRowSelect,
     onRowClick,
     isRowSelectable,
+    styleConfig,
 
     selectedRow: selectedRowProp,
     defaultSelectedRow,
@@ -40,6 +84,8 @@ function TableBase<T extends TableData>(
   }: TableProps<T>,
   ref: React.Ref<HTMLDivElement>,
 ) {
+  const styles = useMemo(() => resolveStyleConfig(styleConfig), [styleConfig]);
+
   const tableRef = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => tableRef.current!, []);
 
@@ -53,14 +99,12 @@ function TableBase<T extends TableData>(
     onStateChange: onSelectedRowChange,
   });
 
-  // Multi-select state
   const [selectedRows, setSelectedRows] = useControlledState<Array<string | number>>({
     value: selectedRowsProp,
     defaultValue: [],
     onStateChange: onSelectedRowsChange,
   });
 
-  // Ensure selectedRows is never undefined
   const safeSelectedRows = selectedRows ?? [];
 
   const handleRowSelect = useCallback(
@@ -142,11 +186,34 @@ function TableBase<T extends TableData>(
     return selectableRows.length > 0 && selectableRows.every((row) => safeSelectedRows.includes(row.id));
   }, [sortedData, safeSelectedRows, isRowSelectable]);
 
+  // Build custom CSS variables for style overrides
+  const customStyleVars = useMemo(() => {
+    const vars: Record<string, string> = {};
+    if (styles.rowGapSize) vars['--bbn-table-row-gap'] = styles.rowGapSize;
+    if (styles.backgroundColor) vars['--bbn-table-header-bg'] = styles.backgroundColor;
+    if (styles.borderRadius) vars['--bbn-table-row-radius'] = styles.borderRadius;
+    if (styles.borderColor) vars['--bbn-table-row-border-color'] = styles.borderColor;
+    if (styles.rowBackgroundColor) vars['--bbn-table-row-bg'] = styles.rowBackgroundColor;
+    if (styles.hoverColor) vars['--bbn-table-row-hover-bg'] = styles.hoverColor;
+    return Object.keys(vars).length > 0 ? vars : undefined;
+  }, [styles]);
+
   return (
     <TableContext.Provider value={contextValue as TableContextType<unknown>}>
       <div ref={tableRef} className={twJoin("bbn-table-wrapper", fluid && "bbn-table-wrapper-fluid", wrapperClassName)}>
-        <table className={twJoin("bbn-table", fluid && "bbn-table-fluid", className)} {...restProps}>
-          <thead className={twJoin("bbn-table-header", isScrolledTop && "scrolled-top", !isHeadVisible && "hidden")}>
+        <table
+          className={twJoin(
+            "bbn-table",
+            fluid && "bbn-table-fluid",
+            styles.rounded && "bbn-table-rounded",
+            styles.fullWidth && "bbn-table-fullrow",
+            styles.rowGap && "bbn-table-row-gap",
+            className,
+          )}
+          style={customStyleVars as React.CSSProperties}
+          {...restProps}
+        >
+          <thead className={twJoin("bbn-table-header", !styles.background && "bbn-table-header-transparent", isScrolledTop && "scrolled-top", !isHeadVisible && "hidden")}>
             <tr>
               {selectable && checkboxPosition === "left" && (
                 <th className="bbn-table-cell-checkbox">
@@ -205,7 +272,16 @@ function TableBase<T extends TableData>(
               )}
             </tr>
           </thead>
-          <tbody className="bbn-table-body">
+          <tbody
+            className={twJoin(
+              "bbn-table-body",
+              styles.fullWidth && "bbn-table-body-full",
+              !styles.alternateColors && "bbn-table-body-no-alternate",
+              !styles.hoverEffect && "bbn-table-body-no-hover",
+              styles.border ? "bbn-table-body-row-border" : !styles.alternateColors && "bbn-table-body-no-border",
+              styles.clickable && "bbn-table-body-clickable",
+            )}
+          >
             {sortedData.map((row) => (
               <Row
                 key={row.id}

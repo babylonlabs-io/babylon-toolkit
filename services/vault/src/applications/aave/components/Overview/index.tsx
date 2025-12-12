@@ -11,7 +11,6 @@ import { Avatar, Button, Container } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 
-// import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
