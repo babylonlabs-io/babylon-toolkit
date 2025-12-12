@@ -5,6 +5,7 @@ on:
     branches:
       - "main"
       - "release/v1.x"
+      - "hiep/update-gh"
     tags:
       - "simple-staking/*"
   workflow_dispatch:
@@ -70,7 +71,7 @@ jobs:
       - name: Configure AWS credentials (assume per-account role)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/iams-github-actions
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/gha-babylon-toolkit
           role-session-name: gh-terragrunt-plan
           aws-region: ap-east-1
 
