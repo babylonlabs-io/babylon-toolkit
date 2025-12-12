@@ -10,8 +10,12 @@
 import { Avatar, Button, Container } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import type { Address } from "viem";
 
-// import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useETHWallet } from "@/context/wallet";
+import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
+
+import { useAaveUserPosition } from "../../hooks";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
@@ -24,50 +28,25 @@ export function AaveOverview() {
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
 
   // Wallet connection
-  // const { connected: btcConnected } = useBTCWallet();
-  // const { connected: ethConnected } = useETHWallet();
-  // const isConnected = useMemo(
-  //   () => btcConnected && ethConnected,
-  //   [btcConnected, ethConnected],
-  // );
+  const { address: ethAddressRaw } = useETHWallet();
+  const ethAddress = ethAddressRaw as Address | undefined;
+
+  // Fetch user's Aave position
+  const {
+    collateralBtc,
+    collateralValueUsd,
+    debtValueUsd,
+    healthFactor,
+  } = useAaveUserPosition(ethAddress);
+
+  // Derive display values
+  const hasCollateral = collateralBtc > 0;
+  const hasDebt = debtValueUsd > 0;
+  const collateralAmountFormatted = formatBtcAmount(collateralBtc);
+  const collateralValueFormatted = formatUsdValue(collateralValueUsd);
+  const debtValueFormatted = formatUsdValue(debtValueUsd);
 
   const handleBack = () => navigate("/");
-
-  // Mock vault data
-  // const vaults: VaultData[] = [
-  //   {
-  //     id: "vault-1",
-  //     amount: "0.25 BTC",
-  //     amountValue: 0.25,
-  //     usdValue: "$21,686.17 USD",
-  //     usdValueNumber: 21686.17,
-  //     provider: {
-  //       name: "Babylon Prime",
-  //       icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400",
-  //     },
-  //     status: "Available",
-  //   },
-  //   {
-  //     id: "vault-2",
-  //     amount: "0.15 BTC",
-  //     amountValue: 0.15,
-  //     usdValue: "$13,011.70 USD",
-  //     usdValueNumber: 13011.7,
-  //     provider: {
-  //       name: "Babylon Prime",
-  //       icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400",
-  //     },
-  //     status: "Available",
-  //   },
-  // ];
-
-  // Mock data states
-  const hasCollateral = false;
-  const hasLoans = false;
-  const collateralAmount = "";
-  const collateralUsdValue = "";
-  const borrowedAmount = "";
-  const loanHealthFactor = "";
 
   const handleAdd = () => {
     // TODO: Navigate to add collateral flow
@@ -157,9 +136,9 @@ export function AaveOverview() {
 
         {/* Section 1: Overview */}
         <OverviewCard
-          collateralAmount={collateralAmount || "0 BTC"}
-          collateralValue={collateralUsdValue || "$0 USD"}
-          healthFactor={loanHealthFactor || "0"}
+          collateralAmount={collateralAmountFormatted}
+          collateralValue={collateralValueFormatted}
+          healthFactor={healthFactor?.formatted ?? null}
         />
 
         {/* Section 2: Vaults Table */}
@@ -172,8 +151,8 @@ export function AaveOverview() {
 
         {/* Section 3: Collateral */}
         <CollateralCard
-          amount={collateralAmount}
-          usdValue={collateralUsdValue}
+          amount={collateralAmountFormatted}
+          usdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
@@ -181,10 +160,10 @@ export function AaveOverview() {
 
         {/* Section 4: Loans */}
         <LoansCard
-          hasLoans={hasLoans}
+          hasLoans={hasDebt}
           hasCollateral={hasCollateral}
-          borrowedAmount={borrowedAmount}
-          healthFactor={loanHealthFactor}
+          borrowedAmount={debtValueFormatted}
+          healthFactor={healthFactor?.formatted ?? null}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

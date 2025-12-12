@@ -1,5 +1,11 @@
 // GraphQL: Aave config
-export { fetchAaveConfig, type AaveConfig } from "./fetchConfig";
+export {
+  fetchAaveAppConfig,
+  fetchAaveConfig,
+  type AaveAppConfig,
+  type AaveConfig,
+  type AaveReserveConfig,
+} from "./fetchConfig";
 
 // GraphQL: Reserves
 export {
@@ -12,6 +18,7 @@ export {
 // GraphQL: Positions
 export {
   fetchAaveActivePositions,
+  fetchAaveActivePositionsWithCollaterals,
   fetchAavePositionById,
   fetchAavePositionCollaterals,
   fetchAavePositionWithCollaterals,
@@ -44,10 +51,8 @@ export {
 // Reserve service
 export {
   getAvailableReserves,
-  getBorrowableReserves,
   getCoreSpokeAddress,
   getReserveById,
-  getVbtcReserve,
   getVbtcReserveId,
   type AaveReserveWithMetadata,
 } from "./reserveService";

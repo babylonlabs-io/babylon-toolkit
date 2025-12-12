@@ -11,7 +11,6 @@ import { fetchAaveConfig, type AaveConfig } from "./fetchConfig";
 import {
   fetchAaveReserveById,
   fetchAllAaveReserves,
-  fetchBorrowableAaveReserves,
   type AaveReserve,
 } from "./fetchReserves";
 
@@ -123,21 +122,6 @@ export async function getAvailableReserves(): Promise<
 }
 
 /**
- * Get borrowable reserves (reserves that can be borrowed)
- *
- * @returns Array of borrowable reserves with metadata
- */
-export async function getBorrowableReserves(): Promise<
-  AaveReserveWithMetadata[]
-> {
-  const reserves = await fetchBorrowableAaveReserves();
-
-  return reserves
-    .map(toReserveWithMetadata)
-    .filter((r): r is AaveReserveWithMetadata => r !== null);
-}
-
-/**
  * Get a specific reserve by ID
  *
  * @param reserveId - Reserve ID
@@ -153,14 +137,4 @@ export async function getReserveById(
   }
 
   return toReserveWithMetadata(reserve);
-}
-
-/**
- * Get the vBTC reserve (collateral reserve)
- *
- * @returns vBTC reserve with metadata
- */
-export async function getVbtcReserve(): Promise<AaveReserveWithMetadata | null> {
-  const config = await getConfig();
-  return getReserveById(config.btcVaultCoreVbtcReserveId);
 }

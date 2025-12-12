@@ -11,7 +11,8 @@ import { HeartIcon } from "@/components/shared";
 interface OverviewCardProps {
   collateralAmount: string;
   collateralValue: string;
-  healthFactor: string;
+  /** Health factor value, null if still loading */
+  healthFactor: string | null;
 }
 
 export function OverviewCard({
@@ -19,7 +20,7 @@ export function OverviewCard({
   collateralValue,
   healthFactor,
 }: OverviewCardProps) {
-  const isHealthy = isHealthFactorHealthy(healthFactor);
+  const isHealthy = healthFactor ? isHealthFactorHealthy(healthFactor) : true;
 
   return (
     <Card className="w-full">
@@ -43,8 +44,14 @@ export function OverviewCard({
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">Health Factor</span>
             <span className="flex items-center gap-2 text-base text-accent-primary">
-              <HeartIcon isHealthy={isHealthy} />
-              {healthFactor}
+              {healthFactor !== null ? (
+                <>
+                  <HeartIcon isHealthy={isHealthy} />
+                  {healthFactor}
+                </>
+              ) : (
+                <span className="text-accent-secondary">Loading...</span>
+              )}
             </span>
           </div>
         </div>

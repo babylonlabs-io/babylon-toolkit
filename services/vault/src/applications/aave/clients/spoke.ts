@@ -8,9 +8,10 @@
  * since it doesn't need to be live and benefits from caching.
  */
 
-import { type Address } from "viem";
+import { type Abi, type Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
+import { executeMulticall } from "../../../clients/eth-contract/multicall-helpers";
 import { hasDebtFromPosition } from "../utils";
 
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
@@ -31,6 +32,30 @@ export interface AaveSpokeUserPosition {
   suppliedShares: bigint;
   /** Dynamic config key */
   dynamicConfigKey: number;
+}
+
+/** Position result type from contract */
+type PositionResult = {
+  drawnShares: bigint;
+  premiumShares: bigint;
+  realizedPremiumRay: bigint;
+  premiumOffsetRay: bigint;
+  suppliedShares: bigint;
+  dynamicConfigKey: number;
+};
+
+/**
+ * Maps contract result to AaveSpokeUserPosition
+ */
+function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
+  return {
+    drawnShares: result.drawnShares,
+    premiumShares: result.premiumShares,
+    realizedPremiumRay: result.realizedPremiumRay,
+    premiumOffsetRay: result.premiumOffsetRay,
+    suppliedShares: result.suppliedShares,
+    dynamicConfigKey: result.dynamicConfigKey,
+  };
 }
 
 /**
@@ -58,25 +83,44 @@ export async function getUserPosition(
     args: [reserveId, userAddress],
   });
 
-  type PositionResult = {
-    drawnShares: bigint;
-    premiumShares: bigint;
-    realizedPremiumRay: bigint;
-    premiumOffsetRay: bigint;
-    suppliedShares: bigint;
-    dynamicConfigKey: number;
-  };
+  return mapPositionResult(result as PositionResult);
+}
 
-  const position = result as PositionResult;
+/** Input for bulk position fetch */
+export interface GetUserPositionInput {
+  reserveId: bigint;
+  userAddress: Address;
+}
 
-  return {
-    drawnShares: position.drawnShares,
-    premiumShares: position.premiumShares,
-    realizedPremiumRay: position.realizedPremiumRay,
-    premiumOffsetRay: position.premiumOffsetRay,
-    suppliedShares: position.suppliedShares,
-    dynamicConfigKey: position.dynamicConfigKey,
-  };
+/**
+ * Get multiple user positions in a single multicall
+ *
+ * More efficient than calling getUserPosition multiple times.
+ * Uses shared executeMulticall helper to batch all requests into one RPC call.
+ *
+ * @param spokeAddress - Aave Spoke contract address
+ * @param inputs - Array of {reserveId, userAddress} to fetch
+ * @returns Array of user position data (same order as inputs, failed requests filtered out)
+ */
+export async function getUserPositions(
+  spokeAddress: Address,
+  inputs: GetUserPositionInput[],
+): Promise<AaveSpokeUserPosition[]> {
+  if (inputs.length === 0) {
+    return [];
+  }
+
+  const publicClient = ethClient.getPublicClient();
+
+  const results = await executeMulticall<PositionResult>(
+    publicClient,
+    spokeAddress,
+    AaveSpokeABI as Abi,
+    "getUserPosition",
+    inputs.map((input) => [input.reserveId, input.userAddress]),
+  );
+
+  return results.map(mapPositionResult);
 }
 
 /**

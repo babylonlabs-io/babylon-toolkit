@@ -1,6 +1,7 @@
 /**
- * Aave Market Detail Page (UI-only)
+ * Aave Reserve Detail Page (UI-only)
  *
+ * Shows borrow/repay interface for a specific reserve (borrowable asset).
  * This is a UI-only duplicate of the Morpho detail page structure
  * with static placeholder data. Transaction flows are stubbed.
  */
@@ -15,8 +16,8 @@ import {
 import { MarketInfo } from "../Info";
 import { LoanCard } from "../LoanCard";
 
-// Static market data for UI-only rendering
-const staticMarketData: Partial<MarketDetailContextValue> = {
+// Static reserve data for UI-only rendering
+const staticReserveData: Partial<MarketDetailContextValue> = {
   btcPrice: 86694.16,
   liquidationLtv: 75,
   currentLoanAmount: 1000, // Show repay tab with existing position
@@ -25,7 +26,7 @@ const staticMarketData: Partial<MarketDetailContextValue> = {
   borrowableVaults: [{ amountSatoshis: 5_000_000n }], // 0.05 BTC
 };
 
-export function AaveMarketDetail() {
+export function AaveReserveDetail() {
   const navigate = useNavigate();
 
   // Stub handlers for UI-only mode
@@ -62,7 +63,7 @@ export function AaveMarketDetail() {
   };
 
   return (
-    <MarketDetailProvider value={staticMarketData}>
+    <MarketDetailProvider value={staticReserveData}>
       <Container className="pb-6">
         <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
           {/* Left Side: Market Info */}
