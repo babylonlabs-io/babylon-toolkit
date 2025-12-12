@@ -27,4 +27,3 @@ export function HeartIcon({ isHealthy, className = "" }: HeartIconProps) {
     </svg>
   );
 }
-

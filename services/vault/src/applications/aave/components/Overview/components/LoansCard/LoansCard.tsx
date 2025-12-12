@@ -4,8 +4,9 @@
  */
 
 import { Button, Card, SubSection } from "@babylonlabs-io/core-ui";
-import { HeartIcon } from "@/components/shared";
+
 import { isHealthFactorHealthy } from "@/applications/aave/utils";
+import { HeartIcon } from "@/components/shared";
 
 interface LoansCardProps {
   hasLoans: boolean;
@@ -104,4 +105,3 @@ export function LoansCard({
     </Card>
   );
 }
-

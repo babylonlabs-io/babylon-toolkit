@@ -1,4 +1,5 @@
 import { KeyValueList, SubSection } from "@babylonlabs-io/core-ui";
+
 import { HeartIcon, InfoIcon } from "@/components/shared";
 
 interface KeyValueItem {
@@ -47,7 +48,7 @@ export function BorrowDetailsCard({
 }: BorrowDetailsCardProps) {
   const renderTransition = (
     original: string | undefined,
-    current: string
+    current: string,
   ): string | JSX.Element => {
     if (!original) {
       return current;

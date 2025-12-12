@@ -24,7 +24,7 @@ export function VaultsEmptyState({
           url="/images/btc@2x.png"
           alt="Bitcoin"
           size="xlarge"
-          className="h-[100px] w-[100px] mb-2"
+          className="mb-2 h-[100px] w-[100px]"
         />
 
         {/* Primary Text */}
@@ -57,4 +57,3 @@ export function VaultsEmptyState({
     </SubSection>
   );
 }
-

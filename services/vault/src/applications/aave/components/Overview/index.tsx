@@ -7,12 +7,13 @@
  * - Collateral and Loans cards
  */
 
-import { useState } from "react";
 import { Avatar, Button, Container } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 
 // import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { AssetSelectionModal } from "../AssetSelectionModal";
+
 import { CollateralCard } from "./components/CollateralCard";
 import { LoansCard } from "./components/LoansCard";
 import { OverviewCard } from "./components/OverviewCard";
@@ -68,11 +69,6 @@ export function AaveOverview() {
   const borrowedAmount = "";
   const loanHealthFactor = "";
 
-  const handleDeposit = () => {
-    // TODO: Navigate to deposit flow
-    navigate("/deposit");
-  };
-
   const handleAdd = () => {
     // TODO: Navigate to add collateral flow
   };
@@ -91,13 +87,25 @@ export function AaveOverview() {
     // TODO: Navigate to repay flow
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSelectAsset = (_assetSymbol: string) => {
     // TODO: Navigate to borrow flow for specific asset
   };
 
+  const handleDeposit = () => {
+    // TODO: Navigate to deposit flow
+    navigate("/deposit");
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleRedeem = (_vaultId: string) => {
     // TODO: Navigate to redeem flow
   };
+
+  // TODO: Remove this when VaultsTable is uncommented
+  // Temporary usage to satisfy noUnusedLocals
+  void handleDeposit;
+  void handleRedeem;
 
   return (
     <Container className="pb-6">
@@ -191,4 +199,3 @@ export function AaveOverview() {
     </Container>
   );
 }
-
