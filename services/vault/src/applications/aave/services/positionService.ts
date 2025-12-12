@@ -7,12 +7,11 @@
 
 import type { Address } from "viem";
 
-import { AaveSpoke } from "../clients";
+import { AaveSpoke, type GetUserPositionInput } from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
-import { fetchAaveConfig } from "./fetchConfig";
 import {
-  fetchAaveActivePositions,
+  fetchAaveActivePositionsWithCollaterals,
   fetchAavePositionById,
   fetchAavePositionCollaterals,
   type AavePosition,
@@ -41,76 +40,65 @@ export interface AavePositionWithLiveData extends AavePosition {
 /**
  * Get user positions with live on-chain data
  *
- * Fetches positions from indexer and enriches with live debt data from Spoke.
+ * Fetches positions with collaterals from indexer (single GraphQL call)
+ * and enriches with live debt data from Spoke (single multicall).
  *
  * @param depositor - User's Ethereum address
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns Array of positions with live data
  */
 export async function getUserPositionsWithLiveData(
   depositor: string,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData[]> {
-  // Fetch config and active positions in parallel
-  const [config, positions] = await Promise.all([
-    fetchAaveConfig(),
-    fetchAaveActivePositions(depositor),
-  ]);
+  // Fetch active positions with collaterals in a single GraphQL call
+  const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
 
-  if (!config || positions.length === 0) {
+  if (positions.length === 0) {
     return [];
   }
 
-  const spokeAddress = config.btcVaultCoreSpokeAddress as Address;
+  // Build inputs for bulk position fetch
+  const inputs: GetUserPositionInput[] = positions.map((position) => ({
+    reserveId: position.reserveId,
+    userAddress: position.proxyContract as Address,
+  }));
 
-  // Fetch collaterals and live data for each position
-  const positionsWithLiveData = await Promise.all(
-    positions.map(async (position) => {
-      // Fetch collaterals from indexer
-      const collaterals = await fetchAavePositionCollaterals(position.id);
+  // Fetch all live position data in a single multicall
+  const spokePositions = await AaveSpoke.getUserPositions(spokeAddress, inputs);
 
-      // Fetch live position data from Spoke
-      const spokePosition = await AaveSpoke.getUserPosition(
-        spokeAddress,
-        position.reserveId,
-        position.proxyContract as Address,
-      );
-
-      return {
-        ...position,
-        collaterals,
-        liveData: {
-          drawnShares: spokePosition.drawnShares,
-          premiumShares: spokePosition.premiumShares,
-          suppliedShares: spokePosition.suppliedShares,
-          hasDebt: hasDebtFromPosition(spokePosition),
-        },
-      };
-    }),
-  );
-
-  return positionsWithLiveData;
+  // Combine indexer data with live Spoke data
+  return positions.map((position, index) => ({
+    ...position,
+    liveData: {
+      drawnShares: spokePositions[index].drawnShares,
+      premiumShares: spokePositions[index].premiumShares,
+      suppliedShares: spokePositions[index].suppliedShares,
+      hasDebt: hasDebtFromPosition(spokePositions[index]),
+    },
+  }));
 }
 
 /**
  * Get a single position with live data by position ID
  *
  * @param positionId - Position ID (bytes32)
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns Position with live data or null if not found
  */
 export async function getPositionWithLiveData(
   positionId: string,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData | null> {
-  // Fetch position from indexer and config in parallel
-  const [config, position, collaterals] = await Promise.all([
-    fetchAaveConfig(),
+  // Fetch position and collaterals from indexer in parallel
+  const [position, collaterals] = await Promise.all([
     fetchAavePositionById(positionId),
     fetchAavePositionCollaterals(positionId),
   ]);
 
-  if (!config || !position) {
+  if (!position) {
     return null;
   }
-
-  const spokeAddress = config.btcVaultCoreSpokeAddress as Address;
 
   // Fetch live position data from Spoke (debt accrues interest so must be live)
   const spokePosition = await AaveSpoke.getUserPosition(
@@ -137,12 +125,14 @@ export async function getPositionWithLiveData(
  * Position can only withdraw if it has no debt.
  *
  * @param positionId - Position ID
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns true if position can withdraw
  */
 export async function canWithdrawCollateral(
   positionId: string,
+  spokeAddress: Address,
 ): Promise<boolean> {
-  const position = await getPositionWithLiveData(positionId);
+  const position = await getPositionWithLiveData(positionId, spokeAddress);
   if (!position) {
     return false;
   }
@@ -150,16 +140,18 @@ export async function canWithdrawCollateral(
 }
 
 /**
- * Get position for a specific market/reserve
+ * Get position for a specific reserve
  *
  * @param depositor - User's Ethereum address
  * @param reserveId - Reserve ID
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns Position with live data or null if not found
  */
 export async function getUserPositionForReserve(
   depositor: string,
   reserveId: bigint,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData | null> {
-  const positions = await getUserPositionsWithLiveData(depositor);
+  const positions = await getUserPositionsWithLiveData(depositor, spokeAddress);
   return positions.find((p) => p.reserveId === reserveId) || null;
 }

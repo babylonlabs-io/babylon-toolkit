@@ -10,9 +10,14 @@
 import { Avatar, Container } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import type { Address } from "viem";
 
 import { BackButton } from "@/components/shared";
+import { useETHWallet } from "@/context/wallet";
+import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { useAaveUserPosition } from "../../hooks";
+import { formatHealthFactor } from "../../utils";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
@@ -42,12 +47,19 @@ export function AaveOverview() {
     useState<BorrowedAsset[]>(MOCK_BORROWED_ASSETS);
 
   // Wallet connection
-  // const { connected: btcConnected } = useBTCWallet();
-  // const { connected: ethConnected } = useETHWallet();
-  // const isConnected = useMemo(
-  //   () => btcConnected && ethConnected,
-  //   [btcConnected, ethConnected],
-  // );
+  const { address: ethAddressRaw } = useETHWallet();
+  const ethAddress = ethAddressRaw as Address | undefined;
+
+  // Fetch user's Aave position
+  const { collateralBtc, collateralValueUsd, debtValueUsd, healthFactor } =
+    useAaveUserPosition(ethAddress);
+
+  // Derive display values
+  const hasCollateral = collateralBtc > 0;
+  const hasDebt = debtValueUsd > 0;
+  const collateralAmountFormatted = formatBtcAmount(collateralBtc);
+  const collateralValueFormatted = formatUsdValue(collateralValueUsd);
+  const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   // Read loan state from navigation when returning from borrow flow
   useEffect(() => {
@@ -90,14 +102,6 @@ export function AaveOverview() {
 
   // TODO: Replace with actual wallet connection
   const isConnected = true;
-
-  // TODO: Replace with actual data states
-  const hasCollateral = true;
-  const hasLoans = borrowedAssets.length > 0;
-  const collateralAmount = "0.25 BTC";
-  const collateralUsdValue = "$21,686.17 USD";
-  const overviewHealthFactor = "1.80";
-  const loanHealthFactor = hasLoans ? "3.25" : "";
 
   const handleAdd = () => {
     // TODO: Navigate to add collateral flow
@@ -155,9 +159,9 @@ export function AaveOverview() {
 
         {/* Section 1: Overview */}
         <OverviewCard
-          collateralAmount={collateralAmount}
-          collateralValue={collateralUsdValue}
-          healthFactor={overviewHealthFactor}
+          collateralAmount={collateralAmountFormatted}
+          collateralValue={collateralValueFormatted}
+          healthFactor={healthFactor}
         />
 
         {/* Section 2: Vaults Table */}
@@ -170,8 +174,8 @@ export function AaveOverview() {
 
         {/* Section 3: Collateral */}
         <CollateralCard
-          amount={collateralAmount}
-          usdValue={collateralUsdValue}
+          amount={collateralAmountFormatted}
+          usdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
@@ -179,10 +183,10 @@ export function AaveOverview() {
 
         {/* Section 4: Loans */}
         <LoansCard
-          hasLoans={hasLoans}
+          hasLoans={hasDebt}
           hasCollateral={hasCollateral}
           borrowedAssets={borrowedAssets}
-          healthFactor={loanHealthFactor}
+          healthFactor={healthFactorFormatted}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

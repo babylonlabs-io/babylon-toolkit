@@ -98,10 +98,24 @@ interface GraphQLCollateralItem {
   };
 }
 
+/** GraphQL position item with nested collaterals */
+interface GraphQLPositionItemWithCollaterals extends GraphQLPositionItem {
+  collaterals: {
+    items: GraphQLCollateralItem[];
+  };
+}
+
 /** GraphQL response for user positions */
 interface GraphQLUserPositionsResponse {
   aavePositions: {
     items: GraphQLPositionItem[];
+  };
+}
+
+/** GraphQL response for user positions with collaterals */
+interface GraphQLUserPositionsWithCollateralsResponse {
+  aavePositions: {
+    items: GraphQLPositionItemWithCollaterals[];
   };
 }
 
@@ -132,7 +146,7 @@ const GET_AAVE_USER_POSITIONS = gql`
 
 const GET_AAVE_ACTIVE_POSITIONS = gql`
   query GetAaveActivePositions($depositor: String!) {
-    aavePositions(where: { depositor: $depositor, status: "active" }) {
+    aavePositions(where: { depositor: $depositor, status: active }) {
       items {
         id
         depositor
@@ -143,6 +157,39 @@ const GET_AAVE_ACTIVE_POSITIONS = gql`
         status
         createdAt
         updatedAt
+      }
+    }
+  }
+`;
+
+const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
+  query GetAaveActivePositionsWithCollaterals($depositor: String!) {
+    aavePositions(where: { depositor: $depositor, status: active }) {
+      items {
+        id
+        depositor
+        depositorBtcPubKey
+        reserveId
+        proxyContract
+        totalCollateral
+        status
+        createdAt
+        updatedAt
+        collaterals {
+          items {
+            id
+            positionId
+            vaultId
+            amount
+            addedAt
+            removedAt
+            vault {
+              id
+              amount
+              status
+            }
+          }
+        }
       }
     }
   }
@@ -258,6 +305,30 @@ export async function fetchAaveActivePositions(
   );
 
   return response.aavePositions.items.map(mapGraphQLPositionToAavePosition);
+}
+
+/**
+ * Fetches active Aave positions with their collaterals in a single GraphQL call.
+ * More efficient than fetching positions and collaterals separately (avoids N+1 queries).
+ *
+ * @param depositor - User's Ethereum address (lowercase)
+ * @returns Array of active Aave positions with collaterals
+ */
+export async function fetchAaveActivePositionsWithCollaterals(
+  depositor: string,
+): Promise<AavePositionWithCollaterals[]> {
+  const response =
+    await graphqlClient.request<GraphQLUserPositionsWithCollateralsResponse>(
+      GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS,
+      { depositor: depositor.toLowerCase() },
+    );
+
+  return response.aavePositions.items.map((item) => ({
+    ...mapGraphQLPositionToAavePosition(item),
+    collaterals: item.collaterals.items.map(
+      mapGraphQLCollateralToAavePositionCollateral,
+    ),
+  }));
 }
 
 /**

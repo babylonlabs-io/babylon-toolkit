@@ -1,5 +1,5 @@
 /**
- * Aave Market Detail Page (UI-only)
+ * Aave Reserve Detail Page (UI-only)
  *
  * Borrow card layout.
  */
@@ -48,7 +48,7 @@ const staticMarketData: Partial<MarketDetailContextValue> = {
   borrowableVaults: [{ amountSatoshis: 5_000_000n }], // 0.05 BTC
 };
 
-export function AaveMarketDetail() {
+export function AaveReserveDetail() {
   const navigate = useNavigate();
   const { marketId } = useParams<{ marketId: string }>();
   const [borrowedAmount, setBorrowedAmount] = useState(0);

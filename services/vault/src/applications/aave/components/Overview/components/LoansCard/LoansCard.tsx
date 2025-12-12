@@ -18,7 +18,8 @@ interface LoansCardProps {
   hasLoans: boolean;
   hasCollateral: boolean;
   borrowedAssets?: BorrowedAsset[];
-  healthFactor?: string;
+  /** Health factor value, null if still loading */
+  healthFactor?: string | null;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -31,7 +32,7 @@ export function LoansCard({
   onBorrow,
   onRepay,
 }: LoansCardProps) {
-  const isHealthy = isHealthFactorHealthy(healthFactor ?? "0");
+  const isHealthy = healthFactor ? isHealthFactorHealthy(healthFactor) : true;
 
   return (
     <Card className="w-full">
@@ -100,8 +101,14 @@ export function LoansCard({
                 Health Factor
               </span>
               <span className="flex items-center gap-2 text-base text-accent-primary">
-                <HeartIcon isHealthy={isHealthy} />
-                {healthFactor}
+                {healthFactor != null ? (
+                  <>
+                    <HeartIcon isHealthy={isHealthy} />
+                    {healthFactor}
+                  </>
+                ) : (
+                  <span className="text-accent-secondary">Loading...</span>
+                )}
               </span>
             </div>
           </div>

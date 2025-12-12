@@ -20,3 +20,24 @@ export function formatLLTV(lltv: string | bigint): string {
 export function formatProviderName(providerId: string): string {
   return `Provider ${providerId.slice(0, 6)}...${providerId.slice(-4)}`;
 }
+
+/**
+ * Format BTC amount for display
+ * @param btcAmount - Amount in BTC (not satoshis)
+ * @param decimals - Number of decimal places (default: 8)
+ * @returns Formatted string (e.g., "1.23456789 BTC" or "0 BTC")
+ */
+export function formatBtcAmount(btcAmount: number, decimals = 8): string {
+  if (btcAmount <= 0) return "0 BTC";
+  return `${btcAmount.toFixed(decimals)} BTC`;
+}
+
+/**
+ * Format USD value for display
+ * @param usdValue - Amount in USD
+ * @returns Formatted string (e.g., "$1,234.56 USD" or "$0 USD")
+ */
+export function formatUsdValue(usdValue: number): string {
+  if (usdValue <= 0) return "$0 USD";
+  return `$${usdValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
+}
