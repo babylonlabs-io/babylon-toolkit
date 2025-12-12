@@ -66,7 +66,7 @@ export function CollateralCard({
         {hasCollateral ? (
           <div className="space-y-4">
             {/* Asset Row */}
-            <div className="flex items-center justify-between border-b border-secondary-strokeLight pb-4">
+            <div className="flex items-center justify-between">
               <span className="text-sm text-accent-secondary">Asset</span>
               <div className="flex items-center gap-2">
                 <Avatar
@@ -81,12 +81,10 @@ export function CollateralCard({
             {/* Deposited Row */}
             <div className="flex items-center justify-between">
               <span className="text-sm text-accent-secondary">Deposited</span>
-              <div className="flex flex-col items-end">
-                <span className="text-base text-accent-primary">{amount}</span>
-                <span className="text-sm text-accent-secondary">
-                  {usdValue}
-                </span>
-              </div>
+              <span className="text-base text-accent-primary">
+                {amount}{" "}
+                <span className="text-accent-secondary">{usdValue}</span>
+              </span>
             </div>
           </div>
         ) : (

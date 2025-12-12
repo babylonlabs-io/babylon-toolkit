@@ -3,15 +3,21 @@
  * Displays loan information with Borrow/Repay buttons or empty state
  */
 
-import { Button, Card, SubSection } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, SubSection } from "@babylonlabs-io/core-ui";
 
 import { isHealthFactorHealthy } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
+export interface BorrowedAsset {
+  symbol: string;
+  amount: string;
+  icon: string;
+}
+
 interface LoansCardProps {
   hasLoans: boolean;
   hasCollateral: boolean;
-  borrowedAmount?: string;
+  borrowedAssets?: BorrowedAsset[];
   healthFactor?: string;
   onBorrow: () => void;
   onRepay: () => void;
@@ -20,7 +26,7 @@ interface LoansCardProps {
 export function LoansCard({
   hasLoans,
   hasCollateral,
-  borrowedAmount,
+  borrowedAssets = [],
   healthFactor,
   onBorrow,
   onRepay,
@@ -72,13 +78,21 @@ export function LoansCard({
         {/* Content - either loan info or empty state */}
         {hasLoans ? (
           <div className="space-y-4">
-            {/* Borrowed Row */}
-            <div className="flex items-center justify-between border-b border-secondary-strokeLight pb-4">
-              <span className="text-sm text-accent-secondary">Borrowed</span>
-              <span className="text-base text-accent-primary">
-                {borrowedAmount}
-              </span>
-            </div>
+            {/* Borrowed Rows - one per asset */}
+            {borrowedAssets.map((asset) => (
+              <div
+                key={asset.symbol}
+                className="flex items-center justify-between"
+              >
+                <span className="text-sm text-accent-secondary">Borrowed</span>
+                <div className="flex items-center gap-2">
+                  <Avatar url={asset.icon} alt={asset.symbol} size="small" />
+                  <span className="text-base text-accent-primary">
+                    {asset.amount} {asset.symbol}
+                  </span>
+                </div>
+              </div>
+            ))}
 
             {/* Health Factor Row */}
             <div className="flex items-center justify-between">

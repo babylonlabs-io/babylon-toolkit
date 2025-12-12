@@ -7,20 +7,39 @@
  * - Collateral and Loans cards
  */
 
-import { Avatar, Button, Container } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Avatar, Container } from "@babylonlabs-io/core-ui";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
+
+import { BackButton } from "@/components/shared";
 
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
-import { LoansCard } from "./components/LoansCard";
+import { LoansCard, type BorrowedAsset } from "./components/LoansCard";
 import { OverviewCard } from "./components/OverviewCard";
-// import { VaultsTable, type VaultData } from "./components/VaultsTable";
+import { VaultsTable, type VaultData } from "./components/VaultsTable";
+
+// Mock borrowed assets for demo
+const MOCK_BORROWED_ASSETS: BorrowedAsset[] = [
+  {
+    symbol: "USDC",
+    amount: "7590.16",
+    icon: "/images/usdc.png",
+  },
+  {
+    symbol: "USDT",
+    amount: "7590.16",
+    icon: "/images/usdt.png",
+  },
+];
 
 export function AaveOverview() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [borrowedAssets, setBorrowedAssets] =
+    useState<BorrowedAsset[]>(MOCK_BORROWED_ASSETS);
 
   // Wallet connection
   // const { connected: btcConnected } = useBTCWallet();
@@ -30,43 +49,55 @@ export function AaveOverview() {
   //   [btcConnected, ethConnected],
   // );
 
+  // Read loan state from navigation when returning from borrow flow
+  useEffect(() => {
+    const state = location.state as { borrowedAssets?: BorrowedAsset[] } | null;
+    if (state?.borrowedAssets) {
+      setBorrowedAssets(state.borrowedAssets);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   const handleBack = () => navigate("/");
 
   // Mock vault data
-  // const vaults: VaultData[] = [
-  //   {
-  //     id: "vault-1",
-  //     amount: "0.25 BTC",
-  //     amountValue: 0.25,
-  //     usdValue: "$21,686.17 USD",
-  //     usdValueNumber: 21686.17,
-  //     provider: {
-  //       name: "Babylon Prime",
-  //       icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400",
-  //     },
-  //     status: "Available",
-  //   },
-  //   {
-  //     id: "vault-2",
-  //     amount: "0.15 BTC",
-  //     amountValue: 0.15,
-  //     usdValue: "$13,011.70 USD",
-  //     usdValueNumber: 13011.7,
-  //     provider: {
-  //       name: "Babylon Prime",
-  //       icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400",
-  //     },
-  //     status: "Available",
-  //   },
-  // ];
+  const vaults: VaultData[] = [
+    {
+      id: "vault-1",
+      amount: "0.25 BTC",
+      amountValue: 0.25,
+      usdValue: "$21,686.17 USD",
+      usdValueNumber: 21686.17,
+      provider: {
+        name: "Babylon Prime",
+        icon: "https://www.gravatar.com/avatar/babylon-prime?d=identicon&s=64",
+      },
+      status: "Available",
+    },
+    {
+      id: "vault-2",
+      amount: "0.15 BTC",
+      amountValue: 0.15,
+      usdValue: "$13,011.70 USD",
+      usdValueNumber: 13011.7,
+      provider: {
+        name: "Babylon Prime",
+        icon: "https://www.gravatar.com/avatar/babylon-prime?d=identicon&s=64",
+      },
+      status: "Available",
+    },
+  ];
 
-  // Mock data states
-  const hasCollateral = false;
-  const hasLoans = false;
-  const collateralAmount = "";
-  const collateralUsdValue = "";
-  const borrowedAmount = "";
-  const loanHealthFactor = "";
+  // TODO: Replace with actual wallet connection
+  const isConnected = true;
+
+  // TODO: Replace with actual data states
+  const hasCollateral = true;
+  const hasLoans = borrowedAssets.length > 0;
+  const collateralAmount = "0.25 BTC";
+  const collateralUsdValue = "$21,686.17 USD";
+  const overviewHealthFactor = "1.80";
+  const loanHealthFactor = hasLoans ? "3.25" : "";
 
   const handleAdd = () => {
     // TODO: Navigate to add collateral flow
@@ -77,18 +108,15 @@ export function AaveOverview() {
   };
 
   const handleBorrow = () => {
-    if (hasCollateral) {
-      setIsAssetModalOpen(true);
-    }
+    setIsAssetModalOpen(true);
   };
 
   const handleRepay = () => {
     // TODO: Navigate to repay flow
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleSelectAsset = (_assetSymbol: string) => {
-    // TODO: Navigate to borrow flow for specific asset
+  const handleSelectAsset = (assetSymbol: string) => {
+    navigate(`/app/aave/market/${assetSymbol.toLowerCase()}`);
   };
 
   const handleDeposit = () => {
@@ -96,45 +124,16 @@ export function AaveOverview() {
     navigate("/deposit");
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleRedeem = (_vaultId: string) => {
+  const handleRedeem = (vaultId: string) => {
     // TODO: Navigate to redeem flow
+    void vaultId;
   };
-
-  // TODO: Remove this when VaultsTable is uncommented
-  // Temporary usage to satisfy noUnusedLocals
-  void handleDeposit;
-  void handleRedeem;
 
   return (
     <Container className="pb-6">
       <div className="space-y-6">
         {/* Back Button */}
-        <Button
-          variant="ghost"
-          color="primary"
-          size="medium"
-          className="flex items-center gap-3 !px-2"
-          onClick={handleBack}
-          aria-label="Back to Applications"
-        >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 20 20"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M12.5 15L7.5 10L12.5 5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span className="text-base">Applications</span>
-        </Button>
+        <BackButton label="Applications" onClick={handleBack} />
 
         {/* Header */}
         <div className="flex items-center gap-6">
@@ -156,18 +155,18 @@ export function AaveOverview() {
 
         {/* Section 1: Overview */}
         <OverviewCard
-          collateralAmount={collateralAmount || "0 BTC"}
-          collateralValue={collateralUsdValue || "$0 USD"}
-          healthFactor={loanHealthFactor || "0"}
+          collateralAmount={collateralAmount}
+          collateralValue={collateralUsdValue}
+          healthFactor={overviewHealthFactor}
         />
 
         {/* Section 2: Vaults Table */}
-        {/* <VaultsTable
+        <VaultsTable
           vaults={vaults}
           isConnected={isConnected}
           onRedeem={handleRedeem}
           onDeposit={handleDeposit}
-        /> */}
+        />
 
         {/* Section 3: Collateral */}
         <CollateralCard
@@ -182,7 +181,7 @@ export function AaveOverview() {
         <LoansCard
           hasLoans={hasLoans}
           hasCollateral={hasCollateral}
-          borrowedAmount={borrowedAmount}
+          borrowedAssets={borrowedAssets}
           healthFactor={loanHealthFactor}
           onBorrow={handleBorrow}
           onRepay={handleRepay}

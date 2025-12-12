@@ -35,21 +35,35 @@ const DEFAULT_STYLES: _TableStyles = {
 };
 
 /**
- * Flat style constructor with defaults applied
+ * Deep merge two TableStyleConfig objects
  */
-function resolveStyleConfig(styleConfig?: string | TableStyleConfig): _TableStyles {
-  if (!styleConfig) {
-    return { ...DEFAULT_STYLES };
-  }
+function mergeStyleConfigs(base: TableStyleConfig, override: TableStyleConfig): TableStyleConfig {
+  return {
+    layout: { ...base.layout, ...override.layout },
+    header: { ...base.header, ...override.header },
+    rows: { ...base.rows, ...override.rows },
+  };
+}
 
-  const config =
-    typeof styleConfig === "string" ? (TABLE_STYLE_PRESETS[styleConfig] ?? {}) : styleConfig;
+/**
+ * Flat style constructor with defaults applied.
+ * Supports preset-only, config-only, and preset+config combinations.
+ */
+function resolveStyleConfig(
+  stylePreset?: string,
+  styleConfig?: TableStyleConfig,
+): _TableStyles {
+  // Get preset config from stylePreset
+  const presetConfig = stylePreset ? (TABLE_STYLE_PRESETS[stylePreset] ?? {}) : {};
+
+  // Merge preset with custom overrides
+  const mergedConfig = mergeStyleConfigs(presetConfig, styleConfig ?? {});
 
   return {
     ...DEFAULT_STYLES,
-    ...config.layout,
-    ...config.header,
-    ...config.rows,
+    ...mergedConfig.layout,
+    ...mergedConfig.header,
+    ...mergedConfig.rows,
   };
 }
 
@@ -66,6 +80,7 @@ function TableBase<T extends TableData>(
     onRowSelect,
     onRowClick,
     isRowSelectable,
+    stylePreset,
     styleConfig,
 
     selectedRow: selectedRowProp,
@@ -84,7 +99,7 @@ function TableBase<T extends TableData>(
   }: TableProps<T>,
   ref: React.Ref<HTMLDivElement>,
 ) {
-  const styles = useMemo(() => resolveStyleConfig(styleConfig), [styleConfig]);
+  const styles = useMemo(() => resolveStyleConfig(stylePreset, styleConfig), [stylePreset, styleConfig]);
 
   const tableRef = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => tableRef.current!, []);

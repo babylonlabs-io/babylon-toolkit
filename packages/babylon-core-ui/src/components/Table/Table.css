@@ -142,18 +142,37 @@
 
     /* Disable hover effects */
     &-no-hover {
-      tr:nth-child(odd):hover,
-      tr:nth-child(even):hover {
-        @apply bg-secondary-highlight;
+      tr:nth-child(odd):hover {
+        @apply bg-surface;
 
         td {
-          border-color: var(--bbn-table-row-border-color, transparent);
+          @apply border-surface;
         }
       }
 
-      :is(.dark &) tr:nth-child(odd):hover,
-      :is(.dark &) tr:nth-child(even):hover {
-        background-color: #111111;
+      tr:nth-child(even):hover {
+        @apply bg-neutral-100;
+
+        td {
+          @apply border-neutral-100;
+        }
+      }
+
+      /* When combined with no-alternate, use secondary-highlight */
+      &.bbn-table-body-no-alternate {
+        tr:nth-child(odd):hover,
+        tr:nth-child(even):hover {
+          @apply bg-secondary-highlight;
+
+          td {
+            border-color: var(--bbn-table-row-border-color, transparent);
+          }
+        }
+
+        :is(.dark &) tr:nth-child(odd):hover,
+        :is(.dark &) tr:nth-child(even):hover {
+          background-color: #111111;
+        }
       }
     }
 

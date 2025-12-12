@@ -9,14 +9,7 @@ interface KeyValueItem {
 
 interface BorrowDetailsCardProps {
   borrowRate: string;
-  netApy: string;
-  netApyOriginal?: string;
-  netBalance: string;
-  netBalanceOriginal?: string;
-  netCollateral: string;
-  netCollateralOriginal?: string;
-  riskPremium: string;
-  riskPremiumOriginal?: string;
+  collateral: string;
   healthFactor: string;
   healthFactorOriginal?: string;
 }
@@ -31,76 +24,41 @@ function LabelWithInfo({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * BorrowDetailsCard - Displays borrow details including health factor with dynamic heart icon
+ * BorrowDetailsCard - Displays borrow rate, collateral, and LTV
  */
 export function BorrowDetailsCard({
   borrowRate,
-  netApy,
-  netApyOriginal,
-  netBalance,
-  netBalanceOriginal,
-  netCollateral,
-  netCollateralOriginal,
-  riskPremium,
-  riskPremiumOriginal,
+  collateral,
   healthFactor,
   healthFactorOriginal,
 }: BorrowDetailsCardProps) {
-  const renderTransition = (
-    original: string | undefined,
-    current: string,
-  ): string | JSX.Element => {
-    if (!original) {
-      return current;
-    }
-    return (
-      <span className="flex items-center gap-2">
-        <span className="text-accent-secondary">{original}</span>
-        <span className="text-accent-secondary">→</span>
-        <span>{current}</span>
-      </span>
-    );
-  };
-
   const items: KeyValueItem[] = [
     {
       label: <LabelWithInfo>Borrow rate</LabelWithInfo>,
       value: borrowRate,
     },
     {
-      label: <LabelWithInfo>Net APY</LabelWithInfo>,
-      value: renderTransition(netApyOriginal, netApy),
-    },
-    {
-      label: <LabelWithInfo>Net balance</LabelWithInfo>,
-      value: renderTransition(netBalanceOriginal, netBalance),
-    },
-    {
-      label: <LabelWithInfo>Net collateral</LabelWithInfo>,
-      value: renderTransition(netCollateralOriginal, netCollateral),
-    },
-    {
-      label: <LabelWithInfo>Risk premium</LabelWithInfo>,
-      value: renderTransition(riskPremiumOriginal, riskPremium),
+      label: <LabelWithInfo>Collateral</LabelWithInfo>,
+      value: collateral,
     },
     {
       label: <LabelWithInfo>Health factor</LabelWithInfo>,
       value: healthFactorOriginal ? (
         <span className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-accent-secondary">
-            {healthFactorOriginal}
             <HeartIcon isHealthy={false} />
+            {healthFactorOriginal}
           </span>
           <span className="text-accent-secondary">→</span>
           <span className="flex items-center gap-1">
-            {healthFactor}
             <HeartIcon isHealthy={healthFactor !== "-"} />
+            {healthFactor}
           </span>
         </span>
       ) : (
         <span className="flex items-center gap-2">
-          {healthFactor}
           <HeartIcon isHealthy={healthFactor !== "-"} />
+          {healthFactor}
         </span>
       ),
     },
