@@ -105,4 +105,3 @@ export function CollateralCard({
     </Card>
   );
 }
-

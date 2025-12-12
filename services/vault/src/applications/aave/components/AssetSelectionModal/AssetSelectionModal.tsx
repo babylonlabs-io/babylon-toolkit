@@ -75,14 +75,14 @@ export function AssetSelectionModal({
             <button
               key={asset.id}
               onClick={() => handleAssetClick(asset.symbol)}
-              className="w-full flex items-center gap-4 p-4 rounded-lg bg-secondary-highlight dark:bg-primary-main hover:bg-secondary-strokeLight dark:hover:bg-secondary-strokeDark transition-colors cursor-pointer"
+              className="flex w-full cursor-pointer items-center gap-4 rounded-lg bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
             >
               <Avatar
                 url={asset.icon}
                 alt={asset.name}
                 size="medium"
                 variant="circular"
-                className="w-10 h-10 rounded-full bg-white"
+                className="h-10 w-10 rounded-full bg-white"
               />
               <div className="flex flex-col items-start">
                 <span className="text-base font-medium text-accent-primary">
@@ -99,4 +99,3 @@ export function AssetSelectionModal({
     </ResponsiveDialog>
   );
 }
-

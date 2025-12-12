@@ -4,8 +4,9 @@
  */
 
 import { Card } from "@babylonlabs-io/core-ui";
-import { HeartIcon } from "@/components/shared";
+
 import { isHealthFactorHealthy } from "@/applications/aave/utils";
+import { HeartIcon } from "@/components/shared";
 
 interface OverviewCardProps {
   collateralAmount: string;
@@ -40,9 +41,7 @@ export function OverviewCard({
 
           {/* Health Factor Row */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-accent-secondary">
-              Health Factor
-            </span>
+            <span className="text-sm text-accent-secondary">Health Factor</span>
             <span className="flex items-center gap-2 text-base text-accent-primary">
               <HeartIcon isHealthy={isHealthy} />
               {healthFactor}
@@ -53,4 +52,3 @@ export function OverviewCard({
     </Card>
   );
 }
-
