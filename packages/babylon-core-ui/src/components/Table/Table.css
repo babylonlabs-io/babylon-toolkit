@@ -22,9 +22,14 @@
 .bbn-table {
   @apply border-separate border-spacing-0;
 
+  &-row-gap {
+    border-spacing: 0 var(--bbn-table-row-gap, 0.5rem);
+  }
+
   /* Header row styles */
   &-header {
-    @apply bg-surface text-accent-secondary sticky top-0 z-30 transition-shadow;
+    background-color: var(--bbn-table-header-bg, var(--color-surface, #ffffff));
+    @apply text-accent-secondary sticky top-0 z-30 transition-shadow;
 
     tr {
       @apply relative;
@@ -37,6 +42,15 @@
     /* TODO: fix shadow color */
     &.scrolled-top {
       @apply shadow-[0_2px_4px_rgba(0,0,0,0.05)];
+    }
+
+    /* Transparent header variant */
+    &-transparent {
+      background-color: var(--bbn-table-header-bg, transparent);
+
+      th {
+        background-color: var(--bbn-table-header-bg, transparent);
+      }
     }
   }
 
@@ -53,11 +67,11 @@
           @apply border-l;
         }
 
-      &:last-child {
-        @apply border-r;
+        &:last-child {
+          @apply border-r;
+        }
       }
     }
-  }
 
     /* Odd row styles */
     tr:nth-child(odd) {
@@ -101,6 +115,120 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    /* Full width rows */
+    &-full {
+      tr {
+        width: 100%;
+      }
+    }
+
+    /* Disable alternate row colors */
+    &-no-alternate {
+      tr:nth-child(odd),
+      tr:nth-child(even) {
+        @apply bg-secondary-highlight;
+
+        td {
+          border-color: var(--bbn-table-row-border-color, transparent);
+        }
+      }
+
+      :is(.dark &) tr:nth-child(odd),
+      :is(.dark &) tr:nth-child(even) {
+        background-color: #111111;
+      }
+    }
+
+    /* Disable hover effects */
+    &-no-hover {
+      tr:nth-child(odd):hover,
+      tr:nth-child(even):hover {
+        @apply bg-secondary-highlight;
+
+        td {
+          border-color: var(--bbn-table-row-border-color, transparent);
+        }
+      }
+
+      :is(.dark &) tr:nth-child(odd):hover,
+      :is(.dark &) tr:nth-child(even):hover {
+        background-color: #111111;
+      }
+    }
+
+    /* Enable hover effects with custom color */
+    &-hover-custom {
+      tr:nth-child(odd):hover,
+      tr:nth-child(even):hover {
+        background-color: var(--bbn-table-row-hover-bg, var(--color-neutral-200, #e5e7eb));
+      }
+    }
+
+    /* Show border around rows (card-style) */
+    &-row-border {
+      tr {
+        td {
+          border-color: var(--bbn-table-row-border-color, var(--color-secondary-strokeLight, #e5e7eb));
+
+          &:first-child {
+            border-left-color: var(--bbn-table-row-border-color, var(--color-secondary-strokeLight, #e5e7eb));
+          }
+
+          &:last-child {
+            border-right-color: var(--bbn-table-row-border-color, var(--color-secondary-strokeLight, #e5e7eb));
+          }
+        }
+      }
+    }
+
+    /* Hide border (default for card style) */
+    &-no-border {
+      tr {
+        td {
+          @apply border-transparent;
+
+          &:first-child {
+            @apply border-l-transparent;
+          }
+
+          &:last-child {
+            @apply border-r-transparent;
+          }
+        }
+      }
+    }
+
+    /* Clickable rows - show pointer cursor */
+    &-clickable {
+      tr {
+        @apply cursor-pointer;
+      }
+    }
+  }
+
+  /* Rounded table - apply to entire table */
+  &-rounded {
+    tbody tr {
+      td {
+        &:first-child {
+          border-top-left-radius: var(--bbn-table-row-radius, 0.5rem);
+          border-bottom-left-radius: var(--bbn-table-row-radius, 0.5rem);
+          @apply border-l;
+        }
+
+        &:last-child {
+          border-top-right-radius: var(--bbn-table-row-radius, 0.5rem);
+          border-bottom-right-radius: var(--bbn-table-row-radius, 0.5rem);
+          @apply border-r;
+        }
+      }
+    }
+  }
+
+  /* Full row width with fixed layout for consistent column widths */
+  &-fullrow {
+    @apply w-full table-fixed;
   }
 
   /* Sortable column styles */
