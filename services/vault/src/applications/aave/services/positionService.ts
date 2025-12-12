@@ -2,12 +2,12 @@
  * Aave Position Service
  *
  * Hybrid service that combines indexer data with live RPC data for positions.
- * Uses indexer for position list and collateral data, RPC for live debt/health data.
+ * Uses indexer for position list and collateral data, RPC for live account data.
  */
 
 import type { Address } from "viem";
 
-import { AaveSpoke, type GetUserPositionInput } from "../clients";
+import { AaveSpoke, type AaveSpokeUserAccountData } from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
 import {
@@ -24,7 +24,7 @@ import {
 export interface AavePositionWithLiveData extends AavePosition {
   /** Collateral entries for this position */
   collaterals: AavePositionCollateral[];
-  /** Live debt data from Spoke */
+  /** Live position data from Spoke */
   liveData: {
     /** Drawn debt shares */
     drawnShares: bigint;
@@ -35,17 +35,25 @@ export interface AavePositionWithLiveData extends AavePosition {
     /** Whether position has any debt */
     hasDebt: boolean;
   };
+  /**
+   * Live account data from Spoke (calculated using on-chain oracle prices)
+   * This is the authoritative data for health factor and values.
+   */
+  accountData: AaveSpokeUserAccountData;
 }
 
 /**
  * Get user positions with live on-chain data
  *
  * Fetches positions with collaterals from indexer (single GraphQL call)
- * and enriches with live debt data from Spoke (single multicall).
+ * and enriches with live data from Spoke.
+ *
+ * Note: In Babylon vault integration, users can only have ONE position
+ * (single vBTC collateral reserve), so we don't need batch calls.
  *
  * @param depositor - User's Ethereum address
  * @param spokeAddress - Spoke contract address (from config context)
- * @returns Array of positions with live data
+ * @returns Array of positions with live data (0 or 1 position)
  */
 export async function getUserPositionsWithLiveData(
   depositor: string,
@@ -58,25 +66,28 @@ export async function getUserPositionsWithLiveData(
     return [];
   }
 
-  // Build inputs for bulk position fetch
-  const inputs: GetUserPositionInput[] = positions.map((position) => ({
-    reserveId: position.reserveId,
-    userAddress: position.proxyContract as Address,
-  }));
+  // User can only have one position in Babylon vault integration
+  const position = positions[0];
+  const proxyAddress = position.proxyContract as Address;
 
-  // Fetch all live position data in a single multicall
-  const spokePositions = await AaveSpoke.getUserPositions(spokeAddress, inputs);
+  // Fetch live data from Spoke in parallel
+  const [spokePosition, accountData] = await Promise.all([
+    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
+  ]);
 
-  // Combine indexer data with live Spoke data
-  return positions.map((position, index) => ({
-    ...position,
-    liveData: {
-      drawnShares: spokePositions[index].drawnShares,
-      premiumShares: spokePositions[index].premiumShares,
-      suppliedShares: spokePositions[index].suppliedShares,
-      hasDebt: hasDebtFromPosition(spokePositions[index]),
+  return [
+    {
+      ...position,
+      liveData: {
+        drawnShares: spokePosition.drawnShares,
+        premiumShares: spokePosition.premiumShares,
+        suppliedShares: spokePosition.suppliedShares,
+        hasDebt: hasDebtFromPosition(spokePosition),
+      },
+      accountData,
     },
-  }));
+  ];
 }
 
 /**
@@ -100,12 +111,13 @@ export async function getPositionWithLiveData(
     return null;
   }
 
-  // Fetch live position data from Spoke (debt accrues interest so must be live)
-  const spokePosition = await AaveSpoke.getUserPosition(
-    spokeAddress,
-    position.reserveId,
-    position.proxyContract as Address,
-  );
+  const proxyAddress = position.proxyContract as Address;
+
+  // Fetch live data from Spoke in parallel
+  const [spokePosition, accountData] = await Promise.all([
+    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
+  ]);
 
   return {
     ...position,
@@ -116,6 +128,7 @@ export async function getPositionWithLiveData(
       suppliedShares: spokePosition.suppliedShares,
       hasDebt: hasDebtFromPosition(spokePosition),
     },
+    accountData,
   };
 }
 

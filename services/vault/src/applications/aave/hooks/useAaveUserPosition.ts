@@ -2,30 +2,30 @@
  * Hook for fetching user's Aave position data
  *
  * Fetches the user's active Aave position with live on-chain data.
- * Returns raw position data - formatting should be done at the component level.
+ * Uses Aave's on-chain oracle prices for authoritative health factor and values.
  */
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
+import {
+  HEALTH_FACTOR_WARNING_THRESHOLD,
+  POSITION_REFETCH_INTERVAL_MS,
+} from "../constants";
 import { useAaveConfig } from "../context";
 import {
   getUserPositionsWithLiveData,
   type AavePositionWithLiveData,
 } from "../services";
-import {
-  calculateDebtValueUsd,
-  calculateHealthFactor,
-  liquidationThresholdFromBps,
-  type HealthFactorResult,
-} from "../utils";
+import { aaveValueToUsd, wadToNumber } from "../utils";
 
-/** Position refetch interval (30 seconds for live debt data) */
-const POSITION_REFETCH_INTERVAL_MS = 30_000;
+/**
+ * Health factor status based on Aave liquidation threshold
+ */
+export type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
 
 /**
  * Result interface for useAaveUserPosition hook
@@ -37,14 +37,16 @@ const POSITION_REFETCH_INTERVAL_MS = 30_000;
 export interface UseAaveUserPositionResult {
   /** User's vBTC collateral position (null if no position) */
   position: AavePositionWithLiveData | null;
-  /** Collateral amount in BTC */
+  /** Collateral amount in BTC (from indexer) */
   collateralBtc: number;
-  /** Total collateral value in USD */
+  /** Total collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
-  /** Total debt value in USD */
+  /** Total debt value in USD (from Aave oracle) */
   debtValueUsd: number;
-  /** Health factor calculation result (null if still loading config) */
-  healthFactor: HealthFactorResult | null;
+  /** Health factor as a number (1.0 = liquidation threshold, from Aave) */
+  healthFactor: number | null;
+  /** Health factor status for UI display */
+  healthFactorStatus: HealthFactorStatus;
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -54,14 +56,29 @@ export interface UseAaveUserPositionResult {
 }
 
 /**
- * Hook to fetch user's Aave position with live data and health factor
+ * Determine health factor status for UI display
+ */
+function getHealthFactorStatus(
+  healthFactor: number | null,
+  hasDebt: boolean,
+): HealthFactorStatus {
+  if (!hasDebt) return "no_debt";
+  if (healthFactor === null) return "safe";
+  if (healthFactor < 1.0) return "danger";
+  if (healthFactor < HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
+  return "safe";
+}
+
+/**
+ * Hook to fetch user's Aave position with live data
+ *
+ * Values are sourced from Aave's on-chain oracle prices, making them
+ * authoritative for liquidation decisions.
  */
 export function useAaveUserPosition(
   connectedAddress: Address | undefined,
 ): UseAaveUserPositionResult {
-  const { config, vbtcReserve, isLoading: configLoading } = useAaveConfig();
-  const { btcPriceUSD } = useBTCPrice();
-
+  const { config, isLoading: configLoading } = useAaveConfig();
   const spokeAddress = config?.btcVaultCoreSpokeAddress as Address | undefined;
 
   const {
@@ -81,40 +98,35 @@ export function useAaveUserPosition(
   // User can only have one position (single vBTC collateral reserve)
   const position = positions?.[0] ?? null;
 
-  // Derive values from position data
+  // Derive values from position's account data (uses Aave oracle prices)
   const { collateralBtc, collateralValueUsd, debtValueUsd, healthFactor } =
     useMemo(() => {
-      const btc = position ? satoshiToBtcNumber(position.totalCollateral) : 0;
-      const collateralUsd = btc * btcPriceUSD;
+      if (!position) {
+        return {
+          collateralBtc: 0,
+          collateralValueUsd: 0,
+          debtValueUsd: 0,
+          healthFactor: null,
+        };
+      }
 
-      const debtUsd = position?.liveData.drawnShares
-        ? calculateDebtValueUsd(
-            position.liveData.drawnShares,
-            position.liveData.premiumShares,
-          )
-        : 0;
-
-      // Calculate health factor (null if config not yet loaded)
-      const liquidationThreshold = vbtcReserve?.reserve.collateralRisk
-        ? liquidationThresholdFromBps(vbtcReserve.reserve.collateralRisk)
-        : null;
-
-      const hf: HealthFactorResult | null =
-        liquidationThreshold !== null
-          ? calculateHealthFactor({
-              collateralValueUsd: collateralUsd,
-              debtValueUsd: debtUsd,
-              liquidationThreshold,
-            })
-          : null;
+      const { accountData, totalCollateral } = position;
 
       return {
-        collateralBtc: btc,
-        collateralValueUsd: collateralUsd,
-        debtValueUsd: debtUsd,
-        healthFactor: hf,
+        collateralBtc: satoshiToBtcNumber(totalCollateral),
+        collateralValueUsd: aaveValueToUsd(accountData.totalCollateralValue),
+        debtValueUsd: aaveValueToUsd(accountData.totalDebtValue),
+        healthFactor:
+          accountData.borrowedCount > 0n
+            ? wadToNumber(accountData.healthFactor)
+            : null,
       };
-    }, [position, btcPriceUSD, vbtcReserve?.reserve.collateralRisk]);
+    }, [position]);
+
+  const healthFactorStatus = getHealthFactorStatus(
+    healthFactor,
+    debtValueUsd > 0,
+  );
 
   return {
     position,
@@ -122,6 +134,7 @@ export function useAaveUserPosition(
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
+    healthFactorStatus,
     isLoading: positionsLoading || configLoading,
     error: positionsError as Error | null,
     refetch: async () => void refetch(),

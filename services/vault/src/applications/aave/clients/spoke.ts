@@ -8,13 +8,44 @@
  * since it doesn't need to be live and benefits from caching.
  */
 
-import { type Abi, type Address } from "viem";
+import type { Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
-import { executeMulticall } from "../../../clients/eth-contract/multicall-helpers";
 import { hasDebtFromPosition } from "../utils";
 
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
+
+/**
+ * User account data from the Spoke
+ * Contains aggregated position health data calculated by Aave using on-chain oracle prices.
+ */
+export interface AaveSpokeUserAccountData {
+  /** Risk premium in BPS */
+  riskPremium: bigint;
+  /** Weighted average collateral factor in WAD (1e18 = 100%) */
+  avgCollateralFactor: bigint;
+  /** Health factor in WAD (1e18 = 1.00) */
+  healthFactor: bigint;
+  /** Total collateral value in base currency (1e26 = $1 USD) */
+  totalCollateralValue: bigint;
+  /** Total debt value in base currency (1e26 = $1 USD) */
+  totalDebtValue: bigint;
+  /** Number of active collateral reserves */
+  activeCollateralCount: bigint;
+  /** Number of borrowed reserves */
+  borrowedCount: bigint;
+}
+
+/** Account data result type from contract */
+type AccountDataResult = {
+  riskPremium: bigint;
+  avgCollateralFactor: bigint;
+  healthFactor: bigint;
+  totalCollateralValue: bigint;
+  totalDebtValue: bigint;
+  activeCollateralCount: bigint;
+  borrowedCount: bigint;
+};
 
 /**
  * User position data from the Spoke
@@ -59,6 +90,42 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
 }
 
 /**
+ * Get user account data from the Spoke
+ *
+ * Returns aggregated position health data including health factor, collateral value,
+ * and debt value. These values are calculated by Aave using on-chain oracle prices
+ * and are the authoritative values for liquidation decisions.
+ *
+ * @param spokeAddress - Aave Spoke contract address
+ * @param userAddress - User's proxy contract address
+ * @returns User account data with health factor and values
+ */
+export async function getUserAccountData(
+  spokeAddress: Address,
+  userAddress: Address,
+): Promise<AaveSpokeUserAccountData> {
+  const publicClient = ethClient.getPublicClient();
+
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserAccountData",
+    args: [userAddress],
+  });
+
+  const data = result as AccountDataResult;
+  return {
+    riskPremium: data.riskPremium,
+    avgCollateralFactor: data.avgCollateralFactor,
+    healthFactor: data.healthFactor,
+    totalCollateralValue: data.totalCollateralValue,
+    totalDebtValue: data.totalDebtValue,
+    activeCollateralCount: data.activeCollateralCount,
+    borrowedCount: data.borrowedCount,
+  };
+}
+
+/**
  * Get user position from the Spoke
  *
  * This fetches live data from the contract because debt accrues interest
@@ -84,43 +151,6 @@ export async function getUserPosition(
   });
 
   return mapPositionResult(result as PositionResult);
-}
-
-/** Input for bulk position fetch */
-export interface GetUserPositionInput {
-  reserveId: bigint;
-  userAddress: Address;
-}
-
-/**
- * Get multiple user positions in a single multicall
- *
- * More efficient than calling getUserPosition multiple times.
- * Uses shared executeMulticall helper to batch all requests into one RPC call.
- *
- * @param spokeAddress - Aave Spoke contract address
- * @param inputs - Array of {reserveId, userAddress} to fetch
- * @returns Array of user position data (same order as inputs, failed requests filtered out)
- */
-export async function getUserPositions(
-  spokeAddress: Address,
-  inputs: GetUserPositionInput[],
-): Promise<AaveSpokeUserPosition[]> {
-  if (inputs.length === 0) {
-    return [];
-  }
-
-  const publicClient = ethClient.getPublicClient();
-
-  const results = await executeMulticall<PositionResult>(
-    publicClient,
-    spokeAddress,
-    AaveSpokeABI as Abi,
-    "getUserPosition",
-    inputs.map((input) => [input.reserveId, input.userAddress]),
-  );
-
-  return results.map(mapPositionResult);
 }
 
 /**
