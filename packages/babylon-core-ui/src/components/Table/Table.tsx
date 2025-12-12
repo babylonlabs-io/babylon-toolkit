@@ -39,9 +39,9 @@ const DEFAULT_STYLES: _TableStyles = {
  */
 function mergeStyleConfigs(base: TableStyleConfig, override: TableStyleConfig): TableStyleConfig {
   return {
-    layout: { ...base.layout, ...override.layout },
-    header: { ...base.header, ...override.header },
-    rows: { ...base.rows, ...override.rows },
+    layout: { ...(base.layout ?? {}), ...(override.layout ?? {}) },
+    header: { ...(base.header ?? {}), ...(override.header ?? {}) },
+    rows: { ...(base.rows ?? {}), ...(override.rows ?? {}) },
   };
 }
 

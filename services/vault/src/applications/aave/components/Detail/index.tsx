@@ -75,14 +75,16 @@ export function AaveMarketDetail() {
   const handleBack = () => navigate("/app/aave");
 
   const handleViewLoan = () => {
-    // Navigate back to dashboard with loan state
+    // Navigate back to dashboard with borrowedAssets state
     navigate("/app/aave", {
       state: {
-        loan: {
-          assetSymbol: assetConfig.symbol,
-          assetIcon: assetConfig.icon,
-          amount: borrowedAmount,
-        },
+        borrowedAssets: [
+          {
+            symbol: assetConfig.symbol,
+            icon: assetConfig.icon,
+            amount: String(borrowedAmount),
+          },
+        ],
       },
     });
   };
