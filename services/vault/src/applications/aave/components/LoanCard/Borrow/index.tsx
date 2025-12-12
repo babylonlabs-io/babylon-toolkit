@@ -18,6 +18,7 @@ export interface BorrowProps {
   btcPrice: number;
   liquidationLtv: number;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  onViewLoan: () => void;
   availableLiquidity: number;
   currentCollateralAmount: number;
   currentLoanAmount: number;
@@ -28,6 +29,7 @@ export function Borrow({
   btcPrice,
   liquidationLtv,
   onBorrow,
+  onViewLoan,
   availableLiquidity,
   currentCollateralAmount,
   currentLoanAmount,
@@ -117,7 +119,12 @@ export function Borrow({
         </SubSection>
 
         {/* Borrow Details Card */}
-        <BorrowDetailsCard {...metrics} />
+        <BorrowDetailsCard
+          borrowRate={metrics.borrowRate}
+          collateral={metrics.netCollateral}
+          healthFactor={metrics.healthFactor}
+          healthFactorOriginal={metrics.healthFactorOriginal}
+        />
       </div>
 
       {/* Borrow Button */}
@@ -137,6 +144,7 @@ export function Borrow({
       <BorrowSuccessModal
         open={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
+        onViewLoan={onViewLoan}
         borrowAmount={borrowAmount}
         borrowSymbol={selectedAsset.symbol}
         assetIcon={selectedAsset.icon}

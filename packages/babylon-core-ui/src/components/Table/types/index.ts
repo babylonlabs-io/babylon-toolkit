@@ -188,12 +188,18 @@ export type TableProps<T extends TableData> = ControlledTableProps & {
   isRowSelectable?: (row: T) => boolean;
 
   /**
-   * Style configuration for the table.
-   * Can be a preset name ('default', 'card')
-   * or a custom TableStyleConfig object.
-   * Individual style options can be overridden when using presets.
+   * Base style preset for the table ('default', 'card').
+   * Use with `styleConfig` to override specific preset options.
+   * @example stylePreset="card"
    */
-  styleConfig?: TableStylePreset | TableStyleConfig;
+  stylePreset?: TableStylePreset;
+
+  /**
+   * Custom style configuration for the table.
+   * When used with `stylePreset`, these options override the preset values.
+   * @example styleConfig={{ rows: { hoverEffect: true } }}
+   */
+  styleConfig?: TableStyleConfig;
 
   // Multi-select support
   selectable?: boolean;

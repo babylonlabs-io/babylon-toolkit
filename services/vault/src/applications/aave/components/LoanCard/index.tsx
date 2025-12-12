@@ -12,6 +12,7 @@ import { Borrow } from "./Borrow";
 export interface LoanCardProps {
   defaultTab?: string;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  onViewLoan: () => void;
   onRepay?: (repayAmount: number, withdrawCollateralAmount: number) => void;
   processing?: boolean;
 }
@@ -19,6 +20,7 @@ export interface LoanCardProps {
 export function LoanCard({
   defaultTab = "borrow",
   onBorrow,
+  onViewLoan,
   // onRepay,
   processing = false,
 }: LoanCardProps) {
@@ -52,6 +54,7 @@ export function LoanCard({
                 btcPrice={btcPrice}
                 liquidationLtv={liquidationLtv}
                 onBorrow={onBorrow}
+                onViewLoan={onViewLoan}
                 availableLiquidity={availableLiquidity}
                 currentCollateralAmount={currentCollateralAmount}
                 currentLoanAmount={currentLoanAmount}

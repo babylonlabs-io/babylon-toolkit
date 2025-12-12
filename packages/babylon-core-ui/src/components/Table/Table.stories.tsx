@@ -354,7 +354,7 @@ export const StylePresets: Story = {
         {/* Card */}
         <div className="space-y-2">
           <h3 className="text-lg font-semibold">Card</h3>
-          <Table data={data} columns={columns} styleConfig="card" />
+          <Table data={data} columns={columns} stylePreset="card" />
         </div>
       </div>
     );

@@ -1,19 +1,42 @@
 /**
  * Aave Market Detail Page (UI-only)
  *
- * This is a UI-only duplicate of the Morpho detail page structure
- * with static placeholder data. Transaction flows are stubbed.
+ * Borrow card layout.
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useNavigate } from "react-router";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router";
+
+import { BackButton } from "@/components/shared";
 
 import {
   MarketDetailProvider,
   type MarketDetailContextValue,
 } from "../context/MarketDetailContext";
-import { MarketInfo } from "../Info";
 import { LoanCard } from "../LoanCard";
+
+// TODO: Replace with actual assets from a registry
+const ASSET_CONFIG: Record<
+  string,
+  { name: string; symbol: string; icon: string }
+> = {
+  usdc: {
+    name: "USD Coin",
+    symbol: "USDC",
+    icon: "/images/usdc.png",
+  },
+  usdt: {
+    name: "Tether",
+    symbol: "USDT",
+    icon: "/images/usdt.png",
+  },
+  wbtc: {
+    name: "Wrapped BTC",
+    symbol: "WBTC",
+    icon: "/images/wbtc.png",
+  },
+};
 
 // Static market data for UI-only rendering
 const staticMarketData: Partial<MarketDetailContextValue> = {
@@ -27,12 +50,17 @@ const staticMarketData: Partial<MarketDetailContextValue> = {
 
 export function AaveMarketDetail() {
   const navigate = useNavigate();
+  const { marketId } = useParams<{ marketId: string }>();
+  const [borrowedAmount, setBorrowedAmount] = useState(0);
+
+  // Get asset config from URL param
+  const assetKey = marketId?.toLowerCase() || "usdc";
+  const assetConfig = ASSET_CONFIG[assetKey] || ASSET_CONFIG.usdc;
 
   // Stub handlers for UI-only mode
   const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
-    // TODO: wire to Aave borrow transaction flow
     void collateralAmount;
-    void borrowAmount;
+    setBorrowedAmount(borrowAmount);
   };
 
   const handleRepay = (
@@ -44,47 +72,37 @@ export function AaveMarketDetail() {
     void withdrawCollateralAmount;
   };
 
-  const handleBack = () => navigate("/");
+  const handleBack = () => navigate("/app/aave");
 
-  // Get token pair from context (using default values)
-  const tokenPair = {
-    pairName: "BTC/USDC",
-    collateral: {
-      name: "Bitcoin",
-      symbol: "BTC",
-      icon: "/images/btc.png",
-    },
-    loan: {
-      name: "USD Coin",
-      symbol: "USDC",
-      icon: "/images/usdc.png",
-    },
+  const handleViewLoan = () => {
+    // Navigate back to dashboard with borrowedAssets state
+    navigate("/app/aave", {
+      state: {
+        borrowedAssets: [
+          {
+            symbol: assetConfig.symbol,
+            icon: assetConfig.icon,
+            amount: String(borrowedAmount),
+          },
+        ],
+      },
+    });
   };
 
   return (
     <MarketDetailProvider value={staticMarketData}>
       <Container className="pb-6">
-        <div className="grid grid-cols-2 items-start gap-6 max-lg:grid-cols-1">
-          {/* Left Side: Market Info */}
-          <MarketInfo
-            onBack={handleBack}
-            marketPair={tokenPair.loan.symbol}
-            usdcIcon={tokenPair.loan.icon}
-            loanSymbol={tokenPair.loan.symbol}
-            priceDisplay={{
-              value: "$1.00",
-              label: "Price",
-            }}
-          />
+        <div className="space-y-6">
+          {/* Back Button */}
+          <BackButton label="Aave" onClick={handleBack} />
 
-          {/* Right Side: Loan Card */}
-          <div className="top-24">
-            <LoanCard
-              defaultTab="borrow"
-              onBorrow={handleBorrow}
-              onRepay={handleRepay}
-            />
-          </div>
+          {/* Loan Card - Full width like other cards */}
+          <LoanCard
+            defaultTab="borrow"
+            onBorrow={handleBorrow}
+            onRepay={handleRepay}
+            onViewLoan={handleViewLoan}
+          />
         </div>
       </Container>
     </MarketDetailProvider>

@@ -5,6 +5,7 @@ import { SubmitModal } from "../../../../../../components/shared";
 interface BorrowSuccessModalProps {
   open: boolean;
   onClose: () => void;
+  onViewLoan: () => void;
   borrowAmount: number;
   borrowSymbol: string;
   assetIcon: string;
@@ -18,6 +19,7 @@ interface BorrowSuccessModalProps {
 export function BorrowSuccessModal({
   open,
   onClose,
+  onViewLoan,
   borrowAmount,
   borrowSymbol,
   assetIcon,
@@ -37,7 +39,7 @@ export function BorrowSuccessModal({
       title="Borrow Successful"
       cancelButton={undefined}
       submitButton="View Loan"
-      onSubmit={onClose}
+      onSubmit={onViewLoan}
     >
       {formattedBorrow} {borrowSymbol} has been borrowed and is now available in
       your wallet.
