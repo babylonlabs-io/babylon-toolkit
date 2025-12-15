@@ -215,9 +215,16 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   const vbtcReserve =
     allReserves.find((r) => r.reserveId === vbtcReserveId) ?? null;
 
-  // Filter borrowable reserves (not paused, not frozen, borrowable flag)
+  // Filter borrowable reserves:
+  // - borrowable flag is true
+  // - not paused or frozen
+  // - NOT the vBTC reserve (vBTC is collateral-only, users deposit it but can't borrow it)
   const borrowableReserves = allReserves.filter(
-    (r) => r.reserve.borrowable && !r.reserve.paused && !r.reserve.frozen,
+    (r) =>
+      r.reserve.borrowable &&
+      !r.reserve.paused &&
+      !r.reserve.frozen &&
+      r.reserveId !== vbtcReserveId,
   );
 
   return {
