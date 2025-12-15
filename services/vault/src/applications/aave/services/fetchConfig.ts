@@ -263,7 +263,6 @@ const GET_AAVE_CONFIG = gql`
 
 /**
  * Fetches Aave configuration from the GraphQL indexer.
- * @deprecated Use fetchAaveAppConfig for combined fetch
  */
 export async function fetchAaveConfig(): Promise<AaveConfig | null> {
   const response =
