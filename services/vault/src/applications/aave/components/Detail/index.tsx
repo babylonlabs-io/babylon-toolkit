@@ -50,11 +50,11 @@ const staticMarketData: Partial<MarketDetailContextValue> = {
 
 export function AaveReserveDetail() {
   const navigate = useNavigate();
-  const { marketId } = useParams<{ marketId: string }>();
+  const { reserveId } = useParams<{ reserveId: string }>();
   const [borrowedAmount, setBorrowedAmount] = useState(0);
 
   // Get asset config from URL param
-  const assetKey = marketId?.toLowerCase() || "usdc";
+  const assetKey = reserveId?.toLowerCase() || "usdc";
   const assetConfig = ASSET_CONFIG[assetKey] || ASSET_CONFIG.usdc;
 
   // Stub handlers for UI-only mode

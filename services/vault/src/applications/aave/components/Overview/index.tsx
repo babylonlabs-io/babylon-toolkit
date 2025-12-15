@@ -17,7 +17,6 @@ import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { useAaveUserPosition } from "../../hooks";
-import { formatHealthFactor } from "../../utils";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
@@ -59,7 +58,6 @@ export function AaveOverview() {
   const hasDebt = debtValueUsd > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
-  const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   // Read loan state from navigation when returning from borrow flow
   useEffect(() => {
@@ -120,7 +118,7 @@ export function AaveOverview() {
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    navigate(`/app/aave/market/${assetSymbol.toLowerCase()}`);
+    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}`);
   };
 
   const handleDeposit = () => {
@@ -186,7 +184,7 @@ export function AaveOverview() {
           hasLoans={hasDebt}
           hasCollateral={hasCollateral}
           borrowedAssets={borrowedAssets}
-          healthFactor={healthFactorFormatted}
+          healthFactor={healthFactor}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

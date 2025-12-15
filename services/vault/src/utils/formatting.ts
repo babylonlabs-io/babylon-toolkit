@@ -23,7 +23,7 @@ export function formatProviderName(providerId: string): string {
 
 /**
  * Format BTC amount for display
- * @param btcAmount - Amount in BTC (not satoshis)
+ * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC".
  * @param decimals - Number of decimal places (default: 8)
  * @returns Formatted string (e.g., "1.23456789 BTC" or "0 BTC")
  */
@@ -34,7 +34,7 @@ export function formatBtcAmount(btcAmount: number, decimals = 8): string {
 
 /**
  * Format USD value for display
- * @param usdValue - Amount in USD
+ * @param usdValue - Amount in USD. Zero or negative values return "$0 USD".
  * @returns Formatted string (e.g., "$1,234.56 USD" or "$0 USD")
  */
 export function formatUsdValue(usdValue: number): string {

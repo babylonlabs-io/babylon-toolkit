@@ -5,7 +5,10 @@
 
 import { Avatar, Button, Card, SubSection } from "@babylonlabs-io/core-ui";
 
-import { isHealthFactorHealthy } from "@/applications/aave/utils";
+import {
+  formatHealthFactor,
+  isHealthFactorHealthy,
+} from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
 export interface BorrowedAsset {
@@ -18,8 +21,8 @@ interface LoansCardProps {
   hasLoans: boolean;
   hasCollateral: boolean;
   borrowedAssets?: BorrowedAsset[];
-  /** Health factor value, null if still loading */
-  healthFactor?: string | null;
+  /** Health factor value from Aave (null if no debt) */
+  healthFactor: number | null;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -32,9 +35,8 @@ export function LoansCard({
   onBorrow,
   onRepay,
 }: LoansCardProps) {
-  const isHealthy = healthFactor
-    ? isHealthFactorHealthy(parseFloat(healthFactor))
-    : true;
+  const isHealthy = isHealthFactorHealthy(healthFactor);
+  const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   return (
     <Card className="w-full">
@@ -103,14 +105,8 @@ export function LoansCard({
                 Health Factor
               </span>
               <span className="flex items-center gap-2 text-base text-accent-primary">
-                {healthFactor != null ? (
-                  <>
-                    <HeartIcon isHealthy={isHealthy} />
-                    {healthFactor}
-                  </>
-                ) : (
-                  <span className="text-accent-secondary">Loading...</span>
-                )}
+                <HeartIcon isHealthy={isHealthy} />
+                {healthFactorFormatted}
               </span>
             </div>
           </div>
