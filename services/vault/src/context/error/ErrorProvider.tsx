@@ -65,6 +65,7 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
             modalOptions: {
               retryAction: displayOptions?.retryAction,
               noCancel: displayOptions?.noCancel,
+              blocking: displayOptions?.blocking,
             },
           };
         });

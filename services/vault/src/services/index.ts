@@ -3,6 +3,9 @@
 // Applications services (includes Morpho market and position operations)
 export * from "./applications";
 
+// Health check services
+export * from "./health";
+
 // Token services
 export * from "./token";
 

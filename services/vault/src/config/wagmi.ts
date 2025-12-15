@@ -13,63 +13,104 @@ import {
   initializeAppKitModal,
   type AppKitModalConfig,
 } from "@babylonlabs-io/wallet-connector";
+import { createConfig, http } from "wagmi";
+
+interface WagmiInitResult {
+  wagmiConfig: ReturnType<typeof createConfig>;
+  error: string | null;
+}
 
 /**
  * Initialize AppKit modal and get the wagmi config it creates
  *
- * This must be called before the app renders to ensure wagmi config is available
+ * This must be called before the app renders to ensure wagmi config is available.
+ * If initialization fails, returns a fallback config and tracks the error.
  */
-function initializeVaultWagmi() {
-  const btcConfig = getNetworkConfigBTC();
-  const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+function initializeVaultWagmi(): WagmiInitResult {
+  try {
+    const btcConfig = getNetworkConfigBTC();
+    const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
 
-  if (!projectId) {
-    throw new Error(
-      "NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required. " +
-        "Please set it in your .env file or environment configuration.",
-    );
+    if (!projectId) {
+      return {
+        wagmiConfig: createFallbackConfig(),
+        error:
+          "NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required. " +
+          "Please set it in your .env file or environment configuration.",
+      };
+    }
+
+    const appKitConfig: AppKitModalConfig = {
+      projectId,
+      metadata: {
+        name: "Babylon Vault",
+        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://staking.vault-devnet.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+      eth: {
+        chain: getETHChain(),
+      },
+      btc: {
+        network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
+      },
+    };
+
+    const result = initializeAppKitModal(appKitConfig);
+
+    if (!result || !result.wagmiConfig) {
+      return {
+        wagmiConfig: createFallbackConfig(),
+        error: "Failed to initialize AppKit modal or wagmi config not created",
+      };
+    }
+
+    return {
+      wagmiConfig: result.wagmiConfig,
+      error: null,
+    };
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown initialization error";
+
+    return {
+      wagmiConfig: createFallbackConfig(),
+      error: errorMessage,
+    };
   }
-
-  const appKitConfig: AppKitModalConfig = {
-    projectId,
-    metadata: {
-      name: "Babylon Vault",
-      description: "Babylon Vault - Secure Bitcoin Vault Platform",
-      url:
-        typeof window !== "undefined"
-          ? window.location.origin
-          : "https://staking.vault-devnet.babylonlabs.io",
-      icons: [
-        typeof window !== "undefined"
-          ? `${window.location.origin}/favicon.ico`
-          : "https://btcstaking.babylonlabs.io/favicon.ico",
-      ],
-    },
-    eth: {
-      chain: getETHChain(),
-    },
-    btc: {
-      network: btcConfig.network === "mainnet" ? "mainnet" : "signet",
-    },
-  };
-
-  const result = initializeAppKitModal(appKitConfig);
-
-  if (!result || !result.wagmiConfig) {
-    throw new Error(
-      "Failed to initialize AppKit modal or wagmi config not created",
-    );
-  }
-
-  return result.wagmiConfig;
 }
+
+/**
+ * Create a minimal fallback wagmi config for error states
+ */
+function createFallbackConfig() {
+  const chain = getETHChain();
+  return createConfig({
+    chains: [chain],
+    transports: {
+      [chain.id]: http(),
+    },
+  });
+}
+
+const initResult = initializeVaultWagmi();
 
 /**
  * Singleton wagmi config instance
  * Created by AppKit initialization at module load time
  *
- * IMPORTANT: This will throw if NEXT_PUBLIC_REOWN_PROJECT_ID is not set.
- * The vault requires AppKit for ETH wallet connections, so this is a required
- * environment variable. Ensure it's configured before starting the application.
+ * If initialization failed, this will be a fallback config and wagmiInitError will be set.
  */
-export const vaultWagmiConfig = initializeVaultWagmi();
+export const vaultWagmiConfig = initResult.wagmiConfig;
+
+/**
+ * Error message if wagmi initialization failed, null otherwise
+ */
+export const wagmiInitError = initResult.error;
