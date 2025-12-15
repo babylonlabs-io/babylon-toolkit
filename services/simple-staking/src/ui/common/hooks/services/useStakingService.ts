@@ -170,7 +170,6 @@ export function useStakingService() {
           DelegationState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
         );
         reset();
-        goToStep(StakingStep.FEEDBACK_SUCCESS);
       } catch (error: any) {
         const clientError = new ClientError(
           ERROR_CODES.TRANSACTION_SUBMISSION_ERROR,
@@ -198,7 +197,6 @@ export function useStakingService() {
     [
       updateDelegationStatus,
       submitStakingTx,
-      goToStep,
       setProcessing,
       reset,
       handleError,

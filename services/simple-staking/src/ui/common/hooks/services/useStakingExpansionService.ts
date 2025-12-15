@@ -412,8 +412,8 @@ export function useStakingExpansionService() {
           publicKeyNoCoord,
         );
 
-        // Navigate to success
-        goToStep(StakingExpansionStep.FEEDBACK_SUCCESS);
+        // Close the modal
+        reset();
         setProcessing(false);
       } catch (error) {
         setProcessing(false);
@@ -425,7 +425,6 @@ export function useStakingExpansionService() {
     },
     [
       setProcessing,
-      goToStep,
       logger,
       handleError,
       submitStakingExpansionTx,
