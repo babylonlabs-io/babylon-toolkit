@@ -25,7 +25,6 @@ export {
   fetchAaveUserPositions,
   type AavePosition,
   type AavePositionCollateral,
-  type AavePositionStatus,
   type AavePositionWithCollaterals,
 } from "./fetchPositions";
 

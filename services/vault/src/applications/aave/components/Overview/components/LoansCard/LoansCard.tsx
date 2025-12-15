@@ -32,7 +32,9 @@ export function LoansCard({
   onBorrow,
   onRepay,
 }: LoansCardProps) {
-  const isHealthy = healthFactor ? isHealthFactorHealthy(healthFactor) : true;
+  const isHealthy = healthFactor
+    ? isHealthFactorHealthy(parseFloat(healthFactor))
+    : true;
 
   return (
     <Card className="w-full">
