@@ -8,12 +8,44 @@
  * since it doesn't need to be live and benefits from caching.
  */
 
-import { type Address } from "viem";
+import type { Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 import { hasDebtFromPosition } from "../utils";
 
 import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
+
+/**
+ * User account data from the Spoke
+ * Contains aggregated position health data calculated by Aave using on-chain oracle prices.
+ */
+export interface AaveSpokeUserAccountData {
+  /** Risk premium in BPS */
+  riskPremium: bigint;
+  /** Weighted average collateral factor in WAD (1e18 = 100%) */
+  avgCollateralFactor: bigint;
+  /** Health factor in WAD (1e18 = 1.00) */
+  healthFactor: bigint;
+  /** Total collateral value in base currency (1e26 = $1 USD) */
+  totalCollateralValue: bigint;
+  /** Total debt value in base currency (1e26 = $1 USD) */
+  totalDebtValue: bigint;
+  /** Number of active collateral reserves */
+  activeCollateralCount: bigint;
+  /** Number of borrowed reserves */
+  borrowedCount: bigint;
+}
+
+/** Account data result type from contract */
+type AccountDataResult = {
+  riskPremium: bigint;
+  avgCollateralFactor: bigint;
+  healthFactor: bigint;
+  totalCollateralValue: bigint;
+  totalDebtValue: bigint;
+  activeCollateralCount: bigint;
+  borrowedCount: bigint;
+};
 
 /**
  * User position data from the Spoke
@@ -31,6 +63,66 @@ export interface AaveSpokeUserPosition {
   suppliedShares: bigint;
   /** Dynamic config key */
   dynamicConfigKey: number;
+}
+
+/** Position result type from contract */
+type PositionResult = {
+  drawnShares: bigint;
+  premiumShares: bigint;
+  realizedPremiumRay: bigint;
+  premiumOffsetRay: bigint;
+  suppliedShares: bigint;
+  dynamicConfigKey: number;
+};
+
+/**
+ * Maps contract result to AaveSpokeUserPosition
+ */
+function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
+  return {
+    drawnShares: result.drawnShares,
+    premiumShares: result.premiumShares,
+    realizedPremiumRay: result.realizedPremiumRay,
+    premiumOffsetRay: result.premiumOffsetRay,
+    suppliedShares: result.suppliedShares,
+    dynamicConfigKey: result.dynamicConfigKey,
+  };
+}
+
+/**
+ * Get user account data from the Spoke
+ *
+ * Returns aggregated position health data including health factor, collateral value,
+ * and debt value. These values are calculated by Aave using on-chain oracle prices
+ * and are the authoritative values for liquidation decisions.
+ *
+ * @param spokeAddress - Aave Spoke contract address
+ * @param userAddress - User's proxy contract address
+ * @returns User account data with health factor and values
+ */
+export async function getUserAccountData(
+  spokeAddress: Address,
+  userAddress: Address,
+): Promise<AaveSpokeUserAccountData> {
+  const publicClient = ethClient.getPublicClient();
+
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserAccountData",
+    args: [userAddress],
+  });
+
+  const data = result as AccountDataResult;
+  return {
+    riskPremium: data.riskPremium,
+    avgCollateralFactor: data.avgCollateralFactor,
+    healthFactor: data.healthFactor,
+    totalCollateralValue: data.totalCollateralValue,
+    totalDebtValue: data.totalDebtValue,
+    activeCollateralCount: data.activeCollateralCount,
+    borrowedCount: data.borrowedCount,
+  };
 }
 
 /**
@@ -58,25 +150,7 @@ export async function getUserPosition(
     args: [reserveId, userAddress],
   });
 
-  type PositionResult = {
-    drawnShares: bigint;
-    premiumShares: bigint;
-    realizedPremiumRay: bigint;
-    premiumOffsetRay: bigint;
-    suppliedShares: bigint;
-    dynamicConfigKey: number;
-  };
-
-  const position = result as PositionResult;
-
-  return {
-    drawnShares: position.drawnShares,
-    premiumShares: position.premiumShares,
-    realizedPremiumRay: position.realizedPremiumRay,
-    premiumOffsetRay: position.premiumOffsetRay,
-    suppliedShares: position.suppliedShares,
-    dynamicConfigKey: position.dynamicConfigKey,
-  };
+  return mapPositionResult(result as PositionResult);
 }
 
 /**

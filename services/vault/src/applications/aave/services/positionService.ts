@@ -2,17 +2,16 @@
  * Aave Position Service
  *
  * Hybrid service that combines indexer data with live RPC data for positions.
- * Uses indexer for position list and collateral data, RPC for live debt/health data.
+ * Uses indexer for position list and collateral data, RPC for live account data.
  */
 
 import type { Address } from "viem";
 
-import { AaveSpoke } from "../clients";
+import { AaveSpoke, type AaveSpokeUserAccountData } from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
-import { fetchAaveConfig } from "./fetchConfig";
 import {
-  fetchAaveActivePositions,
+  fetchAaveActivePositionsWithCollaterals,
   fetchAavePositionById,
   fetchAavePositionCollaterals,
   type AavePosition,
@@ -25,7 +24,7 @@ import {
 export interface AavePositionWithLiveData extends AavePosition {
   /** Collateral entries for this position */
   collaterals: AavePositionCollateral[];
-  /** Live debt data from Spoke */
+  /** Live position data from Spoke */
   liveData: {
     /** Drawn debt shares */
     drawnShares: bigint;
@@ -36,88 +35,89 @@ export interface AavePositionWithLiveData extends AavePosition {
     /** Whether position has any debt */
     hasDebt: boolean;
   };
+  /**
+   * Live account data from Spoke (calculated using on-chain oracle prices)
+   * This is the authoritative data for health factor and values.
+   */
+  accountData: AaveSpokeUserAccountData;
 }
 
 /**
  * Get user positions with live on-chain data
  *
- * Fetches positions from indexer and enriches with live debt data from Spoke.
+ * Fetches positions with collaterals from indexer (single GraphQL call)
+ * and enriches with live data from Spoke.
+ *
+ * Note: In Babylon vault integration, users can only have ONE position
+ * (single vBTC collateral reserve), so we don't need batch calls.
  *
  * @param depositor - User's Ethereum address
- * @returns Array of positions with live data
+ * @param spokeAddress - Spoke contract address (from config context)
+ * @returns Array of positions with live data (0 or 1 position)
  */
 export async function getUserPositionsWithLiveData(
   depositor: string,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData[]> {
-  // Fetch config and active positions in parallel
-  const [config, positions] = await Promise.all([
-    fetchAaveConfig(),
-    fetchAaveActivePositions(depositor),
-  ]);
+  // Fetch active positions with collaterals in a single GraphQL call
+  const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
 
-  if (!config || positions.length === 0) {
+  if (positions.length === 0) {
     return [];
   }
 
-  const spokeAddress = config.btcVaultCoreSpokeAddress as Address;
+  // User can only have one position in Babylon vault integration
+  const position = positions[0];
+  const proxyAddress = position.proxyContract as Address;
 
-  // Fetch collaterals and live data for each position
-  const positionsWithLiveData = await Promise.all(
-    positions.map(async (position) => {
-      // Fetch collaterals from indexer
-      const collaterals = await fetchAavePositionCollaterals(position.id);
+  // Fetch live data from Spoke in parallel
+  const [spokePosition, accountData] = await Promise.all([
+    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
+  ]);
 
-      // Fetch live position data from Spoke
-      const spokePosition = await AaveSpoke.getUserPosition(
-        spokeAddress,
-        position.reserveId,
-        position.proxyContract as Address,
-      );
-
-      return {
-        ...position,
-        collaterals,
-        liveData: {
-          drawnShares: spokePosition.drawnShares,
-          premiumShares: spokePosition.premiumShares,
-          suppliedShares: spokePosition.suppliedShares,
-          hasDebt: hasDebtFromPosition(spokePosition),
-        },
-      };
-    }),
-  );
-
-  return positionsWithLiveData;
+  return [
+    {
+      ...position,
+      liveData: {
+        drawnShares: spokePosition.drawnShares,
+        premiumShares: spokePosition.premiumShares,
+        suppliedShares: spokePosition.suppliedShares,
+        hasDebt: hasDebtFromPosition(spokePosition),
+      },
+      accountData,
+    },
+  ];
 }
 
 /**
  * Get a single position with live data by position ID
  *
  * @param positionId - Position ID (bytes32)
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns Position with live data or null if not found
  */
 export async function getPositionWithLiveData(
   positionId: string,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData | null> {
-  // Fetch position from indexer and config in parallel
-  const [config, position, collaterals] = await Promise.all([
-    fetchAaveConfig(),
+  // Fetch position and collaterals from indexer in parallel
+  const [position, collaterals] = await Promise.all([
     fetchAavePositionById(positionId),
     fetchAavePositionCollaterals(positionId),
   ]);
 
-  if (!config || !position) {
+  if (!position) {
     return null;
   }
 
-  const spokeAddress = config.btcVaultCoreSpokeAddress as Address;
+  const proxyAddress = position.proxyContract as Address;
 
-  // Fetch live position data from Spoke (debt accrues interest so must be live)
-  const spokePosition = await AaveSpoke.getUserPosition(
-    spokeAddress,
-    position.reserveId,
-    position.proxyContract as Address,
-  );
+  // Fetch live data from Spoke in parallel
+  const [spokePosition, accountData] = await Promise.all([
+    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
+  ]);
 
   return {
     ...position,
@@ -128,6 +128,7 @@ export async function getPositionWithLiveData(
       suppliedShares: spokePosition.suppliedShares,
       hasDebt: hasDebtFromPosition(spokePosition),
     },
+    accountData,
   };
 }
 
@@ -137,12 +138,14 @@ export async function getPositionWithLiveData(
  * Position can only withdraw if it has no debt.
  *
  * @param positionId - Position ID
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns true if position can withdraw
  */
 export async function canWithdrawCollateral(
   positionId: string,
+  spokeAddress: Address,
 ): Promise<boolean> {
-  const position = await getPositionWithLiveData(positionId);
+  const position = await getPositionWithLiveData(positionId, spokeAddress);
   if (!position) {
     return false;
   }
@@ -150,16 +153,18 @@ export async function canWithdrawCollateral(
 }
 
 /**
- * Get position for a specific market/reserve
+ * Get position for a specific reserve
  *
  * @param depositor - User's Ethereum address
  * @param reserveId - Reserve ID
+ * @param spokeAddress - Spoke contract address (from config context)
  * @returns Position with live data or null if not found
  */
 export async function getUserPositionForReserve(
   depositor: string,
   reserveId: bigint,
+  spokeAddress: Address,
 ): Promise<AavePositionWithLiveData | null> {
-  const positions = await getUserPositionsWithLiveData(depositor);
+  const positions = await getUserPositionsWithLiveData(depositor, spokeAddress);
   return positions.find((p) => p.reserveId === reserveId) || null;
 }

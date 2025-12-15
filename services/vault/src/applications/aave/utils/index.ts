@@ -1,2 +1,3 @@
+export { aaveValueToUsd, wadToNumber } from "./aaveConversions";
 export { hasDebtFromPosition } from "./debtUtils";
-export { isHealthFactorHealthy } from "./healthFactor";
+export { formatHealthFactor, isHealthFactorHealthy } from "./healthFactor";

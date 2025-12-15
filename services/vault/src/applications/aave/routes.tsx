@@ -1,13 +1,16 @@
 import { Route, Routes } from "react-router";
 
-import { AaveMarketDetail } from "./components/Detail";
+import { AaveReserveDetail } from "./components/Detail";
 import { AaveOverview } from "./components/Overview";
+import { AaveConfigProvider } from "./context";
 
 export function AaveRoutes() {
   return (
-    <Routes>
-      <Route index element={<AaveOverview />} />
-      <Route path="market/:marketId" element={<AaveMarketDetail />} />
-    </Routes>
+    <AaveConfigProvider>
+      <Routes>
+        <Route index element={<AaveOverview />} />
+        <Route path="reserve/:reserveId" element={<AaveReserveDetail />} />
+      </Routes>
+    </AaveConfigProvider>
   );
 }
