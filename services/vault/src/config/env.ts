@@ -2,7 +2,8 @@
  * Centralized Environment Variables Validation
  *
  * This file validates all critical environment variables at application startup.
- * If any required variables are missing, the application will fail fast with a clear error message.
+ * If any required variables are missing, an error is tracked and shown to the user
+ * via a blocking modal instead of crashing the application.
  */
 
 import type { Address } from "viem";
@@ -25,10 +26,17 @@ interface RequiredEnvVars {
   VAULT_PROVIDER_RPC_URL?: string;
 }
 
+interface EnvValidationResult {
+  env: RequiredEnvVars;
+  error: string | null;
+}
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+
 /**
  * Validate and extract all required environment variables
  */
-function validateEnvVars(): RequiredEnvVars {
+function validateEnvVars(): EnvValidationResult {
   const envVars = {
     // Contract addresses (required)
     BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
@@ -59,34 +67,49 @@ function validateEnvVars(): RequiredEnvVars {
   );
 
   if (missingVars.length > 0) {
-    const missingVarNames = missingVars.map((key) => {
-      // Map internal names to actual env var names
-      const envVarMap: Record<string, string> = {
-        BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
-        MORPHO_CONTROLLER: "NEXT_PUBLIC_TBV_MORPHO_CONTROLLER",
-        AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
-        BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
-        MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
-        GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
-      };
-      return envVarMap[key] || key;
-    });
+    // Map internal names to actual env var names
+    const envVarMap: Record<string, string> = {
+      BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
+      MORPHO_CONTROLLER: "NEXT_PUBLIC_TBV_MORPHO_CONTROLLER",
+      AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
+      BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
+      MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
+      GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+    };
 
-    throw new Error(
-      `Missing required environment variables:\n  - ${missingVarNames.join("\n  - ")}\n\n` +
-        "Please configure these variables in your .env file.\n" +
-        "See .env.example for reference.",
-    );
+    const missingVarNames = missingVars.map((key) => envVarMap[key] || key);
+
+    return {
+      env: {
+        BTC_VAULTS_MANAGER: ZERO_ADDRESS,
+        MORPHO_CONTROLLER: ZERO_ADDRESS,
+        AAVE_CONTROLLER: ZERO_ADDRESS,
+        BTC_VAULT: ZERO_ADDRESS,
+        MORPHO: ZERO_ADDRESS,
+        GRAPHQL_ENDPOINT: "",
+      },
+      error: `Missing: ${missingVarNames.join(", ")}`,
+    };
   }
 
-  return envVars as RequiredEnvVars;
+  return {
+    env: envVars as RequiredEnvVars,
+    error: null,
+  };
 }
+
+const validationResult = validateEnvVars();
 
 /**
  * Validated environment variables
- * This will throw an error at module load time if any required variables are missing
+ * If validation failed, these will be fallback values and envInitError will be set
  */
-export const ENV = validateEnvVars();
+export const ENV = validationResult.env;
+
+/**
+ * Error message if environment validation failed, null otherwise
+ */
+export const envInitError = validationResult.error;
 
 /**
  * Default values for optional environment variables

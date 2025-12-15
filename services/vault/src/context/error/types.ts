@@ -4,6 +4,7 @@ export interface ErrorDisplayOptions {
   retryAction?: () => void;
   noCancel?: boolean;
   showModal?: boolean;
+  blocking?: boolean;
 }
 
 export interface AppError {
@@ -27,6 +28,7 @@ export interface ErrorState {
   modalOptions: {
     retryAction?: () => void;
     noCancel?: boolean;
+    blocking?: boolean;
   };
 }
 
