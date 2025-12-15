@@ -9,6 +9,8 @@ import {
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
 
+import { getTokenByAddress } from "@/services/token/tokenService";
+
 import { useAaveConfig } from "../../context";
 
 import { AssetListItem } from "./AssetListItem";
@@ -46,14 +48,19 @@ export function AssetSelectionModal({
       );
     }
 
-    return borrowableReserves.map((reserve) => (
-      <AssetListItem
-        key={reserve.reserveId.toString()}
-        symbol={reserve.token.symbol}
-        name={reserve.token.name}
-        onClick={() => handleAssetClick(reserve.token.symbol)}
-      />
-    ));
+    return borrowableReserves.map((reserve) => {
+      // Get icon from token service registry
+      const tokenMetadata = getTokenByAddress(reserve.token.address);
+      return (
+        <AssetListItem
+          key={reserve.reserveId.toString()}
+          symbol={reserve.token.symbol}
+          name={reserve.token.name}
+          icon={tokenMetadata?.icon}
+          onClick={() => handleAssetClick(reserve.token.symbol)}
+        />
+      );
+    });
   };
 
   return (

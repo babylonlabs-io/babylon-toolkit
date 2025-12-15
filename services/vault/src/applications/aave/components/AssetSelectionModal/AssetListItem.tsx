@@ -1,21 +1,28 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
-import { DEFAULT_TOKEN_ICON, TOKEN_ICONS } from "../../constants";
+import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 
 interface AssetListItemProps {
   symbol: string;
   name: string;
+  /** Icon URL (optional - will use fallback if not provided) */
+  icon?: string;
   onClick: () => void;
 }
 
-export function AssetListItem({ symbol, name, onClick }: AssetListItemProps) {
+export function AssetListItem({
+  symbol,
+  name,
+  icon,
+  onClick,
+}: AssetListItemProps) {
   return (
     <button
       onClick={onClick}
       className="flex w-full cursor-pointer items-center gap-4 rounded-lg bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
     >
       <Avatar
-        url={TOKEN_ICONS[symbol] ?? DEFAULT_TOKEN_ICON}
+        url={getCurrencyIconWithFallback(icon, symbol)}
         alt={name}
         size="medium"
         variant="circular"

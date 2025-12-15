@@ -71,19 +71,3 @@ export const WAD_DECIMALS = 18;
  * Positions below this are considered at risk of liquidation
  */
 export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
-
-/**
- * Token icon paths by symbol
- * Used for displaying token icons in the UI
- */
-export const TOKEN_ICONS: Record<string, string> = {
-  BTC: "/images/btc.png",
-  WBTC: "/images/wbtc.png",
-  USDC: "/images/usdc.png",
-  USDT: "/images/usdt.png",
-};
-
-/**
- * Default token icon when symbol not found
- */
-export const DEFAULT_TOKEN_ICON = "/images/token.png";
