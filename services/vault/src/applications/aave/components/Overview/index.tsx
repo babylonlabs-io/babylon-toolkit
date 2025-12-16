@@ -18,7 +18,6 @@ import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
-import { BPS_TO_PERCENT_DIVISOR } from "../../constants";
 import { useAaveConfig } from "../../context";
 import {
   useAaveBorrowedAssets,
@@ -75,10 +74,10 @@ export function AaveOverview() {
     );
   }, [vaults]);
 
-  // Calculate liquidation LTV from vbtcReserve's collateralRisk (in BPS)
-  const liquidationLtv = useMemo(() => {
-    if (!vbtcReserve) return 75; // Default fallback
-    return vbtcReserve.reserve.collateralRisk / BPS_TO_PERCENT_DIVISOR;
+  // Get liquidation threshold in BPS from vbtcReserve's collateralRisk
+  const liquidationThresholdBps = useMemo(() => {
+    if (!vbtcReserve) return 7500; // Default fallback (75%)
+    return vbtcReserve.reserve.collateralRisk;
   }, [vbtcReserve]);
 
   // Derive display values
@@ -98,16 +97,12 @@ export function AaveOverview() {
 
     setIsProcessingCollateral(true);
     try {
-      // For now, log the intent - actual transaction requires wallet client
+      // TODO: Integrate with wallet context to execute addCollateral transaction
       // The addCollateral function from positionTransactions.ts takes:
       // - walletClient: WalletClient
       // - chain: Chain
       // - vaultIds: Hex[]
-      console.log("Adding collateral with vault IDs:", vaultIds as Hex[]);
-
-      // TODO: Integrate with wallet context to execute transaction
-      // const { addCollateral } = await import("../../services/positionTransactions");
-      // await addCollateral(walletClient, chain, vaultIds as Hex[]);
+      void (vaultIds as Hex[]);
 
       // Refetch position data
       await refetchPosition();
@@ -217,9 +212,9 @@ export function AaveOverview() {
         onClose={() => setIsAddCollateralOpen(false)}
         onDeposit={handleAddCollateral}
         availableVaults={availableVaults}
-        currentCollateralBtc={collateralBtc}
+        currentCollateralUsd={collateralValueUsd}
         currentDebtUsd={debtValueUsd}
-        liquidationLtv={liquidationLtv}
+        liquidationThresholdBps={liquidationThresholdBps}
         btcPrice={btcPriceUSD || 0}
         processing={isProcessingCollateral}
       />

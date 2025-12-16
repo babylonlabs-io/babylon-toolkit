@@ -10,3 +10,8 @@ export {
   isHealthFactorHealthy,
 } from "./healthFactor";
 export type { HealthFactorColor, HealthFactorStatus } from "./healthFactor";
+export {
+  calculateTotalVaultAmount,
+  selectVaultsForAmount,
+} from "./vaultSelection";
+export type { SelectableVault, VaultSelectionResult } from "./vaultSelection";
