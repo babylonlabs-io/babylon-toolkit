@@ -966,7 +966,7 @@ importers:
         specifier: ^9.31.0
         version: 9.32.0
       '@playwright/test':
-        specifier: ^1.52.0
+        specifier: ^1.55.1
         version: 1.56.1
       '@tanstack/react-query-devtools':
         specifier: 5.28.14
