@@ -357,7 +357,6 @@ describe("useStakingService", () => {
       );
 
       expect(mockReset).toHaveBeenCalled();
-      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
       expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
       expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
       expect(mockSetProcessing).toHaveBeenCalledTimes(2);
@@ -389,7 +388,6 @@ describe("useStakingService", () => {
         },
       });
       expect(mockUpdateDelegationStatus).not.toHaveBeenCalled();
-      expect(mockGoToStep).not.toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
       expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
       expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
     });
@@ -426,7 +424,6 @@ describe("useStakingService", () => {
         mockDelegation.stakingTxHashHex,
         DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
       );
-      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
       expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
     });
   });

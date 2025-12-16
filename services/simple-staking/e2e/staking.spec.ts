@@ -31,13 +31,6 @@ test.describe("Create staking transaction", () => {
     const stakeButton = page.locator("button").filter({ hasText: "Stake" });
     await stakeButton.click();
 
-    // Success modal
-    const success = page
-      .getByTestId("modal")
-      .locator("div")
-      .filter({ hasText: "Congratulations!" });
-    expect(success).toBeVisible();
-
     // Check for local storage
     const item = await page.evaluate(() =>
       localStorage.getItem(

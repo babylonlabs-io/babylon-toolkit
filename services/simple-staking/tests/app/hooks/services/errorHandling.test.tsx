@@ -33,7 +33,7 @@ import { useBbnTransaction } from "@/ui/common/hooks/client/rpc/mutation/useBbnT
 import { useStakingService } from "@/ui/common/hooks/services/useStakingService";
 import { useTransactionService } from "@/ui/common/hooks/services/useTransactionService";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
-import { StakingStep, useStakingState } from "@/ui/common/state/StakingState";
+import { useStakingState } from "@/ui/common/state/StakingState";
 import {
   DelegationV2,
   DelegationV2StakingState,
@@ -351,7 +351,6 @@ describe("Core Services Error Handling", () => {
 
       // Verify UI was updated correctly
       expect(mockReset).toHaveBeenCalled();
-      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
     });
 
     it("should include error category and type in the client error metadata", async () => {
