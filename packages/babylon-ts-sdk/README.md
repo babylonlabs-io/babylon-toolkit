@@ -23,8 +23,72 @@ The Babylon TypeScript SDK provides a production-ready, framework-agnostic toolk
 ## Installation
 
 ```bash
-npm install @babylonlabs-io/ts-sdk
+npm install @babylonlabs-io/ts-sdk viem
 ```
+
+See [Installation Guide](./docs/get-started/installation.md) for detailed setup instructions.
+
+## Package Structure
+
+The SDK uses subpath exports for tree-shaking:
+
+```typescript
+// High-level managers (recommended for most users)
+import {
+  PeginManager,
+  PayoutManager,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// Low-level primitives (advanced use cases)
+import {
+  buildPeginPsbt,
+  buildPayoutPsbt,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+// Utilities
+import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// Shared types and wallet interfaces
+import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
+
+// Contract ABIs
+import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
+
+// Protocol integrations
+import { MorphoClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/morpho";
+import { AaveClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+```
+
+## Trustless Bitcoin Vaults (TBV) Documentation
+
+### 📚 Get Started
+
+New to the SDK? Start here:
+
+- **[Installation](./docs/get-started/installation.md)** - Install and verify the SDK
+
+### 📖 Guides [⚠️WIP]
+
+Complete flows and tutorials:
+
+- **[Complete Peg-In Flow](./docs/guides/complete-pegin-flow.md)** - Deposit BTC into a Trustless Bitcoin Vault
+- **[Complete Payout Flow](./docs/guides/complete-payout-flow.md)** - Withdraw BTC from the Trustless Bitcoin Vault
+- **[Advanced: Using Primitives](./docs/guides/advanced-primitives.md)** - Low-level primitives for custom use cases
+- **[Protocol Integrations](./docs/guides/integrations.md)** - For protocol developers
+
+### 🔍 API Reference [⚠️WIP]
+
+Auto-generated from source code:
+
+- **[Managers API](./docs/api/managers.md)** - High-level wallet orchestration
+- **[Primitives API](./docs/api/primitives.md)** - Low-level pure functions
+
+### 💡 Examples [⚠️WIP]
+
+Working example applications:
+
+- **[React App with Managers](./examples/managers-react/)** - Front-end implementation
+- **[Node.js with Primitives](./examples/primitives-nodejs/)** - Back-end integration with custom signing
 
 ## Links
 
