@@ -1,6 +1,8 @@
 /**
  * Borrow Tab Component
- * Asset-selection-first flow without collateral section
+ *
+ * Displays borrow slider and handles borrow flow.
+ * Asset is selected before landing on this page (from route).
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
@@ -11,58 +13,60 @@ import { getCurrencyIconWithFallback } from "../../../../../services/token";
 import { BorrowDetailsCard } from "./BorrowDetailsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
-import { useBorrowUI } from "./hooks/useBorrowUI";
+import { validateBorrowAction } from "./hooks/validateBorrowAction";
 import { BorrowSuccessModal } from "./SuccessModal";
 
+export interface Asset {
+  name: string;
+  symbol: string;
+  icon: string;
+}
+
 export interface BorrowProps {
-  btcPrice: number;
-  liquidationLtv: number;
+  /** Collateral value in USD (from Aave oracle) */
+  collateralValueUsd: number;
+  /** Current debt in USD (from Aave oracle) */
+  currentDebtUsd: number;
+  /** vBTC liquidation threshold in BPS (e.g., 8000 = 80%) */
+  liquidationThresholdBps: number;
+  /** Current health factor (null if no debt) */
+  currentHealthFactor: number | null;
+  /** Selected asset to borrow (from route) */
+  selectedAsset: Asset;
   onBorrow: (collateralAmount: number, borrowAmount: number) => void;
   onViewLoan: () => void;
-  availableLiquidity: number;
-  currentCollateralAmount: number;
-  currentLoanAmount: number;
   processing?: boolean;
 }
 
 export function Borrow({
-  btcPrice,
-  liquidationLtv,
+  collateralValueUsd,
+  currentDebtUsd,
+  liquidationThresholdBps,
+  currentHealthFactor,
+  selectedAsset,
   onBorrow,
   onViewLoan,
-  availableLiquidity,
-  currentCollateralAmount,
-  currentLoanAmount,
   processing = false,
 }: BorrowProps) {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
-  const {
-    borrowAmount,
-    setBorrowAmount,
-    maxBorrowAmount,
-    borrowRate,
-    selectedAsset,
-  } = useBorrowState({
-    btcPrice,
-    liquidationLtv,
-    availableLiquidity,
-    currentCollateralAmount,
-    currentLoanAmount,
-  });
-
-  const { isDisabled, buttonText } = useBorrowUI({
-    borrowAmount,
+  const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
+    collateralValueUsd,
+    currentDebtUsd,
   });
 
   const metrics = useBorrowMetrics({
     borrowAmount,
-    borrowRate,
-    btcPrice,
-    currentCollateralAmount,
-    currentLoanAmount,
-    liquidationLtv,
+    collateralValueUsd,
+    currentDebtUsd,
+    liquidationThresholdBps,
+    currentHealthFactor,
   });
+
+  const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
+    borrowAmount,
+    metrics.healthFactorValue,
+  );
 
   const sliderMaxBorrow = Math.max(maxBorrowAmount, 0.0001);
 
@@ -120,11 +124,18 @@ export function Borrow({
 
         {/* Borrow Details Card */}
         <BorrowDetailsCard
-          borrowRate={metrics.borrowRate}
-          collateral={metrics.netCollateral}
+          borrowRatio={metrics.borrowRatio}
+          borrowRatioOriginal={metrics.borrowRatioOriginal}
           healthFactor={metrics.healthFactor}
+          healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
+          healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
+
+        {/* Health Factor Error */}
+        {errorMessage && (
+          <p className="text-sm text-error-main">{errorMessage}</p>
+        )}
       </div>
 
       {/* Borrow Button */}

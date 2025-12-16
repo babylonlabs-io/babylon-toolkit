@@ -79,7 +79,7 @@ function getHealthFactorStatus(
  * avoiding separate RPC calls when displaying borrowed assets.
  */
 export function useAaveUserPosition(
-  connectedAddress: Address | undefined,
+  connectedAddress: string | undefined,
 ): UseAaveUserPositionResult {
   const {
     config,

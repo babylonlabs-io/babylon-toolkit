@@ -1,134 +1,84 @@
 /**
  * Borrow metrics calculation hook
- * Calculates Net APY, Net balance, Net collateral, Risk premium, and Health factor
+ *
+ * Calculates display metrics for borrow UI including projected health factor.
+ * Uses USD values directly from Aave oracle.
  */
+
+import {
+  calculateBorrowRatio,
+  calculateHealthFactor,
+  formatHealthFactor,
+} from "../../../../utils";
 
 export interface UseBorrowMetricsProps {
   borrowAmount: number;
-  borrowRate: number;
-  btcPrice: number;
-  currentCollateralAmount: number;
-  currentLoanAmount: number;
-  liquidationLtv: number;
+  /** Collateral value in USD (from Aave oracle) */
+  collateralValueUsd: number;
+  /** Current debt in USD (from Aave oracle) */
+  currentDebtUsd: number;
+  /** vBTC liquidation threshold in BPS (e.g., 8000 = 80%) */
+  liquidationThresholdBps: number;
+  /** Current health factor (null if no debt) */
+  currentHealthFactor: number | null;
 }
 
 export interface UseBorrowMetricsResult {
-  borrowRate: string;
-  netApy: string;
-  netApyOriginal?: string;
-  netBalance: string;
-  netBalanceOriginal?: string;
-  netCollateral: string;
-  netCollateralOriginal?: string;
-  riskPremium: string;
-  riskPremiumOriginal?: string;
+  /** Borrow rate (debt/collateral) as percentage string */
+  borrowRatio: string;
+  /** Original borrow rate shown when borrow amount > 0 to show before → after */
+  borrowRatioOriginal?: string;
   healthFactor: string;
+  /** Health factor value for UI (Infinity when no debt = healthy) */
   healthFactorValue: number;
+  /** Original health factor shown when borrow amount > 0 to show before → after */
   healthFactorOriginal?: string;
+  /** Original health factor value for UI (Infinity when no debt = healthy) */
   healthFactorOriginalValue?: number;
 }
 
 export function useBorrowMetrics({
   borrowAmount,
-  borrowRate,
-  btcPrice,
-  currentCollateralAmount,
-  currentLoanAmount,
-  liquidationLtv,
+  collateralValueUsd,
+  currentDebtUsd,
+  liquidationThresholdBps,
+  currentHealthFactor,
 }: UseBorrowMetricsProps): UseBorrowMetricsResult {
-  const borrowRateFormatted = `${borrowRate.toFixed(3)}%`;
-
-  // Return dashes when no borrow amount
+  // When no borrow amount entered, show current values (no projection)
   if (borrowAmount === 0) {
+    // Use Infinity when no debt - represents "infinitely healthy" for UI purposes
+    const healthValue = currentHealthFactor ?? Infinity;
     return {
-      borrowRate: borrowRateFormatted,
-      netApy: "-",
-      netApyOriginal: undefined,
-      netBalance: "-",
-      netBalanceOriginal: undefined,
-      netCollateral: "-",
-      netCollateralOriginal: undefined,
-      riskPremium: "-",
-      riskPremiumOriginal: undefined,
-      healthFactor: "-",
-      healthFactorValue: 0,
+      borrowRatio: calculateBorrowRatio(currentDebtUsd, collateralValueUsd),
+      borrowRatioOriginal: undefined,
+      healthFactor: formatHealthFactor(currentHealthFactor),
+      healthFactorValue: healthValue,
       healthFactorOriginal: undefined,
-      healthFactorOriginalValue: undefined,
     };
   }
 
-  // Calculate metrics when borrow amount > 0
-  const totalLoanAmount = currentLoanAmount + borrowAmount;
-  const collateralValueUSD = currentCollateralAmount * btcPrice;
+  // Calculate projected values after borrow
+  const totalDebtUsd = currentDebtUsd + borrowAmount;
+  const healthFactorValue = calculateHealthFactor(
+    collateralValueUsd,
+    totalDebtUsd,
+    liquidationThresholdBps,
+  );
 
-  // Original Net APY (before new borrow) - assume 0 if no current loan, else calculate based on current position
-  const netApyOriginal =
-    currentLoanAmount > 0 ? `-${borrowRate.toFixed(3)}%` : "0%";
-
-  // Net APY
-  const netApy = `-${borrowRate.toFixed(3)}%`;
-
-  // Original Net balance = currentLoanAmount formatted as USD
-  const netBalanceOriginal = `$${currentLoanAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-  // Net balance = totalLoanAmount formatted as USD
-  const netBalance = `$${totalLoanAmount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-  // Original and New Net collateral = collateral value in USD
-  const netCollateralOriginal = `$${collateralValueUSD.toLocaleString(
-    undefined,
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    },
-  )}`;
-
-  const netCollateral = `$${collateralValueUSD.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-  // Original Risk premium (before new borrow)
-  const riskPremiumOriginal = "0%";
-
-  const riskPremiumValue = 0;
-  const riskPremium = `${riskPremiumValue.toFixed(3)}%`;
-
-  // Calculate original health factor (before new borrow)
-  const originalHealthFactorValue =
-    currentLoanAmount > 0
-      ? (collateralValueUSD * (liquidationLtv / 100)) / currentLoanAmount
-      : 0;
-  const healthFactorOriginal =
-    originalHealthFactorValue > 0 ? originalHealthFactorValue.toFixed(2) : "-";
-
-  // Health factor = (collateralValue * liquidationLTV) / totalLoanAmount
-  const healthFactorValue =
-    totalLoanAmount > 0
-      ? (collateralValueUSD * (liquidationLtv / 100)) / totalLoanAmount
-      : 0;
-  const healthFactor =
-    healthFactorValue > 0 ? healthFactorValue.toFixed(2) : "-";
+  // Use Infinity for original when no debt - represents "infinitely healthy"
+  const originalHealthValue = currentHealthFactor ?? Infinity;
 
   return {
-    borrowRate: borrowRateFormatted,
-    netApy,
-    netApyOriginal,
-    netBalance,
-    netBalanceOriginal,
-    netCollateral,
-    netCollateralOriginal,
-    riskPremium,
-    riskPremiumOriginal,
-    healthFactor,
+    borrowRatio: calculateBorrowRatio(totalDebtUsd, collateralValueUsd),
+    borrowRatioOriginal: calculateBorrowRatio(
+      currentDebtUsd,
+      collateralValueUsd,
+    ),
+    healthFactor: formatHealthFactor(
+      healthFactorValue > 0 ? healthFactorValue : null,
+    ),
     healthFactorValue,
-    healthFactorOriginal,
-    healthFactorOriginalValue: originalHealthFactorValue,
+    healthFactorOriginal: formatHealthFactor(currentHealthFactor),
+    healthFactorOriginalValue: originalHealthValue,
   };
 }
