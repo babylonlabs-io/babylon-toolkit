@@ -8,98 +8,59 @@
  */
 
 import { Avatar, Container } from "@babylonlabs-io/core-ui";
-import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useState } from "react";
+import { useNavigate } from "react-router";
 import type { Address } from "viem";
 
 import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
-import { useAaveUserPosition } from "../../hooks";
+import {
+  useAaveBorrowedAssets,
+  useAaveUserPosition,
+  useAaveVaults,
+} from "../../hooks";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { CollateralCard } from "./components/CollateralCard";
-import { LoansCard, type BorrowedAsset } from "./components/LoansCard";
+import { LoansCard } from "./components/LoansCard";
 import { OverviewCard } from "./components/OverviewCard";
-import { VaultsTable, type VaultData } from "./components/VaultsTable";
-
-// Mock borrowed assets for demo
-const MOCK_BORROWED_ASSETS: BorrowedAsset[] = [
-  {
-    symbol: "USDC",
-    amount: "7590.16",
-    icon: "/images/usdc.png",
-  },
-  {
-    symbol: "USDT",
-    amount: "7590.16",
-    icon: "/images/usdt.png",
-  },
-];
+import { VaultsTable } from "./components/VaultsTable";
 
 export function AaveOverview() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [borrowedAssets, setBorrowedAssets] =
-    useState<BorrowedAsset[]>(MOCK_BORROWED_ASSETS);
 
   // Wallet connection
   const { address: ethAddressRaw } = useETHWallet();
   const ethAddress = ethAddressRaw as Address | undefined;
 
   // Fetch user's Aave position
-  const { collateralBtc, collateralValueUsd, debtValueUsd, healthFactor } =
-    useAaveUserPosition(ethAddress);
+  const {
+    position,
+    collateralBtc,
+    collateralValueUsd,
+    debtValueUsd,
+    healthFactor,
+  } = useAaveUserPosition(ethAddress);
+
+  // Fetch user's vaults
+  const { vaults } = useAaveVaults(ethAddress);
+
+  // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
+  const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
+    position,
+    debtValueUsd,
+  });
 
   // Derive display values
   const hasCollateral = collateralBtc > 0;
-  const hasDebt = debtValueUsd > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
-
-  // Read loan state from navigation when returning from borrow flow
-  useEffect(() => {
-    const state = location.state as { borrowedAssets?: BorrowedAsset[] } | null;
-    if (state?.borrowedAssets) {
-      setBorrowedAssets(state.borrowedAssets);
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
+  const isConnected = !!ethAddress;
 
   const handleBack = () => navigate("/");
-
-  // Mock vault data
-  const vaults: VaultData[] = [
-    {
-      id: "vault-1",
-      amount: "0.25 BTC",
-      amountValue: 0.25,
-      usdValue: "$21,686.17 USD",
-      usdValueNumber: 21686.17,
-      provider: {
-        name: "Babylon Prime",
-        icon: "https://www.gravatar.com/avatar/babylon-prime?d=identicon&s=64",
-      },
-      status: "Available",
-    },
-    {
-      id: "vault-2",
-      amount: "0.15 BTC",
-      amountValue: 0.15,
-      usdValue: "$13,011.70 USD",
-      usdValueNumber: 13011.7,
-      provider: {
-        name: "Babylon Prime",
-        icon: "https://www.gravatar.com/avatar/babylon-prime?d=identicon&s=64",
-      },
-      status: "Available",
-    },
-  ];
-
-  // TODO: Replace with actual wallet connection
-  const isConnected = true;
 
   const handleAdd = () => {
     // TODO: Navigate to add collateral flow
@@ -181,7 +142,7 @@ export function AaveOverview() {
 
         {/* Section 4: Loans */}
         <LoansCard
-          hasLoans={hasDebt}
+          hasLoans={hasLoans}
           hasCollateral={hasCollateral}
           borrowedAssets={borrowedAssets}
           healthFactor={healthFactor}

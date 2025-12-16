@@ -104,6 +104,14 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     decimals: 6,
     icon: "/images/usdc.png",
   },
+  // USDC - Vault Devnet
+  "0xc137E7382AA220D59Cc25f76f9aD72De962020Db": {
+    address: "0xc137E7382AA220D59Cc25f76f9aD72De962020Db" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: "/images/usdc.png",
+  },
   // USDT
   "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
     address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address,

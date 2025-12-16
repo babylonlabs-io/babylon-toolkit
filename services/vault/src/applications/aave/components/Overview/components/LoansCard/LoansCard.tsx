@@ -5,17 +5,12 @@
 
 import { Avatar, Button, Card, SubSection } from "@babylonlabs-io/core-ui";
 
+import type { BorrowedAsset } from "@/applications/aave/hooks";
 import {
   formatHealthFactor,
   isHealthFactorHealthy,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
-
-export interface BorrowedAsset {
-  symbol: string;
-  amount: string;
-  icon: string;
-}
 
 interface LoansCardProps {
   hasLoans: boolean;

@@ -22,14 +22,24 @@ export function formatProviderName(providerId: string): string {
 }
 
 /**
- * Format BTC amount for display
+ * Format BTC amount as a number string (without suffix)
+ * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0".
+ * @param decimals - Number of decimal places (default: 8)
+ * @returns Formatted number string (e.g., "1.23456789" or "0")
+ */
+export function formatBtcValue(btcAmount: number, decimals = 8): string {
+  if (btcAmount <= 0) return "0";
+  return btcAmount.toFixed(decimals);
+}
+
+/**
+ * Format BTC amount for display with suffix
  * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC".
  * @param decimals - Number of decimal places (default: 8)
  * @returns Formatted string (e.g., "1.23456789 BTC" or "0 BTC")
  */
 export function formatBtcAmount(btcAmount: number, decimals = 8): string {
-  if (btcAmount <= 0) return "0 BTC";
-  return `${btcAmount.toFixed(decimals)} BTC`;
+  return `${formatBtcValue(btcAmount, decimals)} BTC`;
 }
 
 /**

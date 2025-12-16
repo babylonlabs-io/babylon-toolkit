@@ -45,6 +45,7 @@ export {
   getUserPositionForReserve,
   getUserPositionsWithLiveData,
   type AavePositionWithLiveData,
+  type DebtPosition,
 } from "./positionService";
 
 // Reserve service
