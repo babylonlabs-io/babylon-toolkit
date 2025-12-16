@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatBtcAmount,
+  formatDateTime,
   formatLLTV,
   formatProviderName,
   formatUsdValue,
@@ -106,6 +107,33 @@ describe("Formatting Utilities", () => {
     it("should handle short provider IDs", () => {
       const providerId = "0x12345678";
       expect(formatProviderName(providerId)).toBe("Provider 0x1234...5678");
+    });
+  });
+
+  describe("formatDateTime", () => {
+    it("should format date as YYYY-MM-DD HH:mm:ss", () => {
+      const date = new Date(2024, 0, 15, 9, 5, 30); // Jan 15, 2024 09:05:30
+      expect(formatDateTime(date)).toBe("2024-01-15 09:05:30");
+    });
+
+    it("should pad single digit month, day, hour, minute, second with zeros", () => {
+      const date = new Date(2024, 0, 5, 3, 7, 9); // Jan 5, 2024 03:07:09
+      expect(formatDateTime(date)).toBe("2024-01-05 03:07:09");
+    });
+
+    it("should handle midnight correctly", () => {
+      const date = new Date(2024, 5, 20, 0, 0, 0); // Jun 20, 2024 00:00:00
+      expect(formatDateTime(date)).toBe("2024-06-20 00:00:00");
+    });
+
+    it("should handle end of day correctly", () => {
+      const date = new Date(2024, 11, 31, 23, 59, 59); // Dec 31, 2024 23:59:59
+      expect(formatDateTime(date)).toBe("2024-12-31 23:59:59");
+    });
+
+    it("should handle double digit months and days", () => {
+      const date = new Date(2024, 10, 25, 14, 30, 45); // Nov 25, 2024 14:30:45
+      expect(formatDateTime(date)).toBe("2024-11-25 14:30:45");
     });
   });
 });

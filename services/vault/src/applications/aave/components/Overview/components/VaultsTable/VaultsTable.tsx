@@ -166,7 +166,7 @@ export function VaultsTable({
     <Card className="w-full">
       <div className="w-full space-y-6">
         <h2 className="text-[24px] font-normal text-accent-primary">Vaults</h2>
-        <Table data={vaults} columns={columns} fluid />
+        <Table data={vaults} columns={columns} fluid stylePreset="card" />
       </div>
     </Card>
   );

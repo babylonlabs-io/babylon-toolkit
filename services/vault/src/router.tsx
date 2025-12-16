@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useParams } from "react-router";
 
 import { getEnabledApplications, isApplicationEnabled } from "./applications";
+import Activity from "./components/pages/Activity";
 import ApplicationsHome from "./components/pages/ApplicationsHome";
 import Deposit from "./components/pages/Deposit";
 import RootLayout from "./components/pages/RootLayout";
@@ -23,6 +24,7 @@ export const Router = () => {
     <Routes>
       <Route path="/" element={<RootLayout />}>
         <Route index element={<ApplicationsHome />} />
+        <Route path="activity" element={<Activity />} />
         <Route path="deposit" element={<Deposit />} />
 
         {enabledApps.map((app) => (
