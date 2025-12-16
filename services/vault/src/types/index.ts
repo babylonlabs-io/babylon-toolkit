@@ -1,4 +1,5 @@
 export * from "./activity";
+export * from "./activityLog";
 export * from "./application";
 export * from "./market";
 export * from "./position";
