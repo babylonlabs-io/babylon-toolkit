@@ -55,6 +55,7 @@ export function AaveOverview() {
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
+    healthFactorStatus,
     refetch: refetchPosition,
   } = useAaveUserPosition(ethAddress);
 
@@ -175,6 +176,7 @@ export function AaveOverview() {
           collateralAmount={collateralAmountFormatted}
           collateralValue={collateralValueFormatted}
           healthFactor={healthFactor}
+          healthFactorStatus={healthFactorStatus}
         />
 
         {/* Section 2: Vaults Table */}
@@ -196,6 +198,7 @@ export function AaveOverview() {
           hasLoans={hasLoans}
           borrowedAssets={borrowedAssets}
           healthFactor={healthFactor}
+          healthFactorStatus={healthFactorStatus}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
         />

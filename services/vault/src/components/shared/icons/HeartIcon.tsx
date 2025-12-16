@@ -1,16 +1,13 @@
 /**
  * HeartIcon Component
- * Displays a heart icon with dynamic color based on health status
  */
 
 interface HeartIconProps {
-  isHealthy: boolean;
+  color: string;
   className?: string;
 }
 
-export function HeartIcon({ isHealthy, className = "" }: HeartIconProps) {
-  const color = isHealthy ? "#00E676" : "#5A5A5A";
-
+export function HeartIcon({ color, className = "" }: HeartIconProps) {
   return (
     <svg
       width="16"

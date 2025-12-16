@@ -1,8 +1,11 @@
 import { KeyValueList, SubSection } from "@babylonlabs-io/core-ui";
 
+import {
+  getHealthFactorColor,
+  getHealthFactorStatus,
+  type HealthFactorStatus,
+} from "@/applications/aave/utils";
 import { HeartIcon, InfoIcon } from "@/components/shared";
-
-import { HEALTH_FACTOR_WARNING_THRESHOLD } from "../../../../constants";
 
 interface KeyValueItem {
   label: string | React.ReactNode;
@@ -28,6 +31,16 @@ function LabelWithInfo({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Get health factor status for preview calculations
+ * Note: For preview values, we assume there is debt if the value > 0
+ */
+function getPreviewHealthFactorStatus(value: number): HealthFactorStatus {
+  const hasDebt = value > 0;
+  const healthFactor = value > 0 ? value : null;
+  return getHealthFactorStatus(healthFactor, hasDebt);
+}
+
+/**
  * BorrowDetailsCard - Displays borrow rate and health factor with before → after indicators
  */
 export function BorrowDetailsCard({
@@ -38,8 +51,15 @@ export function BorrowDetailsCard({
   healthFactorOriginal,
   healthFactorOriginalValue,
 }: BorrowDetailsCardProps) {
-  const isHealthy = (value: number | undefined): boolean =>
-    value !== undefined && value >= HEALTH_FACTOR_WARNING_THRESHOLD;
+  const status = getPreviewHealthFactorStatus(healthFactorValue);
+  const color = getHealthFactorColor(status);
+  const originalStatus =
+    healthFactorOriginalValue !== undefined
+      ? getPreviewHealthFactorStatus(healthFactorOriginalValue)
+      : undefined;
+  const originalColor = originalStatus
+    ? getHealthFactorColor(originalStatus)
+    : undefined;
 
   const items: KeyValueItem[] = [
     {
@@ -56,24 +76,25 @@ export function BorrowDetailsCard({
     },
     {
       label: <LabelWithInfo>Health factor</LabelWithInfo>,
-      value: healthFactorOriginal ? (
-        <span className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-accent-secondary">
-            <HeartIcon isHealthy={isHealthy(healthFactorOriginalValue)} />
-            {healthFactorOriginal}
+      value:
+        healthFactorOriginal && originalColor ? (
+          <span className="flex items-center gap-2">
+            <span className="flex items-center gap-1 text-accent-secondary">
+              <HeartIcon color={originalColor} />
+              {healthFactorOriginal}
+            </span>
+            <span className="text-accent-secondary">→</span>
+            <span className="flex items-center gap-1">
+              <HeartIcon color={color} />
+              {healthFactor}
+            </span>
           </span>
-          <span className="text-accent-secondary">→</span>
-          <span className="flex items-center gap-1">
-            <HeartIcon isHealthy={isHealthy(healthFactorValue)} />
+        ) : (
+          <span className="flex items-center gap-2">
+            <HeartIcon color={color} />
             {healthFactor}
           </span>
-        </span>
-      ) : (
-        <span className="flex items-center gap-2">
-          <HeartIcon isHealthy={isHealthy(healthFactorValue)} />
-          {healthFactor}
-        </span>
-      ),
+        ),
     },
   ];
 

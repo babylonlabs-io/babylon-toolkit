@@ -8,7 +8,8 @@ import { Avatar, Button, SubSection } from "@babylonlabs-io/core-ui";
 import type { BorrowedAsset } from "@/applications/aave/hooks";
 import {
   formatHealthFactor,
-  isHealthFactorHealthy,
+  getHealthFactorColor,
+  type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
@@ -17,6 +18,8 @@ export interface LoansSectionProps {
   hasCollateral: boolean;
   borrowedAssets?: BorrowedAsset[];
   healthFactor: number | null;
+  /** Health factor status for display */
+  healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -26,11 +29,12 @@ export function LoansSection({
   hasCollateral,
   borrowedAssets = [],
   healthFactor,
+  healthFactorStatus,
   onBorrow,
   onRepay,
 }: LoansSectionProps) {
-  const isHealthy = isHealthFactorHealthy(healthFactor);
   const healthFactorFormatted = formatHealthFactor(healthFactor);
+  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
 
   return (
     <div className="w-full space-y-6">
@@ -99,7 +103,7 @@ export function LoansSection({
                 Health Factor
               </span>
               <span className="flex items-center gap-2 text-base text-accent-primary">
-                <HeartIcon isHealthy={isHealthy} />
+                <HeartIcon color={healthFactorColor} />
                 {healthFactorFormatted}
               </span>
             </div>
