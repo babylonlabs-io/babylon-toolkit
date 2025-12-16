@@ -26,7 +26,11 @@ export function AaveReserveDetail() {
   const { address } = useETHWallet();
 
   // Fetch reserves from Aave config
-  const { borrowableReserves, isLoading: configLoading } = useAaveConfig();
+  const {
+    vbtcReserve,
+    borrowableReserves,
+    isLoading: configLoading,
+  } = useAaveConfig();
 
   // Find the selected reserve by symbol (from URL param)
   const selectedReserve = useMemo(() => {
@@ -103,8 +107,8 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Reserve not found
-  if (!selectedReserve || !assetConfig) {
+  // Reserve not found or vBTC config missing
+  if (!selectedReserve || !assetConfig || !vbtcReserve) {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
@@ -124,17 +128,9 @@ export function AaveReserveDetail() {
     healthFactor,
   };
 
-  // Calculate liquidation threshold from current position data
-  // LT = (HF × Debt) / Collateral
-  // Note: collateralRisk from reserve is not the liquidation threshold
-  const calculatedLiquidationThreshold =
-    healthFactor && debtValueUsd > 0 && collateralValueUsd > 0
-      ? (healthFactor * debtValueUsd) / collateralValueUsd
-      : 0.75; // Default to 75% if no position
-
-  const liquidationThresholdBps = Math.round(
-    calculatedLiquidationThreshold * 10000,
-  );
+  // Get liquidation threshold (collateralFactor) from vBTC reserve
+  // collateralFactor is the proportion of collateral that can be borrowed against, in BPS
+  const liquidationThresholdBps = vbtcReserve.reserve.collateralFactor;
 
   return (
     <LoanProvider value={loanData}>

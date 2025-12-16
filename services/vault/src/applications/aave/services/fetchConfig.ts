@@ -46,6 +46,8 @@ export interface AaveReserveConfig {
     frozen: boolean;
     borrowable: boolean;
     collateralRisk: number;
+    /** Collateral factor (liquidation threshold) in BPS from DynamicReserveConfig */
+    collateralFactor: number;
   };
   /** Token metadata */
   token: {
@@ -80,6 +82,7 @@ interface GraphQLReserveItem {
   frozen: boolean;
   borrowable: boolean;
   collateralRisk: number;
+  collateralFactor: number;
   underlyingToken: {
     address: string;
     symbol: string;
@@ -133,6 +136,7 @@ const GET_AAVE_APP_CONFIG = gql`
         frozen
         borrowable
         collateralRisk
+        collateralFactor
         underlyingToken {
           address
           symbol
@@ -164,6 +168,7 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
       frozen: raw.frozen,
       borrowable: raw.borrowable,
       collateralRisk: raw.collateralRisk,
+      collateralFactor: raw.collateralFactor,
     },
     token: {
       address: raw.underlyingToken.address as Address,

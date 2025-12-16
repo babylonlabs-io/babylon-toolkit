@@ -31,6 +31,8 @@ export interface AaveReserveWithMetadata {
     frozen: boolean;
     borrowable: boolean;
     collateralRisk: number;
+    /** Collateral factor (liquidation threshold) in BPS from DynamicReserveConfig */
+    collateralFactor: number;
   };
   /** Token metadata */
   token: {
@@ -95,6 +97,7 @@ function toReserveWithMetadata(
       frozen: reserve.frozen,
       borrowable: reserve.borrowable,
       collateralRisk: reserve.collateralRisk,
+      collateralFactor: reserve.collateralFactor,
     },
     token: {
       address: reserve.underlyingToken.address as Address,

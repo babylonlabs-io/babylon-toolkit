@@ -29,9 +29,11 @@ export interface UseBorrowMetricsResult {
   /** Original borrow rate shown when borrow amount > 0 to show before → after */
   borrowRatioOriginal?: string;
   healthFactor: string;
+  /** Health factor value for UI (Infinity when no debt = healthy) */
   healthFactorValue: number;
   /** Original health factor shown when borrow amount > 0 to show before → after */
   healthFactorOriginal?: string;
+  /** Original health factor value for UI (Infinity when no debt = healthy) */
   healthFactorOriginalValue?: number;
 }
 
@@ -44,11 +46,13 @@ export function useBorrowMetrics({
 }: UseBorrowMetricsProps): UseBorrowMetricsResult {
   // When no borrow amount entered, show current values (no projection)
   if (borrowAmount === 0) {
+    // Use Infinity when no debt - represents "infinitely healthy" for UI purposes
+    const healthValue = currentHealthFactor ?? Infinity;
     return {
       borrowRatio: calculateBorrowRatio(currentDebtUsd, collateralValueUsd),
       borrowRatioOriginal: undefined,
       healthFactor: formatHealthFactor(currentHealthFactor),
-      healthFactorValue: currentHealthFactor ?? 0,
+      healthFactorValue: healthValue,
       healthFactorOriginal: undefined,
     };
   }
@@ -61,6 +65,9 @@ export function useBorrowMetrics({
     liquidationThresholdBps,
   );
 
+  // Use Infinity for original when no debt - represents "infinitely healthy"
+  const originalHealthValue = currentHealthFactor ?? Infinity;
+
   return {
     borrowRatio: calculateBorrowRatio(totalDebtUsd, collateralValueUsd),
     borrowRatioOriginal: calculateBorrowRatio(
@@ -72,6 +79,6 @@ export function useBorrowMetrics({
     ),
     healthFactorValue,
     healthFactorOriginal: formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: currentHealthFactor ?? undefined,
+    healthFactorOriginalValue: originalHealthValue,
   };
 }
