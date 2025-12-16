@@ -19,6 +19,15 @@ import {
 } from "./fetchPositions";
 
 /**
+ * Debt position data for a single reserve
+ */
+export interface DebtPosition {
+  reserveId: bigint;
+  drawnShares: bigint;
+  premiumShares: bigint;
+}
+
+/**
  * Position with live on-chain data
  */
 export interface AavePositionWithLiveData extends AavePosition {
@@ -40,6 +49,23 @@ export interface AavePositionWithLiveData extends AavePosition {
    * This is the authoritative data for health factor and values.
    */
   accountData: AaveSpokeUserAccountData;
+  /**
+   * Debt positions across borrowable reserves (only populated if borrowableReserveIds provided)
+   * Map of reserveId to debt position data (only includes reserves with debt)
+   */
+  debtPositions?: Map<bigint, DebtPosition>;
+}
+
+/**
+ * Options for getUserPositionsWithLiveData
+ */
+export interface GetUserPositionsOptions {
+  /**
+   * Optional array of borrowable reserve IDs to check for debt positions.
+   * If provided, debt positions will be fetched in the same call and included in the result.
+   * This avoids a separate RPC call when both position and debt data are needed.
+   */
+  borrowableReserveIds?: bigint[];
 }
 
 /**
@@ -51,14 +77,27 @@ export interface AavePositionWithLiveData extends AavePosition {
  * Note: In Babylon vault integration, users can only have ONE position
  * (single vBTC collateral reserve), so we don't need batch calls.
  *
+ * **WARNING: This is a heavy method that makes multiple RPC calls:**
+ * - 1 GraphQL call (indexer)
+ * - 1 RPC call for collateral position (getUserPosition)
+ * - 1 RPC call for account data (getUserAccountData)
+ * - N RPC calls for debt positions if borrowableReserveIds provided (one per reserve)
+ *
+ * Use sparingly and cache results appropriately (e.g., with React Query).
+ * Avoid calling this method multiple times for the same user in a single render.
+ *
  * @param depositor - User's Ethereum address
  * @param spokeAddress - Spoke contract address (from config context)
+ * @param options - Optional parameters including borrowableReserveIds for debt positions
  * @returns Array of positions with live data (0 or 1 position)
  */
 export async function getUserPositionsWithLiveData(
   depositor: string,
   spokeAddress: Address,
+  options: GetUserPositionsOptions = {},
 ): Promise<AavePositionWithLiveData[]> {
+  const { borrowableReserveIds } = options;
+
   // Fetch active positions with collaterals in a single GraphQL call
   const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
 
@@ -76,6 +115,20 @@ export async function getUserPositionsWithLiveData(
     AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
   ]);
 
+  // Optionally fetch debt positions if borrowable reserves provided and user has debt
+  let debtPositions: Map<bigint, DebtPosition> | undefined;
+  if (
+    borrowableReserveIds &&
+    borrowableReserveIds.length > 0 &&
+    accountData.borrowedCount > 0n
+  ) {
+    debtPositions = await fetchDebtPositionsForReserves(
+      proxyAddress,
+      spokeAddress,
+      borrowableReserveIds,
+    );
+  }
+
   return [
     {
       ...position,
@@ -86,8 +139,50 @@ export async function getUserPositionsWithLiveData(
         hasDebt: hasDebtFromPosition(spokePosition),
       },
       accountData,
+      debtPositions,
     },
   ];
+}
+
+/**
+ * Internal helper to fetch debt positions for multiple reserves
+ */
+async function fetchDebtPositionsForReserves(
+  proxyAddress: Address,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+): Promise<Map<bigint, DebtPosition>> {
+  const results = new Map<bigint, DebtPosition>();
+
+  // Query all reserves in parallel
+  const positions = await Promise.all(
+    reserveIds.map(async (reserveId) => {
+      try {
+        const position = await AaveSpoke.getUserPosition(
+          spokeAddress,
+          reserveId,
+          proxyAddress,
+        );
+        return { reserveId, position };
+      } catch {
+        // Reserve might not exist or user has no position
+        return { reserveId, position: null };
+      }
+    }),
+  );
+
+  // Filter to reserves with debt
+  for (const { reserveId, position } of positions) {
+    if (position && hasDebtFromPosition(position)) {
+      results.set(reserveId, {
+        reserveId,
+        drawnShares: position.drawnShares,
+        premiumShares: position.premiumShares,
+      });
+    }
+  }
+
+  return results;
 }
 
 /**

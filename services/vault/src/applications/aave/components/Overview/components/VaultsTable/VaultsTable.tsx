@@ -8,20 +8,27 @@ import { Avatar, Button, Card, Popover, Table } from "@babylonlabs-io/core-ui";
 import { useRef, useState } from "react";
 
 import { InfoIcon, MenuButton } from "@/components/shared";
+import {
+  PEGIN_DISPLAY_LABELS,
+  type PeginDisplayLabel,
+} from "@/models/peginStateMachine";
+import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
 
 import { VaultsEmptyState } from "./VaultsEmptyState";
 
 export interface VaultData {
   id: string;
-  amount: string;
-  amountValue: number;
-  usdValue: string;
-  usdValueNumber: number;
+  /** BTC amount (for display and sorting) */
+  amount: number;
+  /** USD value (for display and sorting) */
+  usdValue: number;
   provider: {
     name: string;
-    icon: string;
+    /** Icon URL - undefined will use Avatar component's built-in fallback */
+    icon?: string;
   };
-  status: "In use" | "Available";
+  /** Vault status from centralized state machine */
+  status: PeginDisplayLabel;
 }
 
 interface VaultsTableProps {
@@ -83,17 +90,15 @@ export function VaultsTable({
       header: "BTC Vault",
       headerClassName: "w-[50%]",
       cellClassName: "w-[50%]",
-      sorter: (a, b) => a.amountValue - b.amountValue,
+      sorter: (a, b) => a.amount - b.amount,
       render: (_value, row) => (
         <div className="flex items-center gap-3">
-          <Avatar
-            url="https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400"
-            alt="BTC"
-            size="small"
-          />
+          <Avatar url="/images/btc.png" alt="BTC" size="small" />
           <span className="text-base text-accent-primary">
-            {row.amount}{" "}
-            <span className="text-accent-secondary">({row.usdValue})</span>
+            {formatBtcValue(row.amount)}{" "}
+            <span className="text-accent-secondary">
+              ({formatUsdValue(row.usdValue)})
+            </span>
           </span>
         </div>
       ),
@@ -117,7 +122,9 @@ export function VaultsTable({
         <div className="flex items-center gap-2">
           <div
             className={`h-2 w-2 rounded-full ${
-              row.status === "In use" ? "bg-green-500" : "bg-gray-400"
+              row.status === PEGIN_DISPLAY_LABELS.IN_USE
+                ? "bg-green-500"
+                : "bg-gray-400"
             }`}
           />
           <span className="text-sm text-accent-primary">{row.status}</span>

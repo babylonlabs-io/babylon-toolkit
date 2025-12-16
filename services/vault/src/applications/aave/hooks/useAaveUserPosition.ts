@@ -74,12 +74,31 @@ function getHealthFactorStatus(
  *
  * Values are sourced from Aave's on-chain oracle prices, making them
  * authoritative for liquidation decisions.
+ *
+ * Also fetches debt positions for all borrowable reserves in the same call,
+ * avoiding separate RPC calls when displaying borrowed assets.
  */
 export function useAaveUserPosition(
   connectedAddress: Address | undefined,
 ): UseAaveUserPositionResult {
-  const { config, isLoading: configLoading } = useAaveConfig();
+  const {
+    config,
+    borrowableReserves,
+    isLoading: configLoading,
+  } = useAaveConfig();
   const spokeAddress = config?.btcVaultCoreSpokeAddress as Address | undefined;
+
+  // Extract reserve IDs for fetching debt positions
+  const borrowableReserveIds = useMemo(
+    () => borrowableReserves.map((r) => r.reserveId),
+    [borrowableReserves],
+  );
+
+  // Convert BigInt to string for React Query key serialization
+  const borrowableReserveIdsKey = useMemo(
+    () => borrowableReserveIds.map((id) => id.toString()),
+    [borrowableReserveIds],
+  );
 
   const {
     data: positions,
@@ -87,9 +106,16 @@ export function useAaveUserPosition(
     error: positionsError,
     refetch,
   } = useQuery({
-    queryKey: ["aaveUserPosition", connectedAddress, spokeAddress],
+    queryKey: [
+      "aaveUserPosition",
+      connectedAddress,
+      spokeAddress,
+      borrowableReserveIdsKey,
+    ],
     queryFn: () =>
-      getUserPositionsWithLiveData(connectedAddress!, spokeAddress!),
+      getUserPositionsWithLiveData(connectedAddress!, spokeAddress!, {
+        borrowableReserveIds,
+      }),
     enabled: !!connectedAddress && !!spokeAddress,
     refetchOnMount: true,
     refetchInterval: POSITION_REFETCH_INTERVAL_MS,
