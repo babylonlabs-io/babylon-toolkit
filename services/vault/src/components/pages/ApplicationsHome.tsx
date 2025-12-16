@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Applications } from "../Applications";
+import { MOCK_TVL_STATS, TVLStats } from "../Applications/TVLStats";
 import { Connect } from "../Wallet";
 
 export default function ApplicationsHome() {
@@ -39,6 +40,9 @@ export default function ApplicationsHome() {
           )}
         </div>
       </div>
+
+      <TVLStats data={MOCK_TVL_STATS} />
+
       <Applications />
     </Container>
   );
