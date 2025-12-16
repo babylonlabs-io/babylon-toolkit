@@ -2,6 +2,39 @@ import { type Hash } from "viem";
 
 import { ContractError, ErrorCode } from "./types";
 
+function getEnhancedErrorMessage(
+  message: string,
+  operationName: string,
+): string {
+  const lowerMessage = message.toLowerCase();
+
+  if (
+    lowerMessage.includes("paused") ||
+    lowerMessage.includes("whennotpaused")
+  ) {
+    return `${operationName} failed: The market is currently paused for maintenance. Please try again later.`;
+  }
+  if (lowerMessage.includes("frozen") || lowerMessage.includes("isfrozen")) {
+    return `${operationName} failed: This market is frozen and not accepting new operations.`;
+  }
+  if (
+    lowerMessage.includes("insufficient liquidity") ||
+    lowerMessage.includes("not enough")
+  ) {
+    return `${operationName} failed: Insufficient liquidity available in the market. Please try a smaller amount.`;
+  }
+  if (lowerMessage.includes("cap") || lowerMessage.includes("supply cap")) {
+    return `${operationName} failed: The collateral cap has been reached. Please try a smaller amount.`;
+  }
+  if (
+    lowerMessage.includes("user rejected") ||
+    lowerMessage.includes("denied")
+  ) {
+    return `${operationName} was rejected by the wallet.`;
+  }
+  return `Failed to ${operationName}: ${message}`;
+}
+
 /**
  * Maps viem contract errors to ContractError with appropriate error codes
  *
@@ -76,13 +109,9 @@ export function mapViemErrorToContractError(
     }
   }
 
-  return new ContractError(
-    `Failed to ${operationName}: ${errorMessage}`,
-    code,
-    transactionHash,
-    reason,
-    {
-      cause: error,
-    },
-  );
+  const enhancedMessage = getEnhancedErrorMessage(errorMessage, operationName);
+
+  return new ContractError(enhancedMessage, code, transactionHash, reason, {
+    cause: error,
+  });
 }
