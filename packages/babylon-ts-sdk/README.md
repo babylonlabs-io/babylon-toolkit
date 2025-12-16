@@ -37,7 +37,7 @@ The SDK uses subpath exports for tree-shaking:
 import {
   PeginManager,
   PayoutManager,
-} from "@babylonlabs-io/ts-sdk/tbv/core/managers";
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Low-level primitives (advanced use cases)
 import {
@@ -46,13 +46,13 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 // Utilities
-import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Shared types and wallet interfaces
 import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
 
 // Contract ABIs
-import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core/contracts";
+import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations
 import { MorphoClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/morpho";

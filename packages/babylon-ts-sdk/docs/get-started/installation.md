@@ -59,21 +59,21 @@ buildPeginPsbt type: function
 
 ## Troubleshooting
 
-### "Cannot find module '@babylonlabs-io/ts-sdk/tbv/core/managers'"
+### "Cannot find module" errors
 
 **Cause:** TypeScript or bundler doesn't support subpath exports (requires TS 4.7+ or modern bundler).
 
-**Solution:** Use direct imports instead:
+**Solution:** Upgrade TypeScript: `npm install typescript@latest`
 
-```typescript
-// Instead of subpath imports
-import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core/managers";
+Or configure TypeScript to use modern module resolution:
 
-// Use direct paths
-import { PeginManager } from "@babylonlabs-io/ts-sdk/dist/tbv/core/managers/PeginManager";
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler"
+  }
+}
 ```
-
-Or upgrade TypeScript: `npm install typescript@latest`
 
 ### "Buffer is not defined" (Browser)
 
