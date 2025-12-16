@@ -11,21 +11,21 @@ import type { Address } from "viem";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
-import {
-  HEALTH_FACTOR_WARNING_THRESHOLD,
-  POSITION_REFETCH_INTERVAL_MS,
-} from "../constants";
+import { POSITION_REFETCH_INTERVAL_MS } from "../constants";
 import { useAaveConfig } from "../context";
 import {
   getUserPositionsWithLiveData,
   type AavePositionWithLiveData,
 } from "../services";
-import { aaveValueToUsd, wadToNumber } from "../utils";
+import {
+  aaveValueToUsd,
+  getHealthFactorStatus,
+  wadToNumber,
+  type HealthFactorStatus,
+} from "../utils";
 
-/**
- * Health factor status based on Aave liquidation threshold
- */
-export type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
+// Re-export for consumers
+export type { HealthFactorStatus };
 
 /**
  * Result interface for useAaveUserPosition hook
@@ -53,20 +53,6 @@ export interface UseAaveUserPositionResult {
   error: Error | null;
   /** Refetch function */
   refetch: () => Promise<void>;
-}
-
-/**
- * Determine health factor status for UI display
- */
-function getHealthFactorStatus(
-  healthFactor: number | null,
-  hasDebt: boolean,
-): HealthFactorStatus {
-  if (!hasDebt) return "no_debt";
-  if (healthFactor === null) return "safe";
-  if (healthFactor < 1.0) return "danger";
-  if (healthFactor < HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
-  return "safe";
 }
 
 /**

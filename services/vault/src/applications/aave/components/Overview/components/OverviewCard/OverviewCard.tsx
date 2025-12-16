@@ -7,7 +7,8 @@ import { Card } from "@babylonlabs-io/core-ui";
 
 import {
   formatHealthFactor,
-  isHealthFactorHealthy,
+  getHealthFactorColor,
+  type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
@@ -16,15 +17,18 @@ interface OverviewCardProps {
   collateralValue: string;
   /** Health factor value from Aave (null if no debt or loading) */
   healthFactor: number | null;
+  /** Health factor status for display */
+  healthFactorStatus: HealthFactorStatus;
 }
 
 export function OverviewCard({
   collateralAmount,
   collateralValue,
   healthFactor,
+  healthFactorStatus,
 }: OverviewCardProps) {
-  const isHealthy = isHealthFactorHealthy(healthFactor);
   const healthFactorFormatted = formatHealthFactor(healthFactor);
+  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
 
   return (
     <Card className="w-full">
@@ -48,7 +52,7 @@ export function OverviewCard({
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">Health Factor</span>
             <span className="flex items-center gap-2 text-base text-accent-primary">
-              <HeartIcon isHealthy={isHealthy} />
+              <HeartIcon color={healthFactorColor} />
               {healthFactorFormatted}
             </span>
           </div>

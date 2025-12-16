@@ -6,7 +6,10 @@
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import type { BorrowedAsset } from "@/applications/aave/hooks";
+import type {
+  BorrowedAsset,
+  HealthFactorStatus,
+} from "@/applications/aave/hooks";
 
 import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
@@ -23,6 +26,7 @@ interface PositionCardProps {
   hasLoans: boolean;
   borrowedAssets?: BorrowedAsset[];
   healthFactor: number | null;
+  healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -37,6 +41,7 @@ export function PositionCard({
   hasLoans,
   borrowedAssets = [],
   healthFactor,
+  healthFactorStatus,
   onBorrow,
   onRepay,
 }: PositionCardProps) {
@@ -67,6 +72,7 @@ export function PositionCard({
                   hasCollateral={hasCollateral}
                   borrowedAssets={borrowedAssets}
                   healthFactor={healthFactor}
+                  healthFactorStatus={healthFactorStatus}
                   onBorrow={onBorrow}
                   onRepay={onRepay}
                 />

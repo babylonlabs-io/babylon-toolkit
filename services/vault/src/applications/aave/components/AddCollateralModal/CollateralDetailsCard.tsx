@@ -11,20 +11,25 @@ import { getTokenByAddress } from "@/services/token";
 import { useAaveConfig } from "../../context";
 import {
   formatHealthFactor,
-  isHealthFactorHealthy,
+  getHealthFactorColor,
+  getHealthFactorStatus,
 } from "../../utils/healthFactor";
 
 interface CollateralDetailsCardProps {
   /** Projected health factor after adding collateral */
   healthFactor: number | null;
+  /** Whether there is active debt */
+  hasDebt?: boolean;
 }
 
 export function CollateralDetailsCard({
   healthFactor,
+  hasDebt = false,
 }: CollateralDetailsCardProps) {
   const { borrowableReserves } = useAaveConfig();
 
-  const isHealthy = isHealthFactorHealthy(healthFactor);
+  const healthFactorStatus = getHealthFactorStatus(healthFactor, hasDebt);
+  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
   const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   // Get icons for borrowable assets
@@ -67,7 +72,7 @@ export function CollateralDetailsCard({
         <div className="flex items-center justify-between">
           <span className="text-sm text-accent-secondary">Health Factor</span>
           <span className="flex items-center gap-2 text-base text-accent-primary">
-            <HeartIcon isHealthy={isHealthy} />
+            <HeartIcon color={healthFactorColor} />
             {healthFactorFormatted}
           </span>
         </div>

@@ -120,7 +120,10 @@ export function AddCollateralModal({
         </SubSection>
 
         {/* Details Card */}
-        <CollateralDetailsCard healthFactor={projectedHealthFactor} />
+        <CollateralDetailsCard
+          healthFactor={projectedHealthFactor}
+          hasDebt={currentDebtUsd > 0}
+        />
       </DialogBody>
 
       <DialogFooter className="border-t border-secondary-strokeLight pt-4">
