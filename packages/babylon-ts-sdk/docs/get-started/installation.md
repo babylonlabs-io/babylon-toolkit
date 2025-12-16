@@ -13,13 +13,13 @@ Install the SDK using your preferred package manager:
 
 ```bash
 # npm
-npm install @babylonlabs-io/ts-sdk
+npm install @babylonlabs-io/ts-sdk viem
 
 # yarn
-yarn add @babylonlabs-io/ts-sdk
+yarn add @babylonlabs-io/ts-sdk viem
 
 # pnpm
-pnpm add @babylonlabs-io/ts-sdk
+pnpm add @babylonlabs-io/ts-sdk viem
 ```
 
 ## Dependencies
