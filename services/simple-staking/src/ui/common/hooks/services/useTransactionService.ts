@@ -14,6 +14,7 @@ import { useAppState } from "@/ui/common/state";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getTxInfo, getTxMerkleProof } from "@/ui/common/utils/mempool_api";
 import { validateStakingManagerInputs } from "@/ui/common/utils/validateStakingManagerInputs";
+import { assertWithdrawalAddressesValid } from "@/ui/common/utils/wallet";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
 import { DELEGATIONS_V2_KEY } from "../client/api/useDelegationsV2";
@@ -41,7 +42,13 @@ export const useTransactionService = () => {
   } = useBbnQuery();
 
   const { bech32Address } = useCosmosWallet();
-  const { publicKeyNoCoord, address: btcAddress, pushTx } = useBTCWallet();
+  const {
+    publicKeyNoCoord,
+    address: btcAddress,
+    pushTx,
+    network,
+    getPublicKeyHex,
+  } = useBTCWallet();
   const logger = useLogger();
 
   const stakerInfo = useMemo(
@@ -351,6 +358,18 @@ export const useTransactionService = () => {
           Transaction.fromHex(earlyUnbondingTxHex),
           defaultFeeRate,
         );
+
+      if (!network) {
+        throw new ClientError(
+          ERROR_CODES.MISSING_DATA_ERROR,
+          "Bitcoin network not available",
+        );
+      }
+
+      const publicKeyHex = await getPublicKeyHex();
+      const outputScripts = signedWithdrawalTx.outs.map((out) => out.script);
+      assertWithdrawalAddressesValid(outputScripts, publicKeyHex, network);
+
       await pushTx(signedWithdrawalTx.toHex());
     },
     [
@@ -360,6 +379,8 @@ export const useTransactionService = () => {
       stakerInfo,
       tipHeight,
       logger,
+      network,
+      getPublicKeyHex,
     ],
   );
 
@@ -396,6 +417,18 @@ export const useTransactionService = () => {
           Transaction.fromHex(stakingTxHex),
           defaultFeeRate,
         );
+
+      if (!network) {
+        throw new ClientError(
+          ERROR_CODES.MISSING_DATA_ERROR,
+          "Bitcoin network not available",
+        );
+      }
+
+      const publicKeyHex = await getPublicKeyHex();
+      const outputScripts = signedWithdrawalTx.outs.map((out) => out.script);
+      assertWithdrawalAddressesValid(outputScripts, publicKeyHex, network);
+
       await pushTx(signedWithdrawalTx.toHex());
     },
     [
@@ -405,6 +438,8 @@ export const useTransactionService = () => {
       stakerInfo,
       tipHeight,
       logger,
+      network,
+      getPublicKeyHex,
     ],
   );
 
@@ -437,9 +472,29 @@ export const useTransactionService = () => {
           Transaction.fromHex(slashingTxHex),
           defaultFeeRate,
         );
+
+      if (!network) {
+        throw new ClientError(
+          ERROR_CODES.MISSING_DATA_ERROR,
+          "Bitcoin network not available",
+        );
+      }
+
+      const publicKeyHex = await getPublicKeyHex();
+      const outputScripts = signedWithdrawalTx.outs.map((out) => out.script);
+      assertWithdrawalAddressesValid(outputScripts, publicKeyHex, network);
+
       await pushTx(signedWithdrawalTx.toHex());
     },
-    [createBtcStakingManager, defaultFeeRate, pushTx, stakerInfo, tipHeight],
+    [
+      createBtcStakingManager,
+      defaultFeeRate,
+      pushTx,
+      stakerInfo,
+      tipHeight,
+      network,
+      getPublicKeyHex,
+    ],
   );
 
   /**

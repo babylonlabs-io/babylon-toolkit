@@ -4,6 +4,12 @@ import { networks } from "bitcoinjs-lib";
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 import { Network } from "@/ui/common/types/network";
 
+export {
+  assertWithdrawalAddressesValid,
+  deriveAllowedWithdrawalAddresses,
+  validateWithdrawalOutputs,
+} from "./validateWithdrawalAddress";
+
 const nativeSegwitAddressLength = 42;
 const taprootAddressLength = 62;
 export const LOW_VALUE_UTXO_THRESHOLD = 10000;

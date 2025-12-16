@@ -16,13 +16,20 @@ import { txFeeSafetyCheck } from "@/ui/common/utils/delegations/fee";
 import { getFeeRateFromMempool } from "@/ui/common/utils/getFeeRateFromMempool";
 import { getBbnParamByBtcHeight } from "@/ui/common/utils/params";
 import { validateV1StakingManagerInputs } from "@/ui/common/utils/validateV1StakingManagerInputs";
+import { assertWithdrawalAddressesValid } from "@/ui/common/utils/wallet";
 
 import { useNetworkFees } from "../client/api/useNetworkFees";
 
 import { useStakingManagerService } from "./useStakingManagerService";
 
 export function useV1TransactionService() {
-  const { publicKeyNoCoord, address: btcAddress, pushTx } = useBTCWallet();
+  const {
+    publicKeyNoCoord,
+    address: btcAddress,
+    pushTx,
+    network,
+    getPublicKeyHex,
+  } = useBTCWallet();
   const { data: networkFees } = useNetworkFees();
   const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const { networkInfo } = useAppState();
@@ -194,6 +201,17 @@ export function useV1TransactionService() {
       // Perform a safety check on the estimated transaction fee
       txFeeSafetyCheck(result.transaction, defaultFeeRate, result.fee);
 
+      if (!network) {
+        throw new ClientError(
+          ERROR_CODES.MISSING_DATA_ERROR,
+          "Bitcoin network not available",
+        );
+      }
+
+      const publicKeyHex = await getPublicKeyHex();
+      const outputScripts = result.transaction.outs.map((out) => out.script);
+      assertWithdrawalAddressesValid(outputScripts, publicKeyHex, network);
+
       await pushTx(result.transaction.toHex());
     },
     [
@@ -203,6 +221,8 @@ export function useV1TransactionService() {
       stakerBtcInfo,
       versionedParams,
       logger,
+      network,
+      getPublicKeyHex,
     ],
   );
 
