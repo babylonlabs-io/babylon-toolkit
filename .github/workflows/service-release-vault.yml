@@ -122,10 +122,12 @@ jobs:
           # Analytics
           GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
 
-      - name: Copy all index.html to fix path for deposit
+      - name: Copy all index.html to fix path for deposit, app/aave
         run: |
           cd services/vault/dist
           cp index.html deposit
+          mkdir -p app
+          cp index.html app/aave
 
       - name: Generate sha256sum checksum
         run: |
