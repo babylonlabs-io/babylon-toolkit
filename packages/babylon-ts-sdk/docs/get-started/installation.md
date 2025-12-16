@@ -4,7 +4,7 @@ A quick guide to installing and verifying the Babylon TypeScript SDK.
 
 ## System Requirements
 
-- **Node.js** 24
+- **Node.js** >= 24.0.0
 - **Package Manager**: `npm`, `yarn`, or `pnpm`
 
 ## Installation
