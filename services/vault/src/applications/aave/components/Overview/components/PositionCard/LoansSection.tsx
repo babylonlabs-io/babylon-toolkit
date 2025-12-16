@@ -1,9 +1,9 @@
 /**
- * LoansCard Component
- * Displays loan information with Borrow/Repay buttons or empty state
+ * LoansSection Component
+ * Displays loan information with Borrow/Repay buttons
  */
 
-import { Avatar, Button, Card, SubSection } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, SubSection } from "@babylonlabs-io/core-ui";
 
 import type { BorrowedAsset } from "@/applications/aave/hooks";
 import {
@@ -12,56 +12,33 @@ import {
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 
-interface LoansCardProps {
+export interface LoansSectionProps {
   hasLoans: boolean;
   hasCollateral: boolean;
   borrowedAssets?: BorrowedAsset[];
-  /** Health factor value from Aave (null if no debt) */
   healthFactor: number | null;
   onBorrow: () => void;
   onRepay: () => void;
 }
 
-export function LoansCard({
+export function LoansSection({
   hasLoans,
   hasCollateral,
   borrowedAssets = [],
   healthFactor,
   onBorrow,
   onRepay,
-}: LoansCardProps) {
+}: LoansSectionProps) {
   const isHealthy = isHealthFactorHealthy(healthFactor);
   const healthFactorFormatted = formatHealthFactor(healthFactor);
 
   return (
-    <Card className="w-full">
-      <div className="w-full space-y-6">
-        {/* Header with buttons */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-[24px] font-normal text-accent-primary">Loans</h2>
-          {hasLoans ? (
-            <div className="flex gap-3">
-              <Button
-                variant="outlined"
-                color="primary"
-                size="medium"
-                onClick={onBorrow}
-                className="rounded-full"
-                disabled={!hasCollateral}
-              >
-                Borrow
-              </Button>
-              <Button
-                variant="outlined"
-                color="primary"
-                size="medium"
-                onClick={onRepay}
-                className="rounded-full"
-              >
-                Repay
-              </Button>
-            </div>
-          ) : (
+    <div className="w-full space-y-6">
+      {/* Header with buttons */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-[24px] font-normal text-accent-primary">Loans</h2>
+        {hasLoans ? (
+          <div className="flex gap-3">
             <Button
               variant="outlined"
               color="primary"
@@ -72,11 +49,33 @@ export function LoansCard({
             >
               Borrow
             </Button>
-          )}
-        </div>
+            <Button
+              variant="outlined"
+              color="primary"
+              size="medium"
+              onClick={onRepay}
+              className="rounded-full"
+            >
+              Repay
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outlined"
+            color="primary"
+            size="medium"
+            onClick={onBorrow}
+            className="rounded-full"
+            disabled={!hasCollateral}
+          >
+            Borrow
+          </Button>
+        )}
+      </div>
 
-        {/* Content - either loan info or empty state */}
-        {hasLoans ? (
+      {/* Content - either loan info or empty state */}
+      {hasLoans ? (
+        <SubSection className="w-full">
           <div className="space-y-4">
             {/* Borrowed Rows - one per asset */}
             {borrowedAssets.map((asset) => (
@@ -105,17 +104,17 @@ export function LoansCard({
               </span>
             </div>
           </div>
-        ) : (
-          <SubSection className="w-full py-10">
-            <div className="flex flex-col items-center justify-center gap-2 text-center">
-              <p className="text-base text-accent-primary">No active loans.</p>
-              <p className="text-sm text-accent-secondary">
-                Add collateral to start borrowing.
-              </p>
-            </div>
-          </SubSection>
-        )}
-      </div>
-    </Card>
+        </SubSection>
+      ) : (
+        <SubSection className="w-full py-10">
+          <div className="flex flex-col items-center justify-center gap-2 text-center">
+            <p className="text-base text-accent-primary">No active loans.</p>
+            <p className="text-sm text-accent-secondary">
+              Add collateral to start borrowing.
+            </p>
+          </div>
+        </SubSection>
+      )}
+    </div>
   );
 }
