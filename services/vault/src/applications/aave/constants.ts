@@ -71,3 +71,9 @@ export const WAD_DECIMALS = 18;
  * Positions below this are considered at risk of liquidation
  */
 export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
+
+/**
+ * Minimum health factor allowed for borrowing
+ * Prevents users from borrowing if resulting health factor would be below this.
+ */
+export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;

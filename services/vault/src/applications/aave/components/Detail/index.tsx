@@ -1,61 +1,61 @@
 /**
- * Aave Reserve Detail Page (UI-only)
+ * Aave Reserve Detail Page
  *
- * Borrow card layout.
+ * Borrow card layout with real position data from Aave oracle.
+ * Reserve is selected from the overview page and passed via URL param.
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
+import { useETHWallet } from "@/context/wallet";
+import { getTokenByAddress } from "@/services/token/tokenService";
 
-import {
-  MarketDetailProvider,
-  type MarketDetailContextValue,
-} from "../context/MarketDetailContext";
+import { useAaveConfig } from "../../context";
+import { useAaveUserPosition } from "../../hooks";
+import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
-
-// TODO: Replace with actual assets from a registry
-const ASSET_CONFIG: Record<
-  string,
-  { name: string; symbol: string; icon: string }
-> = {
-  usdc: {
-    name: "USD Coin",
-    symbol: "USDC",
-    icon: "/images/usdc.png",
-  },
-  usdt: {
-    name: "Tether",
-    symbol: "USDT",
-    icon: "/images/usdt.png",
-  },
-  wbtc: {
-    name: "Wrapped BTC",
-    symbol: "WBTC",
-    icon: "/images/wbtc.png",
-  },
-};
-
-// Static market data for UI-only rendering
-const staticMarketData: Partial<MarketDetailContextValue> = {
-  btcPrice: 86694.16,
-  liquidationLtv: 75,
-  currentLoanAmount: 1000, // Show repay tab with existing position
-  currentCollateralAmount: 0.02, // 0.02 BTC collateral
-  availableLiquidity: 500_000,
-  borrowableVaults: [{ amountSatoshis: 5_000_000n }], // 0.05 BTC
-};
 
 export function AaveReserveDetail() {
   const navigate = useNavigate();
   const { reserveId } = useParams<{ reserveId: string }>();
   const [borrowedAmount, setBorrowedAmount] = useState(0);
 
-  // Get asset config from URL param
-  const assetKey = reserveId?.toLowerCase() || "usdc";
-  const assetConfig = ASSET_CONFIG[assetKey] || ASSET_CONFIG.usdc;
+  const { address } = useETHWallet();
+
+  // Fetch reserves from Aave config
+  const { borrowableReserves, isLoading: configLoading } = useAaveConfig();
+
+  // Find the selected reserve by symbol (from URL param)
+  const selectedReserve = useMemo(() => {
+    if (!reserveId) return null;
+    return borrowableReserves.find(
+      (r) => r.token.symbol.toLowerCase() === reserveId.toLowerCase(),
+    );
+  }, [borrowableReserves, reserveId]);
+
+  // Build asset config from reserve
+  const assetConfig = useMemo(() => {
+    if (!selectedReserve) return null;
+    const tokenMetadata = getTokenByAddress(selectedReserve.token.address);
+    return {
+      name: selectedReserve.token.name,
+      symbol: selectedReserve.token.symbol,
+      icon: tokenMetadata?.icon ?? "",
+    };
+  }, [selectedReserve]);
+
+  // Fetch user position from Aave (uses Aave oracle for USD values)
+  const {
+    collateralValueUsd,
+    debtValueUsd,
+    healthFactor,
+    isLoading: positionLoading,
+  } = useAaveUserPosition(address);
+
+  const handleBack = () => navigate("/app/aave");
 
   // Stub handlers for UI-only mode
   const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
@@ -72,9 +72,8 @@ export function AaveReserveDetail() {
     void withdrawCollateralAmount;
   };
 
-  const handleBack = () => navigate("/app/aave");
-
   const handleViewLoan = () => {
+    if (!assetConfig) return;
     // Navigate back to dashboard with borrowedAssets state
     navigate("/app/aave", {
       state: {
@@ -89,8 +88,56 @@ export function AaveReserveDetail() {
     });
   };
 
+  // Show loading state
+  const isLoading = configLoading || positionLoading;
+  if (isLoading) {
+    return (
+      <Container className="pb-6">
+        <div className="space-y-6">
+          <BackButton label="Aave" onClick={handleBack} />
+          <div className="flex items-center justify-center py-12">
+            <p className="text-accent-secondary">Loading...</p>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
+  // Reserve not found
+  if (!selectedReserve || !assetConfig) {
+    return (
+      <Container className="pb-6">
+        <div className="space-y-6">
+          <BackButton label="Aave" onClick={handleBack} />
+          <div className="flex items-center justify-center py-12">
+            <p className="text-accent-secondary">Reserve not found</p>
+          </div>
+        </div>
+      </Container>
+    );
+  }
+
+  // Build loan context from Aave position
+  const loanData = {
+    collateralValueUsd,
+    currentDebtUsd: debtValueUsd,
+    healthFactor,
+  };
+
+  // Calculate liquidation threshold from current position data
+  // LT = (HF × Debt) / Collateral
+  // Note: collateralRisk from reserve is not the liquidation threshold
+  const calculatedLiquidationThreshold =
+    healthFactor && debtValueUsd > 0 && collateralValueUsd > 0
+      ? (healthFactor * debtValueUsd) / collateralValueUsd
+      : 0.75; // Default to 75% if no position
+
+  const liquidationThresholdBps = Math.round(
+    calculatedLiquidationThreshold * 10000,
+  );
+
   return (
-    <MarketDetailProvider value={staticMarketData}>
+    <LoanProvider value={loanData}>
       <Container className="pb-6">
         <div className="space-y-6">
           {/* Back Button */}
@@ -99,12 +146,14 @@ export function AaveReserveDetail() {
           {/* Loan Card - Full width like other cards */}
           <LoanCard
             defaultTab="borrow"
+            selectedAsset={assetConfig}
+            liquidationThresholdBps={liquidationThresholdBps}
             onBorrow={handleBorrow}
             onRepay={handleRepay}
             onViewLoan={handleViewLoan}
           />
         </div>
       </Container>
-    </MarketDetailProvider>
+    </LoanProvider>
   );
 }

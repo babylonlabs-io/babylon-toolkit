@@ -4,7 +4,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { formatHealthFactor, isHealthFactorHealthy } from "../healthFactor";
+import {
+  calculateHealthFactor,
+  formatHealthFactor,
+  isHealthFactorHealthy,
+} from "../healthFactor";
 
 describe("healthFactor", () => {
   describe("formatHealthFactor", () => {
@@ -53,6 +57,39 @@ describe("healthFactor", () => {
 
     it("should return true for exactly 1.0", () => {
       expect(isHealthFactorHealthy(1.0)).toBe(true);
+    });
+  });
+
+  describe("calculateHealthFactor", () => {
+    it("should calculate health factor correctly", () => {
+      // HF = (Collateral * LT) / Debt
+      // HF = (100 * 0.80) / 50 = 1.6
+      expect(calculateHealthFactor(100, 50, 8000)).toBe(1.6);
+    });
+
+    it("should return 0 when debt is 0", () => {
+      expect(calculateHealthFactor(100, 0, 8000)).toBe(0);
+    });
+
+    it("should return 0 when debt is negative", () => {
+      expect(calculateHealthFactor(100, -10, 8000)).toBe(0);
+    });
+
+    it("should handle 75% liquidation threshold", () => {
+      // HF = (100 * 0.75) / 50 = 1.5
+      expect(calculateHealthFactor(100, 50, 7500)).toBe(1.5);
+    });
+
+    it("should calculate health factor close to 1 (liquidation risk)", () => {
+      // HF = (100 * 0.80) / 80 = 1.0
+      expect(calculateHealthFactor(100, 80, 8000)).toBe(1.0);
+    });
+
+    it("should handle real-world values", () => {
+      // Collateral: $63.57, Debt: $10.00, LT: 75%
+      // HF = (63.57 * 0.75) / 10 = 4.77
+      const hf = calculateHealthFactor(63.57, 10, 7500);
+      expect(hf).toBeCloseTo(4.77, 2);
     });
   });
 });
