@@ -29,7 +29,6 @@ export enum StakingExpansionStep {
   /** Final steps */
   VERIFYING = BaseStakingStep.VERIFYING,
   VERIFIED = BaseStakingStep.VERIFIED,
-  FEEDBACK_SUCCESS = BaseStakingStep.FEEDBACK_SUCCESS,
   FEEDBACK_CANCEL = BaseStakingStep.FEEDBACK_CANCEL,
 }
 

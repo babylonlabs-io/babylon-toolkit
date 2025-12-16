@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { CancelFeedbackModal } from "@/ui/common/components/Modals/CancelFeedbackModal";
 import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
-import { SuccessFeedbackModal } from "@/ui/common/components/Modals/SuccessFeedbackModal";
 import { VerificationModal } from "@/ui/common/components/Modals/VerificationModal";
 import { FinalityProviderLogo } from "@/ui/common/components/Staking/FinalityProviders/FinalityProviderLogo";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -296,10 +295,6 @@ function StakingExpansionModalSystemInner() {
               onClose={handleClose}
             />
           )}
-          <SuccessFeedbackModal
-            open={step === StakingExpansionStep.FEEDBACK_SUCCESS}
-            onClose={handleClose}
-          />
           <CancelFeedbackModal
             open={step === StakingExpansionStep.FEEDBACK_CANCEL}
             onClose={handleClose}

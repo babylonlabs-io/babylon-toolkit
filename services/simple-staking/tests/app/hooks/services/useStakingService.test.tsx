@@ -388,7 +388,6 @@ describe("useStakingService", () => {
         },
       });
       expect(mockUpdateDelegationStatus).not.toHaveBeenCalled();
-      expect(mockGoToStep).not.toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
       expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
       expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
     });

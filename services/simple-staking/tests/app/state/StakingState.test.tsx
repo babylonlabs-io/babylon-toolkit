@@ -315,19 +315,6 @@ describe("StakingState", () => {
     expect(result.current.step).toBe(StakingStep.PREVIEW);
   });
 
-  it("should set success modal flag when going to success feedback step", () => {
-    const { result } = renderHook(() => useStakingState(), {
-      wrapper: TestWrapper,
-    });
-
-    act(() => {
-      result.current.goToStep(StakingStep.FEEDBACK_SUCCESS);
-    });
-
-    expect(mockSetSuccessModalShown).toHaveBeenCalledWith(true);
-    expect(result.current.step).toBe(StakingStep.FEEDBACK_SUCCESS);
-  });
-
   it("should set cancel modal flag when going to cancel feedback step", () => {
     const { result } = renderHook(() => useStakingState(), {
       wrapper: TestWrapper,
@@ -752,13 +739,7 @@ describe("StakingState", () => {
       expect(result.current.step).toBe(StakingStep.VERIFIED);
       expect(result.current.processing).toBe(false);
 
-      // Step 7: Show success feedback
-      act(() => {
-        result.current.goToStep(StakingStep.FEEDBACK_SUCCESS);
-      });
-      expect(result.current.step).toBe(StakingStep.FEEDBACK_SUCCESS);
-
-      // Step 8: Reset everything for a new staking
+      // Step 7: Reset everything for a new staking
       act(() => {
         result.current.reset();
       });
