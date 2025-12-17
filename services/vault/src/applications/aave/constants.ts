@@ -77,3 +77,18 @@ export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
  * Prevents users from borrowing if resulting health factor would be below this.
  */
 export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
+
+/**
+ * Minimum slider max value to prevent division by zero
+ * when no vaults or borrow capacity available
+ */
+export const MIN_SLIDER_MAX = 0.0001;
+
+/**
+ * BTC token display constants
+ */
+export const BTC_TOKEN = {
+  icon: "/images/btc.png",
+  name: "Bitcoin",
+  symbol: "BTC",
+} as const;

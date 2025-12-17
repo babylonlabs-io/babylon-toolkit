@@ -100,6 +100,21 @@ export function isHealthFactorHealthy(healthFactor: number | null): boolean {
 }
 
 /**
+ * Get health factor status from a numeric value.
+ * Used for UI components that work with Infinity for no-debt scenarios.
+ *
+ * @param value - Health factor value (Infinity when no debt)
+ * @returns The status classification
+ */
+export function getHealthFactorStatusFromValue(
+  value: number,
+): HealthFactorStatus {
+  const hasDebt = isFinite(value);
+  const healthFactor = isFinite(value) ? value : null;
+  return getHealthFactorStatus(healthFactor, hasDebt);
+}
+
+/**
  * Calculate health factor
  * HF = (Collateral * Liquidation Threshold) / Total Debt
  *

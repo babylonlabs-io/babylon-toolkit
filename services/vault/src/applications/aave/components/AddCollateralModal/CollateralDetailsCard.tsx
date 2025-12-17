@@ -12,25 +12,40 @@ import { useAaveConfig } from "../../context";
 import {
   formatHealthFactor,
   getHealthFactorColor,
-  getHealthFactorStatus,
+  getHealthFactorStatusFromValue,
 } from "../../utils/healthFactor";
 
 interface CollateralDetailsCardProps {
-  /** Projected health factor after adding collateral */
-  healthFactor: number | null;
-  /** Whether there is active debt */
-  hasDebt?: boolean;
+  /** Current health factor value (Infinity when no debt) */
+  currentHealthFactorValue: number;
+  /** Projected health factor value after adding collateral (Infinity when no debt) */
+  projectedHealthFactorValue: number;
+  /** Whether to show the before → after transition */
+  showTransition?: boolean;
 }
 
 export function CollateralDetailsCard({
-  healthFactor,
-  hasDebt = false,
+  currentHealthFactorValue,
+  projectedHealthFactorValue,
+  showTransition = false,
 }: CollateralDetailsCardProps) {
   const { borrowableReserves } = useAaveConfig();
 
-  const healthFactorStatus = getHealthFactorStatus(healthFactor, hasDebt);
-  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
-  const healthFactorFormatted = formatHealthFactor(healthFactor);
+  const currentStatus = getHealthFactorStatusFromValue(
+    currentHealthFactorValue,
+  );
+  const currentColor = getHealthFactorColor(currentStatus);
+  const currentFormatted = formatHealthFactor(
+    isFinite(currentHealthFactorValue) ? currentHealthFactorValue : null,
+  );
+
+  const projectedStatus = getHealthFactorStatusFromValue(
+    projectedHealthFactorValue,
+  );
+  const projectedColor = getHealthFactorColor(projectedStatus);
+  const projectedFormatted = formatHealthFactor(
+    isFinite(projectedHealthFactorValue) ? projectedHealthFactorValue : null,
+  );
 
   // Get icons for borrowable assets
   const borrowableAssetIcons = borrowableReserves.map((reserve) => {
@@ -71,10 +86,24 @@ export function CollateralDetailsCard({
         {/* Health Factor Row */}
         <div className="flex items-center justify-between">
           <span className="text-sm text-accent-secondary">Health Factor</span>
-          <span className="flex items-center gap-2 text-base text-accent-primary">
-            <HeartIcon color={healthFactorColor} />
-            {healthFactorFormatted}
-          </span>
+          {showTransition ? (
+            <span className="flex items-center gap-2 text-base">
+              <span className="flex items-center gap-1 text-accent-secondary">
+                <HeartIcon color={currentColor} />
+                {currentFormatted}
+              </span>
+              <span className="text-accent-secondary">→</span>
+              <span className="flex items-center gap-1 text-accent-primary">
+                <HeartIcon color={projectedColor} />
+                {projectedFormatted}
+              </span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-2 text-base text-accent-primary">
+              <HeartIcon color={projectedColor} />
+              {projectedFormatted}
+            </span>
+          )}
         </div>
       </div>
     </SubSection>

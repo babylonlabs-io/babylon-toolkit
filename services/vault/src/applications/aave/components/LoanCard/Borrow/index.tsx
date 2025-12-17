@@ -9,6 +9,7 @@ import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { getCurrencyIconWithFallback } from "../../../../../services/token";
+import { MIN_SLIDER_MAX } from "../../../constants";
 
 import { BorrowDetailsCard } from "./BorrowDetailsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
@@ -68,7 +69,7 @@ export function Borrow({
     metrics.healthFactorValue,
   );
 
-  const sliderMaxBorrow = Math.max(maxBorrowAmount, 0.0001);
+  const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
 
   const handleBorrow = () => {
     // Call the onBorrow callback with 0 collateral (collateral already exists)

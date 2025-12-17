@@ -1,6 +1,9 @@
 /**
  * AddCollateralModal Component
  * Modal for adding vaults as collateral to an Aave position
+ *
+ * This modal is self-contained - it uses useAddCollateralModal hook
+ * which handles all data fetching, state, and transactions.
  */
 
 import {
@@ -16,71 +19,39 @@ import {
 import { getCurrencyIconWithFallback } from "@/services/token";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
-import type { VaultData } from "../Overview/components/VaultsTable";
+import { BTC_TOKEN, MIN_SLIDER_MAX } from "../../constants";
 
 import { CollateralDetailsCard } from "./CollateralDetailsCard";
-import { useAddCollateralState } from "./hooks/useAddCollateralState";
+import { useAddCollateralModal } from "./hooks";
 
 export interface AddCollateralModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeposit: (vaultIds: string[]) => void;
-  /** Available vaults that can be added as collateral */
-  availableVaults: VaultData[];
-  /** Current collateral value in USD */
-  currentCollateralUsd: number;
-  /** Current debt value in USD */
-  currentDebtUsd: number;
-  /** Liquidation threshold in basis points (e.g., 8000 = 80%) */
-  liquidationThresholdBps: number;
-  /** Current BTC price in USD */
-  btcPrice: number;
-  /** Whether transaction is processing */
-  processing?: boolean;
 }
-
-const BTC_ICON = "/images/btc.png";
-const BTC_NAME = "Bitcoin";
-
-/**
- * Minimum slider max value to prevent division by zero
- * when no vaults are available
- */
-const MIN_SLIDER_MAX = 0.00000001;
 
 export function AddCollateralModal({
   isOpen,
   onClose,
-  onDeposit,
-  availableVaults,
-  currentCollateralUsd,
-  currentDebtUsd,
-  liquidationThresholdBps,
-  btcPrice,
-  processing = false,
 }: AddCollateralModalProps) {
   const {
     collateralAmount,
     setCollateralAmount,
     maxCollateralAmount,
-    selectedVaultIds,
-    collateralValueUsd,
-    projectedHealthFactor,
+    selectedCollateralValueUsd,
+    currentHealthFactorValue,
+    projectedHealthFactorValue,
     collateralSteps,
-  } = useAddCollateralState({
-    availableVaults,
-    currentCollateralUsd,
-    currentDebtUsd,
-    liquidationThresholdBps,
-    btcPrice,
-  });
+    handleDeposit,
+    isProcessing,
+    isDisabled,
+  } = useAddCollateralModal();
 
-  const handleDeposit = () => {
-    if (selectedVaultIds.length === 0) return;
-    onDeposit(selectedVaultIds);
+  const onDeposit = async () => {
+    const success = await handleDeposit();
+    if (success) {
+      onClose();
+    }
   };
-
-  const isDisabled = collateralAmount === 0 || processing;
 
   const sliderMax = Math.max(maxCollateralAmount, MIN_SLIDER_MAX);
 
@@ -100,8 +71,11 @@ export function AddCollateralModal({
         <SubSection>
           <AmountSlider
             amount={collateralAmount}
-            currencyIcon={getCurrencyIconWithFallback(BTC_ICON, "BTC")}
-            currencyName={BTC_NAME}
+            currencyIcon={getCurrencyIconWithFallback(
+              BTC_TOKEN.icon,
+              BTC_TOKEN.symbol,
+            )}
+            currencyName={BTC_TOKEN.name}
             onAmountChange={(e) =>
               setCollateralAmount(parseFloat(e.target.value) || 0)
             }
@@ -118,7 +92,7 @@ export function AddCollateralModal({
             }}
             onMaxClick={() => setCollateralAmount(maxCollateralAmount)}
             rightField={{
-              value: formatUsdValue(collateralValueUsd),
+              value: formatUsdValue(selectedCollateralValueUsd),
             }}
             sliderActiveColor="#F7931A"
           />
@@ -126,8 +100,9 @@ export function AddCollateralModal({
 
         {/* Details Card */}
         <CollateralDetailsCard
-          healthFactor={projectedHealthFactor}
-          hasDebt={currentDebtUsd > 0}
+          currentHealthFactorValue={currentHealthFactorValue}
+          projectedHealthFactorValue={projectedHealthFactorValue}
+          showTransition={collateralAmount > 0}
         />
       </DialogBody>
 
@@ -135,11 +110,11 @@ export function AddCollateralModal({
         <Button
           variant="contained"
           color="primary"
-          onClick={handleDeposit}
+          onClick={onDeposit}
           disabled={isDisabled}
           className="w-full"
         >
-          {processing ? "Processing..." : "Deposit"}
+          {isProcessing ? "Processing..." : "Deposit"}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>
