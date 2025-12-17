@@ -148,7 +148,8 @@ export function useRepayTransaction({
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () => executeRepay(repayAmount, reserve, isFullRepayment),
+          retryAction: () =>
+            executeRepay(repayAmount, reserve, isFullRepayment),
         },
       });
 
