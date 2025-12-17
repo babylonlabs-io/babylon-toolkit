@@ -123,7 +123,7 @@ export function RedeemCollateralSignModal({
         functionName = MORPHO_CONTRACTS.FUNCTION_NAMES.REDEEM;
       } else {
         throw new Error(
-          `Unknown application controller: ${applicationController}.`,
+          `Unknown application controller: ${applicationController}`,
         );
       }
 
