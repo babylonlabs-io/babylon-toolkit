@@ -1,24 +1,40 @@
 /**
  * Hook for managing Add Collateral modal state
  *
- * Handles slider state, vault selection, and health factor projection.
+ * Vault bucket approach where slider steps are based on
+ * all possible subset sums of vault amounts.
  */
 
 import { useMemo, useState } from "react";
 
+import {
+  amountsToSliderSteps,
+  btcToSatoshis,
+  calculateSubsetSums,
+  findVaultIndicesForAmount,
+} from "@/utils/subsetSum";
+
+import {
+  calculateHealthFactor,
+  calculateTotalVaultAmount,
+} from "../../../utils";
 import type { VaultData } from "../../Overview/components/VaultsTable";
 
 export interface UseAddCollateralStateProps {
   /** Available vaults that can be added as collateral */
   availableVaults: VaultData[];
-  /** Current collateral amount in BTC */
-  currentCollateralBtc: number;
+  /** Current collateral value in USD */
+  currentCollateralUsd: number;
   /** Current debt value in USD */
   currentDebtUsd: number;
-  /** Liquidation LTV percentage (e.g., 80 for 80%) */
-  liquidationLtv: number;
+  /** Liquidation threshold in basis points (e.g., 8000 bps = 80%) */
+  liquidationThresholdBps: number;
   /** Current BTC price in USD */
   btcPrice: number;
+}
+
+export interface SliderStep {
+  value: number;
 }
 
 export interface UseAddCollateralStateResult {
@@ -30,57 +46,56 @@ export interface UseAddCollateralStateResult {
   maxCollateralAmount: number;
   /** IDs of vaults selected for collateral */
   selectedVaultIds: string[];
-  /** Projected health factor after adding collateral */
-  projectedHealthFactor: number | null;
   /** Collateral value in USD */
   collateralValueUsd: number;
-}
-
-/**
- * Select vaults to match the target amount using a greedy algorithm.
- * Sorts vaults by amount descending and picks until target is met.
- */
-function selectVaultsForAmount(
-  vaults: VaultData[],
-  targetAmount: number,
-): { vaultIds: string[]; actualAmount: number } {
-  if (targetAmount <= 0) {
-    return { vaultIds: [], actualAmount: 0 };
-  }
-
-  // Sort vaults by amount descending for greedy selection
-  const sortedVaults = [...vaults].sort((a, b) => b.amount - a.amount);
-
-  const selectedIds: string[] = [];
-  let selectedAmount = 0;
-
-  for (const vault of sortedVaults) {
-    if (selectedAmount >= targetAmount) break;
-    selectedIds.push(vault.id);
-    selectedAmount += vault.amount;
-  }
-
-  return { vaultIds: selectedIds, actualAmount: selectedAmount };
+  /** Projected health factor after adding collateral */
+  projectedHealthFactor: number | null;
+  /** Slider steps based on vault bucket combinations */
+  collateralSteps: SliderStep[];
 }
 
 export function useAddCollateralState({
   availableVaults,
-  currentCollateralBtc,
+  currentCollateralUsd,
   currentDebtUsd,
-  liquidationLtv,
+  liquidationThresholdBps,
   btcPrice,
 }: UseAddCollateralStateProps): UseAddCollateralStateResult {
   const [collateralAmount, setCollateralAmount] = useState(0);
 
-  // Calculate maximum collateral from available vaults
-  const maxCollateralAmount = useMemo(() => {
-    return availableVaults.reduce((sum, vault) => sum + vault.amount, 0);
+  // Convert vault amounts to satoshis for precise calculations
+  const vaultAmountsSatoshis = useMemo(() => {
+    return availableVaults.map((vault) => btcToSatoshis(vault.amount));
   }, [availableVaults]);
 
-  // Select vaults based on the collateral amount
-  const { vaultIds: selectedVaultIds, actualAmount } = useMemo(() => {
-    return selectVaultsForAmount(availableVaults, collateralAmount);
-  }, [availableVaults, collateralAmount]);
+  // Calculate maximum collateral from available vaults
+  const maxCollateralAmount = useMemo(() => {
+    return calculateTotalVaultAmount(availableVaults);
+  }, [availableVaults]);
+
+  const collateralSteps = useMemo(() => {
+    if (availableVaults.length === 0) {
+      return [{ value: 0 }];
+    }
+
+    const possibleSumsSatoshis = calculateSubsetSums(vaultAmountsSatoshis);
+    return [{ value: 0 }, ...amountsToSliderSteps(possibleSumsSatoshis)];
+  }, [availableVaults.length, vaultAmountsSatoshis]);
+
+  // Select vaults based on the collateral amount using exact matching
+  const selectedVaultIds = useMemo(() => {
+    if (collateralAmount <= 0) return [];
+
+    const targetSatoshis = btcToSatoshis(collateralAmount);
+    const vaultIndices = findVaultIndicesForAmount(
+      vaultAmountsSatoshis,
+      targetSatoshis,
+    );
+
+    if (vaultIndices === null) return [];
+
+    return vaultIndices.map((index) => availableVaults[index].id);
+  }, [availableVaults, collateralAmount, vaultAmountsSatoshis]);
 
   // Calculate collateral value in USD
   const collateralValueUsd = useMemo(() => {
@@ -89,26 +104,23 @@ export function useAddCollateralState({
 
   // Calculate projected health factor
   const projectedHealthFactor = useMemo(() => {
-    // If no debt, health factor is null (infinite/healthy)
-    if (currentDebtUsd <= 0) {
-      return null;
-    }
+    if (currentDebtUsd <= 0) return null;
 
-    // Calculate projected total collateral value
-    const projectedCollateralBtc = currentCollateralBtc + actualAmount;
-    const projectedCollateralUsd = projectedCollateralBtc * btcPrice;
+    const projectedCollateralUsd =
+      currentCollateralUsd + collateralAmount * btcPrice;
+    const healthFactor = calculateHealthFactor(
+      projectedCollateralUsd,
+      currentDebtUsd,
+      liquidationThresholdBps,
+    );
 
-    // Health factor = (collateralValue * liquidationLTV) / debtValue
-    const healthFactor =
-      (projectedCollateralUsd * (liquidationLtv / 100)) / currentDebtUsd;
-
-    return healthFactor;
+    return healthFactor > 0 ? healthFactor : null;
   }, [
-    currentCollateralBtc,
-    actualAmount,
+    currentCollateralUsd,
+    collateralAmount,
     btcPrice,
     currentDebtUsd,
-    liquidationLtv,
+    liquidationThresholdBps,
   ]);
 
   return {
@@ -116,7 +128,8 @@ export function useAddCollateralState({
     setCollateralAmount,
     maxCollateralAmount,
     selectedVaultIds,
-    projectedHealthFactor,
     collateralValueUsd,
+    projectedHealthFactor,
+    collateralSteps,
   };
 }
