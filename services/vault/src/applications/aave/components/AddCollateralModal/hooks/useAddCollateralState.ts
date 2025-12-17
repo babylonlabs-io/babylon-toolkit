@@ -27,10 +27,12 @@ export interface UseAddCollateralStateProps {
   currentCollateralUsd: number;
   /** Current debt value in USD */
   currentDebtUsd: number;
-  /** Liquidation threshold in basis points (e.g., 8000 bps = 80%) */
-  liquidationThresholdBps: number;
+  /** Liquidation threshold in basis points (e.g., 8000 bps = 80%), undefined if not loaded */
+  liquidationThresholdBps: number | undefined;
   /** Current BTC price in USD */
   btcPrice: number;
+  /** Current health factor (null if no debt) */
+  currentHealthFactor: number | null;
 }
 
 export interface SliderStep {
@@ -48,8 +50,10 @@ export interface UseAddCollateralStateResult {
   selectedVaultIds: string[];
   /** Collateral value in USD */
   collateralValueUsd: number;
-  /** Projected health factor after adding collateral */
-  projectedHealthFactor: number | null;
+  /** Current health factor value for UI (Infinity when no debt) */
+  currentHealthFactorValue: number;
+  /** Projected health factor value after adding collateral (Infinity when no debt) */
+  projectedHealthFactorValue: number;
   /** Slider steps based on vault bucket combinations */
   collateralSteps: SliderStep[];
 }
@@ -60,6 +64,7 @@ export function useAddCollateralState({
   currentDebtUsd,
   liquidationThresholdBps,
   btcPrice,
+  currentHealthFactor,
 }: UseAddCollateralStateProps): UseAddCollateralStateResult {
   const [collateralAmount, setCollateralAmount] = useState(0);
 
@@ -102,9 +107,19 @@ export function useAddCollateralState({
     return collateralAmount * btcPrice;
   }, [collateralAmount, btcPrice]);
 
-  // Calculate projected health factor
-  const projectedHealthFactor = useMemo(() => {
-    if (currentDebtUsd <= 0) return null;
+  // Current health factor value (Infinity when no debt = infinitely healthy)
+  const currentHealthFactorValue = currentHealthFactor ?? Infinity;
+
+  // Calculate projected health factor value
+  const projectedHealthFactorValue = useMemo(() => {
+    // No debt = infinitely healthy
+    if (currentDebtUsd <= 0) return Infinity;
+
+    // No additional collateral = current value
+    if (collateralAmount === 0) return currentHealthFactorValue;
+
+    // Config not loaded yet = show current value
+    if (liquidationThresholdBps === undefined) return currentHealthFactorValue;
 
     const projectedCollateralUsd =
       currentCollateralUsd + collateralAmount * btcPrice;
@@ -114,13 +129,14 @@ export function useAddCollateralState({
       liquidationThresholdBps,
     );
 
-    return healthFactor > 0 ? healthFactor : null;
+    return healthFactor > 0 ? healthFactor : Infinity;
   }, [
     currentCollateralUsd,
     collateralAmount,
     btcPrice,
     currentDebtUsd,
     liquidationThresholdBps,
+    currentHealthFactorValue,
   ]);
 
   return {
@@ -129,7 +145,8 @@ export function useAddCollateralState({
     maxCollateralAmount,
     selectedVaultIds,
     collateralValueUsd,
-    projectedHealthFactor,
+    currentHealthFactorValue,
+    projectedHealthFactorValue,
     collateralSteps,
   };
 }

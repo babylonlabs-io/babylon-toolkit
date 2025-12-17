@@ -8,17 +8,13 @@
  */
 
 import { Avatar, Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
-import type { Address, Hex } from "viem";
 
 import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
-import { useBTCPrice } from "@/hooks/useBTCPrice";
-import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
-import { useAaveConfig } from "../../context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -35,17 +31,9 @@ export function AaveOverview() {
   const navigate = useNavigate();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [isAddCollateralOpen, setIsAddCollateralOpen] = useState(false);
-  const [isProcessingCollateral, setIsProcessingCollateral] = useState(false);
 
   // Wallet connection
-  const { address: ethAddressRaw } = useETHWallet();
-  const ethAddress = ethAddressRaw as Address | undefined;
-
-  // Fetch Aave config for vbtcReserve (to get liquidation LTV)
-  const { vbtcReserve } = useAaveConfig();
-
-  // Fetch BTC price
-  const { btcPriceUSD } = useBTCPrice();
+  const { address } = useETHWallet();
 
   // Fetch user's Aave position
   const {
@@ -55,11 +43,10 @@ export function AaveOverview() {
     debtValueUsd,
     healthFactor,
     healthFactorStatus,
-    refetch: refetchPosition,
-  } = useAaveUserPosition(ethAddress);
+  } = useAaveUserPosition(address);
 
   // Fetch user's vaults
-  const { vaults } = useAaveVaults(ethAddress);
+  const { vaults } = useAaveVaults(address);
 
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -67,53 +54,16 @@ export function AaveOverview() {
     debtValueUsd,
   });
 
-  // Filter available vaults (not "In Use")
-  const availableVaults = useMemo(() => {
-    return vaults.filter(
-      (vault) => vault.status !== PEGIN_DISPLAY_LABELS.IN_USE,
-    );
-  }, [vaults]);
-
-  // Get liquidation threshold in BPS from vbtcReserve's collateralRisk
-  const liquidationThresholdBps = useMemo(() => {
-    if (!vbtcReserve) return 7500; // Default fallback (75%)
-    return vbtcReserve.reserve.collateralRisk;
-  }, [vbtcReserve]);
-
   // Derive display values
   const hasCollateral = collateralBtc > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
-  const isConnected = !!ethAddress;
+  const isConnected = !!address;
 
   const handleBack = () => navigate("/");
 
   const handleAdd = () => {
     setIsAddCollateralOpen(true);
-  };
-
-  const handleAddCollateral = async (vaultIds: string[]) => {
-    if (vaultIds.length === 0) return;
-
-    setIsProcessingCollateral(true);
-    try {
-      // TODO: Integrate with wallet context to execute addCollateral transaction
-      // The addCollateral function from positionTransactions.ts takes:
-      // - walletClient: WalletClient
-      // - chain: Chain
-      // - vaultIds: Hex[]
-      void (vaultIds as Hex[]);
-
-      // Refetch position data
-      await refetchPosition();
-
-      // Close modal on success
-      setIsAddCollateralOpen(false);
-    } catch (error) {
-      console.error("Failed to add collateral:", error);
-    } finally {
-      setIsProcessingCollateral(false);
-    }
   };
 
   const handleWithdraw = () => {
@@ -210,13 +160,6 @@ export function AaveOverview() {
       <AddCollateralModal
         isOpen={isAddCollateralOpen}
         onClose={() => setIsAddCollateralOpen(false)}
-        onDeposit={handleAddCollateral}
-        availableVaults={availableVaults}
-        currentCollateralUsd={collateralValueUsd}
-        currentDebtUsd={debtValueUsd}
-        liquidationThresholdBps={liquidationThresholdBps}
-        btcPrice={btcPriceUSD || 0}
-        processing={isProcessingCollateral}
       />
     </Container>
   );

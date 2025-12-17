@@ -7,6 +7,7 @@ export {
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatus,
+  getHealthFactorStatusFromValue,
   isHealthFactorHealthy,
 } from "./healthFactor";
 export type { HealthFactorColor, HealthFactorStatus } from "./healthFactor";

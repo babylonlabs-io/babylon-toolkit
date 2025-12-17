@@ -9,6 +9,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 
 import { CONTRACTS } from "../config/contracts";
+import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 
 /**
  * Query key factory for consistent key generation
@@ -61,6 +62,11 @@ export async function invalidateVaultQueries(
     // Invalidate pegin requests to update vault usage status (isInUse)
     queryClient.invalidateQueries({
       queryKey: queryKeys.peginRequests(address),
+    }),
+
+    // Invalidate vaults query to refresh vault list
+    queryClient.invalidateQueries({
+      queryKey: [VAULTS_QUERY_KEY, address],
     }),
   ]);
 }

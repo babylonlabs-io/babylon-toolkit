@@ -9,6 +9,7 @@ import {
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatus,
+  getHealthFactorStatusFromValue,
   HEALTH_FACTOR_COLORS,
   isHealthFactorHealthy,
 } from "../healthFactor";
@@ -138,6 +139,28 @@ describe("healthFactor", () => {
 
     it("should return GRAY for no_debt status", () => {
       expect(getHealthFactorColor("no_debt")).toBe(HEALTH_FACTOR_COLORS.GRAY);
+    });
+  });
+
+  describe("getHealthFactorStatusFromValue", () => {
+    it("should return no_debt for Infinity (no debt)", () => {
+      expect(getHealthFactorStatusFromValue(Infinity)).toBe("no_debt");
+    });
+
+    it("should return danger when value < 1.0", () => {
+      expect(getHealthFactorStatusFromValue(0.99)).toBe("danger");
+      expect(getHealthFactorStatusFromValue(0.5)).toBe("danger");
+    });
+
+    it("should return warning when value >= 1.0 and < 1.5", () => {
+      expect(getHealthFactorStatusFromValue(1.0)).toBe("warning");
+      expect(getHealthFactorStatusFromValue(1.49)).toBe("warning");
+    });
+
+    it("should return safe when value >= 1.5", () => {
+      expect(getHealthFactorStatusFromValue(1.5)).toBe("safe");
+      expect(getHealthFactorStatusFromValue(2.0)).toBe("safe");
+      expect(getHealthFactorStatusFromValue(10.0)).toBe("safe");
     });
   });
 });

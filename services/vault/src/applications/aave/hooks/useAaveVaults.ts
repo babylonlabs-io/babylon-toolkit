@@ -1,22 +1,29 @@
 /**
- * Hook to fetch user's vaults for the Aave overview page
+ * Hook to fetch user's vaults for the Aave application
  *
  * Fetches vaults from GraphQL and transforms them to the format
- * needed by the VaultsTable component.
+ * needed by UI components. Returns both all active vaults and
+ * vaults available for collateral (not currently in use or pending).
  */
 
+import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { useVaults } from "@/hooks/useVaults";
-import { ContractStatus, getPeginState } from "@/models/peginStateMachine";
+import {
+  ContractStatus,
+  getPeginState,
+  PEGIN_DISPLAY_LABELS,
+} from "@/models/peginStateMachine";
 import type { Vault } from "@/types/vault";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import type { VaultData } from "../components/Overview/components/VaultsTable";
+import { usePendingVaults } from "../context";
 
 /**
- * Transform a Vault to VaultData for display in the table
+ * Transform a Vault to VaultData for display
  */
 function transformVaultToTableData(
   vault: Vault,
@@ -39,33 +46,59 @@ function transformVaultToTableData(
   };
 }
 
+export interface UseAaveVaultsResult {
+  /** All active vaults (for display in table) */
+  vaults: VaultData[];
+  /** Vaults available for use as collateral (not currently in use) */
+  availableForCollateral: VaultData[];
+  /** Loading state */
+  isLoading: boolean;
+  /** Error state */
+  error: Error | null;
+}
+
 /**
- * Hook to fetch and transform user's vaults for the Aave overview
+ * Hook to fetch and transform user's vaults for the Aave application
  *
  * @param depositorAddress - User's Ethereum address
- * @returns Vaults data for the table, loading state, and error
+ * @returns Vaults data including all active vaults and those available for collateral
  */
-export function useAaveVaults(depositorAddress: Address | undefined) {
+export function useAaveVaults(
+  depositorAddress: string | undefined,
+): UseAaveVaultsResult {
   const {
     data: vaults,
     isLoading: vaultsLoading,
     error,
-  } = useVaults(depositorAddress);
+  } = useVaults(depositorAddress as Address | undefined);
   const { btcPriceUSD, loading: priceLoading } = useBTCPrice();
+  const { pendingVaultIds } = usePendingVaults();
 
   const isLoading = vaultsLoading || priceLoading;
 
-  // Filter to only active vaults (not redeemed) and transform for display
-  const vaultTableData: VaultData[] =
-    vaults && btcPriceUSD
-      ? vaults
-          .filter((vault) => vault.status === ContractStatus.ACTIVE)
-          .map((vault) => transformVaultToTableData(vault, btcPriceUSD))
-      : [];
+  // Transform all active vaults for display
+  const allVaults = useMemo(() => {
+    if (!vaults || !btcPriceUSD) return [];
+    return vaults
+      .filter((vault) => vault.status === ContractStatus.ACTIVE)
+      .map((vault) => transformVaultToTableData(vault, btcPriceUSD));
+  }, [vaults, btcPriceUSD]);
+
+  // Filter to vaults available for collateral:
+  // - Not currently in use by an application (from indexer)
+  // - Not pending (submitted but not yet indexed)
+  const availableForCollateral = useMemo(() => {
+    return allVaults.filter(
+      (vault) =>
+        vault.status !== PEGIN_DISPLAY_LABELS.IN_USE &&
+        !pendingVaultIds.has(vault.id),
+    );
+  }, [allVaults, pendingVaultIds]);
 
   return {
-    vaults: vaultTableData,
+    vaults: allVaults,
+    availableForCollateral,
     isLoading,
-    error,
+    error: error as Error | null,
   };
 }

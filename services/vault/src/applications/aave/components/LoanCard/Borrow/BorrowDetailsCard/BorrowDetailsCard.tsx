@@ -2,8 +2,7 @@ import { KeyValueList, SubSection } from "@babylonlabs-io/core-ui";
 
 import {
   getHealthFactorColor,
-  getHealthFactorStatus,
-  type HealthFactorStatus,
+  getHealthFactorStatusFromValue,
 } from "@/applications/aave/utils";
 import { HeartIcon, InfoIcon } from "@/components/shared";
 
@@ -31,16 +30,6 @@ function LabelWithInfo({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Get health factor status for preview calculations
- * Note: For preview values, we assume there is debt if the value > 0
- */
-function getPreviewHealthFactorStatus(value: number): HealthFactorStatus {
-  const hasDebt = value > 0;
-  const healthFactor = value > 0 ? value : null;
-  return getHealthFactorStatus(healthFactor, hasDebt);
-}
-
-/**
  * BorrowDetailsCard - Displays borrow rate and health factor with before → after indicators
  */
 export function BorrowDetailsCard({
@@ -51,11 +40,11 @@ export function BorrowDetailsCard({
   healthFactorOriginal,
   healthFactorOriginalValue,
 }: BorrowDetailsCardProps) {
-  const status = getPreviewHealthFactorStatus(healthFactorValue);
+  const status = getHealthFactorStatusFromValue(healthFactorValue);
   const color = getHealthFactorColor(status);
   const originalStatus =
     healthFactorOriginalValue !== undefined
-      ? getPreviewHealthFactorStatus(healthFactorOriginalValue)
+      ? getHealthFactorStatusFromValue(healthFactorOriginalValue)
       : undefined;
   const originalColor = originalStatus
     ? getHealthFactorColor(originalStatus)
