@@ -1,6 +1,6 @@
 /**
  * AssetSelectionModal Component
- * Modal for selecting an asset to borrow from available reserves
+ * Modal for selecting an asset to borrow or repay from available reserves
  */
 
 import {
@@ -15,18 +15,35 @@ import { useAaveConfig } from "../../context";
 
 import { AssetListItem } from "./AssetListItem";
 
+export type AssetSelectionMode = "borrow" | "repay";
+
 interface AssetSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectAsset: (assetSymbol: string) => void;
+  /** Mode determines the modal title and description */
+  mode?: AssetSelectionMode;
 }
+
+const MODE_CONFIG = {
+  borrow: {
+    title: "Borrow",
+    description: "Choose the asset to borrow",
+  },
+  repay: {
+    title: "Repay",
+    description: "Choose the asset to repay",
+  },
+} as const;
 
 export function AssetSelectionModal({
   isOpen,
   onClose,
   onSelectAsset,
+  mode = "borrow",
 }: AssetSelectionModalProps) {
   const { borrowableReserves, isLoading } = useAaveConfig();
+  const config = MODE_CONFIG[mode];
 
   const handleAssetClick = (assetSymbol: string) => {
     onSelectAsset(assetSymbol);
@@ -66,14 +83,12 @@ export function AssetSelectionModal({
   return (
     <ResponsiveDialog open={isOpen} onClose={onClose}>
       <DialogHeader
-        title="Borrow"
+        title={config.title}
         onClose={onClose}
         className="text-accent-primary"
       />
       <DialogBody className="space-y-4">
-        <p className="text-base text-accent-secondary">
-          Choose the asset to borrow
-        </p>
+        <p className="text-base text-accent-secondary">{config.description}</p>
         <div className="space-y-2">{renderContent()}</div>
       </DialogBody>
     </ResponsiveDialog>

@@ -53,6 +53,20 @@ export function formatUsdValue(usdValue: number): string {
 }
 
 /**
+ * Format a number amount for display with locale-aware formatting
+ * @param amount - The numeric amount to format
+ * @param maxDecimals - Maximum decimal places (default: 2)
+ * @returns Formatted number string (e.g., "1,234.56" or "0")
+ */
+export function formatAmount(amount: number, maxDecimals = 2): string {
+  if (amount <= 0) return "0";
+  return amount.toLocaleString("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: maxDecimals,
+  });
+}
+
+/**
  * Format a date as "YYYY-MM-DD HH:mm:ss"
  * @param date - The date to format
  * @returns Formatted date string

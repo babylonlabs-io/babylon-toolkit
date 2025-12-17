@@ -277,6 +277,30 @@ function getIconForSymbol(symbol: string): string | undefined {
   return iconMap[symbolUpper];
 }
 
+const tokenBrandColorsMap: Record<string, string> = {
+  BTC: "#F7931A",
+  WBTC: "#F7931A",
+  VBTC: "#F7931A",
+  USDC: "#2775CA",
+  USDT: "#50AF95",
+  DAI: "#F5AC37",
+  ETH: "#627EEA",
+  WETH: "#627EEA",
+};
+
+const defaultTokenBrandColor = "#0B53BF";
+
+/**
+ * Get brand color for a token symbol
+ * Used for UI theming (e.g., slider active colors)
+ *
+ * @param symbol - Token symbol (e.g., "USDC", "BTC")
+ * @returns Hex color code for the token's brand color
+ */
+export function getTokenBrandColor(symbol: string): string {
+  return tokenBrandColorsMap[symbol.toUpperCase()] ?? defaultTokenBrandColor;
+}
+
 /**
  * Get token metadata by address (sync version for immediate use)
  * Only checks cache and registry, doesn't fetch from blockchain

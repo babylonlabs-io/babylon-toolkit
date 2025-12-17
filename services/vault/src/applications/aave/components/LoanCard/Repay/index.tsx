@@ -1,24 +1,24 @@
 /**
- * Borrow Tab Component
- *
- * Displays borrow slider and handles borrow flow.
- * Asset is selected before landing on this page (from route).
+ * Repay Tab Component
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { getCurrencyIconWithFallback } from "../../../../../services/token";
-import { MIN_SLIDER_MAX } from "../../../constants";
+import {
+  getCurrencyIconWithFallback,
+  getTokenBrandColor,
+} from "../../../../../services/token";
+import { formatUsdValue } from "../../../../../utils/formatting";
+import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 import type { Asset } from "../types";
 
-import { BorrowDetailsCard } from "./BorrowDetailsCard";
-import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
-import { useBorrowState } from "./hooks/useBorrowState";
-import { validateBorrowAction } from "./hooks/validateBorrowAction";
-import { BorrowSuccessModal } from "./SuccessModal";
+import { useRepayMetrics } from "./hooks/useRepayMetrics";
+import { useRepayState } from "./hooks/useRepayState";
+import { validateRepayAction } from "./hooks/validateRepayAction";
+import { RepaySuccessModal } from "./SuccessModal";
 
-export interface BorrowProps {
+export interface RepayProps {
   /** Collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
   /** Current debt in USD (from Aave oracle) */
@@ -27,98 +27,91 @@ export interface BorrowProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
-  /** Selected asset to borrow (from route) */
+  /** Selected asset to repay (from route) */
   selectedAsset: Asset;
-  onBorrow: (collateralAmount: number, borrowAmount: number) => void;
+  onRepay: (repayAmount: number, withdrawCollateralAmount: number) => void;
   onViewLoan: () => void;
   processing?: boolean;
 }
 
-export function Borrow({
+export function Repay({
   collateralValueUsd,
   currentDebtUsd,
   liquidationThresholdBps,
   currentHealthFactor,
   selectedAsset,
-  onBorrow,
+  //   onRepay,
   onViewLoan,
   processing = false,
-}: BorrowProps) {
+}: RepayProps) {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
 
-  const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
-    collateralValueUsd,
+  const { repayAmount, setRepayAmount, maxRepayAmount } = useRepayState({
     currentDebtUsd,
   });
 
-  const metrics = useBorrowMetrics({
-    borrowAmount,
+  const metrics = useRepayMetrics({
+    repayAmount,
     collateralValueUsd,
     currentDebtUsd,
     liquidationThresholdBps,
     currentHealthFactor,
   });
 
-  const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
-    borrowAmount,
-    metrics.healthFactorValue,
+  const { isDisabled, buttonText, errorMessage } = validateRepayAction(
+    repayAmount,
+    maxRepayAmount,
   );
 
-  const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
+  const sliderMaxRepay = Math.max(maxRepayAmount, 0.0001);
 
-  const handleBorrow = () => {
-    // Call the onBorrow callback with 0 collateral (collateral already exists)
-    onBorrow(0, borrowAmount);
-    // Show success modal
+  const handleRepay = () => {
+    // TODO: Implement repay logic
     setIsSuccessModalOpen(true);
   };
 
   return (
     <div>
-      {/* Borrow Amount Section */}
+      {/* Repay Amount Section */}
       <h3 className="mb-4 text-[24px] font-normal text-accent-primary">
-        Borrow
+        Repay
       </h3>
       <div className="flex flex-col gap-2">
         <SubSection>
           <AmountSlider
-            amount={borrowAmount}
+            amount={repayAmount}
             currencyIcon={getCurrencyIconWithFallback(
               selectedAsset.icon,
               selectedAsset.symbol,
             )}
             currencyName={selectedAsset.name}
             onAmountChange={(e) =>
-              setBorrowAmount(parseFloat(e.target.value) || 0)
+              setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: sliderMaxBorrow.toLocaleString(),
+              balance: sliderMaxRepay.toLocaleString(),
               symbol: selectedAsset.symbol,
               displayUSD: false,
             }}
-            sliderValue={borrowAmount}
+            sliderValue={repayAmount}
             sliderMin={0}
-            sliderMax={sliderMaxBorrow}
-            sliderStep={sliderMaxBorrow / 1000}
+            sliderMax={sliderMaxRepay}
+            sliderStep={sliderMaxRepay / 1000}
             sliderSteps={[]}
-            onSliderChange={setBorrowAmount}
+            onSliderChange={setRepayAmount}
             sliderVariant="primary"
             leftField={{
               label: "Max",
-              value: `${sliderMaxBorrow.toLocaleString()} ${selectedAsset.symbol}`,
+              value: `${sliderMaxRepay.toLocaleString()} ${selectedAsset.symbol}`,
             }}
-            onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
+            onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
-              value: `$${borrowAmount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USD`,
+              value: formatUsdValue(repayAmount),
             }}
-            sliderActiveColor="#0B53BF"
+            sliderActiveColor={getTokenBrandColor(selectedAsset.symbol)}
           />
         </SubSection>
 
-        {/* Borrow Details Card */}
         <BorrowDetailsCard
           borrowRatio={metrics.borrowRatio}
           borrowRatioOriginal={metrics.borrowRatioOriginal}
@@ -128,32 +121,31 @@ export function Borrow({
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {/* Health Factor Error */}
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
       </div>
 
-      {/* Borrow Button */}
+      {/* Repay Button */}
       <Button
         variant="contained"
         color="secondary"
         size="large"
         fluid
         disabled={isDisabled || processing}
-        onClick={handleBorrow}
+        onClick={handleRepay}
         className="mt-6"
       >
         {processing ? "Processing..." : buttonText}
       </Button>
 
       {/* Success Modal */}
-      <BorrowSuccessModal
+      <RepaySuccessModal
         open={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}
         onViewLoan={onViewLoan}
-        borrowAmount={borrowAmount}
-        borrowSymbol={selectedAsset.symbol}
+        repayAmount={repayAmount}
+        repaySymbol={selectedAsset.symbol}
         assetIcon={selectedAsset.icon}
       />
     </div>

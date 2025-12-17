@@ -21,7 +21,10 @@ import {
   useAaveVaults,
 } from "../../hooks";
 import { AddCollateralModal } from "../AddCollateralModal";
-import { AssetSelectionModal } from "../AssetSelectionModal";
+import {
+  AssetSelectionModal,
+  type AssetSelectionMode,
+} from "../AssetSelectionModal";
 
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
@@ -30,6 +33,8 @@ import { VaultsTable } from "./components/VaultsTable";
 export function AaveOverview() {
   const navigate = useNavigate();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [assetModalMode, setAssetModalMode] =
+    useState<AssetSelectionMode>("borrow");
   const [isAddCollateralOpen, setIsAddCollateralOpen] = useState(false);
 
   // Wallet connection
@@ -71,15 +76,20 @@ export function AaveOverview() {
   };
 
   const handleBorrow = () => {
+    setAssetModalMode("borrow");
     setIsAssetModalOpen(true);
   };
 
   const handleRepay = () => {
-    // TODO: Navigate to repay flow
+    setAssetModalMode("repay");
+    setIsAssetModalOpen(true);
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}`);
+    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
+    const path =
+      assetModalMode === "repay" ? `${basePath}?tab=repay` : basePath;
+    navigate(path);
   };
 
   const handleDeposit = () => {
@@ -154,6 +164,7 @@ export function AaveOverview() {
         isOpen={isAssetModalOpen}
         onClose={() => setIsAssetModalOpen(false)}
         onSelectAsset={handleSelectAsset}
+        mode={assetModalMode}
       />
 
       {/* Add Collateral Modal */}

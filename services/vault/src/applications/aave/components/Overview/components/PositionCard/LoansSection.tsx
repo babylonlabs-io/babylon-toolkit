@@ -59,6 +59,7 @@ export function LoansSection({
               size="medium"
               onClick={onRepay}
               className="rounded-full"
+              disabled={!hasLoans}
             >
               Repay
             </Button>

@@ -7,7 +7,7 @@
 
 import { Container } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
@@ -21,7 +21,12 @@ import { LoanCard } from "../LoanCard";
 export function AaveReserveDetail() {
   const navigate = useNavigate();
   const { reserveId } = useParams<{ reserveId: string }>();
+  const [searchParams] = useSearchParams();
   const [borrowedAmount, setBorrowedAmount] = useState(0);
+
+  // Read tab from URL query params (defaults to "borrow")
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam === "repay" ? "repay" : "borrow";
 
   const { address } = useETHWallet();
 
@@ -141,7 +146,7 @@ export function AaveReserveDetail() {
 
           {/* Loan Card - Full width like other cards */}
           <LoanCard
-            defaultTab="borrow"
+            defaultTab={defaultTab}
             selectedAsset={assetConfig}
             liquidationThresholdBps={liquidationThresholdBps}
             onBorrow={handleBorrow}
