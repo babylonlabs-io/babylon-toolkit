@@ -12,7 +12,7 @@ import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Address, Chain, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
-import { MorphoControllerTx } from "../../clients/eth-contract";
+import { executeWrite } from "../../clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -149,33 +149,39 @@ export async function submitPeginRequest(
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
- * @param morphoControllerAddress - MorphoIntegrationController contract address
+ * @param applicationController - Application controller contract address
  * @param pegInTxHashes - Array of peg-in transaction hashes (vault IDs) to redeem
+ * @param contractABI - Contract ABI for the application controller
+ * @param functionName - Function name to call
  * @returns Array of transaction hashes and receipts for each redemption
  * @throws Error if any vault is not in Available status or if any transaction fails
  */
 export async function redeemVaults(
   walletClient: WalletClient,
   chain: Chain,
-  morphoControllerAddress: Address,
+  applicationController: Address,
   pegInTxHashes: Hex[],
+  contractABI: any,
+  functionName: string,
 ): Promise<Array<{ transactionHash: Hex; pegInTxHash: Hex; error?: string }>> {
   const results: Array<{
     transactionHash: Hex;
     pegInTxHash: Hex;
     error?: string;
   }> = [];
-
-  // Execute redemptions sequentially
+  // Execute redemptions sequentially using generic transaction factory
   // If any fails, throw error immediately (fail-entire operation)
   for (const pegInTxHash of pegInTxHashes) {
     try {
-      const result = await MorphoControllerTx.redeemBTCVault(
+      const result = await executeWrite({
         walletClient,
         chain,
-        morphoControllerAddress,
-        pegInTxHash,
-      );
+        address: applicationController,
+        abi: contractABI,
+        functionName,
+        args: [pegInTxHash],
+        errorContext: `redeem vault via ${functionName}`,
+      });
 
       results.push({
         transactionHash: result.transactionHash,
