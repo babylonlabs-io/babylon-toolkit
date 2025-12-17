@@ -9,7 +9,7 @@ import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { Address, Chain, Hex, WalletClient } from "viem";
+import type { Abi, Address, Chain, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 import { executeWrite } from "../../clients/eth-contract/transactionFactory";
@@ -161,7 +161,7 @@ export async function redeemVaults(
   chain: Chain,
   applicationController: Address,
   pegInTxHashes: Hex[],
-  contractABI: any,
+  contractABI: Abi | readonly unknown[],
   functionName: string,
 ): Promise<Array<{ transactionHash: Hex; pegInTxHash: Hex; error?: string }>> {
   const results: Array<{

@@ -11,7 +11,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useState } from "react";
-import type { Address, Hex, WalletClient } from "viem";
+import type { Abi, Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
 import AaveIntegrationControllerABI from "../../../applications/aave/clients/abis/AaveIntegrationController.abi.json";
@@ -106,7 +106,7 @@ export function RedeemCollateralSignModal({
       const applicationController = uniqueControllers[0] as Address;
 
       // Determine which ABI and function to use based on the controller address
-      let contractABI: any;
+      let contractABI: Abi | readonly unknown[];
       let functionName: string;
 
       if (
