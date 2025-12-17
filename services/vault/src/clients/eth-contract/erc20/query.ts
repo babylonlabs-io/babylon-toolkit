@@ -16,6 +16,16 @@ const ERC20_ABI = [
     outputs: [{ name: "balance", type: "uint256" }],
   },
   {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "symbol",
     type: "function",
     stateMutability: "view",
@@ -58,6 +68,30 @@ export async function getERC20Balance(
   });
 
   return balance as bigint;
+}
+
+/**
+ * Get ERC20 token allowance
+ * @param tokenAddress - ERC20 token contract address
+ * @param ownerAddress - Address that owns the tokens
+ * @param spenderAddress - Address that is allowed to spend the tokens
+ * @returns Allowance amount in token's smallest unit
+ */
+export async function getERC20Allowance(
+  tokenAddress: Address,
+  ownerAddress: Address,
+  spenderAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+
+  const allowance = await publicClient.readContract({
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: "allowance",
+    args: [ownerAddress, spenderAddress],
+  });
+
+  return allowance as bigint;
 }
 
 /**

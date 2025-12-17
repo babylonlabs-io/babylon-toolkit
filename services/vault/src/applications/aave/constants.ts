@@ -85,6 +85,13 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
 export const MIN_SLIDER_MAX = 0.0001;
 
 /**
+ * Tolerance for detecting full repayment
+ * If repay amount is within this tolerance of max, treat as full repay
+ * Uses maxUint256 to ensure all debt including accrued interest is repaid
+ */
+export const FULL_REPAY_TOLERANCE = 0.01;
+
+/**
  * BTC token display constants
  */
 export const BTC_TOKEN = {

@@ -18,3 +18,8 @@ export {
   type UseBorrowTransactionProps,
   type UseBorrowTransactionResult,
 } from "./useBorrowTransaction";
+export {
+  useRepayTransaction,
+  type UseRepayTransactionProps,
+  type UseRepayTransactionResult,
+} from "./useRepayTransaction";

@@ -7,7 +7,11 @@
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 
-import { getCurrencyIconWithFallback } from "../../../../../services/token";
+import {
+  getCurrencyIconWithFallback,
+  getTokenBrandColor,
+} from "../../../../../services/token";
+import { formatUsdValue } from "../../../../../utils/formatting";
 import { MIN_SLIDER_MAX } from "../../../constants";
 import { useBorrowTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
@@ -96,12 +100,9 @@ export function Borrow() {
             }}
             onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
             rightField={{
-              value: `$${borrowAmount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })} USD`,
+              value: formatUsdValue(borrowAmount),
             }}
-            sliderActiveColor="#0B53BF"
+            sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
           />
         </SubSection>
 

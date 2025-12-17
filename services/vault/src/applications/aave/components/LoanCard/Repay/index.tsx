@@ -1,8 +1,8 @@
 /**
  * Repay Tab Component
  *
- * Handles the repay flow UI. Gets data from LoanContext.
- * TODO: Wire up actual repay transaction.
+ * Handles the complete repay flow including transaction execution.
+ * Gets all required data from LoanContext.
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
@@ -12,6 +12,8 @@ import {
   getTokenBrandColor,
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
+import { MIN_SLIDER_MAX } from "../../../constants";
+import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
@@ -25,14 +27,23 @@ export function Repay() {
     currentDebtUsd,
     healthFactor,
     liquidationThresholdBps,
+    selectedReserve,
     assetConfig,
+    positionId,
     onRepaySuccess,
   } = useLoanContext();
 
-  const { repayAmount, setRepayAmount, resetRepayAmount, maxRepayAmount } =
-    useRepayState({
-      currentDebtUsd,
-    });
+  const { executeRepay, isProcessing } = useRepayTransaction({ positionId });
+
+  const {
+    repayAmount,
+    setRepayAmount,
+    resetRepayAmount,
+    maxRepayAmount,
+    isFullRepayment,
+  } = useRepayState({
+    currentDebtUsd,
+  });
 
   const metrics = useRepayMetrics({
     repayAmount,
@@ -47,13 +58,18 @@ export function Repay() {
     maxRepayAmount,
   );
 
-  const sliderMaxRepay = Math.max(maxRepayAmount, 0.0001);
+  const sliderMaxRepay = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
 
   const handleRepay = async () => {
-    // TODO: Implement actual repay transaction
-    // For now, just call success callback
-    resetRepayAmount();
-    onRepaySuccess(repayAmount, 0);
+    const success = await executeRepay(
+      repayAmount,
+      selectedReserve,
+      isFullRepayment,
+    );
+    if (success) {
+      resetRepayAmount();
+      onRepaySuccess(repayAmount, 0);
+    }
   };
 
   return (
@@ -118,11 +134,11 @@ export function Repay() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled}
+        disabled={isDisabled || isProcessing}
         onClick={handleRepay}
         className="mt-6"
       >
-        {buttonText}
+        {isProcessing ? "Processing..." : buttonText}
       </Button>
     </div>
   );
