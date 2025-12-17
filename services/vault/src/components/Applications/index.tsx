@@ -6,6 +6,8 @@ import { useMarkets } from "../../applications/morpho/hooks";
 import { useApplications } from "../../hooks/useApplications";
 import { ApplicationLogo } from "../ApplicationLogo";
 
+import { AaveBanner } from "./AaveBanner";
+
 export function Applications() {
   const navigate = useNavigate();
   const { data: applications, isLoading, error } = useApplications();
@@ -33,67 +35,87 @@ export function Applications() {
   return (
     <>
       {header}
-      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-2">
-        {applications.map((app) => (
-          <SubSection
-            key={app.id}
-            className="flex flex-col gap-6 transition-all hover:shadow-lg"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <ApplicationLogo
-                  logoUrl={app.logoUrl}
-                  name={app.name || app.type}
-                  size="small"
-                  shape="rounded"
-                />
-                <h4 className="text-[20px] font-medium text-accent-primary">
-                  {app.name || app.type}
-                </h4>
+      <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-1">
+        {applications.map((app) => {
+          const appId = getAppIdByController(app.id);
+          const isAave = appId === "aave";
+
+          // Render custom Aave banner
+          if (isAave) {
+            return (
+              <AaveBanner
+                key={app.id}
+                onExplore={() => navigate(`/app/${appId}`)}
+              />
+            );
+          }
+
+          // Render standard card for other applications
+          return (
+            <SubSection
+              key={app.id}
+              className="flex flex-col gap-6 transition-all hover:shadow-lg"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <ApplicationLogo
+                    logoUrl={app.logoUrl}
+                    name={app.name || app.type}
+                    size="small"
+                    shape="rounded"
+                  />
+                  <h4 className="text-[20px] font-medium text-accent-primary">
+                    {app.name || app.type}
+                  </h4>
+                </div>
+                <Chip>{app.type}</Chip>
               </div>
-              <Chip>{app.type}</Chip>
-            </div>
 
-            {app.description && (
-              <p className="flex-1 text-sm leading-relaxed text-accent-primary">
-                {app.description}
-              </p>
-            )}
+              {app.description && (
+                <p className="flex-1 text-sm leading-relaxed text-accent-primary">
+                  {app.description}
+                </p>
+              )}
 
-            {(() => {
-              const appId = getAppIdByController(app.id);
-              if (app.type === "Lending" && markets.length > 0 && appId) {
-                return (
-                  <Button
-                    variant="outlined"
-                    rounded
-                    className="self-start"
-                    onClick={() =>
-                      navigate(`/app/${appId}/market/${markets[0].id}`)
-                    }
-                  >
-                    Explore
-                  </Button>
-                );
-              }
-              if (app.websiteUrl) {
-                return (
-                  <a
-                    href={app.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="self-start"
-                  >
-                    <Button variant="outlined" rounded>
-                      Explore
-                    </Button>
-                  </a>
-                );
-              }
-              return null;
-            })()}
-          </SubSection>
-        ))}
+              {(() => {
+                if (app.type === "Lending" && appId) {
+                  const targetPath =
+                    markets.length > 0
+                      ? `/app/${appId}/market/${markets[0].id}`
+                      : null;
+
+                  if (targetPath) {
+                    return (
+                      <Button
+                        variant="outlined"
+                        rounded
+                        className="self-start"
+                        onClick={() => navigate(targetPath)}
+                      >
+                        Explore
+                      </Button>
+                    );
+                  }
+                }
+                if (app.websiteUrl) {
+                  return (
+                    <a
+                      href={app.websiteUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="self-start"
+                    >
+                      <Button variant="outlined" rounded>
+                        Explore
+                      </Button>
+                    </a>
+                  );
+                }
+                return null;
+              })()}
+            </SubSection>
+          );
+        })}
       </div>
     </>
   );

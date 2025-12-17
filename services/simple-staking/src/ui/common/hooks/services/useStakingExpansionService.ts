@@ -412,7 +412,7 @@ export function useStakingExpansionService() {
           publicKeyNoCoord,
         );
 
-        // Navigate to success
+        // Navigate to success modal
         goToStep(StakingExpansionStep.FEEDBACK_SUCCESS);
         setProcessing(false);
       } catch (error) {

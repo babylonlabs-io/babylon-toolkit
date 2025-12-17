@@ -9,9 +9,7 @@ interface StakingSuccessModalProps {
 }
 
 /**
- * Displays appropriate success modal after staking:
- * - CoStakingBoostModal if co-staking feature is enabled
- * - SuccessFeedbackModal otherwise
+ * Displays the CoStakingBoostModal after successful staking.
  *
  * Handles navigation to /baby page with co-staking prefill state when user
  * opts to boost their stake.

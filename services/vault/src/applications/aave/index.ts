@@ -11,8 +11,7 @@ export const aaveApp: ApplicationRegistration = {
     type: "Lending",
     description:
       "Aave is a decentralized non-custodial liquidity protocol where users can participate as suppliers or borrowers.",
-    logoUrl:
-      "https://assets.coingecko.com/coins/images/12645/standard/aave-token-round.png",
+    logoUrl: "/images/aave.svg",
     websiteUrl: "https://aave.com",
   },
   Routes: AaveRoutes,

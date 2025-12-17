@@ -1,7 +1,33 @@
 /**
  * Utility functions for calculating subset sums
  * Used to determine all possible combinations of vault amounts for collateral selection
+ */
+
+/** Satoshis per BTC for conversion */
+export const SATOSHIS_PER_BTC = 1e8;
+
+/**
+ * Convert BTC amount to satoshis
  *
+ * @param btcAmount - Amount in BTC
+ * @returns Amount in satoshis as bigint
+ */
+export function btcToSatoshis(btcAmount: number): bigint {
+  return BigInt(Math.round(btcAmount * SATOSHIS_PER_BTC));
+}
+
+/**
+ * Convert satoshis to BTC
+ *
+ * @param satoshis - Amount in satoshis
+ * @returns Amount in BTC
+ */
+export function satoshisToBtc(satoshis: bigint): number {
+  return Number(satoshis) / SATOSHIS_PER_BTC;
+}
+
+/**
+ * Calculate all possible subset sums from an array of amounts
  *
  * @param amountsSatoshis - Array of bigint amounts in satoshis
  * @returns Sorted array of all possible sums in satoshis (excluding 0)

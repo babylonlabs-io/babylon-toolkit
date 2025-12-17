@@ -41,8 +41,8 @@ jobs:
       - name: Build all
         run: pnpm build
 
-      - name: Lint affected
-        run: pnpm exec nx affected --target=lint --base=origin/main --verbose
+      - name: Lint all
+        run: pnpm run lint
 
       - name: Test affected
         run: pnpm exec nx affected --target=test --base=origin/main --verbose

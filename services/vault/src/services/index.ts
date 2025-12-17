@@ -1,5 +1,7 @@
 // Business logic layer orchestrating clients and transactions
 
+export * from "./activity";
+
 // Applications services (includes Morpho market and position operations)
 export * from "./applications";
 

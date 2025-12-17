@@ -335,3 +335,67 @@ export const HeaderVisibility: Story = {
     );
   },
 };
+
+/**
+ * Style Presets
+ *
+ * Available presets: 'default', 'card'
+ */
+export const StylePresets: Story = {
+  render: () => {
+    return (
+      <div className="space-y-8">
+        {/* Default */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Default</h3>
+          <Table data={data} columns={columns} />
+        </div>
+
+        {/* Card */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Card</h3>
+          <Table data={data} columns={columns} stylePreset="card" />
+        </div>
+      </div>
+    );
+  },
+};
+
+/**
+ * Custom Configuration
+ *
+ * Fine-grained control with nested options and value customization
+ */
+export const CustomConfiguration: Story = {
+  render: () => {
+    return (
+      <div className="space-y-8">
+        {/* Clickable Rows */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Clickable Rows (cursor: pointer)</h3>
+          <Table
+            data={data}
+            columns={columns}
+            styleConfig={{
+              layout: { fullWidth: true },
+              rows: { clickable: true },
+            }}
+          />
+        </div>
+
+        {/* Card with custom gap */}
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Custom Gap Size (1rem)</h3>
+          <Table
+            data={data}
+            columns={columns}
+            styleConfig={{
+              layout: { fullWidth: true, rowGap: true, rowGapSize: '1rem' },
+              rows: { alternateColors: false, rounded: true },
+            }}
+          />
+        </div>
+      </div>
+    );
+  },
+};

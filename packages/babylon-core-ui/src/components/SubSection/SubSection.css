@@ -1,5 +1,5 @@
 .bbn-subsection {
-  @apply flex rounded-lg p-6 text-accent-primary;
+  @apply flex w-full flex-col rounded-lg p-6 text-accent-primary;
 }
 
 .bbn-subsection-contained {

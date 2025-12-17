@@ -5,7 +5,7 @@ import { CancelFeedbackModal } from "@/ui/common/components/Modals/CancelFeedbac
 import { PreviewModal } from "@/ui/common/components/Modals/PreviewModal";
 import { SignModal } from "@/ui/common/components/Modals/SignModal/SignModal";
 import { StakeModal } from "@/ui/common/components/Modals/StakeModal";
-import { SuccessFeedbackModal } from "@/ui/common/components/Modals/SuccessFeedbackModal";
+import { StakingSuccessModal } from "@/ui/common/components/Modals/StakingSuccessModal";
 import { VerificationModal } from "@/ui/common/components/Modals/VerificationModal";
 import { useStakingService } from "@/ui/common/hooks/services/useStakingService";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
@@ -120,7 +120,7 @@ export function StakingModal() {
           onClose={handleClose}
         />
       )}
-      <SuccessFeedbackModal
+      <StakingSuccessModal
         open={step === "feedback-success"}
         onClose={handleClose}
       />
