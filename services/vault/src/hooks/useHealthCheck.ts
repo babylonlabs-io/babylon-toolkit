@@ -46,5 +46,6 @@ export function useHealthCheck() {
     }
 
     check();
-  }, [handleError]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
