@@ -110,7 +110,12 @@ export function useRepayTransaction({
       );
 
       if (currentAllowance < requiredAllowance) {
-        await approveForRepay(walletClient, chain, reserve.reserveId);
+        await approveForRepay(
+          walletClient,
+          chain,
+          reserve.reserveId,
+          requiredAllowance,
+        );
       }
 
       // Step 2: Execute the repay transaction
@@ -143,7 +148,7 @@ export function useRepayTransaction({
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () => executeRepay(repayAmount, reserve),
+          retryAction: () => executeRepay(repayAmount, reserve, isFullRepayment),
         },
       });
 
