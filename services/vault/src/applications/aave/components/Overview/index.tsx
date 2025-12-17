@@ -8,7 +8,7 @@
  */
 
 import { Avatar, Container } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
@@ -20,8 +20,12 @@ import {
   useAaveUserPosition,
   useAaveVaults,
 } from "../../hooks";
+import type { Asset } from "../../types";
 import { AddCollateralModal } from "../AddCollateralModal";
-import { AssetSelectionModal } from "../AssetSelectionModal";
+import {
+  AssetSelectionModal,
+  type AssetSelectionMode,
+} from "../AssetSelectionModal";
 
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
@@ -30,6 +34,8 @@ import { VaultsTable } from "./components/VaultsTable";
 export function AaveOverview() {
   const navigate = useNavigate();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [assetModalMode, setAssetModalMode] =
+    useState<AssetSelectionMode>("borrow");
   const [isAddCollateralOpen, setIsAddCollateralOpen] = useState(false);
 
   // Wallet connection
@@ -54,6 +60,16 @@ export function AaveOverview() {
     debtValueUsd,
   });
 
+  const selectableBorrowedAssets = useMemo(
+    (): Asset[] =>
+      borrowedAssets.map((asset) => ({
+        symbol: asset.symbol,
+        name: asset.symbol,
+        icon: asset.icon,
+      })),
+    [borrowedAssets],
+  );
+
   // Derive display values
   const hasCollateral = collateralBtc > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
@@ -71,15 +87,27 @@ export function AaveOverview() {
   };
 
   const handleBorrow = () => {
+    setAssetModalMode("borrow");
     setIsAssetModalOpen(true);
   };
 
   const handleRepay = () => {
-    // TODO: Navigate to repay flow
+    if (borrowedAssets.length === 1) {
+      const assetSymbol = borrowedAssets[0].symbol;
+      navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=repay`);
+      return;
+    }
+
+    // Multiple borrowed assets: show selection modal
+    setAssetModalMode("repay");
+    setIsAssetModalOpen(true);
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
-    navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}`);
+    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
+    const path =
+      assetModalMode === "repay" ? `${basePath}?tab=repay` : basePath;
+    navigate(path);
   };
 
   const handleDeposit = () => {
@@ -154,6 +182,10 @@ export function AaveOverview() {
         isOpen={isAssetModalOpen}
         onClose={() => setIsAssetModalOpen(false)}
         onSelectAsset={handleSelectAsset}
+        mode={assetModalMode}
+        assets={
+          assetModalMode === "repay" ? selectableBorrowedAssets : undefined
+        }
       />
 
       {/* Add Collateral Modal */}

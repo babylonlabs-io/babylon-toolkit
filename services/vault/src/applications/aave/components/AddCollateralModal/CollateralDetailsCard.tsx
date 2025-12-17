@@ -59,15 +59,15 @@ export function CollateralDetailsCard({
 
   return (
     <SubSection>
-      <div className="space-y-4">
+      <div className="divide-y divide-secondary-strokeLight">
         {/* Spoke Row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
           <span className="text-sm text-accent-secondary">Spoke</span>
           <span className="text-base text-accent-primary">Aave Prime</span>
         </div>
 
         {/* Borrowable Assets Row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
           <span className="text-sm text-accent-secondary">
             Borrowable assets
           </span>
@@ -84,7 +84,7 @@ export function CollateralDetailsCard({
         </div>
 
         {/* Health Factor Row */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
           <span className="text-sm text-accent-secondary">Health Factor</span>
           {showTransition ? (
             <span className="flex items-center gap-2 text-base">

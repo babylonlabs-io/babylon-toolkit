@@ -5,9 +5,11 @@
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
+import type { Asset } from "../../types";
 import { useLoanContext } from "../context/LoanContext";
 
-import { Borrow, type Asset } from "./Borrow";
+import { Borrow } from "./Borrow";
+import { Repay } from "./Repay";
 
 const LOAN_TAB = {
   BORROW: "borrow",
@@ -34,7 +36,7 @@ export function LoanCard({
   liquidationThresholdBps,
   onBorrow,
   onViewLoan,
-  // onRepay,
+  onRepay,
   processing = false,
 }: LoanCardProps) {
   const { collateralValueUsd, currentDebtUsd, healthFactor } = useLoanContext();
@@ -69,7 +71,22 @@ export function LoanCard({
               />
             ),
           },
-          // TODO: Add repay tab
+          {
+            id: LOAN_TAB.REPAY,
+            label: "Repay",
+            content: (
+              <Repay
+                collateralValueUsd={collateralValueUsd}
+                currentDebtUsd={currentDebtUsd}
+                liquidationThresholdBps={liquidationThresholdBps}
+                currentHealthFactor={healthFactor}
+                selectedAsset={selectedAsset}
+                onRepay={onRepay ?? (() => {})}
+                onViewLoan={onViewLoan}
+                processing={processing}
+              />
+            ),
+          },
         ]}
         activeTab={activeTab}
         onTabChange={(tabId) => setActiveTab(tabId as LoanTab)}
