@@ -92,3 +92,14 @@ export const BTC_TOKEN = {
   name: "Bitcoin",
   symbol: "BTC",
 } as const;
+
+/**
+ * Loan tab identifiers
+ * Used for URL params and tab switching
+ */
+export const LOAN_TAB = {
+  BORROW: "borrow",
+  REPAY: "repay",
+} as const;
+
+export type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];

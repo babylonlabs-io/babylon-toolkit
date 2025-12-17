@@ -1,61 +1,45 @@
 /**
  * Repay Tab Component
+ *
+ * Handles the repay flow UI. Gets data from LoanContext.
+ * TODO: Wire up actual repay transaction.
  */
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
 
 import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
-import type { Asset } from "../../../types";
+import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";
 import { validateRepayAction } from "./hooks/validateRepayAction";
-import { RepaySuccessModal } from "./SuccessModal";
 
-export interface RepayProps {
-  /** Collateral value in USD (from Aave oracle) */
-  collateralValueUsd: number;
-  /** Current debt in USD (from Aave oracle) */
-  currentDebtUsd: number;
-  /** vBTC liquidation threshold in BPS (e.g., 8000 = 80%) */
-  liquidationThresholdBps: number;
-  /** Current health factor (null if no debt) */
-  currentHealthFactor: number | null;
-  /** Selected asset to repay (from route) */
-  selectedAsset: Asset;
-  onRepay: (repayAmount: number, withdrawCollateralAmount: number) => void;
-  onViewLoan: () => void;
-  processing?: boolean;
-}
-
-export function Repay({
-  collateralValueUsd,
-  currentDebtUsd,
-  liquidationThresholdBps,
-  currentHealthFactor,
-  selectedAsset,
-  //   onRepay,
-  onViewLoan,
-  processing = false,
-}: RepayProps) {
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-
-  const { repayAmount, setRepayAmount, maxRepayAmount } = useRepayState({
+export function Repay() {
+  const {
+    collateralValueUsd,
     currentDebtUsd,
-  });
+    healthFactor,
+    liquidationThresholdBps,
+    assetConfig,
+    onRepaySuccess,
+  } = useLoanContext();
+
+  const { repayAmount, setRepayAmount, resetRepayAmount, maxRepayAmount } =
+    useRepayState({
+      currentDebtUsd,
+    });
 
   const metrics = useRepayMetrics({
     repayAmount,
     collateralValueUsd,
     currentDebtUsd,
     liquidationThresholdBps,
-    currentHealthFactor,
+    currentHealthFactor: healthFactor,
   });
 
   const { isDisabled, buttonText, errorMessage } = validateRepayAction(
@@ -65,9 +49,11 @@ export function Repay({
 
   const sliderMaxRepay = Math.max(maxRepayAmount, 0.0001);
 
-  const handleRepay = () => {
-    // TODO: Implement repay logic
-    setIsSuccessModalOpen(true);
+  const handleRepay = async () => {
+    // TODO: Implement actual repay transaction
+    // For now, just call success callback
+    resetRepayAmount();
+    onRepaySuccess(repayAmount, 0);
   };
 
   return (
@@ -81,16 +67,16 @@ export function Repay({
           <AmountSlider
             amount={repayAmount}
             currencyIcon={getCurrencyIconWithFallback(
-              selectedAsset.icon,
-              selectedAsset.symbol,
+              assetConfig.icon,
+              assetConfig.symbol,
             )}
-            currencyName={selectedAsset.name}
+            currencyName={assetConfig.name}
             onAmountChange={(e) =>
               setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
               balance: sliderMaxRepay.toLocaleString(),
-              symbol: selectedAsset.symbol,
+              symbol: assetConfig.symbol,
               displayUSD: false,
             }}
             sliderValue={repayAmount}
@@ -102,13 +88,13 @@ export function Repay({
             sliderVariant="primary"
             leftField={{
               label: "Max",
-              value: `${sliderMaxRepay.toLocaleString()} ${selectedAsset.symbol}`,
+              value: `${sliderMaxRepay.toLocaleString()} ${assetConfig.symbol}`,
             }}
             onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
               value: formatUsdValue(repayAmount),
             }}
-            sliderActiveColor={getTokenBrandColor(selectedAsset.symbol)}
+            sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
           />
         </SubSection>
 
@@ -132,22 +118,12 @@ export function Repay({
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || processing}
+        disabled={isDisabled}
         onClick={handleRepay}
         className="mt-6"
       >
-        {processing ? "Processing..." : buttonText}
+        {buttonText}
       </Button>
-
-      {/* Success Modal */}
-      <RepaySuccessModal
-        open={isSuccessModalOpen}
-        onClose={() => setIsSuccessModalOpen(false)}
-        onViewLoan={onViewLoan}
-        repayAmount={repayAmount}
-        repaySymbol={selectedAsset.symbol}
-        assetIcon={selectedAsset.icon}
-      />
     </div>
   );
 }

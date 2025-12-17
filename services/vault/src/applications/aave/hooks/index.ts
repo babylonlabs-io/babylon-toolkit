@@ -13,3 +13,8 @@ export {
   useAddCollateralTransaction,
   type UseAddCollateralTransactionResult,
 } from "./useAddCollateralTransaction";
+export {
+  useBorrowTransaction,
+  type UseBorrowTransactionProps,
+  type UseBorrowTransactionResult,
+} from "./useBorrowTransaction";

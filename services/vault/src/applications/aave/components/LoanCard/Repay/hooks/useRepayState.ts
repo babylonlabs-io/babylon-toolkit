@@ -13,6 +13,7 @@ export interface UseRepayStateProps {
 export interface UseRepayStateResult {
   repayAmount: number;
   setRepayAmount: (amount: number) => void;
+  resetRepayAmount: () => void;
   maxRepayAmount: number;
 }
 
@@ -25,9 +26,12 @@ export function useRepayState({
     return Math.floor(Math.max(0, currentDebtUsd) * 100) / 100;
   }, [currentDebtUsd]);
 
+  const resetRepayAmount = () => setRepayAmount(0);
+
   return {
     repayAmount,
     setRepayAmount,
+    resetRepayAmount,
     maxRepayAmount,
   };
 }

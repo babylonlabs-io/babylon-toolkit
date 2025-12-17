@@ -1,104 +1,74 @@
 /**
  * Aave Reserve Detail Page
  *
- * Borrow card layout with real position data from Aave oracle.
+ * Borrow/Repay card with real position data from Aave oracle.
  * Reserve is selected from the overview page and passed via URL param.
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
-import { getTokenByAddress } from "@/services/token/tokenService";
 
-import { useAaveConfig } from "../../context";
-import { useAaveUserPosition } from "../../hooks";
+import { LOAN_TAB } from "../../constants";
 import { LoanProvider } from "../context/LoanContext";
 import { LoanCard } from "../LoanCard";
+import { BorrowSuccessModal } from "../LoanCard/Borrow/SuccessModal";
+import { RepaySuccessModal } from "../LoanCard/Repay/SuccessModal";
+
+import { useAaveReserveDetail, useBorrowRepayModals } from "./hooks";
 
 export function AaveReserveDetail() {
   const navigate = useNavigate();
   const { reserveId } = useParams<{ reserveId: string }>();
   const [searchParams] = useSearchParams();
-  const [borrowedAmount, setBorrowedAmount] = useState(0);
 
   // Read tab from URL query params (defaults to "borrow")
   const tabParam = searchParams.get("tab");
-  const defaultTab = tabParam === "repay" ? "repay" : "borrow";
+  const defaultTab =
+    tabParam === LOAN_TAB.REPAY ? LOAN_TAB.REPAY : LOAN_TAB.BORROW;
 
   const { address } = useETHWallet();
 
-  // Fetch reserves from Aave config
+  // Fetch reserve and position data
   const {
+    isLoading,
+    selectedReserve,
+    assetConfig,
     vbtcReserve,
-    borrowableReserves,
-    isLoading: configLoading,
-  } = useAaveConfig();
-
-  // Find the selected reserve by symbol (from URL param)
-  const selectedReserve = useMemo(() => {
-    if (!reserveId) return null;
-    return borrowableReserves.find(
-      (r) => r.token.symbol.toLowerCase() === reserveId.toLowerCase(),
-    );
-  }, [borrowableReserves, reserveId]);
-
-  // Build asset config from reserve
-  const assetConfig = useMemo(() => {
-    if (!selectedReserve) return null;
-    const tokenMetadata = getTokenByAddress(selectedReserve.token.address);
-    return {
-      name: selectedReserve.token.name,
-      symbol: selectedReserve.token.symbol,
-      icon: tokenMetadata?.icon ?? "",
-    };
-  }, [selectedReserve]);
-
-  // Fetch user position from Aave (uses Aave oracle for USD values)
-  const {
+    liquidationThresholdBps,
+    positionId,
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
-    isLoading: positionLoading,
-  } = useAaveUserPosition(address);
+  } = useAaveReserveDetail({ reserveId, address });
+
+  // Modal state management
+  const {
+    showBorrowSuccess,
+    borrowSuccessData,
+    openBorrowSuccess,
+    closeBorrowSuccess,
+    showRepaySuccess,
+    repaySuccessData,
+    openRepaySuccess,
+    closeRepaySuccess,
+  } = useBorrowRepayModals();
 
   const handleBack = () => navigate("/app/aave");
 
-  // Stub handlers for UI-only mode
-  const handleBorrow = (collateralAmount: number, borrowAmount: number) => {
-    void collateralAmount;
-    setBorrowedAmount(borrowAmount);
+  const handleCloseBorrowSuccess = () => {
+    closeBorrowSuccess();
+    navigate("/app/aave");
   };
 
-  const handleRepay = (
-    repayAmount: number,
-    withdrawCollateralAmount: number,
-  ) => {
-    // TODO: wire to Aave repay transaction flow
-    void repayAmount;
-    void withdrawCollateralAmount;
+  const handleCloseRepaySuccess = () => {
+    closeRepaySuccess();
+    navigate("/app/aave");
   };
 
-  const handleViewLoan = () => {
-    if (!assetConfig) return;
-    // Navigate back to dashboard with borrowedAssets state
-    navigate("/app/aave", {
-      state: {
-        borrowedAssets: [
-          {
-            symbol: assetConfig.symbol,
-            icon: assetConfig.icon,
-            amount: String(borrowedAmount),
-          },
-        ],
-      },
-    });
-  };
-
-  // Show loading state
-  const isLoading = configLoading || positionLoading;
+  // Loading state
   if (isLoading) {
     return (
       <Container className="pb-6">
@@ -112,7 +82,7 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Reserve not found or vBTC config missing
+  // Reserve not found
   if (!selectedReserve || !assetConfig || !vbtcReserve) {
     return (
       <Container className="pb-6">
@@ -126,35 +96,45 @@ export function AaveReserveDetail() {
     );
   }
 
-  // Build loan context from Aave position
-  const loanData = {
+  // Build loan context with all data needed by Borrow/Repay components
+  const loanContextValue = {
     collateralValueUsd,
     currentDebtUsd: debtValueUsd,
     healthFactor,
+    liquidationThresholdBps,
+    selectedReserve,
+    assetConfig,
+    positionId,
+    onBorrowSuccess: openBorrowSuccess,
+    onRepaySuccess: openRepaySuccess,
   };
 
-  // Get liquidation threshold (collateralFactor) from vBTC reserve
-  // collateralFactor is the proportion of collateral that can be borrowed against, in BPS
-  const liquidationThresholdBps = vbtcReserve.reserve.collateralFactor;
-
   return (
-    <LoanProvider value={loanData}>
+    <LoanProvider value={loanContextValue}>
       <Container className="pb-6">
         <div className="space-y-6">
-          {/* Back Button */}
           <BackButton label="Aave" onClick={handleBack} />
-
-          {/* Loan Card - Full width like other cards */}
-          <LoanCard
-            defaultTab={defaultTab}
-            selectedAsset={assetConfig}
-            liquidationThresholdBps={liquidationThresholdBps}
-            onBorrow={handleBorrow}
-            onRepay={handleRepay}
-            onViewLoan={handleViewLoan}
-          />
+          <LoanCard defaultTab={defaultTab} />
         </div>
       </Container>
+
+      <BorrowSuccessModal
+        open={showBorrowSuccess}
+        onClose={handleCloseBorrowSuccess}
+        onViewLoan={handleCloseBorrowSuccess}
+        borrowAmount={borrowSuccessData.amount}
+        borrowSymbol={assetConfig.symbol}
+        assetIcon={assetConfig.icon}
+      />
+
+      <RepaySuccessModal
+        open={showRepaySuccess}
+        onClose={handleCloseRepaySuccess}
+        onViewLoan={handleCloseRepaySuccess}
+        repayAmount={repaySuccessData.repayAmount}
+        repaySymbol={assetConfig.symbol}
+        assetIcon={assetConfig.icon}
+      />
     </LoanProvider>
   );
 }

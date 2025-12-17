@@ -11,19 +11,18 @@ import {
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
+import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import type { Asset } from "../../types";
 
 import { AssetListItem } from "./AssetListItem";
-
-export type AssetSelectionMode = "borrow" | "repay";
 
 interface AssetSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectAsset: (assetSymbol: string) => void;
   /** Mode determines the modal title and description */
-  mode?: AssetSelectionMode;
+  mode?: LoanTab;
   /**
    * Optional list of assets to display.
    * When provided, these assets are shown instead of the default borrowable reserves.
@@ -31,22 +30,22 @@ interface AssetSelectionModalProps {
   assets?: Asset[];
 }
 
-const MODE_CONFIG = {
-  borrow: {
+const MODE_CONFIG: Record<LoanTab, { title: string; description: string }> = {
+  [LOAN_TAB.BORROW]: {
     title: "Borrow",
     description: "Choose the asset to borrow",
   },
-  repay: {
+  [LOAN_TAB.REPAY]: {
     title: "Repay",
     description: "Choose the asset to repay",
   },
-} as const;
+};
 
 export function AssetSelectionModal({
   isOpen,
   onClose,
   onSelectAsset,
-  mode = "borrow",
+  mode = LOAN_TAB.BORROW,
   assets,
 }: AssetSelectionModalProps) {
   const { borrowableReserves, isLoading } = useAaveConfig();
