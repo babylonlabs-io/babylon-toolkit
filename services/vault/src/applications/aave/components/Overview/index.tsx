@@ -15,6 +15,7 @@ import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { LOAN_TAB, type LoanTab } from "../../constants";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -22,10 +23,7 @@ import {
 } from "../../hooks";
 import type { Asset } from "../../types";
 import { AddCollateralModal } from "../AddCollateralModal";
-import {
-  AssetSelectionModal,
-  type AssetSelectionMode,
-} from "../AssetSelectionModal";
+import { AssetSelectionModal } from "../AssetSelectionModal";
 
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
@@ -34,8 +32,9 @@ import { VaultsTable } from "./components/VaultsTable";
 export function AaveOverview() {
   const navigate = useNavigate();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [assetModalMode, setAssetModalMode] =
-    useState<AssetSelectionMode>("borrow");
+  const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
+    LOAN_TAB.BORROW,
+  );
   const [isAddCollateralOpen, setIsAddCollateralOpen] = useState(false);
 
   // Wallet connection
@@ -87,26 +86,30 @@ export function AaveOverview() {
   };
 
   const handleBorrow = () => {
-    setAssetModalMode("borrow");
+    setAssetModalMode(LOAN_TAB.BORROW);
     setIsAssetModalOpen(true);
   };
 
   const handleRepay = () => {
     if (borrowedAssets.length === 1) {
       const assetSymbol = borrowedAssets[0].symbol;
-      navigate(`/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=repay`);
+      navigate(
+        `/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=${LOAN_TAB.REPAY}`,
+      );
       return;
     }
 
     // Multiple borrowed assets: show selection modal
-    setAssetModalMode("repay");
+    setAssetModalMode(LOAN_TAB.REPAY);
     setIsAssetModalOpen(true);
   };
 
   const handleSelectAsset = (assetSymbol: string) => {
     const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
     const path =
-      assetModalMode === "repay" ? `${basePath}?tab=repay` : basePath;
+      assetModalMode === LOAN_TAB.REPAY
+        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
+        : basePath;
     navigate(path);
   };
 
@@ -184,7 +187,9 @@ export function AaveOverview() {
         onSelectAsset={handleSelectAsset}
         mode={assetModalMode}
         assets={
-          assetModalMode === "repay" ? selectableBorrowedAssets : undefined
+          assetModalMode === LOAN_TAB.REPAY
+            ? selectableBorrowedAssets
+            : undefined
         }
       />
 

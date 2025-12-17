@@ -1,45 +1,25 @@
 /**
- * LoanCard - Main orchestrator component for Aave borrow/repay UI
+ * LoanCard - Tab container for Aave borrow/repay UI
+ *
+ * Child components (Borrow, Repay) get their data from LoanContext
+ * and handle their own transaction logic.
  */
 
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
-import type { Asset } from "../../types";
+import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useLoanContext } from "../context/LoanContext";
 
 import { Borrow } from "./Borrow";
 import { Repay } from "./Repay";
 
-const LOAN_TAB = {
-  BORROW: "borrow",
-  REPAY: "repay",
-} as const;
-
-type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];
-
 export interface LoanCardProps {
   defaultTab?: LoanTab;
-  /** The selected asset to borrow (from route) */
-  selectedAsset: Asset;
-  /** vBTC liquidation threshold in BPS (e.g., 8000 = 80%) */
-  liquidationThresholdBps: number;
-  onBorrow: (collateralAmount: number, borrowAmount: number) => void;
-  onViewLoan: () => void;
-  onRepay?: (repayAmount: number, withdrawCollateralAmount: number) => void;
-  processing?: boolean;
 }
 
-export function LoanCard({
-  defaultTab = LOAN_TAB.BORROW,
-  selectedAsset,
-  liquidationThresholdBps,
-  onBorrow,
-  onViewLoan,
-  onRepay,
-  processing = false,
-}: LoanCardProps) {
-  const { collateralValueUsd, currentDebtUsd, healthFactor } = useLoanContext();
+export function LoanCard({ defaultTab = LOAN_TAB.BORROW }: LoanCardProps) {
+  const { collateralValueUsd, currentDebtUsd } = useLoanContext();
 
   const hasPosition = currentDebtUsd > 0 || collateralValueUsd > 0;
 
@@ -58,34 +38,12 @@ export function LoanCard({
           {
             id: LOAN_TAB.BORROW,
             label: "Borrow",
-            content: (
-              <Borrow
-                collateralValueUsd={collateralValueUsd}
-                currentDebtUsd={currentDebtUsd}
-                liquidationThresholdBps={liquidationThresholdBps}
-                currentHealthFactor={healthFactor}
-                selectedAsset={selectedAsset}
-                onBorrow={onBorrow}
-                onViewLoan={onViewLoan}
-                processing={processing}
-              />
-            ),
+            content: <Borrow />,
           },
           {
             id: LOAN_TAB.REPAY,
             label: "Repay",
-            content: (
-              <Repay
-                collateralValueUsd={collateralValueUsd}
-                currentDebtUsd={currentDebtUsd}
-                liquidationThresholdBps={liquidationThresholdBps}
-                currentHealthFactor={healthFactor}
-                selectedAsset={selectedAsset}
-                onRepay={onRepay ?? (() => {})}
-                onViewLoan={onViewLoan}
-                processing={processing}
-              />
-            ),
+            content: <Repay />,
           },
         ]}
         activeTab={activeTab}
