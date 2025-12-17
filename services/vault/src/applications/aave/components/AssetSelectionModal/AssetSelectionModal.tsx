@@ -12,6 +12,7 @@ import {
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import { useAaveConfig } from "../../context";
+import type { Asset } from "../../types";
 
 import { AssetListItem } from "./AssetListItem";
 
@@ -23,6 +24,11 @@ interface AssetSelectionModalProps {
   onSelectAsset: (assetSymbol: string) => void;
   /** Mode determines the modal title and description */
   mode?: AssetSelectionMode;
+  /**
+   * Optional list of assets to display.
+   * When provided, these assets are shown instead of the default borrowable reserves.
+   */
+  assets?: Asset[];
 }
 
 const MODE_CONFIG = {
@@ -41,6 +47,7 @@ export function AssetSelectionModal({
   onClose,
   onSelectAsset,
   mode = "borrow",
+  assets,
 }: AssetSelectionModalProps) {
   const { borrowableReserves, isLoading } = useAaveConfig();
   const config = MODE_CONFIG[mode];
@@ -51,6 +58,27 @@ export function AssetSelectionModal({
   };
 
   const renderContent = () => {
+    if (assets) {
+      if (assets.length === 0) {
+        return (
+          <p className="text-center text-accent-secondary">
+            No assets available
+          </p>
+        );
+      }
+
+      return assets.map((asset) => (
+        <AssetListItem
+          key={asset.symbol}
+          symbol={asset.symbol}
+          name={asset.name}
+          icon={asset.icon}
+          onClick={() => handleAssetClick(asset.symbol)}
+        />
+      ));
+    }
+
+    // Default: use borrowable reserves from config
     if (isLoading) {
       return (
         <p className="text-center text-accent-secondary">Loading assets...</p>

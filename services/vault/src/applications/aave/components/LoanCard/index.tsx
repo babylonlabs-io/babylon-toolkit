@@ -5,11 +5,11 @@
 import { Card, Tabs } from "@babylonlabs-io/core-ui";
 import { useEffect, useState } from "react";
 
+import type { Asset } from "../../types";
 import { useLoanContext } from "../context/LoanContext";
 
 import { Borrow } from "./Borrow";
 import { Repay } from "./Repay";
-import type { Asset } from "./types";
 
 const LOAN_TAB = {
   BORROW: "borrow",

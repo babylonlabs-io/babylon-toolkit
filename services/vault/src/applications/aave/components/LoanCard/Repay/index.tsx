@@ -10,8 +10,8 @@ import {
   getTokenBrandColor,
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
+import type { Asset } from "../../../types";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
-import type { Asset } from "../types";
 
 import { useRepayMetrics } from "./hooks/useRepayMetrics";
 import { useRepayState } from "./hooks/useRepayState";

@@ -10,7 +10,7 @@ import { useState } from "react";
 
 import { getCurrencyIconWithFallback } from "../../../../../services/token";
 import { MIN_SLIDER_MAX } from "../../../constants";
-import type { Asset } from "../types";
+import type { Asset } from "../../../types";
 
 import { BorrowDetailsCard } from "./BorrowDetailsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
