@@ -92,6 +92,12 @@ export function RedeemCollateralSignModal({
         .map((a) => a.applicationController?.toLowerCase())
         .filter((addr): addr is string => !!addr);
 
+      if (applicationControllers.length !== selectedActivities.length) {
+        throw new Error(
+          "Some selected vaults are missing application controller information",
+        );
+      }
+
       if (applicationControllers.length === 0) {
         throw new Error("No application controller found for selected vaults");
       }
