@@ -93,6 +93,10 @@
     @apply pointer-events-none cursor-not-allowed opacity-50;
   }
 
+  &-default {
+    @apply border-transparent;
+  }
+
   &-error {
     @apply border-error-main;
   }
