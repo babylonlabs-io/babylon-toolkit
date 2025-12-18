@@ -85,6 +85,13 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
 export const MIN_SLIDER_MAX = 0.0001;
 
 /**
+ * Tolerance for detecting full repayment
+ * If repay amount is within this tolerance of max, treat as full repay
+ * Uses maxUint256 to ensure all debt including accrued interest is repaid
+ */
+export const FULL_REPAY_TOLERANCE = 0.01;
+
+/**
  * BTC token display constants
  */
 export const BTC_TOKEN = {
@@ -92,3 +99,14 @@ export const BTC_TOKEN = {
   name: "Bitcoin",
   symbol: "BTC",
 } as const;
+
+/**
+ * Loan tab identifiers
+ * Used for URL params and tab switching
+ */
+export const LOAN_TAB = {
+  BORROW: "borrow",
+  REPAY: "repay",
+} as const;
+
+export type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];

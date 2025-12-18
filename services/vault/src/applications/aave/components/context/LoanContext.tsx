@@ -1,11 +1,14 @@
 /**
  * Loan Context
  *
- * Provides user's Aave position data to the borrow UI.
- * All values come from Aave's on-chain oracle.
+ * Provides user's Aave position data and reserve config to borrow/repay UI.
+ * All USD values come from Aave's on-chain oracle.
  */
 
 import { createContext, useContext } from "react";
+
+import type { AaveReserveConfig } from "../../services/fetchConfig";
+import type { Asset } from "../../types";
 
 export interface LoanContextValue {
   /** Collateral value in USD (from Aave oracle) */
@@ -14,6 +17,18 @@ export interface LoanContextValue {
   currentDebtUsd: number;
   /** Current health factor (null if no debt) */
   healthFactor: number | null;
+  /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
+  liquidationThresholdBps: number;
+  /** Selected reserve to borrow from */
+  selectedReserve: AaveReserveConfig;
+  /** Asset display config (icon, name, symbol) */
+  assetConfig: Asset;
+  /** User's position ID (for transactions) */
+  positionId: string | undefined;
+  /** Callback when borrow succeeds */
+  onBorrowSuccess: (borrowAmount: number) => void;
+  /** Callback when repay succeeds */
+  onRepaySuccess: (repayAmount: number, withdrawAmount: number) => void;
 }
 
 const LoanContext = createContext<LoanContextValue | null>(null);

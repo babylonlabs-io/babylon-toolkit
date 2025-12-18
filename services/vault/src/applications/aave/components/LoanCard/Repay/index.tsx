@@ -1,7 +1,7 @@
 /**
- * Borrow Tab Component
+ * Repay Tab Component
  *
- * Handles the complete borrow flow including transaction execution.
+ * Handles the complete repay flow including transaction execution.
  * Gets all required data from LoanContext.
  */
 
@@ -13,15 +13,15 @@ import {
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
 import { MIN_SLIDER_MAX } from "../../../constants";
-import { useBorrowTransaction } from "../../../hooks";
+import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
+import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
 
-import { BorrowDetailsCard } from "./BorrowDetailsCard";
-import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
-import { useBorrowState } from "./hooks/useBorrowState";
-import { validateBorrowAction } from "./hooks/validateBorrowAction";
+import { useRepayMetrics } from "./hooks/useRepayMetrics";
+import { useRepayState } from "./hooks/useRepayState";
+import { validateRepayAction } from "./hooks/validateRepayAction";
 
-export function Borrow() {
+export function Repay() {
   const {
     collateralValueUsd,
     currentDebtUsd,
@@ -30,83 +30,90 @@ export function Borrow() {
     selectedReserve,
     assetConfig,
     positionId,
-    onBorrowSuccess,
+    onRepaySuccess,
   } = useLoanContext();
 
-  const { executeBorrow, isProcessing } = useBorrowTransaction({ positionId });
+  const { executeRepay, isProcessing } = useRepayTransaction({ positionId });
 
-  const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
-    useBorrowState({
-      collateralValueUsd,
-      currentDebtUsd,
-    });
+  const {
+    repayAmount,
+    setRepayAmount,
+    resetRepayAmount,
+    maxRepayAmount,
+    isFullRepayment,
+  } = useRepayState({
+    currentDebtUsd,
+  });
 
-  const metrics = useBorrowMetrics({
-    borrowAmount,
+  const metrics = useRepayMetrics({
+    repayAmount,
     collateralValueUsd,
     currentDebtUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
   });
 
-  const { isDisabled, buttonText, errorMessage } = validateBorrowAction(
-    borrowAmount,
-    metrics.healthFactorValue,
+  const { isDisabled, buttonText, errorMessage } = validateRepayAction(
+    repayAmount,
+    maxRepayAmount,
   );
 
-  const sliderMaxBorrow = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
+  const sliderMaxRepay = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
 
-  const handleBorrow = async () => {
-    const success = await executeBorrow(borrowAmount, selectedReserve);
+  const handleRepay = async () => {
+    const success = await executeRepay(
+      repayAmount,
+      selectedReserve,
+      isFullRepayment,
+    );
     if (success) {
-      resetBorrowAmount();
-      onBorrowSuccess(borrowAmount);
+      resetRepayAmount();
+      onRepaySuccess(repayAmount, 0);
     }
   };
 
   return (
     <div>
-      {/* Borrow Amount Section */}
+      {/* Repay Amount Section */}
       <h3 className="mb-4 text-[24px] font-normal text-accent-primary">
-        Borrow
+        Repay
       </h3>
       <div className="flex flex-col gap-2">
         <SubSection>
           <AmountSlider
-            amount={borrowAmount}
+            amount={repayAmount}
             currencyIcon={getCurrencyIconWithFallback(
               assetConfig.icon,
               assetConfig.symbol,
             )}
             currencyName={assetConfig.name}
             onAmountChange={(e) =>
-              setBorrowAmount(parseFloat(e.target.value) || 0)
+              setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: sliderMaxBorrow.toLocaleString(),
+              balance: sliderMaxRepay.toLocaleString(),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
-            sliderValue={borrowAmount}
+            sliderValue={repayAmount}
             sliderMin={0}
-            sliderMax={sliderMaxBorrow}
-            sliderStep={sliderMaxBorrow / 1000}
+            sliderMax={sliderMaxRepay}
+            sliderStep={sliderMaxRepay / 1000}
             sliderSteps={[]}
-            onSliderChange={setBorrowAmount}
+            onSliderChange={setRepayAmount}
             sliderVariant="primary"
             leftField={{
               label: "Max",
-              value: `${sliderMaxBorrow.toLocaleString()} ${assetConfig.symbol}`,
+              value: `${sliderMaxRepay.toLocaleString()} ${assetConfig.symbol}`,
             }}
-            onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
+            onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
-              value: formatUsdValue(borrowAmount),
+              value: formatUsdValue(repayAmount),
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
           />
         </SubSection>
 
-        {/* Borrow Details Card */}
         <BorrowDetailsCard
           borrowRatio={metrics.borrowRatio}
           borrowRatioOriginal={metrics.borrowRatioOriginal}
@@ -116,20 +123,19 @@ export function Borrow() {
           healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
 
-        {/* Health Factor Error */}
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
       </div>
 
-      {/* Borrow Button */}
+      {/* Repay Button */}
       <Button
         variant="contained"
         color="secondary"
         size="large"
         fluid
         disabled={isDisabled || isProcessing}
-        onClick={handleBorrow}
+        onClick={handleRepay}
         className="mt-6"
       >
         {isProcessing ? "Processing..." : buttonText}

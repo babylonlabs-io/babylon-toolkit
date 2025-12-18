@@ -11,7 +11,27 @@ export interface ApplicationMetadata {
   websiteUrl: string;
 }
 
+/**
+ * Contract function names for application interactions
+ */
+export interface ApplicationFunctionNames {
+  /** Function to redeem vault back to depositor */
+  redeem: string;
+}
+
+/**
+ * Contract configuration for application interactions
+ */
+export interface ApplicationContractConfig {
+  /** Contract ABI */
+  abi: readonly unknown[];
+  /** Function names for common operations */
+  functionNames: ApplicationFunctionNames;
+}
+
 export interface ApplicationRegistration {
   metadata: ApplicationMetadata;
   Routes: ComponentType;
+  /** Contract configuration for on-chain interactions */
+  contracts: ApplicationContractConfig;
 }

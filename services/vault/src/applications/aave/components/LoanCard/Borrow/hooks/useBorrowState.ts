@@ -16,6 +16,7 @@ export interface UseBorrowStateProps {
 export interface UseBorrowStateResult {
   borrowAmount: number;
   setBorrowAmount: (amount: number) => void;
+  resetBorrowAmount: () => void;
   maxBorrowAmount: number;
 }
 
@@ -32,9 +33,12 @@ export function useBorrowState({
     return Math.floor(Math.max(0, maxAdditionalBorrow) * 100) / 100;
   }, [collateralValueUsd, currentDebtUsd]);
 
+  const resetBorrowAmount = () => setBorrowAmount(0);
+
   return {
     borrowAmount,
     setBorrowAmount,
+    resetBorrowAmount,
     maxBorrowAmount,
   };
 }
