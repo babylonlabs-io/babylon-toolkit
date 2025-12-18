@@ -8,7 +8,7 @@
  * The page automatically detects if the user has a position for this market.
  */
 
-import { Container } from "@babylonlabs-io/core-ui";
+import { Button, Container, Text } from "@babylonlabs-io/core-ui";
 import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { parseUnits } from "viem";
@@ -142,12 +142,25 @@ export function MarketDetail() {
     );
   }
 
-  // Show error state
   if (marketError) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-center text-sm text-accent-secondary">
-          Market not found
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Text variant="body1" className="text-error">
+            Failed to load market data
+          </Text>
+          <Text variant="body2" className="max-w-md text-accent-secondary">
+            {marketError.message ||
+              "Unable to fetch market information. Please try again."}
+          </Text>
+          <div className="flex gap-3">
+            <Button variant="outlined" rounded onClick={handleBack}>
+              Go Back
+            </Button>
+            <Button variant="contained" rounded onClick={() => refetch()}>
+              Try Again
+            </Button>
+          </div>
         </div>
       </div>
     );

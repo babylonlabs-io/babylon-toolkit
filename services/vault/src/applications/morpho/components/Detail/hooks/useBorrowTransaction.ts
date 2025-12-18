@@ -14,6 +14,7 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../../utils/errors";
+import { formatLendingError } from "../../../../../utils/errors/formatting";
 import { invalidateVaultQueries } from "../../../../../utils/queryKeys";
 import { findVaultIndicesForAmount } from "../../../../../utils/subsetSum";
 import {
@@ -148,8 +149,14 @@ export function useBorrowTransaction({
           ? mapViemErrorToContractError(error, "Borrow")
           : new Error("An unexpected error occurred during borrowing");
 
+      const formattedError = formatLendingError(mappedError);
+
       handleError({
-        error: mappedError,
+        error: {
+          ...mappedError,
+          title: formattedError.title,
+          message: formattedError.message,
+        },
         displayOptions: {
           showModal: true,
           retryAction: () =>

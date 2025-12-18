@@ -30,6 +30,7 @@ import {
 import { signAndSubmitPayoutSignatures } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
+import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 interface PayoutSignModalProps {
   /** Modal open state */
@@ -64,7 +65,10 @@ export function PayoutSignModal({
   onSuccess,
 }: PayoutSignModalProps) {
   const [signing, setSigning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   // Use applicationController from activity to fetch the correct providers
   const { findProvider, liquidators } = useVaultProviders(
@@ -77,7 +81,11 @@ export function PayoutSignModal({
 
   const handleSign = useCallback(async () => {
     if (!transactions || transactions.length === 0) {
-      setError("No transactions available to sign");
+      setError({
+        title: "No Transactions",
+        message:
+          "No transactions available to sign. Please wait and try again.",
+      });
       return;
     }
 
@@ -135,11 +143,7 @@ export function PayoutSignModal({
       onSuccess();
       onClose();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Failed to sign payout transactions";
-      setError(errorMessage);
+      setError(formatPayoutSignatureError(err));
       setSigning(false);
     }
   }, [
@@ -174,11 +178,13 @@ export function PayoutSignModal({
           sign to complete your deposit.
         </Text>
 
-        {/* Error Display */}
         {error && (
           <div className="bg-error/10 rounded-lg p-4">
+            <Text variant="body1" className="text-error mb-1 font-medium">
+              {error.title}
+            </Text>
             <Text variant="body2" className="text-error text-sm">
-              Error: {error}
+              {error.message}
             </Text>
           </div>
         )}

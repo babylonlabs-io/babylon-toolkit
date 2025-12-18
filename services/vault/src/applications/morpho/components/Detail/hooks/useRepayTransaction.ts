@@ -14,6 +14,7 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "../../../../../utils/errors";
+import { formatLendingError } from "../../../../../utils/errors/formatting";
 import { invalidateVaultQueries } from "../../../../../utils/queryKeys";
 import {
   approveLoanTokenForRepay,
@@ -185,8 +186,14 @@ export function useRepayTransaction({
             ? mapViemErrorToContractError(error, "Repay")
             : new Error("An unexpected error occurred during repayment");
 
+        const formattedError = formatLendingError(mappedError);
+
         handleError({
-          error: mappedError,
+          error: {
+            ...mappedError,
+            title: formattedError.title,
+            message: formattedError.message,
+          },
           displayOptions: {
             showModal: true,
             retryAction: () => handleConfirmRepay(repayAmount, withdrawAmount),

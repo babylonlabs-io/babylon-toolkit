@@ -1,4 +1,4 @@
-import { Button, Chip, SubSection } from "@babylonlabs-io/core-ui";
+import { Button, Chip, SubSection, Text } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { getAppIdByController } from "../../applications";
@@ -10,8 +10,17 @@ import { AaveBanner } from "./AaveBanner";
 
 export function Applications() {
   const navigate = useNavigate();
-  const { data: applications, isLoading, error } = useApplications();
-  const { markets } = useMarkets();
+  const {
+    data: applications,
+    isLoading,
+    error: applicationsError,
+    refetch: refetchApplications,
+  } = useApplications();
+  const {
+    markets,
+    error: marketsError,
+    refetch: refetchMarkets,
+  } = useMarkets();
 
   const header = (
     <h3 className="text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -19,7 +28,35 @@ export function Applications() {
     </h3>
   );
 
-  if (error || !applications || applications.length === 0) {
+  const error = applicationsError || marketsError;
+
+  if (error) {
+    return (
+      <>
+        {header}
+        <SubSection className="flex flex-col items-center gap-4 py-8">
+          <Text variant="body1" className="text-error">
+            Failed to load applications
+          </Text>
+          <Text variant="body2" className="text-accent-secondary">
+            {error.message || "Unable to fetch data. Please try again."}
+          </Text>
+          <Button
+            variant="outlined"
+            rounded
+            onClick={() => {
+              refetchApplications();
+              refetchMarkets();
+            }}
+          >
+            Try Again
+          </Button>
+        </SubSection>
+      </>
+    );
+  }
+
+  if (!applications || applications.length === 0) {
     return null;
   }
 
