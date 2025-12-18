@@ -1,5 +1,6 @@
 import {
   Card,
+  CheckIcon,
   Loader,
   SelectWithIcon,
   SubSection,
@@ -20,6 +21,7 @@ interface SelectApplicationSectionProps {
   isLoading: boolean;
   selectedApplication: string;
   error?: string;
+  completed?: boolean;
   onSelect: (applicationId: string) => void;
 }
 
@@ -28,6 +30,7 @@ export function SelectApplicationSection({
   isLoading,
   selectedApplication,
   error,
+  completed,
   onSelect,
 }: SelectApplicationSectionProps) {
   const options = applications.map((app) => ({
@@ -40,8 +43,9 @@ export function SelectApplicationSection({
 
   return (
     <Card>
-      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
+      <h3 className="mb-4 flex items-center gap-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         2. Select Application
+        {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       {isLoading ? (
         <SubSection className="flex w-full flex-col gap-2">
