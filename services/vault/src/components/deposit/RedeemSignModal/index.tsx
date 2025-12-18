@@ -11,14 +11,10 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useState } from "react";
-import type { Abi, Address, Hex, WalletClient } from "viem";
+import type { Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import AaveIntegrationControllerABI from "../../../applications/aave/clients/abis/AaveIntegrationController.abi.json";
-import { AAVE_CONTRACTS } from "../../../applications/aave/config";
-import MorphoIntegrationControllerABI from "../../../applications/morpho/clients/morpho-controller/abis/MorphoIntegrationController.abi.json";
-import { MORPHO_CONTRACTS } from "../../../applications/morpho/config";
-import { CONTRACTS } from "../../../config";
+import { getApplicationByController } from "../../../applications";
 import { redeemVaults } from "../../../services/vault/vaultTransactionService";
 import type { VaultActivity } from "../../../types/activity";
 
@@ -111,27 +107,15 @@ export function RedeemCollateralSignModal({
 
       const applicationController = uniqueControllers[0] as Address;
 
-      // Determine which ABI and function to use based on the controller address
-      let contractABI: Abi | readonly unknown[];
-      let functionName: string;
-
-      if (
-        applicationController.toLowerCase() ===
-        CONTRACTS.AAVE_CONTROLLER.toLowerCase()
-      ) {
-        contractABI = AaveIntegrationControllerABI;
-        functionName = AAVE_CONTRACTS.FUNCTION_NAMES.REDEEM;
-      } else if (
-        applicationController.toLowerCase() ===
-        CONTRACTS.MORPHO_CONTROLLER.toLowerCase()
-      ) {
-        contractABI = MorphoIntegrationControllerABI;
-        functionName = MORPHO_CONTRACTS.FUNCTION_NAMES.REDEEM;
-      } else {
+      // Get application config from registry
+      const app = getApplicationByController(applicationController);
+      if (!app) {
         throw new Error(
           `Unknown application controller: ${applicationController}`,
         );
       }
+
+      const { abi: contractABI, functionNames } = app.contracts;
 
       // Step 3: Execute redemption transactions
       setCurrentStep(3);
@@ -141,7 +125,7 @@ export function RedeemCollateralSignModal({
         applicationController,
         pegInTxHashes,
         contractABI,
-        functionName,
+        functionNames.redeem,
       );
 
       // Step 4: Complete
