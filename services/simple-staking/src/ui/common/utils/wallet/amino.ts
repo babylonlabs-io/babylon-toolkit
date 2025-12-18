@@ -1,4 +1,8 @@
-import { btcstakingtx, incentivetx } from "@babylonlabs-io/babylon-proto-ts";
+import {
+  btcstakingtx,
+  epochingtx,
+  incentivetx,
+} from "@babylonlabs-io/babylon-proto-ts";
 import { AminoTypes } from "@cosmjs/stargate";
 import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
@@ -219,11 +223,61 @@ const msgWithdrawDelegatorRewardConverter = {
   },
 };
 
+const msgWrappedDelegateConverter = {
+  [BBN_REGISTRY_TYPE_URLS.MsgWrappedDelegation]: {
+    aminoType: BBN_REGISTRY_TYPE_URLS.MsgWrappedDelegation,
+    toAmino: (msg: epochingtx.MsgWrappedDelegate) => {
+      return {
+        msg: {
+          delegator_address: msg.msg?.delegatorAddress,
+          validator_address: msg.msg?.validatorAddress,
+          amount: msg.msg?.amount,
+        },
+      };
+    },
+    fromAmino: (json: any): epochingtx.MsgWrappedDelegate => {
+      return {
+        msg: {
+          delegatorAddress: json.msg.delegator_address,
+          validatorAddress: json.msg.validator_address,
+          amount: json.msg.amount,
+        },
+      };
+    },
+  },
+};
+
+const msgWrappedUndelegateConverter = {
+  [BBN_REGISTRY_TYPE_URLS.MsgWrappedUndelegation]: {
+    aminoType: BBN_REGISTRY_TYPE_URLS.MsgWrappedUndelegation,
+    toAmino: (msg: epochingtx.MsgWrappedUndelegate) => {
+      return {
+        msg: {
+          delegator_address: msg.msg?.delegatorAddress,
+          validator_address: msg.msg?.validatorAddress,
+          amount: msg.msg?.amount,
+        },
+      };
+    },
+    fromAmino: (json: any): epochingtx.MsgWrappedUndelegate => {
+      return {
+        msg: {
+          delegatorAddress: json.msg.delegator_address,
+          validatorAddress: json.msg.validator_address,
+          amount: json.msg.amount,
+        },
+      };
+    },
+  },
+};
+
 export const bbnAminoConverters = {
   ...msgCreateBTCDelegationConverter,
   ...msgBtcStakeExpandConverter,
   ...msgWithdrawRewardConverter,
   ...msgWithdrawDelegatorRewardConverter,
+  ...msgWrappedDelegateConverter,
+  ...msgWrappedUndelegateConverter,
 };
 
 export function createBbnAminoTypes(): AminoTypes {
