@@ -1,9 +1,20 @@
+import { useEffect } from "react";
 import type { FallbackProps } from "react-error-boundary";
+
+import { logger } from "@/infrastructure";
 
 export default function GlobalError({
   error,
   resetErrorBoundary,
 }: FallbackProps) {
+  useEffect(() => {
+    if (error) {
+      logger.error(error, {
+        tags: { source: "GlobalErrorBoundary" },
+      });
+    }
+  }, [error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
