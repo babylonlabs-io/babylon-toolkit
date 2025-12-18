@@ -16,3 +16,8 @@ export const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup s
 export const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
 export const MAX_UINT256 = 2n ** 256n - 1n;
+
+// Sentry replay sampling rate (5% by default)
+export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
+  process.env.NEXT_PUBLIC_REPLAYS_RATE ?? "0.05",
+);
