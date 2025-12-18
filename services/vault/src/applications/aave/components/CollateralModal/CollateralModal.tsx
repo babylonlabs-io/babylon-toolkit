@@ -1,9 +1,10 @@
 /**
- * AddCollateralModal Component
- * Modal for adding vaults as collateral to an Aave position
+ * CollateralModal Component
+ * Modal for adding or withdrawing collateral from an Aave position
  *
- * This modal is self-contained - it uses useAddCollateralModal hook
- * which handles all data fetching, state, and transactions.
+ * Supports two modes:
+ * - "add": Add vaults as collateral to a position
+ * - "withdraw": Withdraw collateral back to vaults (requires zero debt)
  */
 
 import {
@@ -22,17 +23,43 @@ import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 import { BTC_TOKEN, MIN_SLIDER_MAX } from "../../constants";
 
 import { CollateralDetailsCard } from "./CollateralDetailsCard";
-import { useAddCollateralModal } from "./hooks";
+import { useAddCollateralModal, useWithdrawCollateralModal } from "./hooks";
 
-export interface AddCollateralModalProps {
+export type CollateralMode = "add" | "withdraw";
+
+export interface CollateralModalProps {
   isOpen: boolean;
   onClose: () => void;
+  mode: CollateralMode;
 }
 
-export function AddCollateralModal({
+const MODE_CONFIG = {
+  add: {
+    title: "Collateralize",
+    description: "Enter the amount of BTC you want to collateralize.",
+    buttonText: "Deposit",
+    processingText: "Processing...",
+  },
+  withdraw: {
+    title: "Withdraw Collateral",
+    description:
+      "Enter the amount of BTC you want to withdraw from collateral.",
+    buttonText: "Withdraw",
+    processingText: "Processing...",
+  },
+} as const;
+
+export function CollateralModal({
   isOpen,
   onClose,
-}: AddCollateralModalProps) {
+  mode,
+}: CollateralModalProps) {
+  const addCollateralHook = useAddCollateralModal();
+  const withdrawCollateralHook = useWithdrawCollateralModal();
+
+  const hook = mode === "add" ? addCollateralHook : withdrawCollateralHook;
+  const config = MODE_CONFIG[mode];
+
   const {
     collateralAmount,
     setCollateralAmount,
@@ -41,13 +68,15 @@ export function AddCollateralModal({
     currentHealthFactorValue,
     projectedHealthFactorValue,
     collateralSteps,
-    handleDeposit,
+    handleSubmit,
     isProcessing,
     isDisabled,
-  } = useAddCollateralModal();
+    errorMessage,
+    currentDebtValueUsd,
+  } = hook;
 
-  const onDeposit = async () => {
-    const success = await handleDeposit();
+  const onSubmit = async () => {
+    const success = await handleSubmit();
     if (success) {
       onClose();
     }
@@ -58,14 +87,12 @@ export function AddCollateralModal({
   return (
     <ResponsiveDialog open={isOpen} onClose={onClose}>
       <DialogHeader
-        title="Collateralize"
+        title={config.title}
         onClose={onClose}
         className="text-accent-primary"
       />
       <DialogBody className="space-y-6 pb-6">
-        <p className="text-base text-accent-secondary">
-          Enter the amount of BTC you want to collateralize.
-        </p>
+        <p className="text-base text-accent-secondary">{config.description}</p>
 
         {/* BTC Amount Slider - uses vault bucket steps */}
         <SubSection>
@@ -100,9 +127,11 @@ export function AddCollateralModal({
 
         {/* Details Card */}
         <CollateralDetailsCard
+          mode={mode}
           currentHealthFactorValue={currentHealthFactorValue}
           projectedHealthFactorValue={projectedHealthFactorValue}
           showTransition={collateralAmount > 0}
+          currentDebtValueUsd={currentDebtValueUsd}
         />
       </DialogBody>
 
@@ -110,11 +139,13 @@ export function AddCollateralModal({
         <Button
           variant="contained"
           color="primary"
-          onClick={onDeposit}
+          onClick={onSubmit}
           disabled={isDisabled}
           className="w-full"
         >
-          {isProcessing ? "Processing..." : "Deposit"}
+          {isProcessing
+            ? config.processingText
+            : (errorMessage ?? config.buttonText)}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

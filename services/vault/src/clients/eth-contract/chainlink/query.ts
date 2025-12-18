@@ -131,7 +131,7 @@ export async function getDecimals(feedAddress: Address): Promise<number> {
  * Chainlink BTC/USD feeds return price with 8 decimals.
  *
  * @returns BTC price in USD as a number
- * @throws Error if price data is stale (older than 1 hour)
+ * @throws Error if price is invalid (zero or negative)
  */
 export async function getBTCPriceUSD(): Promise<number> {
   const feedAddress = getChainlinkBTCUSDFeedAddress();
@@ -142,9 +142,16 @@ export async function getBTCPriceUSD(): Promise<number> {
     throw new Error("Invalid BTC price from Chainlink oracle");
   }
 
-  // Validate price is fresh (within 1 hour)
+  // Warn if price is stale (older than 1 hour) but still return it
+  // This is common on testnets where Chainlink doesn't update frequently
+  // TODO: Find a way to display this notification to user.
   if (!isPriceFresh(roundData)) {
-    throw new Error("Chainlink BTC/USD price data is stale");
+    const ageSeconds =
+      Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
+    const ageHours = (ageSeconds / 3600).toFixed(1);
+    console.warn(
+      `Chainlink BTC/USD price data is stale (${ageHours} hours old). Using last known price.`,
+    );
   }
 
   // Chainlink BTC/USD uses 8 decimals
