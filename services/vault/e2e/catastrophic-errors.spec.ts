@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
+import { SentryInterceptor } from "./helpers/sentry-interceptor";
+
 const PORT_MISSING_ENV = 5173;
 const PORT_FULL_ENV = 5175;
 
@@ -20,9 +22,7 @@ async function assertBlockingModal(
     page.getByText(/Please refresh the page or try again later/),
   ).toBeVisible();
 
-  await expect(
-    page.getByRole("button", { name: "Cancel" }),
-  ).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Cancel" })).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Done" })).not.toBeVisible();
   await expect(
     page.getByRole("button", { name: "Try Again" }),
@@ -45,6 +45,13 @@ test.describe("Catastrophic Error Handling", () => {
   });
 
   test.describe("GraphQL Endpoint Unreachable", () => {
+    let sentryInterceptor: SentryInterceptor;
+
+    test.beforeEach(async ({ page }) => {
+      sentryInterceptor = new SentryInterceptor();
+      await sentryInterceptor.setup(page);
+    });
+
     test("should show blocking error modal when GraphQL endpoint is unreachable", async ({
       page,
     }) => {
@@ -60,9 +67,30 @@ test.describe("Catastrophic Error Handling", () => {
         /Unable to connect to the backend services/i,
       );
     });
+
+    test("should send Sentry event when GraphQL endpoint is unreachable", async ({
+      page,
+    }) => {
+      await page.route("**/graphql", async (route) => {
+        await route.abort("connectionfailed");
+      });
+
+      await page.goto(`http://localhost:${PORT_FULL_ENV}/`);
+      await sentryInterceptor.waitForEvent(page, { timeout: 15000 });
+
+      const sentryRequests = sentryInterceptor.getRequests();
+      expect(sentryRequests.length).toBeGreaterThan(0);
+    });
   });
 
   test.describe("GraphQL Server Error", () => {
+    let sentryInterceptor: SentryInterceptor;
+
+    test.beforeEach(async ({ page }) => {
+      sentryInterceptor = new SentryInterceptor();
+      await sentryInterceptor.setup(page);
+    });
+
     test("should show blocking error modal when GraphQL returns 500", async ({
       page,
     }) => {
@@ -81,6 +109,24 @@ test.describe("Catastrophic Error Handling", () => {
         "Service Unavailable",
         /Unable to connect to the backend services/i,
       );
+    });
+
+    test("should send Sentry event when GraphQL returns 500", async ({
+      page,
+    }) => {
+      await page.route("**/graphql", async (route) => {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Internal Server Error" }),
+        });
+      });
+
+      await page.goto(`http://localhost:${PORT_FULL_ENV}/`);
+      await sentryInterceptor.waitForEvent(page, { timeout: 15000 });
+
+      const sentryRequests = sentryInterceptor.getRequests();
+      expect(sentryRequests.length).toBeGreaterThan(0);
     });
   });
 
