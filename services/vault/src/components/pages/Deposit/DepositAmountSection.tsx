@@ -1,4 +1,4 @@
-import { AmountItem, Card, SubSection } from "@babylonlabs-io/core-ui";
+import { AmountItem, Card, CheckIcon, SubSection } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { depositService } from "../../../services/deposit";
@@ -10,6 +10,7 @@ interface DepositAmountSectionProps {
   btcBalance: bigint;
   btcPrice: number;
   error?: string;
+  completed?: boolean;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
 }
@@ -19,6 +20,7 @@ export function DepositAmountSection({
   btcBalance,
   btcPrice,
   error,
+  completed,
   onAmountChange,
   onMaxClick,
 }: DepositAmountSectionProps) {
@@ -46,8 +48,9 @@ export function DepositAmountSection({
 
   return (
     <Card>
-      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
+      <h3 className="mb-4 flex items-center gap-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         1. Deposit
+        {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       <SubSection className="flex w-full flex-col gap-2">
         <AmountItem

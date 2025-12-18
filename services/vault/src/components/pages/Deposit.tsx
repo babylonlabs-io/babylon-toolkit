@@ -74,6 +74,7 @@ function DepositContent() {
               btcBalance={btcBalance}
               btcPrice={btcPrice}
               error={errors.amount}
+              completed={formData.amountBtc !== "" && !errors.amount}
               onAmountChange={(value) => setFormData({ amountBtc: value })}
               onMaxClick={handleMaxClick}
             />
@@ -83,6 +84,7 @@ function DepositContent() {
               isLoading={isLoadingApplications}
               selectedApplication={formData.selectedApplication}
               error={errors.application}
+              completed={formData.selectedApplication !== ""}
               onSelect={(appId) => setFormData({ selectedApplication: appId })}
             />
 
@@ -91,6 +93,7 @@ function DepositContent() {
               isLoading={isLoadingProviders}
               selectedProvider={formData.selectedProvider}
               error={errors.provider}
+              completed={formData.selectedProvider !== ""}
               onSelect={(providerId) =>
                 setFormData({ selectedProvider: providerId })
               }

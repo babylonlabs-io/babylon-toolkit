@@ -1,5 +1,6 @@
 import {
   Card,
+  CheckIcon,
   Loader,
   SelectWithIcon,
   SubSection,
@@ -17,6 +18,7 @@ interface SelectVaultProviderSectionProps {
   isLoading: boolean;
   selectedProvider: string;
   error?: string;
+  completed?: boolean;
   onSelect: (providerId: string) => void;
 }
 
@@ -25,6 +27,7 @@ export function SelectVaultProviderSection({
   isLoading,
   selectedProvider,
   error,
+  completed,
   onSelect,
 }: SelectVaultProviderSectionProps) {
   const options = providers.map((provider) => ({
@@ -39,8 +42,9 @@ export function SelectVaultProviderSection({
 
   return (
     <Card>
-      <h3 className="mb-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
+      <h3 className="mb-4 flex items-center gap-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
         3. Select Vault Provider
+        {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       {isLoading ? (
         <SubSection className="flex w-full flex-col gap-2">
