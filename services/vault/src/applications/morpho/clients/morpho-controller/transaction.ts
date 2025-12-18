@@ -8,6 +8,7 @@ import {
   executeWrite,
   type TransactionResult,
 } from "../../../../clients/eth-contract/transactionFactory";
+import { MORPHO_FUNCTION_NAMES } from "../../config";
 
 import MorphoIntegrationControllerABI from "./abis/MorphoIntegrationController.abi.json";
 
@@ -37,7 +38,7 @@ export async function addCollateralToPosition(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "addCollateralToPosition",
+    functionName: MORPHO_FUNCTION_NAMES.ADD_COLLATERAL,
     args: [vaultIds, marketParams],
     errorContext: "add collateral to position",
   });
@@ -59,7 +60,7 @@ export async function addCollateralToPositionAndBorrow(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "addCollateralToPositionAndBorrow",
+    functionName: MORPHO_FUNCTION_NAMES.ADD_COLLATERAL_AND_BORROW,
     args: [vaultIds, marketParams, borrowAmount],
     errorContext: "add collateral and borrow",
   });
@@ -80,7 +81,7 @@ export async function repayFromPosition(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "repayFromPosition",
+    functionName: MORPHO_FUNCTION_NAMES.REPAY,
     args: [marketParams, repayAmount],
     errorContext: "repay from position",
   });
@@ -105,7 +106,7 @@ export async function repayDirectlyToMorpho(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "repayDirectlyToMorpho",
+    functionName: MORPHO_FUNCTION_NAMES.REPAY_DIRECTLY,
     args: [marketParams, repayAmount, shares],
     errorContext: "repay directly to Morpho",
   });
@@ -126,7 +127,7 @@ export async function borrowFromPosition(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "borrowFromPosition",
+    functionName: MORPHO_FUNCTION_NAMES.BORROW,
     args: [marketParams, borrowAmount],
     errorContext: "borrow from position",
   });
@@ -146,7 +147,7 @@ export async function withdrawAllCollateralFromPosition(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "withdrawAllCollateralFromPosition",
+    functionName: MORPHO_FUNCTION_NAMES.WITHDRAW_ALL_COLLATERAL,
     args: [marketParams],
     errorContext: "withdraw all collateral from position",
   });
@@ -166,7 +167,7 @@ export async function redeemBTCVault(
     chain,
     address: contractAddress,
     abi: MorphoIntegrationControllerABI,
-    functionName: "redeemBTCVault",
+    functionName: MORPHO_FUNCTION_NAMES.REDEEM,
     args: [vaultId],
     errorContext: "redeem BTC vault",
   });

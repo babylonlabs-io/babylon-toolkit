@@ -11,6 +11,7 @@ import {
   executeWrite,
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
+import { AAVE_FUNCTION_NAMES } from "../config";
 
 import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
 
@@ -39,7 +40,7 @@ export async function addCollateralToCorePosition(
     chain,
     address: contractAddress,
     abi: AaveIntegrationControllerABI,
-    functionName: "addCollateralToCorePosition",
+    functionName: AAVE_FUNCTION_NAMES.ADD_COLLATERAL,
     args: [vaultIds, reserveId],
     errorContext: "add collateral to Aave Core position",
   });
@@ -68,7 +69,7 @@ export async function withdrawAllCollateralFromCorePosition(
     chain,
     address: contractAddress,
     abi: AaveIntegrationControllerABI,
-    functionName: "withdrawAllCollateralFromCorePosition",
+    functionName: AAVE_FUNCTION_NAMES.WITHDRAW_ALL_COLLATERAL,
     args: [reserveId],
     errorContext: "withdraw all collateral from Aave Core position",
   });
@@ -102,7 +103,7 @@ export async function borrowFromCorePosition(
     chain,
     address: contractAddress,
     abi: AaveIntegrationControllerABI,
-    functionName: "borrowFromCorePosition",
+    functionName: AAVE_FUNCTION_NAMES.BORROW,
     args: [positionId, debtReserveId, amount, receiver],
     errorContext: "borrow from Aave Core position",
   });
@@ -135,7 +136,7 @@ export async function repayToCorePosition(
     chain,
     address: contractAddress,
     abi: AaveIntegrationControllerABI,
-    functionName: "repayToCorePosition",
+    functionName: AAVE_FUNCTION_NAMES.REPAY,
     args: [positionId, debtReserveId, amount],
     errorContext: "repay to Aave Core position",
   });
@@ -164,7 +165,7 @@ export async function depositorRedeem(
     chain,
     address: contractAddress,
     abi: AaveIntegrationControllerABI,
-    functionName: "depositorRedeem",
+    functionName: AAVE_FUNCTION_NAMES.REDEEM,
     args: [vaultId],
     errorContext: "depositor redeem vault",
   });

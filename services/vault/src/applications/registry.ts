@@ -68,3 +68,15 @@ export function getApplicationMetadataByController(
   const app = applicationRegistry.get(appId);
   return app?.metadata;
 }
+
+/**
+ * Get full application registration by controller address
+ * Used for contract interactions (ABI, function names)
+ */
+export function getApplicationByController(
+  controllerAddress: string,
+): ApplicationRegistration | undefined {
+  const appId = getAppIdByController(controllerAddress);
+  if (!appId) return undefined;
+  return applicationRegistry.get(appId);
+}

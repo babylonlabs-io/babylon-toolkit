@@ -1,7 +1,12 @@
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
-import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
+import AaveIntegrationControllerABI from "./clients/abis/AaveIntegrationController.abi.json";
+import {
+  AAVE_APP_ID,
+  AAVE_FUNCTION_NAMES,
+  getAaveControllerAddress,
+} from "./config";
 import { AaveRoutes } from "./routes";
 
 export const aaveApp: ApplicationRegistration = {
@@ -15,6 +20,12 @@ export const aaveApp: ApplicationRegistration = {
     websiteUrl: "https://aave.com",
   },
   Routes: AaveRoutes,
+  contracts: {
+    abi: AaveIntegrationControllerABI,
+    functionNames: {
+      redeem: AAVE_FUNCTION_NAMES.REDEEM,
+    },
+  },
 };
 
 registerApplication(aaveApp, getAaveControllerAddress());
