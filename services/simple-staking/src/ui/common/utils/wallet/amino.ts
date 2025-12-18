@@ -1,5 +1,6 @@
 import { btcstakingtx, incentivetx } from "@babylonlabs-io/babylon-proto-ts";
 import { AminoTypes } from "@cosmjs/stargate";
+import { MsgWithdrawDelegatorReward } from "cosmjs-types/cosmos/distribution/v1beta1/tx";
 
 import { ClientError, ERROR_CODES } from "@/ui/common/errors";
 
@@ -200,10 +201,29 @@ const msgWithdrawRewardConverter = {
   },
 };
 
+const msgWithdrawDelegatorRewardConverter = {
+  [BBN_REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward]: {
+    aminoType: BBN_REGISTRY_TYPE_URLS.MsgWithdrawDelegatorReward,
+    toAmino: (msg: MsgWithdrawDelegatorReward) => {
+      return {
+        delegator_address: msg.delegatorAddress,
+        validator_address: msg.validatorAddress,
+      };
+    },
+    fromAmino: (json: any): MsgWithdrawDelegatorReward => {
+      return {
+        delegatorAddress: json.delegator_address,
+        validatorAddress: json.validator_address,
+      };
+    },
+  },
+};
+
 export const bbnAminoConverters = {
   ...msgCreateBTCDelegationConverter,
   ...msgBtcStakeExpandConverter,
   ...msgWithdrawRewardConverter,
+  ...msgWithdrawDelegatorRewardConverter,
 };
 
 export function createBbnAminoTypes(): AminoTypes {
