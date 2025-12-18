@@ -3,15 +3,63 @@ import {
   DEFAULT_SOCIAL_LINKS,
   Footer,
   Header,
+  Nav,
   StandardSettingsMenu,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
+
+function AppNavLink({
+  to,
+  children,
+}: {
+  to: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={to === "/"}
+      className={({ isActive }) =>
+        twJoin(
+          "flex h-10 w-fit items-center justify-center whitespace-nowrap text-center",
+          isActive ? "text-accent-primary" : "text-accent-secondary",
+        )
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
+
+/**
+ * Desktop navigation component
+ */
+function DesktopNavigation() {
+  return (
+    <Nav>
+      <AppNavLink to="/">Applications</AppNavLink>
+      <AppNavLink to="/activity">Activity</AppNavLink>
+    </Nav>
+  );
+}
+
+/**
+ * Mobile navigation component
+ */
+function MobileNavigation() {
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <AppNavLink to="/">Applications</AppNavLink>
+      <AppNavLink to="/activity">Activity</AppNavLink>
+    </div>
+  );
+}
 
 export default function RootLayout() {
   const navigate = useNavigate();
@@ -35,6 +83,8 @@ export default function RootLayout() {
       <div className="flex min-h-svh flex-col">
         <Header
           size="sm"
+          navigation={<DesktopNavigation />}
+          mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
               {isWalletConnected && !isDepositPage && (
@@ -43,7 +93,7 @@ export default function RootLayout() {
                   rounded
                   onClick={() => navigate("/deposit")}
                 >
-                  Deposit
+                  Deposit BTC
                 </Button>
               )}
               <Connect />

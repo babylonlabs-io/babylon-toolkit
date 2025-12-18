@@ -3,6 +3,7 @@
  */
 
 import {
+  type Abi,
   type Address,
   type Chain,
   type Hash,
@@ -29,7 +30,7 @@ export interface ExecuteWriteOptions {
   walletClient: WalletClient;
   chain: Chain;
   address: Address;
-  abi: any;
+  abi: Abi | readonly unknown[];
   functionName: string;
   args: readonly unknown[];
   /** Error context for mapViemErrorToContractError */

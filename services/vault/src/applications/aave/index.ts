@@ -1,7 +1,12 @@
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
-import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
+import AaveIntegrationControllerABI from "./clients/abis/AaveIntegrationController.abi.json";
+import {
+  AAVE_APP_ID,
+  AAVE_FUNCTION_NAMES,
+  getAaveControllerAddress,
+} from "./config";
 import { AaveRoutes } from "./routes";
 
 export const aaveApp: ApplicationRegistration = {
@@ -11,11 +16,16 @@ export const aaveApp: ApplicationRegistration = {
     type: "Lending",
     description:
       "Aave is a decentralized non-custodial liquidity protocol where users can participate as suppliers or borrowers.",
-    logoUrl:
-      "https://assets.coingecko.com/coins/images/12645/standard/aave-token-round.png",
+    logoUrl: "/images/aave.svg",
     websiteUrl: "https://aave.com",
   },
   Routes: AaveRoutes,
+  contracts: {
+    abi: AaveIntegrationControllerABI,
+    functionNames: {
+      redeem: AAVE_FUNCTION_NAMES.REDEEM,
+    },
+  },
 };
 
 registerApplication(aaveApp, getAaveControllerAddress());

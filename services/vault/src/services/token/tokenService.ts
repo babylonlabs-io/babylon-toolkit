@@ -104,6 +104,14 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     decimals: 6,
     icon: "/images/usdc.png",
   },
+  // USDC - Vault Devnet
+  "0xc137E7382AA220D59Cc25f76f9aD72De962020Db": {
+    address: "0xc137E7382AA220D59Cc25f76f9aD72De962020Db" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: "/images/usdc.png",
+  },
   // USDT
   "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
     address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address,
@@ -267,6 +275,30 @@ function getIconForSymbol(symbol: string): string | undefined {
 
   // Return undefined for unknown tokens so Avatar shows fallback
   return iconMap[symbolUpper];
+}
+
+const tokenBrandColorsMap: Record<string, string> = {
+  BTC: "#F7931A",
+  WBTC: "#F7931A",
+  VBTC: "#F7931A",
+  USDC: "#2775CA",
+  USDT: "#50AF95",
+  DAI: "#F5AC37",
+  ETH: "#627EEA",
+  WETH: "#627EEA",
+};
+
+const defaultTokenBrandColor = "#0B53BF";
+
+/**
+ * Get brand color for a token symbol
+ * Used for UI theming (e.g., slider active colors)
+ *
+ * @param symbol - Token symbol (e.g., "USDC", "BTC")
+ * @returns Hex color code for the token's brand color
+ */
+export function getTokenBrandColor(symbol: string): string {
+  return tokenBrandColorsMap[symbol.toUpperCase()] ?? defaultTokenBrandColor;
 }
 
 /**

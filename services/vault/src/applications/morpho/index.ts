@@ -1,7 +1,12 @@
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
-import { getMorphoControllerAddress, MORPHO_APP_ID } from "./config";
+import MorphoIntegrationControllerABI from "./clients/morpho-controller/abis/MorphoIntegrationController.abi.json";
+import {
+  getMorphoControllerAddress,
+  MORPHO_APP_ID,
+  MORPHO_FUNCTION_NAMES,
+} from "./config";
 import { MorphoRoutes } from "./routes";
 
 export const morphoApp: ApplicationRegistration = {
@@ -16,6 +21,12 @@ export const morphoApp: ApplicationRegistration = {
     websiteUrl: "https://morpho.org",
   },
   Routes: MorphoRoutes,
+  contracts: {
+    abi: MorphoIntegrationControllerABI,
+    functionNames: {
+      redeem: MORPHO_FUNCTION_NAMES.REDEEM,
+    },
+  },
 };
 
 registerApplication(morphoApp, getMorphoControllerAddress());

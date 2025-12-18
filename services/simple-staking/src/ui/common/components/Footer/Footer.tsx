@@ -4,5 +4,5 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 export const Footer = () => {
-  return <CoreFooter socialLinks={DEFAULT_SOCIAL_LINKS} copyrightYear={2025} />;
+  return <CoreFooter socialLinks={DEFAULT_SOCIAL_LINKS} />;
 };
