@@ -4,7 +4,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
@@ -40,50 +40,59 @@ export function useAddCollateralTransaction(): UseAddCollateralTransactionResult
   const { handleError } = useError();
   const { markVaultsAsPending } = usePendingVaults();
 
-  const executeAddCollateral = async (vaultIds: string[]) => {
-    if (vaultIds.length === 0) return false;
+  const executeAddCollateral = useCallback(
+    async (vaultIds: string[]) => {
+      if (vaultIds.length === 0) return false;
 
-    setIsProcessing(true);
-    try {
-      // Validate wallet connection
-      if (!walletClient || !chain) {
-        throw new WalletError(
-          "Please connect your wallet to continue",
-          ErrorCode.WALLET_NOT_CONNECTED,
-        );
+      setIsProcessing(true);
+      try {
+        // Validate wallet connection
+        if (!walletClient || !chain) {
+          throw new WalletError(
+            "Please connect your wallet to continue",
+            ErrorCode.WALLET_NOT_CONNECTED,
+          );
+        }
+
+        // Execute the add collateral transaction
+        await addCollateral(walletClient, chain, vaultIds as Hex[]);
+
+        // Mark vaults as pending to prevent re-selection before indexer updates
+        markVaultsAsPending(vaultIds);
+
+        // Invalidate vault-related queries to refresh from indexer
+        await invalidateVaultQueries(queryClient, address as Address);
+
+        return true;
+      } catch (error) {
+        console.error("Add collateral failed:", error);
+
+        const mappedError =
+          error instanceof Error
+            ? mapViemErrorToContractError(error, "Add Collateral")
+            : new Error("An unexpected error occurred while adding collateral");
+
+        handleError({
+          error: mappedError,
+          displayOptions: {
+            showModal: true,
+          },
+        });
+
+        return false;
+      } finally {
+        setIsProcessing(false);
       }
-
-      // Execute the add collateral transaction
-      await addCollateral(walletClient, chain, vaultIds as Hex[]);
-
-      // Mark vaults as pending to prevent re-selection before indexer updates
-      markVaultsAsPending(vaultIds);
-
-      // Invalidate vault-related queries to refresh from indexer
-      await invalidateVaultQueries(queryClient, address as Address);
-
-      return true;
-    } catch (error) {
-      console.error("Add collateral failed:", error);
-
-      const mappedError =
-        error instanceof Error
-          ? mapViemErrorToContractError(error, "Add Collateral")
-          : new Error("An unexpected error occurred while adding collateral");
-
-      handleError({
-        error: mappedError,
-        displayOptions: {
-          showModal: true,
-          retryAction: () => executeAddCollateral(vaultIds),
-        },
-      });
-
-      return false;
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+    },
+    [
+      walletClient,
+      chain,
+      address,
+      queryClient,
+      handleError,
+      markVaultsAsPending,
+    ],
+  );
 
   return {
     executeAddCollateral,

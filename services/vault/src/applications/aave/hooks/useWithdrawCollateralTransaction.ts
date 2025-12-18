@@ -6,7 +6,7 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
@@ -44,7 +44,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
   const chain = walletClient?.chain;
   const { handleError } = useError();
 
-  const executeWithdraw = async () => {
+  const executeWithdraw = useCallback(async () => {
     setIsProcessing(true);
     try {
       // Validate wallet connection
@@ -88,7 +88,6 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         error: mappedError,
         displayOptions: {
           showModal: true,
-          retryAction: () => executeWithdraw(),
         },
       });
 
@@ -96,7 +95,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [walletClient, chain, address, queryClient, handleError]);
 
   return {
     executeWithdraw,

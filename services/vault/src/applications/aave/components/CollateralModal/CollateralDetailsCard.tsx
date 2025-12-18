@@ -94,8 +94,8 @@ export function CollateralDetailsCard({
           </div>
         )}
 
-        {/* Current Debt Row - only shown in withdraw mode */}
-        {mode === "withdraw" && currentDebtValueUsd !== undefined && (
+        {/* Current Debt Row */}
+        {currentDebtValueUsd !== undefined && (
           <div className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
             <span className="text-sm text-accent-secondary">Current Debt</span>
             <span className="text-base text-accent-primary">

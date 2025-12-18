@@ -85,5 +85,6 @@ export function useAddCollateralModal(): UseCollateralModalResult {
     isProcessing,
     isDisabled,
     errorMessage: undefined,
+    currentDebtValueUsd: debtValueUsd,
   };
 }

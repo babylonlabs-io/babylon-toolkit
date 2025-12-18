@@ -65,6 +65,8 @@ export {
   canWithdraw,
   redeemVault,
   repay,
+  repayFull,
+  repayPartial,
   withdrawAllCollateral,
   type AddCollateralResult,
 } from "./positionTransactions";

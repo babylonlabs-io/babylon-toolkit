@@ -87,9 +87,15 @@ export const MIN_SLIDER_MAX = 0.0001;
 /**
  * Tolerance for detecting full repayment
  * If repay amount is within this tolerance of max, treat as full repay
- * Uses maxUint256 to ensure all debt including accrued interest is repaid
  */
 export const FULL_REPAY_TOLERANCE = 0.01;
+
+/**
+ * Buffer for full repayment to account for interest accrual
+ * between fetching debt and transaction execution.
+ * 0.01% buffer (1 basis point) - the contract only takes what's owed.
+ */
+export const FULL_REPAY_BUFFER_BPS = 10000n; // Divisor for 0.01% (1/10000)
 
 /**
  * BTC token display constants

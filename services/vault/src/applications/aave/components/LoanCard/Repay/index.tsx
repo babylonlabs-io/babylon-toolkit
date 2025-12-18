@@ -30,10 +30,14 @@ export function Repay() {
     selectedReserve,
     assetConfig,
     positionId,
+    proxyContract,
     onRepaySuccess,
   } = useLoanContext();
 
-  const { executeRepay, isProcessing } = useRepayTransaction({ positionId });
+  const { executeRepay, isProcessing } = useRepayTransaction({
+    positionId,
+    proxyContract,
+  });
 
   const {
     repayAmount,
