@@ -14,6 +14,7 @@ export default tseslint.config(
       ".next",
       "node_modules",
       "tests",
+      "e2e",
       "test-results",
       "playwright-report",
       "blob-report",

@@ -45,7 +45,7 @@ const ERROR_TITLES: Record<ErrorCode, string> = {
 
 export function ErrorModal() {
   const { error, modalOptions, dismissError, isOpen } = useError();
-  const { retryAction, noCancel } = modalOptions;
+  const { retryAction, noCancel, blocking } = modalOptions;
 
   const getErrorTitle = () => {
     if (error.title) {
@@ -67,12 +67,14 @@ export function ErrorModal() {
     }, 300);
   };
 
+  const handleClose = blocking ? undefined : dismissError;
+
   return (
     <ResponsiveDialog
       className="z-[150]"
       backdropClassName="z-[100]"
       open={isOpen}
-      onClose={dismissError}
+      onClose={handleClose}
       data-testid="error-dialog"
     >
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
@@ -98,30 +100,43 @@ export function ErrorModal() {
         >
           {error.message}
         </Text>
+
+        {blocking && (
+          <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
+            <Text
+              variant="body2"
+              className="text-sm text-amber-700 dark:text-amber-300"
+            >
+              Please refresh the page or try again later.
+            </Text>
+          </div>
+        )}
       </DialogBody>
 
-      <DialogFooter className="flex gap-4 px-4 pb-8 sm:px-6">
-        {!noCancel && (
-          <Button
-            variant="outlined"
-            fluid
-            className="px-2"
-            onClick={dismissError}
-          >
-            Cancel
-          </Button>
-        )}
-        {retryAction && (
-          <Button className="px-2" fluid onClick={handleRetry}>
-            Try Again
-          </Button>
-        )}
-        {!retryAction && noCancel && (
-          <Button className="w-full px-2" onClick={dismissError}>
-            Done
-          </Button>
-        )}
-      </DialogFooter>
+      {!blocking && (
+        <DialogFooter className="flex gap-4 px-4 pb-8 sm:px-6">
+          {!noCancel && (
+            <Button
+              variant="outlined"
+              fluid
+              className="px-2"
+              onClick={dismissError}
+            >
+              Cancel
+            </Button>
+          )}
+          {retryAction && (
+            <Button className="px-2" fluid onClick={handleRetry}>
+              Try Again
+            </Button>
+          )}
+          {!retryAction && noCancel && (
+            <Button className="w-full px-2" onClick={dismissError}>
+              Done
+            </Button>
+          )}
+        </DialogFooter>
+      )}
     </ResponsiveDialog>
   );
 }
