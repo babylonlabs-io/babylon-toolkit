@@ -1,4 +1,9 @@
-import { AmountItem, Card, CheckIcon, SubSection } from "@babylonlabs-io/core-ui";
+import {
+  AmountItem,
+  Card,
+  CheckIcon,
+  SubSection,
+} from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { depositService } from "../../../services/deposit";
