@@ -18,6 +18,10 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 function DepositContent() {
   const navigate = useNavigate();
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   const {
     formData,
     setFormData,
@@ -72,7 +76,7 @@ function DepositContent() {
     >
       <div className="mx-auto flex w-full max-w-[1400px] flex-col py-8">
         <div className="self-start">
-          <BackButton label="Explore" onClick={() => navigate("/")} />
+          <BackButton label="Back" onClick={handleBack} />
         </div>
         <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-6">
