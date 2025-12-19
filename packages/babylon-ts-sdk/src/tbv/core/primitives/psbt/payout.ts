@@ -123,7 +123,8 @@ export async function buildPayoutPsbt(
   // Normalize hex inputs (strip 0x prefix if present)
   const payoutTxHex = stripHexPrefix(params.payoutTxHex);
   const peginTxHex = stripHexPrefix(params.peginTxHex);
-  const claimTxHex = stripHexPrefix(params.claimTxHex);
+  // Note: claimTxHex is required in the interface for compatibility but not used
+  // for building the depositor's PSBT (only input 0 from pegin is signed by depositor)
 
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
@@ -139,6 +140,7 @@ export async function buildPayoutPsbt(
   // Parse transactions
   const payoutTx = Transaction.fromHex(payoutTxHex);
   const peginTx = Transaction.fromHex(peginTxHex);
+  const claimTxHex = stripHexPrefix(params.claimTxHex);
   const claimTx = Transaction.fromHex(claimTxHex);
 
   // Create PSBT
@@ -146,70 +148,98 @@ export async function buildPayoutPsbt(
   psbt.setVersion(payoutTx.version);
   psbt.setLocktime(payoutTx.locktime);
 
-  // Add inputs - only input 0 (pegin output) needs Taproot script path spend info
-  for (let i = 0; i < payoutTx.ins.length; i++) {
-    const input = payoutTx.ins[i];
+  // PayoutTx has exactly 2 inputs:
+  // - Input 0: from PeginTx output0 (signed by depositor using taproot script path)
+  // - Input 1: from ClaimTx output0 (signed by claimer/challengers, not depositor)
+  //
+  // IMPORTANT: For Taproot SIGHASH_DEFAULT (0x00), the sighash commits to ALL inputs'
+  // prevouts, not just the one being signed. Therefore, we must include BOTH inputs
+  // in the PSBT so the wallet computes the correct sighash that the VP expects.
 
-    // Determine which transaction this input spends from
-    const inputTxid = uint8ArrayToHex(
-      new Uint8Array(input.hash).slice().reverse(),
+  // Verify payout transaction has expected structure
+  if (payoutTx.ins.length !== 2) {
+    throw new Error(
+      `Payout transaction must have exactly 2 inputs, got ${payoutTx.ins.length}`,
     );
-    const peginTxid = peginTx.getId();
-    const claimTxid = claimTx.getId();
-
-    let prevTx: Transaction;
-    if (inputTxid === peginTxid) {
-      prevTx = peginTx;
-    } else if (inputTxid === claimTxid) {
-      prevTx = claimTx;
-    } else {
-      throw new Error(
-        `Input ${i} references unknown transaction. ` +
-          `Expected peginTxid (${peginTxid}) or claimTxid (${claimTxid}), ` +
-          `got ${inputTxid}`,
-      );
-    }
-
-    const prevOut = prevTx.outs[input.index];
-    if (!prevOut) {
-      throw new Error(
-        `Previous output not found for input ${i} (txid: ${inputTxid}, index: ${input.index})`,
-      );
-    }
-
-    if (i === 0) {
-      // Input 0: Depositor signs using Taproot script path spend
-      psbt.addInput({
-        hash: input.hash,
-        index: input.index,
-        sequence: input.sequence,
-        witnessUtxo: {
-          script: prevOut.script,
-          value: prevOut.value,
-        },
-        tapLeafScript: [
-          {
-            leafVersion: 0xc0,
-            script: Buffer.from(payoutScriptBytes),
-            controlBlock: Buffer.from(controlBlock),
-          },
-        ],
-        tapInternalKey: Buffer.from(tapInternalPubkey),
-        // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
-      });
-    } else {
-      // Other inputs: Signed by claimer, not depositor
-      psbt.addInput({
-        hash: input.hash,
-        index: input.index,
-        sequence: input.sequence,
-        witnessUtxo: {
-          script: prevOut.script,
-          value: prevOut.value,
-        },
-      });
-    }
   }
+
+  const input0 = payoutTx.ins[0];
+  const input1 = payoutTx.ins[1];
+
+  // Verify input 0 references the pegin transaction
+  const input0Txid = uint8ArrayToHex(
+    new Uint8Array(input0.hash).slice().reverse(),
+  );
+  const peginTxid = peginTx.getId();
+
+  if (input0Txid !== peginTxid) {
+    throw new Error(
+      `Input 0 does not reference pegin transaction. ` +
+        `Expected ${peginTxid}, got ${input0Txid}`,
+    );
+  }
+
+  // Verify input 1 references the claim transaction
+  const input1Txid = uint8ArrayToHex(
+    new Uint8Array(input1.hash).slice().reverse(),
+  );
+  const claimTxid = claimTx.getId();
+
+  if (input1Txid !== claimTxid) {
+    throw new Error(
+      `Input 1 does not reference claim transaction. ` +
+        `Expected ${claimTxid}, got ${input1Txid}`,
+    );
+  }
+
+  const peginPrevOut = peginTx.outs[input0.index];
+  if (!peginPrevOut) {
+    throw new Error(
+      `Previous output not found for input 0 (txid: ${input0Txid}, index: ${input0.index})`,
+    );
+  }
+
+  const claimPrevOut = claimTx.outs[input1.index];
+  if (!claimPrevOut) {
+    throw new Error(
+      `Previous output not found for input 1 (txid: ${input1Txid}, index: ${input1.index})`,
+    );
+  }
+
+  // Input 0: Depositor signs using Taproot script path spend
+  // This input includes tapLeafScript for signing
+  psbt.addInput({
+    hash: input0.hash,
+    index: input0.index,
+    sequence: input0.sequence,
+    witnessUtxo: {
+      script: peginPrevOut.script,
+      value: peginPrevOut.value,
+    },
+    tapLeafScript: [
+      {
+        leafVersion: 0xc0,
+        script: Buffer.from(payoutScriptBytes),
+        controlBlock: Buffer.from(controlBlock),
+      },
+    ],
+    tapInternalKey: Buffer.from(tapInternalPubkey),
+    // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
+  });
+
+  // Input 1: From claim transaction (NOT signed by depositor)
+  // We include this with witnessUtxo so the sighash is computed correctly,
+  // but we do NOT include tapLeafScript since the depositor doesn't sign it.
+  psbt.addInput({
+    hash: input1.hash,
+    index: input1.index,
+    sequence: input1.sequence,
+    witnessUtxo: {
+      script: claimPrevOut.script,
+      value: claimPrevOut.value,
+    },
+    // No tapLeafScript - depositor doesn't sign this input
+  });
 
   // Add outputs
   for (const output of payoutTx.outs) {
@@ -265,52 +295,28 @@ export function extractPayoutSignature(
 
   const firstInput = signedPsbt.data.inputs[0];
 
-  // Try tapScriptSig first
-  if (firstInput.tapScriptSig && firstInput.tapScriptSig.length > 0) {
-    const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
+  if (!firstInput.tapScriptSig || firstInput.tapScriptSig.length === 0) {
+    throw new Error("No tapScriptSig found in signed PSBT");
+  }
 
-    for (const sigEntry of firstInput.tapScriptSig) {
-      if (sigEntry.pubkey.equals(Buffer.from(depositorPubkeyBytes))) {
-        const signature = sigEntry.signature;
+  const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
 
-        // Remove sighash flag byte if present
-        if (signature.length === 64) {
-          return uint8ArrayToHex(new Uint8Array(signature));
-        } else if (signature.length === 65) {
-          return uint8ArrayToHex(new Uint8Array(signature.subarray(0, 64)));
-        } else {
-          throw new Error(
-            `Unexpected Schnorr signature length: ${signature.length}`,
-          );
-        }
+  for (const sigEntry of firstInput.tapScriptSig) {
+    if (sigEntry.pubkey.equals(Buffer.from(depositorPubkeyBytes))) {
+      const sig = sigEntry.signature;
+      // Return 64-byte signature, stripping sighash flag if present
+      if (sig.length === 64) {
+        return uint8ArrayToHex(new Uint8Array(sig));
+      } else if (sig.length === 65) {
+        return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
       }
+      throw new Error(`Unexpected signature length: ${sig.length}`);
     }
   }
 
-  // Try finalized witness (for finalized PSBT)
-  const tx = signedPsbt.extractTransaction();
-  const witness = tx.ins[0].witness;
-
-  if (!witness || witness.length === 0) {
-    throw new Error("No witness data in signed transaction");
-  }
-
-  // For Taproot script path spend: [sig1] [sig2] ... [sigN] [script] [control_block]
-  // The depositor's signature should be the first element
-  const depositorSig = witness[0];
-
-  // Remove sighash flag byte if present
-  if (depositorSig.length === 64) {
-    return depositorSig.toString("hex");
-  } else if (depositorSig.length === 65) {
-    const sighashFlag = depositorSig[64];
-    if (sighashFlag !== 0x01 && sighashFlag !== 0x00) {
-      throw new Error(`Unexpected sighash flag: 0x${sighashFlag.toString(16)}`);
-    }
-    return depositorSig.subarray(0, 64).toString("hex");
-  } else {
-    throw new Error(`Unexpected signature length: ${depositorSig.length}`);
-  }
+  throw new Error(
+    `No signature found for depositor pubkey: ${depositorPubkey}`,
+  );
 }
 
 /**

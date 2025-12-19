@@ -8,7 +8,7 @@ import { pubkeyInScript } from "bitcoinjs-lib/src/psbt/psbtutils";
 import { Buffer } from "buffer";
 import { v4 as uuidv4 } from "uuid";
 
-import type { BTCConfig, InscriptionIdentifier } from "@/core/types";
+import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import BIP322 from "@/core/utils/bip322";
 import { generateP2TRAddressFromXpub, toNetwork } from "@/core/utils/wallet";
@@ -139,7 +139,7 @@ export class KeystoneProvider implements IBTCProvider {
     return this.keystoneWalletInfo.publicKeyHex;
   };
 
-  signPsbt = async (psbtHex: string): Promise<string> => {
+  signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.keystoneWalletInfo?.address || !this.keystoneWalletInfo?.publicKeyHex) {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -154,10 +154,13 @@ export class KeystoneProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
+    // Get the list of input indexes to sign (default: all inputs)
+    const inputIndexesToSign = options?.signInputs?.map((input) => input.index);
+
     // enhance the PSBT with the BIP32 derivation information
     // to tell keystone which key to use to sign the PSBT
     let psbt = Psbt.fromHex(psbtHex);
-    psbt = this.enhancePsbt(psbt);
+    psbt = this.enhancePsbt(psbt, inputIndexesToSign);
     const enhancedPsbt = psbt.toHex();
     // sign the psbt with keystone
     const signedPsbt = await this.sign(enhancedPsbt);
@@ -317,9 +320,10 @@ export class KeystoneProvider implements IBTCProvider {
    * Therefore, add the Taproot BIP32 derivation information to the PSBT.
    * https://github.com/bitcoin/bips/blob/master/bip-0174.mediawiki#Specification
    * @param psbt - The PSBT object.
+   * @param inputIndexes - Optional array of input indexes to enhance. If not provided, all inputs are enhanced.
    * @returns The PSBT object with the BIP32 derivation information added.
    */
-  private enhancePsbt = (psbt: Psbt): Psbt => {
+  private enhancePsbt = (psbt: Psbt, inputIndexes?: number[]): Psbt => {
     if (
       !this.keystoneWalletInfo?.scriptPubKeyHex ||
       !this.keystoneWalletInfo?.publicKeyHex ||
@@ -339,7 +343,11 @@ export class KeystoneProvider implements IBTCProvider {
       pubkey: Buffer.from(this.keystoneWalletInfo.publicKeyHex, "hex"),
     };
 
-    psbt.data.inputs.forEach((input) => {
+    psbt.data.inputs.forEach((input, index) => {
+      // Only enhance specified inputs, or all if not specified
+      if (inputIndexes && !inputIndexes.includes(index)) {
+        return;
+      }
       input.tapBip32Derivation = [
         {
           ...bip32Derivation,

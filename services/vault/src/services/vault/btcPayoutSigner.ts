@@ -15,6 +15,8 @@ export interface SignPayoutTransactionParams {
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
   network: Network;
+  /** Depositor's BTC public key from vault data (x-only, 64-char hex) */
+  depositorBtcPubkey: string;
 }
 
 /**
@@ -48,10 +50,12 @@ export async function signPayoutTransaction(
       claimTxHex: params.claimTxHex,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
       liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+      depositorBtcPubkey: params.depositorBtcPubkey,
     });
 
     return result.signature;
   } catch (error) {
+    console.error("[btcPayoutSigner] Error signing payout transaction:", error);
     if (error instanceof Error) {
       throw new Error(`Failed to sign payout transaction: ${error.message}`);
     }

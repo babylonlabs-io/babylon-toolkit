@@ -119,11 +119,31 @@ export class UnisatProvider implements IBTCProvider {
 
     const network = await this.getNetwork();
     try {
-      const defaultOptions = this.getSignPsbtDefaultOptions(psbtHex, network);
-      const signOptions = {
-        ...defaultOptions,
-        ...options,
-      };
+      let signOptions: { autoFinalized: boolean; toSignInputs: any[] };
+
+      // If signInputs is provided, use it directly instead of auto-generating
+      // This allows callers to specify exactly which inputs to sign
+      if (options?.signInputs && options.signInputs.length > 0) {
+        signOptions = {
+          autoFinalized: options.autoFinalized ?? false,
+          toSignInputs: options.signInputs.map((input) => ({
+            index: input.index,
+            publicKey: input.publicKey,
+            address: input.address,
+            sighashTypes: input.sighashTypes,
+            disableTweakSigner: input.disableTweakSigner,
+            useTweakedSigner: input.useTweakedSigner,
+          })),
+        };
+      } else {
+        // Default behavior: auto-generate toSignInputs for all unsigned inputs
+        const defaultOptions = this.getSignPsbtDefaultOptions(psbtHex, network);
+        signOptions = {
+          ...defaultOptions,
+          autoFinalized: options?.autoFinalized ?? defaultOptions.autoFinalized,
+        };
+      }
+
       const signedHex = await this.provider.signPsbt(psbtHex, signOptions);
       return signedHex;
     } catch (error: Error | any) {
