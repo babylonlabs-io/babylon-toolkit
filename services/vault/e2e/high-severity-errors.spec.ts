@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { SentryInterceptor } from "./helpers/sentry-interceptor";
+
 const PORT = 5175;
 const BASE_URL = `http://localhost:${PORT}`;
 
@@ -105,6 +107,13 @@ test.describe("High Severity Error Handling", () => {
   });
 
   test.describe("Data Fetch Errors", () => {
+    let sentryInterceptor: SentryInterceptor;
+
+    test.beforeEach(async ({ page }) => {
+      sentryInterceptor = new SentryInterceptor();
+      await sentryInterceptor.setup(page);
+    });
+
     test("should show error UI when applications query fails", async ({
       page,
     }) => {
@@ -160,6 +169,61 @@ test.describe("High Severity Error Handling", () => {
 
       const tryAgainButton = page.getByRole("button", { name: /Try Again/i });
       await expect(tryAgainButton).toBeVisible();
+    });
+
+    test("should send Sentry event when applications query fails", async ({
+      page,
+    }) => {
+      await page.route("**/graphql", async (route) => {
+        const postData = route.request().postDataJSON();
+        const query = postData?.query || "";
+
+        if (query.includes("applications")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              errors: [{ message: "Failed to fetch applications" }],
+            }),
+          });
+          return;
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: { __typename: "Query" } }),
+        });
+      });
+
+      await page.route(/.*eth.*|.*rpc.*/, async (route) => {
+        const postData = route.request().postDataJSON();
+
+        if (postData?.method === "eth_call") {
+          const data = postData.params?.[0]?.data || "";
+          if (data.startsWith("0x5c975abb")) {
+            await route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: postData.id,
+                result:
+                  "0x0000000000000000000000000000000000000000000000000000000000000000",
+              }),
+            });
+            return;
+          }
+        }
+
+        await route.continue();
+      });
+
+      await page.goto(`${BASE_URL}/`);
+      await sentryInterceptor.waitForEvent(page, { timeout: 15000 });
+
+      const sentryRequests = sentryInterceptor.getRequests();
+      expect(sentryRequests.length).toBeGreaterThan(0);
     });
 
     test("should show error UI when morpho markets query fails", async ({
@@ -299,6 +363,63 @@ test.describe("High Severity Error Handling", () => {
 
       const goBackButton = page.getByRole("button", { name: /Go Back/i });
       await expect(goBackButton).toBeVisible();
+    });
+
+    test("should send Sentry event when market data fails on detail page", async ({
+      page,
+    }) => {
+      await page.route("**/graphql", async (route) => {
+        const postData = route.request().postDataJSON();
+        const query = postData?.query || "";
+
+        if (query.includes("morphoMarket")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              errors: [{ message: "Market not found" }],
+            }),
+          });
+          return;
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ data: { __typename: "Query" } }),
+        });
+      });
+
+      await page.route(/.*eth.*|.*rpc.*/, async (route) => {
+        const postData = route.request().postDataJSON();
+
+        if (postData?.method === "eth_call") {
+          const data = postData.params?.[0]?.data || "";
+          if (data.startsWith("0x5c975abb")) {
+            await route.fulfill({
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: postData.id,
+                result:
+                  "0x0000000000000000000000000000000000000000000000000000000000000000",
+              }),
+            });
+            return;
+          }
+        }
+
+        await route.continue();
+      });
+
+      await page.goto(
+        `${BASE_URL}/app/morpho/market/0x1234567890123456789012345678901234567890123456789012345678901234`,
+      );
+      await sentryInterceptor.waitForEvent(page, { timeout: 15000 });
+
+      const sentryRequests = sentryInterceptor.getRequests();
+      expect(sentryRequests.length).toBeGreaterThan(0);
     });
   });
 });

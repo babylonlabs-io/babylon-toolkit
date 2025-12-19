@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { ErrorModal } from "@/components/shared/ErrorModal";
+import { logger } from "@/infrastructure";
 
 import type { ErrorContextType, ErrorHandlerParam, ErrorState } from "./types";
 
@@ -53,6 +54,12 @@ export const ErrorProvider: FC<ErrorProviderProps> = ({ children }) => {
         context: "context" in error ? error.context : undefined,
         metadata: metadata ?? {},
       };
+
+      if (error instanceof Error) {
+        logger.error(error, {
+          tags: errorData.code ? { errorCode: String(errorData.code) } : {},
+        });
+      }
 
       if (shouldShowModal) {
         setState((prev) => {

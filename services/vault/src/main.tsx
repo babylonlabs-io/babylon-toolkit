@@ -8,6 +8,7 @@ import Providers from "@/providers";
 import { Router } from "@/router";
 
 import "@/globals.css";
+import "../sentry.client.config";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
