@@ -16,6 +16,7 @@ import type {
 
 import { ERC20 } from "../../../clients/eth-contract";
 import { MAX_UINT256 } from "../../../constants";
+import { toAddress } from "../../../utils/addressUtils";
 import { AaveControllerTx, AaveSpoke } from "../clients";
 import { getAaveControllerAddress } from "../config";
 import { FULL_REPAY_BUFFER_BPS } from "../constants";
@@ -381,7 +382,7 @@ export async function canWithdraw(
     return false;
   }
 
-  const spokeAddress = config.btcVaultCoreSpokeAddress as Address;
+  const spokeAddress = toAddress(config.btcVaultCoreSpokeAddress);
   const hasDebt = await AaveSpoke.hasDebt(
     spokeAddress,
     reserveId,

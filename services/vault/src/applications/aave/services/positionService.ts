@@ -7,6 +7,7 @@
 
 import type { Address } from "viem";
 
+import { toAddress } from "../../../utils/addressUtils";
 import { AaveSpoke, type AaveSpokeUserAccountData } from "../clients";
 import { hasDebtFromPosition } from "../utils";
 
@@ -107,7 +108,7 @@ export async function getUserPositionsWithLiveData(
 
   // User can only have one position in Babylon vault integration
   const position = positions[0];
-  const proxyAddress = position.proxyContract as Address;
+  const proxyAddress = toAddress(position.proxyContract);
 
   // Fetch live data from Spoke in parallel
   const [spokePosition, accountData] = await Promise.all([
@@ -206,7 +207,7 @@ export async function getPositionWithLiveData(
     return null;
   }
 
-  const proxyAddress = position.proxyContract as Address;
+  const proxyAddress = toAddress(position.proxyContract);
 
   // Fetch live data from Spoke in parallel
   const [spokePosition, accountData] = await Promise.all([

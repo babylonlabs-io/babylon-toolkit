@@ -7,11 +7,12 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
+import { toAddress } from "@/utils/addressUtils";
 import {
   ErrorCode,
   WalletError,
@@ -106,18 +107,18 @@ export function useRepayTransaction({
         await repayFull(
           walletClient,
           chain,
-          config.controllerAddress as Address,
+          toAddress(config.controllerAddress),
           positionId as Hex,
           reserve.reserveId,
           reserve.token.address,
-          config.btcVaultCoreSpokeAddress as Address,
-          proxyContract as Address,
+          toAddress(config.btcVaultCoreSpokeAddress),
+          toAddress(proxyContract),
         );
       } else {
         await repayPartial(
           walletClient,
           chain,
-          config.controllerAddress as Address,
+          toAddress(config.controllerAddress),
           positionId as Hex,
           reserve.reserveId,
           reserve.token.address,

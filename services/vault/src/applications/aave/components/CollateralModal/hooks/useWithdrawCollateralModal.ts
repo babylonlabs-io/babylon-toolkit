@@ -44,12 +44,9 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
   }, [collateralAmount, btcPriceUSD]);
 
   // Current health factor (Infinity when no debt)
+  // For withdraw, projected equals current because Aave only allows
+  // withdrawing all collateral when debt is zero
   const currentHealthFactorValue = healthFactor ?? Infinity;
-
-  // For withdraw, projected health factor is always the same as current
-  // because Aave only supports withdrawing all collateral when debt is zero
-  // If there's debt, the withdraw is disabled anyway
-  const projectedHealthFactorValue = currentHealthFactorValue;
 
   // For withdraw, the only valid step is 0 or max (all-or-nothing)
   // Since Aave only supports withdrawing all collateral at once
@@ -90,7 +87,7 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
     maxCollateralAmount,
     selectedCollateralValueUsd,
     currentHealthFactorValue,
-    projectedHealthFactorValue,
+    projectedHealthFactorValue: currentHealthFactorValue,
     collateralSteps,
     handleSubmit,
     isProcessing,

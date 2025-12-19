@@ -9,6 +9,7 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
+import { toAddress } from "../../../utils/addressUtils";
 
 /**
  * Aave configuration from GraphQL indexer
@@ -159,8 +160,8 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
   return {
     reserveId: BigInt(raw.id),
     reserve: {
-      underlying: raw.underlying as Address,
-      hub: raw.hub as Address,
+      underlying: toAddress(raw.underlying),
+      hub: toAddress(raw.hub),
       assetId: raw.assetId,
       decimals: raw.decimals,
       dynamicConfigKey: raw.dynamicConfigKey,
@@ -171,7 +172,7 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
       collateralFactor: raw.collateralFactor,
     },
     token: {
-      address: raw.underlyingToken.address as Address,
+      address: toAddress(raw.underlyingToken.address),
       symbol: raw.underlyingToken.symbol,
       name: raw.underlyingToken.name,
       decimals: raw.underlyingToken.decimals,

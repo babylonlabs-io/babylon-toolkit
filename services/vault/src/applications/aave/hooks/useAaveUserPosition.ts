@@ -7,8 +7,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { Address } from "viem";
 
+import { toAddress } from "@/utils/addressUtils";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import { POSITION_REFETCH_INTERVAL_MS } from "../constants";
@@ -72,7 +72,9 @@ export function useAaveUserPosition(
     borrowableReserves,
     isLoading: configLoading,
   } = useAaveConfig();
-  const spokeAddress = config?.btcVaultCoreSpokeAddress as Address | undefined;
+  const spokeAddress = config?.btcVaultCoreSpokeAddress
+    ? toAddress(config.btcVaultCoreSpokeAddress)
+    : undefined;
 
   // Extract reserve IDs for fetching debt positions
   const borrowableReserveIds = useMemo(

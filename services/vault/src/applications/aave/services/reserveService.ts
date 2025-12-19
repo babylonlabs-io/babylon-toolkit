@@ -7,6 +7,8 @@
 
 import type { Address } from "viem";
 
+import { toAddress } from "../../../utils/addressUtils";
+
 import { fetchAaveConfig, type AaveConfig } from "./fetchConfig";
 import {
   fetchAaveReserveById,
@@ -61,7 +63,7 @@ async function getConfig(): Promise<AaveConfig> {
  */
 export async function getCoreSpokeAddress(): Promise<Address> {
   const config = await getConfig();
-  return config.btcVaultCoreSpokeAddress as Address;
+  return toAddress(config.btcVaultCoreSpokeAddress);
 }
 
 /**
@@ -88,8 +90,8 @@ function toReserveWithMetadata(
   return {
     reserveId: reserve.id,
     reserve: {
-      underlying: reserve.underlying as Address,
-      hub: reserve.hub as Address,
+      underlying: toAddress(reserve.underlying),
+      hub: toAddress(reserve.hub),
       assetId: reserve.assetId,
       decimals: reserve.decimals,
       dynamicConfigKey: reserve.dynamicConfigKey,
@@ -100,7 +102,7 @@ function toReserveWithMetadata(
       collateralFactor: reserve.collateralFactor,
     },
     token: {
-      address: reserve.underlyingToken.address as Address,
+      address: toAddress(reserve.underlyingToken.address),
       symbol: reserve.underlyingToken.symbol,
       name: reserve.underlyingToken.name,
       decimals: reserve.underlyingToken.decimals,

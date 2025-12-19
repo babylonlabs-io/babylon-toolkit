@@ -7,7 +7,6 @@
  */
 
 import { useMemo } from "react";
-import type { Address } from "viem";
 
 import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { useVaults } from "@/hooks/useVaults";
@@ -17,6 +16,7 @@ import {
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
 import type { Vault } from "@/types/vault";
+import { toAddress } from "@/utils/addressUtils";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import type { VaultData } from "../components/Overview/components/VaultsTable";
@@ -70,7 +70,7 @@ export function useAaveVaults(
     data: vaults,
     isLoading: vaultsLoading,
     error,
-  } = useVaults(depositorAddress as Address | undefined);
+  } = useVaults(depositorAddress ? toAddress(depositorAddress) : undefined);
   const { btcPriceUSD } = useBTCPrice();
   const { pendingVaultIds } = usePendingVaults();
 

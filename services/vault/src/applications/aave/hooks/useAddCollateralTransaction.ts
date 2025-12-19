@@ -5,10 +5,11 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "../../../context/error";
+import { toAddress } from "../../../utils/addressUtils";
 import {
   ErrorCode,
   WalletError,
@@ -61,7 +62,9 @@ export function useAddCollateralTransaction(): UseAddCollateralTransactionResult
         markVaultsAsPending(vaultIds);
 
         // Invalidate vault-related queries to refresh from indexer
-        await invalidateVaultQueries(queryClient, address as Address);
+        if (address) {
+          await invalidateVaultQueries(queryClient, toAddress(address));
+        }
 
         return true;
       } catch (error) {
