@@ -115,7 +115,7 @@ export function LoansSection({
       ) : (
         <SubSection className="w-full py-10">
           <div className="flex flex-col items-center justify-center gap-2 text-center">
-            <p className="text-base text-accent-primary">No active loans.</p>
+            <p className="text-xl text-accent-primary">No active loans.</p>
             <p className="text-sm text-accent-secondary">
               Add collateral to start borrowing.
             </p>
