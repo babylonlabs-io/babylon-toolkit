@@ -1,4 +1,4 @@
-import type { BTCConfig, InscriptionIdentifier, WalletInfo } from "@/core/types";
+import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -100,13 +100,28 @@ export class OKXProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
-  signPsbt = async (psbtHex: string): Promise<string> => {
+  signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
         message: "OKX Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
+
+    // OKX supports options with toSignInputs similar to UniSat
+    if (options?.signInputs && options.signInputs.length > 0) {
+      const okxOptions = {
+        autoFinalized: options.autoFinalized ?? false,
+        toSignInputs: options.signInputs.map((input) => ({
+          index: input.index,
+          publicKey: input.publicKey,
+          address: input.address,
+          sighashTypes: input.sighashTypes,
+          disableTweakSigner: input.disableTweakSigner,
+        })),
+      };
+      return await this.provider.signPsbt(psbtHex, okxOptions);
+    }
 
     return await this.provider.signPsbt(psbtHex);
   };

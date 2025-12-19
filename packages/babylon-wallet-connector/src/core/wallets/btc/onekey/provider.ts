@@ -1,4 +1,4 @@
-import type { BTCConfig, IBTCProvider, InscriptionIdentifier, WalletInfo } from "@/core/types";
+import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -90,7 +90,7 @@ export class OneKeyProvider implements IBTCProvider {
     return this.walletInfo.publicKeyHex;
   };
 
-  signPsbt = async (psbtHex: string): Promise<string> => {
+  signPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
     if (!this.walletInfo)
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -103,6 +103,21 @@ export class OneKeyProvider implements IBTCProvider {
         message: "psbt hex is required",
         wallet: WALLET_PROVIDER_NAME,
       });
+
+    // OneKey supports options with toSignInputs similar to UniSat
+    if (options?.signInputs && options.signInputs.length > 0) {
+      const oneKeyOptions = {
+        autoFinalized: options.autoFinalized ?? false,
+        toSignInputs: options.signInputs.map((input) => ({
+          index: input.index,
+          publicKey: input.publicKey,
+          address: input.address,
+          sighashTypes: input.sighashTypes,
+          disableTweakSigner: input.disableTweakSigner,
+        })),
+      };
+      return await this.provider.signPsbt(psbtHex, oneKeyOptions);
+    }
 
     return this.provider.signPsbt(psbtHex);
   };
