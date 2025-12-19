@@ -1,4 +1,7 @@
 import { Button, Card, Container } from "@babylonlabs-io/core-ui";
+import { useNavigate } from "react-router";
+
+import { BackButton } from "@/components/shared";
 
 import { DepositState } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -13,7 +16,12 @@ import { SelectApplicationSection } from "./Deposit/SelectApplicationSection";
 import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection";
 
 function DepositContent() {
-  // Form state and validation
+  const navigate = useNavigate();
+
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   const {
     formData,
     setFormData,
@@ -66,8 +74,11 @@ function DepositContent() {
       as="main"
       className="mx-auto flex flex-1 flex-col gap-6 px-4 pb-6 max-md:flex-none max-md:gap-4 max-md:px-0 max-md:pb-4 max-md:pt-0"
     >
-      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-[80px] py-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col py-8">
+        <div className="self-start">
+          <BackButton label="Back" onClick={handleBack} />
+        </div>
+        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]">
           <div className="flex flex-col gap-6">
             <DepositAmountSection
               amount={formData.amountBtc}
@@ -116,7 +127,7 @@ function DepositContent() {
           <DepositFAQ />
         </div>
 
-        <Card>
+        <Card className="mt-[72px]">
           <h2 className="mb-6 text-2xl font-normal leading-[133%] tracking-[0px] text-accent-primary">
             Deposits
           </h2>
