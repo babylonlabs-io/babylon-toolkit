@@ -19,6 +19,7 @@ interface OverviewCardProps {
   healthFactor: number | null;
   /** Health factor status for display */
   healthFactorStatus: HealthFactorStatus;
+  isConnected?: boolean;
 }
 
 export function OverviewCard({
@@ -26,6 +27,7 @@ export function OverviewCard({
   collateralValue,
   healthFactor,
   healthFactorStatus,
+  isConnected = false,
 }: OverviewCardProps) {
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
@@ -39,7 +41,9 @@ export function OverviewCard({
 
         <div className="space-y-4">
           {/* Collateral Value Row */}
-          <div className="flex items-center justify-between border-b border-secondary-strokeLight pb-4">
+          <div
+            className={`flex items-center justify-between ${isConnected ? "border-b border-secondary-strokeLight pb-4" : ""}`}
+          >
             <span className="text-sm text-accent-secondary">
               Collateral Value
             </span>
@@ -48,14 +52,18 @@ export function OverviewCard({
             </span>
           </div>
 
-          {/* Health Factor Row */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-accent-secondary">Health Factor</span>
-            <span className="flex items-center gap-2 text-base text-accent-primary">
-              <HeartIcon color={healthFactorColor} />
-              {healthFactorFormatted}
-            </span>
-          </div>
+          {/* Health Factor Row - only show when connected */}
+          {isConnected && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-accent-secondary">
+                Health Factor
+              </span>
+              <span className="flex items-center gap-2 text-base text-accent-primary">
+                <HeartIcon color={healthFactorColor} />
+                {healthFactorFormatted}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Card>
