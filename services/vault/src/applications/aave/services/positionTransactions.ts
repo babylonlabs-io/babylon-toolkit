@@ -18,6 +18,7 @@ import { ERC20 } from "../../../clients/eth-contract";
 import { MAX_UINT256 } from "../../../constants";
 import { AaveControllerTx, AaveSpoke } from "../clients";
 import { getAaveControllerAddress } from "../config";
+import { FULL_REPAY_BUFFER_BPS } from "../constants";
 
 import { fetchAaveConfig } from "./fetchConfig";
 import { getReserveById, getVbtcReserveId } from "./reserveService";
@@ -138,12 +139,13 @@ export async function approveForRepay(
 }
 
 /**
- * Repay debt to a Core Spoke position
+ * Repay debt to a Core Spoke position (low-level)
  *
  * User must have approved the controller to spend debt tokens first.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
+ * @param controllerAddress - Aave controller contract address
  * @param positionId - Position ID with debt
  * @param debtReserveId - Reserve ID for the debt token
  * @param amount - Amount to repay (in debt token decimals)
@@ -152,6 +154,7 @@ export async function approveForRepay(
 export async function repay(
   walletClient: WalletClient,
   chain: Chain,
+  controllerAddress: Address,
   positionId: Hex,
   debtReserveId: bigint,
   amount: bigint,
@@ -163,7 +166,7 @@ export async function repay(
   const result = await AaveControllerTx.repayToCorePosition(
     walletClient,
     chain,
-    getAaveControllerAddress(),
+    controllerAddress,
     positionId,
     debtReserveId,
     amount,
@@ -173,6 +176,133 @@ export async function repay(
     transactionHash: result.transactionHash,
     receipt: result.receipt,
   };
+}
+
+/**
+ * Repay a partial amount of debt
+ *
+ * Handles approval if needed, then executes repay.
+ *
+ * @param walletClient - Connected wallet client
+ * @param chain - Chain configuration
+ * @param controllerAddress - Aave controller contract address
+ * @param positionId - Position ID with debt
+ * @param debtReserveId - Reserve ID for the debt token
+ * @param tokenAddress - Token address for the debt
+ * @param amount - Amount to repay (in debt token decimals)
+ * @returns Transaction result
+ */
+export async function repayPartial(
+  walletClient: WalletClient,
+  chain: Chain,
+  controllerAddress: Address,
+  positionId: Hex,
+  debtReserveId: bigint,
+  tokenAddress: Address,
+  amount: bigint,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  // Check existing allowance and approve if needed
+  const currentAllowance = await ERC20.getERC20Allowance(
+    tokenAddress,
+    userAddress,
+    controllerAddress,
+  );
+
+  if (currentAllowance < amount) {
+    await ERC20.approveERC20(
+      walletClient,
+      chain,
+      tokenAddress,
+      controllerAddress,
+      amount,
+    );
+  }
+
+  return repay(
+    walletClient,
+    chain,
+    controllerAddress,
+    positionId,
+    debtReserveId,
+    amount,
+  );
+}
+
+/**
+ * Repay all debt for a reserve
+ *
+ * Fetches exact debt from contract, handles approval, then repays.
+ *
+ * @param walletClient - Connected wallet client
+ * @param chain - Chain configuration
+ * @param controllerAddress - Aave controller contract address
+ * @param positionId - Position ID with debt
+ * @param debtReserveId - Reserve ID for the debt token
+ * @param tokenAddress - Token address for the debt
+ * @param spokeAddress - Spoke contract address
+ * @param proxyContract - User's proxy contract address
+ * @returns Transaction result
+ */
+export async function repayFull(
+  walletClient: WalletClient,
+  chain: Chain,
+  controllerAddress: Address,
+  positionId: Hex,
+  debtReserveId: bigint,
+  tokenAddress: Address,
+  spokeAddress: Address,
+  proxyContract: Address,
+): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
+  const userAddress = walletClient.account?.address;
+  if (!userAddress) {
+    throw new Error("Wallet address not available");
+  }
+
+  // Fetch current debt from the contract
+  const currentDebt = await AaveSpoke.getUserTotalDebt(
+    spokeAddress,
+    debtReserveId,
+    proxyContract,
+  );
+
+  if (currentDebt === 0n) {
+    throw new Error("No debt to repay");
+  }
+
+  // Add 0.01% buffer to account for interest accrual between fetching and tx execution
+  // The contract will only take what's actually owed, excess stays in user's wallet
+  const amountToRepay = currentDebt + currentDebt / FULL_REPAY_BUFFER_BPS;
+
+  // Check existing allowance and approve if needed
+  const currentAllowance = await ERC20.getERC20Allowance(
+    tokenAddress,
+    userAddress,
+    controllerAddress,
+  );
+
+  if (currentAllowance < amountToRepay) {
+    await ERC20.approveERC20(
+      walletClient,
+      chain,
+      tokenAddress,
+      controllerAddress,
+      MAX_UINT256,
+    );
+  }
+
+  return repay(
+    walletClient,
+    chain,
+    controllerAddress,
+    positionId,
+    debtReserveId,
+    amountToRepay,
+  );
 }
 
 /**

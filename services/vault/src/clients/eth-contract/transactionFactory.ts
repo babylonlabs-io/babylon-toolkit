@@ -73,6 +73,13 @@ export async function executeWrite(
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
+    // Check if transaction was reverted
+    if (receipt.status === "reverted") {
+      throw new Error(
+        `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
+      );
+    }
+
     return {
       transactionHash: hash,
       receipt,
@@ -127,6 +134,13 @@ export async function executeWriteWithHashRecovery(
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    // Check if transaction was reverted
+    if (receipt.status === "reverted") {
+      throw new Error(
+        `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
+      );
+    }
 
     return {
       transactionHash: hash,

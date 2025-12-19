@@ -25,6 +25,8 @@ export interface LoanContextValue {
   assetConfig: Asset;
   /** User's position ID (for transactions) */
   positionId: string | undefined;
+  /** User's proxy contract address (for debt queries) */
+  proxyContract: string | undefined;
   /** Callback when borrow succeeds */
   onBorrowSuccess: (borrowAmount: number) => void;
   /** Callback when repay succeeds */

@@ -29,8 +29,8 @@ export interface UseAddCollateralStateProps {
   currentDebtUsd: number;
   /** Liquidation threshold in basis points (e.g., 8000 bps = 80%), undefined if not loaded */
   liquidationThresholdBps: number | undefined;
-  /** Current BTC price in USD */
-  btcPrice: number;
+  /** Current BTC price in USD (null/undefined if not loaded) */
+  btcPrice: number | null | undefined;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
 }
@@ -102,8 +102,9 @@ export function useAddCollateralState({
     return vaultIndices.map((index) => availableVaults[index].id);
   }, [availableVaults, collateralAmount, vaultAmountsSatoshis]);
 
-  // Calculate collateral value in USD
+  // Calculate collateral value in USD (0 if price not loaded)
   const collateralValueUsd = useMemo(() => {
+    if (btcPrice == null) return 0;
     return collateralAmount * btcPrice;
   }, [collateralAmount, btcPrice]);
 
@@ -118,8 +119,10 @@ export function useAddCollateralState({
     // No additional collateral = current value
     if (collateralAmount === 0) return currentHealthFactorValue;
 
-    // Config not loaded yet = show current value
-    if (liquidationThresholdBps === undefined) return currentHealthFactorValue;
+    // Config or price not loaded yet = show current value
+    if (liquidationThresholdBps === undefined || btcPrice == null) {
+      return currentHealthFactorValue;
+    }
 
     const projectedCollateralUsd =
       currentCollateralUsd + collateralAmount * btcPrice;

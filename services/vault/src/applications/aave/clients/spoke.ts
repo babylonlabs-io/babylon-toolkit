@@ -186,3 +186,31 @@ export async function hasCollateral(
   const position = await getUserPosition(spokeAddress, reserveId, userAddress);
   return position.suppliedShares > 0n;
 }
+
+/**
+ * Get user's total debt in a reserve (in token units, not shares)
+ *
+ * This returns the exact amount of tokens owed, including accrued interest.
+ * Use this for full repayment to get the precise amount needed.
+ *
+ * @param spokeAddress - Aave Spoke contract address
+ * @param reserveId - Reserve ID
+ * @param userAddress - User's proxy contract address
+ * @returns Total debt amount in token units (with token decimals)
+ */
+export async function getUserTotalDebt(
+  spokeAddress: Address,
+  reserveId: bigint,
+  userAddress: Address,
+): Promise<bigint> {
+  const publicClient = ethClient.getPublicClient();
+
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserTotalDebt",
+    args: [reserveId, userAddress],
+  });
+
+  return result as bigint;
+}

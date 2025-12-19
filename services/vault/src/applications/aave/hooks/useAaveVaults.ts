@@ -71,14 +71,15 @@ export function useAaveVaults(
     isLoading: vaultsLoading,
     error,
   } = useVaults(depositorAddress as Address | undefined);
-  const { btcPriceUSD, loading: priceLoading } = useBTCPrice();
+  const { btcPriceUSD } = useBTCPrice();
   const { pendingVaultIds } = usePendingVaults();
 
-  const isLoading = vaultsLoading || priceLoading;
+  const isLoading = vaultsLoading;
 
   // Transform all active vaults for display
+  // USD value will be 0 if price is not available, which is acceptable
   const allVaults = useMemo(() => {
-    if (!vaults || !btcPriceUSD) return [];
+    if (!vaults) return [];
     return vaults
       .filter((vault) => vault.status === ContractStatus.ACTIVE)
       .map((vault) => transformVaultToTableData(vault, btcPriceUSD));

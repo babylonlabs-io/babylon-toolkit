@@ -15,30 +15,8 @@ import {
   useAddCollateralTransaction,
 } from "../../../hooks";
 
+import type { UseCollateralModalResult } from "./types";
 import { useAddCollateralState } from "./useAddCollateralState";
-
-export interface UseAddCollateralModalResult {
-  /** Selected collateral amount in BTC */
-  collateralAmount: number;
-  /** Set the collateral amount */
-  setCollateralAmount: (amount: number) => void;
-  /** Maximum collateral amount (sum of available vaults) */
-  maxCollateralAmount: number;
-  /** Collateral value in USD for selected amount */
-  selectedCollateralValueUsd: number;
-  /** Current health factor value for UI (Infinity when no debt) */
-  currentHealthFactorValue: number;
-  /** Projected health factor value after adding collateral */
-  projectedHealthFactorValue: number;
-  /** Slider steps based on vault bucket combinations */
-  collateralSteps: Array<{ value: number }>;
-  /** Execute the add collateral transaction */
-  handleDeposit: () => Promise<boolean>;
-  /** Whether transaction is processing */
-  isProcessing: boolean;
-  /** Whether deposit button should be disabled */
-  isDisabled: boolean;
-}
 
 /**
  * Hook that provides all state and handlers for the Add Collateral modal
@@ -46,13 +24,12 @@ export interface UseAddCollateralModalResult {
  * Fetches data using React Query (reuses cached data from parent components)
  * and provides transaction execution.
  */
-export function useAddCollateralModal(): UseAddCollateralModalResult {
+export function useAddCollateralModal(): UseCollateralModalResult {
   // Fetch wallet address
   const { address } = useETHWallet();
 
   // Fetch BTC price (uses React Query cache)
-  const { btcPriceUSD } = useBTCPrice();
-  const btcPrice = btcPriceUSD || 0;
+  const { btcPriceUSD, loading: priceLoading } = useBTCPrice();
 
   // Fetch user's position data (uses React Query cache)
   const { collateralValueUsd, debtValueUsd, healthFactor } =
@@ -81,19 +58,20 @@ export function useAddCollateralModal(): UseAddCollateralModalResult {
     currentCollateralUsd: collateralValueUsd,
     currentDebtUsd: debtValueUsd,
     liquidationThresholdBps,
-    btcPrice,
+    btcPrice: btcPriceUSD,
     currentHealthFactor: healthFactor,
   });
 
   // Transaction hook
   const { executeAddCollateral, isProcessing } = useAddCollateralTransaction();
 
-  const handleDeposit = async () => {
+  const handleSubmit = async () => {
     if (selectedVaultIds.length === 0) return false;
     return executeAddCollateral(selectedVaultIds);
   };
 
-  const isDisabled = collateralAmount === 0 || isProcessing || configLoading;
+  const isDisabled =
+    collateralAmount === 0 || isProcessing || configLoading || priceLoading;
 
   return {
     collateralAmount,
@@ -103,8 +81,10 @@ export function useAddCollateralModal(): UseAddCollateralModalResult {
     currentHealthFactorValue,
     projectedHealthFactorValue,
     collateralSteps,
-    handleDeposit,
+    handleSubmit,
     isProcessing,
     isDisabled,
+    errorMessage: undefined,
+    currentDebtValueUsd: debtValueUsd,
   };
 }

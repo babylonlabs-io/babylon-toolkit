@@ -39,6 +39,7 @@ export function AaveReserveDetail() {
     vbtcReserve,
     liquidationThresholdBps,
     positionId,
+    proxyContract,
     collateralValueUsd,
     debtValueUsd,
     healthFactor,
@@ -105,6 +106,7 @@ export function AaveReserveDetail() {
     selectedReserve,
     assetConfig,
     positionId,
+    proxyContract,
     onBorrowSuccess: openBorrowSuccess,
     onRepaySuccess: openRepaySuccess,
   };

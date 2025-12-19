@@ -22,8 +22,8 @@ import {
   useAaveVaults,
 } from "../../hooks";
 import type { Asset } from "../../types";
-import { AddCollateralModal } from "../AddCollateralModal";
 import { AssetSelectionModal } from "../AssetSelectionModal";
+import { CollateralModal, type CollateralMode } from "../CollateralModal";
 
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
@@ -35,7 +35,9 @@ export function AaveOverview() {
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
-  const [isAddCollateralOpen, setIsAddCollateralOpen] = useState(false);
+  const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
+  const [collateralModalMode, setCollateralModalMode] =
+    useState<CollateralMode>("add");
 
   // Wallet connection
   const { address } = useETHWallet();
@@ -78,11 +80,13 @@ export function AaveOverview() {
   const handleBack = () => navigate("/");
 
   const handleAdd = () => {
-    setIsAddCollateralOpen(true);
+    setCollateralModalMode("add");
+    setIsCollateralModalOpen(true);
   };
 
   const handleWithdraw = () => {
-    // TODO: Navigate to withdraw flow
+    setCollateralModalMode("withdraw");
+    setIsCollateralModalOpen(true);
   };
 
   const handleBorrow = () => {
@@ -193,10 +197,11 @@ export function AaveOverview() {
         }
       />
 
-      {/* Add Collateral Modal */}
-      <AddCollateralModal
-        isOpen={isAddCollateralOpen}
-        onClose={() => setIsAddCollateralOpen(false)}
+      {/* Collateral Modal (Add/Withdraw) */}
+      <CollateralModal
+        isOpen={isCollateralModalOpen}
+        onClose={() => setIsCollateralModalOpen(false)}
+        mode={collateralModalMode}
       />
     </Container>
   );

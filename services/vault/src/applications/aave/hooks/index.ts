@@ -23,3 +23,7 @@ export {
   type UseRepayTransactionProps,
   type UseRepayTransactionResult,
 } from "./useRepayTransaction";
+export {
+  useWithdrawCollateralTransaction,
+  type UseWithdrawCollateralTransactionResult,
+} from "./useWithdrawCollateralTransaction";
