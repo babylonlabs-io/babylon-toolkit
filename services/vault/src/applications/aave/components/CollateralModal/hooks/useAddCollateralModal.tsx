@@ -5,6 +5,9 @@
  * for the Add Collateral modal. Uses React Query's cache for data.
  */
 
+import { useMemo } from "react";
+
+import type { DetailRow } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { useBTCPrice } from "@/hooks/useBTCPrice";
 
@@ -14,6 +17,7 @@ import {
   useAaveVaults,
   useAddCollateralTransaction,
 } from "../../../hooks";
+import { BorrowableAssetsValue, HealthFactorValue } from "../components";
 
 import type { UseCollateralModalResult } from "./types";
 import { useAddCollateralState } from "./useAddCollateralState";
@@ -38,9 +42,12 @@ export function useAddCollateralModal(): UseCollateralModalResult {
   // Fetch vaults available for collateral (uses React Query cache)
   const { availableForCollateral } = useAaveVaults(address);
 
-  // Get liquidation threshold from vBTC reserve config (from context)
-  // collateralFactor is the liquidation threshold in BPS (e.g., 8000 = 80%)
-  const { vbtcReserve, isLoading: configLoading } = useAaveConfig();
+  // Get config from context
+  const {
+    vbtcReserve,
+    borrowableReserves,
+    isLoading: configLoading,
+  } = useAaveConfig();
   const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor;
 
   // State for collateral selection and calculations
@@ -73,18 +80,46 @@ export function useAddCollateralModal(): UseCollateralModalResult {
   const isDisabled =
     collateralAmount === 0 || isProcessing || configLoading || priceLoading;
 
+  // Construct detail rows for display
+  const detailRows: DetailRow[] = useMemo(() => {
+    const rows: DetailRow[] = [
+      { label: "Spoke", value: "Aave Prime" },
+      {
+        label: "Borrowable assets",
+        value: <BorrowableAssetsValue reserves={borrowableReserves} />,
+      },
+    ];
+
+    // Show health factor transition when collateral is selected
+    const showProjected = collateralAmount > 0;
+    rows.push({
+      label: "Health Factor",
+      value: (
+        <HealthFactorValue
+          current={currentHealthFactorValue}
+          projected={showProjected ? projectedHealthFactorValue : undefined}
+        />
+      ),
+    });
+
+    return rows;
+  }, [
+    borrowableReserves,
+    collateralAmount,
+    currentHealthFactorValue,
+    projectedHealthFactorValue,
+  ]);
+
   return {
     collateralAmount,
     setCollateralAmount,
     maxCollateralAmount,
     selectedCollateralValueUsd,
-    currentHealthFactorValue,
-    projectedHealthFactorValue,
     collateralSteps,
+    detailRows,
     handleSubmit,
     isProcessing,
     isDisabled,
     errorMessage: undefined,
-    currentDebtValueUsd: debtValueUsd,
   };
 }
