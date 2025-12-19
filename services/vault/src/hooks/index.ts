@@ -24,6 +24,12 @@ export {
   type UseLtvCalculationsResult,
 } from "./useLtvCalculations";
 export { useNetworkFees } from "./useNetworkFees";
+export {
+  STATS_QUERY_KEY,
+  useStats,
+  type StatsData,
+  type UseStatsResult,
+} from "./useStats";
 export { useTokenPair, type UseTokenPairResult } from "./useTokenPair";
 export { useUTXOs } from "./useUTXOs";
 export { useVaultDeposits } from "./useVaultDeposits";

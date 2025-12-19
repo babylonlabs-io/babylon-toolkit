@@ -1,7 +1,12 @@
+import { Loader } from "@babylonlabs-io/core-ui";
+
+import type { StatsData } from "../../hooks/useStats";
+import { formatBtcAmount, formatUsdValue } from "../../utils/formatting";
+
 interface TVLStatProps {
   label: string;
-  btcAmount: string;
-  usdValue: string;
+  btcAmount: number;
+  usdValue: number;
 }
 
 function TVLStat({ label, btcAmount, usdValue }: TVLStatProps) {
@@ -12,32 +17,34 @@ function TVLStat({ label, btcAmount, usdValue }: TVLStatProps) {
       </span>
       <div className="flex items-baseline gap-1">
         <span className="text-[20px] font-normal text-black dark:text-white">
-          {btcAmount}
+          {formatBtcAmount(btcAmount, 2)}
         </span>
         <span className="text-[20px] font-normal text-accent-secondary">
-          ({usdValue})
+          ({formatUsdValue(usdValue)})
         </span>
       </div>
     </div>
   );
 }
 
-export interface TVLStatsData {
-  totalTbvTvl: {
-    btcAmount: string;
-    usdValue: string;
-  };
-  totalTvlCollateral: {
-    btcAmount: string;
-    usdValue: string;
-  };
-}
-
 interface TVLStatsProps {
-  data: TVLStatsData;
+  data: StatsData | null;
+  isLoading?: boolean;
 }
 
-export function TVLStats({ data }: TVLStatsProps) {
+export function TVLStats({ data, isLoading }: TVLStatsProps) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center rounded-xl border border-secondary-strokeLight p-6 dark:bg-primary-main/50">
+        <Loader size={24} />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
   return (
     <div className="rounded-xl border border-secondary-strokeLight p-6 dark:bg-primary-main/50">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -60,15 +67,3 @@ export function TVLStats({ data }: TVLStatsProps) {
     </div>
   );
 }
-
-// Mock data
-export const MOCK_TVL_STATS: TVLStatsData = {
-  totalTbvTvl: {
-    btcAmount: "12000 BTC",
-    usdValue: "$349,823,417",
-  },
-  totalTvlCollateral: {
-    btcAmount: "7000 BTC",
-    usdValue: "$110,234,21",
-  },
-};

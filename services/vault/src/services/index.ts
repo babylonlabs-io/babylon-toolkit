@@ -8,6 +8,9 @@ export * from "./applications";
 // Health check services
 export * from "./health";
 
+// Stats services
+export * from "./stats";
+
 // Token services
 export * from "./token";
 

@@ -2,14 +2,16 @@ import { Button, Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useStats } from "../../hooks/useStats";
 import { Applications } from "../Applications";
-import { MOCK_TVL_STATS, TVLStats } from "../Applications/TVLStats";
+import { TVLStats } from "../Applications/TVLStats";
 import { Connect } from "../Wallet";
 
 export default function ApplicationsHome() {
   const navigate = useNavigate();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
+  const { data: statsData, isLoading: statsLoading } = useStats();
 
   const isWalletConnected = btcConnected && ethConnected;
 
@@ -41,7 +43,7 @@ export default function ApplicationsHome() {
         </div>
       </div>
 
-      <TVLStats data={MOCK_TVL_STATS} />
+      <TVLStats data={statsData} isLoading={statsLoading} />
 
       <Applications />
     </Container>
