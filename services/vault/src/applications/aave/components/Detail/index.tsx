@@ -8,8 +8,8 @@
 import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
-import { BackButton } from "@/components/shared";
-import { useETHWallet } from "@/context/wallet";
+import { BackButton, EmptyState } from "@/components/shared";
+import { useBTCWallet, useETHWallet } from "@/context/wallet";
 
 import { LOAN_TAB } from "../../constants";
 import { LoanProvider } from "../context/LoanContext";
@@ -29,7 +29,9 @@ export function AaveReserveDetail() {
   const defaultTab =
     tabParam === LOAN_TAB.REPAY ? LOAN_TAB.REPAY : LOAN_TAB.BORROW;
 
-  const { address } = useETHWallet();
+  const { connected: btcConnected } = useBTCWallet();
+  const { connected: ethConnected, address } = useETHWallet();
+  const isConnected = btcConnected && ethConnected;
 
   // Fetch reserve and position data
   const {
@@ -78,6 +80,25 @@ export function AaveReserveDetail() {
           <div className="flex items-center justify-center py-12">
             <p className="text-accent-secondary">Loading...</p>
           </div>
+        </div>
+      </Container>
+    );
+  }
+
+  // Disconnected state
+  if (!isConnected) {
+    return (
+      <Container className="pb-6">
+        <div className="space-y-6">
+          <BackButton label="Aave" onClick={handleBack} />
+          <EmptyState
+            avatarUrl="/images/btc@2x.png"
+            avatarAlt="Bitcoin"
+            title="Connect to manage position"
+            description="Please connect your wallet to manage your position."
+            isConnected={false}
+            withCard
+          />
         </div>
       </Container>
     );

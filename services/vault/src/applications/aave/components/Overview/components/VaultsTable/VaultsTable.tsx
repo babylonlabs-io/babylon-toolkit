@@ -7,14 +7,12 @@ import type { ColumnProps } from "@babylonlabs-io/core-ui";
 import { Avatar, Button, Card, Popover, Table } from "@babylonlabs-io/core-ui";
 import { useRef, useState } from "react";
 
-import { InfoIcon, MenuButton } from "@/components/shared";
+import { EmptyState, InfoIcon, MenuButton } from "@/components/shared";
 import {
   PEGIN_DISPLAY_LABELS,
   type PeginDisplayLabel,
 } from "@/models/peginStateMachine";
 import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
-
-import { VaultsEmptyState } from "./VaultsEmptyState";
 
 export interface VaultData {
   id: string;
@@ -147,15 +145,28 @@ export function VaultsTable({
 
   // Show empty state if no vaults
   if (vaults.length === 0) {
+    const emptyStateTitle = isConnected
+      ? "You have no BTC Vaults available."
+      : "Please connect your wallet to view your BTC collateral.";
+
+    const emptyStateDescription = isConnected
+      ? "Deposit BTC to create your first vault and enable borrowing."
+      : undefined;
+
     return (
       <Card className="w-full">
         <div className="w-full space-y-6">
           <h2 className="text-[24px] font-normal text-accent-primary">
             Vaults
           </h2>
-          <VaultsEmptyState
+          <EmptyState
+            avatarUrl="/images/btc@2x.png"
+            avatarAlt="Bitcoin"
+            title={emptyStateTitle}
+            description={emptyStateDescription}
             isConnected={isConnected}
-            onDeposit={onDeposit || (() => console.log("Deposit clicked"))}
+            actionLabel="Deposit BTC"
+            onAction={onDeposit || (() => console.log("Deposit clicked"))}
           />
         </div>
       </Card>

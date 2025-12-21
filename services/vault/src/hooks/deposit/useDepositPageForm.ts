@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useBTCWallet } from "../../context/wallet";
+import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
@@ -26,6 +26,7 @@ export interface UseDepositPageFormResult {
     provider?: string;
   };
   isValid: boolean;
+  isWalletConnected: boolean;
 
   btcBalance: bigint;
   btcBalanceFormatted: number;
@@ -52,8 +53,12 @@ export interface UseDepositPageFormResult {
 }
 
 export function useDepositPageForm(): UseDepositPageFormResult {
-  const { address: btcAddress } = useBTCWallet();
+  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
+  const { connected: ethConnected } = useETHWallet();
   const { btcPriceUSD } = useBTCPrice();
+
+  // Track wallet connection status
+  const isWalletConnected = btcConnected && ethConnected;
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -198,9 +203,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const noErrors = Object.keys(errors).length === 0;
     const meetsMinimum = amountSats >= validation.minDeposit;
     return (
-      hasAmount && hasApplication && hasProvider && noErrors && meetsMinimum
+      isWalletConnected &&
+      hasAmount &&
+      hasApplication &&
+      hasProvider &&
+      noErrors &&
+      meetsMinimum
     );
-  }, [formData, errors, amountSats, validation.minDeposit]);
+  }, [isWalletConnected, formData, errors, amountSats, validation.minDeposit]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
@@ -216,6 +226,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     setFormData,
     errors,
     isValid,
+    isWalletConnected,
     btcBalance,
     btcBalanceFormatted,
     btcPrice: btcPriceUSD,

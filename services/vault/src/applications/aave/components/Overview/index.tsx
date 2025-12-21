@@ -157,6 +157,7 @@ export function AaveOverview() {
           collateralValue={collateralValueFormatted}
           healthFactor={healthFactor}
           healthFactorStatus={healthFactorStatus}
+          isConnected={isConnected}
         />
 
         {/* Section 2: Vaults Table */}
