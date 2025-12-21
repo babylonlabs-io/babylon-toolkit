@@ -19,6 +19,7 @@ interface SelectVaultProviderSectionProps {
   selectedProvider: string;
   error?: string;
   completed?: boolean;
+  disabled?: boolean;
   onSelect: (providerId: string) => void;
 }
 
@@ -28,6 +29,7 @@ export function SelectVaultProviderSection({
   selectedProvider,
   error,
   completed,
+  disabled,
   onSelect,
 }: SelectVaultProviderSectionProps) {
   const options = providers.map((provider) => ({
@@ -61,9 +63,12 @@ export function SelectVaultProviderSection({
           <SelectWithIcon
             value={selectedProvider}
             options={options}
-            placeholder="Select a vault provider"
+            placeholder={
+              disabled ? "Connect wallet to select" : "Select a vault provider"
+            }
             onSelect={(value: string | number) => onSelect(value as string)}
             state={error ? "error" : "default"}
+            disabled={disabled}
             className="w-full"
           />
           {error && (

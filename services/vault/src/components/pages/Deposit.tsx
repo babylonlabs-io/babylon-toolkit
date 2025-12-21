@@ -30,6 +30,7 @@ function DepositContent() {
     setFormData,
     errors,
     isValid,
+    isWalletConnected,
     btcBalance,
     btcBalanceFormatted,
     btcPrice,
@@ -110,6 +111,7 @@ function DepositContent() {
               selectedProvider={formData.selectedProvider}
               error={errors.provider}
               completed={formData.selectedProvider !== "" && !errors.provider}
+              disabled={!isWalletConnected}
               onSelect={(providerId) =>
                 setFormData({ selectedProvider: providerId })
               }
