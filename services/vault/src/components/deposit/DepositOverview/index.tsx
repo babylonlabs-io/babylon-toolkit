@@ -159,7 +159,7 @@ export function DepositOverview() {
           </div>
         ) : (
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
-            <Table data={deposits} columns={columns} fluid />
+            <Table data={deposits} columns={columns} fluid stylePreset="card" />
           </div>
         )}
 
