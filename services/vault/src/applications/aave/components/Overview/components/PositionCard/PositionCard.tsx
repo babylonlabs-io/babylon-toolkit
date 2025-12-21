@@ -73,6 +73,7 @@ export function PositionCard({
                   borrowedAssets={borrowedAssets}
                   healthFactor={healthFactor}
                   healthFactorStatus={healthFactorStatus}
+                  isConnected={isConnected}
                   onBorrow={onBorrow}
                   onRepay={onRepay}
                 />

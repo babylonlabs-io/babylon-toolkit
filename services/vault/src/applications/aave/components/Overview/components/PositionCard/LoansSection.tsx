@@ -20,6 +20,7 @@ export interface LoansSectionProps {
   healthFactor: number | null;
   /** Health factor status for display */
   healthFactorStatus: HealthFactorStatus;
+  isConnected?: boolean;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -30,6 +31,7 @@ export function LoansSection({
   borrowedAssets = [],
   healthFactor,
   healthFactorStatus,
+  isConnected = false,
   onBorrow,
   onRepay,
 }: LoansSectionProps) {
@@ -41,7 +43,7 @@ export function LoansSection({
       {/* Header with buttons */}
       <div className="flex items-center justify-between">
         <h2 className="text-[24px] font-normal text-accent-primary">Loans</h2>
-        {hasLoans ? (
+        {hasLoans && isConnected ? (
           <div className="flex gap-3">
             <Button
               variant="outlined"
@@ -49,7 +51,7 @@ export function LoansSection({
               size="medium"
               onClick={onBorrow}
               className="rounded-full"
-              disabled={!hasCollateral}
+              disabled={!isConnected || !hasCollateral}
             >
               Borrow
             </Button>
@@ -59,7 +61,7 @@ export function LoansSection({
               size="medium"
               onClick={onRepay}
               className="rounded-full"
-              disabled={!hasLoans}
+              disabled={!isConnected || !hasLoans}
             >
               Repay
             </Button>
@@ -71,7 +73,7 @@ export function LoansSection({
             size="medium"
             onClick={onBorrow}
             className="rounded-full"
-            disabled={!hasCollateral}
+            disabled={!isConnected || !hasCollateral}
           >
             Borrow
           </Button>
