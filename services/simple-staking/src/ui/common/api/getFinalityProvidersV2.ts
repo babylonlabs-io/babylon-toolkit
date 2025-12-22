@@ -1,4 +1,3 @@
-import { getBsnLogoUrl } from "@/ui/common/utils/bsnLogo";
 import { isValidUrl } from "@/ui/common/utils/url";
 
 import { Pagination } from "../types/api";
@@ -99,7 +98,6 @@ export const getFinalityProvidersV2 = async ({
       totalDelegations: fp.total_delegations,
       logo_url: fp.logo_url,
       bsnId: fp.bsn_id,
-      bsnLogoUrl: getBsnLogoUrl(fp.bsn_id),
       chain: fp.type,
     }),
   );

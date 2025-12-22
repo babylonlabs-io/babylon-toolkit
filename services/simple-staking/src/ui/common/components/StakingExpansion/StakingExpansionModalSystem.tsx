@@ -35,7 +35,6 @@ import { trim } from "@/ui/common/utils/trim";
 import { SignDetailsModal } from "../Modals/SignDetailsModal";
 
 import { RenewTimelockModal } from "./RenewTimelockModal";
-import { StakingExpansionModal } from "./StakingExpansionModal";
 import { VerifiedStakeExpansionModal } from "./VerifiedStakeExpansionModal";
 
 const EOI_STEP_INDEXES: Record<string, number> = {
@@ -246,9 +245,6 @@ function StakingExpansionModalSystemInner() {
       {/* Step-based modals - only render when there's an active step */}
       {step && (
         <>
-          {step === StakingExpansionStep.BSN_FP_SELECTION && (
-            <StakingExpansionModal open onClose={handleClose} />
-          )}
           {step === StakingExpansionStep.RENEWAL_TIMELOCK && (
             <RenewTimelockModal open onClose={handleClose} />
           )}
