@@ -105,7 +105,7 @@ export function Repay() {
             sliderStep={sliderMaxRepay / 1000}
             sliderSteps={[]}
             onSliderChange={setRepayAmount}
-            sliderVariant="primary"
+            sliderVariant="rainbow"
             leftField={{
               label: "Max",
               value: `${sliderMaxRepay.toLocaleString()} ${assetConfig.symbol}`,
