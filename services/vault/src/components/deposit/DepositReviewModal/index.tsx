@@ -126,7 +126,7 @@ export function CollateralDepositReviewModal({
                       className="cursor-pointer"
                     >
                       {isCopied(provider.id) ? (
-                        <CheckIcon size={14} color="text-green-600" />
+                        <CheckIcon size={14} variant="success" />
                       ) : (
                         <CopyIcon size={14} />
                       )}
