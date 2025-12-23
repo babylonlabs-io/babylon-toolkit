@@ -72,6 +72,7 @@ export function AssetSelectionModal({
           symbol={asset.symbol}
           name={asset.name}
           icon={asset.icon}
+          priceUsd={asset.priceUsd}
           onClick={() => handleAssetClick(asset.symbol)}
         />
       ));
