@@ -6,4 +6,5 @@
  */
 
 export * from "./peginStorage";
+export * from "./pendingCollateralStorage";
 export * from "./usePeginStorage";
