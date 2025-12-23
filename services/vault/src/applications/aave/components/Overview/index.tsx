@@ -15,6 +15,7 @@ import { BackButton } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import {
   useAaveBorrowedAssets,
@@ -118,8 +119,7 @@ export function AaveOverview() {
   };
 
   const handleDeposit = () => {
-    // TODO: Navigate to deposit flow
-    navigate("/deposit");
+    navigate(`/deposit?app=${AAVE_APP_ID}`);
   };
 
   const handleRedeem = (vaultId: string) => {

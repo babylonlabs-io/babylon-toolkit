@@ -51,13 +51,20 @@ export interface UseDepositPageFormResult {
   resetForm: () => void;
 }
 
-export function useDepositPageForm(): UseDepositPageFormResult {
+export interface UseDepositPageFormOptions {
+  initialApplicationId?: string;
+}
+
+export function useDepositPageForm(
+  options: UseDepositPageFormOptions = {},
+): UseDepositPageFormResult {
+  const { initialApplicationId } = options;
   const { address: btcAddress } = useBTCWallet();
   const { btcPriceUSD } = useBTCPrice();
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
-    selectedApplication: "",
+    selectedApplication: initialApplicationId || "",
     selectedProvider: "",
   });
 
