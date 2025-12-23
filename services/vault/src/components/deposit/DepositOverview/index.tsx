@@ -18,6 +18,7 @@ import type { Hex } from "viem";
 import { PeginPollingProvider } from "../../../context/deposit/PeginPollingContext";
 import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
+import { formatTimeAgo } from "../../../utils/formatting";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
@@ -116,6 +117,15 @@ export function DepositOverview() {
       ),
     },
     {
+      key: "timestamp",
+      header: "Time",
+      render: (_value: unknown, row: Deposit) => (
+        <span className="text-sm text-accent-secondary">
+          {row.timestamp ? formatTimeAgo(row.timestamp) : "-"}
+        </span>
+      ),
+    },
+    {
       key: "status",
       header: "Status",
       render: (_value: unknown, row: Deposit) => (
@@ -158,8 +168,8 @@ export function DepositOverview() {
             ))}
           </div>
         ) : (
-          <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
-            <Table data={deposits} columns={columns} fluid />
+          <div className="max-h-[500px] overflow-x-auto overflow-y-auto">
+            <Table data={deposits} columns={columns} fluid stylePreset="card" />
           </div>
         )}
 
