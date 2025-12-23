@@ -46,7 +46,7 @@ export function DepositFAQ() {
       <Heading
         as="h3"
         variant="h5"
-        className="mb-4 font-normal capitalize text-accent-primary md:mb-6 md:text-[1.625rem] md:leading-[2.625rem] md:tracking-0.25"
+        className="mb-4 font-normal capitalize text-accent-primary md:mb-6 md:text-[1.625rem] md:leading-[2.625rem] md:tracking-[0.25px]"
       >
         FAQs
       </Heading>
