@@ -5,11 +5,14 @@ import {
   Header,
   Nav,
   StandardSettingsMenu,
+  TestingBanner,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
+
+import { shouldDisplayTestingMsg } from "@/config";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
@@ -81,6 +84,7 @@ export default function RootLayout() {
       )}
     >
       <div className="flex min-h-svh flex-col">
+        <TestingBanner visible={shouldDisplayTestingMsg()} />
         <Header
           size="sm"
           navigation={<DesktopNavigation />}

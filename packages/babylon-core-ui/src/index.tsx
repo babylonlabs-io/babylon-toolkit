@@ -34,6 +34,7 @@ export * from "./components/Warning";
 export * from "./components/Hint";
 export * from "./components/DismissibleSubSection";
 export * from "./components/TopBanner";
+export * from "./components/TestingBanner";
 export * from "./components/Step";
 export * from "./components/Container";
 export * from "./components/Logo";
