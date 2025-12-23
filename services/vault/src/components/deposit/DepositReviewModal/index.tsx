@@ -120,10 +120,12 @@ export function CollateralDepositReviewModal({
                   </Text>
                   {provider.name.startsWith("0x") && (
                     <button
+                      type="button"
                       onClick={() =>
                         copyToClipboard(provider.id, provider.name)
                       }
                       className="cursor-pointer"
+                      aria-label={`Copy ${provider.name} address`}
                     >
                       {isCopied(provider.id) ? (
                         <CheckIcon size={14} variant="success" />
