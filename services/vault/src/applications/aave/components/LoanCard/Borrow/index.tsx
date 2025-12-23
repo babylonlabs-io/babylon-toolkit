@@ -93,7 +93,7 @@ export function Borrow() {
             sliderStep={sliderMaxBorrow / 1000}
             sliderSteps={[]}
             onSliderChange={setBorrowAmount}
-            sliderVariant="primary"
+            sliderVariant="rainbow"
             leftField={{
               label: "Max",
               value: `${sliderMaxBorrow.toLocaleString()} ${assetConfig.symbol}`,
