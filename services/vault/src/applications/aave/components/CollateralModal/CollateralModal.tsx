@@ -17,12 +17,12 @@ import {
   SubSection,
 } from "@babylonlabs-io/core-ui";
 
+import { DetailsCard } from "@/components/shared";
 import { getCurrencyIconWithFallback } from "@/services/token";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { BTC_TOKEN, MIN_SLIDER_MAX } from "../../constants";
 
-import { CollateralDetailsCard } from "./CollateralDetailsCard";
 import { useAddCollateralModal, useWithdrawCollateralModal } from "./hooks";
 
 export type CollateralMode = "add" | "withdraw";
@@ -65,14 +65,12 @@ export function CollateralModal({
     setCollateralAmount,
     maxCollateralAmount,
     selectedCollateralValueUsd,
-    currentHealthFactorValue,
-    projectedHealthFactorValue,
     collateralSteps,
+    detailRows,
     handleSubmit,
     isProcessing,
     isDisabled,
     errorMessage,
-    currentDebtValueUsd,
   } = hook;
 
   const onSubmit = async () => {
@@ -126,13 +124,7 @@ export function CollateralModal({
         </SubSection>
 
         {/* Details Card */}
-        <CollateralDetailsCard
-          mode={mode}
-          currentHealthFactorValue={currentHealthFactorValue}
-          projectedHealthFactorValue={projectedHealthFactorValue}
-          showTransition={collateralAmount > 0}
-          currentDebtValueUsd={currentDebtValueUsd}
-        />
+        <DetailsCard rows={detailRows} />
       </DialogBody>
 
       <DialogFooter className="border-t border-secondary-strokeLight pt-4">

@@ -10,11 +10,14 @@
 
 import { useMemo, useState } from "react";
 
+import type { DetailRow } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { formatUsdValue } from "@/utils/formatting";
 
 import { useAaveUserPosition } from "../../../hooks";
 import { useWithdrawCollateralTransaction } from "../../../hooks/useWithdrawCollateralTransaction";
+import { HealthFactorValue } from "../components";
 
 import type { UseCollateralModalResult } from "./types";
 
@@ -45,11 +48,6 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
 
   // Current health factor (Infinity when no debt)
   const currentHealthFactorValue = healthFactor ?? Infinity;
-
-  // For withdraw, projected health factor is always the same as current
-  // because Aave only supports withdrawing all collateral when debt is zero
-  // If there's debt, the withdraw is disabled anyway
-  const projectedHealthFactorValue = currentHealthFactorValue;
 
   // For withdraw, the only valid step is 0 or max (all-or-nothing)
   // Since Aave only supports withdrawing all collateral at once
@@ -84,18 +82,35 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
     ? "You must repay all debt before withdrawing collateral"
     : undefined;
 
+  // Construct detail rows for display
+  const detailRows: DetailRow[] = useMemo(() => {
+    const rows: DetailRow[] = [{ label: "Spoke", value: "Aave Prime" }];
+
+    // Show current debt (for withdraw mode)
+    rows.push({
+      label: "Current Debt",
+      value: formatUsdValue(debtValueUsd),
+    });
+
+    // Health factor without transition (for withdraw, it stays at Infinity)
+    rows.push({
+      label: "Health Factor",
+      value: <HealthFactorValue current={currentHealthFactorValue} />,
+    });
+
+    return rows;
+  }, [debtValueUsd, currentHealthFactorValue]);
+
   return {
     collateralAmount,
     setCollateralAmount,
     maxCollateralAmount,
     selectedCollateralValueUsd,
-    currentHealthFactorValue,
-    projectedHealthFactorValue,
     collateralSteps,
+    detailRows,
     handleSubmit,
     isProcessing,
     isDisabled,
     errorMessage,
-    currentDebtValueUsd: debtValueUsd,
   };
 }
