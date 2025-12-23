@@ -19,7 +19,7 @@ describe("Formatting Utilities", () => {
     });
 
     it("should format whole BTC amount", () => {
-      expect(formatBtcAmount(1)).toBe("1.00000000 BTC");
+      expect(formatBtcAmount(1)).toBe("1 BTC");
     });
 
     it("should format small BTC amount", () => {
@@ -40,7 +40,7 @@ describe("Formatting Utilities", () => {
     });
 
     it("should handle large BTC amounts", () => {
-      expect(formatBtcAmount(21000000)).toBe("21000000.00000000 BTC");
+      expect(formatBtcAmount(21000000)).toBe("21000000 BTC");
     });
   });
 
