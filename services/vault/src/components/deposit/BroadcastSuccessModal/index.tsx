@@ -55,8 +55,8 @@ export function BroadcastSuccessModal({
           className="text-sm text-accent-secondary sm:text-base"
         >
           Your Bitcoin transaction has been broadcast to the network. Your
-          deposit of {amount} BTC is now awaiting confirmation on the Bitcoin
-          blockchain.
+          deposit{amount ? ` of ${amount} BTC` : ""} is now awaiting
+          confirmation on the Bitcoin blockchain.
         </Text>
 
         <Text
