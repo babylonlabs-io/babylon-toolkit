@@ -190,9 +190,15 @@ describe("Formatting Utilities", () => {
     });
 
     it("should return plural months for 2-11 months", () => {
-      expect(formatTimeAgo(NOW - 60 * 24 * 60 * 60 * 1000)).toBe("2 months ago");
-      expect(formatTimeAgo(NOW - 180 * 24 * 60 * 60 * 1000)).toBe("6 months ago");
-      expect(formatTimeAgo(NOW - 330 * 24 * 60 * 60 * 1000)).toBe("11 months ago");
+      expect(formatTimeAgo(NOW - 60 * 24 * 60 * 60 * 1000)).toBe(
+        "2 months ago",
+      );
+      expect(formatTimeAgo(NOW - 180 * 24 * 60 * 60 * 1000)).toBe(
+        "6 months ago",
+      );
+      expect(formatTimeAgo(NOW - 330 * 24 * 60 * 60 * 1000)).toBe(
+        "11 months ago",
+      );
     });
 
     it("should return 'a year ago' for exactly 1 year (365 days)", () => {
@@ -200,8 +206,12 @@ describe("Formatting Utilities", () => {
     });
 
     it("should return plural years for 2+ years", () => {
-      expect(formatTimeAgo(NOW - 730 * 24 * 60 * 60 * 1000)).toBe("2 years ago");
-      expect(formatTimeAgo(NOW - 1825 * 24 * 60 * 60 * 1000)).toBe("5 years ago");
+      expect(formatTimeAgo(NOW - 730 * 24 * 60 * 60 * 1000)).toBe(
+        "2 years ago",
+      );
+      expect(formatTimeAgo(NOW - 1825 * 24 * 60 * 60 * 1000)).toBe(
+        "5 years ago",
+      );
     });
 
     it("should return 'just now' for future timestamps", () => {
