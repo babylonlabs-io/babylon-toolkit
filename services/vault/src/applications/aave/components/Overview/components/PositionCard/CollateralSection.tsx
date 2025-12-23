@@ -5,6 +5,10 @@
 
 import { Avatar, Button, SubSection } from "@babylonlabs-io/core-ui";
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 export interface CollateralSectionProps {
   amount?: string;
   usdValue?: string;
@@ -74,11 +78,13 @@ export function CollateralSection({
               <span className="text-sm text-accent-secondary">Asset</span>
               <div className="flex items-center gap-2">
                 <Avatar
-                  url="https://assets.coingecko.com/coins/images/1/standard/bitcoin.png?1696501400"
-                  alt="BTC"
+                  url={btcConfig.icon}
+                  alt={btcConfig.coinSymbol}
                   size="small"
                 />
-                <span className="text-base text-accent-primary">BTC</span>
+                <span className="text-base text-accent-primary">
+                  {btcConfig.coinSymbol}
+                </span>
               </div>
             </div>
 
@@ -99,7 +105,7 @@ export function CollateralSection({
               No collateral available.
             </p>
             <p className="text-sm text-accent-secondary">
-              Add BTC to enable collateral.
+              Add {btcConfig.coinSymbol} to enable collateral.
             </p>
           </div>
         </SubSection>

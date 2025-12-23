@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { getNetworkConfigBTC } from "../config";
 import { STORAGE_UPDATE_EVENT } from "../constants";
 import {
   ContractStatus,
@@ -25,6 +26,8 @@ import {
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
+
+const btcConfig = getNetworkConfigBTC();
 
 export interface UsePeginStorageParams {
   /** Connected Ethereum address */
@@ -133,7 +136,7 @@ export function usePeginStorage({
         id: pending.id,
         collateral: {
           amount: pending.amount || "0",
-          symbol: "BTC",
+          symbol: btcConfig.coinSymbol,
         },
         providers: pending.providerIds
           ? [

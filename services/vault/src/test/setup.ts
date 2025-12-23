@@ -5,6 +5,47 @@
 import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
+// Mock local @/config to avoid importing the problematic @babylonlabs-io/config package
+vi.mock("@/config", async () => {
+  return {
+    getNetworkConfigBTC: () => ({
+      coinName: "Signet BTC",
+      coinSymbol: "sBTC",
+      networkName: "BTC signet",
+      mempoolApiUrl: "https://mempool.space/signet",
+      network: 1, // Network.SIGNET
+      icon: "/images/signet_bitcoin.svg",
+      name: "Signet Bitcoin",
+      displayUSD: false,
+    }),
+    getBTCNetwork: () => 1, // Network.SIGNET
+    CONTRACTS: {}, // Mock other exports as needed
+    ENV: {},
+    ENV_DEFAULTS: {},
+    isProductionEnv: () => false,
+    getCommitHash: () => "test-commit",
+  };
+});
+
+// Mock @babylonlabs-io/config just in case something imports it directly
+vi.mock("@babylonlabs-io/config", () => ({
+  getNetworkConfigBTC: () => ({
+    coinName: "Signet BTC",
+    coinSymbol: "sBTC",
+    networkName: "BTC signet",
+    mempoolApiUrl: "https://mempool.space/signet",
+    network: 1, // Network.SIGNET
+  }),
+  getBTCNetwork: () => 1, // Network.SIGNET
+  getNetworkConfigETH: () => ({
+    chainId: 11155111,
+    chainName: "Sepolia",
+    rpcUrl: "https://sepolia.infura.io",
+    blockExplorerUrl: "https://sepolia.etherscan.io",
+  }),
+  getETHChainId: () => 11155111,
+}));
+
 // Mock the WASM module to avoid syntax errors in tests
 vi.mock("@/utils/btc/wasm", () => ({
   initWasm: vi.fn(),
