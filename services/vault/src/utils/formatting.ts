@@ -25,18 +25,19 @@ export function formatProviderName(providerId: string): string {
  * Format BTC amount as a number string (without suffix)
  * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0".
  * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted number string (e.g., "1.23456789" or "0")
+ * @returns Formatted number string with trailing zeros removed (e.g., "1.23" or "0")
  */
 export function formatBtcValue(btcAmount: number, decimals = 8): string {
   if (btcAmount <= 0) return "0";
-  return btcAmount.toFixed(decimals);
+  const fixed = btcAmount.toFixed(decimals);
+  return fixed.replace(/\.?0+$/, "");
 }
 
 /**
  * Format BTC amount for display with suffix
  * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC".
  * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted string (e.g., "1.23456789 BTC" or "0 BTC")
+ * @returns Formatted string with trailing zeros removed (e.g., "1.23 BTC" or "0 BTC")
  */
 export function formatBtcAmount(btcAmount: number, decimals = 8): string {
   return `${formatBtcValue(btcAmount, decimals)} BTC`;
