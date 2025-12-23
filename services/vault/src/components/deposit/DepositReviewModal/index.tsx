@@ -1,17 +1,21 @@
 import {
   Button,
+  CheckIcon,
+  CopyIcon,
   DialogBody,
   DialogFooter,
   DialogHeader,
   Heading,
   ResponsiveDialog,
   Text,
+  useCopy,
 } from "@babylonlabs-io/core-ui";
 
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { useBTCPrice } from "../../../hooks/useBTCPrice";
+import { truncateAddress } from "../../../utils/addressUtils";
 import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 
 interface CollateralDepositReviewModalProps {
@@ -48,6 +52,8 @@ export function CollateralDepositReviewModal({
   // Map selected provider IDs to actual provider data
   const selectedProviders = findProviders(providers);
 
+  const { isCopied, copyToClipboard } = useCopy();
+
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
@@ -56,7 +62,7 @@ export function CollateralDepositReviewModal({
         className="text-accent-primary"
       />
 
-      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto px-4 text-accent-primary sm:px-6">
+      <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto text-accent-primary">
         <Text variant="body2" className="text-accent-secondary">
           Review the details before confirming your deposit
         </Text>
@@ -66,19 +72,19 @@ export function CollateralDepositReviewModal({
           <Text variant="body1" className="font-medium">
             Deposit Amount
           </Text>
-          <div className="flex flex-col items-end">
+          <div className="flex items-center gap-2">
             <Text variant="body1" className="font-medium">
               {amountBtc} BTC
             </Text>
-            <Text variant="body2" className="text-accent-secondary">
+            <Text variant="body1" className="text-accent-secondary">
               {btcPriceLoading
                 ? "Loading price..."
                 : amountUsd !== null
-                  ? `($${amountUsd.toLocaleString("en-US", {
+                  ? `$${amountUsd.toLocaleString("en-US", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
-                    })} USD)`
-                  : "(Price unavailable)"}
+                    })} USD`
+                  : "Price unavailable"}
             </Text>
           </div>
         </div>
@@ -86,7 +92,9 @@ export function CollateralDepositReviewModal({
         {/* Vault Providers - Two Column Layout */}
         <div className="flex items-start justify-between">
           <Text variant="body1" className="font-medium">
-            Vault Provider(s)
+            {selectedProviders.length === 1
+              ? "Vault Provider"
+              : "Vault Providers"}
           </Text>
           <div className="flex flex-col items-end gap-3">
             {providersLoading ? (
@@ -97,7 +105,7 @@ export function CollateralDepositReviewModal({
               selectedProviders.map((provider) => (
                 <div key={provider.id} className="flex items-center gap-3">
                   {/* Provider icon - using first letter as fallback */}
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-primary">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-primary">
                     <Text
                       variant="body2"
                       className="text-sm font-medium text-accent-contrast"
@@ -105,7 +113,27 @@ export function CollateralDepositReviewModal({
                       {provider.name.charAt(0).toUpperCase()}
                     </Text>
                   </div>
-                  <Text variant="body1">{provider.name}</Text>
+                  <Text variant="body1">
+                    {provider.name.startsWith("0x")
+                      ? truncateAddress(provider.name)
+                      : provider.name}
+                  </Text>
+                  {provider.name.startsWith("0x") && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyToClipboard(provider.id, provider.name)
+                      }
+                      className="cursor-pointer"
+                      aria-label={`Copy ${provider.name} address`}
+                    >
+                      {isCopied(provider.id) ? (
+                        <CheckIcon size={14} variant="success" />
+                      ) : (
+                        <CopyIcon size={14} />
+                      )}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -120,30 +148,29 @@ export function CollateralDepositReviewModal({
           <div className="flex flex-col items-end gap-1">
             {/* BTC Fee */}
             {estimatedBtcFee !== null ? (
-              <div className="flex flex-col items-end">
-                <Text variant="body2">~{estimatedBtcFee.toFixed(8)} BTC</Text>
+              <div className="flex items-center gap-2">
+                <Text variant="body1">~{estimatedBtcFee.toFixed(8)} BTC</Text>
                 {btcPriceUSD > 0 && (
-                  <Text variant="body2" className="text-accent-secondary">
-                    ($
+                  <Text variant="body1" className="text-accent-secondary">
+                    $
                     {(estimatedBtcFee * btcPriceUSD).toLocaleString("en-US", {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
-                    )
                   </Text>
                 )}
               </div>
             ) : (
-              <Text variant="body2" className="text-accent-secondary">
+              <Text variant="body1" className="text-accent-secondary">
                 Calculating BTC fee...
               </Text>
             )}
 
             {/* ETH Gas Fee */}
             {estimatedEthFee !== null ? (
-              <Text variant="body2">~{estimatedEthFee.toFixed(6)} ETH</Text>
+              <Text variant="body1">~{estimatedEthFee.toFixed(6)} ETH</Text>
             ) : (
-              <Text variant="body2" className="text-accent-secondary">
+              <Text variant="body1" className="text-accent-secondary">
                 ETH gas estimate pending...
               </Text>
             )}
@@ -166,7 +193,7 @@ export function CollateralDepositReviewModal({
             Attention!
           </Heading>
           <Text variant="body2" className="text-sm text-accent-secondary">
-            1. Your BTC remains secure and cannot be accessed by third parties.
+            Your BTC remains secure and cannot be accessed by third parties.
             Only you can withdraw your funds. After submission, your deposit
             will be verified. This may take up to 5 hours, during which your
             deposit will appear as Pending until confirmed on the Bitcoin
@@ -175,7 +202,7 @@ export function CollateralDepositReviewModal({
         </div>
       </DialogBody>
 
-      <DialogFooter className="px-4 pb-6 sm:px-6">
+      <DialogFooter className="pb-6">
         <Button variant="contained" color="primary" onClick={onConfirm} fluid>
           Confirm
         </Button>
