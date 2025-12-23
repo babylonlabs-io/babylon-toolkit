@@ -140,7 +140,7 @@ export function BroadcastSignModal({
     }
   };
 
-  const isBroadcasting = broadcasting || localBroadcasting;
+  const isBroadcasting = (broadcasting || localBroadcasting) && !broadcastError;
 
   return (
     <ResponsiveDialog
