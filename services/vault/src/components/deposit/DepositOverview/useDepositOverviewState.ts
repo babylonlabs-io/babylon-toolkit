@@ -58,6 +58,7 @@ export function useDepositOverviewState() {
   const [broadcastingActivity, setBroadcastingActivity] =
     useState<VaultActivity | null>(null);
   const [broadcastSuccessOpen, setBroadcastSuccessOpen] = useState(false);
+  const [broadcastSuccessAmount, setBroadcastSuccessAmount] = useState("");
 
   // Broadcast handlers
   const handleBroadcastClick = useCallback(
@@ -75,10 +76,11 @@ export function useDepositOverviewState() {
   }, []);
 
   const handleBroadcastSuccess = useCallback(() => {
+    setBroadcastSuccessAmount(broadcastingActivity?.collateral.amount || "");
     setBroadcastingActivity(null);
     setBroadcastSuccessOpen(true);
     refetchActivities();
-  }, [refetchActivities]);
+  }, [broadcastingActivity, refetchActivities]);
 
   const handleBroadcastSuccessClose = useCallback(() => {
     setBroadcastSuccessOpen(false);
@@ -137,6 +139,7 @@ export function useDepositOverviewState() {
     // Broadcast modal
     broadcastingActivity,
     broadcastSuccessOpen,
+    broadcastSuccessAmount,
     handleBroadcastClick,
     handleBroadcastClose,
     handleBroadcastSuccess,

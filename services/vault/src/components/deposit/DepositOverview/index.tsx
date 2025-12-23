@@ -56,6 +56,7 @@ export function DepositOverview() {
     handlePayoutSignSuccess,
     broadcastingActivity,
     broadcastSuccessOpen,
+    broadcastSuccessAmount,
     handleBroadcastClick,
     handleBroadcastClose,
     handleBroadcastSuccess,
@@ -201,7 +202,7 @@ export function DepositOverview() {
         <BroadcastSuccessModal
           open={broadcastSuccessOpen}
           onClose={handleBroadcastSuccessClose}
-          amount={broadcastingActivity?.collateral.amount || "0"}
+          amount={broadcastSuccessAmount}
         />
 
         {/* Redeem Form Modal */}
