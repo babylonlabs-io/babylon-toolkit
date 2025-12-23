@@ -9,6 +9,7 @@ export interface CollateralSectionProps {
   amount?: string;
   usdValue?: string;
   hasCollateral?: boolean;
+  hasAvailableVaults?: boolean;
   isConnected?: boolean;
   onAdd: () => void;
   onWithdraw: () => void;
@@ -18,6 +19,7 @@ export function CollateralSection({
   amount,
   usdValue,
   hasCollateral = false,
+  hasAvailableVaults = false,
   isConnected = false,
   onAdd,
   onWithdraw,
@@ -36,7 +38,7 @@ export function CollateralSection({
               color="primary"
               size="medium"
               onClick={onAdd}
-              disabled={!isConnected}
+              disabled={!isConnected || !hasAvailableVaults}
               className="rounded-full"
             >
               Add
@@ -57,7 +59,7 @@ export function CollateralSection({
             color="primary"
             size="medium"
             onClick={onAdd}
-            disabled={!isConnected}
+            disabled={!isConnected || !hasAvailableVaults}
             className="rounded-full"
           >
             Add

@@ -19,6 +19,7 @@ interface PositionCardProps {
   collateralAmount?: string;
   collateralUsdValue?: string;
   hasCollateral?: boolean;
+  hasAvailableVaults?: boolean;
   isConnected?: boolean;
   onAdd: () => void;
   onWithdraw: () => void;
@@ -35,6 +36,7 @@ export function PositionCard({
   collateralAmount,
   collateralUsdValue,
   hasCollateral = false,
+  hasAvailableVaults = false,
   isConnected = false,
   onAdd,
   onWithdraw,
@@ -61,6 +63,7 @@ export function PositionCard({
                   amount={collateralAmount}
                   usdValue={collateralUsdValue}
                   hasCollateral={hasCollateral}
+                  hasAvailableVaults={hasAvailableVaults}
                   isConnected={isConnected}
                   onAdd={onAdd}
                   onWithdraw={onWithdraw}

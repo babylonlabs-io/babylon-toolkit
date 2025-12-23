@@ -53,7 +53,7 @@ export function AaveOverview() {
   } = useAaveUserPosition(address);
 
   // Fetch user's vaults
-  const { vaults } = useAaveVaults(address);
+  const { vaults, availableForCollateral } = useAaveVaults(address);
 
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -73,6 +73,7 @@ export function AaveOverview() {
 
   // Derive display values
   const hasCollateral = collateralBtc > 0;
+  const hasAvailableVaults = availableForCollateral.length > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
   const isConnected = !!address;
@@ -172,6 +173,7 @@ export function AaveOverview() {
           collateralAmount={collateralAmountFormatted}
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
+          hasAvailableVaults={hasAvailableVaults}
           isConnected={isConnected}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
