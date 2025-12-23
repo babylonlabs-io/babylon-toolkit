@@ -17,7 +17,5 @@ export const getCommitHash = (): string => {
 };
 
 export const shouldDisplayTestingMsg = (): boolean => {
-  return (
-    process.env.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES?.toString() !== "false"
-  );
+  return process.env.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES !== "false";
 };

@@ -5,6 +5,9 @@ import { Text } from "../Text";
 import "./TestingBanner.css";
 
 export interface TestingBannerProps {
+  /**
+   * Controls whether the testing banner is rendered. If false, nothing is displayed.
+   */
   visible: boolean;
 }
 
