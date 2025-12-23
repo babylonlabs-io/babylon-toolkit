@@ -7,6 +7,10 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 interface CollateralDepositSuccessModalProps {
   open: boolean;
   onClose: () => void;
@@ -21,8 +25,8 @@ export function CollateralDepositSuccessModal({
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
         <img
-          src="/images/btc.png"
-          alt="Bitcoin"
+          src={btcConfig.icon}
+          alt={btcConfig.name}
           className="mx-auto h-auto w-full max-w-[160px]"
         />
 
@@ -38,8 +42,8 @@ export function CollateralDepositSuccessModal({
           className="text-sm text-accent-secondary sm:text-base"
         >
           Your deposit request has been sent. Vault Providers are preparing
-          transactions to secure your BTC, and you'll be asked to sign
-          additional Bitcoin transactions once they're ready.
+          transactions to secure your {btcConfig.coinSymbol}, and you'll be
+          asked to sign additional Bitcoin transactions once they're ready.
         </Text>
       </DialogBody>
 

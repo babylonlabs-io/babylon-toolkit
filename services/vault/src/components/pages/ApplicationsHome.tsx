@@ -1,11 +1,14 @@
 import { Button, Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
+import { getNetworkConfigBTC } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useStats } from "../../hooks/useStats";
 import { Applications } from "../Applications";
 import { TVLStats } from "../Applications/TVLStats";
 import { Connect } from "../Wallet";
+
+const btcConfig = getNetworkConfigBTC();
 
 export default function ApplicationsHome() {
   const navigate = useNavigate();
@@ -25,8 +28,8 @@ export default function ApplicationsHome() {
           Use your Bitcoin across applications
         </h1>
         <h2 className="text-center text-2xl font-normal leading-[133%] tracking-[0px] text-accent-secondary">
-          Deposit your BTC, select the application, choose a vault provider and
-          begin.
+          Deposit your {btcConfig.coinSymbol}, select the application, choose a
+          vault provider and begin.
         </h2>
         <div className="mt-4 self-center">
           {isWalletConnected ? (
@@ -35,7 +38,7 @@ export default function ApplicationsHome() {
               rounded
               onClick={() => navigate("/deposit")}
             >
-              Deposit BTC
+              Deposit {btcConfig.coinSymbol}
             </Button>
           ) : (
             <Connect />

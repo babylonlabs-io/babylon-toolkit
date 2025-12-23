@@ -11,8 +11,12 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { PEGIN_DISPLAY_LABELS } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
+
+const btcConfig = getNetworkConfigBTC();
 
 interface RedeemCollateralModalProps {
   open: boolean;
@@ -63,14 +67,15 @@ export function RedeemCollateralModal({
 
       <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto text-accent-primary">
         <Text variant="body2" className="text-accent-secondary">
-          Select the BTC amount you want to redeem back to your wallet.
+          Select the {btcConfig.coinSymbol} amount you want to redeem back to
+          your wallet.
         </Text>
 
         {availableDeposits.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8">
             <img
-              src="/images/btc.png"
-              alt="Bitcoin"
+              src={btcConfig.icon}
+              alt={btcConfig.name}
               className="mb-4 h-16 w-16"
             />
             <Text variant="body2" className="center text-accent-secondary">
@@ -95,14 +100,14 @@ export function RedeemCollateralModal({
                   <div className="flex flex-1 items-center gap-3 px-4">
                     <AvatarGroup size="medium">
                       <Avatar
-                        url="/images/btc.png"
-                        alt="BTC"
+                        url={btcConfig.icon}
+                        alt={btcConfig.coinSymbol}
                         size="medium"
                         variant="circular"
                       />
                     </AvatarGroup>
                     <Text variant="body1" className="font-medium">
-                      {deposit.amount} BTC
+                      {deposit.amount} {btcConfig.coinSymbol}
                     </Text>
                   </div>
                   <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>

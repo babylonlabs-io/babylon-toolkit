@@ -7,6 +7,10 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 interface TransactionSuccessModalProps {
   open: boolean;
   onClose: () => void;
@@ -52,8 +56,8 @@ export function TransactionSuccessModal({
   if (hasCollateral && !hasBorrow) {
     // Only added collateral
     heading = "Collateral Added Successfully";
-    message = `${formattedCollateral} BTC has been added to your position as collateral.`;
-    icon = "/images/btc.png";
+    message = `${formattedCollateral} ${btcConfig.coinSymbol} has been added to your position as collateral.`;
+    icon = btcConfig.icon;
   } else if (!hasCollateral && hasBorrow) {
     // Only borrowed
     heading = "Borrow Successful";
@@ -62,8 +66,8 @@ export function TransactionSuccessModal({
   } else {
     // Both collateral and borrow
     heading = "Transaction Successful";
-    message = `${formattedCollateral} BTC collateral added and ${formattedBorrow} ${borrowSymbol} borrowed successfully.`;
-    icon = "/images/btc.png";
+    message = `${formattedCollateral} ${btcConfig.coinSymbol} collateral added and ${formattedBorrow} ${borrowSymbol} borrowed successfully.`;
+    icon = btcConfig.icon;
   }
 
   return (
