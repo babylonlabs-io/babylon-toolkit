@@ -16,6 +16,7 @@ import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
+import { usePendingVaults, useSyncPendingVaults } from "../../context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -54,6 +55,10 @@ export function AaveOverview() {
 
   // Fetch user's vaults
   const { vaults } = useAaveVaults(address);
+
+  // Get pending deposit state and sync with indexed vault data
+  const { hasPendingDeposit } = usePendingVaults();
+  useSyncPendingVaults(vaults);
 
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -173,6 +178,7 @@ export function AaveOverview() {
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           isConnected={isConnected}
+          isPendingDeposit={hasPendingDeposit}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}
