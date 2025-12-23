@@ -2,6 +2,8 @@
  * Configuration exports
  */
 
+export { getBTCNetwork, getNetworkConfigBTC } from "./btc";
+export type { ExtendedBTCConfig } from "./btc";
 export { CONTRACTS } from "./contracts";
 export { ENV, ENV_DEFAULTS } from "./env";
 

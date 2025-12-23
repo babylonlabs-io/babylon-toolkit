@@ -2,6 +2,10 @@
  * Formatting utilities for displaying values in the UI
  */
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 /**
  * Format LLTV (Loan-to-Liquidation-Threshold Value) from wei to percentage
  * @param lltv - The LLTV value in wei, can be string or bigint
@@ -35,12 +39,37 @@ export function formatBtcValue(btcAmount: number, decimals = 8): string {
 
 /**
  * Format BTC amount for display with suffix
- * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC".
+ * Uses network-aware coin symbol (BTC for mainnet, sBTC for signet)
+ * @param btcAmount - Amount in BTC (not satoshis). Zero or negative values return "0 BTC/sBTC".
  * @param decimals - Number of decimal places (default: 8)
- * @returns Formatted string with trailing zeros removed (e.g., "1.23 BTC" or "0 BTC")
+ * @returns Formatted string with trailing zeros removed (e.g., "1.23 BTC" or "0 sBTC")
  */
 export function formatBtcAmount(btcAmount: number, decimals = 8): string {
-  return `${formatBtcValue(btcAmount, decimals)} BTC`;
+  return `${formatBtcValue(btcAmount, decimals)} ${btcConfig.coinSymbol}`;
+}
+
+/**
+ * Get the current BTC coin symbol based on network
+ * @returns "BTC" for mainnet, "sBTC" for signet
+ */
+export function getBtcSymbol(): string {
+  return btcConfig.coinSymbol;
+}
+
+/**
+ * Get the current BTC icon path based on network
+ * @returns Icon path for the current network
+ */
+export function getBtcIcon(): string {
+  return btcConfig.icon;
+}
+
+/**
+ * Get the current BTC display name based on network
+ * @returns "Bitcoin" for mainnet, "Signet Bitcoin" for signet
+ */
+export function getBtcName(): string {
+  return btcConfig.name;
 }
 
 /**

@@ -7,12 +7,16 @@
 
 import { StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 
 import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
+
+const btcConfig = getNetworkConfigBTC();
 
 interface DepositMobileCardProps {
   deposit: Deposit;
@@ -40,8 +44,8 @@ export function DepositMobileCard({
       key={deposit.id}
       id={deposit.id}
       title={{
-        icons: ["/images/btc.png"],
-        text: `${deposit.amount} BTC`,
+        icons: [btcConfig.icon],
+        text: `${deposit.amount} ${btcConfig.coinSymbol}`,
       }}
       details={[
         {

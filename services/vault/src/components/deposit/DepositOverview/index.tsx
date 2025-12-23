@@ -15,6 +15,8 @@ import {
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { PeginPollingProvider } from "../../../context/deposit/PeginPollingContext";
 import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
@@ -35,6 +37,8 @@ import {
 } from "./DepositTableCells";
 import { EmptyState } from "./EmptyState";
 import { useDepositOverviewState } from "./useDepositOverviewState";
+
+const btcConfig = getNetworkConfigBTC();
 
 export function DepositOverview() {
   const isMobile = useIsMobile();
@@ -84,19 +88,19 @@ export function DepositOverview() {
   const columns: ColumnProps<Deposit>[] = [
     {
       key: "amount",
-      header: "BTC Vault",
+      header: `${btcConfig.coinSymbol} Vault`,
       render: (_value: unknown, row: Deposit) => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
-              url="/images/btc.png"
-              alt="BTC"
+              url={btcConfig.icon}
+              alt={btcConfig.coinSymbol}
               size="small"
               variant="circular"
             />
           </AvatarGroup>
           <span className="text-sm font-medium text-accent-primary">
-            {row.amount} BTC
+            {row.amount} {btcConfig.coinSymbol}
           </span>
         </div>
       ),

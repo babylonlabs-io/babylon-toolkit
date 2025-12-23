@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
+import { getNetworkConfigBTC } from "@/config";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
@@ -28,6 +29,8 @@ import { CollateralModal, type CollateralMode } from "../CollateralModal";
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
 import { VaultsTable } from "./components/VaultsTable";
+
+const btcConfig = getNetworkConfigBTC();
 
 export function AaveOverview() {
   const navigate = useNavigate();
@@ -148,8 +151,8 @@ export function AaveOverview() {
         </div>
 
         <p className="text-base text-accent-secondary">
-          Borrow assets using vaultBTC as collateral. Deposit BTC into a vault
-          to enable borrowing through Aave.
+          Borrow assets using vaultBTC as collateral. Deposit{" "}
+          {btcConfig.coinSymbol} into a vault to enable borrowing through Aave.
         </p>
 
         {/* Section 1: Overview */}

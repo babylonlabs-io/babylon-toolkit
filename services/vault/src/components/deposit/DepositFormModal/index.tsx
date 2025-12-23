@@ -12,9 +12,12 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useMemo } from "react";
 
+import { getNetworkConfigBTC } from "@/config";
 import { useDepositForm } from "@/hooks/deposit/useDepositForm";
 import { useBTCPrice } from "@/hooks/useBTCPrice";
 import { depositService } from "@/services/deposit";
+
+const btcConfig = getNetworkConfigBTC();
 
 interface CollateralDepositModalProps {
   open: boolean;
@@ -122,7 +125,7 @@ export function CollateralDepositModal({
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
       <DialogHeader
-        title="Deposit BTC"
+        title={`Deposit ${btcConfig.coinSymbol}`}
         onClose={handleClose}
         className="text-accent-primary"
       />
@@ -134,15 +137,15 @@ export function CollateralDepositModal({
             <AmountItem
               amount={formData.amountBtc}
               amountUsd={amountUsd}
-              currencyIcon="/images/btc.png"
-              currencyName="Bitcoin"
+              currencyIcon={btcConfig.icon}
+              currencyName={btcConfig.name}
               placeholder="0"
               displayBalance={true}
               balanceDetails={{
                 balance: btcBalanceFormatted,
-                symbol: "BTC",
+                symbol: btcConfig.coinSymbol,
                 price: btcPriceUSD,
-                displayUSD: true,
+                displayUSD: btcConfig.displayUSD,
                 decimals: 4,
               }}
               min="0"
@@ -167,7 +170,8 @@ export function CollateralDepositModal({
               Select Vault Providers
             </Text>
             <Text variant="body2" className="text-accent-secondary">
-              Choose one or more providers to secure your BTC.
+              Choose one or more providers to secure your {btcConfig.coinSymbol}
+              .
             </Text>
           </div>
 

@@ -5,6 +5,8 @@
  * Reference: https://github.com/aave/aave-v4 ISpoke.sol
  */
 
+import { getNetworkConfigBTC } from "@/config";
+
 /**
  * BTC token decimals (satoshis)
  * 1 BTC = 100,000,000 satoshis
@@ -99,11 +101,13 @@ export const FULL_REPAY_BUFFER_BPS = 10000n; // Divisor for 0.01% (1/10000)
 
 /**
  * BTC token display constants
+ * Uses network-aware config (BTC for mainnet, sBTC for signet)
  */
+const btcConfig = getNetworkConfigBTC();
 export const BTC_TOKEN = {
-  icon: "/images/btc.png",
-  name: "Bitcoin",
-  symbol: "BTC",
+  icon: btcConfig.icon,
+  name: btcConfig.name,
+  symbol: btcConfig.coinSymbol,
 } as const;
 
 /**

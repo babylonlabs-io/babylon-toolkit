@@ -6,9 +6,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { depositService } from "../../../services/deposit";
 
-const BTC_ICON_PATH = "/images/btc.png";
+const btcConfig = getNetworkConfigBTC();
 
 interface DepositAmountSectionProps {
   amount: string;
@@ -61,15 +63,15 @@ export function DepositAmountSection({
         <AmountItem
           amount={amount}
           amountUsd={amountUsd}
-          currencyIcon={BTC_ICON_PATH}
-          currencyName="Bitcoin"
+          currencyIcon={btcConfig.icon}
+          currencyName={btcConfig.name}
           placeholder="Enter amount"
           displayBalance={true}
           balanceDetails={{
             balance: btcBalanceFormatted,
-            symbol: "BTC",
+            symbol: btcConfig.coinSymbol,
             price: btcPrice,
-            displayUSD: true,
+            displayUSD: btcConfig.displayUSD,
             decimals: 4,
           }}
           min="0"

@@ -4,6 +4,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import {
   formatBtcAmount,
   formatDateTime,
@@ -13,35 +15,45 @@ import {
   formatUsdValue,
 } from "../formatting";
 
+const btcConfig = getNetworkConfigBTC();
+
 describe("Formatting Utilities", () => {
   describe("formatBtcAmount", () => {
     it("should format positive BTC amount with 8 decimals by default", () => {
-      expect(formatBtcAmount(1.23456789)).toBe("1.23456789 BTC");
+      expect(formatBtcAmount(1.23456789)).toBe(
+        `1.23456789 ${btcConfig.coinSymbol}`,
+      );
     });
 
     it("should format whole BTC amount", () => {
-      expect(formatBtcAmount(1)).toBe("1 BTC");
+      expect(formatBtcAmount(1)).toBe(`1 ${btcConfig.coinSymbol}`);
     });
 
     it("should format small BTC amount", () => {
-      expect(formatBtcAmount(0.00000001)).toBe("0.00000001 BTC");
+      expect(formatBtcAmount(0.00000001)).toBe(
+        `0.00000001 ${btcConfig.coinSymbol}`,
+      );
     });
 
     it("should return '0 BTC' for zero amount", () => {
-      expect(formatBtcAmount(0)).toBe("0 BTC");
+      expect(formatBtcAmount(0)).toBe(`0 ${btcConfig.coinSymbol}`);
     });
 
     it("should return '0 BTC' for negative amount", () => {
-      expect(formatBtcAmount(-1)).toBe("0 BTC");
+      expect(formatBtcAmount(-1)).toBe(`0 ${btcConfig.coinSymbol}`);
     });
 
     it("should respect custom decimal places", () => {
-      expect(formatBtcAmount(1.23456789, 4)).toBe("1.2346 BTC");
-      expect(formatBtcAmount(1.23456789, 2)).toBe("1.23 BTC");
+      expect(formatBtcAmount(1.23456789, 4)).toBe(
+        `1.2346 ${btcConfig.coinSymbol}`,
+      );
+      expect(formatBtcAmount(1.23456789, 2)).toBe(
+        `1.23 ${btcConfig.coinSymbol}`,
+      );
     });
 
     it("should handle large BTC amounts", () => {
-      expect(formatBtcAmount(21000000)).toBe("21000000 BTC");
+      expect(formatBtcAmount(21000000)).toBe(`21000000 ${btcConfig.coinSymbol}`);
     });
   });
 
