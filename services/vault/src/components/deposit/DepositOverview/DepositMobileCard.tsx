@@ -10,6 +10,7 @@ import { StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
+import { formatTimeAgo } from "../../../utils/formatting";
 
 import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
 
@@ -52,6 +53,14 @@ export function DepositMobileCard({
           value: (
             <span className="text-sm text-accent-primary">
               {deposit.appName || "Unknown"}
+            </span>
+          ),
+        },
+        {
+          label: "Time",
+          value: (
+            <span className="text-sm text-accent-secondary">
+              {deposit.timestamp ? formatTimeAgo(deposit.timestamp) : "-"}
             </span>
           ),
         },

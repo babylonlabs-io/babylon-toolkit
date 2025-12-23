@@ -2,13 +2,14 @@
  * Tests for formatting utilities
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   formatBtcAmount,
   formatDateTime,
   formatLLTV,
   formatProviderName,
+  formatTimeAgo,
   formatUsdValue,
 } from "../formatting";
 
@@ -134,6 +135,89 @@ describe("Formatting Utilities", () => {
     it("should handle double digit months and days", () => {
       const date = new Date(2024, 10, 25, 14, 30, 45); // Nov 25, 2024 14:30:45
       expect(formatDateTime(date)).toBe("2024-11-25 14:30:45");
+    });
+  });
+
+  describe("formatTimeAgo", () => {
+    const NOW = 1700000000000;
+
+    beforeEach(() => {
+      vi.spyOn(Date, "now").mockReturnValue(NOW);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should return 'just now' for timestamps less than a minute ago", () => {
+      expect(formatTimeAgo(NOW)).toBe("just now");
+      expect(formatTimeAgo(NOW - 30 * 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW - 59 * 1000)).toBe("just now");
+    });
+
+    it("should return 'a minute ago' for exactly 1 minute", () => {
+      expect(formatTimeAgo(NOW - 60 * 1000)).toBe("a minute ago");
+    });
+
+    it("should return plural minutes for 2-59 minutes", () => {
+      expect(formatTimeAgo(NOW - 2 * 60 * 1000)).toBe("2 minutes ago");
+      expect(formatTimeAgo(NOW - 30 * 60 * 1000)).toBe("30 minutes ago");
+      expect(formatTimeAgo(NOW - 59 * 60 * 1000)).toBe("59 minutes ago");
+    });
+
+    it("should return 'an hour ago' for exactly 1 hour", () => {
+      expect(formatTimeAgo(NOW - 60 * 60 * 1000)).toBe("an hour ago");
+    });
+
+    it("should return plural hours for 2-23 hours", () => {
+      expect(formatTimeAgo(NOW - 2 * 60 * 60 * 1000)).toBe("2 hours ago");
+      expect(formatTimeAgo(NOW - 12 * 60 * 60 * 1000)).toBe("12 hours ago");
+      expect(formatTimeAgo(NOW - 23 * 60 * 60 * 1000)).toBe("23 hours ago");
+    });
+
+    it("should return 'a day ago' for exactly 1 day", () => {
+      expect(formatTimeAgo(NOW - 24 * 60 * 60 * 1000)).toBe("a day ago");
+    });
+
+    it("should return plural days for 2-29 days", () => {
+      expect(formatTimeAgo(NOW - 2 * 24 * 60 * 60 * 1000)).toBe("2 days ago");
+      expect(formatTimeAgo(NOW - 15 * 24 * 60 * 60 * 1000)).toBe("15 days ago");
+      expect(formatTimeAgo(NOW - 29 * 24 * 60 * 60 * 1000)).toBe("29 days ago");
+    });
+
+    it("should return 'a month ago' for exactly 1 month (30 days)", () => {
+      expect(formatTimeAgo(NOW - 30 * 24 * 60 * 60 * 1000)).toBe("a month ago");
+    });
+
+    it("should return plural months for 2-11 months", () => {
+      expect(formatTimeAgo(NOW - 60 * 24 * 60 * 60 * 1000)).toBe(
+        "2 months ago",
+      );
+      expect(formatTimeAgo(NOW - 180 * 24 * 60 * 60 * 1000)).toBe(
+        "6 months ago",
+      );
+      expect(formatTimeAgo(NOW - 330 * 24 * 60 * 60 * 1000)).toBe(
+        "11 months ago",
+      );
+    });
+
+    it("should return 'a year ago' for exactly 1 year (365 days)", () => {
+      expect(formatTimeAgo(NOW - 365 * 24 * 60 * 60 * 1000)).toBe("a year ago");
+    });
+
+    it("should return plural years for 2+ years", () => {
+      expect(formatTimeAgo(NOW - 730 * 24 * 60 * 60 * 1000)).toBe(
+        "2 years ago",
+      );
+      expect(formatTimeAgo(NOW - 1825 * 24 * 60 * 60 * 1000)).toBe(
+        "5 years ago",
+      );
+    });
+
+    it("should return 'just now' for future timestamps", () => {
+      expect(formatTimeAgo(NOW + 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW + 60 * 60 * 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW + 365 * 24 * 60 * 60 * 1000)).toBe("just now");
     });
   });
 });

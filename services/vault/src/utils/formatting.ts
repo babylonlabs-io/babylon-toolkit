@@ -81,3 +81,44 @@ export function formatDateTime(date: Date): string {
 
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
+
+/**
+ * Format a timestamp as relative time (e.g., "5 minutes ago", "2 days ago")
+ * @param timestamp - Timestamp in milliseconds since epoch. Future timestamps return "just now".
+ * @returns Formatted relative time string
+ */
+export function formatTimeAgo(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  if (diff < 0) {
+    return "just now";
+  }
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  // Note: We intentionally approximate months as 30 days and years as 365 days
+  // for a simple, human-friendly relative time display. This does not account
+  // for varying month lengths or leap years.
+  const months = Math.floor(days / 30);
+  const years = Math.floor(days / 365);
+
+  if (years > 0) {
+    return years === 1 ? "a year ago" : `${years} years ago`;
+  }
+  if (months > 0) {
+    return months === 1 ? "a month ago" : `${months} months ago`;
+  }
+  if (days > 0) {
+    return days === 1 ? "a day ago" : `${days} days ago`;
+  }
+  if (hours > 0) {
+    return hours === 1 ? "an hour ago" : `${hours} hours ago`;
+  }
+  if (minutes > 0) {
+    return minutes === 1 ? "a minute ago" : `${minutes} minutes ago`;
+  }
+  return "just now";
+}

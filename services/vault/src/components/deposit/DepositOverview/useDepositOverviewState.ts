@@ -109,6 +109,7 @@ export function useDepositOverviewState() {
         pegInTxHash: activity.txHash || activity.id,
         status: activity.displayLabel,
         appName: appMetadata?.name,
+        timestamp: activity.timestamp,
       };
     });
   }, [allActivities]);

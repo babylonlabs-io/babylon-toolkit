@@ -49,6 +49,11 @@ export interface Vault {
   /** Application controller address (immutable, set at creation) */
   applicationController: Address;
 
+  // === Timestamps ===
+
+  /** Timestamp when vault was created (pendingAt from indexer) */
+  createdAt: number;
+
   // === Application/usage status ===
 
   /** Whether vault is currently in use as collateral */
@@ -75,4 +80,6 @@ export interface Deposit {
   status: PeginDisplayLabel;
   /** Application name (e.g., "Morpho") */
   appName?: string;
+  /** Timestamp in milliseconds since epoch */
+  timestamp?: number;
 }
