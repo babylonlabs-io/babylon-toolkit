@@ -1,4 +1,4 @@
-import { createAminoTypes } from "./amino";
+import { createAminoTypes, aminoConverters } from "./amino";
 import { babyToUbbn, ubbnToBaby } from "./baby";
 import { normalizeCosmjsAmount, normalizeRewardResponse } from "./normalize";
 import { buildPaginationParams, fetchAllPages } from "./pagination";
@@ -8,6 +8,7 @@ export default {
   ubbnToBaby,
   babyToUbbn,
   createAminoTypes,
+  aminoConverters,
   createRegistry,
   normalizeRewardResponse,
   normalizeCosmjsAmount,
