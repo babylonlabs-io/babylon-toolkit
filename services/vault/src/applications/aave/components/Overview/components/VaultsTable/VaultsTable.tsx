@@ -8,6 +8,7 @@ import { Avatar, Button, Card, Popover, Table } from "@babylonlabs-io/core-ui";
 import { useRef, useState } from "react";
 
 import { InfoIcon, MenuButton } from "@/components/shared";
+import { getNetworkConfigBTC } from "@/config";
 import {
   PEGIN_DISPLAY_LABELS,
   type PeginDisplayLabel,
@@ -15,6 +16,8 @@ import {
 import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
 
 import { VaultsEmptyState } from "./VaultsEmptyState";
+
+const btcConfig = getNetworkConfigBTC();
 
 export interface VaultData {
   id: string;
@@ -70,7 +73,7 @@ function ActionMenu({
             onClick={handleRedeem}
             className="w-full justify-start rounded-lg text-left text-base text-accent-primary hover:bg-secondary-highlight dark:hover:bg-primary-main"
           >
-            Redeem BTC
+            Redeem {btcConfig.coinSymbol}
           </Button>
         </div>
       </Popover>
@@ -87,13 +90,17 @@ export function VaultsTable({
   const columns: ColumnProps<VaultData>[] = [
     {
       key: "vault",
-      header: "BTC Vault",
+      header: `${btcConfig.coinSymbol} Vault`,
       headerClassName: "w-[50%]",
       cellClassName: "w-[50%]",
       sorter: (a, b) => a.amount - b.amount,
       render: (_value, row) => (
         <div className="flex items-center gap-3">
-          <Avatar url="/images/btc.png" alt="BTC" size="small" />
+          <Avatar
+            url={btcConfig.icon}
+            alt={btcConfig.coinSymbol}
+            size="small"
+          />
           <span className="text-base text-accent-primary">
             {formatBtcValue(row.amount)}{" "}
             <span className="text-accent-secondary">

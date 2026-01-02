@@ -4,6 +4,10 @@
  * Shown when user has no deposits or is not connected.
  */
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 interface EmptyStateProps {
   isConnected: boolean;
 }
@@ -14,8 +18,8 @@ export function EmptyState({ isConnected }: EmptyStateProps) {
       <div className="flex min-h-[200px] items-center justify-center p-6">
         <div className="flex flex-col items-center">
           <img
-            src="/images/btc.svg"
-            alt="Bitcoin"
+            src={btcConfig.icon}
+            alt={btcConfig.name}
             className="mb-4"
             style={{ height: 100, width: 100, marginTop: 24 }}
           />
@@ -24,12 +28,12 @@ export function EmptyState({ isConnected }: EmptyStateProps) {
               className="text-lg text-accent-primary"
               style={{ letterSpacing: "0.15px" }}
             >
-              Deposit BTC Trustlessly
+              Deposit {btcConfig.coinSymbol} Trustlessly
             </h4>
             <p className="text-sm text-accent-secondary">
               {isConnected
                 ? "Your deposit will appear here once confirmed."
-                : "Connect your wallet to start depositing BTC."}
+                : `Connect your wallet to start depositing ${btcConfig.coinSymbol}.`}
             </p>
           </div>
         </div>

@@ -11,6 +11,9 @@ import type { Address } from "viem";
 import { getAddress, isAddress } from "viem";
 
 import { ethClient } from "../../clients/eth-contract/client";
+import { getNetworkConfigBTC } from "../../config";
+
+const btcConfig = getNetworkConfigBTC();
 
 /**
  * ERC20 ABI for fetching token metadata
@@ -75,18 +78,18 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
   // vBTC - Vault BTC (ERC20 representation) - Mainnet/Production
   "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3": {
     address: "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3" as Address,
-    symbol: "BTC",
-    name: "Vault Bitcoin",
+    symbol: btcConfig.coinSymbol,
+    name: `Vault ${btcConfig.name}`,
     decimals: 18, // vBTC uses 18 decimals on Ethereum
-    icon: "/images/btc.png",
+    icon: btcConfig.icon,
   },
   // vBTC - Vault BTC (ERC20 representation) - Devnet/Sepolia
   "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024": {
     address: "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024" as Address,
-    symbol: "BTC",
-    name: "Vault Bitcoin",
+    symbol: btcConfig.coinSymbol,
+    name: `Vault ${btcConfig.name}`,
     decimals: 18, // vBTC uses 18 decimals on Ethereum
-    icon: "/images/btc.png",
+    icon: btcConfig.icon,
   },
   // USDC - Mainnet/Production
   "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85": {
@@ -169,11 +172,13 @@ async function fetchTokenMetadataFromChain(
       }),
     ]);
 
-    // Normalize vaultBTC symbol and name to BTC for display
+    // Normalize vaultBTC symbol and name for display
     const symbolLower = (symbol as string).toLowerCase();
     const isVaultBTC = symbolLower === "vaultbtc";
-    const normalizedSymbol = isVaultBTC ? "BTC" : (symbol as string);
-    const normalizedName = isVaultBTC ? "Bitcoin" : (name as string);
+    const normalizedSymbol = isVaultBTC
+      ? btcConfig.coinSymbol
+      : (symbol as string);
+    const normalizedName = isVaultBTC ? btcConfig.name : (name as string);
 
     return {
       address,
@@ -263,9 +268,10 @@ function getIconForSymbol(symbol: string): string | undefined {
 
   // Map common symbols to icon paths
   const iconMap: Record<string, string> = {
-    BTC: "/images/btc.png",
-    WBTC: "/images/btc.png",
-    VBTC: "/images/btc.png",
+    BTC: btcConfig.icon,
+    SBTC: btcConfig.icon,
+    WBTC: btcConfig.icon,
+    VBTC: btcConfig.icon,
     USDC: "/images/usdc.png",
     USDT: "/images/usdt.png",
     DAI: "/images/dai.png",

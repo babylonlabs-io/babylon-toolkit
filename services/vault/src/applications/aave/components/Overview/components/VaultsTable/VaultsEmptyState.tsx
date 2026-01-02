@@ -6,6 +6,9 @@
 import { Avatar, Button, SubSection } from "@babylonlabs-io/core-ui";
 
 import { Connect } from "@/components/Wallet";
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
 
 interface VaultsEmptyStateProps {
   isConnected: boolean;
@@ -21,20 +24,21 @@ export function VaultsEmptyState({
       <div className="flex flex-col items-center justify-center gap-2">
         {/* Bitcoin Logo */}
         <Avatar
-          url="/images/btc@2x.png"
-          alt="Bitcoin"
+          url={btcConfig.icon}
+          alt={btcConfig.name}
           size="xlarge"
           className="mb-2 h-[100px] w-[100px]"
         />
 
         {/* Primary Text */}
         <p className="text-[20px] text-accent-primary">
-          You have no BTC Vaults available.
+          You have no {btcConfig.coinSymbol} Vaults available.
         </p>
 
         {/* Secondary Text */}
         <p className="text-[14px] text-accent-secondary">
-          Deposit BTC to create your first vault and enable borrowing.
+          Deposit {btcConfig.coinSymbol} to create your first vault and enable
+          borrowing.
         </p>
 
         {/* Deposit/Connect Button */}
@@ -47,7 +51,7 @@ export function VaultsEmptyState({
               onClick={onDeposit}
               className="rounded-full !bg-white !text-black hover:!bg-gray-100"
             >
-              Deposit BTC
+              Deposit {btcConfig.coinSymbol}
             </Button>
           ) : (
             <Connect />

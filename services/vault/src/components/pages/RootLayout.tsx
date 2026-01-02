@@ -12,10 +12,12 @@ import { useTheme } from "next-themes";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
-import { shouldDisplayTestingMsg } from "@/config";
+import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
+
+const btcConfig = getNetworkConfigBTC();
 
 function AppNavLink({
   to,
@@ -97,7 +99,7 @@ export default function RootLayout() {
                   rounded
                   onClick={() => navigate("/deposit")}
                 >
-                  Deposit BTC
+                  Deposit {btcConfig.coinSymbol}
                 </Button>
               )}
               <Connect />

@@ -9,7 +9,10 @@
 
 import type { Address } from "viem";
 
+import { getNetworkConfigBTC } from "../../config";
 import type { ActivityLog } from "../../types/activityLog";
+
+const btcConfig = getNetworkConfigBTC();
 
 /**
  * Mock activities data matching the design specification
@@ -61,8 +64,8 @@ const MOCK_ACTIVITIES: ActivityLog[] = [
     type: "Deposit",
     amount: {
       value: "0.25",
-      symbol: "BTC",
-      icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
+      symbol: btcConfig.coinSymbol,
+      icon: btcConfig.icon,
     },
     transactionHash:
       "0xa1b2c3d4e5f6g7h8i9j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3",
@@ -78,8 +81,8 @@ const MOCK_ACTIVITIES: ActivityLog[] = [
     type: "Deposit",
     amount: {
       value: "1",
-      symbol: "BTC",
-      icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
+      symbol: btcConfig.coinSymbol,
+      icon: btcConfig.icon,
     },
     transactionHash:
       "0xa1b2c3d4e5f6g7h8i9j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3",
@@ -95,8 +98,8 @@ const MOCK_ACTIVITIES: ActivityLog[] = [
     type: "Deposit",
     amount: {
       value: "0.5",
-      symbol: "BTC",
-      icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
+      symbol: btcConfig.coinSymbol,
+      icon: btcConfig.icon,
     },
     transactionHash:
       "0xa1b2c3d4e5f6g7h8i9j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3",
@@ -112,8 +115,8 @@ const MOCK_ACTIVITIES: ActivityLog[] = [
     type: "Deposit",
     amount: {
       value: "0.25",
-      symbol: "BTC",
-      icon: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
+      symbol: btcConfig.coinSymbol,
+      icon: btcConfig.icon,
     },
     transactionHash:
       "0xa1b2c3d4e5f6g7h8i9j1k2l3m4n5o6p7q8r9s0t1u2v3w4x5y6z7a8b9c0d1e2f3",
