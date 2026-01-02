@@ -80,7 +80,6 @@ export function AaveOverview() {
   const hasAvailableVaults = availableForCollateral.length > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
-  const isConnected = !!address;
 
   const handleBack = () => navigate("/");
 
@@ -166,7 +165,6 @@ export function AaveOverview() {
         {/* Section 2: Vaults Table */}
         <VaultsTable
           vaults={vaults}
-          isConnected={isConnected}
           onRedeem={handleRedeem}
           onDeposit={handleDeposit}
         />
@@ -177,7 +175,6 @@ export function AaveOverview() {
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           hasAvailableVaults={hasAvailableVaults}
-          isConnected={isConnected}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}

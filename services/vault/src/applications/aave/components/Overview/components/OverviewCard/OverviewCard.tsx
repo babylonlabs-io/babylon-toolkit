@@ -11,6 +11,7 @@ import {
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { useConnection } from "@/context/wallet";
 
 interface OverviewCardProps {
   collateralAmount: string;
@@ -27,8 +28,16 @@ export function OverviewCard({
   healthFactor,
   healthFactorStatus,
 }: OverviewCardProps) {
+  const { isConnected } = useConnection();
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
+
+  // Show placeholder values when not connected
+  const displayAmount = isConnected ? collateralAmount : "--";
+  const displayValue = isConnected
+    ? collateralValue.replace(/ USD$/, "")
+    : "--";
+  const displayHealthFactor = isConnected ? healthFactorFormatted : "--";
 
   return (
     <Card className="w-full">
@@ -44,7 +53,7 @@ export function OverviewCard({
               Collateral Value
             </span>
             <span className="text-base text-accent-primary">
-              {collateralAmount} ({collateralValue.replace(/ USD$/, "")})
+              {displayAmount} ({displayValue})
             </span>
           </div>
 
@@ -52,8 +61,8 @@ export function OverviewCard({
           <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">Health Factor</span>
             <span className="flex items-center gap-2 text-base text-accent-primary">
-              <HeartIcon color={healthFactorColor} />
-              {healthFactorFormatted}
+              {isConnected && <HeartIcon color={healthFactorColor} />}
+              {displayHealthFactor}
             </span>
           </div>
         </div>

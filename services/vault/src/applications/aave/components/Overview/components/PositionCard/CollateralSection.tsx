@@ -6,6 +6,7 @@
 import { Avatar, Button, SubSection } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { useConnection } from "@/context/wallet";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -14,7 +15,6 @@ export interface CollateralSectionProps {
   usdValue?: string;
   hasCollateral?: boolean;
   hasAvailableVaults?: boolean;
-  isConnected?: boolean;
   onAdd: () => void;
   onWithdraw: () => void;
 }
@@ -24,10 +24,10 @@ export function CollateralSection({
   usdValue,
   hasCollateral = false,
   hasAvailableVaults = false,
-  isConnected = false,
   onAdd,
   onWithdraw,
 }: CollateralSectionProps) {
+  const { isConnected } = useConnection();
   return (
     <div className="w-full space-y-6">
       {/* Header with buttons */}
