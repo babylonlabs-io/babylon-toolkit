@@ -201,6 +201,11 @@ export interface RegisterPeginParams {
    * Vault provider's Ethereum address.
    */
   vaultProvider: Address;
+
+  /**
+   * Optional callback invoked after PoP signing completes but before ETH transaction.
+   */
+  onPopSigned?: () => void | Promise<void>;
 }
 
 /**
@@ -441,7 +446,8 @@ export class PeginManager {
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
-    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider } = params;
+    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider, onPopSigned } =
+      params;
 
     // Step 1: Get depositor ETH address (from wallet account)
     if (!this.config.ethWallet.account) {
@@ -457,6 +463,10 @@ export class PeginManager {
       popMessage,
       "bip322-simple",
     );
+
+    if (onPopSigned) {
+      await onPopSigned();
+    }
 
     // Convert PoP signature to hex format
     // BTC wallets return base64, Ethereum contracts expect hex
