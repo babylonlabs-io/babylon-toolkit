@@ -23,7 +23,7 @@ import {
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
 import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
-import { BTCVaultsManagerABI } from "../contracts";
+import { BTCVaultsManagerABI, handleContractError } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
 import {
@@ -521,7 +521,7 @@ export class PeginManager {
       };
     } catch (error) {
       // Use proper error handler for better error messages
-      this.handleContractError(error);
+      handleContractError(error);
     }
   }
 
@@ -552,54 +552,6 @@ export class PeginManager {
       // If reading fails, assume vault doesn't exist and let contract handle it
       return false;
     }
-  }
-
-  /**
-   * Handle contract call errors by detecting known error signatures and
-   * providing user-friendly error messages.
-   *
-   * @param error - The error from the contract call
-   * @throws Always throws an error with a more descriptive message
-   */
-  private handleContractError(error: unknown): never {
-    // Extract error data if available
-    let errorData: string | undefined;
-    if (error && typeof error === "object") {
-      const err = error as any;
-      errorData = err.data || err.cause?.data || err.details;
-    }
-
-    // Check for known error signatures
-    if (errorData === "0x04aabf33") {
-      // VaultAlreadyExists()
-      throw new Error(
-        "Vault already exists: This Bitcoin transaction has already been registered. " +
-          "Please select different UTXOs or use a different amount to create a unique transaction.",
-      );
-    }
-
-    if (errorData === "0x82b42900") {
-      // Unauthorized()
-      throw new Error(
-        "Unauthorized: You must be the depositor or vault provider to submit this transaction.",
-      );
-    }
-
-    // Check for gas estimation errors
-    const errorMsg = (error as Error)?.message || "";
-    if (
-      errorMsg.includes("gas limit too high") ||
-      errorMsg.includes("21000000")
-    ) {
-      throw new Error(
-        "Transaction gas estimation failed. This usually means the contract would revert. " +
-          "Possible causes: (1) Vault already exists, (2) Unauthorized caller, (3) Invalid signature. " +
-          "Please check your transaction parameters and try again.",
-      );
-    }
-
-    // Default: re-throw original error
-    throw error;
   }
 
   /**
