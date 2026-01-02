@@ -40,11 +40,11 @@ export const queryKeys = {
 };
 
 /**
- * Invalidate vault-related queries after borrow/repay transactions
+ * Invalidate vault-related queries after collateral operations
  *
  * Use this after:
- * - Successful borrow (vaults become "In Use")
- * - Successful repay with withdrawal (vaults become "Available")
+ * - Successful add collateral (vaults become "In Use")
+ * - Successful withdraw collateral (vaults become "Available")
  *
  * @param queryClient - React Query client instance
  * @param address - User's Ethereum address
@@ -67,6 +67,11 @@ export async function invalidateVaultQueries(
     // Invalidate vaults query to refresh vault list
     queryClient.invalidateQueries({
       queryKey: [VAULTS_QUERY_KEY, address],
+    }),
+
+    // Invalidate Aave user position to refresh collateral amount
+    queryClient.invalidateQueries({
+      queryKey: ["aaveUserPosition", address],
     }),
   ]);
 }

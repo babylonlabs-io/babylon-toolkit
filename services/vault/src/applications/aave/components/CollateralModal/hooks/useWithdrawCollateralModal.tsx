@@ -13,9 +13,10 @@ import { useMemo, useState } from "react";
 import type { DetailRow } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
 import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatUsdValue } from "@/utils/formatting";
 
-import { useAaveUserPosition } from "../../../hooks";
+import { useAaveUserPosition, useAaveVaults } from "../../../hooks";
 import { useWithdrawCollateralTransaction } from "../../../hooks/useWithdrawCollateralTransaction";
 import { HealthFactorValue } from "../components";
 
@@ -33,6 +34,16 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
 
   const { collateralBtc, debtValueUsd, healthFactor } =
     useAaveUserPosition(address);
+
+  // Get vaults to identify which ones are currently in use as collateral
+  const { vaults } = useAaveVaults(address);
+  const inUseVaultIds = useMemo(
+    () =>
+      vaults
+        .filter((v) => v.status === PEGIN_DISPLAY_LABELS.IN_USE)
+        .map((v) => v.id),
+    [vaults],
+  );
 
   const [collateralAmount, setCollateralAmount] = useState(0);
 
@@ -59,7 +70,7 @@ export function useWithdrawCollateralModal(): UseCollateralModalResult {
   const handleSubmit = async () => {
     // Must withdraw all collateral
     if (collateralAmount <= 0) return false;
-    return executeWithdraw();
+    return executeWithdraw(inUseVaultIds);
   };
 
   // Disabled if:

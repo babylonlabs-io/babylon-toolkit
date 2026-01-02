@@ -101,7 +101,8 @@ export function CollateralSection({
 
   const renderContent = () => {
     if (isPendingAdd) return <PendingContent message="Pending Add" />;
-    if (isPendingWithdraw) return <PendingContent message="Pending Withdrawal" />;
+    if (isPendingWithdraw)
+      return <PendingContent message="Pending Withdrawal" />;
     if (hasCollateral)
       return <CollateralContent amount={amount} usdValue={usdValue} />;
     return <EmptyContent />;

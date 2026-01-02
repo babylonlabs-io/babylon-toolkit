@@ -2,12 +2,12 @@
  * Local Storage utilities for pending collateral vault IDs
  *
  * Purpose:
- * - Store vault IDs that have been submitted for collateral but not yet indexed
- * - Show "Pending Deposit" UI feedback until indexer confirms
+ * - Store vault IDs that have been submitted for collateral operations but not yet indexed
+ * - Show "Pending" UI feedback until indexer confirms
  * - Persist across page refreshes
  *
  * Cleanup Strategy:
- * - Auto-cleanup when vaults show as "In Use" in indexed data
+ * - Auto-cleanup when vaults reach expected status in indexed data
  * - Remove stale entries older than 24 hours
  */
 
@@ -16,9 +16,14 @@ import {
   PENDING_COLLATERAL_KEY_PREFIX,
 } from "../constants";
 
+/** Type of pending collateral operation */
+export type PendingOperation = "add" | "withdraw";
+
 interface PendingVaultEntry {
   id: string;
   timestamp: number;
+  /** The operation type - determines expected final status */
+  operation: PendingOperation;
 }
 
 /**
@@ -55,13 +60,19 @@ function readEntries(key: string): PendingVaultEntry[] {
   }
 }
 
+/** Pending vault info returned from storage */
+export interface PendingVaultInfo {
+  id: string;
+  operation: PendingOperation;
+}
+
 /**
- * Get pending collateral vault IDs from localStorage
+ * Get pending collateral vault entries from localStorage
  */
-export function getPendingCollateralVaultIds(
+export function getPendingCollateralVaults(
   appId: string,
   ethAddress: string,
-): string[] {
+): PendingVaultInfo[] {
   if (!appId || !ethAddress) return [];
 
   const key = getStorageKey(appId, ethAddress);
@@ -89,7 +100,10 @@ export function getPendingCollateralVaultIds(
     }
   }
 
-  return validEntries.map((entry) => entry.id);
+  return validEntries.map((entry) => ({
+    id: entry.id,
+    operation: entry.operation ?? "add", // Default for backwards compatibility
+  }));
 }
 
 /**
@@ -125,6 +139,7 @@ export function addPendingCollateralVaultIds(
   appId: string,
   ethAddress: string,
   vaultIds: string[],
+  operation: PendingOperation,
 ): void {
   if (!appId || !ethAddress || vaultIds.length === 0) return;
 
@@ -143,7 +158,7 @@ export function addPendingCollateralVaultIds(
   // Create new entries for vault IDs that don't already exist
   const newEntries: PendingVaultEntry[] = vaultIds
     .filter((id) => !existingIds.has(id))
-    .map((id) => ({ id, timestamp: now }));
+    .map((id) => ({ id, timestamp: now, operation }));
 
   savePendingCollateralVaultIds(appId, ethAddress, [
     ...validExistingEntries,
