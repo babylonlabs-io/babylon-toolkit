@@ -454,7 +454,7 @@ describe("useDepositFlowCompat - Chain Switching", () => {
 
       // Wait for deposit flow to complete
       await waitFor(() => {
-        expect(result.current.currentStep).toBe(3);
+        expect(result.current.processing).toBe(false);
       });
 
       // Verify addPendingPegin was called with applicationController set to selectedApplication
