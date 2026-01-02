@@ -13,11 +13,12 @@ import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { useETHWallet } from "@/context/wallet";
+import { useConnection, useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
+import { usePendingVaults, useSyncPendingVaults } from "../../context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -45,6 +46,7 @@ export function AaveOverview() {
 
   // Wallet connection
   const { address } = useETHWallet();
+  const { isConnected } = useConnection();
 
   // Fetch user's Aave position
   const {
@@ -58,6 +60,10 @@ export function AaveOverview() {
 
   // Fetch user's vaults
   const { vaults, availableForCollateral } = useAaveVaults(address);
+
+  // Get pending deposit state and sync with indexed vault data
+  const { hasPendingDeposit } = usePendingVaults();
+  useSyncPendingVaults(vaults);
 
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -175,6 +181,8 @@ export function AaveOverview() {
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           hasAvailableVaults={hasAvailableVaults}
+          isConnected={isConnected}
+          isPendingDeposit={hasPendingDeposit}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}
