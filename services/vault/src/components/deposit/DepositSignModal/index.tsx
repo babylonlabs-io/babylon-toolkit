@@ -121,9 +121,6 @@ export function CollateralDepositSignModal({
           <Step step={2} currentStep={currentStep}>
             Sign & submit peg-in request to Ethereum
           </Step>
-          <Step step={3} currentStep={currentStep}>
-            Sign Payout Transactions
-          </Step>
         </div>
 
         {/* Error Display */}
