@@ -57,8 +57,8 @@ export function useAddCollateralTransaction(): UseAddCollateralTransactionResult
         // Execute the add collateral transaction
         await addCollateral(walletClient, chain, vaultIds as Hex[]);
 
-        // Mark vaults as pending to prevent re-selection before indexer updates
-        markVaultsAsPending(vaultIds);
+        // Mark vaults as pending add to prevent re-selection before indexer updates
+        markVaultsAsPending(vaultIds, "add");
 
         // Invalidate vault-related queries to refresh from indexer
         await invalidateVaultQueries(queryClient, address as Address);
