@@ -162,6 +162,7 @@ export async function signAndSubmitPayoutSignatures(
     }
 
     // Sign using VP's canonical liquidator order to ensure correct sighash
+    // Use depositor pubkey from vault data (stored on-chain) for signature verification
     const signature = await signPayoutTransaction(btcWallet, {
       payoutTxHex,
       peginTxHex,
@@ -169,6 +170,7 @@ export async function signAndSubmitPayoutSignatures(
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys: finalLiquidatorPubkeys,
       network,
+      depositorBtcPubkey,
     });
 
     signatures[claimerPubkeyXOnly] = signature;

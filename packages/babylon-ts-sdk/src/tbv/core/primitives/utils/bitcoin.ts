@@ -193,3 +193,55 @@ export function isValidHex(hex: string): boolean {
   const cleanHex = stripHexPrefix(hex);
   return isValidHexRaw(cleanHex);
 }
+
+/**
+ * Result of validating a wallet public key against an expected depositor public key.
+ */
+export interface WalletPubkeyValidationResult {
+  /** Wallet's raw public key (as returned by wallet, may be compressed) */
+  walletPubkeyRaw: string;
+  /** Wallet's public key in x-only format (32 bytes, 64 hex chars) */
+  walletPubkeyXOnly: string;
+  /** The validated depositor public key (x-only format) */
+  depositorPubkey: string;
+}
+
+/**
+ * Validate that a wallet's public key matches the expected depositor public key.
+ *
+ * This function:
+ * 1. Converts the wallet pubkey to x-only format
+ * 2. Uses the expected depositor pubkey if provided, otherwise falls back to wallet pubkey
+ * 3. Validates they match (case-insensitive)
+ *
+ * @param walletPubkeyRaw - Raw public key from wallet (may be compressed 66 chars or x-only 64 chars)
+ * @param expectedDepositorPubkey - Expected depositor public key (x-only, optional)
+ * @returns Validation result with both pubkey formats
+ * @throws Error if wallet pubkey doesn't match expected depositor pubkey
+ *
+ * @example
+ * ```typescript
+ * const walletPubkey = await wallet.getPublicKeyHex(); // "02abc123..."
+ * const { walletPubkeyRaw, depositorPubkey } = validateWalletPubkey(
+ *   walletPubkey,
+ *   vault.depositorBtcPubkey
+ * );
+ * ```
+ */
+export function validateWalletPubkey(
+  walletPubkeyRaw: string,
+  expectedDepositorPubkey?: string,
+): WalletPubkeyValidationResult {
+  const walletPubkeyXOnly = processPublicKeyToXOnly(walletPubkeyRaw);
+  const depositorPubkey = expectedDepositorPubkey ?? walletPubkeyXOnly;
+
+  if (walletPubkeyXOnly.toLowerCase() !== depositorPubkey.toLowerCase()) {
+    throw new Error(
+      `Wallet public key does not match vault depositor. ` +
+      `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
+      `Please connect the wallet that was used to create this vault.`
+    );
+  }
+
+  return { walletPubkeyRaw, walletPubkeyXOnly, depositorPubkey };
+}

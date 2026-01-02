@@ -123,7 +123,7 @@ describe("PayoutManager", () => {
     it("should sign payout tx and return signature plus depositor pubkey", async () => {
       const peginTxHex = createTestPeginTransaction();
       const claimTxHex = createTestClaimTransaction();
-      const payoutTxHex = createTestPayoutTransaction(peginTxHex);
+      const payoutTxHex = createTestPayoutTransaction(peginTxHex, claimTxHex);
       const deterministicSignature = "11".repeat(64);
 
       const getPublicKeyHex = vi

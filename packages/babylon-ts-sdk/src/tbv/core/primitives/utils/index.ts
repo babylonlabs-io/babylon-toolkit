@@ -13,4 +13,6 @@ export {
   stripHexPrefix,
   toXOnly,
   uint8ArrayToHex,
+  validateWalletPubkey,
+  type WalletPubkeyValidationResult,
 } from "./bitcoin";
