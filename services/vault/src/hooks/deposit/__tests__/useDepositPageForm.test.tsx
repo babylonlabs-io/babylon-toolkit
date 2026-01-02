@@ -200,6 +200,19 @@ describe("useDepositPageForm", () => {
       expect(result.current.isValid).toBe(false);
     });
 
+    it("should initialize with initial application ID when provided", () => {
+      const { result } = renderHook(
+        () => useDepositPageForm({ initialApplicationId: "app1" }),
+        { wrapper },
+      );
+
+      expect(result.current.formData).toEqual({
+        amountBtc: "",
+        selectedApplication: "app1",
+        selectedProvider: "",
+      });
+    });
+
     it("should calculate BTC balance from UTXOs", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 

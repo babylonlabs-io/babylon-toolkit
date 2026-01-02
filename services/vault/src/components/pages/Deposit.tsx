@@ -1,5 +1,5 @@
 import { Button, Card, Container } from "@babylonlabs-io/core-ui";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
 
@@ -17,6 +17,9 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 
 function DepositContent() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const initialAppId = searchParams.get("app") || undefined;
 
   const handleBack = () => {
     navigate(-1);
@@ -36,7 +39,7 @@ function DepositContent() {
     isLoadingProviders,
     amountSats,
     validateForm,
-  } = useDepositPageForm();
+  } = useDepositPageForm({ initialApplicationId: initialAppId });
 
   // Deposit flow (modals, wallet, provider data)
   const {
