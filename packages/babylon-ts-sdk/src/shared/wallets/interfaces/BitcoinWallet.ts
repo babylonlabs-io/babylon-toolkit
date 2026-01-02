@@ -25,7 +25,7 @@ export interface SignInputOptions {
   publicKey?: string;
   /** Sighash types (optional) */
   sighashTypes?: number[];
-  /** Disable tweak signer for Taproot (optional) */
+  /** Disable tweak signer for Taproot script path spend (optional) */
   disableTweakSigner?: boolean;
 }
 

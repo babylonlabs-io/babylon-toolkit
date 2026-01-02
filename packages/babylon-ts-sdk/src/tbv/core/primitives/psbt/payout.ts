@@ -123,8 +123,6 @@ export async function buildPayoutPsbt(
   // Normalize hex inputs (strip 0x prefix if present)
   const payoutTxHex = stripHexPrefix(params.payoutTxHex);
   const peginTxHex = stripHexPrefix(params.peginTxHex);
-  // Note: claimTxHex is required in the interface for compatibility but not used
-  // for building the depositor's PSBT (only input 0 from pegin is signed by depositor)
 
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
