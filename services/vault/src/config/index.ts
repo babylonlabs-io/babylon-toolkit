@@ -15,3 +15,7 @@ export const isProductionEnv = (): boolean => {
 export const getCommitHash = (): string => {
   return process.env.NEXT_PUBLIC_COMMIT_HASH || "development";
 };
+
+export const shouldDisplayTestingMsg = (): boolean => {
+  return process.env.NEXT_PUBLIC_DISPLAY_TESTING_MESSAGES !== "false";
+};
