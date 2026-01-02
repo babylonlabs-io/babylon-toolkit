@@ -14,7 +14,6 @@
 import {
   MAX_PENDING_DURATION,
   PENDING_COLLATERAL_KEY_PREFIX,
-  PENDING_COLLATERAL_UPDATE_EVENT,
 } from "../constants";
 
 interface PendingVaultEntry {
@@ -30,14 +29,30 @@ function getStorageKey(appId: string, ethAddress: string): string {
 }
 
 /**
- * Dispatch custom event to notify React hooks of localStorage changes
+ * Read and parse pending vault entries from localStorage.
+ * Returns empty array if storage is empty or corrupted.
  */
-function dispatchStorageUpdateEvent(appId: string, ethAddress: string): void {
-  window.dispatchEvent(
-    new CustomEvent(PENDING_COLLATERAL_UPDATE_EVENT, {
-      detail: { appId, ethAddress },
-    }),
-  );
+function readEntries(key: string): PendingVaultEntry[] {
+  try {
+    const stored = localStorage.getItem(key);
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch (error) {
+    console.error(
+      "[pendingCollateralStorage] Failed to parse pending vaults:",
+      error,
+    );
+    // Clear corrupted data
+    try {
+      localStorage.removeItem(key);
+    } catch (clearError) {
+      console.error(
+        "[pendingCollateralStorage] Failed to clear corrupted data:",
+        clearError,
+      );
+    }
+    return [];
+  }
 }
 
 /**
@@ -49,52 +64,32 @@ export function getPendingCollateralVaultIds(
 ): string[] {
   if (!appId || !ethAddress) return [];
 
-  try {
-    const key = getStorageKey(appId, ethAddress);
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
+  const key = getStorageKey(appId, ethAddress);
+  const entries = readEntries(key);
+  if (entries.length === 0) return [];
 
-    const entries: PendingVaultEntry[] = JSON.parse(stored);
-    const now = Date.now();
+  const now = Date.now();
+  const validEntries = entries.filter(
+    (entry) => now - entry.timestamp < MAX_PENDING_DURATION,
+  );
 
-    const validEntries = entries.filter(
-      (entry) => now - entry.timestamp < MAX_PENDING_DURATION,
-    );
-
-    // Persist cleaned entries back to storage to remove stale data
-    if (validEntries.length !== entries.length) {
-      try {
-        if (validEntries.length === 0) {
-          localStorage.removeItem(key);
-        } else {
-          localStorage.setItem(key, JSON.stringify(validEntries));
-        }
-        dispatchStorageUpdateEvent(appId, ethAddress);
-      } catch (saveError) {
-        console.error(
-          "[pendingCollateralStorage] Failed to persist cleaned pending vaults:",
-          saveError,
-        );
-      }
-    }
-
-    return validEntries.map((entry) => entry.id);
-  } catch (error) {
-    console.error(
-      "[pendingCollateralStorage] Failed to parse pending vaults:",
-      error,
-    );
-    // Clear corrupted data
+  // Persist cleaned entries back to storage to remove stale data
+  if (validEntries.length !== entries.length) {
     try {
-      localStorage.removeItem(getStorageKey(appId, ethAddress));
-    } catch (clearError) {
+      if (validEntries.length === 0) {
+        localStorage.removeItem(key);
+      } else {
+        localStorage.setItem(key, JSON.stringify(validEntries));
+      }
+    } catch (saveError) {
       console.error(
-        "[pendingCollateralStorage] Failed to clear corrupted data:",
-        clearError,
+        "[pendingCollateralStorage] Failed to persist cleaned pending vaults:",
+        saveError,
       );
     }
-    return [];
   }
+
+  return validEntries.map((entry) => entry.id);
 }
 
 /**
@@ -115,8 +110,6 @@ function savePendingCollateralVaultIds(
     } else {
       localStorage.setItem(key, JSON.stringify(entries));
     }
-
-    dispatchStorageUpdateEvent(appId, ethAddress);
   } catch (error) {
     console.error(
       "[pendingCollateralStorage] Failed to save pending vaults:",
@@ -137,30 +130,7 @@ export function addPendingCollateralVaultIds(
 
   const key = getStorageKey(appId, ethAddress);
   const now = Date.now();
-
-  // Get existing entries with timestamps (single read from localStorage)
-  let existingEntries: PendingVaultEntry[] = [];
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      existingEntries = JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error(
-      "[pendingCollateralStorage] Failed to parse pending vaults:",
-      error,
-    );
-    // Clear corrupted data to avoid future parse errors
-    try {
-      localStorage.removeItem(key);
-    } catch (clearError) {
-      console.error(
-        "[pendingCollateralStorage] Failed to clear corrupted data:",
-        clearError,
-      );
-    }
-    existingEntries = [];
-  }
+  const existingEntries = readEntries(key);
 
   // Filter out stale entries from existing
   const validExistingEntries = existingEntries.filter(
@@ -168,11 +138,11 @@ export function addPendingCollateralVaultIds(
   );
 
   // Derive existing IDs from valid entries
-  const existingIds = validExistingEntries.map((entry) => entry.id);
+  const existingIds = new Set(validExistingEntries.map((entry) => entry.id));
 
   // Create new entries for vault IDs that don't already exist
   const newEntries: PendingVaultEntry[] = vaultIds
-    .filter((id) => !existingIds.includes(id))
+    .filter((id) => !existingIds.has(id))
     .map((id) => ({ id, timestamp: now }));
 
   savePendingCollateralVaultIds(appId, ethAddress, [
@@ -192,15 +162,7 @@ export function removePendingCollateralVaultIds(
   if (!appId || !ethAddress || vaultIds.length === 0) return;
 
   const key = getStorageKey(appId, ethAddress);
-  let existingEntries: PendingVaultEntry[] = [];
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      existingEntries = JSON.parse(stored);
-    }
-  } catch {
-    existingEntries = [];
-  }
+  const existingEntries = readEntries(key);
 
   const idsToRemove = new Set(vaultIds);
   const updatedEntries = existingEntries.filter(
@@ -222,7 +184,6 @@ export function clearPendingCollateralVaultIds(
   try {
     const key = getStorageKey(appId, ethAddress);
     localStorage.removeItem(key);
-    dispatchStorageUpdateEvent(appId, ethAddress);
   } catch (error) {
     console.error(
       "[pendingCollateralStorage] Failed to clear pending vaults:",

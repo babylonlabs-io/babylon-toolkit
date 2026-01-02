@@ -11,11 +11,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 
-import { PENDING_COLLATERAL_UPDATE_EVENT } from "@/constants";
 import { useETHWallet } from "@/context/wallet";
 import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import {
@@ -25,7 +25,7 @@ import {
   removePendingCollateralVaultIds,
 } from "@/storage/pendingCollateralStorage";
 
-import type { VaultData } from "../components/Overview/components/VaultsTable";
+import type { VaultData } from "../types";
 
 interface PendingVaultsContextValue {
   /** Set of vault IDs currently pending (submitted but not yet indexed) */
@@ -61,9 +61,8 @@ export function PendingVaultsProvider({
   const [pendingVaultIds, setPendingVaultIds] = useState<Set<string>>(
     new Set(),
   );
-  const [storageVersion, setStorageVersion] = useState(0);
 
-  // Load pending vault IDs from localStorage whenever address changes or storage is updated
+  // Load pending vault IDs from localStorage on mount and when address changes
   useEffect(() => {
     if (!address) {
       setPendingVaultIds(new Set());
@@ -71,76 +70,53 @@ export function PendingVaultsProvider({
     }
     const ids = getPendingCollateralVaultIds(appId, address);
     setPendingVaultIds(new Set(ids));
-  }, [appId, address, storageVersion]);
-
-  // Listen for custom events when localStorage is updated (same-tab updates)
-  useEffect(() => {
-    if (!address) return;
-
-    const handleCustomEvent = (e: Event) => {
-      const customEvent = e as CustomEvent<{
-        appId: string;
-        ethAddress: string;
-      }>;
-      if (
-        customEvent.detail.appId === appId &&
-        customEvent.detail.ethAddress.toLowerCase() === address.toLowerCase()
-      ) {
-        // Trigger refresh by incrementing version
-        setStorageVersion((v) => v + 1);
-      }
-    };
-
-    window.addEventListener(PENDING_COLLATERAL_UPDATE_EVENT, handleCustomEvent);
-
-    return () => {
-      window.removeEventListener(
-        PENDING_COLLATERAL_UPDATE_EVENT,
-        handleCustomEvent,
-      );
-    };
   }, [appId, address]);
 
-  // Mark vault IDs as pending - storage function will dispatch event
+  // Mark vault IDs as pending
   const markVaultsAsPending = useCallback(
     (vaultIds: string[]) => {
-      if (!address) return;
+      if (!address || vaultIds.length === 0) return;
       addPendingCollateralVaultIds(appId, address, vaultIds);
-      // Event will be dispatched by storage function - no manual state update needed
+      setPendingVaultIds((prev) => {
+        const next = new Set(prev);
+        vaultIds.forEach((id) => next.add(id));
+        return next;
+      });
     },
     [appId, address],
   );
 
-  // Clear pending vault IDs - storage function will dispatch event
+  // Clear pending vault IDs
   const clearPendingVaults = useCallback(
     (vaultIds: string[]) => {
-      if (!address) return;
+      if (!address || vaultIds.length === 0) return;
       removePendingCollateralVaultIds(appId, address, vaultIds);
-      // Event will be dispatched by storage function - no manual state update needed
+      setPendingVaultIds((prev) => {
+        const next = new Set(prev);
+        vaultIds.forEach((id) => next.delete(id));
+        return next;
+      });
     },
     [appId, address],
   );
 
-  // Clear all pending vault IDs - storage function will dispatch event
+  // Clear all pending vault IDs
   const clearAllPendingVaults = useCallback(() => {
     if (!address) return;
     clearPendingCollateralVaultIds(appId, address);
-    // Event will be dispatched by storage function - no manual state update needed
+    setPendingVaultIds(new Set());
   }, [appId, address]);
-
-  const hasPendingDeposit = pendingVaultIds.size > 0;
 
   const value = useMemo(
     () => ({
       pendingVaultIds,
-      hasPendingDeposit,
+      hasPendingDeposit: pendingVaultIds.size > 0,
       markVaultsAsPending,
       clearPendingVaults,
       clearAllPendingVaults,
     }),
     [
       pendingVaultIds,
-      hasPendingDeposit,
       markVaultsAsPending,
       clearPendingVaults,
       clearAllPendingVaults,
@@ -174,8 +150,13 @@ export function usePendingVaults(): PendingVaultsContextValue {
  */
 export function useSyncPendingVaults(vaults: VaultData[]): void {
   const { pendingVaultIds, clearPendingVaults } = usePendingVaults();
+  const prevVaultsRef = useRef(vaults);
 
   useEffect(() => {
+    // Only run when vaults array reference changes (new data from indexer)
+    if (prevVaultsRef.current === vaults) return;
+    prevVaultsRef.current = vaults;
+
     if (pendingVaultIds.size === 0 || vaults.length === 0) return;
 
     const confirmedVaultIds = vaults

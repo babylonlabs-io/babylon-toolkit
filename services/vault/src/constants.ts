@@ -14,8 +14,6 @@ export const MAX_PENDING_DURATION = 24 * 60 * 60 * 1000; // 24 hours - cleanup s
 
 // Pending collateral storage constants
 export const PENDING_COLLATERAL_KEY_PREFIX = "vault-pending-collateral";
-export const PENDING_COLLATERAL_UPDATE_EVENT =
-  "vault-pending-collateral-updated";
 
 // Ethereum constants
 export const ZERO_ADDRESS =
