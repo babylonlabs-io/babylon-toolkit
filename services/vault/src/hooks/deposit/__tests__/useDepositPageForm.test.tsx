@@ -57,6 +57,11 @@ vi.mock("../../../context/wallet", () => ({
   useETHWallet: vi.fn(() => ({
     connected: true,
   })),
+  useConnection: vi.fn(() => ({
+    isConnected: true,
+    btcConnected: true,
+    ethConnected: true,
+  })),
 }));
 
 vi.mock("../../useBTCPrice", () => ({

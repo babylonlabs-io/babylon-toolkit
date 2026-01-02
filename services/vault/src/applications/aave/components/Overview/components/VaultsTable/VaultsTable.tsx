@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 
 import { EmptyState, InfoIcon, MenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { useConnection } from "@/context/wallet";
 import {
   PEGIN_DISPLAY_LABELS,
   type PeginDisplayLabel,
@@ -34,7 +35,6 @@ export interface VaultData {
 
 interface VaultsTableProps {
   vaults: VaultData[];
-  isConnected: boolean;
   onRedeem?: (vaultId: string) => void;
   onDeposit?: () => void;
 }
@@ -79,12 +79,9 @@ function ActionMenu({
   );
 }
 
-export function VaultsTable({
-  vaults,
-  isConnected,
-  onRedeem,
-  onDeposit,
-}: VaultsTableProps) {
+export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
+  const { isConnected } = useConnection();
+
   const columns: ColumnProps<VaultData>[] = [
     {
       key: "vault",

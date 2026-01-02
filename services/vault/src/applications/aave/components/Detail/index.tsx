@@ -10,7 +10,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import { BackButton, EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useConnection, useETHWallet } from "@/context/wallet";
 
 import { LOAN_TAB } from "../../constants";
 import { LoanProvider } from "../context/LoanContext";
@@ -32,9 +32,8 @@ export function AaveReserveDetail() {
   const defaultTab =
     tabParam === LOAN_TAB.REPAY ? LOAN_TAB.REPAY : LOAN_TAB.BORROW;
 
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected, address } = useETHWallet();
-  const isConnected = btcConnected && ethConnected;
+  const { isConnected } = useConnection();
+  const { address } = useETHWallet();
 
   // Fetch reserve and position data
   const {

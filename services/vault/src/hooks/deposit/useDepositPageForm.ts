@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
@@ -60,12 +60,9 @@ export function useDepositPageForm(
   options: UseDepositPageFormOptions = {},
 ): UseDepositPageFormResult {
   const { initialApplicationId } = options;
-  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { address: btcAddress } = useBTCWallet();
+  const { isConnected: isWalletConnected } = useConnection();
   const { btcPriceUSD } = useBTCPrice();
-
-  // Track wallet connection status
-  const isWalletConnected = btcConnected && ethConnected;
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",

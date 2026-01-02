@@ -11,6 +11,7 @@ import {
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { useConnection } from "@/context/wallet";
 
 interface OverviewCardProps {
   collateralAmount: string;
@@ -19,7 +20,6 @@ interface OverviewCardProps {
   healthFactor: number | null;
   /** Health factor status for display */
   healthFactorStatus: HealthFactorStatus;
-  isConnected?: boolean;
 }
 
 export function OverviewCard({
@@ -27,8 +27,8 @@ export function OverviewCard({
   collateralValue,
   healthFactor,
   healthFactorStatus,
-  isConnected = false,
 }: OverviewCardProps) {
+  const { isConnected } = useConnection();
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
 

@@ -12,6 +12,7 @@ import {
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { useConnection } from "@/context/wallet";
 
 export interface LoansSectionProps {
   hasLoans: boolean;
@@ -20,7 +21,6 @@ export interface LoansSectionProps {
   healthFactor: number | null;
   /** Health factor status for display */
   healthFactorStatus: HealthFactorStatus;
-  isConnected?: boolean;
   onBorrow: () => void;
   onRepay: () => void;
 }
@@ -31,10 +31,10 @@ export function LoansSection({
   borrowedAssets = [],
   healthFactor,
   healthFactorStatus,
-  isConnected = false,
   onBorrow,
   onRepay,
 }: LoansSectionProps) {
+  const { isConnected } = useConnection();
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
 
