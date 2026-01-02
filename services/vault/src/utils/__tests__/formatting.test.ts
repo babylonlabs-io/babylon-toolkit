@@ -53,7 +53,9 @@ describe("Formatting Utilities", () => {
     });
 
     it("should handle large BTC amounts", () => {
-      expect(formatBtcAmount(21000000)).toBe(`21000000 ${btcConfig.coinSymbol}`);
+      expect(formatBtcAmount(21000000)).toBe(
+        `21000000 ${btcConfig.coinSymbol}`,
+      );
     });
   });
 

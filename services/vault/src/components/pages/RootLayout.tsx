@@ -13,6 +13,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
 
