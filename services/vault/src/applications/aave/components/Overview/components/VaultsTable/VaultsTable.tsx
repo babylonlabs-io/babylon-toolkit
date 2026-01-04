@@ -10,28 +10,12 @@ import { useRef, useState } from "react";
 import { EmptyState, InfoIcon, MenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection } from "@/context/wallet";
-import {
-  PEGIN_DISPLAY_LABELS,
-  type PeginDisplayLabel,
-} from "@/models/peginStateMachine";
+import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
 
-const btcConfig = getNetworkConfigBTC();
+import type { VaultData } from "../../../../types";
 
-export interface VaultData {
-  id: string;
-  /** BTC amount (for display and sorting) */
-  amount: number;
-  /** USD value (for display and sorting) */
-  usdValue: number;
-  provider: {
-    name: string;
-    /** Icon URL - undefined will use Avatar component's built-in fallback */
-    icon?: string;
-  };
-  /** Vault status from centralized state machine */
-  status: PeginDisplayLabel;
-}
+const btcConfig = getNetworkConfigBTC();
 
 interface VaultsTableProps {
   vaults: VaultData[];

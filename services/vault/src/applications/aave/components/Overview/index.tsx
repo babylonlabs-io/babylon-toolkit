@@ -18,6 +18,7 @@ import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
+import { usePendingVaults, useSyncPendingVaults } from "../../context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -59,6 +60,10 @@ export function AaveOverview() {
   // Fetch user's vaults
   const { vaults, availableForCollateral } = useAaveVaults(address);
 
+  // Get pending state and sync with indexed vault data
+  const { hasPendingAdd, hasPendingWithdraw } = usePendingVaults();
+  useSyncPendingVaults(vaults);
+
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
@@ -76,6 +81,8 @@ export function AaveOverview() {
   );
 
   // Derive display values
+  // Use Aave RPC as the single source of truth for collateral.
+  // Pending state handles the loading UI during add/withdraw operations.
   const hasCollateral = collateralBtc > 0;
   const hasAvailableVaults = availableForCollateral.length > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
@@ -175,6 +182,8 @@ export function AaveOverview() {
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           hasAvailableVaults={hasAvailableVaults}
+          isPendingAdd={hasPendingAdd}
+          isPendingWithdraw={hasPendingWithdraw}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}
