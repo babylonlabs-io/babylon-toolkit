@@ -24,6 +24,7 @@ interface RequiredEnvVars {
 
   // Optional with defaults
   VAULT_PROVIDER_RPC_URL?: string;
+  STAKING_API_URL?: string;
 }
 
 interface EnvValidationResult {
@@ -50,6 +51,7 @@ function validateEnvVars(): EnvValidationResult {
 
     // Optional (has default)
     VAULT_PROVIDER_RPC_URL: process.env.NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL,
+    STAKING_API_URL: process.env.NEXT_PUBLIC_STAKING_API_URL,
   };
 
   // Check for missing required environment variables
@@ -116,4 +118,5 @@ export const envInitError = validationResult.error;
  */
 export const ENV_DEFAULTS = {
   VAULT_PROVIDER_RPC_URL: "http://localhost:8080",
+  STAKING_API_URL: "https://staking-api.babylonlabs.io",
 } as const;

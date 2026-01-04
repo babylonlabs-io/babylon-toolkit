@@ -1,0 +1,1 @@
+export { getPrices } from "./prices";

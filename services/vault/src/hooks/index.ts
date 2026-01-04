@@ -24,6 +24,7 @@ export {
   type UseLtvCalculationsResult,
 } from "./useLtvCalculations";
 export { useNetworkFees } from "./useNetworkFees";
+export { usePrice, usePrices, type UsePricesResult } from "./usePrices";
 export {
   STATS_QUERY_KEY,
   useStats,
