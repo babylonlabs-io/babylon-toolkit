@@ -9,6 +9,7 @@ import {
   ResponsiveDialog,
 } from "@babylonlabs-io/core-ui";
 
+import { usePrices } from "@/hooks";
 import { getTokenByAddress } from "@/services/token/tokenService";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
@@ -49,6 +50,7 @@ export function AssetSelectionModal({
   assets,
 }: AssetSelectionModalProps) {
   const { borrowableReserves, isLoading } = useAaveConfig();
+  const { prices } = usePrices();
   const config = MODE_CONFIG[mode];
 
   const handleAssetClick = (assetSymbol: string) => {
@@ -94,14 +96,15 @@ export function AssetSelectionModal({
     }
 
     return borrowableReserves.map((reserve) => {
-      // Get icon from token service registry
       const tokenMetadata = getTokenByAddress(reserve.token.address);
+      const priceUsd = prices[reserve.token.symbol];
       return (
         <AssetListItem
           key={reserve.reserveId.toString()}
           symbol={reserve.token.symbol}
           name={reserve.token.name}
           icon={tokenMetadata?.icon}
+          priceUsd={priceUsd}
           onClick={() => handleAssetClick(reserve.token.symbol)}
         />
       );
