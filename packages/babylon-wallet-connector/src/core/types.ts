@@ -291,10 +291,34 @@ export interface Action {
   name: string;
 }
 
+/**
+ * Options for signing a specific input in a PSBT.
+ */
+export interface SignInputOptions {
+  /** Input index to sign */
+  index: number;
+  /** Address for signing (optional) */
+  address?: string;
+  /** Public key for signing (optional, hex string) */
+  publicKey?: string;
+  /** Sighash types (optional) */
+  sighashTypes?: number[];
+  /** Disable tweak signer for Taproot script path spend (optional) */
+  disableTweakSigner?: boolean;
+  /** Use tweaked signer for Taproot key path spend (optional) */
+  useTweakedSigner?: boolean;
+}
+
 export interface SignPsbtOptions {
   autoFinalized?: boolean;
   contracts?: Contract[];
   action?: Action;
+  /**
+   * Specific inputs to sign.
+   * If not provided, wallet will attempt to sign all inputs it can.
+   * Use this to restrict signing to specific inputs (e.g., only depositor's input in payout tx).
+   */
+  signInputs?: SignInputOptions[];
 }
 
 export interface IBTCProvider extends IProvider {

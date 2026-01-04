@@ -10,6 +10,7 @@ import {
   stripHexPrefix,
   toXOnly,
   uint8ArrayToHex,
+  validateWalletPubkey,
 } from "../bitcoin";
 
 describe("Bitcoin Utilities", () => {
@@ -360,6 +361,109 @@ describe("Bitcoin Utilities", () => {
       const bytes = hexToUint8Array(withLeadingZeros);
       expect(uint8ArrayToHex(bytes)).toBe("000abc");
       expect(bytes[0]).toBe(0x00);
+    });
+  });
+
+  describe("validateWalletPubkey", () => {
+    const xOnlyPubkey = "a".repeat(64); // 32 bytes x-only
+    const compressedPubkey = "02" + "a".repeat(64); // 33 bytes compressed
+
+    describe("when expected depositor pubkey is provided", () => {
+      it("should pass when wallet pubkey matches expected (both x-only)", () => {
+        const result = validateWalletPubkey(xOnlyPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(xOnlyPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should pass when compressed wallet pubkey matches x-only expected", () => {
+        const result = validateWalletPubkey(compressedPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(compressedPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should be case-insensitive", () => {
+        const lowerCase = "abcdef" + "0".repeat(58);
+        const upperCase = "ABCDEF" + "0".repeat(58);
+
+        const result = validateWalletPubkey(lowerCase, upperCase);
+
+        expect(result.depositorPubkey).toBe(upperCase);
+      });
+
+      it("should throw when wallet pubkey does not match expected", () => {
+        const differentPubkey = "b".repeat(64);
+
+        expect(() => validateWalletPubkey(xOnlyPubkey, differentPubkey)).toThrow(
+          /Wallet public key does not match vault depositor/,
+        );
+      });
+
+      it("should throw with helpful error message", () => {
+        const walletPubkey = "a".repeat(64);
+        const expectedPubkey = "b".repeat(64);
+
+        expect(() => validateWalletPubkey(walletPubkey, expectedPubkey)).toThrow(
+          /Please connect the wallet that was used to create this vault/,
+        );
+      });
+    });
+
+    describe("when expected depositor pubkey is not provided", () => {
+      it("should use wallet x-only pubkey as depositor pubkey", () => {
+        const result = validateWalletPubkey(xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(xOnlyPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should convert compressed wallet pubkey to x-only for depositor", () => {
+        const result = validateWalletPubkey(compressedPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(compressedPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should handle undefined explicitly", () => {
+        const result = validateWalletPubkey(compressedPubkey, undefined);
+
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle 0x prefixed wallet pubkey", () => {
+        const prefixedPubkey = "0x02" + "a".repeat(64);
+
+        const result = validateWalletPubkey(prefixedPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(prefixedPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+      });
+
+      it("should throw on invalid wallet pubkey format", () => {
+        expect(() => validateWalletPubkey("invalid")).toThrow();
+      });
+
+      it("should handle real-world pubkey formats", () => {
+        // Simulating UniSat returning compressed pubkey
+        const unisatCompressed =
+          "02" +
+          "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        const expectedXOnly =
+          "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+
+        const result = validateWalletPubkey(unisatCompressed, expectedXOnly);
+
+        expect(result.walletPubkeyRaw).toBe(unisatCompressed);
+        expect(result.walletPubkeyXOnly).toBe(expectedXOnly);
+        expect(result.depositorPubkey).toBe(expectedXOnly);
+      });
     });
   });
 });

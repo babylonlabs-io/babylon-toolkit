@@ -12,6 +12,7 @@ import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWa
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
+  validateWalletPubkey,
   type Network,
 } from "../primitives";
 
@@ -61,6 +62,13 @@ export interface SignPayoutParams {
    * Liquidator BTC public keys (x-only, 64-char hex).
    */
   liquidatorBtcPubkeys: string[];
+
+  /**
+   * Depositor's BTC public key (x-only, 64-char hex).
+   * This should be the public key that was used when creating the vault,
+   * as stored on-chain. If not provided, will be fetched from the wallet.
+   */
+  depositorBtcPubkey?: string;
 }
 
 /**
@@ -97,49 +105,64 @@ export class PayoutManager {
    * Signs a payout transaction and extracts the Schnorr signature.
    *
    * This method orchestrates the following steps:
-   * 1. Get depositor BTC public key from wallet
-   * 2. Build unsigned PSBT using primitives
-   * 3. Sign PSBT via btcWallet.signPsbt()
-   * 4. Extract 64-byte Schnorr signature using primitives
+   * 1. Get wallet's public key and convert to x-only format
+   * 2. Validate wallet pubkey matches on-chain depositor pubkey (if provided)
+   * 3. Build unsigned PSBT using primitives
+   * 4. Sign PSBT via btcWallet.signPsbt()
+   * 5. Extract 64-byte Schnorr signature using primitives
    *
    * The returned signature can be submitted to the vault provider API.
    *
    * @param params - Payout signing parameters
    * @returns Signature result with 64-byte Schnorr signature and depositor pubkey
+   * @throws Error if wallet pubkey doesn't match depositor pubkey
    * @throws Error if wallet operations fail or signature extraction fails
    */
   async signPayoutTransaction(
     params: SignPayoutParams,
   ): Promise<PayoutSignatureResult> {
-    // Step 1: Get depositor BTC public key from wallet
-    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
-    // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
-    const depositorBtcPubkey = depositorBtcPubkeyRaw.length === 66
-      ? depositorBtcPubkeyRaw.slice(2)  // Strip first byte (02 or 03)
-      : depositorBtcPubkeyRaw;           // Already x-only
+    // Validate wallet pubkey matches depositor and get both formats
+    const walletPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    const { depositorPubkey } = validateWalletPubkey(
+      walletPubkeyRaw,
+      params.depositorBtcPubkey,
+    );
 
-    // Step 2: Build unsigned PSBT using primitives
+    // Build unsigned PSBT
     const payoutPsbt = await buildPayoutPsbt({
       payoutTxHex: params.payoutTxHex,
       peginTxHex: params.peginTxHex,
       claimTxHex: params.claimTxHex,
-      depositorBtcPubkey,
+      depositorBtcPubkey: depositorPubkey,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
       liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
       network: this.config.network,
     });
 
-    // Step 3: Sign PSBT via wallet
+    // Sign PSBT via wallet
+    // - signInputs restricts signing to input 0 only (input 1 is signed by claimer/challengers)
+    // - walletPubkeyRaw uses compressed format (66 chars) as expected by wallets like UniSat
+    // - disableTweakSigner is required for Taproot script path spend (uses untweaked key)
     const signedPsbtHex = await this.config.btcWallet.signPsbt(
       payoutPsbt.psbtHex,
+      {
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: walletPubkeyRaw,
+            disableTweakSigner: true,
+          },
+        ],
+      },
     );
 
-    // Step 4: Extract Schnorr signature using primitives
-    const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
+    // Extract Schnorr signature
+    const signature = extractPayoutSignature(signedPsbtHex, depositorPubkey);
 
     return {
       signature,
-      depositorBtcPubkey,
+      depositorBtcPubkey: depositorPubkey,
     };
   }
 
