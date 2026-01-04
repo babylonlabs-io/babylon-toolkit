@@ -1,3 +1,2 @@
-export { VaultsEmptyState } from "./VaultsEmptyState";
+export type { VaultData } from "../../../../types";
 export { VaultsTable } from "./VaultsTable";
-export type { VaultData } from "./VaultsTable";

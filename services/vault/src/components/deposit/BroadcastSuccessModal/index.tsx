@@ -14,6 +14,10 @@ import {
   Text,
 } from "@babylonlabs-io/core-ui";
 
+import { getNetworkConfigBTC } from "@/config";
+
+const btcConfig = getNetworkConfigBTC();
+
 interface BroadcastSuccessModalProps {
   open: boolean;
   onClose: () => void;
@@ -38,8 +42,8 @@ export function BroadcastSuccessModal({
     <ResponsiveDialog open={open} onClose={onClose}>
       <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
         <img
-          src="/images/btc.png"
-          alt="Bitcoin"
+          src={btcConfig.icon}
+          alt={btcConfig.name}
           className="mx-auto h-auto w-full max-w-[160px]"
         />
 
@@ -55,8 +59,8 @@ export function BroadcastSuccessModal({
           className="text-sm text-accent-secondary sm:text-base"
         >
           Your Bitcoin transaction has been broadcast to the network. Your
-          deposit of {amount} BTC is now awaiting confirmation on the Bitcoin
-          blockchain.
+          deposit of {amount} {btcConfig.coinSymbol} is now awaiting
+          confirmation on the Bitcoin blockchain.
         </Text>
 
         <Text

@@ -15,9 +15,12 @@ import {
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { PeginPollingProvider } from "../../../context/deposit/PeginPollingContext";
 import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
+import { formatTimeAgo } from "../../../utils/formatting";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
@@ -34,6 +37,8 @@ import {
 } from "./DepositTableCells";
 import { EmptyState } from "./EmptyState";
 import { useDepositOverviewState } from "./useDepositOverviewState";
+
+const btcConfig = getNetworkConfigBTC();
 
 export function DepositOverview() {
   const isMobile = useIsMobile();
@@ -55,6 +60,7 @@ export function DepositOverview() {
     handlePayoutSignSuccess,
     broadcastingActivity,
     broadcastSuccessOpen,
+    broadcastSuccessAmount,
     handleBroadcastClick,
     handleBroadcastClose,
     handleBroadcastSuccess,
@@ -82,19 +88,19 @@ export function DepositOverview() {
   const columns: ColumnProps<Deposit>[] = [
     {
       key: "amount",
-      header: "BTC Vault",
+      header: `${btcConfig.coinSymbol} Vault`,
       render: (_value: unknown, row: Deposit) => (
         <div className="flex items-center gap-2">
           <AvatarGroup size="small">
             <Avatar
-              url="/images/btc.png"
-              alt="BTC"
+              url={btcConfig.icon}
+              alt={btcConfig.coinSymbol}
               size="small"
               variant="circular"
             />
           </AvatarGroup>
           <span className="text-sm font-medium text-accent-primary">
-            {row.amount} BTC
+            {row.amount} {btcConfig.coinSymbol}
           </span>
         </div>
       ),
@@ -112,6 +118,15 @@ export function DepositOverview() {
       render: (_value: unknown, row: Deposit) => (
         <span className="text-sm text-accent-primary">
           {row.appName || "Unknown"}
+        </span>
+      ),
+    },
+    {
+      key: "timestamp",
+      header: "Time",
+      render: (_value: unknown, row: Deposit) => (
+        <span className="text-sm text-accent-secondary">
+          {row.timestamp ? formatTimeAgo(row.timestamp) : "-"}
         </span>
       ),
     },
@@ -159,7 +174,7 @@ export function DepositOverview() {
           </div>
         ) : (
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
-            <Table data={deposits} columns={columns} fluid />
+            <Table data={deposits} columns={columns} fluid stylePreset="card" />
           </div>
         )}
 
@@ -191,7 +206,7 @@ export function DepositOverview() {
         <BroadcastSuccessModal
           open={broadcastSuccessOpen}
           onClose={handleBroadcastSuccessClose}
-          amount={broadcastingActivity?.collateral.amount || "0"}
+          amount={broadcastSuccessAmount}
         />
 
         {/* Redeem Form Modal */}

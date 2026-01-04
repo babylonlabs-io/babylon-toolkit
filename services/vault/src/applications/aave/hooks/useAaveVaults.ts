@@ -66,13 +66,18 @@ export interface UseAaveVaultsResult {
 export function useAaveVaults(
   depositorAddress: string | undefined,
 ): UseAaveVaultsResult {
+  const { pendingVaults } = usePendingVaults();
+  const hasPendingOperations = pendingVaults.size > 0;
+
   const {
     data: vaults,
     isLoading: vaultsLoading,
     error,
-  } = useVaults(depositorAddress as Address | undefined);
+  } = useVaults(depositorAddress as Address | undefined, {
+    // Poll when there are pending operations to detect when indexer confirms them
+    poll: hasPendingOperations,
+  });
   const { btcPriceUSD } = useBTCPrice();
-  const { pendingVaultIds } = usePendingVaults();
 
   const isLoading = vaultsLoading;
 
@@ -92,9 +97,9 @@ export function useAaveVaults(
     return allVaults.filter(
       (vault) =>
         vault.status !== PEGIN_DISPLAY_LABELS.IN_USE &&
-        !pendingVaultIds.has(vault.id),
+        !pendingVaults.has(vault.id),
     );
-  }, [allVaults, pendingVaultIds]);
+  }, [allVaults, pendingVaults]);
 
   return {
     vaults: allVaults,

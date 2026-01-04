@@ -20,7 +20,8 @@ interface PositionCardProps {
   collateralUsdValue?: string;
   hasCollateral?: boolean;
   hasAvailableVaults?: boolean;
-  isConnected?: boolean;
+  isPendingAdd?: boolean;
+  isPendingWithdraw?: boolean;
   onAdd: () => void;
   onWithdraw: () => void;
   // Loans props
@@ -37,7 +38,8 @@ export function PositionCard({
   collateralUsdValue,
   hasCollateral = false,
   hasAvailableVaults = false,
-  isConnected = false,
+  isPendingAdd = false,
+  isPendingWithdraw = false,
   onAdd,
   onWithdraw,
   hasLoans,
@@ -64,7 +66,8 @@ export function PositionCard({
                   usdValue={collateralUsdValue}
                   hasCollateral={hasCollateral}
                   hasAvailableVaults={hasAvailableVaults}
-                  isConnected={isConnected}
+                  isPendingAdd={isPendingAdd}
+                  isPendingWithdraw={isPendingWithdraw}
                   onAdd={onAdd}
                   onWithdraw={onWithdraw}
                 />

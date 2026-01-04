@@ -1,4 +1,11 @@
-import { useState } from "react";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Heading,
+  Text,
+} from "@babylonlabs-io/core-ui";
+import { AiOutlineMinus, AiOutlinePlus } from "react-icons/ai";
 
 const faqData = [
   {
@@ -34,45 +41,39 @@ const faqData = [
 ];
 
 export function DepositFAQ() {
-  const [openId, setOpenId] = useState<string | null>(null);
-
-  const handleClick = (id: string) => {
-    setOpenId(openId === id ? null : id);
-  };
-
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="mb-4 text-2xl font-normal leading-[133%] tracking-[0px] text-accent-primary">
+    <section>
+      <Heading
+        as="h3"
+        variant="h5"
+        className="mb-4 font-normal capitalize text-accent-primary md:mb-6 md:text-[1.625rem] md:leading-[2.625rem] md:tracking-[0.25px]"
+      >
         FAQs
-      </h2>
-      <div className="space-y-4">
-        {faqData.map((faq) => {
-          const answerId = `faq-answer-${faq.id}`;
-          const isOpen = openId === faq.id;
-          return (
-            <div key={faq.id}>
-              <button
-                onClick={() => handleClick(faq.id)}
-                className="w-full cursor-pointer text-left"
-                aria-expanded={isOpen}
-                aria-controls={answerId}
+      </Heading>
+      <div className="divide-y divide-secondary-strokeLight">
+        {faqData.map((faq) => (
+          <div key={faq.id} className="pb-6 pt-4 first:pt-0">
+            <Accordion className="text-primary-dark">
+              <AccordionSummary
+                renderIcon={(expanded) =>
+                  expanded ? (
+                    <AiOutlineMinus size={24} />
+                  ) : (
+                    <AiOutlinePlus size={24} />
+                  )
+                }
               >
-                <h3 className="text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary">
-                  {faq.question}
-                </h3>
-              </button>
-              {isOpen && (
-                <p
-                  id={answerId}
-                  className="mt-2 text-base font-normal leading-[150%] tracking-[0.15px] text-accent-secondary"
-                >
-                  {faq.answer}
-                </p>
-              )}
-            </div>
-          );
-        })}
+                <Heading variant="h6" className="mr-4">
+                  <span className="align-middle">{faq.question}</span>
+                </Heading>
+              </AccordionSummary>
+              <AccordionDetails className="pt-2" unmountOnExit>
+                <Text as="div">{faq.answer}</Text>
+              </AccordionDetails>
+            </Accordion>
+          </div>
+        ))}
       </div>
-    </div>
+    </section>
   );
 }

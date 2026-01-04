@@ -18,6 +18,10 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    env: {
+      NEXT_PUBLIC_BTC_NETWORK: "signet",
+      NEXT_PUBLIC_ETH_CHAINID: "11155111", // Sepolia
+    },
     exclude: ["**/node_modules/**", "**/dist/**", "**/integration.test.tsx", "**/e2e/**"],
     coverage: {
       provider: "v8",
@@ -34,7 +38,7 @@ export default defineConfig({
     },
     server: {
       deps: {
-        inline: ["@babylonlabs-io/wallet-connector", "@babylonlabs-io/config"],
+        inline: ["@babylonlabs-io/wallet-connector"],
       },
     },
   },

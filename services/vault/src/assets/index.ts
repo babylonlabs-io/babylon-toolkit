@@ -1,4 +1,7 @@
 // Asset exports for vault application
-// Bitcoin icon from public folder
-export const bitcoinIcon = "/icons/bitcoin.png";
-export const usdcIcon = "/icons/usdc.svg";
+import { getNetworkConfigBTC } from "../config";
+
+const btcConfig = getNetworkConfigBTC();
+
+export const bitcoinIcon = btcConfig.icon;
+export const usdcIcon = "/images/usdc.png";

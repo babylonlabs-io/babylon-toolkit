@@ -1,18 +1,26 @@
-import { Button } from "@babylonlabs-io/core-ui";
+import { Button, useIsMobile } from "@babylonlabs-io/core-ui";
 
 interface AaveBannerProps {
   onExplore: () => void;
 }
 
 export function AaveBanner({ onExplore }: AaveBannerProps) {
-  return (
-    <div
-      className="relative mx-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-4 overflow-hidden rounded-2xl p-6 md:mx-0 md:grid-cols-[1fr_auto] md:gap-8 md:p-16"
-      style={{
+  const isMobile = useIsMobile();
+
+  // Mobile: solid gradient color to cover whole card
+  // Desktop: radial gradient with positioned effect
+  const backgroundStyle = isMobile
+    ? { background: "#9896FF" }
+    : {
         background:
           // radial-gradient(<ellipse width> <ellipse height> at <centerX> <centerY>, <color-stop1>, <color-stop2>, <color-stop3>)
           "radial-gradient(450% 500% at 210% 220%, #A1A0EF 50%, #8D8CED 50.1%, #9896FF 100%)",
-      }}
+      };
+
+  return (
+    <div
+      className="relative mx-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-4 overflow-hidden rounded-2xl p-6 md:mx-0 md:grid-cols-[1fr_auto] md:gap-8 md:p-16"
+      style={backgroundStyle}
     >
       <h4 className="col-start-1 row-start-1 text-[32px] font-bold leading-tight text-white md:col-start-1 md:row-start-1 md:max-w-[440px] md:text-[40px]">
         Aave

@@ -156,9 +156,6 @@ export function useDepositFlow(
         throw new Error("Failed to get wallet client");
       }
 
-      // Step 3: Submit pegin request (PeginManager handles PoP internally)
-      setCurrentStep(2);
-
       // Use new service for fee calculation
       const fees = depositService.calculateDepositFees(amount);
 
@@ -176,6 +173,10 @@ export function useDepositFlow(
         vaultProviderBtcPubkey,
         liquidatorBtcPubkeys,
         availableUTXOs: confirmedUTXOs,
+        // Callback to update step indicator AFTER PoP signing, BEFORE ETH signing
+        onPopSigned: () => {
+          setCurrentStep(2);
+        },
       });
 
       // Get depositor's BTC public key for display
@@ -212,10 +213,7 @@ export function useDepositFlow(
 
       addPendingPegin(depositorEthAddress, peginData);
 
-      // Step 4: Complete
-      setCurrentStep(3);
-
-      // Call success callback
+      // Step 2 complete - call success callback
       onSuccess(btcTxid, ethTxHash, depositorBtcPubkey, {
         unsignedTxHex: result.btcTxHex,
         selectedUTXOs: result.selectedUTXOs,

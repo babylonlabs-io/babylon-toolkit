@@ -5,14 +5,19 @@ import {
   Header,
   Nav,
   StandardSettingsMenu,
+  TestingBanner,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { Connect } from "../Wallet";
+
+const btcConfig = getNetworkConfigBTC();
 
 function AppNavLink({
   to,
@@ -81,6 +86,7 @@ export default function RootLayout() {
       )}
     >
       <div className="flex min-h-svh flex-col">
+        <TestingBanner visible={shouldDisplayTestingMsg()} />
         <Header
           size="sm"
           navigation={<DesktopNavigation />}
@@ -93,7 +99,7 @@ export default function RootLayout() {
                   rounded
                   onClick={() => navigate("/deposit")}
                 >
-                  Deposit BTC
+                  Deposit {btcConfig.coinSymbol}
                 </Button>
               )}
               <Connect />

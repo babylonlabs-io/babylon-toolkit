@@ -52,6 +52,15 @@ import { useDepositPageForm } from "../useDepositPageForm";
 vi.mock("../../../context/wallet", () => ({
   useBTCWallet: vi.fn(() => ({
     address: "bc1qtest123",
+    connected: true,
+  })),
+  useETHWallet: vi.fn(() => ({
+    connected: true,
+  })),
+  useConnection: vi.fn(() => ({
+    isConnected: true,
+    btcConnected: true,
+    ethConnected: true,
   })),
 }));
 
@@ -198,6 +207,19 @@ describe("useDepositPageForm", () => {
       });
       expect(result.current.errors).toEqual({});
       expect(result.current.isValid).toBe(false);
+    });
+
+    it("should initialize with initial application ID when provided", () => {
+      const { result } = renderHook(
+        () => useDepositPageForm({ initialApplicationId: "app1" }),
+        { wrapper },
+      );
+
+      expect(result.current.formData).toEqual({
+        amountBtc: "",
+        selectedApplication: "app1",
+        selectedProvider: "",
+      });
     });
 
     it("should calculate BTC balance from UTXOs", () => {

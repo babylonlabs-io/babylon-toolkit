@@ -7,33 +7,18 @@ import type { ColumnProps } from "@babylonlabs-io/core-ui";
 import { Avatar, Button, Card, Popover, Table } from "@babylonlabs-io/core-ui";
 import { useRef, useState } from "react";
 
-import { InfoIcon, MenuButton } from "@/components/shared";
-import {
-  PEGIN_DISPLAY_LABELS,
-  type PeginDisplayLabel,
-} from "@/models/peginStateMachine";
+import { EmptyState, InfoIcon, MenuButton } from "@/components/shared";
+import { getNetworkConfigBTC } from "@/config";
+import { useConnection } from "@/context/wallet";
+import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
 
-import { VaultsEmptyState } from "./VaultsEmptyState";
+import type { VaultData } from "../../../../types";
 
-export interface VaultData {
-  id: string;
-  /** BTC amount (for display and sorting) */
-  amount: number;
-  /** USD value (for display and sorting) */
-  usdValue: number;
-  provider: {
-    name: string;
-    /** Icon URL - undefined will use Avatar component's built-in fallback */
-    icon?: string;
-  };
-  /** Vault status from centralized state machine */
-  status: PeginDisplayLabel;
-}
+const btcConfig = getNetworkConfigBTC();
 
 interface VaultsTableProps {
   vaults: VaultData[];
-  isConnected: boolean;
   onRedeem?: (vaultId: string) => void;
   onDeposit?: () => void;
 }
@@ -70,7 +55,7 @@ function ActionMenu({
             onClick={handleRedeem}
             className="w-full justify-start rounded-lg text-left text-base text-accent-primary hover:bg-secondary-highlight dark:hover:bg-primary-main"
           >
-            Redeem BTC
+            Redeem {btcConfig.coinSymbol}
           </Button>
         </div>
       </Popover>
@@ -78,22 +63,23 @@ function ActionMenu({
   );
 }
 
-export function VaultsTable({
-  vaults,
-  isConnected,
-  onRedeem,
-  onDeposit,
-}: VaultsTableProps) {
+export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
+  const { isConnected } = useConnection();
+
   const columns: ColumnProps<VaultData>[] = [
     {
       key: "vault",
-      header: "BTC Vault",
+      header: `${btcConfig.coinSymbol} Vault`,
       headerClassName: "w-[50%]",
       cellClassName: "w-[50%]",
       sorter: (a, b) => a.amount - b.amount,
       render: (_value, row) => (
         <div className="flex items-center gap-3">
-          <Avatar url="/images/btc.png" alt="BTC" size="small" />
+          <Avatar
+            url={btcConfig.icon}
+            alt={btcConfig.coinSymbol}
+            size="small"
+          />
           <span className="text-base text-accent-primary">
             {formatBtcValue(row.amount)}{" "}
             <span className="text-accent-secondary">
@@ -147,15 +133,28 @@ export function VaultsTable({
 
   // Show empty state if no vaults
   if (vaults.length === 0) {
+    const emptyStateTitle = isConnected
+      ? `You have no ${btcConfig.coinSymbol} Vaults available.`
+      : `Please connect your wallet to view your ${btcConfig.coinSymbol} collateral.`;
+
+    const emptyStateDescription = isConnected
+      ? `Deposit ${btcConfig.coinSymbol} to create your first vault and enable borrowing.`
+      : undefined;
+
     return (
       <Card className="w-full">
         <div className="w-full space-y-6">
           <h2 className="text-[24px] font-normal text-accent-primary">
             Vaults
           </h2>
-          <VaultsEmptyState
+          <EmptyState
+            avatarUrl={btcConfig.icon}
+            avatarAlt={btcConfig.name}
+            title={emptyStateTitle}
+            description={emptyStateDescription}
             isConnected={isConnected}
-            onDeposit={onDeposit || (() => console.log("Deposit clicked"))}
+            actionLabel={`Deposit ${btcConfig.coinSymbol}`}
+            onAction={onDeposit || (() => console.log("Deposit clicked"))}
           />
         </div>
       </Card>

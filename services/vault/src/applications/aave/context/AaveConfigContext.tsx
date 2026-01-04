@@ -8,6 +8,7 @@
  * - Borrowable reserves list (for asset selection)
  */
 
+import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 
@@ -40,6 +41,9 @@ interface AaveConfigProviderProps {
 /**
  * Provider that fetches Aave config on mount and provides it to children.
  * Wrap this around the Aave routes to ensure config is available.
+ *
+ * Children are not rendered until config is loaded, ensuring all child
+ * components have access to valid config values (no undefined spokeAddress, etc.)
  */
 export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
   // Fetch all Aave config in a single GraphQL request
@@ -50,11 +54,21 @@ export function AaveConfigProvider({ children }: AaveConfigProviderProps) {
     refetchOnWindowFocus: false,
   });
 
+  // Don't render children until config is loaded.
+  // This ensures all child components have valid config values.
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader size={32} />
+      </div>
+    );
+  }
+
   const value: AaveConfigContextValue = {
     config: data?.config ?? null,
     vbtcReserve: data?.vbtcReserve ?? null,
     borrowableReserves: data?.borrowableReserves ?? [],
-    isLoading,
+    isLoading: false,
     error: error as Error | null,
   };
 

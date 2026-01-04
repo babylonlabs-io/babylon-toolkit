@@ -204,6 +204,7 @@ function transformVaultItem(item: GraphQLVaultItem, isInUse: boolean): Vault {
     vaultProvider: item.vaultProvider as Address,
     status: mapGraphQLStatusToVaultStatus(item.status),
     applicationController: item.applicationController as Address,
+    createdAt: parseInt(item.pendingAt, 10) * 1000,
     isInUse,
   };
 }

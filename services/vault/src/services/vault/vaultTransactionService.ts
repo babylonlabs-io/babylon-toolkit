@@ -43,6 +43,12 @@ export interface SubmitPeginParams {
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
   availableUTXOs: UTXO[];
+  /**
+   * Optional callback invoked after PoP signing completes but before ETH transaction.
+   * Useful for updating UI step indicators between Step 1 (PoP) and Step 2 (ETH).
+   * Can be async - will be awaited to allow UI updates before ETH signing.
+   */
+  onPopSigned?: () => void | Promise<void>;
 }
 
 /**
@@ -124,6 +130,7 @@ export async function submitPeginRequest(
     depositorBtcPubkey,
     unsignedBtcTx: peginResult.fundedTxHex,
     vaultProvider: params.vaultProviderAddress,
+    onPopSigned: params.onPopSigned,
   });
 
   // Step 5: Return results

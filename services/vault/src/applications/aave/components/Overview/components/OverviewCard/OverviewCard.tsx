@@ -11,6 +11,7 @@ import {
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
+import { useConnection } from "@/context/wallet";
 
 interface OverviewCardProps {
   collateralAmount: string;
@@ -27,8 +28,15 @@ export function OverviewCard({
   healthFactor,
   healthFactorStatus,
 }: OverviewCardProps) {
+  const { isConnected } = useConnection();
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
+
+  // Show placeholder values when not connected
+  const displayAmount = isConnected ? collateralAmount : "--";
+  const displayValue = isConnected
+    ? collateralValue.replace(/ USD$/, "")
+    : "--";
 
   return (
     <Card className="w-full">
@@ -39,23 +47,29 @@ export function OverviewCard({
 
         <div className="space-y-4">
           {/* Collateral Value Row */}
-          <div className="flex items-center justify-between border-b border-secondary-strokeLight pb-4">
+          <div
+            className={`flex items-center justify-between ${isConnected ? "border-b border-secondary-strokeLight pb-4" : ""}`}
+          >
             <span className="text-sm text-accent-secondary">
               Collateral Value
             </span>
             <span className="text-base text-accent-primary">
-              {collateralAmount} ({collateralValue.replace(/ USD$/, "")})
+              {displayAmount} ({displayValue})
             </span>
           </div>
 
-          {/* Health Factor Row */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-accent-secondary">Health Factor</span>
-            <span className="flex items-center gap-2 text-base text-accent-primary">
-              <HeartIcon color={healthFactorColor} />
-              {healthFactorFormatted}
-            </span>
-          </div>
+          {/* Health Factor Row - only show when connected */}
+          {isConnected && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-accent-secondary">
+                Health Factor
+              </span>
+              <span className="flex items-center gap-2 text-base text-accent-primary">
+                <HeartIcon color={healthFactorColor} />
+                {healthFactorFormatted}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Card>

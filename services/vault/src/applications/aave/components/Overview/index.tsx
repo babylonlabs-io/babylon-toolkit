@@ -12,10 +12,13 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
+import { getNetworkConfigBTC } from "@/config";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
+import { usePendingVaults, useSyncPendingVaults } from "../../context";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -28,6 +31,8 @@ import { CollateralModal, type CollateralMode } from "../CollateralModal";
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
 import { VaultsTable } from "./components/VaultsTable";
+
+const btcConfig = getNetworkConfigBTC();
 
 export function AaveOverview() {
   const navigate = useNavigate();
@@ -55,6 +60,10 @@ export function AaveOverview() {
   // Fetch user's vaults
   const { vaults, availableForCollateral } = useAaveVaults(address);
 
+  // Get pending state and sync with indexed vault data
+  const { hasPendingAdd, hasPendingWithdraw } = usePendingVaults();
+  useSyncPendingVaults(vaults);
+
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
     position,
@@ -72,11 +81,12 @@ export function AaveOverview() {
   );
 
   // Derive display values
+  // Use Aave RPC as the single source of truth for collateral.
+  // Pending state handles the loading UI during add/withdraw operations.
   const hasCollateral = collateralBtc > 0;
   const hasAvailableVaults = availableForCollateral.length > 0;
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
-  const isConnected = !!address;
 
   const handleBack = () => navigate("/");
 
@@ -119,8 +129,7 @@ export function AaveOverview() {
   };
 
   const handleDeposit = () => {
-    // TODO: Navigate to deposit flow
-    navigate("/deposit");
+    navigate(`/deposit?app=${AAVE_APP_ID}`);
   };
 
   const handleRedeem = (vaultId: string) => {
@@ -148,8 +157,8 @@ export function AaveOverview() {
         </div>
 
         <p className="text-base text-accent-secondary">
-          Borrow assets using vaultBTC as collateral. Deposit BTC into a vault
-          to enable borrowing through Aave.
+          Borrow assets using vaultBTC as collateral. Deposit{" "}
+          {btcConfig.coinSymbol} into a vault to enable borrowing through Aave.
         </p>
 
         {/* Section 1: Overview */}
@@ -163,7 +172,6 @@ export function AaveOverview() {
         {/* Section 2: Vaults Table */}
         <VaultsTable
           vaults={vaults}
-          isConnected={isConnected}
           onRedeem={handleRedeem}
           onDeposit={handleDeposit}
         />
@@ -174,7 +182,8 @@ export function AaveOverview() {
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
           hasAvailableVaults={hasAvailableVaults}
-          isConnected={isConnected}
+          isPendingAdd={hasPendingAdd}
+          isPendingWithdraw={hasPendingWithdraw}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}

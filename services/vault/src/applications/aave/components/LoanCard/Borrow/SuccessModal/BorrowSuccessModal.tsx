@@ -37,7 +37,7 @@ export function BorrowSuccessModal({
       icon={<Avatar url={assetIcon} size="large" className="!h-24 !w-24" />}
       iconParentClassName="h-24 w-24 rounded-full"
       title="Borrow Successful"
-      cancelButton={undefined}
+      cancelButton=""
       submitButton="View Loan"
       onSubmit={onViewLoan}
     >
