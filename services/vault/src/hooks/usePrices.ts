@@ -33,6 +33,7 @@ export function usePrices(): UsePricesResult {
     queryKey: [PRICES_QUERY_KEY],
     queryFn: getPrices,
     staleTime: ONE_MINUTE,
+    refetchInterval: ONE_MINUTE,
     retry: 2,
   });
 

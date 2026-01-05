@@ -83,6 +83,19 @@ export function formatUsdValue(usdValue: number): string {
 }
 
 /**
+ * Format price in USD for compact display (without suffix)
+ * Uses no decimals for values >= 1000, 2 decimals otherwise
+ * @param priceUsd - Price in USD
+ * @returns Formatted price string (e.g., "$1,234" or "$99.50")
+ */
+export function formatPriceUsd(priceUsd: number): string {
+  if (priceUsd >= 1000) {
+    return `$${priceUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  }
+  return `$${priceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
  * Format a number amount for display with locale-aware formatting
  * @param amount - The numeric amount to format
  * @param maxDecimals - Maximum decimal places (default: 2)
