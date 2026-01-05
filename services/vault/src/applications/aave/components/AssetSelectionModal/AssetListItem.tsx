@@ -1,6 +1,7 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
+import { formatPriceUsd } from "@/utils/formatting";
 
 interface AssetListItemProps {
   symbol: string;
@@ -9,13 +10,6 @@ interface AssetListItemProps {
   icon?: string;
   priceUsd?: number;
   onClick: () => void;
-}
-
-function formatPrice(priceUsd: number): string {
-  if (priceUsd >= 1000) {
-    return `$${priceUsd.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-  }
-  return `$${priceUsd.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function AssetListItem({
@@ -45,7 +39,7 @@ export function AssetListItem({
       </div>
       {priceUsd !== undefined && (
         <span className="text-base font-medium text-accent-primary">
-          {formatPrice(priceUsd)}
+          {formatPriceUsd(priceUsd)}
         </span>
       )}
     </button>
