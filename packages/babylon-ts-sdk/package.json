@@ -50,7 +50,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "docs:generate": "typedoc",
+    "docs:clean": "rm -rf docs/api && pnpm docs:generate",
+    "docs:validate": "typedoc --emit none"
   },
   "files": [
     "dist",
@@ -85,8 +88,12 @@
     "@internal/eslint-config": "workspace:*",
     "@vitest/coverage-v8": "^4.0.8",
     "@vitest/ui": "^4.0.8",
+    "eslint-plugin-jsdoc": "^50.6.17",
+    "eslint-plugin-tsdoc": "^0.4.0",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.1.0",
+    "typedoc": "^0.28.5",
+    "typedoc-plugin-markdown": "^4.6.3",
     "typescript": "^5.8.3",
     "viem": "^2.38.2",
     "vite": "^6.4.1",

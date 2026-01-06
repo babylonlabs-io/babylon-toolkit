@@ -76,12 +76,11 @@ Complete flows and tutorials:
 - **[Advanced: Using Primitives](./docs/guides/advanced-primitives.md)** - Low-level primitives for custom use cases
 - **[Protocol Integrations](./docs/guides/integrations.md)** - For protocol developers
 
-### 🔍 API Reference [⚠️WIP]
+### 🔍 API Reference
 
-Auto-generated from source code:
+Auto-generated from TSDoc comments using [TypeDoc](https://typedoc.org/):
 
-- **[Managers API](./docs/api/managers.md)** - High-level wallet orchestration
-- **[Primitives API](./docs/api/primitives.md)** - Low-level pure functions
+- **[API Reference](./docs/api/README.md)** - Complete auto-generated API documentation
 
 ### 💡 Examples [⚠️WIP]
 
@@ -89,6 +88,25 @@ Working example applications:
 
 - **[React App with Managers](./examples/managers-react/)** - Front-end implementation
 - **[Node.js with Primitives](./examples/primitives-nodejs/)** - Back-end integration with custom signing
+
+## Development
+
+### Generating Documentation
+
+API documentation is auto-generated from TSDoc comments using TypeDoc:
+
+```bash
+# Generate docs
+pnpm docs:generate
+
+# Clean and regenerate
+pnpm docs:clean
+
+# Validate docs without generating
+pnpm docs:validate
+```
+
+> **Note**: The `docs/api/` directory contains auto-generated content. Do not edit these files directly. Instead, update TSDoc comments in the source code and regenerate.
 
 ## Links
 

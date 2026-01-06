@@ -1,0 +1,20 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/tbv/core/primitives/index.ts"
+  ],
+  "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "router": "module",
+  "alwaysCreateEntryPointModule": true,
+  "useCodeBlocks": true,
+  "readme": "none",
+  "validation": {
+    "notDocumented": false,
+    "invalidLink": true,
+    "notExported": false
+  }
+}
+
