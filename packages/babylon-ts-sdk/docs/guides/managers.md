@@ -409,7 +409,7 @@ async function withdrawBTC(payoutRequest) {
 | ---------------------------- | ------------------------ | ------------------------------------------ | ------------------------------------------- |
 | `Vault already exists`       | `registerPeginOnChain()` | Vault ID is deterministic from transaction | Use different UTXOs or amount               |
 | `Insufficient funds`         | `preparePegin()`         | Not enough UTXOs to cover amount + fees    | Add more UTXOs or reduce amount             |
-| `wallet account not found`   | Any manager method       | Wallet not connected                       | Prompt user to connect wallet               |
+| `Wallet account not found`   | Any manager method       | Wallet not connected                       | Prompt user to connect wallet               |
 | `Invalid depositorBtcPubkey` | `signAndBroadcast()`     | Pubkey wrong format                        | Use x-only format (64 hex chars, no prefix) |
 
 ### Error Handling Pattern
