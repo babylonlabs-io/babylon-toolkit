@@ -162,9 +162,9 @@ Or use `"moduleResolution": "node16"` in TypeScript 5.x.
 
 Now that the SDK is installed:
 
-- **[Managers Guide](../managers-guide.md)** - High-level API for wallet integration (recommended for most apps)
-- **[Managers API Reference](../managers-api-reference.md)** - Complete type definitions and method signatures
-- **[Primitives Guide](../tbv-ts-sdk.md)** - Lower-level API for custom implementations
+- **[Managers Guide](../guides/managers.md)** - High-level API for wallet integration (recommended for most apps)
+- **[Managers API Reference](../api/managers.md)** - Complete type definitions and method signatures
+- **[Primitives Guide](../guides/primitives.md)** - Lower-level API for custom implementations
 
 ## Need Help?
 
