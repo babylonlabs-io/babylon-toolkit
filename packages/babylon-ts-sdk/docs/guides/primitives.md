@@ -25,9 +25,10 @@ import { Psbt, networks } from "bitcoinjs-lib";
 
 ### Peg-in
 
-Deposit BTC into a TBV vault.
+Deposit BTC into a TBV.
 
 `buildPeginPsbt()` returns:
+
 - `vaultScriptPubKey` - The vault output script (use this to build the vault output)
 - `vaultValue` - The vault output value in satoshis
 - `psbtHex` - Unfunded transaction hex (0 inputs, 1 vault output)
@@ -52,10 +53,10 @@ const DUST_THRESHOLD = 546n;
 async function pegin() {
   // Step 1: Build unfunded transaction with vault output
   const pegin = await buildPeginPsbt({
-    depositorPubkey: "a1b2c3d4...",        // your x-only pubkey (64 hex chars)
-    claimerPubkey: "e5f6a7b8...",          // vault provider pubkey
-    challengerPubkeys: ["c9d0e1f2..."],    // liquidator pubkeys
-    pegInAmount: 100000n,                  // satoshis
+    depositorPubkey: "a1b2c3d4...", // your x-only pubkey (64 hex chars)
+    claimerPubkey: "e5f6a7b8...", // vault provider pubkey
+    challengerPubkeys: ["c9d0e1f2..."], // liquidator pubkeys
+    pegInAmount: 100000n, // satoshis
     network: "signet",
   });
 
@@ -101,12 +102,14 @@ async function pegin() {
 
 ### Payout
 
-Withdraw BTC from a TBV vault. The vault keeper initiates the payout, and you (the depositor) sign to approve it.
+Withdraw BTC from a TBV. The vault keeper initiates the payout, and you (the depositor) sign to approve it.
 
 `buildPayoutPsbt()` returns:
+
 - `psbtHex` - Unsigned PSBT ready for signing (input 0 is the vault UTXO)
 
 `extractPayoutSignature()` returns:
+
 - 64-byte Schnorr signature (128 hex chars) to submit to the vault keeper
 
 **Your responsibility:** Sign input 0 with your signing mechanism, extract the signature, and submit to vault keeper.
@@ -119,18 +122,18 @@ import {
 
 async function payout() {
   // Step 1: Receive payout request from vault keeper
-  const payoutTxHex = "...";  // from vault keeper
-  const claimTxHex = "...";   // from vault keeper
-  const peginTxHex = "...";   // your original peg-in transaction
+  const payoutTxHex = "..."; // from vault keeper
+  const claimTxHex = "..."; // from vault keeper
+  const peginTxHex = "..."; // your original peg-in transaction
 
   // Step 2: Build unsigned PSBT for signing
   const payoutPsbt = await buildPayoutPsbt({
     payoutTxHex,
     peginTxHex,
     claimTxHex,
-    depositorBtcPubkey: "a1b2c3d4...",      // your x-only pubkey
-    vaultProviderBtcPubkey: "e5f6a7b8...",  // vault provider pubkey
-    liquidatorBtcPubkeys: ["c9d0e1f2..."],  // liquidator pubkeys
+    depositorBtcPubkey: "a1b2c3d4...", // your x-only pubkey
+    vaultProviderBtcPubkey: "e5f6a7b8...", // vault provider pubkey
+    liquidatorBtcPubkeys: ["c9d0e1f2..."], // liquidator pubkeys
     network: "signet",
   });
 
