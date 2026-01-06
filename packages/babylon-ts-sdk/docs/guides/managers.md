@@ -533,4 +533,4 @@ export async function submitPeginRequest(
 ## Need Help?
 
 - [GitHub Issues](https://github.com/babylonlabs-io/babylon-toolkit/issues)
-- [SDK Documentation](../README.md)
+- [SDK Documentation](../../README.md)
