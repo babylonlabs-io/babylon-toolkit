@@ -4,7 +4,7 @@ import { Input } from "@/components/Form/Input";
 import { Text } from "@/components/Text";
 import { WINDOW_BREAKPOINT } from "../../../utils/constants";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { PropsWithChildren, useState, useMemo, memo } from "react";
+import { PropsWithChildren, useState, useMemo, memo, useEffect } from "react";
 import { twMerge } from "tailwind-merge";
 import { MdCancel } from "react-icons/md";
 import { RiSearchLine } from "react-icons/ri";
@@ -56,6 +56,14 @@ export const ValidatorSelector = ({
         defaultValue: defaultLayout,
         onStateChange: onLayoutChange,
     });
+
+    // Reset selection state when modal opens
+    useEffect(() => {
+        if (open) {
+            setSelectedId(null);
+            setSearchTerm("");
+        }
+    }, [open]);
 
     const onClearSearch = () => {
         setSearchTerm("");

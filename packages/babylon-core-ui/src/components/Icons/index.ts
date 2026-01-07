@@ -35,6 +35,7 @@ export { WarningIcon } from "./common/WarningIcon";
 export { CollapseIcon } from "./common/CollapseIcon";
 export { OpenIcon } from "./common/OpenIcon";
 export { ChevronLeftIcon } from "./common/ChevronLeftIcon";
+export { ChevronRightIcon } from "./common/ChevronRightIcon";
 export { BugReportIcon } from "./common/BugReportIcon";
 export { ThemeIcon } from "./common/ThemeIcon";
 export { ThreeDotsMenuIcon } from "./common/ThreeDotsMenuIcon";
