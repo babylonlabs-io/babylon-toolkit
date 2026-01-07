@@ -162,9 +162,9 @@ Or use `"moduleResolution": "node16"` in TypeScript 5.x.
 
 Now that the SDK is installed:
 
-- **[Quickstart Guide](./quickstart.md)** - Build your first peg-in in 5 minutes
-- **[Complete Peg-In Flow](../guides/complete-pegin-flow.md)** - Understand the full vault lifecycle
-- **[API Reference](../api/managers.md)** - Explore all available methods
+- **[Managers Guide](../guides/managers.md)** - High-level API for wallet integration (recommended for most apps)
+- **[Managers API Reference](../api/managers.md)** - Complete type definitions and method signatures
+- **[Primitives Guide](../guides/primitives.md)** - Lower-level API for custom implementations
 
 ## Need Help?
 

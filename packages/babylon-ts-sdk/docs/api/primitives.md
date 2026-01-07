@@ -1,7 +1,3 @@
-[**@babylonlabs-io/ts-sdk**](README.md)
-
-***
-
 [@babylonlabs-io/ts-sdk](README.md) / primitives
 
 # primitives
@@ -23,7 +19,7 @@ Works in Node.js, browsers, and serverless environments.
 
 ### PayoutParams
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:34
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:34](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L34)
 
 Parameters for building an unsigned payout PSBT
 
@@ -35,7 +31,7 @@ Parameters for building an unsigned payout PSBT
 claimTxHex: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:54
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:54](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L54)
 
 Claim transaction hex (required).
 Obtained from the Vault Provider RPC API when
@@ -51,7 +47,7 @@ Rust: crates/vault/src/transactions/payout.rs::PayoutTx::new()
 depositorBtcPubkey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:59
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:59](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L59)
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
@@ -61,7 +57,7 @@ Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 liquidatorBtcPubkeys: string[];
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L71)
 
 Liquidator BTC public keys (x-only, 64-char hex)
 Also referred to as "challengers" in the WASM layer
@@ -72,7 +68,7 @@ Also referred to as "challengers" in the WASM layer
 network: Network;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:76
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:76](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L76)
 
 Bitcoin network
 
@@ -82,7 +78,7 @@ Bitcoin network
 payoutTxHex: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:39
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:39](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L39)
 
 Payout transaction hex (unsigned)
 This is the transaction that needs to be signed by the depositor
@@ -93,7 +89,7 @@ This is the transaction that needs to be signed by the depositor
 peginTxHex: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:45
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:45](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L45)
 
 Peg-in transaction hex
 This transaction created the vault output that we're spending
@@ -104,7 +100,7 @@ This transaction created the vault output that we're spending
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:65
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:65](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L65)
 
 Vault provider's BTC public key (x-only, 64-char hex)
 Also referred to as "claimer" in the WASM layer
@@ -113,7 +109,7 @@ Also referred to as "claimer" in the WASM layer
 
 ### PayoutPsbtResult
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:82
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:82](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L82)
 
 Result of building an unsigned payout PSBT
 
@@ -125,7 +121,7 @@ Result of building an unsigned payout PSBT
 psbtHex: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:86
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:86](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L86)
 
 Unsigned PSBT hex ready for signing
 
@@ -133,7 +129,7 @@ Unsigned PSBT hex ready for signing
 
 ### PayoutScriptParams
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:20
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:20](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L20)
 
 Parameters for creating a payout script
 
@@ -145,7 +141,7 @@ Parameters for creating a payout script
 depositor: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:21
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:21](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L21)
 
 ##### liquidators
 
@@ -153,7 +149,7 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:21
 liquidators: string[];
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:23
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:23](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L23)
 
 ##### network
 
@@ -161,7 +157,7 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:23
 network: Network;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:24
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:24](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L24)
 
 ##### vaultProvider
 
@@ -169,13 +165,13 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:24
 vaultProvider: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:22
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:22](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L22)
 
 ***
 
 ### PayoutScriptResult
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:30
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:30](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L30)
 
 Result of creating a payout script
 
@@ -187,7 +183,7 @@ Result of creating a payout script
 address: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:34
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:34](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L34)
 
 ##### payoutScript
 
@@ -195,7 +191,7 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:34
 payoutScript: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:31
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:31](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L31)
 
 ##### scriptPubKey
 
@@ -203,7 +199,7 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:31
 scriptPubKey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:33
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:33](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L33)
 
 ##### taprootScriptHash
 
@@ -211,13 +207,13 @@ Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:33
 taprootScriptHash: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:32
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:32](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L32)
 
 ***
 
 ### PeginParams
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:18
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:18](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L18)
 
 Parameters for building an unsigned peg-in PSBT
 
@@ -229,7 +225,7 @@ Parameters for building an unsigned peg-in PSBT
 challengerPubkeys: string[];
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:34
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:34](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L34)
 
 Array of liquidator BTC public keys (x-only, 64-char hex)
 Also referred to as "challengers" in the WASM layer
@@ -240,7 +236,7 @@ Also referred to as "challengers" in the WASM layer
 claimerPubkey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:28
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:28](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L28)
 
 Vault provider's BTC public key (x-only, 64-char hex)
 Also referred to as "claimer" in the WASM layer
@@ -251,7 +247,7 @@ Also referred to as "claimer" in the WASM layer
 depositorPubkey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:22
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:22](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L22)
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
@@ -261,7 +257,7 @@ Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 network: Network;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:44
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:44](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L44)
 
 Bitcoin network
 
@@ -271,7 +267,7 @@ Bitcoin network
 pegInAmount: bigint;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:39
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:39](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L39)
 
 Amount to peg in (in satoshis)
 
@@ -279,7 +275,7 @@ Amount to peg in (in satoshis)
 
 ### PeginPsbtResult
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:50
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:50](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L50)
 
 Result of building an unsigned peg-in PSBT
 
@@ -291,7 +287,7 @@ Result of building an unsigned peg-in PSBT
 psbtHex: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:62
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:62](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L62)
 
 Unsigned transaction hex
 
@@ -309,7 +305,7 @@ The caller is responsible for:
 txid: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:67
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:67](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L67)
 
 Transaction ID (will change after adding inputs and signing)
 
@@ -319,7 +315,7 @@ Transaction ID (will change after adding inputs and signing)
 vaultScriptPubKey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:72
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:72](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L72)
 
 Vault script pubkey hex
 
@@ -329,7 +325,7 @@ Vault script pubkey hex
 vaultValue: bigint;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:77
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:77](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L77)
 
 Vault output value (in satoshis)
 
@@ -337,7 +333,7 @@ Vault output value (in satoshis)
 
 ### WalletPubkeyValidationResult
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:200
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:200](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L200)
 
 Result of validating a wallet public key against an expected depositor public key.
 
@@ -349,7 +345,7 @@ Result of validating a wallet public key against an expected depositor public ke
 depositorPubkey: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:206
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:206](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L206)
 
 The validated depositor public key (x-only format)
 
@@ -359,7 +355,7 @@ The validated depositor public key (x-only format)
 walletPubkeyRaw: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:202
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:202](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L202)
 
 Wallet's raw public key (as returned by wallet, may be compressed)
 
@@ -369,7 +365,7 @@ Wallet's raw public key (as returned by wallet, may be compressed)
 walletPubkeyXOnly: string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:204
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:204](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L204)
 
 Wallet's public key in x-only format (32 bytes, 64 hex chars)
 
@@ -381,7 +377,7 @@ Wallet's public key in x-only format (32 bytes, 64 hex chars)
 type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 ```
 
-Defined in: babylon-tbv-rust-wasm/dist/types.d.ts:4
+Defined in: packages/babylon-tbv-rust-wasm/dist/types.d.ts:4
 
 Bitcoin network types supported by the vault system
 
@@ -393,7 +389,7 @@ Bitcoin network types supported by the vault system
 function buildPayoutPsbt(params): Promise<PayoutPsbtResult>;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:120
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:120](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L120)
 
 Build unsigned payout PSBT for depositor to sign
 
@@ -445,7 +441,7 @@ const signature = extractPayoutSignature(signedPsbt, 'abc123...');
 function buildPeginPsbt(params): Promise<PeginPsbtResult>;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:115
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:115](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L115)
 
 Build unsigned peg-in PSBT using WASM
 
@@ -501,7 +497,7 @@ console.log(result.vaultValue); // 90000n
 function createPayoutScript(params): Promise<PayoutScriptResult>;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:47
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:47](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L47)
 
 Create payout script and taproot information using WASM
 
@@ -531,7 +527,7 @@ Payout script and taproot information
 function extractPayoutSignature(signedPsbtHex, depositorPubkey): string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:284
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:284](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L284)
 
 Extract Schnorr signature from signed payout PSBT
 
@@ -591,7 +587,7 @@ console.log(signature.length); // 128 (64 bytes)
 function hexToUint8Array(hex): Uint8Array;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:49
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:49](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L49)
 
 Convert hex string to Uint8Array
 
@@ -629,7 +625,7 @@ hexToUint8Array('xyz')        // throws Error
 function isValidHex(hex): boolean;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:192
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:192](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L192)
 
 Validate hex string format
 
@@ -668,7 +664,7 @@ isValidHex('')           // true (empty is valid)
 function processPublicKeyToXOnly(publicKeyHex): string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:149
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:149](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L149)
 
 Process and convert a public key to x-only format (32 bytes hex)
 
@@ -729,7 +725,7 @@ processPublicKeyToXOnly('04abc123...') // 130 chars
 function stripHexPrefix(hex): string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:31
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:31](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L31)
 
 Strip "0x" prefix from hex string if present
 
@@ -766,7 +762,7 @@ stripHexPrefix('')         // ''
 function toXOnly(pubKey): Uint8Array;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:97
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:97](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L97)
 
 Convert a 33-byte public key to 32-byte x-only format (removes first byte)
 
@@ -805,7 +801,7 @@ toXOnly(alreadyXOnly); // Returns same array
 function uint8ArrayToHex(bytes): string;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:73
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:73](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L73)
 
 Convert Uint8Array to hex string (without 0x prefix)
 
@@ -838,7 +834,7 @@ uint8ArrayToHex(bytes)  // 'abc123'
 function validateWalletPubkey(walletPubkeyRaw, expectedDepositorPubkey?): WalletPubkeyValidationResult;
 ```
 
-Defined in: babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:231
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts:231](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/utils/bitcoin.ts#L231)
 
 Validate that a wallet's public key matches the expected depositor public key.
 
