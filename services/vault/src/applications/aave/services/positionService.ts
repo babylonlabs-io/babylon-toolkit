@@ -25,6 +25,7 @@ export interface DebtPosition {
   reserveId: bigint;
   drawnShares: bigint;
   premiumShares: bigint;
+  totalDebt: bigint;
 }
 
 /**
@@ -154,7 +155,6 @@ async function fetchDebtPositionsForReserves(
 ): Promise<Map<bigint, DebtPosition>> {
   const results = new Map<bigint, DebtPosition>();
 
-  // Query all reserves in parallel
   const positions = await Promise.all(
     reserveIds.map(async (reserveId) => {
       try {
@@ -165,19 +165,35 @@ async function fetchDebtPositionsForReserves(
         );
         return { reserveId, position };
       } catch {
-        // Reserve might not exist or user has no position
         return { reserveId, position: null };
       }
     }),
   );
 
-  // Filter to reserves with debt
-  for (const { reserveId, position } of positions) {
-    if (position && hasDebtFromPosition(position)) {
+  const reservesWithDebt = positions.filter(
+    ({ position }) => position && hasDebtFromPosition(position),
+  );
+
+  const totalDebts = await Promise.all(
+    reservesWithDebt.map(async ({ reserveId }) => {
+      const totalDebt = await AaveSpoke.getUserTotalDebt(
+        spokeAddress,
+        reserveId,
+        proxyAddress,
+      );
+      return { reserveId, totalDebt };
+    }),
+  );
+
+  const debtMap = new Map(totalDebts.map((d) => [d.reserveId, d.totalDebt]));
+
+  for (const { reserveId, position } of reservesWithDebt) {
+    if (position) {
       results.set(reserveId, {
         reserveId,
         drawnShares: position.drawnShares,
         premiumShares: position.premiumShares,
+        totalDebt: debtMap.get(reserveId) ?? 0n,
       });
     }
   }
