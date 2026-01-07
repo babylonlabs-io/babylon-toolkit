@@ -41,17 +41,6 @@ const CHAINLINK_PRICE_FEEDS: Record<Network, ChainlinkFeedAddresses> = {
   },
 };
 
-export const CHAINLINK_BTC_USD_FEEDS: Record<Network, Address> = {
-  [Network.MAINNET]: "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
-  [Network.SIGNET]: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
-  [Network.TESTNET]: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
-};
-
-export function getChainlinkBTCUSDFeedAddress(): Address {
-  const network = getBTCNetwork();
-  return CHAINLINK_BTC_USD_FEEDS[network];
-}
-
 function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
@@ -165,7 +154,7 @@ export async function getDecimals(feedAddress: Address): Promise<number> {
  * @throws Error if price is invalid (zero or negative)
  */
 export async function getBTCPriceUSD(): Promise<number> {
-  const feedAddress = getChainlinkBTCUSDFeedAddress();
+  const feedAddress = getChainlinkFeedAddress("BTC")!;
   const roundData = await getLatestRoundData(feedAddress);
 
   // Validate answer is positive (can be 0 or negative on oracle malfunction)

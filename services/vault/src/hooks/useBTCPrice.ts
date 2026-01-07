@@ -12,11 +12,6 @@ export interface UseBTCPriceResult {
 
 /**
  * Hook to fetch BTC price from Chainlink oracle
- *
- * Uses Chainlink's decentralized BTC/USD price feed for reliable, independent pricing.
- * Automatically selects the correct feed address based on the configured network:
- * - mainnet -> Ethereum mainnet Chainlink feed (0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c)
- * - signet -> Sepolia testnet Chainlink feed (0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43)
  */
 export function useBTCPrice(): UseBTCPriceResult {
   const network = getBTCNetwork();
