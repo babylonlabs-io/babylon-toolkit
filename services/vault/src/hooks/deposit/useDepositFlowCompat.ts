@@ -18,8 +18,14 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
+import { fetchVaultsByDepositor } from "@/services/vault/fetchVaults";
+import {
+  collectReservedUtxoRefs,
+  utxoRefKeysToArray,
+  type UtxoRef,
+} from "@/services/vault/utxoReservation";
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
-import { addPendingPegin } from "@/storage/peginStorage";
+import { addPendingPegin, getPendingPegins } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
 
 export interface UseDepositFlowParams {
@@ -163,6 +169,28 @@ export function useDepositFlow(
       // Current: Calculate fee rate from fixed fee (average pegin tx is ~250 vbytes)
       const feeRate = Math.ceil(Number(fees.btcNetworkFee) / 250);
 
+      // Smart UTXO selection: collect UTXO refs to avoid from in-flight deposits
+      let avoidUtxoRefs: UtxoRef[] | undefined;
+      try {
+        // Fetch vaults from indexer and pending pegins from localStorage
+        const [vaults, pendingPegins] = await Promise.all([
+          fetchVaultsByDepositor(depositorEthAddress).catch(() => []),
+          Promise.resolve(getPendingPegins(depositorEthAddress)),
+        ]);
+
+        // Collect reserved UTXO refs (from pending/verified vaults and localStorage)
+        const reservedSet = collectReservedUtxoRefs({
+          vaults,
+          pendingPegins,
+        });
+
+        if (reservedSet.size > 0) {
+          avoidUtxoRefs = utxoRefKeysToArray(reservedSet);
+        }
+      } catch {
+        // Never block deposits due to smart selection errors
+      }
+
       // Submit pegin request with type-safe BitcoinWallet cast
       // The btcWalletProvider from wallet-connector already implements the BitcoinWallet interface
       const result = await submitPeginRequest(btcWalletProvider, walletClient, {
@@ -173,6 +201,7 @@ export function useDepositFlow(
         vaultProviderBtcPubkey,
         liquidatorBtcPubkeys,
         availableUTXOs: confirmedUTXOs,
+        avoidUtxoRefs,
         // Callback to update step indicator AFTER PoP signing, BEFORE ETH signing
         onPopSigned: () => {
           setCurrentStep(2);

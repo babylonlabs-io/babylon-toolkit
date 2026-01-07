@@ -16,6 +16,8 @@ import { executeWrite } from "../../clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
+import { filterUtxos, utxoRefToKey, type UtxoRef } from "./utxoReservation";
+
 /**
  * UTXO parameters for peg-in transaction
  */
@@ -43,6 +45,12 @@ export interface SubmitPeginParams {
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
   availableUTXOs: UTXO[];
+  /**
+   * Optional UTXO references to avoid when selecting UTXOs for the peg-in transaction.
+   * These are typically UTXOs already used by other in-flight (pending/verified) deposits.
+   * If avoiding these would prevent the deposit, the system falls back to using them.
+   */
+  avoidUtxoRefs?: UtxoRef[];
   /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
    * Useful for updating UI step indicators between Step 1 (PoP) and Step 2 (ETH).
@@ -107,16 +115,58 @@ export async function submitPeginRequest(
     mempoolApiUrl: getMempoolApiUrl(),
   });
 
-  // Step 2: Prepare peg-in (builds, funds, selects UTXOs automatically)
-  const peginResult = await peginManager.preparePegin({
-    amount: params.pegInAmount,
-    vaultProvider: params.vaultProviderAddress,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
-    availableUTXOs: params.availableUTXOs,
-    feeRate: params.feeRate,
-    changeAddress: params.changeAddress,
-  });
+  // Step 2: Prepare peg-in with UTXO selection
+  // First try with filtered UTXOs (avoiding reserved), then fallback to full list
+  let peginResult: Awaited<ReturnType<typeof peginManager.preparePegin>>;
+
+  // Build reserved UTXO ref set from avoidUtxoRefs parameter
+  const reservedUtxoRefs = new Set<string>();
+  if (params.avoidUtxoRefs && params.avoidUtxoRefs.length > 0) {
+    for (const ref of params.avoidUtxoRefs) {
+      reservedUtxoRefs.add(utxoRefToKey(ref.txid, ref.vout));
+    }
+  }
+
+  // Filter UTXOs to exclude reserved refs (if any)
+  const filteredUTXOs =
+    reservedUtxoRefs.size > 0
+      ? filterUtxos(params.availableUTXOs, reservedUtxoRefs)
+      : params.availableUTXOs;
+
+  const didFilterUtxos = filteredUTXOs.length < params.availableUTXOs.length;
+
+  // Try with filtered UTXOs first
+  try {
+    peginResult = await peginManager.preparePegin({
+      amount: params.pegInAmount,
+      vaultProvider: params.vaultProviderAddress,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+      availableUTXOs: filteredUTXOs,
+      feeRate: params.feeRate,
+      changeAddress: params.changeAddress,
+    });
+  } catch (firstError) {
+    // Only retry with full UTXOs if we actually filtered some out
+    if (!didFilterUtxos) {
+      throw firstError;
+    }
+
+    console.warn(
+      "[submitPeginRequest] preparePegin failed with filtered UTXOs, retrying with full set",
+    );
+
+    // Fallback: retry with full UTXO set (including reserved ones)
+    peginResult = await peginManager.preparePegin({
+      amount: params.pegInAmount,
+      vaultProvider: params.vaultProviderAddress,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+      availableUTXOs: params.availableUTXOs,
+      feeRate: params.feeRate,
+      changeAddress: params.changeAddress,
+    });
+  }
 
   // Step 3: Get depositor BTC pubkey (manager handles x-only conversion internally)
   const depositorBtcPubkeyRaw = await btcWallet.getPublicKeyHex();
