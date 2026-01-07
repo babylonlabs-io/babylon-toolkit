@@ -5,7 +5,7 @@ import { LedgerProviderV2, WALLET_PROVIDER_NAME } from "./provider";
 
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "ledger_btc_v2",
-  name: WALLET_PROVIDER_NAME,
+  name: `${WALLET_PROVIDER_NAME} v2`,
   icon: logo,
   docs: "https://www.ledger.com/ledger-live",
   createProvider: (wallet, config) => new LedgerProviderV2(wallet, config),
