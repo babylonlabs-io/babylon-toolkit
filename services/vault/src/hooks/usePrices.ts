@@ -1,16 +1,18 @@
 /**
  * Token Prices Hook
  *
- * Provides access to real-time token prices from the Babylon staking API.
+ * Provides access to real-time token prices from Chainlink oracles.
  * Prices are cached for 1 minute and automatically refetched when stale.
  */
 
 import { useQuery } from "@tanstack/react-query";
 
-import { getPrices } from "@/clients/staking-api";
+import { getTokenPrices } from "@/clients/eth-contract/chainlink";
 
 const PRICES_QUERY_KEY = "prices";
 const ONE_MINUTE = 60 * 1000;
+
+const SUPPORTED_TOKENS = ["BTC", "ETH", "USDC", "USDT", "DAI"];
 
 export interface UsePricesResult {
   /** Record mapping token symbols to their USD prices */
@@ -22,16 +24,16 @@ export interface UsePricesResult {
 }
 
 /**
- * Hook to fetch all token prices from the staking API
+ * Hook to fetch token prices from Chainlink oracles
  *
- * Prices are cached for 1 minute and include tokens like BTC, BABY, etc.
+ * Prices are cached for 1 minute and include BTC, ETH, USDC, USDT, DAI
  *
  * @returns Object containing prices record, loading state, and error
  */
 export function usePrices(): UsePricesResult {
   const { data, isLoading, error } = useQuery({
-    queryKey: [PRICES_QUERY_KEY],
-    queryFn: getPrices,
+    queryKey: [PRICES_QUERY_KEY, "chainlink"],
+    queryFn: () => getTokenPrices(SUPPORTED_TOKENS),
     staleTime: ONE_MINUTE,
     refetchInterval: ONE_MINUTE,
     retry: 2,

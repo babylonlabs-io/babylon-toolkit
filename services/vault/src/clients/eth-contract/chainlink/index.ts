@@ -4,6 +4,7 @@ export {
   getChainlinkBTCUSDFeedAddress,
   getDecimals,
   getLatestRoundData,
+  getTokenPrices,
   isPriceFresh,
   type ChainlinkRoundData,
 } from "./query";
