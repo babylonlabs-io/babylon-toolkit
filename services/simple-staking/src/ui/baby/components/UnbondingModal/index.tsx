@@ -85,7 +85,7 @@ const UnbondingModalContent = ({
           earning rewards.
         </Text>
 
-        <AmountField balance={availableBalance} />
+        <AmountField balance={availableBalance} enableMaxButton />
 
         {!isEpochReady && (
           <Warning>
