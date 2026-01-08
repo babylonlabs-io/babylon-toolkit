@@ -7,14 +7,15 @@ import { useCallback, useState } from "react";
 import type { Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
-import { BTC_TRANSACTION_FEE } from "@/config/pegin";
 import { useError } from "@/context/error";
 import { useBTCWallet } from "@/context/wallet";
+import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
 import type { VaultProvider } from "@/types/vaultProvider";
+import { getFeeRateFromMempool } from "@/utils/fee/getFeeRateFromMempool";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -62,6 +63,8 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const { confirmedUTXOs } = useUTXOs(btcAddress);
   const { vaultProviders: availableProviders, liquidators } =
     useVaultProviders();
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] =
@@ -138,8 +141,9 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No wallet client available");
         }
 
-        // Calculate fee rate from fixed fee
-        const feeRate = Math.ceil(Number(BTC_TRANSACTION_FEE) / 250);
+        if (defaultFeeRate === 0) {
+          throw new Error("Unable to fetch network fee rates");
+        }
 
         // Use PeginManager for complete flow
         const result = await vaultTransactionService.submitPeginRequest(
@@ -147,7 +151,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           walletClient,
           {
             pegInAmount,
-            feeRate,
+            feeRate: defaultFeeRate,
             changeAddress: btcAddress,
             vaultProviderAddress: selectedProvider.id as Hex,
             vaultProviderBtcPubkey: selectedProvider.btcPubKey,
@@ -192,6 +196,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       confirmedUTXOs,
       availableProviders,
       liquidators,
+      defaultFeeRate,
       handleError,
     ],
   );
@@ -223,16 +228,16 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No UTXO selected for transaction");
         }
 
-        // Calculate fee rate from fixed fee
-        // Average pegin tx size is ~250 vbytes
-        const feeRate = Math.ceil(Number(txData.fee) / 250);
+        if (defaultFeeRate === 0) {
+          throw new Error("Unable to fetch network fee rates");
+        }
 
         const result = await vaultTransactionService.submitPeginRequest(
           btcWalletProvider,
           walletClient,
           {
             pegInAmount: txData.pegInAmount,
-            feeRate,
+            feeRate: defaultFeeRate,
             changeAddress: btcAddress,
             vaultProviderAddress: txData.vaultProviderAddress,
             vaultProviderBtcPubkey: txData.vaultProviderBtcPubkey,
@@ -272,7 +277,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         setIsSubmitting(false);
       }
     },
-    [btcWalletProvider, btcAddress, handleError],
+    [btcWalletProvider, btcAddress, defaultFeeRate, handleError],
   );
 
   return {

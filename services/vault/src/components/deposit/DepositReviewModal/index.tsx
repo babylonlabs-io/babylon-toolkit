@@ -46,7 +46,7 @@ export function CollateralDepositReviewModal({
   const { findProviders, loading: providersLoading } = useVaultProviders();
 
   // Get estimated fees from custom hooks
-  const estimatedBtcFee = useEstimatedBtcFee(amount, open);
+  const { fee: estimatedBtcFee } = useEstimatedBtcFee(amount, undefined, open);
   const estimatedEthFee = useEstimatedEthFee();
 
   // Map selected provider IDs to actual provider data
