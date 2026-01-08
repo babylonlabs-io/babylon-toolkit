@@ -2,13 +2,98 @@
 
 Pure functions for building Bitcoin transactions for Babylon Trustless BTC Vault (TBV).
 
-This guide shows how to implement **Peg-in** and **Payout** flows using the primitives layer.
+---
+
+## ⚠️ Important: Primitives vs Managers
+
+## What Primitives Don't Provide
+
+Primitives are pure functions for Bitcoin transaction building. They do **NOT** handle:
+
+### Missing from Complete Peg-In Flow:
+
+1. ❌ **Proof-of-Possession (PoP)** - BIP-322 signature of Ethereum address
+2. ❌ **Ethereum Contract Submission** - Calling `submitPeginRequest()` on BTCVaultsManager
+3. ❌ **Payout Authorization Orchestration** - Polling vault provider RPC, signing multiple payout transactions
+4. ❌ **UTXO Selection** - Choosing which UTXOs to spend
+5. ❌ **Fee Calculation** - Determining appropriate transaction fees
+6. ❌ **Transaction Broadcasting** - Submitting signed transaction to Bitcoin network
+7. ❌ **Wallet Integration** - Connecting to UniSat, OKX, MetaMask, etc.
+8. ❌ **Contract Status Polling** - Waiting for PENDING → VERIFIED transitions
+
+### You Must Implement:
+
+- Wallet integration for signing (both BTC and ETH)
+- Ethereum contract interaction (`viem`)
+- BIP-322 PoP signature generation
+- Vault provider RPC polling and signature submission
+- UTXO management and selection
+- Fee estimation
+- Transaction broadcasting
+- State management and error handling
+
+**For automated orchestration of the complete 4-step flow**, use the [Managers Guide](./managers.md).
+
+### When to Use Primitives
+
+Use primitives for **custom implementations** when you need:
+
+- Backend services with custom signing (KMS/HSM)
+- Full control over every operation
+- Custom wallet integrations
+- Serverless environments with specific requirements
+
+### When to Use Managers
+
+**For complete peg-in orchestration**, use the [Managers Guide](./managers.md) instead:
+
+- ✅ Handles proof-of-possession (PoP) automatically
+- ✅ Handles Ethereum contract submission
+- ✅ Handles payout authorization flow (Step 3)
+- ✅ Integrates with browser wallets
+- ✅ Automates UTXO selection and funding
+- ✅ Broadcasts to Bitcoin network
+
+---
+
+This guide shows how to use primitives for **Bitcoin transaction building**. You must implement PoP, Ethereum interactions, and payout orchestration yourself.
+
+> **🚀 Quick Start**: For a complete working example with all 4 steps, see the [Primitives Quickstart Guide](../quickstart/primitives.md).
 
 ## Installation
 
 ```bash
 npm install @babylonlabs-io/ts-sdk
 ```
+
+## Architecture Layers
+
+```
+Your Application
+      ↓
+┌───────────────────────────────────┐
+│ Managers (Orchestration)          │
+│ - PeginManager                    │
+│ - PayoutManager                   │
+│ - Handles PoP, Ethereum, RPC      │
+└───────────────────────────────────┘
+      ↓
+┌───────────────────────────────────┐
+│ Primitives (Bitcoin Only)         │
+│ - buildPeginPsbt()                │
+│ - buildPayoutPsbt()               │
+│ - extractPayoutSignature()        │
+│ - Pure functions, no side effects │
+└───────────────────────────────────┘
+      ↓
+┌───────────────────────────────────┐
+│ WASM (Rust Core)                  │
+│ - Bitcoin script generation       │
+│ - Cryptographic operations        │
+└───────────────────────────────────┘
+```
+
+---
 
 ## Setup
 
@@ -34,7 +119,7 @@ Deposit BTC into a TBV.
 - `psbtHex` - Unfunded transaction hex (0 inputs, 1 vault output)
 - `txid` - Transaction ID (changes after funding)
 
-**Your responsibility:** Fund the transaction with UTXOs, sign it, and broadcast.
+**Required:** Fund the transaction with UTXOs, sign it, and broadcast.
 
 ```typescript
 import { Psbt, networks } from "bitcoinjs-lib";
@@ -44,7 +129,7 @@ import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 const NETWORK_MAP = {
   bitcoin: networks.bitcoin,
   testnet: networks.testnet,
-  regtest: networks.testnet,
+  regtest: networks.regtest,
   signet: networks.testnet,
 } as const;
 
@@ -100,9 +185,19 @@ async function pegin() {
 }
 ```
 
-### Payout
+### Payout Authorization Signing (Peg-In Step 3)
 
-Withdraw BTC from a TBV. The vault keeper initiates the payout, and you (the depositor) sign to approve it.
+**⚠️ Context:** This is NOT withdrawal/redemption! After you register your peg-in on Ethereum (Step 2), the vault provider prepares claim/payout transaction pairs. You must sign these to **pre-authorize future fund distribution**.
+
+See the [Managers Guide - Payout Authorization](./managers.md#payout-authorization-part-of-peg-in) for the complete peg-in flow context.
+
+**What happens:**
+
+1. You register peg-in on Ethereum → vault status = PENDING
+2. Vault provider prepares claim/payout transaction pairs
+3. You sign payout authorizations using `buildPayoutPsbt()` ← **YOU ARE HERE**
+4. Vault provider collects signatures → vault status = VERIFIED
+5. You broadcast Bitcoin transaction (Step 4)
 
 `buildPayoutPsbt()` returns:
 
@@ -110,9 +205,14 @@ Withdraw BTC from a TBV. The vault keeper initiates the payout, and you (the dep
 
 `extractPayoutSignature()` returns:
 
-- 64-byte Schnorr signature (128 hex chars) to submit to the vault keeper
+- 64-byte Schnorr signature (128 hex chars) to submit to the vault provider
 
-**Your responsibility:** Sign input 0 with your signing mechanism, extract the signature, and submit to vault keeper.
+**Required:**
+
+1. Poll vault provider RPC for prepared transactions
+2. Sign each payout transaction
+3. Extract signatures
+4. Submit to vault provider RPC
 
 ```typescript
 import {
@@ -142,8 +242,10 @@ async function payout() {
   // Step 3: Sign input 0 (the vault UTXO) with your wallet
   // const signedPsbtHex = await yourWallet.signPsbt(payoutPsbt.psbtHex);
 
-  // Step 4: Extract signature and submit to vault keeper
+  // Step 4: Extract signature and submit to vault provider
   // const signature = extractPayoutSignature(signedPsbtHex, "a1b2c3d4...");
-  // await submitToVaultKeeper(signature);
+  // await submitToVaultProvider(signature);
 }
 ```
+
+---
