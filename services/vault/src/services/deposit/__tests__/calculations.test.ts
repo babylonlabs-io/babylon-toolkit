@@ -8,45 +8,84 @@ import type { UTXO } from "../../vault/vaultTransactionService";
 import {
   calculateDepositFees,
   calculateMinimumDeposit,
+  estimateBtcNetworkFee,
   estimateTransactionSize,
   selectOptimalUTXOs,
 } from "../calculations";
 
 describe("Deposit Calculations", () => {
+  describe("estimateBtcNetworkFee", () => {
+    it("should calculate fee based on fee rate and input count", () => {
+      const fee = estimateBtcNetworkFee(10, 1, true);
+
+      expect(fee).toBeGreaterThan(0n);
+    });
+
+    it("should increase fee with more inputs", () => {
+      const fee1Input = estimateBtcNetworkFee(10, 1, true);
+      const fee2Inputs = estimateBtcNetworkFee(10, 2, true);
+
+      expect(fee2Inputs).toBeGreaterThan(fee1Input);
+    });
+
+    it("should add change output fee when includeChange is true", () => {
+      const feeWithChange = estimateBtcNetworkFee(10, 1, true);
+      const feeWithoutChange = estimateBtcNetworkFee(10, 1, false);
+
+      expect(feeWithChange).toBeGreaterThan(feeWithoutChange);
+    });
+
+    it("should increase with higher fee rate", () => {
+      const feeLow = estimateBtcNetworkFee(5, 1, true);
+      const feeHigh = estimateBtcNetworkFee(50, 1, true);
+
+      expect(feeHigh).toBeGreaterThan(feeLow);
+    });
+  });
+
   describe("calculateDepositFees", () => {
-    it("should calculate fees correctly", () => {
+    it("should calculate fees correctly with fee rate", () => {
       const depositAmount = 100000n; // 0.001 BTC
+      const feeRate = 10;
 
-      const fees = calculateDepositFees(depositAmount);
+      const fees = calculateDepositFees(depositAmount, feeRate);
 
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
+      expect(fees.btcNetworkFee).toBeGreaterThan(0n);
       expect(fees.protocolFee).toBe(100n); // 0.1% of 100000 = 100
       expect(fees.totalFee).toBe(fees.btcNetworkFee + fees.protocolFee);
     });
 
-    it("should use fixed network fee", () => {
+    it("should use default fee rate when none provided", () => {
       const depositAmount = 100000n;
 
       const fees = calculateDepositFees(depositAmount);
 
-      // Network fee should be the fixed value
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed fee from config
+      expect(fees.btcNetworkFee).toBeGreaterThan(0n);
     });
 
     it("should handle zero deposit amount", () => {
-      const fees = calculateDepositFees(0n);
+      const fees = calculateDepositFees(0n, 10);
 
-      expect(fees.btcNetworkFee).toBe(10000n); // Fixed network fee still applies
+      expect(fees.btcNetworkFee).toBeGreaterThan(0n);
       expect(fees.protocolFee).toBe(0n); // 0.1% of 0 is 0
       expect(fees.totalFee).toBe(fees.btcNetworkFee);
     });
 
     it("should handle large deposit amounts", () => {
       const largeAmount = 21000000_00000000n; // 21M BTC (max supply)
-      const fees = calculateDepositFees(largeAmount);
+      const fees = calculateDepositFees(largeAmount, 10);
 
       expect(fees.protocolFee).toBe(21000000_00000n); // 0.1% of max supply
       expect(fees.totalFee).toBeGreaterThan(0n);
+    });
+
+    it("should calculate higher fees with higher fee rate", () => {
+      const depositAmount = 100000n;
+
+      const feesLow = calculateDepositFees(depositAmount, 5);
+      const feesHigh = calculateDepositFees(depositAmount, 50);
+
+      expect(feesHigh.btcNetworkFee).toBeGreaterThan(feesLow.btcNetworkFee);
     });
   });
 
