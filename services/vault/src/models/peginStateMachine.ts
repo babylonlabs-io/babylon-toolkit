@@ -33,6 +33,8 @@ export enum ContractStatus {
   ACTIVE = 2,
   /** Status 3: Vault has been redeemed, BTC is claimable */
   REDEEMED = 3,
+  /** Status 4: Vault is invalid - BTC UTXOs were spent in a different transaction */
+  INVALID = 4,
 }
 
 /**
@@ -81,6 +83,7 @@ export const PEGIN_DISPLAY_LABELS = {
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEMED: "Redeemed",
+  INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
 
@@ -102,7 +105,7 @@ export interface PeginState {
   /** Display label for UI */
   displayLabel: PeginDisplayLabel;
   /** Display variant for styling */
-  displayVariant: "pending" | "active" | "inactive";
+  displayVariant: "pending" | "active" | "inactive" | "warning";
   /** Available user actions */
   availableActions: PeginAction[];
   /** Informational message (if any) */
@@ -254,6 +257,19 @@ export function getPeginState(
     };
   }
 
+  // Contract Status 4: Invalid (UTXOs spent in a different transaction)
+  if (contractStatus === ContractStatus.INVALID) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: "Invalid",
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+    };
+  }
+
   // Fallback: Unknown state
   return {
     contractStatus,
@@ -346,7 +362,8 @@ export function shouldRemoveFromLocalStorage(
   // Use explicit checks instead of >= to avoid fragility if enum values change
   if (
     contractStatus === ContractStatus.ACTIVE ||
-    contractStatus === ContractStatus.REDEEMED
+    contractStatus === ContractStatus.REDEEMED ||
+    contractStatus === ContractStatus.INVALID
   ) {
     return true; // Fully confirmed, blockchain is source of truth
   }

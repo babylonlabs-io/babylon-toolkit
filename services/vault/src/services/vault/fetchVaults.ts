@@ -185,7 +185,7 @@ function mapGraphQLStatusToVaultStatus(
     case "redeemed":
       return VaultStatus.REDEEMED;
     case "invalid":
-      return VaultStatus.PENDING;
+      return VaultStatus.INVALID;
     default:
       return VaultStatus.PENDING;
   }
