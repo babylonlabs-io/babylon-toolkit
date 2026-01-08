@@ -85,7 +85,7 @@ const UnbondingModalContent = ({
           earning rewards.
         </Text>
 
-        <AmountField balance={availableBalance} price={1} />
+        <AmountField balance={availableBalance} />
 
         {!isEpochReady && (
           <Warning>
