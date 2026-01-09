@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 
-import { CONTRACTS } from "@/config/contracts";
 import { envInitError } from "@/config/env";
 import { wagmiInitError } from "@/config/wagmi";
 import { useError } from "@/context/error";
@@ -35,7 +34,7 @@ export function useHealthCheck() {
         return;
       }
 
-      const result = await runHealthChecks(CONTRACTS.MORPHO_CONTROLLER);
+      const result = await runHealthChecks();
 
       if (!result.healthy && result.error) {
         handleError({

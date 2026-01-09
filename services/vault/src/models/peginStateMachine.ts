@@ -21,8 +21,8 @@
  *
  * IMPORTANT: With the new contract architecture:
  * - Core vault status (BTCVaultsManager) does NOT change when used by applications
- * - Vaults remain at ACTIVE status even when locked in Morpho positions
- * - Application usage status is tracked separately in MorphoIntegrationController
+ * - Vaults remain at ACTIVE status even when used in DeFi positions
+ * - Application usage status is tracked separately by each integration controller
  */
 export enum ContractStatus {
   /** Status 0: Request submitted, waiting for ACKs */
@@ -220,9 +220,9 @@ export function getPeginState(
 
   // Contract Status 2: Active (vault is active and usable)
   // NOTE: With new contract architecture, vault stays at ACTIVE even when used by applications
-  // Application usage status is tracked separately in MorphoIntegrationController
+  // Application usage status is tracked separately by each integration controller
   if (contractStatus === ContractStatus.ACTIVE) {
-    // Check if vault is in use by an application (e.g., Morpho)
+    // Check if vault is in use by an application (e.g., Aave)
     if (isInUse) {
       return {
         contractStatus,

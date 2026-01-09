@@ -7,9 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/env", () => ({
   ENV: {
     BTC_VAULTS_MANAGER: "0x1234567890123456789012345678901234567890",
-    MORPHO_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
     BTC_VAULT: "0x1234567890123456789012345678901234567890",
-    MORPHO: "0x1234567890123456789012345678901234567890",
     GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
   },
 }));
@@ -41,9 +40,6 @@ vi.mock("@/clients/eth-contract", () => ({
   },
   BTCVaultsManagerTx: {
     submitPeginRequest: vi.fn(),
-  },
-  MorphoControllerTx: {
-    redeemBTCVault: vi.fn(),
   },
 }));
 

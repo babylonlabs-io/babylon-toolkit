@@ -52,7 +52,6 @@ import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
 import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations
-import { MorphoClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/morpho";
 import { AaveClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
 

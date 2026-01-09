@@ -2,7 +2,7 @@
 
 export * from "./activity";
 
-// Applications services (includes Morpho market and position operations)
+// Applications services
 export * from "./applications";
 
 // Health check services
