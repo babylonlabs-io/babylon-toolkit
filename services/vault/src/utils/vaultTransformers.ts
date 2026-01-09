@@ -15,21 +15,21 @@ const btcConfig = getNetworkConfigBTC();
 /**
  * Get formatted total repay amount from activity
  * Returns the total amount to repay including principal and accrued interest
- * @param activity - VaultActivity with morphoPosition and borrowingData
+ * @param activity - VaultActivity with position and borrowingData
  * @returns Formatted repay amount string (e.g., "1050.00 USDC") or "0 USDC" if no position
  */
 export function getFormattedRepayAmount(activity: VaultActivity): string {
-  if (!activity.morphoPosition || !activity.borrowingData) {
+  if (!activity.position || !activity.borrowingData) {
     return "0 USDC";
   }
 
-  const totalAmount = formatUSDCAmount(activity.morphoPosition.borrowAssets);
+  const totalAmount = formatUSDCAmount(activity.position.borrowAssets);
   return `${totalAmount} ${activity.borrowingData.borrowedSymbol}`;
 }
 
 /**
  * Transform Vault data to VaultActivity UI format
- * For Deposit tab - shows vault status but not full Morpho loan details
+ * For Deposit tab - shows vault status but not full loan details
  * @param vault - Vault data from GraphQL
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
@@ -61,8 +61,8 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     timestamp: vault.createdAt,
     // No action handlers - these are attached at the component level
     action: undefined,
-    // No Morpho position details in deposit tab
-    morphoPosition: undefined,
+    // No position details in deposit tab
+    position: undefined,
     borrowingData: undefined,
     marketData: undefined,
     positionDate: undefined,

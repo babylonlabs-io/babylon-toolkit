@@ -7,7 +7,7 @@
  * - Available user actions (repay, borrow more, withdraw)
  * - Action validation (LTV checks, liquidation checks)
  *
- * A position is created when vaults are locked as collateral in a Morpho lending market.
+ * A position is created when vaults are locked as collateral in a lending market.
  * This is separate from the peg-in state machine (which tracks vault deposits).
  */
 

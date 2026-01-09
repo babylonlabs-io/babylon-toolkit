@@ -5,7 +5,7 @@
  * These use the centralized polling context for state.
  */
 
-import { Button, StatusBadge } from "@babylonlabs-io/core-ui";
+import { Button, Hint, StatusBadge } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
@@ -60,12 +60,12 @@ export function StatusCell({ depositId }: { depositId: string }) {
   const { peginState } = pollingResult;
 
   return (
-    <div title={peginState.message || ""} className="cursor-help">
+    <Hint tooltip={peginState.message} attachToChildren>
       <StatusBadge
         status={peginState.displayVariant}
         label={peginState.displayLabel}
       />
-    </div>
+    </Hint>
   );
 }
 

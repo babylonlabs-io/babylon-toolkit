@@ -22,10 +22,6 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/primitives/index.ts",
         ),
-        "tbv/integrations/morpho/index": path.resolve(
-          __dirname,
-          "src/tbv/integrations/morpho/index.ts",
-        ),
         "shared/index": path.resolve(__dirname, "src/shared/index.ts"),
       },
       formats: ["es", "cjs"],

@@ -7,7 +7,7 @@ import { useHealthCheck } from "../useHealthCheck";
 
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
-    MORPHO_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
   },
 }));
 

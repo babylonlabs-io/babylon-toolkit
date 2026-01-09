@@ -72,16 +72,16 @@ export const AmountItem = ({
                         <button
                             type="button"
                             onClick={onMaxClick}
-                            disabled={disabled}
+                            disabled={disabled || !onMaxClick}
                             className="cursor-pointer rounded bg-secondary-strokeLight px-2 py-0.5 text-xs text-accent-secondary transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             Max
                         </button>
                         <span>
-                            {typeof balanceDetails.balance === 'number' 
-                                ? balanceDetails.balance.toLocaleString('en-US', { 
+                            {typeof balanceDetails.balance === 'number'
+                                ? balanceDetails.balance.toLocaleString('en-US', {
                                     minimumFractionDigits: balanceDetails.decimals ?? 8,
-                                    maximumFractionDigits: balanceDetails.decimals ?? 8 
+                                    maximumFractionDigits: balanceDetails.decimals ?? 8
                                   })
                                 : balanceDetails.balance} {balanceDetails.symbol}
                         </span>

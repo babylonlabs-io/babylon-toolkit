@@ -18,4 +18,3 @@ export {
 } from "./registry";
 
 import "./aave";
-import "./morpho";

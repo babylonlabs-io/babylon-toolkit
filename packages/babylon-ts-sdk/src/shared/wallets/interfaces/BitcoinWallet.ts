@@ -14,11 +14,33 @@ export const BitcoinNetworks = {
 } as const;
 
 /**
+ * Options for signing a specific input in a PSBT.
+ */
+export interface SignInputOptions {
+  /** Input index to sign */
+  index: number;
+  /** Address for signing (optional) */
+  address?: string;
+  /** Public key for signing (optional, hex string) */
+  publicKey?: string;
+  /** Sighash types (optional) */
+  sighashTypes?: number[];
+  /** Disable tweak signer for Taproot script path spend (optional) */
+  disableTweakSigner?: boolean;
+}
+
+/**
  * SignPsbt options for advanced signing scenarios.
  */
 export interface SignPsbtOptions {
   /** Whether to automatically finalize the PSBT after signing */
   autoFinalized?: boolean;
+  /**
+   * Specific inputs to sign.
+   * If not provided, wallet will attempt to sign all inputs it can.
+   * Use this to restrict signing to specific inputs (e.g., only depositor's input).
+   */
+  signInputs?: SignInputOptions[];
   /** Contract information for the signing operation */
   contracts?: Array<{
     id: string;

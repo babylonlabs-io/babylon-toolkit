@@ -26,6 +26,7 @@ interface Props {
   step?: string;
   autoFocus?: boolean;
   decimals?: number; // Enforce decimals
+  enableMaxButton?: boolean; // Enable Max button to fill max balance
 }
 
 export const AmountSubsection = ({
@@ -40,6 +41,7 @@ export const AmountSubsection = ({
   step = "any",
   autoFocus = true,
   decimals,
+  enableMaxButton,
 }: Props) => {
   const amount = useWatch({ name: fieldName, defaultValue: "" });
   const { setValue } = useFormContext();
@@ -82,6 +84,21 @@ export const AmountSubsection = ({
     }
   };
 
+  const handleMaxClick = () => {
+    if (balanceDetails?.balance !== undefined) {
+      const balanceValue = Number(balanceDetails.balance);
+      // Use specified decimals if provided, otherwise use full precision
+      const maxValue = balanceDetails.decimals !== undefined
+        ? maxDecimals(balanceValue, balanceDetails.decimals).toString()
+        : balanceValue.toString();
+      setValue(fieldName, maxValue, {
+        shouldValidate: true,
+        shouldDirty: true,
+        shouldTouch: true,
+      });
+    }
+  };
+
   let subtitle: string | undefined;
   if (balanceDetails) {
     subtitle = `${maxDecimals(Number(balanceDetails.balance), balanceDetails.decimals ?? BTC_DECIMAL_PLACES)} ${balanceDetails.symbol}`;
@@ -107,6 +124,7 @@ export const AmountSubsection = ({
           onKeyDown={handleKeyDown}
           amountUsd={amountUsd}
           subtitle={subtitle}
+          {...(enableMaxButton && { onMaxClick: handleMaxClick })}
         />
       </SubSection>
     </>

@@ -1,21 +1,11 @@
-import { Navigate, Route, Routes, useParams } from "react-router";
+import { Route, Routes } from "react-router";
 
-import { getEnabledApplications, isApplicationEnabled } from "./applications";
+import { getEnabledApplications } from "./applications";
 import Activity from "./components/pages/Activity";
 import ApplicationsHome from "./components/pages/ApplicationsHome";
 import Deposit from "./components/pages/Deposit";
 import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
-
-function LegacyMarketRedirect() {
-  const { marketId } = useParams<{ marketId: string }>();
-
-  if (!isApplicationEnabled("morpho")) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <Navigate to={`/app/morpho/market/${marketId}`} replace />;
-}
 
 export const Router = () => {
   const enabledApps = getEnabledApplications();
@@ -34,8 +24,6 @@ export const Router = () => {
             element={<app.Routes />}
           />
         ))}
-
-        <Route path="market/:marketId" element={<LegacyMarketRedirect />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

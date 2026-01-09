@@ -18,7 +18,7 @@ export { ContractStatus as VaultStatus };
 /**
  * Vault - represents a BTC deposit on-chain
  *
- * A vault locks BTC and enables using it as collateral in applications like Morpho.
+ * A vault locks BTC and enables using it as collateral in DeFi applications.
  */
 export interface Vault {
   // === Identity ===
@@ -78,7 +78,7 @@ export interface Deposit {
   amount: number;
   pegInTxHash: string;
   status: PeginDisplayLabel;
-  /** Application name (e.g., "Morpho") */
+  /** Application name (e.g., "Aave") */
   appName?: string;
   /** Timestamp in milliseconds since epoch */
   timestamp?: number;

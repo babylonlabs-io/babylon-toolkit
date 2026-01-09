@@ -5,7 +5,7 @@
  * Uses the centralized polling context for state.
  */
 
-import { StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
+import { Hint, StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 
@@ -71,12 +71,12 @@ export function DepositMobileCard({
         {
           label: "Status",
           value: (
-            <div title={peginState.message || ""} className="cursor-help">
+            <Hint tooltip={peginState.message} attachToChildren>
               <StatusBadge
                 status={peginState.displayVariant}
                 label={peginState.displayLabel}
               />
-            </div>
+            </Hint>
           ),
         },
       ]}

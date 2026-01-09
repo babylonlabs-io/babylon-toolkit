@@ -41,17 +41,7 @@ function isValidApplicationMetadata(
   );
 }
 
-export const applicationMetadata: Record<string, ApplicationMetadata> = {
-  "0xe33aa4b369bfca1bc4429a7daaf13d701147183b": {
-    type: "Lending",
-    name: "Morpho",
-    description:
-      "Morpho is a lending protocol that optimizes interest rates by matching lenders and borrowers peer-to-peer while maintaining the liquidity of underlying pools.",
-    logoUrl:
-      "https://assets.coingecko.com/coins/images/31915/standard/morpho.png",
-    websiteUrl: "https://morpho.org",
-  },
-};
+export const applicationMetadata: Record<string, ApplicationMetadata> = {};
 
 export function getApplicationMetadata(
   controllerAddress: string,

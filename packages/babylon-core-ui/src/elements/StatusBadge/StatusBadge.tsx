@@ -1,5 +1,5 @@
 interface StatusBadgeProps {
-  status: "active" | "inactive" | "pending" | "default";
+  status: "active" | "inactive" | "pending" | "warning" | "default";
   label?: string;
   className?: string;
 }
@@ -8,6 +8,7 @@ const STATUS_DOT_COLORS: Record<StatusBadgeProps["status"], string> = {
   active: "bg-success-main",
   pending: "bg-warning-main",
   inactive: "bg-accent-disabled",
+  warning: "bg-accent-disabled",
   default: "bg-info-main",
 };
 

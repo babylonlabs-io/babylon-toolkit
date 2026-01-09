@@ -14,13 +14,6 @@ vi.mock("@/config/env", () => ({
   },
 }));
 
-vi.mock(
-  "../../applications/morpho/clients/morpho-controller/abis/MorphoIntegrationController.abi.json",
-  () => ({
-    default: [],
-  }),
-);
-
 import {
   checkGraphQLEndpoint,
   createEnvConfigError,

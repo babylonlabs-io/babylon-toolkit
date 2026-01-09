@@ -46,3 +46,8 @@ jobs:
 
       - name: Test affected
         run: pnpm exec nx affected --target=test --base=origin/main --verbose
+
+      - name: Validate TypeDoc
+        run: |
+          cd packages/babylon-ts-sdk
+          pnpm docs:validate

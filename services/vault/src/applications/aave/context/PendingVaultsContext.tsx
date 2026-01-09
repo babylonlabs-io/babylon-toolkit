@@ -55,7 +55,7 @@ const PendingVaultsContext = createContext<PendingVaultsContextValue | null>(
 );
 
 interface PendingVaultsProviderProps {
-  /** Application identifier for storage namespacing (e.g., "aave", "morpho") */
+  /** Application identifier for storage namespacing (e.g., "aave") */
   appId: string;
   children: ReactNode;
 }

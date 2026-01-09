@@ -25,14 +25,14 @@ export const queryKeys = {
       "peginRequests",
       address,
       CONTRACTS.BTC_VAULTS_MANAGER,
-      CONTRACTS.MORPHO_CONTROLLER,
+      CONTRACTS.AAVE_CONTROLLER,
     ] as const,
 
   /** User position for a specific market */
   userPositionForMarket: (
     address: Address,
     marketId: string,
-    controllerAddress: Address = CONTRACTS.MORPHO_CONTROLLER,
+    controllerAddress: Address = CONTRACTS.AAVE_CONTROLLER,
   ) => ["userPositionForMarket", address, marketId, controllerAddress] as const,
 
   /** Market data */

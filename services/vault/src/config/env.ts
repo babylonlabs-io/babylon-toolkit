@@ -14,10 +14,8 @@ import type { Address } from "viem";
 interface RequiredEnvVars {
   // Contract addresses
   BTC_VAULTS_MANAGER: Address;
-  MORPHO_CONTROLLER: Address;
   AAVE_CONTROLLER: Address;
   BTC_VAULT: Address;
-  MORPHO: Address;
 
   // API endpoints
   GRAPHQL_ENDPOINT: string;
@@ -40,10 +38,8 @@ function validateEnvVars(): EnvValidationResult {
   const envVars = {
     // Contract addresses (required)
     BTC_VAULTS_MANAGER: process.env.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER,
-    MORPHO_CONTROLLER: process.env.NEXT_PUBLIC_TBV_MORPHO_CONTROLLER,
     AAVE_CONTROLLER: process.env.NEXT_PUBLIC_TBV_AAVE_CONTROLLER,
     BTC_VAULT: process.env.NEXT_PUBLIC_TBV_BTC_VAULT,
-    MORPHO: process.env.NEXT_PUBLIC_TBV_MORPHO,
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
@@ -55,10 +51,8 @@ function validateEnvVars(): EnvValidationResult {
   // Check for missing required environment variables
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
-    "MORPHO_CONTROLLER",
     "AAVE_CONTROLLER",
     "BTC_VAULT",
-    "MORPHO",
     "GRAPHQL_ENDPOINT",
   ] as const;
 
@@ -70,10 +64,8 @@ function validateEnvVars(): EnvValidationResult {
     // Map internal names to actual env var names
     const envVarMap: Record<string, string> = {
       BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
-      MORPHO_CONTROLLER: "NEXT_PUBLIC_TBV_MORPHO_CONTROLLER",
       AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
       BTC_VAULT: "NEXT_PUBLIC_TBV_BTC_VAULT",
-      MORPHO: "NEXT_PUBLIC_TBV_MORPHO",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
     };
 
@@ -82,10 +74,8 @@ function validateEnvVars(): EnvValidationResult {
     return {
       env: {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
-        MORPHO_CONTROLLER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         BTC_VAULT: ZERO_ADDRESS,
-        MORPHO: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
       },
       error: `Missing: ${missingVarNames.join(", ")}`,

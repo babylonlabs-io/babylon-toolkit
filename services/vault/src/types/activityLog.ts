@@ -2,7 +2,7 @@
  * Activity log type definitions for aggregated user activities across applications
  *
  * ActivityLog represents a single user activity event (deposit, borrow, repay, etc.)
- * from any enabled application (Aave, Morpho, etc.)
+ * from any enabled application (e.g., Aave)
  */
 
 /**

@@ -21,8 +21,8 @@
  *
  * IMPORTANT: With the new contract architecture:
  * - Core vault status (BTCVaultsManager) does NOT change when used by applications
- * - Vaults remain at ACTIVE status even when locked in Morpho positions
- * - Application usage status is tracked separately in MorphoIntegrationController
+ * - Vaults remain at ACTIVE status even when used in DeFi positions
+ * - Application usage status is tracked separately by each integration controller
  */
 export enum ContractStatus {
   /** Status 0: Request submitted, waiting for ACKs */
@@ -33,6 +33,8 @@ export enum ContractStatus {
   ACTIVE = 2,
   /** Status 3: Vault has been redeemed, BTC is claimable */
   REDEEMED = 3,
+  /** Status 4: Vault is invalid - BTC UTXOs were spent in a different transaction */
+  INVALID = 4,
 }
 
 /**
@@ -81,6 +83,7 @@ export const PEGIN_DISPLAY_LABELS = {
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEMED: "Redeemed",
+  INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
 
@@ -102,7 +105,7 @@ export interface PeginState {
   /** Display label for UI */
   displayLabel: PeginDisplayLabel;
   /** Display variant for styling */
-  displayVariant: "pending" | "active" | "inactive";
+  displayVariant: "pending" | "active" | "inactive" | "warning";
   /** Available user actions */
   availableActions: PeginAction[];
   /** Informational message (if any) */
@@ -217,9 +220,9 @@ export function getPeginState(
 
   // Contract Status 2: Active (vault is active and usable)
   // NOTE: With new contract architecture, vault stays at ACTIVE even when used by applications
-  // Application usage status is tracked separately in MorphoIntegrationController
+  // Application usage status is tracked separately by each integration controller
   if (contractStatus === ContractStatus.ACTIVE) {
-    // Check if vault is in use by an application (e.g., Morpho)
+    // Check if vault is in use by an application (e.g., Aave)
     if (isInUse) {
       return {
         contractStatus,
@@ -251,6 +254,19 @@ export function getPeginState(
       displayVariant: "inactive",
       availableActions: [PeginAction.NONE],
       message: "Vault has been redeemed, BTC is claimable",
+    };
+  }
+
+  // Contract Status 4: Invalid (UTXOs spent in a different transaction)
+  if (contractStatus === ContractStatus.INVALID) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: "Invalid",
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
     };
   }
 
@@ -346,7 +362,8 @@ export function shouldRemoveFromLocalStorage(
   // Use explicit checks instead of >= to avoid fragility if enum values change
   if (
     contractStatus === ContractStatus.ACTIVE ||
-    contractStatus === ContractStatus.REDEEMED
+    contractStatus === ContractStatus.REDEEMED ||
+    contractStatus === ContractStatus.INVALID
   ) {
     return true; // Fully confirmed, blockchain is source of truth
   }

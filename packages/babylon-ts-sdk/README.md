@@ -14,7 +14,7 @@ The Babylon TypeScript SDK provides a production-ready, framework-agnostic toolk
 ### Key Features
 
 - **🔐 Trustless Bitcoin Vaults (TBV)** - Core vault protocol operations
-- **🏦 DeFi Integrations** - Pre-built integrations (Morpho and more)
+- **🏦 DeFi Integrations** - Pre-built integrations (`Aave` and others)
 - **📦 Framework Agnostic** - Works with React, Vue, Angular, Node.js, or vanilla JavaScript
 - **🎯 Type-Safe** - Comprehensive TypeScript types with full IDE support
 - **🧩 Modular Design** - Use only what you need via subpath exports
@@ -34,10 +34,7 @@ The SDK uses subpath exports for tree-shaking:
 
 ```typescript
 // High-level managers (recommended for most users)
-import {
-  PeginManager,
-  PayoutManager,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { PeginManager, PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Low-level primitives (advanced use cases)
 import {
@@ -55,7 +52,6 @@ import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
 import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 // Protocol integrations
-import { MorphoClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/morpho";
 import { AaveClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
 
@@ -67,21 +63,19 @@ New to the SDK? Start here:
 
 - **[Installation](./docs/get-started/installation.md)** - Install and verify the SDK
 
-### 📖 Guides [⚠️WIP]
+### 📖 Guides
 
 Complete flows and tutorials:
 
-- **[Complete Peg-In Flow](./docs/guides/complete-pegin-flow.md)** - Deposit BTC into a Trustless Bitcoin Vault
-- **[Complete Payout Flow](./docs/guides/complete-payout-flow.md)** - Withdraw BTC from the Trustless Bitcoin Vault
-- **[Advanced: Using Primitives](./docs/guides/advanced-primitives.md)** - Low-level primitives for custom use cases
-- **[Protocol Integrations](./docs/guides/integrations.md)** - For protocol developers
+- **[Using Managers](./docs/guides/managers.md)** - High-level orchestration for vault operations with wallet integration (recommended for most users)
+- **[Using Primitives](./docs/guides/primitives.md)** - Low-level primitives for advanced use cases and custom implementations
+- **[Protocol Integrations](./docs/guides/integrations.md)** - For protocol developers - ⚠️WIP
 
-### 🔍 API Reference [⚠️WIP]
+### 🔍 API Reference
 
-Auto-generated from source code:
+Auto-generated from TSDoc comments using [TypeDoc](https://typedoc.org/):
 
-- **[Managers API](./docs/api/managers.md)** - High-level wallet orchestration
-- **[Primitives API](./docs/api/primitives.md)** - Low-level pure functions
+- **[API Reference](./docs/api/README.md)** - Complete auto-generated API documentation
 
 ### 💡 Examples [⚠️WIP]
 
@@ -89,6 +83,25 @@ Working example applications:
 
 - **[React App with Managers](./examples/managers-react/)** - Front-end implementation
 - **[Node.js with Primitives](./examples/primitives-nodejs/)** - Back-end integration with custom signing
+
+## Development
+
+### Generating Documentation
+
+API documentation is auto-generated from TSDoc comments using TypeDoc:
+
+```bash
+# Generate docs
+pnpm docs:generate
+
+# Clean and regenerate
+pnpm docs:clean
+
+# Validate docs without generating
+pnpm docs:validate
+```
+
+> **Note**: The `docs/api/` directory contains auto-generated content. Do not edit these files directly. Instead, update TSDoc comments in the source code and regenerate.
 
 ## Links
 

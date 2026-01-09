@@ -1,10 +1,5 @@
-import type { Address } from "viem";
-
-import { ethClient } from "@/clients/eth-contract/client";
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
-
-import MorphoIntegrationControllerABI from "../../applications/morpho/clients/morpho-controller/abis/MorphoIntegrationController.abi.json";
 
 export interface HealthCheckResult {
   healthy: boolean;
@@ -43,49 +38,10 @@ export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
   }
 }
 
-export async function checkApplicationPaused(
-  morphoControllerAddress: Address,
-): Promise<HealthCheckResult> {
-  try {
-    const publicClient = ethClient.getPublicClient();
-
-    const isPaused = await publicClient.readContract({
-      address: morphoControllerAddress,
-      abi: MorphoIntegrationControllerABI,
-      functionName: "paused",
-      args: [],
-    });
-
-    if (isPaused) {
-      return {
-        healthy: false,
-        error: {
-          title: "Application Paused",
-          message:
-            "This application is currently paused for maintenance. Your existing vaults are safe. Please check back later.",
-        },
-      };
-    }
-
-    return { healthy: true };
-  } catch {
-    return { healthy: true };
-  }
-}
-
-export async function runHealthChecks(
-  morphoControllerAddress?: Address,
-): Promise<HealthCheckResult> {
+export async function runHealthChecks(): Promise<HealthCheckResult> {
   const graphqlResult = await checkGraphQLEndpoint();
   if (!graphqlResult.healthy) {
     return graphqlResult;
-  }
-
-  if (morphoControllerAddress) {
-    const pausedResult = await checkApplicationPaused(morphoControllerAddress);
-    if (!pausedResult.healthy) {
-      return pausedResult;
-    }
   }
 
   return { healthy: true };
