@@ -32,6 +32,13 @@ interface CollateralDepositSignModalProps {
   onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
 }
 
+function canCloseModal(currentStep: number, error: string | null): boolean {
+  // Allow close on error or complete (step 5)
+  if (error) return true;
+  if (currentStep === 5) return true; // Complete
+  return false;
+}
+
 export function CollateralDepositSignModal({
   open,
   onClose,
@@ -49,34 +56,34 @@ export function CollateralDepositSignModal({
   const prevOpenRef = useRef(false);
   const hasExecutedRef = useRef(false);
 
-  const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
-    {
-      amount,
-      btcWalletProvider,
-      depositorEthAddress,
-      selectedApplication,
-      selectedProviders,
-      vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys,
-      modalOpen: open, // Pass modal open state to control Step 3 auto-signing
-      onSuccess: (
-        btcTxid: string,
-        ethTxHash: string,
-        depositorBtcPubkey: string,
-      ) => {
-        // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
-        // and after Step 3 (PAYOUT_SIGNED)
+  const {
+    executeDepositFlow,
+    currentStep,
+    processing,
+    error,
+    isWaiting,
+    stepDescription,
+  } = useDepositFlow({
+    amount,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedApplication,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+    modalOpen: open,
+    onSuccess: (
+      btcTxid: string,
+      ethTxHash: string,
+      depositorBtcPubkey: string,
+    ) => {
+      if (onRefetchActivities) {
+        onRefetchActivities();
+      }
 
-        // Trigger refetch to immediately show the updated deposit
-        if (onRefetchActivities) {
-          onRefetchActivities();
-        }
-
-        // Call parent success handler with depositor BTC pubkey
-        onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
-      },
+      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
     },
-  );
+  });
 
   // Execute flow once when modal transitions from closed to open
   useEffect(() => {
@@ -98,11 +105,14 @@ export function CollateralDepositSignModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  const isComplete = currentStep === 5;
+  const canClose = canCloseModal(currentStep, error);
+
   return (
-    <ResponsiveDialog open={open} onClose={onClose}>
+    <ResponsiveDialog open={open} onClose={canClose ? onClose : undefined}>
       <DialogHeader
         title="Deposit in Progress"
-        onClose={onClose}
+        onClose={canClose ? onClose : undefined}
         className="text-accent-primary"
       />
 
@@ -111,9 +121,10 @@ export function CollateralDepositSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Please complete the required signing steps to begin your BTC deposit.
+          {stepDescription}
         </Text>
 
+        {/* 4-Step Progress Indicator */}
         <div className="flex flex-col items-start gap-4 py-4">
           <Step step={1} currentStep={currentStep}>
             Sign proof of possession
@@ -121,13 +132,30 @@ export function CollateralDepositSignModal({
           <Step step={2} currentStep={currentStep}>
             Sign & submit peg-in request to Ethereum
           </Step>
+          <Step step={3} currentStep={currentStep}>
+            Sign payout transactions
+          </Step>
+          <Step step={4} currentStep={currentStep}>
+            Sign & broadcast Bitcoin transaction
+          </Step>
         </div>
 
-        {/* Error Display */}
+        {/* Error State */}
         {error && (
-          <div className="bg-error/10 rounded-lg p-4">
-            <Text variant="body2" className="text-error text-sm">
-              Error: {error}
+          <div className="rounded-lg bg-error-main/10 p-4">
+            <Text variant="body2" className="text-sm text-error-main">
+              {error}
+            </Text>
+          </div>
+        )}
+
+        {/* Success State */}
+        {isComplete && (
+          <div className="rounded-lg bg-success-main/10 p-4">
+            <Text variant="body2" className="text-sm text-success-main">
+              Your Bitcoin transaction has been broadcast to the network. It
+              will be confirmed after receiving the required number of Bitcoin
+              confirmations.
             </Text>
           </div>
         )}
@@ -135,17 +163,19 @@ export function CollateralDepositSignModal({
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={processing && !error}
+          disabled={(processing || isWaiting) && !error && !isComplete}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={error ? onClose : () => {}}
+          onClick={canClose ? onClose : undefined}
         >
-          {processing && !error ? (
+          {(processing || isWaiting) && !error && !isComplete ? (
             <Loader size={16} className="text-accent-contrast" />
           ) : error ? (
             "Close"
+          ) : isComplete ? (
+            "Done"
           ) : (
-            "View Position"
+            "Processing..."
           )}
         </Button>
       </DialogFooter>
