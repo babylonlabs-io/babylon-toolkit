@@ -7,6 +7,40 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Mock babylon-config to avoid env var requirements
+vi.mock("@babylonlabs-io/config", () => ({
+  getNetworkConfigETH: vi.fn(() => ({
+    chainId: 11155111,
+    name: "sepolia",
+  })),
+  getNetworkConfigBTC: vi.fn(() => ({
+    network: "signet",
+    mempoolApiUrl: "https://mempool.space/signet/api",
+  })),
+  getETHChain: vi.fn(() => ({
+    id: 11155111,
+    name: "Sepolia",
+  })),
+  getBTCNetwork: vi.fn(() => 1),
+}));
+
+// Mock wallet-connector to avoid initialization issues
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  Network: {
+    MAINNET: 0,
+    SIGNET: 1,
+    TESTNET: 2,
+  },
+  useBTCWallet: vi.fn(() => ({
+    address: "bc1qtest123",
+    connected: true,
+  })),
+  useETHWallet: vi.fn(() => ({
+    connected: true,
+  })),
+  useChainConnector: vi.fn(() => ({})),
+}));
+
 import { useDepositValidation } from "../useDepositValidation";
 
 // Mock the useUTXOs hook
