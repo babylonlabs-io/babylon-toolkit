@@ -4,7 +4,7 @@ import {
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
-import type { Hex, WalletClient } from "viem";
+import type { Address, Hex, WalletClient } from "viem";
 import { getWalletClient } from "wagmi/actions";
 
 import { BTC_TRANSACTION_FEE } from "@/config/pegin";
@@ -13,7 +13,13 @@ import { useBTCWallet } from "@/context/wallet";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import type { DepositTransactionData } from "@/services/deposit";
 import { depositService } from "@/services/deposit";
+import { fetchVaultsByDepositor } from "@/services/vault/fetchVaults";
+import {
+  collectReservedUtxoRefs,
+  utxoRefKeysToArray,
+} from "@/services/vault/utxoReservation";
 import * as vaultTransactionService from "@/services/vault/vaultTransactionService";
+import { getPendingPegins } from "@/storage/peginStorage";
 import type { VaultProvider } from "@/types/vaultProvider";
 
 import { useVaultProviders } from "./useVaultProviders";
@@ -141,6 +147,34 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         // Calculate fee rate from fixed fee
         const feeRate = Math.ceil(Number(BTC_TRANSACTION_FEE) / 250);
 
+        // Smart UTXO selection: collect UTXO refs to avoid from in-flight deposits
+        let avoidUtxoRefs: vaultTransactionService.SubmitPeginParams["avoidUtxoRefs"];
+        try {
+          // Fetch vaults from indexer and pending pegins from localStorage
+          const [vaults, pendingPegins] = await Promise.all([
+            fetchVaultsByDepositor(params.ethAddress as Address).catch(
+              () => [],
+            ),
+            Promise.resolve(getPendingPegins(params.ethAddress)),
+          ]);
+
+          // Collect reserved UTXO refs (from pending/verified vaults and localStorage)
+          const reservedSet = collectReservedUtxoRefs({
+            vaults,
+            pendingPegins,
+          });
+
+          if (reservedSet.size > 0) {
+            avoidUtxoRefs = utxoRefKeysToArray(reservedSet);
+          }
+        } catch (error) {
+          // Never block deposits due to smart selection errors - just log and continue
+          console.warn(
+            "[useDepositTransaction] Failed to collect reserved outpoints:",
+            error,
+          );
+        }
+
         // Use PeginManager for complete flow
         const result = await vaultTransactionService.submitPeginRequest(
           btcWalletProvider,
@@ -153,6 +187,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
             vaultProviderBtcPubkey: selectedProvider.btcPubKey,
             liquidatorBtcPubkeys: liquidators.map((liq) => liq.btcPubKey),
             availableUTXOs: confirmedUTXOs,
+            avoidUtxoRefs,
           },
         );
 
