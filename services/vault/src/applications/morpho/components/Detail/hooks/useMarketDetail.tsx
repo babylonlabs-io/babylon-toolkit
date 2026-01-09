@@ -7,7 +7,7 @@ import { useParams } from "react-router";
 import type { Address } from "viem";
 
 import { CONTRACTS } from "../../../../../config/contracts";
-import { useBTCPrice } from "../../../../../hooks/useBTCPrice";
+import { usePrices } from "../../../../../hooks/usePrices";
 import { useTokenPair } from "../../../../../hooks/useTokenPair";
 import { getMarketBorrowAPR } from "../../../../../services/irm";
 import {
@@ -31,10 +31,11 @@ export function useMarketDetail() {
 
   // Fetch BTC price from oracle
   const {
-    btcPriceUSD,
-    loading: isBTCPriceLoading,
+    prices,
+    isLoading: isBTCPriceLoading,
     error: btcPriceError,
-  } = useBTCPrice();
+  } = usePrices();
+  const btcPriceUSD = prices.BTC ?? 0;
 
   // Fetch markets from API
   const {

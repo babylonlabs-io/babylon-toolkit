@@ -9,7 +9,7 @@ import { useMemo } from "react";
 
 import type { DetailRow } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
-import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { usePrices } from "@/hooks/usePrices";
 
 import { useAaveConfig } from "../../../context";
 import {
@@ -33,7 +33,8 @@ export function useAddCollateralModal(): UseCollateralModalResult {
   const { address } = useETHWallet();
 
   // Fetch BTC price (uses React Query cache)
-  const { btcPriceUSD, loading: priceLoading } = useBTCPrice();
+  const { prices, isLoading: priceLoading } = usePrices();
+  const btcPriceUSD = prices.BTC ?? 0;
 
   // Fetch user's position data (uses React Query cache)
   const { collateralValueUsd, debtValueUsd, healthFactor } =

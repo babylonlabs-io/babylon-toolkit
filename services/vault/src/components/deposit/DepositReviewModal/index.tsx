@@ -14,7 +14,7 @@ import {
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
-import { useBTCPrice } from "../../../hooks/useBTCPrice";
+import { usePrices } from "../../../hooks/usePrices";
 import { truncateAddress } from "../../../utils/addressUtils";
 import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 
@@ -37,7 +37,8 @@ export function CollateralDepositReviewModal({
   const amountBtc = satoshiToBtcNumber(amount);
 
   // Fetch real-time BTC price from oracle
-  const { btcPriceUSD, loading: btcPriceLoading } = useBTCPrice();
+  const { prices, isLoading: btcPriceLoading } = usePrices();
+  const btcPriceUSD = prices.BTC ?? 0;
 
   // Calculate USD value using real-time price
   const amountUsd = btcPriceUSD > 0 ? amountBtc * btcPriceUSD : null;

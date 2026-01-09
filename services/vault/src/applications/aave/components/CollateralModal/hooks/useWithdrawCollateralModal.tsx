@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 
 import type { DetailRow } from "@/components/shared";
 import { useETHWallet } from "@/context/wallet";
-import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { usePrices } from "@/hooks/usePrices";
 import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { formatUsdValue } from "@/utils/formatting";
 
@@ -30,7 +30,8 @@ import type { UseCollateralModalResult } from "./types";
  */
 export function useWithdrawCollateralModal(): UseCollateralModalResult {
   const { address } = useETHWallet();
-  const { btcPriceUSD, loading: priceLoading } = useBTCPrice();
+  const { prices, isLoading: priceLoading } = usePrices();
+  const btcPriceUSD = prices.BTC ?? 0;
 
   const { collateralBtc, debtValueUsd, healthFactor } =
     useAaveUserPosition(address);
