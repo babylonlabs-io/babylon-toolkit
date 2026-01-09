@@ -4,7 +4,11 @@ import type { Hex } from "viem";
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import { stripHexPrefix, type Network } from "../../utils/btc";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+  type Network,
+} from "../../utils/btc";
 
 import { signPayoutTransaction } from "./btcPayoutSigner";
 import { fetchVaultProviderById } from "./fetchVaultProviders";
@@ -42,24 +46,35 @@ export interface SignAndSubmitPayoutSignaturesParams {
   btcWallet: BitcoinWallet;
 }
 
+export interface PrepareSigningContextParams {
+  peginTxId: string;
+  depositorBtcPubkey: string;
+  providers: PayoutProviders;
+}
+
+export interface PreparedSigningData {
+  context: SigningContext;
+  vaultProviderUrl: string;
+}
+
 /**
- * Sign payout transactions and submit signatures to vault provider.
- * Fetches pegin data, signs each claimer transaction, and submits to VP RPC.
+ * Validate input parameters for payout signing.
  */
-export async function signAndSubmitPayoutSignatures(
-  params: SignAndSubmitPayoutSignaturesParams,
-): Promise<void> {
+export function validatePayoutSignatureParams(params: {
+  peginTxId: string;
+  depositorBtcPubkey: string;
+  claimerTransactions: ClaimerTransactions[];
+  vaultProvider: PayoutVaultProvider;
+  liquidators: PayoutLiquidator[];
+}): void {
   const {
     peginTxId,
     depositorBtcPubkey,
     claimerTransactions,
-    providers,
-    btcWallet,
+    vaultProvider,
+    liquidators,
   } = params;
 
-  const { vaultProvider, liquidators } = providers;
-
-  // Validate inputs
   if (!peginTxId || typeof peginTxId !== "string") {
     throw new Error("Invalid peginTxId: must be a non-empty string");
   }
@@ -87,99 +102,255 @@ export async function signAndSubmitPayoutSignatures(
   if (!liquidators || liquidators.length === 0) {
     throw new Error("Invalid liquidators: must be a non-empty array");
   }
+}
 
-  // Fetch vault data from GraphQL
-  const vault = await fetchVaultById(peginTxId as Hex);
-
-  if (!vault?.unsignedBtcTx) {
-    throw new Error("Vault or pegin transaction not found");
-  }
-
-  const peginTxHex = vault.unsignedBtcTx;
-
-  // Fetch vault provider's BTC public key (if not provided)
-  let vaultProviderBtcPubkey: string;
+/**
+ * Resolve vault provider's BTC public key.
+ * Uses provided key or fetches from GraphQL if not provided.
+ */
+export async function resolveVaultProviderBtcPubkey(
+  vaultProvider: PayoutVaultProvider,
+): Promise<string> {
   if (vaultProvider.btcPubKey) {
-    vaultProviderBtcPubkey = stripHexPrefix(vaultProvider.btcPubKey);
-  } else {
-    const provider = await fetchVaultProviderById(vaultProvider.address);
-    if (!provider) {
-      throw new Error("Vault provider not found");
-    }
-    vaultProviderBtcPubkey = stripHexPrefix(provider.btcPubKey);
+    return stripHexPrefix(vaultProvider.btcPubKey);
   }
 
-  // Get liquidator BTC public keys
-  const cleanLiquidatorPubkeys = liquidators.map((liq) =>
-    stripHexPrefix(liq.btcPubKey),
-  );
+  const provider = await fetchVaultProviderById(vaultProvider.address);
+  if (!provider) {
+    throw new Error("Vault provider not found");
+  }
+  return stripHexPrefix(provider.btcPubKey);
+}
 
-  // Pre-sort liquidators to match Rust backend behavior (lexicographic sort)
-  // Rust: crates/vault/src/connectors/script_utils.rs:30 - sorted_signers.sort()
-  const sortedLiquidatorPubkeys = [...cleanLiquidatorPubkeys].sort();
-
-  // Fetch transaction graph from vault provider to get exact liquidator order
-  // The VP's graph contains the canonical order used for script generation
-  const rpcClient = new VaultProviderRpcApi(vaultProvider.url, 30000);
-  let finalLiquidatorPubkeys = cleanLiquidatorPubkeys;
+/**
+ * Extract liquidator pubkeys from transaction graph JSON.
+ * Returns pubkeys from graph if available, otherwise returns fallback.
+ */
+export function extractLiquidatorPubkeysFromGraph(
+  graphJson: string | null,
+  fallbackPubkeys: string[],
+): string[] {
+  if (!graphJson) {
+    return fallbackPubkeys;
+  }
 
   try {
-    const graphResponse = await rpcClient.getPeginClaimTxGraph({
+    const graph = JSON.parse(graphJson);
+    if (graph.liquidator_pubkeys && Array.isArray(graph.liquidator_pubkeys)) {
+      return graph.liquidator_pubkeys.map((pk: string) => stripHexPrefix(pk));
+    }
+    return fallbackPubkeys;
+  } catch {
+    return fallbackPubkeys;
+  }
+}
+
+/**
+ * Get sorted liquidator pubkeys as fallback order.
+ * Matches Rust backend behavior (lexicographic sort).
+ */
+export function getSortedLiquidatorPubkeys(
+  liquidators: PayoutLiquidator[],
+): string[] {
+  return liquidators.map((liq) => stripHexPrefix(liq.btcPubKey)).sort();
+}
+
+/**
+ * Fetch the PegIn claim transaction graph JSON from vault provider.
+ * Returns null if the fetch fails.
+ */
+export async function fetchPeginClaimTxGraphJson(
+  vaultProviderUrl: string,
+  peginTxId: string,
+): Promise<string | null> {
+  const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
+  try {
+    const response = await rpcClient.getPeginClaimTxGraph({
       pegin_tx_id: stripHexPrefix(peginTxId),
     });
-
-    const graph = JSON.parse(graphResponse.graph_json);
-
-    if (graph.liquidator_pubkeys && Array.isArray(graph.liquidator_pubkeys)) {
-      finalLiquidatorPubkeys = graph.liquidator_pubkeys.map((pk: string) =>
-        stripHexPrefix(pk),
-      );
-    } else {
-      finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  } catch (error) {
-    // Fallback to sorted order if VP graph fetch fails
-    finalLiquidatorPubkeys = sortedLiquidatorPubkeys;
+    return response.graph_json;
+  } catch {
+    return null;
   }
+}
 
-  const network: Network = getBTCNetworkForWASM();
-  const signatures: Record<string, string> = {};
-
-  for (const claimerTx of claimerTransactions) {
-    const payoutTxHex = claimerTx.payout_tx.tx_hex;
-    const claimTxHex = claimerTx.claim_tx.tx_hex;
-    const claimerPubkey = claimerTx.claimer_pubkey;
-
-    // Convert claimer pubkey to x-only format (VP expects 32-byte x-only keys)
-    let claimerPubkeyXOnly = claimerPubkey;
-    if (claimerPubkey.length === 66) {
-      claimerPubkeyXOnly = claimerPubkey.substring(2);
-    } else if (claimerPubkey.length !== 64) {
-      throw new Error(
-        `Unexpected claimer pubkey length: ${claimerPubkey.length} chars (expected 64 or 66)`,
-      );
-    }
-
-    // Sign using VP's canonical liquidator order to ensure correct sighash
-    // Use depositor pubkey from vault data (stored on-chain) for signature verification
-    const signature = await signPayoutTransaction(btcWallet, {
-      payoutTxHex,
-      peginTxHex,
-      claimTxHex,
-      vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys: finalLiquidatorPubkeys,
-      network,
-      depositorBtcPubkey,
-    });
-
-    signatures[claimerPubkeyXOnly] = signature;
-  }
-
-  // Submit signatures to vault provider RPC
+/**
+ * Submit payout signatures to vault provider RPC.
+ */
+export async function submitSignaturesToVaultProvider(
+  vaultProviderUrl: string,
+  peginTxId: string,
+  depositorBtcPubkey: string,
+  signatures: Record<string, string>,
+): Promise<void> {
+  const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
   await rpcClient.submitPayoutSignatures({
     pegin_tx_id: stripHexPrefix(peginTxId),
     depositor_pk: depositorBtcPubkey,
     signatures,
   });
+}
+
+/** Context required for signing payout transactions */
+export interface SigningContext {
+  peginTxHex: string;
+  vaultProviderBtcPubkey: string;
+  liquidatorBtcPubkeys: string[];
+  depositorBtcPubkey: string;
+  network: Network;
+}
+
+/** A single transaction prepared for signing */
+export interface PreparedTransaction {
+  claimerPubkeyXOnly: string;
+  payoutTxHex: string;
+  claimTxHex: string;
+}
+
+/**
+ * Prepare transactions for signing by extracting and normalizing pubkeys.
+ */
+export function prepareTransactionsForSigning(
+  claimerTransactions: ClaimerTransactions[],
+): PreparedTransaction[] {
+  return claimerTransactions.map((tx) => ({
+    claimerPubkeyXOnly: processPublicKeyToXOnly(tx.claimer_pubkey),
+    payoutTxHex: tx.payout_tx.tx_hex,
+    claimTxHex: tx.claim_tx.tx_hex,
+  }));
+}
+
+/**
+ * Sign a single payout transaction.
+ * Returns the signature for the given prepared transaction.
+ */
+export async function signSingleTransaction(
+  btcWallet: BitcoinWallet,
+  context: SigningContext,
+  transaction: PreparedTransaction,
+): Promise<string> {
+  return signPayoutTransaction(btcWallet, {
+    payoutTxHex: transaction.payoutTxHex,
+    peginTxHex: context.peginTxHex,
+    claimTxHex: transaction.claimTxHex,
+    vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys: context.liquidatorBtcPubkeys,
+    network: context.network,
+    depositorBtcPubkey: context.depositorBtcPubkey,
+  });
+}
+
+/**
+ * Sign all prepared transactions.
+ * For use when caller doesn't need progress tracking.
+ */
+export async function signAllTransactions(
+  btcWallet: BitcoinWallet,
+  context: SigningContext,
+  transactions: PreparedTransaction[],
+): Promise<Record<string, string>> {
+  const signatures: Record<string, string> = {};
+
+  for (const tx of transactions) {
+    signatures[tx.claimerPubkeyXOnly] = await signSingleTransaction(
+      btcWallet,
+      context,
+      tx,
+    );
+  }
+
+  return signatures;
+}
+
+/**
+ * Prepare the signing context by fetching all required data.
+ * Call this once, then use signSingleTransaction for each transaction.
+ */
+export async function prepareSigningContext(
+  params: PrepareSigningContextParams,
+): Promise<PreparedSigningData> {
+  const { peginTxId, depositorBtcPubkey, providers } = params;
+  const { vaultProvider, liquidators } = providers;
+
+  // Fetch vault data from GraphQL
+  const vault = await fetchVaultById(peginTxId as Hex);
+  if (!vault?.unsignedBtcTx) {
+    throw new Error("Vault or pegin transaction not found");
+  }
+
+  // Resolve vault provider's BTC public key
+  const vaultProviderBtcPubkey =
+    await resolveVaultProviderBtcPubkey(vaultProvider);
+
+  // Get liquidator pubkey order from VP graph (with sorted fallback)
+  const graphJson = await fetchPeginClaimTxGraphJson(
+    vaultProvider.url,
+    peginTxId,
+  );
+  const sortedFallback = getSortedLiquidatorPubkeys(liquidators);
+  const liquidatorBtcPubkeys = extractLiquidatorPubkeysFromGraph(
+    graphJson,
+    sortedFallback,
+  );
+
+  return {
+    context: {
+      peginTxHex: vault.unsignedBtcTx,
+      vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys,
+      depositorBtcPubkey,
+      network: getBTCNetworkForWASM(),
+    },
+    vaultProviderUrl: vaultProvider.url,
+  };
+}
+
+/**
+ * Sign payout transactions and submit signatures to vault provider.
+ * Convenience function that handles preparation, signing, and submission.
+ * For progress tracking, use prepareSigningContext + signSingleTransaction instead.
+ */
+export async function signAndSubmitPayoutSignatures(
+  params: SignAndSubmitPayoutSignaturesParams,
+): Promise<void> {
+  const {
+    peginTxId,
+    depositorBtcPubkey,
+    claimerTransactions,
+    providers,
+    btcWallet,
+  } = params;
+
+  // Validate inputs
+  validatePayoutSignatureParams({
+    peginTxId,
+    depositorBtcPubkey,
+    claimerTransactions,
+    vaultProvider: providers.vaultProvider,
+    liquidators: providers.liquidators,
+  });
+
+  // Prepare signing context
+  const { context, vaultProviderUrl } = await prepareSigningContext({
+    peginTxId,
+    depositorBtcPubkey,
+    providers,
+  });
+
+  // Prepare and sign all transactions
+  const preparedTransactions =
+    prepareTransactionsForSigning(claimerTransactions);
+  const signatures = await signAllTransactions(
+    btcWallet,
+    context,
+    preparedTransactions,
+  );
+
+  // Submit signatures to vault provider RPC
+  await submitSignaturesToVaultProvider(
+    vaultProviderUrl,
+    peginTxId,
+    depositorBtcPubkey,
+    signatures,
+  );
 }

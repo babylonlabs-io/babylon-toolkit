@@ -16,21 +16,12 @@ import {
   ResponsiveDialog,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
-import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
-import {
-  getNextLocalStatus,
-  LocalStorageStatus,
-  PeginAction,
-} from "../../../models/peginStateMachine";
-import { signAndSubmitPayoutSignatures } from "../../../services/vault/vaultPayoutSignatureService";
-import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
-import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
+
+import { SigningProgress } from "./SigningProgress";
+import { usePayoutSigningState } from "./usePayoutSigningState";
 
 interface PayoutSignModalProps {
   /** Modal open state */
@@ -64,102 +55,14 @@ export function PayoutSignModal({
   depositorEthAddress,
   onSuccess,
 }: PayoutSignModalProps) {
-  const [signing, setSigning] = useState(false);
-  const [error, setError] = useState<{
-    title: string;
-    message: string;
-  } | null>(null);
-
-  // Use applicationController from activity to fetch the correct providers
-  const { findProvider, liquidators } = useVaultProviders(
-    activity.applicationController,
-  );
-  const btcConnector = useChainConnector("BTC");
-
-  // Get optimistic update from polling context
-  const { setOptimisticStatus } = usePeginPolling();
-
-  const handleSign = useCallback(async () => {
-    if (!transactions || transactions.length === 0) {
-      setError({
-        title: "No Transactions",
-        message:
-          "No transactions available to sign. Please wait and try again.",
-      });
-      return;
-    }
-
-    setSigning(true);
-    setError(null);
-
-    try {
-      // Note: Currently only single vault provider per deposit is supported
-      const vaultProviderAddress = activity.providers[0]?.id as Hex;
-      const provider = findProvider(vaultProviderAddress);
-
-      if (!provider) {
-        throw new Error("Vault provider not found");
-      }
-
-      // Get BTC wallet provider
-      const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-      if (!btcWalletProvider) {
-        throw new Error("BTC wallet not connected");
-      }
-
-      // Sign and submit payout signatures
-      await signAndSubmitPayoutSignatures({
-        peginTxId: activity.txHash!,
-        depositorBtcPubkey: btcPublicKey,
-        claimerTransactions: transactions,
-        providers: {
-          vaultProvider: {
-            address: provider.id as Hex,
-            url: provider.url,
-            btcPubKey: provider.btcPubKey,
-          },
-          liquidators,
-        },
-        btcWallet: btcWalletProvider,
-      });
-
-      // Update localStorage status using state machine
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
-      );
-      if (nextStatus && activity.txHash) {
-        updatePendingPeginStatus(
-          depositorEthAddress,
-          activity.txHash,
-          nextStatus,
-        );
-
-        // Optimistically update UI immediately (before refetch completes)
-        setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
-      }
-
-      // Success - refetch and close
-      setSigning(false);
-      onSuccess();
-      onClose();
-    } catch (err) {
-      setError(formatPayoutSignatureError(err));
-      setSigning(false);
-    }
-  }, [
+  const { signing, progress, error, handleSign } = usePayoutSigningState({
+    activity,
     transactions,
-    activity.providers,
-    activity.txHash,
-    activity.id,
-    findProvider,
-    liquidators,
-    btcConnector?.connectedWallet?.provider,
     btcPublicKey,
+    depositorEthAddress,
     onSuccess,
     onClose,
-    depositorEthAddress,
-    setOptimisticStatus,
-  ]);
+  });
 
   return (
     <ResponsiveDialog open={open} onClose={onClose}>
@@ -174,9 +77,12 @@ export function PayoutSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your vault provider has prepared the payout transaction. Please sign
-          to complete your deposit.
+          Your vault provider has prepared {transactions?.length ?? 0} payout{" "}
+          {transactions?.length === 1 ? "transaction" : "transactions"}. Please
+          sign to complete your deposit.
         </Text>
+
+        {signing && <SigningProgress {...progress} />}
 
         {error && (
           <div className="bg-error/10 rounded-lg p-4">
