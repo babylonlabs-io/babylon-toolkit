@@ -105,7 +105,10 @@ export function useDepositValidation(
 
         // Validate UTXOs if available
         if (confirmedUTXOs && confirmedUTXOs.length > 0) {
-          const fees = depositService.calculateDepositFees(amount, defaultFeeRate);
+          const fees = depositService.calculateDepositFees(
+            amount,
+            defaultFeeRate,
+          );
           const requiredAmount = amount + fees.totalFee;
 
           const utxoValidation = depositService.validateUTXOs(
