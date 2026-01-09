@@ -174,8 +174,8 @@ export function PayoutSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your vault providers have prepared the payout transactions. Please
-          sign to complete your deposit.
+          Your vault provider has prepared the payout transaction. Please sign
+          to complete your deposit.
         </Text>
 
         {error && (
