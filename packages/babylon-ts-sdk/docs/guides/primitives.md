@@ -6,30 +6,51 @@ Pure functions for building Bitcoin transactions for Babylon Trustless BTC Vault
 
 ## ⚠️ Important: Primitives vs Managers
 
-## What Primitives Don't Provide
+## Understanding the SDK Layers
 
-Primitives are pure functions for Bitcoin transaction building. They do **NOT** handle:
+The SDK provides three levels of abstraction:
 
-### Missing from Complete Peg-In Flow:
+### Level 1: Primitives (Pure Functions)
 
-1. ❌ **Proof-of-Possession (PoP)** - BIP-322 signature of Ethereum address
-2. ❌ **Ethereum Contract Submission** - Calling `submitPeginRequest()` on BTCVaultsManager
-3. ❌ **Payout Authorization Orchestration** - Polling vault provider RPC, signing multiple payout transactions
-4. ❌ **UTXO Selection** - Choosing which UTXOs to spend
-5. ❌ **Fee Calculation** - Determining appropriate transaction fees
-6. ❌ **Transaction Broadcasting** - Submitting signed transaction to Bitcoin network
-7. ❌ **Wallet Integration** - Connecting to UniSat, OKX, MetaMask, etc.
-8. ❌ **Contract Status Polling** - Waiting for PENDING → VERIFIED transitions
+**What Primitives Provide:**
 
-### You Must Implement:
+- ✅ Pure Bitcoin transaction builders (`buildPeginPsbt`, `buildPayoutPsbt`)
+- ✅ Signature extraction (`extractPayoutSignature`)
+- ✅ Bitcoin utility functions (pubkey conversion, hex helpers)
+
+**What Primitives Don't Provide:**
+
+- ❌ Wallet integration or signing
+- ❌ Ethereum contract interaction
+- ❌ Proof-of-Possession (PoP) generation
+- ❌ Vault provider RPC polling or submission
+- ❌ Transaction broadcasting
+- ❌ Any orchestration or coordination logic
+
+### Level 2: Utils (Helper Functions)
+
+**What Utils Provide:**
+
+- ✅ **UTXO Selection** - `selectUtxosForPegin()` with iterative fee calculation
+- ✅ **Fee Calculation Constants** - `P2TR_INPUT_SIZE`, `BTC_DUST_SAT`, `rateBasedTxBufferFee()`
+- ✅ **Transaction Helpers** - Funding, change calculation, script parsing
+
+```typescript
+import {
+  selectUtxosForPegin,
+  P2TR_INPUT_SIZE,
+  BTC_DUST_SAT,
+  rateBasedTxBufferFee,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+```
+
+### What You Must Still Implement:
 
 - Wallet integration for signing (both BTC and ETH)
 - Ethereum contract interaction (`viem`)
 - BIP-322 PoP signature generation
 - Vault provider RPC polling and signature submission
-- UTXO management and selection
-- Fee estimation
-- Transaction broadcasting
+- Transaction broadcasting to Bitcoin network
 - State management and error handling
 
 **For automated orchestration of the complete 4-step flow**, use the [Managers Guide](./managers.md).
@@ -43,15 +64,16 @@ Use primitives for **custom implementations** when you need:
 - Custom wallet integrations
 - Serverless environments with specific requirements
 
-### When to Use Managers
+### Level 3: Managers (Full Orchestration)
 
-**For complete peg-in orchestration**, use the [Managers Guide](./managers.md) instead:
+**For complete peg-in orchestration**, use the [Managers Guide](./managers.md):
 
 - ✅ Handles proof-of-possession (PoP) automatically
 - ✅ Handles Ethereum contract submission
 - ✅ Handles payout authorization flow (Step 3)
 - ✅ Integrates with browser wallets
-- ✅ Automates UTXO selection and funding
+- ✅ Uses utils layer for UTXO selection and fee calculation
+- ✅ Uses primitives layer for PSBT building
 - ✅ Broadcasts to Bitcoin network
 
 ---
@@ -72,14 +94,21 @@ npm install @babylonlabs-io/ts-sdk
 Your Application
       ↓
 ┌───────────────────────────────────┐
-│ Managers (Orchestration)          │
-│ - PeginManager                    │
-│ - PayoutManager                   │
+│ Level 3: Managers                 │
+│ - PeginManager, PayoutManager     │
 │ - Handles PoP, Ethereum, RPC      │
+│ - Wallet orchestration            │
 └───────────────────────────────────┘
       ↓
 ┌───────────────────────────────────┐
-│ Primitives (Bitcoin Only)         │
+│ Level 2: Utils                    │
+│ - selectUtxosForPegin()           │
+│ - Fee constants & calculation     │
+│ - Transaction helpers             │
+└───────────────────────────────────┘
+      ↓
+┌───────────────────────────────────┐
+│ Level 1: Primitives               │
 │ - buildPeginPsbt()                │
 │ - buildPayoutPsbt()               │
 │ - extractPayoutSignature()        │

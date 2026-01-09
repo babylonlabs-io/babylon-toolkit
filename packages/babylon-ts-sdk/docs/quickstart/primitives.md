@@ -16,11 +16,21 @@ Complete guide to implementing Bitcoin TBV peg-in using **low-level Primitives o
 - ❌ Ethereum contract interaction
 - ❌ Proof-of-possession (PoP) generation
 - ❌ Vault provider RPC polling or submission
-- ❌ UTXO selection or fee calculation
 - ❌ Transaction broadcasting
 - ❌ Any orchestration or coordination logic
 
-**You must implement ALL wallet operations, Ethereum interactions, RPC calls, and coordination logic yourself.**
+**However, the SDK DOES provide Utils layer** for UTXO selection and fee calculation:
+
+```typescript
+import {
+  selectUtxosForPegin, // Automatic UTXO selection with iterative fee calc
+  P2TR_INPUT_SIZE, // Fee calculation constants
+  BTC_DUST_SAT,
+  rateBasedTxBufferFee,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+```
+
+**You must implement:** Wallet operations, Ethereum interactions, RPC calls, and coordination logic.
 
 ## When to Use Primitives
 
@@ -60,9 +70,9 @@ npm install @babylonlabs-io/ts-sdk bitcoinjs-lib viem
 
 3. **Vault Provider RPC Client** - For polling and submitting signatures
 
-4. **UTXO Management** - Selection, fee calculation, funding logic
+4. **Transaction Broadcasting** - To Bitcoin network
 
-5. **Transaction Broadcasting** - To Bitcoin network
+**Note:** UTXO selection and fee calculation are provided by the SDK's utils layer (`selectUtxosForPegin()`, fee constants).
 
 ## The 4-Step Peg-In Flow
 
@@ -88,26 +98,30 @@ console.log("Vault script pubkey:", peginResult.vaultScriptPubKey);
 console.log("Vault value:", peginResult.vaultValue);
 console.log("Unfunded PSBT hex:", peginResult.psbtHex);
 
-// Step 1b: YOU manually fund the transaction
-// (Primitives don't do this - you must implement UTXO selection and fee calculation)
+// Step 1b: Fund the transaction using SDK utils or manual selection
+// Option A: Use SDK's selectUtxosForPegin() helper
+import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
 import * as bitcoin from "bitcoinjs-lib";
 
+const feeRate = 10; // sat/vB
+const yourAvailableUtxos = [
+  { txid: "abc123...", vout: 0, value: 200000, scriptPubKey: "5120..." },
+  // ... all your available UTXOs
+];
+
+// SDK automatically selects UTXOs and calculates fees
+const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
+  yourAvailableUtxos,
+  peginResult.vaultValue,
+  feeRate,
+);
+
+// Option B: Manual selection (if you need custom logic)
 const network = bitcoin.networks.testnet; // For signet
 const psbt = new Psbt({ network });
 
-// Add your funding inputs (YOU select UTXOs, calculate fees)
-const yourUtxos = [
-  {
-    txid: "abc123...",
-    vout: 0,
-    value: 200000n,
-    scriptPubKey: "5120...",
-  },
-  // ... more UTXOs if needed
-];
-
-const feeRate = 10; // sat/vB - YOU determine this
-const estimatedFee = 1000n; // YOU calculate based on inputs/outputs
+const yourUtxos = selectedUTXOs; // or your manually selected UTXOs
+const estimatedFee = fee; // or your manual calculation
 
 // Add inputs
 for (const utxo of yourUtxos) {
@@ -673,7 +687,8 @@ async function fundAndSignTransaction(
   peginResult: any,
   amount: bigint,
 ): Promise<string> {
-  // TODO: Implement UTXO selection, fee calculation, funding, and signing
+  // TODO: Implement funding and signing
+  // Note: Use selectUtxosForPegin() from SDK utils for UTXO selection & fee calculation
   throw new Error("Not implemented");
 }
 
@@ -732,8 +747,13 @@ completePeginFlow(yourBtcWallet, "0x...").catch(console.error);
 ❌ Vault provider RPC polling and submission
 ❌ Contract status polling
 ❌ Transaction broadcasting to Bitcoin network
-❌ UTXO selection and fee calculation
 ❌ Error handling and retry logic
+
+## What the SDK Provides (Utils Layer)
+
+✅ **UTXO Selection** - `selectUtxosForPegin()` with iterative fee calculation
+✅ **Fee Constants** - `P2TR_INPUT_SIZE`, `BTC_DUST_SAT`, `rateBasedTxBufferFee()`
+✅ **Transaction Helpers** - `calculateBtcTxHash()`, change calculation
 ❌ Application-specific redemption
 
 ## Helper Functions You Need
