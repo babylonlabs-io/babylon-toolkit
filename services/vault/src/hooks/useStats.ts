@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchStats, type Stats } from "../services/stats";
 import { satoshiToBtcNumber } from "../utils/btcConversion";
 
-import { useBTCPrice } from "./useBTCPrice";
+import { usePrice } from "./usePrices";
 
 /**
  * Transformed stats data for display
@@ -42,7 +42,7 @@ export const STATS_QUERY_KEY = "stats";
  * Hook to fetch and transform global vault statistics
  */
 export function useStats(): UseStatsResult {
-  const { btcPriceUSD } = useBTCPrice();
+  const btcPriceUSD = usePrice("BTC");
 
   const {
     data: rawData,

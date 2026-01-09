@@ -11,7 +11,6 @@ export { useVaultActions } from "./deposit/useVaultActions";
 export { useActivities } from "./useActivities";
 export { useApplications } from "./useApplications";
 export { useBTCBalance, type UseBTCBalanceResult } from "./useBTCBalance";
-export { useBTCPrice } from "./useBTCPrice";
 export { useBtcPublicKey } from "./useBtcPublicKey";
 export {
   useLtvCalculations,

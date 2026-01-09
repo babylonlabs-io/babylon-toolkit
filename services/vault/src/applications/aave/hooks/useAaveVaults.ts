@@ -9,7 +9,7 @@
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { usePrice } from "@/hooks/usePrices";
 import { useVaults } from "@/hooks/useVaults";
 import {
   ContractStatus,
@@ -77,7 +77,7 @@ export function useAaveVaults(
     // Poll when there are pending operations to detect when indexer confirms them
     poll: hasPendingOperations,
   });
-  const { btcPriceUSD } = useBTCPrice();
+  const btcPriceUSD = usePrice("BTC");
 
   const isLoading = vaultsLoading;
 

@@ -1,1 +1,0 @@
-export { getPrices } from "./prices";

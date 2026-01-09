@@ -4,7 +4,7 @@ import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
-import { useBTCPrice } from "../useBTCPrice";
+import { usePrice } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -57,7 +57,7 @@ export function useDepositPageForm(
   const { initialApplicationId } = options;
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
-  const { btcPriceUSD } = useBTCPrice();
+  const btcPriceUSD = usePrice("BTC");
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
