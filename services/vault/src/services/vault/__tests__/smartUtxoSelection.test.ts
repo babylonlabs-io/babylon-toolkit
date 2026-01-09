@@ -369,14 +369,16 @@ describe("Smart UTXO Selection", () => {
       expect(filtered).toHaveLength(0);
     });
 
-    it("should handle case-insensitive txid matching", () => {
-      const reserved = new Set(["TXID1:0"]); // Uppercase
+    it("should not match when reserved set contains uppercase keys", () => {
+      const reserved = new Set(["TXID1:0"]); // Uppercase in reserved set
 
-      // The filter uses utxoRefToKey which lowercases
+      // filterUtxos uses utxoRefToKey which lowercases the UTXO txid to "txid1:0",
+      // but Set lookup is case-sensitive, so "txid1:0" won't match "TXID1:0"
       const filtered = filterUtxos(mockUTXOs, reserved);
 
-      // Should still match because utxoRefToKey lowercases the UTXO txid
-      expect(filtered).toHaveLength(4); // No match because set is uppercase
+      // No match because Set lookup is case-sensitive: lowercase "txid1:0" ≠ uppercase "TXID1:0"
+      // To ensure matching, the reserved set keys should also be normalized to lowercase
+      expect(filtered).toHaveLength(4);
     });
 
     it("should not modify original array", () => {

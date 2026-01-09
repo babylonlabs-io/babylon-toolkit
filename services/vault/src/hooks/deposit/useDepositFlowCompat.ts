@@ -187,8 +187,12 @@ export function useDepositFlow(
         if (reservedSet.size > 0) {
           avoidUtxoRefs = utxoRefKeysToArray(reservedSet);
         }
-      } catch {
-        // Never block deposits due to smart selection errors
+      } catch (error) {
+        // Never block deposits due to smart selection errors - just log and continue
+        console.warn(
+          "[useDepositFlowCompat] Failed to collect reserved outpoints:",
+          error,
+        );
       }
 
       // Submit pegin request with type-safe BitcoinWallet cast
