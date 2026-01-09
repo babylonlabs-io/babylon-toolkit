@@ -10,6 +10,8 @@ import { useCallback, useMemo } from "react";
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
+import { getFeeRateFromMempool } from "../../utils/fee/getFeeRateFromMempool";
+import { useNetworkFees } from "../useNetworkFees";
 import { useUTXOs } from "../useUTXOs";
 
 // Constants
@@ -45,11 +47,14 @@ export function useDepositValidation(
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
 
+  // Get network fees
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
+
   // Calculate dynamic minimum based on current fees
   const minDeposit = useMemo(() => {
-    const baseFeeRate = 10; // sats/byte, would fetch from mempool API
-    return depositService.calculateMinimumDeposit(baseFeeRate);
-  }, []);
+    return depositService.calculateMinimumDeposit(defaultFeeRate);
+  }, [defaultFeeRate]);
 
   // Validate amount
   const validateAmount = useCallback(
@@ -100,7 +105,7 @@ export function useDepositValidation(
 
         // Validate UTXOs if available
         if (confirmedUTXOs && confirmedUTXOs.length > 0) {
-          const fees = depositService.calculateDepositFees(amount);
+          const fees = depositService.calculateDepositFees(amount, defaultFeeRate);
           const requiredAmount = amount + fees.totalFee;
 
           const utxoValidation = depositService.validateUTXOs(
@@ -150,7 +155,7 @@ export function useDepositValidation(
         };
       }
     },
-    [validateAmount, validateProviders, confirmedUTXOs],
+    [validateAmount, validateProviders, confirmedUTXOs, defaultFeeRate],
   );
 
   return {

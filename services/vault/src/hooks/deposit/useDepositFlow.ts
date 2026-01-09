@@ -15,12 +15,14 @@ import { useCallback, useState } from "react";
 import type { Address } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
+import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
+import { getFeeRateFromMempool } from "@/utils/fee/getFeeRateFromMempool";
 
 export interface UseDepositFlowParams {
   amount: bigint;
@@ -90,6 +92,10 @@ export function useDepositFlow(
     error: utxoError,
   } = useUTXOs(btcAddress);
 
+  // Fetch network fees for dynamic fee calculation
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
+
   const executeDepositFlow = useCallback(async () => {
     try {
       setProcessing(true);
@@ -152,18 +158,10 @@ export function useDepositFlow(
         throw new Error("Failed to get wallet client");
       }
 
-      // Use new service for fee calculation
-      const fees = depositService.calculateDepositFees(amount);
-
-      // TODO - implement fee calcs
-      // Current: Calculate fee rate from fixed fee (average pegin tx is ~250 vbytes)
-      const feeRate = Math.ceil(Number(fees.btcNetworkFee) / 250);
-
-      // Submit pegin request with type-safe BitcoinWallet cast
-      // The btcWalletProvider from wallet-connector already implements the BitcoinWallet interface
+      // Submit pegin request with dynamic fee rate from mempool
       const result = await submitPeginRequest(btcWalletProvider, walletClient, {
         pegInAmount: amount,
-        feeRate,
+        feeRate: defaultFeeRate,
         changeAddress: btcAddress,
         vaultProviderAddress: selectedProviders[0] as Address,
         vaultProviderBtcPubkey,
@@ -235,6 +233,7 @@ export function useDepositFlow(
     confirmedUTXOs,
     isUTXOsLoading,
     utxoError,
+    defaultFeeRate,
   ]);
 
   return {
