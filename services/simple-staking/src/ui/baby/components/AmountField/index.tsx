@@ -7,9 +7,14 @@ const { logo, coinSymbol, displayUSD } = getNetworkConfigBBN();
 interface AmountFieldProps {
   balance?: number;
   price?: number;
+  enableMaxButton?: boolean;
 }
 
-export const AmountField = ({ balance, price }: AmountFieldProps) => {
+export const AmountField = ({
+  balance,
+  price,
+  enableMaxButton,
+}: AmountFieldProps) => {
   // Only create balanceDetails if balance is provided (price is optional)
   const balanceDetails =
     balance !== undefined
@@ -31,6 +36,7 @@ export const AmountField = ({ balance, price }: AmountFieldProps) => {
       currencyName={coinSymbol}
       placeholder="Enter Amount"
       {...(balanceDetails && { balanceDetails })}
+      enableMaxButton={enableMaxButton}
     />
   );
 };
