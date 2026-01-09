@@ -12,13 +12,12 @@ export {
   useDepositValidation,
   type CreateDepositTransactionParams,
   // Types
-  type DepositFlowState,
   type DepositStateData,
-  type DepositStep,
   type TransactionResult,
-  type UseDepositFlowCompatParams,
-  type UseDepositFlowCompatReturn,
-  type UseDepositFlowResult,
+  type UseDepositFlowParams as UseDepositFlowCompatParams,
+  type UseDepositFlowReturn as UseDepositFlowCompatReturn,
+  type UseDepositFlowParams,
+  type UseDepositFlowReturn,
   type UseDepositTransactionResult,
   type UseDepositValidationResult,
 } from "./hooks/deposit";
