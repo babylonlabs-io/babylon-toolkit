@@ -9,6 +9,8 @@ import { useMemo } from "react";
 
 import { getUTXOs, type MempoolUTXO } from "../clients/btc/mempool";
 
+export type { MempoolUTXO };
+
 /**
  * Hook to fetch UTXOs for a Bitcoin address
  *

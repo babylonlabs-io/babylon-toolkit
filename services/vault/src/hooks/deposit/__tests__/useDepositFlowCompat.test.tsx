@@ -52,6 +52,28 @@ vi.mock("@/hooks/useUTXOs", () => ({
   })),
 }));
 
+vi.mock("@/hooks/useNetworkFees", () => ({
+  useNetworkFees: vi.fn(() => ({
+    data: {
+      fastestFee: 50,
+      halfHourFee: 40,
+      hourFee: 30,
+      economyFee: 20,
+      minimumFee: 10,
+    },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+vi.mock("@/utils/fee/getFeeRateFromMempool", () => ({
+  getFeeRateFromMempool: vi.fn(() => ({
+    minFeeRate: 30,
+    defaultFeeRate: 50,
+    maxFeeRate: 128,
+  })),
+}));
+
 vi.mock("@/services/deposit", () => ({
   depositService: {
     validateDepositAmount: vi.fn(() => ({ valid: true })),

@@ -11,6 +11,8 @@ import type { Hex } from "viem";
 
 import { depositService, type DepositFormData } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
+import { getFeeRateFromMempool } from "../../utils/fee/getFeeRateFromMempool";
+import { useNetworkFees } from "../useNetworkFees";
 
 import { useDepositTransaction } from "./useDepositTransaction";
 import { useDepositValidation } from "./useDepositValidation";
@@ -77,6 +79,10 @@ export function useDepositFlow(
 
   // Use transaction hook
   const transaction = useDepositTransaction();
+
+  // Get network fees
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
 
   // Step transitions
   const setStep = useCallback((step: DepositStep) => {
@@ -198,11 +204,11 @@ export function useDepositFlow(
 
     try {
       const amount = depositService.parseBtcToSatoshis(state.formData.amount);
-      return depositService.calculateDepositFees(amount);
+      return depositService.calculateDepositFees(amount, defaultFeeRate);
     } catch {
       return null;
     }
-  }, [state.formData]);
+  }, [state.formData, defaultFeeRate]);
 
   // Calculate progress
   const progress = useMemo(() => {

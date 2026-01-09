@@ -3,15 +3,13 @@
  * No side effects, no state, just pure transformations
  */
 
+import {
+  MAX_NON_LEGACY_OUTPUT_SIZE,
+  P2TR_INPUT_SIZE,
+  rateBasedTxBufferFee,
+  TX_BUFFER_SIZE_OVERHEAD,
+} from "../../utils/fee/constants";
 import type { UTXO } from "../vault/vaultTransactionService";
-
-/**
- * Fixed BTC transaction fee in satoshis
- * IMPORTANT: This value must match BTC_TRANSACTION_FEE exported from config/pegin.ts
- * It's duplicated here to avoid test environment issues with importing from pegin.ts
- * which has dependencies that don't work well in the test environment
- */
-const BTC_TRANSACTION_FEE = 10_000n;
 
 export interface DepositFees {
   btcNetworkFee: bigint;
@@ -27,14 +25,49 @@ export interface DepositAmountBreakdown {
 }
 
 /**
- * Calculate fees for a deposit transaction
- * Uses a fixed fee to ensure consistency with the actual transaction creation
+ * Estimate BTC network fee based on fee rate and estimated input count.
+ * Uses the same constants as the SDK's selectUtxosForPegin for consistency.
+ *
+ * @param feeRate - Fee rate in sat/vbyte
+ * @param estimatedInputCount - Estimated number of inputs (default: 1)
+ * @param includeChange - Whether to include change output in calculation (default: true)
+ * @returns Estimated fee in satoshis
+ */
+export function estimateBtcNetworkFee(
+  feeRate: number,
+  estimatedInputCount = 1,
+  includeChange = true,
+): bigint {
+  const inputSize = estimatedInputCount * P2TR_INPUT_SIZE;
+  const outputSize = MAX_NON_LEGACY_OUTPUT_SIZE;
+  const baseTxSize = inputSize + outputSize + TX_BUFFER_SIZE_OVERHEAD;
+
+  let fee =
+    BigInt(Math.ceil(baseTxSize * feeRate)) +
+    BigInt(rateBasedTxBufferFee(feeRate));
+
+  if (includeChange) {
+    fee += BigInt(Math.ceil(MAX_NON_LEGACY_OUTPUT_SIZE * feeRate));
+  }
+
+  return fee;
+}
+
+/**
+ * Calculate fees for a deposit transaction.
+ * Uses dynamic fee calculation based on the provided fee rate.
+ *
  * @param depositAmount - Amount to deposit in satoshis
+ * @param feeRate - Fee rate in sat/vbyte (optional, defaults to estimate for 1 input)
  * @returns Fee breakdown
  */
-export function calculateDepositFees(depositAmount: bigint): DepositFees {
-  // Use the fixed fee to ensure consistency with the actual BTC transaction
-  const btcNetworkFee = BTC_TRANSACTION_FEE;
+export function calculateDepositFees(
+  depositAmount: bigint,
+  feeRate?: number,
+): DepositFees {
+  const btcNetworkFee = feeRate
+    ? estimateBtcNetworkFee(feeRate)
+    : estimateBtcNetworkFee(10);
 
   // Protocol fee: 0.1% of deposit amount
   const protocolFee = (depositAmount * 10n) / 10000n;

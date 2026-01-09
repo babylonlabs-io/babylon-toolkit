@@ -27,6 +27,24 @@ vi.mock("@babylonlabs-io/config", () => ({
     id: 11155111,
     name: "Sepolia",
   })),
+  getBTCNetwork: vi.fn(() => 1),
+}));
+
+// Mock wallet-connector to avoid initialization issues
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  Network: {
+    MAINNET: 0,
+    SIGNET: 1,
+    TESTNET: 2,
+  },
+  useBTCWallet: vi.fn(() => ({
+    address: "bc1qtest123",
+    connected: true,
+  })),
+  useETHWallet: vi.fn(() => ({
+    connected: true,
+  })),
+  useChainConnector: vi.fn(() => ({})),
 }));
 
 // Mock eth-contract client to avoid viem initialization
