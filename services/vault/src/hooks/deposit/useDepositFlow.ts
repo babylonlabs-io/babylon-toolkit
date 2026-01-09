@@ -1,8 +1,8 @@
 /**
- * Compatibility layer for deposit flow migration
+ * Main deposit flow orchestration hook
  *
- * This hook provides the same API as the old useDepositFlow
- * while using the new architecture internally.
+ * This hook manages the complete deposit flow from form submission
+ * to transaction completion. All business logic for deposits lives here.
  */
 
 import { getETHChain } from "@babylonlabs-io/config";
@@ -56,13 +56,10 @@ export interface UseDepositFlowReturn {
 }
 
 /**
- * Hook to orchestrate deposit flow execution - Compatible with old API
+ * Hook to orchestrate deposit flow execution
  *
- * This is a bridge between old and new architecture.
- * It maintains the old API while using new services internally.
- *
- * @param params - Deposit parameters (old format)
- * @returns Execution function and state (old format)
+ * @param params - Deposit parameters
+ * @returns Execution function and state
  */
 export function useDepositFlow(
   params: UseDepositFlowParams,
@@ -201,7 +198,7 @@ export function useDepositFlow(
         providerIds: selectedProviders,
         applicationController,
         status: LocalStorageStatus.PENDING,
-        btcTxHash: ethTxHash, // Store ETH tx hash for tracking
+        btcTxHash: ethTxHash, // Legacy field name: stores ETH tx hash for tracking
         unsignedTxHex: result.btcTxHex,
         selectedUTXOs: result.selectedUTXOs.map((utxo) => ({
           txid: utxo.txid,
