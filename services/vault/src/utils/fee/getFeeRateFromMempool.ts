@@ -1,3 +1,4 @@
+import { LOCAL_PEGIN_CONFIG } from "../../config/pegin";
 import type { NetworkFees } from "../../types/fee";
 
 import { nextPowerOfTwo } from "./nextPowerOfTwo";
@@ -23,7 +24,7 @@ export const getFeeRateFromMempool = (
         ),
       }
     : {
-        minFeeRate: 0,
-        defaultFeeRate: 0,
-        maxFeeRate: 0,
+        minFeeRate: LOCAL_PEGIN_CONFIG.defaultFeeRate,
+        defaultFeeRate: LOCAL_PEGIN_CONFIG.defaultFeeRate,
+        maxFeeRate: LEAST_MAX_FEE_RATE,
       };

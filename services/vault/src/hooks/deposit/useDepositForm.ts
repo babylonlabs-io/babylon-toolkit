@@ -9,7 +9,9 @@ import { useCallback, useMemo, useState } from "react";
 
 import { useBTCWallet } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
+import { getFeeRateFromMempool } from "../../utils/fee/getFeeRateFromMempool";
 import { formatProviderName } from "../../utils/formatting";
+import { useNetworkFees } from "../useNetworkFees";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -55,6 +57,8 @@ export interface UseDepositFormResult {
  */
 export function useDepositForm(): UseDepositFormResult {
   const { address: btcAddress } = useBTCWallet();
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
 
   // Get providers
   const { vaultProviders, loading: isLoadingProviders } = useVaultProviders();
@@ -122,8 +126,8 @@ export function useDepositForm(): UseDepositFormResult {
       return null;
     }
 
-    return depositService.calculateDepositFees(amountSats);
-  }, [amountSats, confirmedUTXOs]);
+    return depositService.calculateDepositFees(amountSats, defaultFeeRate);
+  }, [amountSats, confirmedUTXOs, defaultFeeRate]);
 
   // Validate form
   const validateForm = useCallback(() => {
