@@ -7,9 +7,8 @@
 
 export { useDepositFlow } from "./useDepositFlow";
 export type {
-  DepositFlowState,
-  DepositStep,
-  UseDepositFlowResult,
+  UseDepositFlowParams,
+  UseDepositFlowReturn,
 } from "./useDepositFlow";
 
 export { useDepositValidation } from "./useDepositValidation";
@@ -37,13 +36,6 @@ export {
   useDepositState,
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";
-
-// Compatibility layer for migration
-export { useDepositFlow as useDepositFlowCompat } from "./useDepositFlowCompat";
-export type {
-  UseDepositFlowParams as UseDepositFlowCompatParams,
-  UseDepositFlowReturn as UseDepositFlowCompatReturn,
-} from "./useDepositFlowCompat";
 
 // Modal hooks
 export { usePayoutSignModal } from "./usePayoutSignModal";
