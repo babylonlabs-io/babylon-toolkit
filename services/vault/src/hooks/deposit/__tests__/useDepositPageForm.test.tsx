@@ -60,10 +60,8 @@ vi.mock("../../../context/wallet", () => ({
   })),
 }));
 
-vi.mock("../../useBTCPrice", () => ({
-  useBTCPrice: vi.fn(() => ({
-    btcPriceUSD: 95000.5,
-  })),
+vi.mock("../../usePrices", () => ({
+  usePrice: vi.fn(() => 95000.5),
 }));
 
 vi.mock("../../useUTXOs", () => ({

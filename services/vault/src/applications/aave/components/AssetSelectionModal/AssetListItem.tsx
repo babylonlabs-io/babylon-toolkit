@@ -1,12 +1,14 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
+import { formatPriceUsd } from "@/utils/formatting";
 
 interface AssetListItemProps {
   symbol: string;
   name: string;
   /** Icon URL (optional - will use fallback if not provided) */
   icon?: string;
+  priceUsd?: number;
   onClick: () => void;
 }
 
@@ -14,6 +16,7 @@ export function AssetListItem({
   symbol,
   name,
   icon,
+  priceUsd,
   onClick,
 }: AssetListItemProps) {
   return (
@@ -28,12 +31,17 @@ export function AssetListItem({
         variant="circular"
         className="h-10 w-10 rounded-full bg-white"
       />
-      <div className="flex flex-col items-start">
+      <div className="flex flex-1 flex-col items-start">
         <span className="text-base font-medium text-accent-primary">
           {name}
         </span>
         <span className="text-sm text-accent-secondary">{symbol}</span>
       </div>
+      {priceUsd !== undefined && (
+        <span className="text-base font-medium text-accent-primary">
+          {formatPriceUsd(priceUsd)}
+        </span>
+      )}
     </button>
   );
 }

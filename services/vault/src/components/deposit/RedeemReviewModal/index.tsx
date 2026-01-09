@@ -9,7 +9,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
-import { useBTCPrice } from "../../../hooks/useBTCPrice";
+import { usePrice } from "../../../hooks/usePrices";
 import type { Deposit } from "../../../types/vault";
 
 interface RedeemCollateralReviewModalProps {
@@ -30,7 +30,7 @@ export function RedeemCollateralReviewModal({
   isSigning = false,
 }: RedeemCollateralReviewModalProps) {
   // Fetch real-time BTC price from Chainlink
-  const { btcPriceUSD } = useBTCPrice();
+  const btcPriceUSD = usePrice("BTC");
 
   // Get selected deposits
   const selectedDeposits = useMemo(
