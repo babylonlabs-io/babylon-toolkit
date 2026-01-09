@@ -88,11 +88,14 @@ export function useDepositPageForm(
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
     useVaultProviders(formData.selectedApplication || undefined);
   const providers = useMemo(() => {
-    return rawProviders.map((p: { id: string; btcPubKey: string }) => ({
-      id: p.id,
-      name: formatProviderName(p.id),
-      btcPubkey: p.btcPubKey || "",
-    }));
+    return rawProviders.map(
+      (p: { id: string; btcPubKey: string; status: string }) => ({
+        id: p.id,
+        name: formatProviderName(p.id),
+        btcPubkey: p.btcPubKey || "",
+        status: p.status || "active",
+      }),
+    );
   }, [rawProviders]);
 
   // Reset provider selection when application changes

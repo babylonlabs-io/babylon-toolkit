@@ -31,6 +31,10 @@
     background-color: var(--bbn-table-header-bg, var(--color-surface, #ffffff));
     @apply text-accent-secondary sticky top-0 z-30 transition-shadow;
 
+    :is(.dark &) {
+      background-color: var(--bbn-table-header-bg, #0a0a0a);
+    }
+
     tr {
       @apply relative;
     }
