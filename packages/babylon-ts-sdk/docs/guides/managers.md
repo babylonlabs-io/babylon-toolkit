@@ -397,6 +397,14 @@ console.log(`View: https://mempool.space/signet/tx/${btcTxid}`);
 
 - Bitcoin transaction ID (txid)
 
+**Bitcoin Confirmation Requirement:**
+
+After broadcasting to Bitcoin, the vault requires **30 block confirmations** (~5 hours) before becoming available. During this time:
+
+- Contract status remains `VERIFIED` (1)
+- Once Bitcoin transaction reaches 30 confirmations, contract transitions to `ACTIVE` (2)
+- The vault is then ready for use in applications
+
 ---
 
 ## TBV Architecture: Core vs Applications
