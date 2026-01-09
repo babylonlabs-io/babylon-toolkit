@@ -156,6 +156,7 @@ export const getSlashingPolicy = (
       slashingFeeSat: slashingFeeSat as number,
     },
     derivationPath,
+    isUnbonding: false,
   });
 };
 
@@ -194,6 +195,7 @@ export const getUnbondingSlashingPolicy = (
       slashingFeeSat: slashingFeeSat as number,
     },
     derivationPath,
+    isUnbonding: true,
   });
 };
 

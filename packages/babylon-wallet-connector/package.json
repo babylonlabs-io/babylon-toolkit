@@ -66,7 +66,7 @@
     "bip174": "2.1.1",
     "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3",
-    "ledger-bitcoin-babylon-boilerplate": "0.2.4",
+    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "nanoevents": "9.1.0",
     "usehooks-ts": "^3.1.1",
     "uuid": "11.1.0"
