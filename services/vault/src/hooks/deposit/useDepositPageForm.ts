@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
+import { getFeeRateFromMempool } from "../../utils/fee/getFeeRateFromMempool";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
 import { useBTCPrice } from "../useBTCPrice";
+import { useNetworkFees } from "../useNetworkFees";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -63,6 +65,8 @@ export function useDepositPageForm(
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
   const { btcPriceUSD } = useBTCPrice();
+  const { data: networkFees } = useNetworkFees();
+  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -173,8 +177,8 @@ export function useDepositPageForm(
     if (amountSats === 0n || !confirmedUTXOs || confirmedUTXOs.length === 0) {
       return null;
     }
-    return depositService.calculateDepositFees(amountSats);
-  }, [amountSats, confirmedUTXOs]);
+    return depositService.calculateDepositFees(amountSats, defaultFeeRate);
+  }, [amountSats, confirmedUTXOs, defaultFeeRate]);
 
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};

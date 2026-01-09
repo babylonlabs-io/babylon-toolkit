@@ -64,7 +64,6 @@ export function useDepositTransaction(): UseDepositTransactionResult {
   const { vaultProviders: availableProviders, liquidators } =
     useVaultProviders();
   const { data: networkFees } = useNetworkFees();
-  const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastTransaction, setLastTransaction] =
@@ -141,11 +140,11 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No wallet client available");
         }
 
+        const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
         if (defaultFeeRate === 0) {
           throw new Error("Unable to fetch network fee rates");
         }
 
-        // Use PeginManager for complete flow
         const result = await vaultTransactionService.submitPeginRequest(
           btcWalletProvider,
           walletClient,
@@ -196,7 +195,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
       confirmedUTXOs,
       availableProviders,
       liquidators,
-      defaultFeeRate,
+      networkFees,
       handleError,
     ],
   );
@@ -228,6 +227,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
           throw new Error("No UTXO selected for transaction");
         }
 
+        const { defaultFeeRate } = getFeeRateFromMempool(networkFees);
         if (defaultFeeRate === 0) {
           throw new Error("Unable to fetch network fee rates");
         }
@@ -277,7 +277,7 @@ export function useDepositTransaction(): UseDepositTransactionResult {
         setIsSubmitting(false);
       }
     },
-    [btcWalletProvider, btcAddress, defaultFeeRate, handleError],
+    [btcWalletProvider, btcAddress, networkFees, handleError],
   );
 
   return {

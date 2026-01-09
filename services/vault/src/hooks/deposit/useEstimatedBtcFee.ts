@@ -44,14 +44,18 @@ export function useEstimatedBtcFee(
           txid: utxo.txid,
           vout: utxo.vout,
           value: utxo.value,
-          scriptPubKey: utxo.scriptPubKey ?? "",
+          scriptPubKey: utxo.scriptPubKey,
         }));
 
         const result = selectUtxosForPegin(sdkUtxos, amount, defaultFeeRate);
         return satoshiToBtcNumber(result.fee);
       }
 
-      const roughUtxo = { value: amount + 100000n };
+      const estimatedMaxTxVBytes = 500;
+      const dynamicBufferSats = BigInt(
+        Math.max(100000, Math.ceil(defaultFeeRate * estimatedMaxTxVBytes)),
+      );
+      const roughUtxo = { value: amount + dynamicBufferSats };
       const feeInSats = estimatePeginFee(amount, [roughUtxo], defaultFeeRate);
       return satoshiToBtcNumber(feeInSats);
     } catch (error) {
