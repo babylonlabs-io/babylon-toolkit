@@ -8,8 +8,16 @@ High-level orchestration for TBV operations with wallet integration.
 2. [When to Use Managers](#when-to-use-managers)
 3. [Installation & Setup](#installation--setup)
 4. [Complete TBV Lifecycle](#complete-tbv-lifecycle)
-5. [Error Handling](#error-handling)
-6. [Migration from Primitives](#migration-from-primitives)
+5. [Peg-In Flow](#peg-in-flow)
+   - 5.1. [Step 1: Prepare Transaction](#step-1-prepare-the-peg-in-transaction)
+   - 5.2. [Step 2: Register on Ethereum](#step-2-register-on-ethereum)
+   - 5.3. [Step 3: Sign Payout Authorization](#step-3-sign-payout-authorization)
+   - 5.4. [Step 4: Broadcast to Bitcoin](#step-4-sign-and-broadcast-to-bitcoin)
+6. [TBV Architecture: Core vs Applications](#tbv-architecture-core-vs-applications)
+7. [Redemption Flow (Application-Specific Withdrawal)](#redemption-flow-application-specific-withdrawal)
+8. [Error Handling](#error-handling)
+9. [Migration from Primitives](#migration-from-primitives)
+10. [Real-World Example](#real-world-example)
 
 ---
 
@@ -43,8 +51,8 @@ WASM (Rust Core)
 
 ### Available Managers
 
-- **`PeginManager`** - Orchestrates the complete peg-in flow (deposit BTC into TBV)
-- **`PayoutManager`** - Orchestrates payout signing (withdraw BTC from TBV)
+- **`PeginManager`** - Orchestrates the peg-in deposit flow (prepare, register on Ethereum, broadcast to Bitcoin)
+- **`PayoutManager`** - Signs payout authorization transactions (used during peg-in to pre-authorize fund distribution)
 
 ---
 
@@ -59,6 +67,8 @@ WASM (Rust Core)
 | Serverless with custom flow           | ❌ No        | ✅ Yes         |
 
 **Rule of thumb:** If you're using browser wallets (`UniSat`, `OKX`, `MetaMask`), use managers.
+
+> **🚀 Quick Start**: For a complete working example with OKX Wallet and React, see the [Managers Quickstart Guide](../quickstart/managers.md).
 
 ---
 
@@ -125,15 +135,16 @@ const payoutManager = new PayoutManager({
 
 The complete Trustless Bitcoin Vault (TBV) lifecycle consists of:
 
-1. **Peg-In Flow** - Deposit BTC into TBV
-   - Prepare peg-in transaction (build + fund + select UTXOs)
-   - Register on Ethereum (submit to contract with proof-of-possession)
-   - Sign and broadcast to Bitcoin network
+1. **Peg-In Flow** - Deposit BTC into TBV (4 steps)
+   - **Step 1:** Prepare peg-in transaction (build + fund + select UTXOs)
+   - **Step 2:** Register on Ethereum (submit to contract with proof-of-possession)
+   - **Step 3:** Sign payout authorization (pre-authorize vault provider to distribute funds)
+   - **Step 4:** Sign and broadcast to Bitcoin network
 
-2. **Payout Flow** - Withdraw BTC from TBV
-   - Receive payout request from vault provider
-   - Sign payout transaction
-   - Submit signature to vault provider
+2. **Redemption Flow** - Withdraw BTC from TBV (1 step)
+   - Call `redeemBTCVault()` on Ethereum (vault provider handles Bitcoin side using pre-signed authorizations from Step 3)
+
+**Important Note:** Payout authorization (Step 3) is NOT the same as redemption/withdrawal. During peg-in, you pre-sign transactions that authorize the vault provider to distribute your funds in the future. When you actually want to withdraw (redemption), you simply make an Ethereum contract call - no Bitcoin wallet signing required at that point.
 
 ---
 
@@ -219,9 +230,149 @@ const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
 });
 ```
 
-### Step 3: Sign and Broadcast to Bitcoin
+**After Step 2**, the vault contract status is `PENDING`. You must wait for the vault provider to prepare claim and payout transaction pairs before proceeding.
 
-Sign the peg-in transaction and broadcast to Bitcoin network:
+---
+
+### Step 3: Sign Payout Authorization
+
+**Wait for vault provider** to prepare claim/payout transaction pairs (poll their RPC API):
+
+```typescript
+// Poll vault provider RPC for transactions
+interface ClaimerTransaction {
+  claimer_pubkey: string;
+  claim_tx: { tx_hex: string };
+  payout_tx: { tx_hex: string };
+}
+
+async function requestClaimAndPayoutTransactions(
+  vaultProviderUrl: string,
+  peginTxId: string,
+  depositorPk: string,
+): Promise<ClaimerTransaction[]> {
+  const response = await fetch(vaultProviderUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "vaultProvider_requestClaimAndPayoutTransactions",
+      params: [{ pegin_tx_id: peginTxId, depositor_pk: depositorPk }],
+      id: 1,
+    }),
+  });
+
+  const json = await response.json();
+  if (json.error) {
+    throw new Error(`RPC Error: ${json.error.message}`);
+  }
+  return json.result.txs;
+}
+
+// Poll until transactions are ready
+let claimerTransactions: ClaimerTransaction[] | undefined;
+while (!claimerTransactions) {
+  try {
+    claimerTransactions = await requestClaimAndPayoutTransactions(
+      vaultProviderUrl,
+      vaultId.slice(2), // Remove 0x prefix
+      depositorBtcPubkey,
+    );
+  } catch (error) {
+    // Wait and retry if transactions not ready yet
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+}
+```
+
+**Sign payout authorization** using PayoutManager:
+
+```typescript
+const payoutManager = new PayoutManager({
+  network: "signet",
+  btcWallet,
+});
+
+// Sign each payout transaction
+const signatures: Record<string, string> = {};
+for (const claimerTx of claimerTransactions) {
+  const { signature } = await payoutManager.signPayoutTransaction({
+    payoutTxHex: claimerTx.payout_tx.tx_hex,
+    peginTxHex: result.fundedTxHex,
+    claimTxHex: claimerTx.claim_tx.tx_hex,
+    vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey
+    liquidatorBtcPubkeys: ["def..."], // Liquidator BTC pubkeys
+    depositorBtcPubkey: "xyz...", // Your BTC pubkey
+  });
+
+  // Store signature keyed by claimer pubkey
+  signatures[claimerTx.claimer_pubkey] = signature;
+}
+```
+
+**Submit signatures** to vault provider:
+
+```typescript
+async function submitPayoutSignatures(
+  vaultProviderUrl: string,
+  peginTxId: string,
+  depositorPk: string,
+  signatures: Record<string, string>,
+): Promise<void> {
+  const response = await fetch(vaultProviderUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      method: "vaultProvider_submitPayoutSignatures",
+      params: [
+        {
+          pegin_tx_id: peginTxId,
+          depositor_pk: depositorPk,
+          signatures,
+        },
+      ],
+      id: 2,
+    }),
+  });
+
+  const json = await response.json();
+  if (json.error) {
+    throw new Error(`RPC Error: ${json.error.message}`);
+  }
+}
+
+await submitPayoutSignatures(
+  vaultProviderUrl,
+  vaultId.slice(2), // Remove 0x prefix
+  depositorBtcPubkey,
+  signatures,
+);
+
+console.log(
+  "Payout signatures submitted! Waiting for vault provider to acknowledge...",
+);
+```
+
+**What happens internally:**
+
+1. Gets depositor BTC public key from wallet and converts to x-only format
+2. Validates wallet pubkey matches on-chain depositor pubkey
+3. Builds unsigned PSBT using `buildPayoutPsbt()` primitive
+4. Signs PSBT via `btcWallet.signPsbt()`
+5. Extracts 64-byte Schnorr signature using `extractPayoutSignature()` primitive
+
+**What you're authorizing:**
+
+By signing these payout transactions, you're **pre-authorizing** the vault provider to distribute your funds in specific ways in the future. These signatures will be used later when you initiate redemption or if other payout scenarios occur.
+
+**Wait for contract status update:** After vault provider collects all required signatures, they'll submit acknowledgements on-chain. The vault contract status will change from `PENDING` (0) → `VERIFIED` (1). Only then can you proceed to Step 4.
+
+---
+
+### Step 4: Sign and Broadcast to Bitcoin
+
+**After contract status is `VERIFIED`**, sign the peg-in transaction and broadcast to Bitcoin network:
 
 ```typescript
 const btcTxid = await peginManager.signAndBroadcast({
@@ -246,158 +397,175 @@ console.log(`View: https://mempool.space/signet/tx/${btcTxid}`);
 
 - Bitcoin transaction ID (txid)
 
-### Complete Peg-In Example
+**Bitcoin Confirmation Requirement:**
 
-```typescript
-import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
+After broadcasting to Bitcoin, the vault requires **30 block confirmations** (~5 hours) before becoming available. During this time:
 
-async function depositBTC() {
-  // Step 1: Prepare transaction
-  const pegin = await peginManager.preparePegin({
-    amount: 100000n,
-    vaultProvider: "0x456...",
-    vaultProviderBtcPubkey: "abc...",
-    liquidatorBtcPubkeys: ["def..."],
-    availableUTXOs: utxos,
-    feeRate: 1,
-    changeAddress: "tb1q...",
-  });
-
-  // Step 2: Register on Ethereum
-  const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
-    depositorBtcPubkey: "abc...",
-    unsignedBtcTx: pegin.fundedTxHex,
-    vaultProvider: "0x456...",
-  });
-
-  // Step 3: Broadcast to Bitcoin
-  const btcTxid = await peginManager.signAndBroadcast({
-    fundedTxHex: pegin.fundedTxHex,
-    depositorBtcPubkey: "abc...",
-  });
-
-  console.log("Peg-in complete!");
-  console.log("Vault ID:", vaultId);
-  console.log("Bitcoin TX:", btcTxid);
-  console.log("Ethereum TX:", ethTxHash);
-}
-```
+- Contract status remains `VERIFIED` (1)
+- Once Bitcoin transaction reaches 30 confirmations, contract transitions to `ACTIVE` (2)
+- The vault is then ready for use in applications
 
 ---
 
-## Payout Flow
+## TBV Architecture: Core vs Applications
 
-The payout flow withdraws BTC from a TBV by signing a payout transaction provided by the vault provider.
+Before understanding redemption, it's important to understand the two-layer architecture:
+
+### Core Layer (`BTCVaultsManager`)
+
+The core vault manager handles fundamental vault operations:
+
+- **Peg-in lifecycle**: PENDING → VERIFIED → ACTIVE → REDEEMED
+- **Proof-of-possession** verification
+- **ACK collection** from vault providers
+- **Bitcoin inclusion proofs**
+
+The core layer is intentionally minimal and reusable across all applications.
+
+### Application Layer (AAVE, Morpho, etc.)
+
+Applications build on top of core vaults and implement:
+
+- **Redemption logic** (application-specific)
+- **Business rules** (e.g., can't redeem while collateralizing a loan)
+- **Vault usage tracking** (Available/InUse/Redeemed states)
+- **DeFi integrations** (lending, borrowing, etc.)
+
+By keeping redemption in the application layer, the core TBV infrastructure remains:
+
+- ✅ Simple and secure
+- ✅ Reusable across any application
+- ✅ Focused on Bitcoin/Ethereum correctness
+
+---
+
+## Redemption Flow (Application-Specific Withdrawal)
+
+**⚠️ Important:** Redemption is handled by **application controllers** (e.g., AAVE Integration Controller), not the core TBV SDK. The SDK provides peg-in and payout authorization helpers (Steps 1-4), but redemption logic is application-specific and will be provided in separate application SDK packages.
+
+This section describes the general architectural pattern that applies across all applications.
 
 ### Overview
 
-When you want to withdraw from the TBV:
+**Key Differences from Peg-In:**
 
-1. Vault provider creates payout transaction pair
-2. You sign the payout transaction using PayoutManager
-3. You submit the signature to vault provider
-4. Vault provider finalizes and broadcasts
+- **Peg-in** (deposit) = 4-step process using `PeginManager` + `PayoutManager`
+- **Redemption** (withdrawal) = Application-specific Ethereum transaction (no SDK manager)
 
-### Step 1: Receive Payout Request
+Redemption is a **one-step Ethereum-only process**:
 
-The vault provider sends you:
+1. Call application's redeem function on the application controller contract (ETH wallet signature)
+   - AAVE: `depositorRedeem(vaultId)`
+   - Morpho: `redeemBTCVault(vaultId)`
+2. Application validates business rules (e.g., vault not in use)
+3. Application updates core vault status to REDEEMED
+4. Vault provider handles the Bitcoin side using your pre-signed payout authorizations from peg-in Step 3
 
-- `payoutTxHex` - Unsigned payout transaction
-- `claimTxHex` - Claim transaction (for script generation)
-- `peginTxHex` - Your original peg-in transaction
+**No Bitcoin wallet interaction required during redemption!** The Bitcoin transactions are signed and broadcast by the vault provider using the payout authorizations you signed during deposit.
 
-```typescript
-// Received from vault provider API
-const payoutRequest = {
-  payoutTxHex: "...",
-  claimTxHex: "...",
-  peginTxHex: "...",
-};
-```
+### How to Redeem
 
-### Step 2: Sign Payout Transaction
-
-Use PayoutManager to sign the payout transaction:
+**Example: AAVE Integration Controller**
 
 ```typescript
-const payoutManager = new PayoutManager({
-  network: "signet",
-  btcWallet,
-});
+import { createWalletClient, custom } from "viem";
+import { AaveIntegrationControllerABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave"; // ⚠️ Future package
 
-const { signature, depositorBtcPubkey } =
-  await payoutManager.signPayoutTransaction({
-    payoutTxHex: payoutRequest.payoutTxHex,
-    peginTxHex: payoutRequest.peginTxHex,
-    claimTxHex: payoutRequest.claimTxHex,
-    vaultProviderBtcPubkey: "abc...", // From vault provider
-    liquidatorBtcPubkeys: ["def..."], // From vault provider
-    depositorBtcPubkey: "xyz...", // Optional: your pubkey (will fetch from wallet if not provided)
+async function redeemBTC(vaultId: string) {
+  // Get Ethereum wallet client
+  const ethWalletClient = createWalletClient({
+    chain: sepolia,
+    transport: custom(window.ethereum),
   });
 
-console.log("Signature:", signature); // 64-byte Schnorr signature (128 hex chars)
-```
-
-**What happens internally:**
-
-1. Gets depositor BTC public key from wallet and converts to x-only format
-2. Validates wallet pubkey matches on-chain depositor pubkey (if provided)
-3. Builds unsigned PSBT using `buildPayoutPsbt()` primitive
-4. Signs PSBT via `btcWallet.signPsbt()`
-5. Extracts 64-byte Schnorr signature using `extractPayoutSignature()` primitive
-
-**Returns:**
-
-- `signature` - 64-byte Schnorr signature (128 hex characters)
-- `depositorBtcPubkey` - Your BTC public key used for signing
-
-### Step 3: Submit Signature
-
-Submit the signature to the vault provider:
-
-```typescript
-// Submit to vault provider API
-await vaultProviderAPI.submitPayoutSignature({
-  vaultId: "0x...",
-  payoutTxHash: "...",
-  signature,
-});
-
-console.log(
-  "Payout signature submitted! Waiting for vault provider to finalize...",
-);
-```
-
-### Complete Payout Example
-
-```typescript
-import { PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
-
-async function withdrawBTC(payoutRequest) {
-  // Create manager
-  const payoutManager = new PayoutManager({
-    network: "signet",
-    btcWallet,
+  // Call AAVE-specific redemption function
+  const txHash = await ethWalletClient.writeContract({
+    address: AAVE_CONTROLLER_ADDRESS,
+    abi: AaveIntegrationControllerABI,
+    functionName: "depositorRedeem", // AAVE-specific function name
+    args: [vaultId], // Your vault ID (peg-in tx hash)
   });
 
-  // Sign payout transaction
-  const { signature } = await payoutManager.signPayoutTransaction({
-    payoutTxHex: payoutRequest.payoutTxHex,
-    peginTxHex: payoutRequest.peginTxHex,
-    claimTxHex: payoutRequest.claimTxHex,
-    vaultProviderBtcPubkey: "abc...",
-    liquidatorBtcPubkeys: ["def..."],
-  });
+  console.log(`Redemption initiated! TX: ${txHash}`);
+  console.log(
+    "Vault provider will handle Bitcoin distribution using your pre-signed authorizations.",
+  );
 
-  // Submit to vault provider
-  await vaultProviderAPI.submitPayoutSignature({
-    vaultId: payoutRequest.vaultId,
-    signature,
-  });
-
-  console.log("Payout signature submitted!");
+  return txHash;
 }
 ```
+
+**Note:** Function names and requirements vary by application. See the [Application-Specific Variations](#application-specific-variations) section below.
+
+### What Happens After Redemption
+
+1. **Contract status changes:** `ACTIVE` (2) → `REDEEMED` (3)
+2. **Vault provider sees the redemption request** and retrieves your pre-signed payout authorization from Step 3 of peg-in
+3. **Vault provider finalizes and broadcasts** the Bitcoin payout transaction using your signature
+4. **BTC is sent** to the destination address specified in the payout transaction
+
+### Application-Specific Variations
+
+Different applications implement redemption with different function names and requirements:
+
+| Application | Function Name     | Additional Requirements                  | Status        |
+| ----------- | ----------------- | ---------------------------------------- | ------------- |
+| **AAVE**    | `depositorRedeem` | Vault must not be collateralizing a loan | ✅ Production |
+| **Morpho**  | `redeemBTCVault`  | Vault must not have outstanding debt     | ⚠️ Not in use |
+| **Custom**  | Varies            | Depends on application logic             | Future        |
+
+**Coming Soon:** Application-specific SDK packages will provide:
+
+- Typed interfaces for each application's contracts
+- Helper functions for redemption
+- Business rule validation
+- Integration with existing application SDKs
+
+### Example: Redeem Multiple Vaults (Generic Pattern)
+
+This example shows the pattern used in the vault service (application-agnostic):
+
+```typescript
+// From babylon-toolkit/services/vault/src/services/vault/vaultTransactionService.ts
+async function redeemVaults(
+  walletClient: WalletClient,
+  chain: Chain,
+  applicationController: Address,
+  vaultIds: Hex[],
+  contractABI: Abi,
+  functionName: string, // e.g., "depositorRedeem" for AAVE
+) {
+  const results = [];
+
+  for (const vaultId of vaultIds) {
+    try {
+      const txHash = await walletClient.writeContract({
+        address: applicationController,
+        abi: contractABI,
+        functionName,
+        args: [vaultId],
+      });
+      results.push({ vaultId, txHash, success: true });
+    } catch (error) {
+      results.push({
+        vaultId,
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  }
+
+  return results;
+}
+```
+
+### Key Points
+
+- ✅ **Redemption = Application-specific Ethereum transaction** (not part of core SDK)
+- ✅ **Payout authorization (Step 3 of peg-in) = BTC pre-signing** (enables future redemption)
+- ✅ **Vault provider handles Bitcoin side** using your pre-signed authorizations
+- ✅ **No PayoutManager usage during redemption** - it was already used during peg-in Step 3
+- ✅ **Function names vary by application** - check application documentation
 
 ---
 
@@ -405,12 +573,14 @@ async function withdrawBTC(payoutRequest) {
 
 ### Common Errors
 
-| Error                        | Where                    | Cause                                      | Solution                                    |
-| ---------------------------- | ------------------------ | ------------------------------------------ | ------------------------------------------- |
-| `Vault already exists`       | `registerPeginOnChain()` | Vault ID is deterministic from transaction | Use different UTXOs or amount               |
-| `Insufficient funds`         | `preparePegin()`         | Not enough UTXOs to cover amount + fees    | Add more UTXOs or reduce amount             |
-| `Wallet account not found`   | Any manager method       | Wallet not connected                       | Prompt user to connect wallet               |
-| `Invalid depositorBtcPubkey` | `signAndBroadcast()`     | Pubkey wrong format                        | Use x-only format (64 hex chars, no prefix) |
+| Error                          | Where                         | Cause                                      | Solution                                     |
+| ------------------------------ | ----------------------------- | ------------------------------------------ | -------------------------------------------- |
+| `Vault already exists`         | `registerPeginOnChain()`      | Vault ID is deterministic from transaction | Use different UTXOs or amount                |
+| `Insufficient funds`           | `preparePegin()`              | Not enough UTXOs to cover amount + fees    | Add more UTXOs or reduce amount              |
+| `Wallet account not found`     | Any manager method            | Wallet not connected                       | Prompt user to connect wallet                |
+| `Invalid depositorBtcPubkey`   | `signAndBroadcast()`          | Pubkey wrong format                        | Use x-only format (64 hex chars, no prefix)  |
+| `Transactions not ready`       | Payout authorization (Step 3) | Vault provider hasn't prepared txs yet     | Keep polling VP RPC until transactions ready |
+| `Contract status not VERIFIED` | `signAndBroadcast()`          | Tried Step 4 before Step 3 completed       | Wait for vault provider to submit ACKs       |
 
 ### Error Handling Pattern
 
@@ -439,88 +609,38 @@ If you're using primitives and want to simplify your code:
 
 ### Before (Primitives) → After (Managers)
 
-**10 manual steps** → **3 manager calls**
+**10+ manual steps** → **4 manager-orchestrated steps**
 
 ```typescript
-// Before: ~200 lines with manual UTXO selection, fee calculation,
-// funding, proof-of-possession, contract encoding, PSBT creation, signing, broadcasting
+// Before: ~300+ lines with manual UTXO selection, fee calculation, funding,
+// proof-of-possession, contract encoding, payout signing, PSBT creation,
+// signing, broadcasting
 
-// After: ~30 lines with PeginManager
-const pegin = await peginManager.preparePegin({...});           // Handles steps 1-3
-const { ethTxHash } = await peginManager.registerPeginOnChain({...}); // Handles steps 4-6
-const btcTxid = await peginManager.signAndBroadcast({...});     // Handles steps 7-10
+// After: ~100 lines with PeginManager + PayoutManager (see Complete Peg-In Example above)
+
+// STEP 1: Prepare transaction
+const pegin = await peginManager.preparePegin({...});
+
+// STEP 2: Register on Ethereum
+const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({...});
+
+// STEP 3: Poll VP → Sign payout authorizations → Submit
+const payoutManager = new PayoutManager({...});
+// ... (poll for transactions, sign each, submit)
+
+// STEP 4: Broadcast to Bitcoin
+const btcTxid = await peginManager.signAndBroadcast({...});
 ```
 
 **Migration steps:**
 
-1. Replace UTXO selection/funding → `preparePegin()`
+1. Replace UTXO selection/funding logic → `preparePegin()`
 2. Replace PoP + contract call → `registerPeginOnChain()`
-3. Replace PSBT creation/signing/broadcast → `signAndBroadcast()`
-4. Update error handling
+3. Add payout authorization step → `signPayoutTransaction()`
+4. Replace PSBT creation/signing/broadcast → `signAndBroadcast()`
+5. Update error handling for all 4 steps
 
 See [Primitives Guide](./primitives.md) for the full primitives implementation.
-
----
-
-## Real-World Example
-
-Here's how the babylon-toolkit TBV service uses managers:
-
-```typescript
-// From babylon-toolkit/services/vault/src/services/vault/vaultTransactionService.ts
-
-export async function submitPeginRequest(
-  btcWallet: BitcoinWallet,
-  ethWallet: WalletClient,
-  params: SubmitPeginParams,
-): Promise<SubmitPeginResult> {
-  // Create PeginManager
-  const peginManager = new PeginManager({
-    btcNetwork: getBTCNetworkForWASM(),
-    btcWallet,
-    ethWallet,
-    ethChain: getETHChain(),
-    vaultContracts: {
-      btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
-    },
-    mempoolApiUrl: getMempoolApiUrl(),
-  });
-
-  // Get depositor BTC pubkey and convert to x-only format
-  const depositorBtcPubkeyRaw = await btcWallet.getPublicKeyHex();
-  const depositorBtcPubkey =
-    depositorBtcPubkeyRaw.length === 66
-      ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
-      : depositorBtcPubkeyRaw; // Already x-only
-
-  // Prepare peg-in
-  const peginResult = await peginManager.preparePegin({
-    amount: params.pegInAmount,
-    vaultProvider: params.vaultProviderAddress,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
-    availableUTXOs: params.availableUTXOs,
-    feeRate: params.feeRate,
-    changeAddress: params.changeAddress,
-  });
-
-  // Register on-chain
-  const registrationResult = await peginManager.registerPeginOnChain({
-    depositorBtcPubkey,
-    unsignedBtcTx: peginResult.fundedTxHex,
-    vaultProvider: params.vaultProviderAddress,
-    onPopSigned: params.onPopSigned, // Optional callback for UI updates
-  });
-
-  return {
-    transactionHash: registrationResult.ethTxHash,
-    btcTxHash: registrationResult.vaultId,
-    btcTxHex: peginResult.fundedTxHex,
-    selectedUTXOs: peginResult.selectedUTXOs,
-    fee: peginResult.fee,
-  };
-}
-```
 
 ---
 
