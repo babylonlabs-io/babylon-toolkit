@@ -9,12 +9,15 @@ High-level orchestration for TBV operations with wallet integration.
 3. [Installation & Setup](#installation--setup)
 4. [Complete TBV Lifecycle](#complete-tbv-lifecycle)
 5. [Peg-In Flow](#peg-in-flow)
-6. [Payout Authorization (Part of Peg-In)](#payout-authorization-part-of-peg-in)
-7. [TBV Architecture: Core vs Applications](#tbv-architecture-core-vs-applications)
-8. [Redemption Flow (Application-Specific Withdrawal)](#redemption-flow-application-specific-withdrawal)
-9. [Error Handling](#error-handling)
-10. [Migration from Primitives](#migration-from-primitives)
-11. [Real-World Example](#real-world-example)
+   - 5.1. [Step 1: Prepare Transaction](#step-1-prepare-the-peg-in-transaction)
+   - 5.2. [Step 2: Register on Ethereum](#step-2-register-on-ethereum)
+   - 5.3. [Step 3: Sign Payout Authorization](#step-3-sign-payout-authorization)
+   - 5.4. [Step 4: Broadcast to Bitcoin](#step-4-sign-and-broadcast-to-bitcoin)
+6. [TBV Architecture: Core vs Applications](#tbv-architecture-core-vs-applications)
+7. [Redemption Flow (Application-Specific Withdrawal)](#redemption-flow-application-specific-withdrawal)
+8. [Error Handling](#error-handling)
+9. [Migration from Primitives](#migration-from-primitives)
+10. [Real-World Example](#real-world-example)
 
 ---
 
@@ -393,130 +396,6 @@ console.log(`View: https://mempool.space/signet/tx/${btcTxid}`);
 **Returns:**
 
 - Bitcoin transaction ID (txid)
-
----
-
-## Payout Authorization (Part of Peg-In)
-
-**Important:** This section describes payout authorization, which is **Step 3 of the peg-in deposit flow**, NOT the withdrawal/redemption flow. You sign payout transactions during deposit to pre-authorize how your funds can be distributed in the future.
-
-### Overview
-
-Payout authorization happens **during peg-in** (after Ethereum registration, before Bitcoin broadcast):
-
-1. Vault provider prepares payout transaction pairs
-2. You sign payout authorizations using PayoutManager
-3. You submit signatures to vault provider
-4. Vault provider submits acknowledgements on-chain
-
-These signed authorizations are stored and used later when you initiate redemption (withdrawal).
-
-### Detailed Flow
-
-**1. Poll vault provider RPC** for prepared transactions:
-
-```typescript
-// Request transactions
-const response = await fetch(vaultProviderUrl, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    jsonrpc: "2.0",
-    method: "vaultProvider_requestClaimAndPayoutTransactions",
-    params: [
-      {
-        pegin_tx_id: vaultId.slice(2), // Remove 0x prefix
-        depositor_pk: depositorBtcPubkey, // Your x-only BTC pubkey
-      },
-    ],
-    id: 1,
-  }),
-});
-
-const json = await response.json();
-if (json.error) {
-  throw new Error(`RPC Error: ${json.error.message}`);
-}
-const claimerTransactions = json.result.txs;
-```
-
-Each `claimerTransaction` contains:
-
-- `payout_tx` - Unsigned payout transaction
-- `claim_tx` - Claim transaction (for script generation)
-- `claimer_pubkey` - Public key of the claimer (vault provider or vault keeper)
-
-**2. Sign each payout transaction using PayoutManager:**
-
-```typescript
-const payoutManager = new PayoutManager({
-  network: "signet",
-  btcWallet,
-});
-
-const signatures: Record<string, string> = {};
-for (const claimerTx of claimerTransactions) {
-  const { signature } = await payoutManager.signPayoutTransaction({
-    payoutTxHex: claimerTx.payout_tx.tx_hex,
-    peginTxHex: peginTxHex, // From Step 1 (your funded transaction)
-    claimTxHex: claimerTx.claim_tx.tx_hex,
-    vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey
-    liquidatorBtcPubkeys: ["def..."], // Liquidator BTC pubkeys
-    depositorBtcPubkey: "xyz...", // Your BTC pubkey (x-only, 64 chars)
-  });
-
-  // Store signature keyed by claimer pubkey
-  signatures[claimerTx.claimer_pubkey] = signature;
-  console.log(`Signed for claimer: ${claimerTx.claimer_pubkey}`);
-}
-```
-
-**What happens internally:**
-
-1. Gets depositor BTC public key from wallet and converts to x-only format
-2. Validates wallet pubkey matches on-chain depositor pubkey (if provided)
-3. Builds unsigned PSBT using `buildPayoutPsbt()` primitive
-4. Signs PSBT via `btcWallet.signPsbt()`
-5. Extracts 64-byte Schnorr signature using `extractPayoutSignature()` primitive
-
-**3. Submit all signatures to vault provider:**
-
-```typescript
-// Submit signatures
-const submitResponse = await fetch(vaultProviderUrl, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    jsonrpc: "2.0",
-    method: "vaultProvider_submitPayoutSignatures",
-    params: [
-      {
-        pegin_tx_id: vaultId.slice(2), // Remove 0x prefix
-        depositor_pk: "xyz...", // Your BTC pubkey
-        signatures, // Record<claimerPubkey, signature>
-      },
-    ],
-    id: 2,
-  }),
-});
-
-const submitJson = await submitResponse.json();
-if (submitJson.error) {
-  throw new Error(`RPC Error: ${submitJson.error.message}`);
-}
-
-console.log(
-  "Payout signatures submitted! Waiting for vault provider to acknowledge...",
-);
-```
-
-After submission, the vault provider will:
-
-1. Collect signatures from all parties
-2. Submit acknowledgements on-chain
-3. Change vault contract status from `PENDING` (0) → `VERIFIED` (1)
-
-**Then you can proceed to Step 4** (broadcast to Bitcoin).
 
 ---
 
