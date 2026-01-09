@@ -4,18 +4,18 @@
  * Uses the position data from useAaveUserPosition which already includes
  * debt positions for all borrowable reserves (fetched in a single call).
  *
- * Since converting drawnShares to exact token amounts requires Hub contract
- * interaction (not currently available), we use the aggregate totalDebtValue
- * from getUserAccountData and distribute it proportionally based on debt shares.
+ * The totalDebt field contains the actual token amount in native decimals,
+ * fetched via getUserTotalDebt from the Spoke contract.
  */
 
 import { useMemo } from "react";
+import { formatUnits } from "viem";
 
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
 } from "@/services/token/tokenService";
-import { formatUsdValue } from "@/utils/formatting";
+import { formatAmount } from "@/utils/formatting";
 
 import { useAaveConfig } from "../context";
 import type { AavePositionWithLiveData, DebtPosition } from "../services";
@@ -27,7 +27,7 @@ import type { AaveReserveConfig } from "../services/fetchConfig";
 export interface BorrowedAsset {
   /** Token symbol */
   symbol: string;
-  /** Display amount (formatted USD value) */
+  /** Display amount (formatted native token amount) */
   amount: string;
   /** Token icon URL */
   icon: string;
@@ -64,35 +64,6 @@ interface ReserveWithDebt {
 }
 
 /**
- * Get total debt shares for a position (drawn + premium/interest)
- */
-function getTotalDebtShares(debtPosition: DebtPosition): bigint {
-  return debtPosition.drawnShares + debtPosition.premiumShares;
-}
-
-/**
- * Calculate total shares across all debt positions
- */
-function calculateTotalShares(reservesWithDebt: ReserveWithDebt[]): bigint {
-  return reservesWithDebt.reduce(
-    (sum, { debtPosition }) => sum + getTotalDebtShares(debtPosition),
-    0n,
-  );
-}
-
-/**
- * Calculate proportional debt value for a reserve based on its share of total debt
- */
-function calculateProportionalDebtValue(
-  reserveShares: bigint,
-  totalShares: bigint,
-  totalDebtValueUsd: number,
-): number {
-  if (totalShares === 0n) return 0;
-  return (totalDebtValueUsd * Number(reserveShares)) / Number(totalShares);
-}
-
-/**
  * Resolve token symbol from metadata or indexer data
  * Falls back to "Unknown" if symbol looks like an address
  */
@@ -117,8 +88,6 @@ function resolveTokenSymbol(
  */
 function transformToBorrowedAsset(
   reserveWithDebt: ReserveWithDebt,
-  totalShares: bigint,
-  totalDebtValueUsd: number,
 ): BorrowedAsset {
   const { reserve, debtPosition } = reserveWithDebt;
 
@@ -126,13 +95,10 @@ function transformToBorrowedAsset(
   const symbol = resolveTokenSymbol(tokenMetadata, reserve.token.symbol);
   const icon = getCurrencyIconWithFallback(tokenMetadata?.icon, symbol);
 
-  const reserveShares = getTotalDebtShares(debtPosition);
-  const debtValue = calculateProportionalDebtValue(
-    reserveShares,
-    totalShares,
-    totalDebtValueUsd,
+  const tokenAmount = Number(
+    formatUnits(debtPosition.totalDebt, reserve.token.decimals),
   );
-  const amount = formatUsdValue(debtValue).replace("$", "");
+  const amount = formatAmount(tokenAmount);
 
   return { symbol, amount, icon };
 }
@@ -159,7 +125,6 @@ export function useAaveBorrowedAssets({
       return [];
     }
 
-    // Match reserves with their debt positions
     const reservesWithDebt: ReserveWithDebt[] = borrowableReserves
       .filter((r) => debtPositions.has(r.reserveId))
       .map((reserve) => ({
@@ -171,12 +136,8 @@ export function useAaveBorrowedAssets({
       return [];
     }
 
-    const totalShares = calculateTotalShares(reservesWithDebt);
-
-    return reservesWithDebt.map((reserveWithDebt) =>
-      transformToBorrowedAsset(reserveWithDebt, totalShares, debtValueUsd),
-    );
-  }, [debtPositions, borrowableReserves, debtValueUsd]);
+    return reservesWithDebt.map(transformToBorrowedAsset);
+  }, [debtPositions, borrowableReserves]);
 
   return {
     borrowedAssets,
