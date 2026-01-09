@@ -1,5 +1,4 @@
 export {
-  checkApplicationPaused,
   checkGraphQLEndpoint,
   createEnvConfigError,
   createWagmiInitError,

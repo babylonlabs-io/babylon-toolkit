@@ -15,12 +15,6 @@ export const CONTRACTS = {
   BTC_VAULTS_MANAGER: ENV.BTC_VAULTS_MANAGER as Address,
 
   /**
-   * MorphoIntegrationController contract - Morpho-specific application controller
-   * Controls collateral, borrowing, and lending operations for Morpho protocol
-   */
-  MORPHO_CONTROLLER: ENV.MORPHO_CONTROLLER as Address,
-
-  /**
    * AaveIntegrationController contract - Aave-specific application controller
    * Controls collateral, borrowing, and lending operations for Aave protocol
    */
@@ -30,9 +24,4 @@ export const CONTRACTS = {
    * VaultBTC token contract - ERC20 representation of BTC vaults
    */
   BTC_VAULT: ENV.BTC_VAULT as Address,
-
-  /**
-   * Morpho Blue contract - Lending protocol for borrowing against BTC vault collateral
-   */
-  MORPHO: ENV.MORPHO as Address,
 } as const;

@@ -12,9 +12,8 @@ import { useDepositFlow } from "../useDepositFlowCompat";
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULTS_MANAGER: "0x1234567890123456789012345678901234567890",
-    MORPHO_CONTROLLER: "0x1234567890123456789012345678901234567890",
+    AAVE_CONTROLLER: "0x1234567890123456789012345678901234567890",
     BTC_VAULT: "0x1234567890123456789012345678901234567890",
-    MORPHO: "0x1234567890123456789012345678901234567890",
   },
 }));
 
@@ -89,7 +88,7 @@ vi.mock("@/storage/peginStorage", () => ({
 
 vi.mock("@/context/deposit/DepositState", () => ({
   useDepositState: vi.fn(() => ({
-    selectedApplication: "0xMorphoController123",
+    selectedApplication: "0xAaveController123",
   })),
 }));
 

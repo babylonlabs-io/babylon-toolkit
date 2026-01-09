@@ -2,7 +2,6 @@ import { Button, Chip, SubSection, Text } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { getAppIdByController } from "../../applications";
-import { useMarkets } from "../../applications/morpho/hooks";
 import { useApplications } from "../../hooks/useApplications";
 import { ApplicationLogo } from "../ApplicationLogo";
 
@@ -16,11 +15,6 @@ export function Applications() {
     error: applicationsError,
     refetch: refetchApplications,
   } = useApplications();
-  const {
-    markets,
-    error: marketsError,
-    refetch: refetchMarkets,
-  } = useMarkets();
 
   const header = (
     <h3 className="text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -28,9 +22,7 @@ export function Applications() {
     </h3>
   );
 
-  const error = applicationsError || marketsError;
-
-  if (error) {
+  if (applicationsError) {
     return (
       <>
         {header}
@@ -39,14 +31,14 @@ export function Applications() {
             Failed to load applications
           </Text>
           <Text variant="body2" className="text-accent-secondary">
-            {error.message || "Unable to fetch data. Please try again."}
+            {applicationsError.message ||
+              "Unable to fetch data. Please try again."}
           </Text>
           <Button
             variant="outlined"
             rounded
             onClick={() => {
               refetchApplications();
-              refetchMarkets();
             }}
           >
             Try Again
@@ -114,42 +106,18 @@ export function Applications() {
                 </p>
               )}
 
-              {(() => {
-                if (app.type === "Lending" && appId) {
-                  const targetPath =
-                    markets.length > 0
-                      ? `/app/${appId}/market/${markets[0].id}`
-                      : null;
-
-                  if (targetPath) {
-                    return (
-                      <Button
-                        variant="outlined"
-                        rounded
-                        className="self-start"
-                        onClick={() => navigate(targetPath)}
-                      >
-                        Explore
-                      </Button>
-                    );
-                  }
-                }
-                if (app.websiteUrl) {
-                  return (
-                    <a
-                      href={app.websiteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="self-start"
-                    >
-                      <Button variant="outlined" rounded>
-                        Explore
-                      </Button>
-                    </a>
-                  );
-                }
-                return null;
-              })()}
+              {app.websiteUrl && (
+                <a
+                  href={app.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="self-start"
+                >
+                  <Button variant="outlined" rounded>
+                    Explore
+                  </Button>
+                </a>
+              )}
             </SubSection>
           );
         })}

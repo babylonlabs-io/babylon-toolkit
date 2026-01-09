@@ -57,20 +57,6 @@ const GET_VAULT_BY_ID = gql`
 `;
 
 /**
- * GraphQL query to fetch Morpho vault status by vault IDs
- */
-const GET_MORPHO_VAULT_STATUSES = gql`
-  query GetMorphoVaultStatuses($vaultIds: [String!]!) {
-    morphoVaultStatuss(where: { vaultId_in: $vaultIds }) {
-      items {
-        vaultId
-        status
-      }
-    }
-  }
-`;
-
-/**
  * GraphQL query to fetch Aave vault status by vault IDs
  */
 const GET_AAVE_VAULT_STATUSES = gql`
@@ -127,20 +113,11 @@ type AppVaultUsageStatus =
   (typeof AppVaultUsageStatus)[keyof typeof AppVaultUsageStatus];
 
 /**
- * App vault status item from GraphQL (shared structure for Morpho/Aave)
+ * App vault status item from GraphQL
  */
 interface GraphQLAppVaultStatusItem {
   vaultId: string;
   status: AppVaultUsageStatus;
-}
-
-/**
- * GraphQL response for Morpho vault statuses query
- */
-interface MorphoVaultStatusesResponse {
-  morphoVaultStatuss: {
-    items: GraphQLAppVaultStatusItem[];
-  };
 }
 
 /**
@@ -211,7 +188,7 @@ function transformVaultItem(item: GraphQLVaultItem, isInUse: boolean): Vault {
 
 /**
  * Fetch app-specific vault statuses for given vault IDs
- * Queries both Morpho and Aave vault status tables
+ * Queries Aave vault status table
  *
  * @returns Map of vaultId to isInUse boolean
  */
@@ -222,25 +199,12 @@ async function fetchAppVaultStatuses(
     return new Map();
   }
 
-  // Query both Morpho and Aave vault statuses in parallel
-  const [morphoData, aaveData] = await Promise.all([
-    graphqlClient.request<MorphoVaultStatusesResponse>(
-      GET_MORPHO_VAULT_STATUSES,
-      { vaultIds },
-    ),
-    graphqlClient.request<AaveVaultStatusesResponse>(GET_AAVE_VAULT_STATUSES, {
-      vaultIds,
-    }),
-  ]);
+  const aaveData = await graphqlClient.request<AaveVaultStatusesResponse>(
+    GET_AAVE_VAULT_STATUSES,
+    { vaultIds },
+  );
 
   const inUseMap = new Map<string, boolean>();
-
-  // Check Morpho statuses
-  for (const item of morphoData.morphoVaultStatuss.items) {
-    if (item.status === AppVaultUsageStatus.IN_USE) {
-      inUseMap.set(item.vaultId, true);
-    }
-  }
 
   // Check Aave statuses
   for (const item of aaveData.aaveVaultStatuss.items) {
@@ -257,7 +221,7 @@ async function fetchAppVaultStatuses(
  *
  * Uses two-query pattern:
  * 1. Fetch core vault data
- * 2. Fetch app-specific vault statuses (Morpho, Aave) to determine if vaults are in use
+ * 2. Fetch app-specific vault statuses (Aave) to determine if vaults are in use
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @returns Array of vaults with isInUse status

@@ -4,7 +4,7 @@
  * VaultActivity represents both pegin/deposit activities and borrowing positions.
  * Different fields are populated based on the context:
  * - Pegin/Deposit (VaultDeposit tab): contractStatus, isPending
- * - Position (VaultPositions tab): morphoPosition, borrowingData, marketData
+ * - Position (VaultPositions tab): position, borrowingData, marketData
  *
  * Note: Display status (label/variant) is derived from contractStatus via peginStateMachine,
  * not stored directly on the activity.
@@ -47,7 +47,7 @@ export interface VaultActivity {
   /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed) - from BTCVaultsManager */
   contractStatus?: number;
 
-  /** Application usage status - whether vault is in use by Morpho (from MorphoIntegrationController) */
+  /** Application usage status - whether vault is in use by an application */
   isInUse?: boolean;
 
   /** Display label for UI (derived from contractStatus and isInUse) */
@@ -59,15 +59,15 @@ export interface VaultActivity {
 
   // === Position fields (VaultPositions tab) ===
 
-  /** Morpho position data */
-  morphoPosition?: {
+  /** Position data */
+  position?: {
     collateral: bigint;
     borrowShares: bigint;
     borrowed: bigint;
     borrowAssets: bigint; // Actual debt including accrued interest
   };
 
-  /** Enriched borrowing data (calculated from morpho position + market data) */
+  /** Enriched borrowing data (calculated from position + market data) */
   borrowingData?: {
     borrowedAmount: string; // Formatted borrowed amount (e.g., "1000.50 USDC")
     borrowedSymbol: string; // Token symbol (e.g., "USDC")

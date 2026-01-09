@@ -7,12 +7,6 @@
  */
 
 // Data fetching hooks
-export {
-  useMarkets,
-  useUserPositions,
-  type PositionWithMorphoOptimized,
-  type UseUserPositionsResult,
-} from "../applications/morpho/hooks";
 export { useVaultActions } from "./deposit/useVaultActions";
 export { useActivities } from "./useActivities";
 export { useApplications } from "./useApplications";

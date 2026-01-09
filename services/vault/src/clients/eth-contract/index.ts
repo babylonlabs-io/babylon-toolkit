@@ -12,14 +12,3 @@ export type { ChainlinkRoundData } from "./chainlink";
 
 // ERC20
 export * as ERC20 from "./erc20";
-
-// Morpho clients - re-exported from morpho application for backward compatibility
-export {
-  Morpho,
-  MorphoController,
-  MorphoControllerTx,
-  type MarketParams,
-  type MarketPosition,
-  type MorphoMarketSummary,
-  type MorphoUserPosition,
-} from "../../applications/morpho/clients";
