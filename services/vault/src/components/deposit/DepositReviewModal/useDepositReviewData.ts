@@ -22,6 +22,7 @@ export interface DepositReviewData {
   btcFee: number | null;
   btcFeeUsd: number | null;
   feeRate: number;
+  feeError: string | null;
   ethFee: number | null;
 
   // Provider data
@@ -66,6 +67,7 @@ export function useDepositReviewData(
     fee: feeSats,
     feeRate,
     isLoading: feeLoading,
+    error: feeError,
   } = useEstimatedBtcFee(amount, confirmedUTXOs);
   const ethFee = useEstimatedEthFee();
 
@@ -92,6 +94,7 @@ export function useDepositReviewData(
   return {
     ...computedData,
     feeRate,
+    feeError,
     ethFee,
     isLoading: {
       price: btcPriceLoading,

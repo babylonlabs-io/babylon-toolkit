@@ -36,6 +36,7 @@ export function CollateralDepositReviewModal({
     btcFee,
     btcFeeUsd,
     feeRate,
+    feeError,
     ethFee,
     selectedProviders,
     isLoading,
@@ -163,8 +164,8 @@ export function CollateralDepositReviewModal({
                 )}
               </div>
             ) : (
-              <Text variant="body1" className="text-accent-secondary">
-                Fee estimate unavailable
+              <Text variant="body1" className="text-error-main">
+                {feeError ?? "Fee estimate unavailable"}
               </Text>
             )}
 
