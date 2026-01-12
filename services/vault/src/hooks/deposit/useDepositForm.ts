@@ -39,11 +39,6 @@ export interface UseDepositFormResult {
 
   // Calculated values
   amountSats: bigint;
-  estimatedFees: {
-    btcNetworkFee: bigint;
-    protocolFee: bigint;
-    totalFee: bigint;
-  } | null;
 
   // Actions
   validateForm: () => boolean;
@@ -116,15 +111,6 @@ export function useDepositForm(): UseDepositFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  // Calculate estimated fees
-  const estimatedFees = useMemo(() => {
-    if (amountSats === 0n || !confirmedUTXOs || confirmedUTXOs.length === 0) {
-      return null;
-    }
-
-    return depositService.calculateDepositFees(amountSats);
-  }, [amountSats, confirmedUTXOs]);
-
   // Validate form
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
@@ -185,7 +171,6 @@ export function useDepositForm(): UseDepositFormResult {
 
     // Calculated values
     amountSats,
-    estimatedFees,
 
     // Actions
     validateForm,

@@ -11,17 +11,14 @@ import {
   useCopy,
 } from "@babylonlabs-io/core-ui";
 
-import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
-import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
-import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
-import { useBTCPrice } from "../../../hooks/useBTCPrice";
 import { truncateAddress } from "../../../utils/addressUtils";
-import { satoshiToBtcNumber } from "../../../utils/btcConversion";
+
+import { useDepositReviewData } from "./useDepositReviewData";
 
 interface CollateralDepositReviewModalProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (feeRate: number) => void;
   amount: bigint;
   providers: string[];
 }
@@ -33,24 +30,16 @@ export function CollateralDepositReviewModal({
   amount,
   providers,
 }: CollateralDepositReviewModalProps) {
-  // Convert satoshis to BTC for display
-  const amountBtc = satoshiToBtcNumber(amount);
-
-  // Fetch real-time BTC price from oracle
-  const { btcPriceUSD, loading: btcPriceLoading } = useBTCPrice();
-
-  // Calculate USD value using real-time price
-  const amountUsd = btcPriceUSD > 0 ? amountBtc * btcPriceUSD : null;
-
-  // Fetch real vault providers from API
-  const { findProviders, loading: providersLoading } = useVaultProviders();
-
-  // Get estimated fees from custom hooks
-  const estimatedBtcFee = useEstimatedBtcFee(amount, open);
-  const estimatedEthFee = useEstimatedEthFee();
-
-  // Map selected provider IDs to actual provider data
-  const selectedProviders = findProviders(providers);
+  const {
+    amountBtc,
+    amountUsd,
+    btcFee,
+    btcFeeUsd,
+    feeRate,
+    ethFee,
+    selectedProviders,
+    isLoading,
+  } = useDepositReviewData(amount, providers, open);
 
   const { isCopied, copyToClipboard } = useCopy();
 
@@ -67,7 +56,7 @@ export function CollateralDepositReviewModal({
           Review the details before confirming your deposit
         </Text>
 
-        {/* Deposit Amount - Two Column Layout */}
+        {/* Deposit Amount */}
         <div className="flex items-start justify-between">
           <Text variant="body1" className="font-medium">
             Deposit Amount
@@ -77,7 +66,7 @@ export function CollateralDepositReviewModal({
               {amountBtc} BTC
             </Text>
             <Text variant="body1" className="text-accent-secondary">
-              {btcPriceLoading
+              {isLoading.price
                 ? "Loading price..."
                 : amountUsd !== null
                   ? `$${amountUsd.toLocaleString("en-US", {
@@ -89,7 +78,7 @@ export function CollateralDepositReviewModal({
           </div>
         </div>
 
-        {/* Vault Providers - Two Column Layout */}
+        {/* Vault Providers */}
         <div className="flex items-start justify-between">
           <Text variant="body1" className="font-medium">
             {selectedProviders.length === 1
@@ -97,14 +86,13 @@ export function CollateralDepositReviewModal({
               : "Vault Providers"}
           </Text>
           <div className="flex flex-col items-end gap-3">
-            {providersLoading ? (
+            {isLoading.providers ? (
               <Text variant="body2" className="text-accent-secondary">
                 Loading providers...
               </Text>
             ) : (
               selectedProviders.map((provider) => (
                 <div key={provider.id} className="flex items-center gap-3">
-                  {/* Provider icon - using first letter as fallback */}
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-primary">
                     <Text
                       variant="body2"
@@ -140,54 +128,60 @@ export function CollateralDepositReviewModal({
           </div>
         </div>
 
-        {/* Fees - Two Column Layout */}
+        {/* Fees */}
         <div className="flex items-start justify-between">
           <Text variant="body1" className="font-medium">
             Fees
           </Text>
           <div className="flex flex-col items-end gap-1">
             {/* BTC Fee */}
-            {estimatedBtcFee !== null ? (
-              <div className="flex items-center gap-2">
-                <Text variant="body1">~{estimatedBtcFee.toFixed(8)} BTC</Text>
-                {btcPriceUSD > 0 && (
-                  <Text variant="body1" className="text-accent-secondary">
-                    $
-                    {(estimatedBtcFee * btcPriceUSD).toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+            {isLoading.fee ? (
+              <Text variant="body1" className="text-accent-secondary">
+                Calculating BTC fee...
+              </Text>
+            ) : btcFee !== null ? (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <Text variant="body1">{btcFee.toFixed(8)} BTC</Text>
+                  {btcFeeUsd !== null && (
+                    <Text variant="body1" className="text-accent-secondary">
+                      $
+                      {btcFeeUsd.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </Text>
+                  )}
+                </div>
+                {feeRate > 0 && (
+                  <Text
+                    variant="body2"
+                    className="text-xs text-accent-secondary"
+                  >
+                    at {feeRate} sat/vB
                   </Text>
                 )}
               </div>
             ) : (
               <Text variant="body1" className="text-accent-secondary">
-                Calculating BTC fee...
+                Fee estimate unavailable
               </Text>
             )}
 
             {/* ETH Gas Fee */}
-            {estimatedEthFee !== null ? (
-              <Text variant="body1">~{estimatedEthFee.toFixed(6)} ETH</Text>
+            {ethFee !== null ? (
+              <Text variant="body1">~{ethFee.toFixed(6)} ETH</Text>
             ) : (
               <Text variant="body1" className="text-accent-secondary">
                 ETH gas estimate pending...
               </Text>
             )}
-
-            <Text
-              variant="body2"
-              className="mt-1 text-xs text-accent-secondary"
-            >
-              * Final fees calculated at transaction time
-            </Text>
           </div>
         </div>
 
-        {/* Divider */}
         <div className="border-divider border-t" />
 
-        {/* Attention Section - No Border */}
+        {/* Attention Section */}
         <div className="flex flex-col gap-3">
           <Heading variant="h6" className="text-base font-semibold">
             Attention!
@@ -203,7 +197,13 @@ export function CollateralDepositReviewModal({
       </DialogBody>
 
       <DialogFooter className="pb-6">
-        <Button variant="contained" color="primary" onClick={onConfirm} fluid>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={() => onConfirm(feeRate)}
+          disabled={isLoading.fee || feeRate <= 0 || btcFee === null}
+          fluid
+        >
           Confirm
         </Button>
       </DialogFooter>

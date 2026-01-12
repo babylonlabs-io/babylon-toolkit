@@ -14,13 +14,6 @@ export type {
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";
 
-export { useDepositTransaction } from "./useDepositTransaction";
-export type {
-  CreateDepositTransactionParams,
-  TransactionResult,
-  UseDepositTransactionResult,
-} from "./useDepositTransaction";
-
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useEstimatedEthFee } from "./useEstimatedEthFee";
 export { useVaultActions } from "./useVaultActions";

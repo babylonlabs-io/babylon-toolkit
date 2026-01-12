@@ -55,10 +55,6 @@ vi.mock("@/hooks/useUTXOs", () => ({
 vi.mock("@/services/deposit", () => ({
   depositService: {
     validateDepositAmount: vi.fn(() => ({ valid: true })),
-    calculateDepositFees: vi.fn(() => ({
-      btcNetworkFee: 1000n,
-      protocolFee: 500n,
-    })),
     formatSatoshisToBtc: vi.fn((amount: bigint) => {
       const btc = Number(amount) / 100_000_000;
       return btc.toString();
@@ -107,6 +103,7 @@ describe("useDepositFlow - Chain Switching", () => {
 
   const mockParams = {
     amount: 500000n,
+    feeRate: 50, // Fee rate from review modal (sat/vB)
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
     selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address

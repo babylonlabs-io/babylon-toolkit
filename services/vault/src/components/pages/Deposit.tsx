@@ -48,6 +48,7 @@ function DepositContent() {
     depositAmount,
     selectedApplication,
     selectedProviders,
+    feeRate,
     btcWalletProvider,
     ethAddress,
     selectedProviderBtcPubkey,
@@ -145,6 +146,7 @@ function DepositContent() {
         depositAmount={depositAmount}
         selectedApplication={selectedApplication}
         selectedProviders={selectedProviders}
+        feeRate={feeRate}
         btcWalletProvider={btcWalletProvider}
         ethAddress={ethAddress}
         selectedProviderBtcPubkey={selectedProviderBtcPubkey}

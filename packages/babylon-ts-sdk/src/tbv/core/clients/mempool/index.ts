@@ -9,15 +9,17 @@
 export {
   getAddressUtxos,
   getMempoolApiUrl,
+  getNetworkFees,
   getTxHex,
   getTxInfo,
+  getUtxoInfo,
   MEMPOOL_API_URLS,
   pushTx,
-  getUtxoInfo,
 } from "./mempoolApi";
 
 export type {
   MempoolUTXO,
+  NetworkFees,
   TxInfo,
   TxInput,
   TxOutput,

@@ -5,10 +5,10 @@
  * Integrates with wallet data and UTXO queries.
  */
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
-import { depositService } from "../../services/deposit";
+import { depositService, MIN_DEPOSIT_SATS } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
 import { useUTXOs } from "../useUTXOs";
 
@@ -45,32 +45,22 @@ export function useDepositValidation(
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
 
-  // Calculate dynamic minimum based on current fees
-  const minDeposit = useMemo(() => {
-    const baseFeeRate = 10; // sats/byte, would fetch from mempool API
-    return depositService.calculateMinimumDeposit(baseFeeRate);
-  }, []);
-
   // Validate amount
-  const validateAmount = useCallback(
-    (amount: string): ValidationResult => {
-      try {
-        const satoshis = depositService.parseBtcToSatoshis(amount);
-        return depositService.validateDepositAmount(
-          satoshis,
-          minDeposit,
-          MAX_DEPOSIT_SATS,
-        );
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (_error) {
-        return {
-          valid: false,
-          error: "Invalid amount format",
-        };
-      }
-    },
-    [minDeposit],
-  );
+  const validateAmount = useCallback((amount: string): ValidationResult => {
+    try {
+      const satoshis = depositService.parseBtcToSatoshis(amount);
+      return depositService.validateDepositAmount(
+        satoshis,
+        MIN_DEPOSIT_SATS,
+        MAX_DEPOSIT_SATS,
+      );
+    } catch {
+      return {
+        valid: false,
+        error: "Invalid amount format",
+      };
+    }
+  }, []);
 
   // Validate provider selection
   const validateProviders = useCallback(
@@ -100,24 +90,21 @@ export function useDepositValidation(
 
         // Validate UTXOs if available
         if (confirmedUTXOs && confirmedUTXOs.length > 0) {
-          const fees = depositService.calculateDepositFees(amount);
-          const requiredAmount = amount + fees.totalFee;
-
           const utxoValidation = depositService.validateUTXOs(
             confirmedUTXOs,
-            requiredAmount,
+            amount,
           );
 
           if (!utxoValidation.valid) return utxoValidation;
 
-          // Check balance
+          // Check balance (exact fee validation happens in review modal via SDK)
           const totalBalance = confirmedUTXOs.reduce(
             (sum, utxo) => sum + BigInt(utxo.value),
             0n,
           );
 
           const balanceValidation = depositService.validateSufficientBalance(
-            requiredAmount,
+            amount,
             totalBalance,
           );
 
@@ -158,7 +145,7 @@ export function useDepositValidation(
     validateProviders,
     validateDeposit,
     availableProviders: providers,
-    minDeposit,
+    minDeposit: MIN_DEPOSIT_SATS,
     maxDeposit: MAX_DEPOSIT_SATS,
   };
 }

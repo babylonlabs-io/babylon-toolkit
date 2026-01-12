@@ -6,15 +6,13 @@
  * 2. Querying mempool API to get full UTXO data (scriptPubKey, value)
  *
  * This enables cross-device pegin broadcasting without localStorage dependency.
- *
- * NOTE: Mempool API calls copied from simple-staking for vault POC.
- * TODO: Deduplicate when merging vault to main branch.
  */
 
+import { getTxInfo } from "@babylonlabs-io/ts-sdk";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import { getTxInfo } from "../../clients/btc/mempool";
+import { getMempoolApiUrl } from "../../clients/btc/config";
 
 import type { UTXOInfo } from "./vaultPeginBroadcastService";
 
@@ -95,7 +93,7 @@ export async function fetchUTXOFromMempool(
 ): Promise<{ scriptPubKey: string; value: number }> {
   try {
     // Fetch transaction info from mempool API
-    const txInfo = await getTxInfo(txid);
+    const txInfo = await getTxInfo(txid, getMempoolApiUrl());
 
     // Validate output index
     if (vout >= txInfo.vout.length) {

@@ -34,18 +34,3 @@ function toWASMNetwork(network: BTCNetwork): WASMNetwork {
 export function getBTCNetworkForWASM(): WASMNetwork {
   return toWASMNetwork(getBTCNetwork());
 }
-
-/**
- * Fixed BTC transaction fee in satoshis
- * This is the single source of truth for the transaction fee used across the application
- */
-export const BTC_TRANSACTION_FEE = 10_000n;
-
-export const LOCAL_PEGIN_CONFIG = {
-  /**
-   * Fixed fee for BTC transaction
-   * TODO: calculate dynamically based on the tx size
-   */
-  btcTransactionFee: BTC_TRANSACTION_FEE,
-  defaultFeeRate: 100, // sat/vbyte - reasonable default for most conditions
-};

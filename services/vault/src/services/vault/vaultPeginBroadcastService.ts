@@ -5,10 +5,11 @@
  * Used in PegIn flow step after vault provider verification.
  */
 
+import { pushTx } from "@babylonlabs-io/ts-sdk";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import { pushTx } from "../../clients/btc/mempool";
+import { getMempoolApiUrl } from "../../clients/btc/config";
 import { getPsbtInputFields } from "../../utils/btc";
 
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
@@ -164,7 +165,7 @@ export async function broadcastPeginTransaction(
     );
 
     // Broadcast to network
-    return await pushTx(signedTxHex);
+    return await pushTx(signedTxHex, getMempoolApiUrl());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     throw new Error(`Failed to broadcast PegIn transaction: ${message}`);

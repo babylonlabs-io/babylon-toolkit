@@ -42,11 +42,6 @@ export interface UseDepositPageFormResult {
   isLoadingProviders: boolean;
 
   amountSats: bigint;
-  estimatedFees: {
-    btcNetworkFee: bigint;
-    protocolFee: bigint;
-    totalFee: bigint;
-  } | null;
 
   validateForm: () => boolean;
   resetForm: () => void;
@@ -169,13 +164,6 @@ export function useDepositPageForm(
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  const estimatedFees = useMemo(() => {
-    if (amountSats === 0n || !confirmedUTXOs || confirmedUTXOs.length === 0) {
-      return null;
-    }
-    return depositService.calculateDepositFees(amountSats);
-  }, [amountSats, confirmedUTXOs]);
-
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
@@ -242,7 +230,6 @@ export function useDepositPageForm(
     providers,
     isLoadingProviders,
     amountSats,
-    estimatedFees,
     validateForm,
     resetForm,
   };
