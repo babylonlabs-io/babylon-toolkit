@@ -35,8 +35,8 @@ export function AaveBanner({ onExplore }: AaveBannerProps) {
       </div>
 
       <p className="col-span-2 max-w-full text-[16px] leading-[1.6] text-black md:col-span-1 md:col-start-1 md:row-start-2 md:max-w-[440px] md:text-[20px]">
-        Aave is a leading DeFi protocol where users can supply liquidity to earn
-        interest or borrow assets using their crypto as collateral.
+        The Aave v4 integration enables Bitcoin to be trustlessly used as
+        collateral to borrow from Aave v4.
       </p>
 
       <div className="col-span-2 mt-2 md:col-span-1 md:col-start-1 md:row-start-3">
