@@ -63,6 +63,13 @@ New to the SDK? Start here:
 
 - **[Installation](./docs/get-started/installation.md)** - Install and verify the SDK
 
+### 🚀 Quickstart
+
+Step-by-step tutorials:
+
+- **[Managers Quickstart](./docs/quickstart/managers.md)** - Complete peg-in flow with wallet integration
+- **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Low-level implementation guide
+
 ### 📖 Guides
 
 Complete flows and tutorials:
@@ -76,13 +83,6 @@ Complete flows and tutorials:
 Auto-generated from TSDoc comments using [TypeDoc](https://typedoc.org/):
 
 - **[API Reference](./docs/api/README.md)** - Complete auto-generated API documentation
-
-### 💡 Examples [⚠️WIP]
-
-Working example applications:
-
-- **[React App with Managers](./examples/managers-react/)** - Front-end implementation
-- **[Node.js with Primitives](./examples/primitives-nodejs/)** - Back-end integration with custom signing
 
 ## Development
 
