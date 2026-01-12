@@ -228,9 +228,6 @@ export async function getTokenPrices(
     const feedAddress = getChainlinkFeedAddress(normalizedSymbol);
 
     if (!feedAddress) {
-      if (["USDC", "USDT", "DAI"].includes(normalizedSymbol)) {
-        prices[symbol] = 1.0;
-      }
       return;
     }
 

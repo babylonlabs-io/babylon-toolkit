@@ -66,16 +66,16 @@ export function CollateralDepositReviewModal({
             <Text variant="body1" className="font-medium">
               {amountBtc} BTC
             </Text>
-            <Text variant="body1" className="text-accent-secondary">
-              {isLoading.price
-                ? "Loading price..."
-                : amountUsd !== null
-                  ? `$${amountUsd.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })} USD`
-                  : "Price unavailable"}
-            </Text>
+            {amountUsd !== null && (
+              <Text variant="body1" className="text-accent-secondary">
+                $
+                {amountUsd.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{" "}
+                USD
+              </Text>
+            )}
           </div>
         </div>
 
