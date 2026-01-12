@@ -1,10 +1,9 @@
 /**
  * PositionCard Component
- * Displays Collateral and Loans information under tabbed sections
+ * Displays Collateral and Loans information
  */
 
-import { Card, Tabs } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { Card } from "@babylonlabs-io/core-ui";
 
 import type {
   BorrowedAsset,
@@ -49,46 +48,30 @@ export function PositionCard({
   onBorrow,
   onRepay,
 }: PositionCardProps) {
-  const [activeTab, setActiveTab] = useState("babylon-prime");
-
   return (
-    <Card className="w-full">
-      <Tabs
-        items={[
-          {
-            id: "babylon-prime",
-            label: "Babylon Prime",
-            content: (
-              <div className="space-y-8 pt-4">
-                {/* Collateral Section */}
-                <CollateralSection
-                  amount={collateralAmount}
-                  usdValue={collateralUsdValue}
-                  hasCollateral={hasCollateral}
-                  hasAvailableVaults={hasAvailableVaults}
-                  isPendingAdd={isPendingAdd}
-                  isPendingWithdraw={isPendingWithdraw}
-                  onAdd={onAdd}
-                  onWithdraw={onWithdraw}
-                />
+    <Card className="w-full p-6">
+      <div className="space-y-8">
+        <CollateralSection
+          amount={collateralAmount}
+          usdValue={collateralUsdValue}
+          hasCollateral={hasCollateral}
+          hasAvailableVaults={hasAvailableVaults}
+          isPendingAdd={isPendingAdd}
+          isPendingWithdraw={isPendingWithdraw}
+          onAdd={onAdd}
+          onWithdraw={onWithdraw}
+        />
 
-                {/* Loans Section */}
-                <LoansSection
-                  hasLoans={hasLoans}
-                  hasCollateral={hasCollateral}
-                  borrowedAssets={borrowedAssets}
-                  healthFactor={healthFactor}
-                  healthFactorStatus={healthFactorStatus}
-                  onBorrow={onBorrow}
-                  onRepay={onRepay}
-                />
-              </div>
-            ),
-          },
-        ]}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+        <LoansSection
+          hasLoans={hasLoans}
+          hasCollateral={hasCollateral}
+          borrowedAssets={borrowedAssets}
+          healthFactor={healthFactor}
+          healthFactorStatus={healthFactorStatus}
+          onBorrow={onBorrow}
+          onRepay={onRepay}
+        />
+      </div>
     </Card>
   );
 }
