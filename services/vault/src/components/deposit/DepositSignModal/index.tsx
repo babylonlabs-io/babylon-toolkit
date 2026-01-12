@@ -57,7 +57,6 @@ export function CollateralDepositSignModal({
       selectedProviders,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
-      modalOpen: open, // Pass modal open state to control Step 3 auto-signing
       onSuccess: (
         btcTxid: string,
         ethTxHash: string,

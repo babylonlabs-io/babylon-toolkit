@@ -30,7 +30,6 @@ export interface UseDepositFlowParams {
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
-  modalOpen: boolean;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,

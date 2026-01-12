@@ -113,7 +113,6 @@ describe("useDepositFlow - Chain Switching", () => {
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
-    modalOpen: true,
     onSuccess: vi.fn(),
   };
 
