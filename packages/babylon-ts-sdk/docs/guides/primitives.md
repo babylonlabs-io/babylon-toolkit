@@ -2,6 +2,22 @@
 
 Pure functions for building Bitcoin transactions for Babylon Trustless BTC Vault (TBV).
 
+## Table of Contents
+
+1. [Important: Primitives vs Managers](#️-important-primitives-vs-managers)
+2. [Understanding the SDK Layers](#understanding-the-sdk-layers)
+   - 2.1. [Level 1: Primitives (Pure Functions)](#level-1-primitives-pure-functions)
+   - 2.2. [Level 2: Utils (Helper Functions)](#level-2-utils-helper-functions)
+   - 2.3. [What You Must Still Implement](#what-you-must-still-implement)
+   - 2.4. [When to Use Primitives](#when-to-use-primitives)
+   - 2.5. [Level 3: Managers (Full Orchestration)](#level-3-managers-full-orchestration)
+3. [Installation](#installation)
+4. [Architecture Layers](#architecture-layers)
+5. [Setup](#setup)
+6. [Quickstart](#quickstart)
+   - 6.1. [Peg-in](#peg-in)
+   - 6.2. [Payout Authorization Signing (Peg-In Step 3)](#payout-authorization-signing-peg-in-step-3)
+
 ---
 
 ## ⚠️ Important: Primitives vs Managers
