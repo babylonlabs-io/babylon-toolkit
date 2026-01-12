@@ -1,12 +1,10 @@
 /**
  * Chainlink Price Feed Client
  *
- * Fetches BTC/USD price from Chainlink's decentralized oracle network.
+ * Fetches token prices in USD from Chainlink's decentralized oracle network.
  * This provides a reliable, independent price source not tied to any specific DeFi protocol.
  *
- * Price Feed Addresses:
- * - Mainnet: 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c
- * - Sepolia: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43
+ * Supported tokens: BTC, ETH, USDC, USDT, DAI
  */
 
 import { getBTCNetwork } from "@babylonlabs-io/config";
@@ -15,29 +13,48 @@ import type { Address } from "viem";
 
 import { ethClient } from "../client";
 
-/**
- * Chainlink BTC/USD price feed addresses by network
- */
-export const CHAINLINK_BTC_USD_FEEDS: Record<Network, Address> = {
-  [Network.MAINNET]: "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
-  // Signet uses Sepolia testnet for ETH side
-  [Network.SIGNET]: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
-  // Testnet - using Sepolia as fallback
-  [Network.TESTNET]: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
+type TokenSymbol = "BTC" | "ETH" | "USDC" | "USDT" | "DAI";
+
+type ChainlinkFeedAddresses = Record<TokenSymbol, Address | null>;
+
+const CHAINLINK_PRICE_FEEDS: Record<Network, ChainlinkFeedAddresses> = {
+  [Network.MAINNET]: {
+    BTC: "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
+    ETH: "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+    USDC: "0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6",
+    USDT: "0x3E7d1eAB13ad0104d2750B8863b489D65364e32D",
+    DAI: "0xAed0c38402a5d19df6E4c03F4E2DcEd6e29c1ee9",
+  },
+  [Network.SIGNET]: {
+    BTC: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
+    ETH: "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+    USDC: null,
+    USDT: null,
+    DAI: null,
+  },
+  [Network.TESTNET]: {
+    BTC: "0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43",
+    ETH: "0x694AA1769357215DE4FAC081bf1f309aDC325306",
+    USDC: null,
+    USDT: null,
+    DAI: null,
+  },
 };
 
-/**
- * Get the Chainlink BTC/USD feed address for the current network
- *
- * Uses @babylonlabs-io/config to determine the network based on NEXT_PUBLIC_BTC_NETWORK.
- * - mainnet -> Ethereum mainnet Chainlink feed
- * - signet -> Sepolia testnet Chainlink feed
- *
- * @returns Chainlink BTC/USD feed address
- */
-export function getChainlinkBTCUSDFeedAddress(): Address {
+function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
-  return CHAINLINK_BTC_USD_FEEDS[network];
+  const normalizedSymbol = symbol.toUpperCase();
+
+  if (normalizedSymbol === "WETH") {
+    return CHAINLINK_PRICE_FEEDS[network].ETH;
+  }
+
+  if (normalizedSymbol === "VBTC" || normalizedSymbol === "SBTC") {
+    return CHAINLINK_PRICE_FEEDS[network].BTC;
+  }
+
+  const feeds = CHAINLINK_PRICE_FEEDS[network];
+  return feeds[normalizedSymbol as TokenSymbol] ?? null;
 }
 
 /**
@@ -137,7 +154,7 @@ export async function getDecimals(feedAddress: Address): Promise<number> {
  * @throws Error if price is invalid (zero or negative)
  */
 export async function getBTCPriceUSD(): Promise<number> {
-  const feedAddress = getChainlinkBTCUSDFeedAddress();
+  const feedAddress = getChainlinkFeedAddress("BTC")!;
   const roundData = await getLatestRoundData(feedAddress);
 
   // Validate answer is positive (can be 0 or negative on oracle malfunction)
@@ -178,4 +195,59 @@ export function isPriceFresh(
   const now = BigInt(Math.floor(Date.now() / 1000));
   const age = now - roundData.updatedAt;
   return age <= BigInt(maxAgeSeconds);
+}
+
+async function fetchPriceFromFeed(feedAddress: Address): Promise<number> {
+  const roundData = await getLatestRoundData(feedAddress);
+
+  if (roundData.answer <= 0n) {
+    throw new Error(
+      "Invalid price from Chainlink oracle: price must be positive",
+    );
+  }
+
+  if (!isPriceFresh(roundData)) {
+    const ageSeconds =
+      Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
+    const ageHours = (ageSeconds / 3600).toFixed(1);
+    console.warn(
+      `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
+    );
+  }
+
+  return Number(roundData.answer) / 1e8;
+}
+
+export async function getTokenPrices(
+  symbols: string[],
+): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {};
+
+  const pricePromises = symbols.map(async (symbol) => {
+    const normalizedSymbol = symbol.toUpperCase();
+    const feedAddress = getChainlinkFeedAddress(normalizedSymbol);
+
+    if (!feedAddress) {
+      return;
+    }
+
+    try {
+      const price = await fetchPriceFromFeed(feedAddress);
+      prices[symbol] = price;
+
+      if (normalizedSymbol === "ETH") {
+        prices["WETH"] = price;
+      }
+      if (normalizedSymbol === "BTC") {
+        prices["vBTC"] = price;
+        prices["sBTC"] = price;
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch price for ${symbol}:`, error);
+    }
+  });
+
+  await Promise.all(pricePromises);
+
+  return prices;
 }

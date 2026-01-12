@@ -14,7 +14,7 @@ import { useEffect, useMemo } from "react";
 
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositForm } from "@/hooks/deposit/useDepositForm";
-import { useBTCPrice } from "@/hooks/useBTCPrice";
+import { usePrice } from "@/hooks/usePrices";
 import { depositService } from "@/services/deposit";
 
 const btcConfig = getNetworkConfigBTC();
@@ -33,7 +33,7 @@ export function CollateralDepositModal({
   btcBalance: propBtcBalance,
 }: CollateralDepositModalProps) {
   // Fetch real-time BTC price from Chainlink
-  const { btcPriceUSD } = useBTCPrice();
+  const btcPriceUSD = usePrice("BTC");
 
   // Use the new deposit form hook
   const {
