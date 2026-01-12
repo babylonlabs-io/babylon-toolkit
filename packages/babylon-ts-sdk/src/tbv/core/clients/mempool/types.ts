@@ -85,3 +85,21 @@ export interface UtxoInfo {
   scriptPubKey: string;
 }
 
+/**
+ * Bitcoin network fee recommendations (sat/vbyte) from mempool.space API.
+ *
+ * @see https://mempool.space/docs/api/rest#get-recommended-fees
+ */
+export interface NetworkFees {
+  /** Next block (~10 min) */
+  fastestFee: number;
+  /** ~30 minutes */
+  halfHourFee: number;
+  /** ~1 hour */
+  hourFee: number;
+  /** Economy (no time guarantee) */
+  economyFee: number;
+  /** Minimum network fee */
+  minimumFee: number;
+}
+

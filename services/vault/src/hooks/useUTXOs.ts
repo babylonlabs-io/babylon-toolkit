@@ -4,10 +4,11 @@
  * Fetches UTXOs from mempool API for the connected BTC wallet address
  */
 
+import { getAddressUtxos, type MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { getUTXOs, type MempoolUTXO } from "../clients/btc/mempool";
+import { getMempoolApiUrl } from "../clients/btc/config";
 
 /**
  * Hook to fetch UTXOs for a Bitcoin address
@@ -22,7 +23,7 @@ export function useUTXOs(
 ) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["btc-utxos", btcAddress],
-    queryFn: () => getUTXOs(btcAddress!),
+    queryFn: () => getAddressUtxos(btcAddress!, getMempoolApiUrl()),
     enabled: !!btcAddress && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval,
     // Refetch when wallet connects to ensure fresh data

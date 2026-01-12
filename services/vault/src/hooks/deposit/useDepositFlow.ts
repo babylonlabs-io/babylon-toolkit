@@ -24,6 +24,7 @@ import { processPublicKeyToXOnly } from "@/utils/btc";
 
 export interface UseDepositFlowParams {
   amount: bigint;
+  feeRate: number; // Fee rate from review modal (sat/vB)
   btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
@@ -65,6 +66,7 @@ export function useDepositFlow(
 ): UseDepositFlowReturn {
   const {
     amount,
+    feeRate,
     btcWalletProvider,
     depositorEthAddress,
     selectedApplication,
@@ -104,6 +106,7 @@ export function useDepositFlow(
       }
 
       // Use new validation service
+      // TODO: MIN & MAX need to be fetched from the network
       const amountValidation = depositService.validateDepositAmount(
         amount,
         10000n, // MIN_DEPOSIT
@@ -125,6 +128,11 @@ export function useDepositFlow(
       }
       if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
         throw new Error("No confirmed UTXOs available");
+      }
+
+      // Validate fee rate is available (passed from review modal)
+      if (feeRate <= 0) {
+        throw new Error("Invalid fee rate");
       }
 
       // Step 2: Get wallet client for ETH transactions
@@ -152,15 +160,7 @@ export function useDepositFlow(
         throw new Error("Failed to get wallet client");
       }
 
-      // Use new service for fee calculation
-      const fees = depositService.calculateDepositFees(amount);
-
-      // TODO - implement fee calcs
-      // Current: Calculate fee rate from fixed fee (average pegin tx is ~250 vbytes)
-      const feeRate = Math.ceil(Number(fees.btcNetworkFee) / 250);
-
-      // Submit pegin request with type-safe BitcoinWallet cast
-      // The btcWalletProvider from wallet-connector already implements the BitcoinWallet interface
+      // Submit pegin request with fee rate from review modal
       const result = await submitPeginRequest(btcWalletProvider, walletClient, {
         pegInAmount: amount,
         feeRate,
@@ -224,6 +224,7 @@ export function useDepositFlow(
     }
   }, [
     amount,
+    feeRate,
     btcWalletProvider,
     depositorEthAddress,
     selectedApplication,

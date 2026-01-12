@@ -22,6 +22,7 @@ interface CollateralDepositSignModalProps {
     depositorBtcPubkey: string,
   ) => void;
   amount: bigint; // in satoshis
+  feeRate: number; // Fee rate from review modal (sat/vB)
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
@@ -36,6 +37,7 @@ export function CollateralDepositSignModal({
   onClose,
   onSuccess,
   amount,
+  feeRate,
   btcWalletProvider,
   depositorEthAddress,
   selectedApplication,
@@ -51,6 +53,7 @@ export function CollateralDepositSignModal({
   const { executeDepositFlow, currentStep, processing, error } = useDepositFlow(
     {
       amount,
+      feeRate,
       btcWalletProvider,
       depositorEthAddress,
       selectedApplication,

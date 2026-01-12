@@ -16,12 +16,13 @@ interface DepositModalsProps {
   depositAmount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
+  feeRate: number;
   btcWalletProvider: unknown;
   ethAddress: Address | undefined;
   selectedProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
   onClose: () => void;
-  onConfirmReview: () => void;
+  onConfirmReview: (feeRate: number) => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   onRefetchActivities: () => Promise<void>;
 }
@@ -31,6 +32,7 @@ export function DepositModals({
   depositAmount,
   selectedApplication,
   selectedProviders,
+  feeRate,
   btcWalletProvider,
   ethAddress,
   selectedProviderBtcPubkey,
@@ -57,6 +59,7 @@ export function DepositModals({
           onClose={onClose}
           onSuccess={(btcTxid, ethTxHash) => onSignSuccess(btcTxid, ethTxHash)}
           amount={depositAmount}
+          feeRate={feeRate}
           btcWalletProvider={btcWalletProvider}
           depositorEthAddress={ethAddress}
           selectedApplication={selectedApplication}

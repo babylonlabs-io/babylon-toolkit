@@ -133,11 +133,6 @@ vi.mock("../../../services/deposit", () => ({
     formatSatoshisToBtc: vi.fn((sats: bigint, decimals: number) => {
       return (Number(sats) / 100000000).toFixed(decimals);
     }),
-    calculateDepositFees: vi.fn(() => ({
-      btcNetworkFee: 1000n,
-      protocolFee: 500n,
-      totalFee: 1500n,
-    })),
   },
 }));
 
@@ -390,28 +385,6 @@ describe("useDepositPageForm", () => {
       });
 
       expect(result.current.amountSats).toBe(12345n);
-    });
-  });
-
-  describe("estimatedFees calculation", () => {
-    it("should return null when amount is 0", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.estimatedFees).toBeNull();
-    });
-
-    it("should calculate fees for valid amount", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      act(() => {
-        result.current.setFormData({ amountBtc: "0.001" });
-      });
-
-      expect(result.current.estimatedFees).toEqual({
-        btcNetworkFee: 1000n,
-        protocolFee: 500n,
-        totalFee: 1500n,
-      });
     });
   });
 

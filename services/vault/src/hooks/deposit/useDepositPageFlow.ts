@@ -25,6 +25,7 @@ export interface UseDepositPageFlowResult {
   depositAmount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
+  feeRate: number;
 
   // Wallet data
   btcWalletProvider: unknown;
@@ -40,7 +41,7 @@ export interface UseDepositPageFlowResult {
     application: string,
     providers: string[],
   ) => void;
-  confirmReview: () => void;
+  confirmReview: (feeRate: number) => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -59,8 +60,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     amount: depositAmount,
     selectedApplication,
     selectedProviders,
+    feeRate,
     goToStep,
     setDepositData,
+    setFeeRate,
     setTransactionHashes,
     reset: resetDeposit,
   } = useDepositState();
@@ -103,7 +106,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     goToStep(DepositStep.REVIEW);
   };
 
-  const confirmReview = () => {
+  const confirmReview = (confirmedFeeRate: number) => {
+    setFeeRate(confirmedFeeRate);
     goToStep(DepositStep.SIGN);
   };
 
@@ -117,6 +121,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     depositAmount,
     selectedApplication,
     selectedProviders,
+    feeRate,
     btcWalletProvider,
     ethAddress,
     selectedProviderBtcPubkey,
