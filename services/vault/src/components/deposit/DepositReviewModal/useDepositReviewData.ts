@@ -9,7 +9,7 @@ import { useBTCWallet } from "../../../context/wallet";
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
-import { useBTCPrice } from "../../../hooks/useBTCPrice";
+import { usePrices } from "../../../hooks/usePrices";
 import { useUTXOs } from "../../../hooks/useUTXOs";
 import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 
@@ -57,7 +57,8 @@ export function useDepositReviewData(
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled });
 
   // Fetch price data
-  const { btcPriceUSD, loading: btcPriceLoading } = useBTCPrice();
+  const { prices, isLoading: priceLoading } = usePrices();
+  const btcPriceUSD = prices.BTC ?? 0;
 
   // Fetch provider data
   const { findProviders, loading: providersLoading } = useVaultProviders();
@@ -97,7 +98,7 @@ export function useDepositReviewData(
     feeError,
     ethFee,
     isLoading: {
-      price: btcPriceLoading,
+      price: priceLoading,
       providers: providersLoading,
       fee: feeLoading,
     },
