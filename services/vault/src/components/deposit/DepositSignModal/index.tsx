@@ -11,8 +11,7 @@ import {
 import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-// Migration: Using new architecture with compatibility layer
-import { useDepositFlow } from "@/hooks/deposit/useDepositFlowCompat";
+import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
@@ -58,7 +57,6 @@ export function CollateralDepositSignModal({
       selectedProviders,
       vaultProviderBtcPubkey,
       liquidatorBtcPubkeys,
-      modalOpen: open, // Pass modal open state to control Step 3 auto-signing
       onSuccess: (
         btcTxid: string,
         ethTxHash: string,

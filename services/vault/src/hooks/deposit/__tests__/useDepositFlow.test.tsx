@@ -1,12 +1,12 @@
 /**
- * Tests for useDepositFlowCompat hook - focusing on chain switching logic
+ * Tests for useDepositFlow hook - focusing on chain switching logic
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useDepositFlow } from "../useDepositFlowCompat";
+import { useDepositFlow } from "../useDepositFlow";
 
 // Mock config/contracts to avoid env var validation
 vi.mock("@/config/contracts", () => ({
@@ -96,7 +96,7 @@ vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
 }));
 
-describe("useDepositFlowCompat - Chain Switching", () => {
+describe("useDepositFlow - Chain Switching", () => {
   const mockBtcWalletProvider = {
     signMessage: vi.fn().mockResolvedValue("mocksignature"),
     getPublicKeyHex: vi.fn().mockResolvedValue("0xmockpubkey"),
@@ -113,7 +113,6 @@ describe("useDepositFlowCompat - Chain Switching", () => {
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
-    modalOpen: true,
     onSuccess: vi.fn(),
   };
 
