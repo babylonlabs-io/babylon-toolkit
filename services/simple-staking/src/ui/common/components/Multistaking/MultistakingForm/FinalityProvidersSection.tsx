@@ -123,6 +123,7 @@ export function FinalityProvidersSection() {
         actionText={actionText}
         onAdd={handleOpen}
         onRemove={handleRemove}
+        showChain={false} // No BSN chain display needed
       />
 
       <ChainSelectionModal
