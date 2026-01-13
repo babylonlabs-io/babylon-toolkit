@@ -39,6 +39,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("wagmi/actions", () => ({
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
+  waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
 }));
 
 vi.mock("@/hooks/useUTXOs", () => ({
@@ -62,6 +63,17 @@ vi.mock("@/services/deposit", () => ({
   },
 }));
 
+vi.mock("@/services/deposit/polling", () => ({
+  pollForPayoutTransactions: vi.fn().mockResolvedValue([
+    {
+      claimer_pubkey: "0xclaimerpubkey",
+      claim_tx: { tx_hex: "0xclaimtx" },
+      payout_tx: { tx_hex: "0xpayouttx" },
+    },
+  ]),
+  waitForContractVerification: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
@@ -80,6 +92,7 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
 
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
+  updatePendingPeginStatus: vi.fn(),
 }));
 
 vi.mock("@/context/deposit/DepositState", () => ({
@@ -90,6 +103,51 @@ vi.mock("@/context/deposit/DepositState", () => ({
 
 vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
+  stripHexPrefix: vi.fn((hex) => hex.replace("0x", "")),
+}));
+
+// Mock vault services for steps 3-4
+vi.mock("@/services/vault", () => ({
+  broadcastPeginTransaction: vi.fn().mockResolvedValue("0xbroadcasttxid"),
+  fetchVaultById: vi.fn().mockResolvedValue({
+    unsignedBtcTx: "0xmockunsignedtx",
+    status: 1,
+  }),
+  signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock vault provider RPC
+vi.mock("@/clients/vault-provider-rpc", () => {
+  return {
+    VaultProviderRpcApi: class MockVaultProviderRpcApi {
+      requestClaimAndPayoutTransactions = vi.fn().mockResolvedValue({
+        txs: [
+          {
+            claimer_pubkey: "0xclaimerpubkey",
+            claim_tx: { tx_hex: "0xclaimtx" },
+            payout_tx: { tx_hex: "0xpayouttx" },
+          },
+        ],
+      });
+    },
+  };
+});
+
+// Mock useVaultProviders hook
+vi.mock("../useVaultProviders", () => ({
+  useVaultProviders: vi.fn(() => ({
+    findProvider: vi.fn(() => ({
+      id: "0xProvider123",
+      url: "https://vault-provider.test",
+      btcPubKey: "0xVaultProviderKey",
+      name: "Test Provider",
+    })),
+    liquidators: [{ btcPubKey: "0xLiquidatorKey1" }],
+    vaultProviders: [],
+    loading: false,
+    error: null,
+    findProviders: vi.fn(),
+  })),
 }));
 
 describe("useDepositFlow - Chain Switching", () => {
@@ -103,13 +161,14 @@ describe("useDepositFlow - Chain Switching", () => {
 
   const mockParams = {
     amount: 500000n,
-    feeRate: 50, // Fee rate from review modal (sat/vB)
+    feeRate: 20, // Fee rate from review modal (sat/vB)
     btcWalletProvider: mockBtcWalletProvider,
     depositorEthAddress: "0xEthAddress123" as Address,
     selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
     liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
+    modalOpen: true,
     onSuccess: vi.fn(),
   };
 
@@ -316,12 +375,16 @@ describe("useDepositFlow - Chain Switching", () => {
 
   describe("Integration with deposit flow", () => {
     it("should complete full deposit flow after successful chain switch", async () => {
-      const { getWalletClient, switchChain } = await import("wagmi/actions");
+      const { getWalletClient, switchChain, waitForTransactionReceipt } =
+        await import("wagmi/actions");
 
       vi.mocked(switchChain).mockResolvedValue({ id: 11155111 } as any);
       vi.mocked(getWalletClient).mockResolvedValue({
         account: { address: "0xEthAddress123" },
         chain: { id: 11155111 },
+      } as any);
+      vi.mocked(waitForTransactionReceipt).mockResolvedValue({
+        status: "success",
       } as any);
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
