@@ -11,7 +11,6 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import {
   createPublicClient,
-  encodeFunctionData,
   http,
   zeroAddress,
   type Address,
@@ -23,7 +22,12 @@ import {
 import type { BitcoinWallet } from "../../../shared/wallets/interfaces/BitcoinWallet";
 import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
-import { BTCVaultsManagerABI, handleContractError } from "../contracts";
+import {
+  BTCVaultsManagerABI,
+  DUMMY_POP_SIGNATURE,
+  encodeSubmitPeginCalldata,
+  handleContractError,
+} from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
 import { stripHexPrefix } from "../primitives/utils/bitcoin";
 import {
@@ -229,6 +233,28 @@ export interface RegisterPeginResult {
    * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
    */
   vaultId: Hex;
+}
+
+/**
+ * Parameters for estimating ETH gas for peg-in registration.
+ */
+export interface EstimateEthGasParams {
+  /**
+   * Depositor's BTC public key (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix.
+   */
+  depositorBtcPubkey: string;
+
+  /**
+   * Funded but unsigned BTC transaction hex.
+   * Can be provided with or without "0x" prefix.
+   */
+  unsignedBtcTx: string;
+
+  /**
+   * Vault provider's Ethereum address.
+   */
+  vaultProvider: Address;
 }
 
 /**
@@ -487,18 +513,11 @@ export class PeginManager {
       btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
     }
 
-    // Step 3: Format parameters for contract call
-    // Ensure depositor BTC pubkey is 32 bytes (bytes32)
-    const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
-      ? (depositorBtcPubkey as Hex)
-      : (`0x${depositorBtcPubkey}` as Hex);
-
-    // Ensure unsigned tx has 0x prefix
+    // Step 3: Calculate vault ID and check if it already exists (pre-flight check)
+    // Ensure unsigned tx has 0x prefix for hash calculation
     const unsignedPegInTx = unsignedBtcTx.startsWith("0x")
       ? (unsignedBtcTx as Hex)
       : (`0x${unsignedBtcTx}` as Hex);
-
-    // Step 4: Calculate vault ID and check if it already exists (pre-flight check)
     const vaultId = calculateBtcTxHash(unsignedPegInTx);
     const exists = await this.checkVaultExists(vaultId);
 
@@ -510,20 +529,16 @@ export class PeginManager {
       );
     }
 
-    // Step 5: Submit peg-in request to contract
-    // Using encodeFunctionData + sendTransaction pattern to avoid simulation issues
+    // Step 4: Submit peg-in request to contract
+    // Using encodeSubmitPeginCalldata + sendTransaction pattern to avoid simulation issues
     try {
-      // Encode the contract call data
-      const callData = encodeFunctionData({
-        abi: BTCVaultsManagerABI,
-        functionName: "submitPeginRequest",
-        args: [
-          depositorEthAddress,
-          depositorBtcPubkeyHex,
-          btcPopSignature,
-          unsignedPegInTx,
-          vaultProvider,
-        ],
+      // Encode the contract call data using shared utility
+      const callData = encodeSubmitPeginCalldata({
+        depositorEthAddress,
+        depositorBtcPubkey,
+        btcPopSignature,
+        unsignedPegInTx: unsignedBtcTx,
+        vaultProvider,
       });
 
       // Send as raw transaction
@@ -571,6 +586,54 @@ export class PeginManager {
       // If reading fails, assume vault doesn't exist and let contract handle it
       return false;
     }
+  }
+
+  /**
+   * Estimates the ETH gas required for registering a peg-in on Ethereum.
+   *
+   * This method encodes the contract calldata using a dummy signature (since
+   * the actual signature isn't available before signing) and estimates gas
+   * using eth_estimateGas. The dummy signature has the same size as a real
+   * Schnorr signature (64 bytes), so the gas estimate is accurate.
+   *
+   * Use this to show users the estimated ETH fee before they confirm the deposit.
+   *
+   * @param params - Parameters for gas estimation
+   * @returns Estimated gas in gas units (as bigint)
+   * @throws Error if estimation fails
+   */
+  async estimateEthGas(params: EstimateEthGasParams): Promise<bigint> {
+    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider } = params;
+
+    // Get depositor ETH address from wallet
+    if (!this.config.ethWallet.account) {
+      throw new Error("Ethereum wallet account not found");
+    }
+    const depositorEthAddress = this.config.ethWallet.account.address;
+
+    // Encode calldata with dummy signature for estimation
+    const callData = encodeSubmitPeginCalldata({
+      depositorEthAddress,
+      depositorBtcPubkey,
+      btcPopSignature: DUMMY_POP_SIGNATURE,
+      unsignedPegInTx: unsignedBtcTx,
+      vaultProvider,
+    });
+
+    // Create public client for gas estimation
+    const publicClient = createPublicClient({
+      chain: this.config.ethChain,
+      transport: http(),
+    });
+
+    // Estimate gas
+    const gasEstimate = await publicClient.estimateGas({
+      to: this.config.vaultContracts.btcVaultsManager,
+      data: callData,
+      account: depositorEthAddress,
+    });
+
+    return gasEstimate;
   }
 
   /**

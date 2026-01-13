@@ -10,9 +10,11 @@
 export { PeginManager } from "./PeginManager";
 export type {
   CreatePeginParams,
+  EstimateEthGasParams,
   PeginManagerConfig,
   PeginResult,
   RegisterPeginParams,
+  RegisterPeginResult,
   SignAndBroadcastParams,
 } from "./PeginManager";
 

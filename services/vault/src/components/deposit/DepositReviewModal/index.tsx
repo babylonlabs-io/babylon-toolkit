@@ -21,6 +21,9 @@ interface CollateralDepositReviewModalProps {
   onConfirm: (feeRate: number) => void;
   amount: bigint;
   providers: string[];
+  selectedApplication: string;
+  vaultProviderBtcPubkey: string;
+  liquidatorBtcPubkeys: string[];
 }
 
 export function CollateralDepositReviewModal({
@@ -29,18 +32,26 @@ export function CollateralDepositReviewModal({
   onConfirm,
   amount,
   providers,
+  selectedApplication,
+  vaultProviderBtcPubkey,
+  liquidatorBtcPubkeys,
 }: CollateralDepositReviewModalProps) {
   const {
     amountBtc,
-    amountUsd,
+    amountBtcUsd,
     btcFee,
     btcFeeUsd,
     feeRate,
     feeError,
     ethFee,
+    ethFeeUsd,
     selectedProviders,
     isLoading,
-  } = useDepositReviewData(amount, providers, open);
+  } = useDepositReviewData(amount, providers, open, {
+    selectedApplication,
+    vaultProviderBtcPubkey,
+    liquidatorBtcPubkeys,
+  });
 
   const { isCopied, copyToClipboard } = useCopy();
 
@@ -66,10 +77,10 @@ export function CollateralDepositReviewModal({
             <Text variant="body1" className="font-medium">
               {amountBtc} BTC
             </Text>
-            {amountUsd !== null && (
+            {amountBtcUsd !== null && (
               <Text variant="body1" className="text-accent-secondary">
                 $
-                {amountUsd.toLocaleString("en-US", {
+                {amountBtcUsd.toLocaleString("en-US", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}{" "}
@@ -171,7 +182,18 @@ export function CollateralDepositReviewModal({
 
             {/* ETH Gas Fee */}
             {ethFee !== null ? (
-              <Text variant="body1">~{ethFee.toFixed(6)} ETH</Text>
+              <div className="flex items-center gap-2">
+                <Text variant="body1">~{ethFee.toFixed(6)} ETH</Text>
+                {ethFeeUsd !== null && (
+                  <Text variant="body1" className="text-accent-secondary">
+                    $
+                    {ethFeeUsd.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                )}
+              </div>
             ) : (
               <Text variant="body1" className="text-accent-secondary">
                 ETH gas estimate pending...

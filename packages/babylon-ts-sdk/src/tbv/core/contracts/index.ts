@@ -10,6 +10,12 @@
 export { BTCVaultsManagerABI } from "./abis/BTCVaultsManager.abi";
 
 export {
+  DUMMY_POP_SIGNATURE,
+  encodeSubmitPeginCalldata,
+  type SubmitPeginCalldataParams,
+} from "./calldata";
+
+export {
   CONTRACT_ERRORS,
   extractErrorData,
   getContractErrorMessage,

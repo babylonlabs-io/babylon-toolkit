@@ -4,19 +4,31 @@
  */
 
 import { useMemo } from "react";
+import type { Address } from "viem";
 
-import { useBTCWallet } from "../../../context/wallet";
+import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
+import { useUnsignedPeginTx } from "../../../hooks/deposit/useUnsignedPeginTx";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
+import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { usePrices } from "../../../hooks/usePrices";
 import { useUTXOs } from "../../../hooks/useUTXOs";
 import { satoshiToBtcNumber } from "../../../utils/btcConversion";
 
+/**
+ * Helper to calculate USD value from amount and price.
+ * Returns null if either value is missing or price is zero.
+ */
+function toUsd(amount: number | null, priceUsd: number): number | null {
+  if (amount === null || priceUsd <= 0) return null;
+  return amount * priceUsd;
+}
+
 export interface DepositReviewData {
   // Amount data
   amountBtc: number;
-  amountUsd: number | null;
+  amountBtcUsd: number | null;
 
   // Fee data
   btcFee: number | null;
@@ -24,6 +36,7 @@ export interface DepositReviewData {
   feeRate: number;
   feeError: string | null;
   ethFee: number | null;
+  ethFeeUsd: number | null;
 
   // Provider data
   selectedProviders: Array<{
@@ -41,62 +54,112 @@ export interface DepositReviewData {
 }
 
 /**
+ * Parameters needed to build the unsigned pegin transaction for ETH gas estimation
+ */
+export interface PeginParams {
+  /** Application controller address (for provider lookup) */
+  selectedApplication: string;
+  /** Vault provider's BTC public key (x-only, 64 hex chars) */
+  vaultProviderBtcPubkey: string;
+  /** Liquidator BTC public keys (x-only, 64 hex chars each) */
+  liquidatorBtcPubkeys: string[];
+}
+
+/**
  * Fetches and computes all data needed for the deposit review modal.
  *
  * @param amount - Deposit amount in satoshis
  * @param providerIds - Selected provider IDs
  * @param enabled - Whether to enable data fetching (typically tied to modal open state)
+ * @param peginParams - Parameters for building the unsigned pegin transaction
  */
 export function useDepositReviewData(
   amount: bigint,
   providerIds: string[],
   enabled: boolean,
+  peginParams?: PeginParams,
 ): DepositReviewData {
-  // Fetch wallet and UTXO data
-  const { address: btcAddress } = useBTCWallet();
+  // Fetch wallet data
+  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
+  const { address: ethAddress } = useETHWallet();
+  const depositorBtcPubkey = useBtcPublicKey(btcConnected);
+
+  // Fetch UTXO data
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled });
 
   // Fetch price data
   const { prices, isLoading: priceLoading } = usePrices();
   const btcPriceUSD = prices.BTC ?? 0;
+  const ethPriceUSD = prices.ETH ?? 0;
 
   // Fetch provider data
-  const { findProviders, loading: providersLoading } = useVaultProviders();
+  const { findProviders, loading: providersLoading } = useVaultProviders(
+    peginParams?.selectedApplication,
+  );
 
-  // Fetch fee data
+  // Fetch fee data (also provides selectedUTXOs for building tx)
   const {
     fee: feeSats,
     feeRate,
     isLoading: feeLoading,
     error: feeError,
   } = useEstimatedBtcFee(amount, confirmedUTXOs);
-  const ethFee = useEstimatedEthFee();
 
-  // Compute derived values
-  const computedData = useMemo(() => {
-    const amountBtc = satoshiToBtcNumber(amount);
-    const amountUsd = btcPriceUSD > 0 ? amountBtc * btcPriceUSD : null;
-
-    const btcFee = feeSats !== null ? satoshiToBtcNumber(feeSats) : null;
-    const btcFeeUsd =
-      btcFee !== null && btcPriceUSD > 0 ? btcFee * btcPriceUSD : null;
-
-    const selectedProviders = findProviders(providerIds);
-
+  // Build the unsigned pegin transaction for ETH gas estimation
+  const unsignedPeginTxParams = useMemo(() => {
+    if (!peginParams?.vaultProviderBtcPubkey || !btcAddress) return null;
     return {
-      amountBtc,
-      amountUsd,
-      btcFee,
-      btcFeeUsd,
-      selectedProviders,
+      amount,
+      depositorBtcPubkey,
+      btcAddress,
+      confirmedUTXOs,
+      feeRate,
+      vaultProviderBtcPubkey: peginParams.vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys: peginParams.liquidatorBtcPubkeys,
     };
-  }, [amount, btcPriceUSD, feeSats, findProviders, providerIds]);
+  }, [
+    amount,
+    depositorBtcPubkey,
+    btcAddress,
+    confirmedUTXOs,
+    feeRate,
+    peginParams,
+  ]);
+
+  const unsignedTxHex = useUnsignedPeginTx(unsignedPeginTxParams);
+
+  // Estimate ETH gas using the unsigned transaction
+  const ethFee = useEstimatedEthFee({
+    unsignedTxHex,
+    depositorBtcPubkey: depositorBtcPubkey ?? undefined,
+    depositorEthAddress: ethAddress as Address | undefined,
+    vaultProviderAddress: providerIds[0] as Address | undefined,
+  });
+
+  // Compute derived BTC values
+  const amountBtc = satoshiToBtcNumber(amount);
+  const btcFee = feeSats !== null ? satoshiToBtcNumber(feeSats) : null;
+
+  // Get selected providers
+  const selectedProviders = findProviders(providerIds);
 
   return {
-    ...computedData,
+    // Amount data
+    amountBtc,
+    amountBtcUsd: toUsd(amountBtc, btcPriceUSD),
+
+    // Fee data
+    btcFee,
+    btcFeeUsd: toUsd(btcFee, btcPriceUSD),
     feeRate,
     feeError,
     ethFee,
+    ethFeeUsd: toUsd(ethFee, ethPriceUSD),
+
+    // Provider data
+    selectedProviders,
+
+    // Loading states
     isLoading: {
       price: priceLoading,
       providers: providersLoading,

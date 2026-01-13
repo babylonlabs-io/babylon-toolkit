@@ -53,6 +53,9 @@ export function DepositModals({
           onConfirm={onConfirmReview}
           amount={depositAmount}
           providers={selectedProviders}
+          selectedApplication={selectedApplication}
+          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
         />
       )}
       {depositStep === DepositStep.SIGN && (
