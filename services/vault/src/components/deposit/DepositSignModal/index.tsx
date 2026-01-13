@@ -13,6 +13,30 @@ import type { Address } from "viem";
 
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
+const STEP_DESCRIPTIONS: Record<number, { active: string; waiting?: string }> =
+  {
+    1: { active: "Please sign the proof of possession in your BTC wallet." },
+    2: {
+      active: "Please sign and submit the peg-in request in your ETH wallet.",
+    },
+    3: {
+      active: "Please sign the payout transaction(s) in your BTC wallet.",
+      waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
+    },
+    4: {
+      active:
+        "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
+      waiting: "Waiting for on-chain verification...",
+    },
+    5: { active: "Deposit successfully submitted!" },
+  };
+
+function getStepDescription(step: number, isWaiting: boolean): string {
+  const desc = STEP_DESCRIPTIONS[step];
+  if (!desc) return "";
+  return isWaiting && desc.waiting ? desc.waiting : desc.active;
+}
+
 interface CollateralDepositSignModalProps {
   open: boolean;
   onClose: () => void;
@@ -56,39 +80,32 @@ export function CollateralDepositSignModal({
   const prevOpenRef = useRef(false);
   const hasExecutedRef = useRef(false);
 
-  const {
-    executeDepositFlow,
-    currentStep,
-    processing,
-    error,
-    isWaiting,
-    stepDescription,
-  } = useDepositFlow({
-    amount,
-    feeRate,
-    btcWalletProvider,
-    depositorEthAddress,
-    selectedApplication,
-    selectedProviders,
-    vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
-    modalOpen: open, // Pass modal open state to control Step 3 auto-signing
-    onSuccess: (
-      btcTxid: string,
-      ethTxHash: string,
-      depositorBtcPubkey: string,
-    ) => {
-    // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
-    // and after Step 3 (PAYOUT_SIGNED)
+  const { executeDepositFlow, currentStep, processing, error, isWaiting } =
+    useDepositFlow({
+      amount,
+      feeRate,
+      btcWalletProvider,
+      depositorEthAddress,
+      selectedApplication,
+      selectedProviders,
+      vaultProviderBtcPubkey,
+      liquidatorBtcPubkeys,
+      onSuccess: (
+        btcTxid: string,
+        ethTxHash: string,
+        depositorBtcPubkey: string,
+      ) => {
+        // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
+        // and after Step 3 (PAYOUT_SIGNED)
 
-      // Trigger refetch to immediately show the updated deposit
-      if (onRefetchActivities) {
-        onRefetchActivities();
-      }
+        // Trigger refetch to immediately show the updated deposit
+        if (onRefetchActivities) {
+          onRefetchActivities();
+        }
 
-      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
-    },
-  });
+        onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
+      },
+    });
 
   // Execute flow once when modal transitions from closed to open
   useEffect(() => {
@@ -126,7 +143,7 @@ export function CollateralDepositSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          {stepDescription}
+          {getStepDescription(currentStep, isWaiting)}
         </Text>
 
         {/* 4-Step Progress Indicator */}
@@ -138,7 +155,7 @@ export function CollateralDepositSignModal({
             Sign & submit peg-in request to Ethereum
           </Step>
           <Step step={3} currentStep={currentStep}>
-            Sign payout transactions
+            Sign payout transaction(s)
           </Step>
           <Step step={4} currentStep={currentStep}>
             Sign & broadcast Bitcoin transaction
@@ -177,10 +194,10 @@ export function CollateralDepositSignModal({
             <Loader size={16} className="text-accent-contrast" />
           ) : error ? (
             "Close"
-            ) : isComplete ? (
-              "Done"
+          ) : isComplete ? (
+            "Done"
           ) : (
-                  "Processing..."
+            "Processing..."
           )}
         </Button>
       </DialogFooter>

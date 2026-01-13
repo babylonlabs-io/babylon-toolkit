@@ -17,7 +17,7 @@ import {
   getSharedWagmiConfig,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 import {
   getWalletClient,
@@ -25,11 +25,14 @@ import {
   waitForTransactionReceipt,
 } from "wagmi/actions";
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type { ClaimerTransactions } from "@/clients/vault-provider-rpc/types";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { depositService } from "@/services/deposit";
+import {
+  depositService,
+  pollForPayoutTransactions,
+  waitForContractVerification,
+} from "@/services/deposit";
 import {
   broadcastPeginTransaction,
   fetchVaultById,
@@ -40,7 +43,7 @@ import {
   addPendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
-import { processPublicKeyToXOnly, stripHexPrefix } from "@/utils/btc";
+import { processPublicKeyToXOnly } from "@/utils/btc";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -53,7 +56,6 @@ export interface UseDepositFlowParams {
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
   liquidatorBtcPubkeys: string[];
-  modalOpen: boolean;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -78,97 +80,6 @@ export interface UseDepositFlowReturn {
   error: string | null;
   /** Whether we're in a waiting state (polling for data) */
   isWaiting: boolean;
-  /** Description of the current step for UI display */
-  stepDescription: string;
-}
-
-/** Timeout for RPC requests (30 seconds). */
-const RPC_TIMEOUT_MS = 30 * 1000;
-
-/**
- * Polling interval for payout transactions.
- *
- * Chosen as 10 seconds to balance user experience and backend load:
- * - Shorter intervals improve responsiveness but can significantly increase
- *   the number of requests hitting the vault provider.
- * - Longer intervals reduce load but make the UI feel sluggish while waiting
- *   for payout readiness.
- *
- * This value is intended as a conservative default for production deployments
- * and may need to be tuned per environment if backend characteristics change.
- */
-const POLLING_INTERVAL_MS = 10 * 1000;
-
-/**
- * Maximum time to wait for polling operations.
- *
- * Set to 10 minutes to:
- * - Allow for typical worst-case processing times on the vault provider side.
- * - Avoid unbounded polling in the UI in case of delayed or stuck operations.
- *
- * This is a safety cap rather than an SLA and should be revisited if
- * end-to-end deposit processing times materially change in production.
- */
-const MAX_POLLING_TIMEOUT_MS = 10 * 60 * 1000;
-
-/**
- * Transient error patterns that indicate polling should continue.
- */
-const TRANSIENT_ERROR_PATTERNS = [
-  "PegIn not found",
-  "No transaction graphs found",
-] as const;
-
-/**
- * Invalid state patterns that indicate the vault provider is still processing.
- */
-const INVALID_STATE_PATTERNS = [
-  "Acknowledged",
-  "PendingChallengerSignatures",
-] as const;
-
-function isTransientError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const msg = error.message;
-
-  // Check for direct transient patterns
-  if (TRANSIENT_ERROR_PATTERNS.some((pattern) => msg.includes(pattern))) {
-    return true;
-  }
-
-  // Check for "Invalid state" with specific sub-states
-  if (
-    msg.includes("Invalid state") &&
-    INVALID_STATE_PATTERNS.some((pattern) => msg.includes(pattern))
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Get step description for UI display
- */
-function getStepDescription(step: number, isWaiting: boolean): string {
-  switch (step) {
-    case 1:
-      return "Please sign the proof of possession in your BTC wallet.";
-    case 2:
-      return "Please sign and submit the peg-in request in your ETH wallet.";
-    case 3:
-      return isWaiting
-        ? "Waiting for Vault Provider to prepare payout transactions..."
-        : "Please sign the payout transactions in your BTC wallet.";
-    case 4:
-      return isWaiting
-        ? "Waiting for on-chain verification..."
-        : "Please sign and broadcast the Bitcoin transaction in your BTC wallet.";
-    case 5:
-      return "Deposit successfully submitted!";
-    default:
-      return "";
-  }
 }
 
 /**
@@ -198,11 +109,6 @@ export function useDepositFlow(
   const [error, setError] = useState<string | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
 
-  // Refs for cleanup and preventing concurrent operations
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isPollingRef = useRef(false);
-
   // Get BTC address from wallet
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -217,26 +123,6 @@ export function useDepositFlow(
   // Get vault providers for signing
   const { findProvider, liquidators } = useVaultProviders(selectedApplication);
 
-  // Cleanup function
-  const cleanup = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    if (pollingTimeoutRef.current) {
-      clearTimeout(pollingTimeoutRef.current);
-      pollingTimeoutRef.current = null;
-    }
-    isPollingRef.current = false;
-  }, []);
-
-  // Cleanup polling timers on unmount to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      cleanup();
-    };
-  }, [cleanup]);
-
   /**
    * Get the selected vault provider with validation
    */
@@ -250,199 +136,6 @@ export function useDepositFlow(
     }
     return provider;
   }, [findProvider, selectedProviders]);
-
-  /**
-   * Poll for payout transactions from vault provider
-   */
-  const pollForPayoutTransactions = useCallback(
-    async (
-      btcTxid: string,
-      depositorBtcPubkey: string,
-    ): Promise<ClaimerTransactions[]> => {
-      // Prevent concurrent polling operations
-      if (isPollingRef.current) {
-        throw new Error("Polling operation already in progress");
-      }
-
-      return new Promise((resolve, reject) => {
-        // Get vault provider URL with validation
-        let provider;
-        try {
-          provider = getSelectedVaultProvider();
-        } catch (err) {
-          reject(err);
-          return;
-        }
-
-        if (!provider.url) {
-          reject(new Error("Vault provider has no RPC URL"));
-          return;
-        }
-
-        // Mark polling as active
-        isPollingRef.current = true;
-
-        // Create RPC client once outside the poll loop
-        const rpcClient = new VaultProviderRpcApi(provider.url, RPC_TIMEOUT_MS);
-
-        // Track if promise has been settled to prevent race conditions
-        let isSettled = false;
-
-        const settle = (
-          type: "resolve" | "reject",
-          value: ClaimerTransactions[] | Error,
-        ) => {
-          if (isSettled) return;
-          isSettled = true;
-          cleanup();
-          if (type === "resolve") {
-            resolve(value as ClaimerTransactions[]);
-          } else {
-            reject(value);
-          }
-        };
-
-        pollingTimeoutRef.current = setTimeout(() => {
-          settle(
-            "reject",
-            new Error("Timeout waiting for payout transactions"),
-          );
-        }, MAX_POLLING_TIMEOUT_MS);
-
-        // Poll function
-        const poll = async (): Promise<boolean> => {
-          // Check if already settled before polling
-          if (isSettled) return true;
-
-          try {
-            const response = await rpcClient.requestClaimAndPayoutTransactions({
-              pegin_tx_id: stripHexPrefix(btcTxid),
-              depositor_pk: depositorBtcPubkey,
-            });
-
-            if (response.txs && response.txs.length > 0) {
-              settle("resolve", response.txs);
-              return true;
-            }
-            return false;
-          } catch (err) {
-            if (isTransientError(err)) {
-              return false; // Continue polling
-            }
-            // Non-transient error: fail fast instead of continuing to poll
-            console.error("Non-transient polling error:", err);
-            settle(
-              "reject",
-              err instanceof Error ? err : new Error(String(err)),
-            );
-            return true; // Stop polling
-          }
-        };
-
-        // Start interval polling
-        pollingIntervalRef.current = setInterval(async () => {
-          // Skip if already settled
-          if (isSettled || !pollingIntervalRef.current) return;
-
-          try {
-            const done = await poll();
-            if (done && pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-              pollingIntervalRef.current = null;
-            }
-          } catch (e) {
-            console.warn("Polling interval error:", e);
-          }
-        }, POLLING_INTERVAL_MS);
-
-        poll().catch((e) => {
-          console.warn("Initial poll error:", e);
-        });
-      });
-    },
-    [cleanup, getSelectedVaultProvider],
-  );
-
-  /**
-   * Wait for contract status to update (verified state)
-   */
-  const waitForContractVerification = useCallback(
-    async (btcTxid: string): Promise<void> => {
-      // Prevent concurrent polling operations
-      if (isPollingRef.current) {
-        throw new Error("Polling operation already in progress");
-      }
-
-      return new Promise((resolve, reject) => {
-        // Mark polling as active
-        isPollingRef.current = true;
-
-        // Track if promise has been settled to prevent race conditions
-        let isSettled = false;
-
-        const settle = (type: "resolve" | "reject", error?: Error) => {
-          if (isSettled) return;
-          isSettled = true;
-          cleanup();
-          if (type === "resolve") {
-            resolve();
-          } else {
-            reject(error);
-          }
-        };
-
-        // Set up timeout
-        pollingTimeoutRef.current = setTimeout(() => {
-          settle(
-            "reject",
-            new Error("Timeout waiting for contract verification"),
-          );
-        }, MAX_POLLING_TIMEOUT_MS);
-
-        // Poll for contract status
-        const poll = async (): Promise<boolean> => {
-          // Check if already settled before polling
-          if (isSettled) return true;
-
-          try {
-            const vault = await fetchVaultById(btcTxid as Hex);
-            // Contract status >= 1 indicates the vault is ready for broadcast.
-            // Status values:
-            //   0 = PENDING (waiting for signatures)
-            //   1 = VERIFIED (all signatures collected, ready for broadcast)
-            //   2+ = Higher statuses indicate post-broadcast states
-            // We accept >= 1 because if the vault has already progressed past
-            // VERIFIED, it's still valid to proceed with the broadcast step.
-            if (vault && vault.status >= 1) {
-              settle("resolve");
-              return true;
-            }
-            return false;
-          } catch (error) {
-            // Log errors but continue polling - the vault may not be indexed yet
-            console.warn("Error polling for contract verification:", error);
-            return false;
-          }
-        };
-
-        // Start interval polling
-        pollingIntervalRef.current = setInterval(async () => {
-          // Skip if already settled
-          if (isSettled || !pollingIntervalRef.current) return;
-
-          const success = await poll();
-          if (success && pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-          }
-        }, POLLING_INTERVAL_MS);
-
-        // Do an immediate initial poll
-        poll();
-      });
-    },
-    [cleanup],
-  );
 
   const executeDepositFlow = useCallback(async () => {
     try {
@@ -577,12 +270,19 @@ export function useDepositFlow(
       setCurrentStep(3);
       setIsWaiting(true);
 
+      // Get provider for polling and signing
+      const provider = getSelectedVaultProvider();
+      if (!provider.url) {
+        throw new Error("Vault provider has no RPC URL");
+      }
+
       let payoutTransactions: ClaimerTransactions[];
       try {
-        payoutTransactions = await pollForPayoutTransactions(
+        payoutTransactions = await pollForPayoutTransactions({
           btcTxid,
           depositorBtcPubkey,
-        );
+          providerUrl: provider.url,
+        });
       } catch (pollError) {
         // Timeout or error during polling
         // The deposit is already saved, so user can continue from table
@@ -592,9 +292,6 @@ export function useDepositFlow(
 
       // Sign payout transactions
       setIsWaiting(false);
-
-      // Use helper to get provider with validation
-      const provider = getSelectedVaultProvider();
 
       await signAndSubmitPayoutSignatures({
         peginTxId: btcTxid,
@@ -623,7 +320,7 @@ export function useDepositFlow(
       setIsWaiting(true);
 
       try {
-        await waitForContractVerification(btcTxid);
+        await waitForContractVerification({ btcTxid });
       } catch (waitError) {
         // Timeout during verification - fallback to table flow
         setIsWaiting(false);
@@ -666,7 +363,6 @@ export function useDepositFlow(
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);
       console.error("Deposit flow error:", err);
-      cleanup();
       // Reset to step 1 so user can retry from the beginning
       setCurrentStep(1);
     } finally {
@@ -687,11 +383,8 @@ export function useDepositFlow(
     confirmedUTXOs,
     isUTXOsLoading,
     utxoError,
-    pollForPayoutTransactions,
-    waitForContractVerification,
     getSelectedVaultProvider,
     liquidators,
-    cleanup,
   ]);
 
   return {
@@ -700,6 +393,5 @@ export function useDepositFlow(
     processing,
     error,
     isWaiting,
-    stepDescription: getStepDescription(currentStep, isWaiting),
   };
 }
