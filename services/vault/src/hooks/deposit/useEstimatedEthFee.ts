@@ -1,9 +1,6 @@
-import {
-  DUMMY_POP_SIGNATURE,
-  encodeSubmitPeginCalldata,
-} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { encodeSubmitPeginCalldataForGasEstimation } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
-import { formatEther, type Address } from "viem";
+import { formatEther } from "viem";
 import { useEstimateGas, useGasPrice } from "wagmi";
 
 import { CONTRACTS } from "../../config/contracts";
@@ -12,79 +9,41 @@ import { CONTRACTS } from "../../config/contracts";
 const ETH_GAS_ESTIMATE_BUFFER_PERCENT = 120n;
 
 /**
- * Parameters for ETH fee estimation
- */
-export interface EstimatedEthFeeParams {
-  /** Unsigned BTC transaction hex (funded, ready for signing) */
-  unsignedTxHex: string | null;
-  /** Depositor's BTC public key (x-only, 64 hex chars, no 0x prefix) */
-  depositorBtcPubkey?: string;
-  /** Depositor's ETH address */
-  depositorEthAddress?: Address;
-  /** Vault provider's ETH address */
-  vaultProviderAddress?: Address;
-}
-
-/**
  * Hook to estimate ETH gas fee for the submitPeginRequest transaction.
  *
- * This hook encodes the contract calldata using a dummy signature (since the actual
- * signature isn't available at review time) and estimates gas using eth_estimateGas.
+ * ⚠️ FOR GAS ESTIMATION ONLY - uses dummy values for fixed-size fields internally.
+ * The returned fee estimate is accurate, but the underlying calldata cannot be used
+ * for actual transaction submission.
  *
- * @param params - Parameters needed to build the transaction calldata
+ * Only requires the unsigned BTC transaction since it's the only variable-size field
+ * that affects gas cost. All other fields (addresses, pubkeys, signature) are fixed-size.
+ *
+ * @param unsignedTxHex - Unsigned BTC transaction hex, or null if not available
  * @returns Estimated ETH fee in ETH (as a number), or null if unavailable
  */
 export function useEstimatedEthFee(
-  params: EstimatedEthFeeParams,
+  unsignedTxHex: string | null,
 ): number | null {
-  const {
-    unsignedTxHex,
-    depositorBtcPubkey,
-    depositorEthAddress,
-    vaultProviderAddress,
-  } = params;
-
   const { data: gasPrice } = useGasPrice();
 
-  // Encode the contract calldata using shared utility
+  // Encode the contract calldata using dummy values for fixed-size fields
   const callData = useMemo(() => {
-    // Need all parameters to encode calldata
-    if (
-      !unsignedTxHex ||
-      !depositorBtcPubkey ||
-      !depositorEthAddress ||
-      !vaultProviderAddress
-    ) {
-      return null;
-    }
+    if (!unsignedTxHex) return null;
 
     try {
-      // Use shared utility with dummy signature for gas estimation
-      return encodeSubmitPeginCalldata({
-        depositorEthAddress,
-        depositorBtcPubkey,
-        btcPopSignature: DUMMY_POP_SIGNATURE,
-        unsignedPegInTx: unsignedTxHex,
-        vaultProvider: vaultProviderAddress,
-      });
+      return encodeSubmitPeginCalldataForGasEstimation(unsignedTxHex);
     } catch (err) {
       console.error("Failed to encode submitPeginRequest calldata:", err);
       return null;
     }
-  }, [
-    unsignedTxHex,
-    depositorBtcPubkey,
-    depositorEthAddress,
-    vaultProviderAddress,
-  ]);
+  }, [unsignedTxHex]);
 
   // Estimate gas using wagmi hook
   const { data: gasEstimate } = useEstimateGas({
     to: CONTRACTS.BTC_VAULTS_MANAGER,
     data: callData ?? undefined,
-    account: depositorEthAddress,
     query: {
-      enabled: !!callData && !!depositorEthAddress,
+      enabled: !!callData,
     },
   });
 

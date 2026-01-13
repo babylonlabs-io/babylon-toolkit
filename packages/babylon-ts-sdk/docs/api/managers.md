@@ -102,7 +102,7 @@ Error if wallet operations fail or signature extraction fails
 
 ### PeginManager
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:265](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L265)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:258](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L258)
 
 Manager for orchestrating peg-in operations.
 
@@ -122,7 +122,7 @@ The complete peg-in flow consists of:
 new PeginManager(config): PeginManager;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:273](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L273)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:266](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L266)
 
 Creates a new PeginManager instance.
 
@@ -146,14 +146,16 @@ Manager configuration including wallets and contract addresses
 estimateEthGas(params): Promise<bigint>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:596](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L596)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:591](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L591)
 
 Estimates the ETH gas required for registering a peg-in on Ethereum.
 
-This method encodes the contract calldata using a dummy signature (since
-the actual signature isn't available before signing) and estimates gas
-using eth_estimateGas. The dummy signature has the same size as a real
-Schnorr signature (64 bytes), so the gas estimate is accurate.
+⚠️ This method is for GAS ESTIMATION ONLY. It uses dummy values internally
+for fixed-size fields (addresses, pubkeys, signature) since they don't affect
+gas cost. For actual transaction submission, use `registerPeginOnChain()`.
+
+Only requires the unsigned BTC transaction since it's the only variable-size
+field that affects gas cost.
 
 Use this to show users the estimated ETH fee before they confirm the deposit.
 
@@ -163,7 +165,7 @@ Use this to show users the estimated ETH fee before they confirm the deposit.
 
 [`EstimateEthGasParams`](#estimateethgasparams)
 
-Parameters for gas estimation
+Parameters for gas estimation (only unsignedBtcTx required)
 
 ###### Returns
 
@@ -181,7 +183,7 @@ Error if estimation fails
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:635](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L635)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:617](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L617)
 
 Gets the configured Bitcoin network.
 
@@ -197,7 +199,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:644](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L644)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:626](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L626)
 
 Gets the configured BTCVaultsManager contract address.
 
@@ -213,7 +215,7 @@ The Ethereum address of the BTCVaultsManager contract
 preparePegin(params): Promise<PeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:293](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L293)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:286](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L286)
 
 Prepares a peg-in transaction by building and funding it.
 
@@ -250,7 +252,7 @@ Error if wallet operations fail or insufficient funds
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:472](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L472)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:465](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L465)
 
 Registers a peg-in on Ethereum by calling the BTCVaultsManager contract.
 
@@ -289,7 +291,7 @@ Error if vault already exists
 signAndBroadcast(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:360](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L360)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:353](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L353)
 
 Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
 
@@ -405,22 +407,15 @@ Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ### EstimateEthGasParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:235](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L235)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:239](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L239)
 
 Parameters for estimating ETH gas for peg-in registration.
 
+Only requires the unsigned BTC transaction since it's the only variable-size field
+that affects gas cost. All other fields (addresses, pubkeys, signature) are fixed-size
+and use dummy values internally.
+
 #### Properties
-
-##### depositorBtcPubkey
-
-```ts
-depositorBtcPubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:240](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L240)
-
-Depositor's BTC public key (x-only, 64-char hex).
-Can be provided with or without "0x" prefix.
 
 ##### unsignedBtcTx
 
@@ -428,20 +423,10 @@ Can be provided with or without "0x" prefix.
 unsignedBtcTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:246](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L246)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:244](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L244)
 
 Funded but unsigned BTC transaction hex.
 Can be provided with or without "0x" prefix.
-
-##### vaultProvider
-
-```ts
-vaultProvider: `0x${string}`;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:251](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L251)
-
-Vault provider's Ethereum address.
 
 ***
 

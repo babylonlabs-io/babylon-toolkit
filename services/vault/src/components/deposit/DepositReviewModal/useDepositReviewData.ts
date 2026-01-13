@@ -4,9 +4,8 @@
  */
 
 import { useMemo } from "react";
-import type { Address } from "viem";
 
-import { useBTCWallet, useETHWallet } from "../../../context/wallet";
+import { useBTCWallet } from "../../../context/wallet";
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
 import { useUnsignedPeginTx } from "../../../hooks/deposit/useUnsignedPeginTx";
@@ -81,7 +80,6 @@ export function useDepositReviewData(
 ): DepositReviewData {
   // Fetch wallet data
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
-  const { address: ethAddress } = useETHWallet();
   const depositorBtcPubkey = useBtcPublicKey(btcConnected);
 
   // Fetch UTXO data
@@ -129,12 +127,7 @@ export function useDepositReviewData(
   const unsignedTxHex = useUnsignedPeginTx(unsignedPeginTxParams);
 
   // Estimate ETH gas using the unsigned transaction
-  const ethFee = useEstimatedEthFee({
-    unsignedTxHex,
-    depositorBtcPubkey: depositorBtcPubkey ?? undefined,
-    depositorEthAddress: ethAddress as Address | undefined,
-    vaultProviderAddress: providerIds[0] as Address | undefined,
-  });
+  const ethFee = useEstimatedEthFee(unsignedTxHex);
 
   // Compute derived BTC values
   const amountBtc = satoshiToBtcNumber(amount);

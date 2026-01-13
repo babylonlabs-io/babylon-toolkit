@@ -24,8 +24,8 @@ import type { Hash } from "../../../shared/wallets/interfaces/EthereumWallet";
 import { getUtxoInfo, pushTx } from "../clients/mempool";
 import {
   BTCVaultsManagerABI,
-  DUMMY_POP_SIGNATURE,
   encodeSubmitPeginCalldata,
+  encodeSubmitPeginCalldataForGasEstimation,
   handleContractError,
 } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
@@ -64,6 +64,13 @@ export interface PeginManagerConfig {
    * Required for proper gas estimation in contract calls.
    */
   ethChain: Chain;
+
+  /**
+   * Optional custom Ethereum RPC URL.
+   * If not provided, uses the chain's default RPC URL from ethChain.rpcUrls.
+   * Should be HTTPS in production environments.
+   */
+  ethRpcUrl?: string;
 
   /**
    * Vault contract addresses.
@@ -237,24 +244,17 @@ export interface RegisterPeginResult {
 
 /**
  * Parameters for estimating ETH gas for peg-in registration.
+ *
+ * Only requires the unsigned BTC transaction since it's the only variable-size field
+ * that affects gas cost. All other fields (addresses, pubkeys, signature) are fixed-size
+ * and use dummy values internally.
  */
 export interface EstimateEthGasParams {
-  /**
-   * Depositor's BTC public key (x-only, 64-char hex).
-   * Can be provided with or without "0x" prefix.
-   */
-  depositorBtcPubkey: string;
-
   /**
    * Funded but unsigned BTC transaction hex.
    * Can be provided with or without "0x" prefix.
    */
   unsignedBtcTx: string;
-
-  /**
-   * Vault provider's Ethereum address.
-   */
-  vaultProvider: Address;
 }
 
 /**
@@ -278,6 +278,14 @@ export class PeginManager {
    */
   constructor(config: PeginManagerConfig) {
     this.config = config;
+  }
+
+  /**
+   * Creates an HTTP transport for Ethereum RPC calls.
+   * Uses custom RPC URL if configured, otherwise falls back to chain default.
+   */
+  private createTransport() {
+    return http(this.config.ethRpcUrl);
   }
 
   /**
@@ -567,10 +575,9 @@ export class PeginManager {
    */
   private async checkVaultExists(vaultId: Hex): Promise<boolean> {
     try {
-      // Create a public client to read from the contract
       const publicClient = createPublicClient({
         chain: this.config.ethChain,
-        transport: http(),
+        transport: this.createTransport(),
       });
 
       const vault = (await publicClient.readContract({
@@ -591,46 +598,34 @@ export class PeginManager {
   /**
    * Estimates the ETH gas required for registering a peg-in on Ethereum.
    *
-   * This method encodes the contract calldata using a dummy signature (since
-   * the actual signature isn't available before signing) and estimates gas
-   * using eth_estimateGas. The dummy signature has the same size as a real
-   * Schnorr signature (64 bytes), so the gas estimate is accurate.
+   * ⚠️ This method is for GAS ESTIMATION ONLY. It uses dummy values internally
+   * for fixed-size fields (addresses, pubkeys, signature) since they don't affect
+   * gas cost. For actual transaction submission, use `registerPeginOnChain()`.
+   *
+   * Only requires the unsigned BTC transaction since it's the only variable-size
+   * field that affects gas cost.
    *
    * Use this to show users the estimated ETH fee before they confirm the deposit.
    *
-   * @param params - Parameters for gas estimation
+   * @param params - Parameters for gas estimation (only unsignedBtcTx required)
    * @returns Estimated gas in gas units (as bigint)
    * @throws Error if estimation fails
    */
   async estimateEthGas(params: EstimateEthGasParams): Promise<bigint> {
-    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider } = params;
+    const { unsignedBtcTx } = params;
 
-    // Get depositor ETH address from wallet
-    if (!this.config.ethWallet.account) {
-      throw new Error("Ethereum wallet account not found");
-    }
-    const depositorEthAddress = this.config.ethWallet.account.address;
+    // Encode calldata with dummy values for fixed-size fields
+    const callData = encodeSubmitPeginCalldataForGasEstimation(unsignedBtcTx);
 
-    // Encode calldata with dummy signature for estimation
-    const callData = encodeSubmitPeginCalldata({
-      depositorEthAddress,
-      depositorBtcPubkey,
-      btcPopSignature: DUMMY_POP_SIGNATURE,
-      unsignedPegInTx: unsignedBtcTx,
-      vaultProvider,
-    });
-
-    // Create public client for gas estimation
     const publicClient = createPublicClient({
       chain: this.config.ethChain,
-      transport: http(),
+      transport: this.createTransport(),
     });
 
-    // Estimate gas
+    // Estimate gas (no account needed since we use dummy values)
     const gasEstimate = await publicClient.estimateGas({
       to: this.config.vaultContracts.btcVaultsManager,
       data: callData,
-      account: depositorEthAddress,
     });
 
     return gasEstimate;

@@ -20,6 +20,19 @@ import { BTCVaultsManagerABI } from "./abis/BTCVaultsManager.abi";
 export const DUMMY_POP_SIGNATURE: Hex = `0x${"00".repeat(64)}` as Hex;
 
 /**
+ * Dummy 20-byte Ethereum address for gas estimation.
+ * Used when actual address is not needed for estimation.
+ */
+const DUMMY_ETH_ADDRESS: Address =
+  "0x0000000000000000000000000000000000000000" as Address;
+
+/**
+ * Dummy 32-byte BTC public key for gas estimation.
+ * 32 bytes = 64 hex chars + 0x prefix
+ */
+const DUMMY_BTC_PUBKEY: Hex = `0x${"00".repeat(32)}` as Hex;
+
+/**
  * Parameters for encoding submitPeginRequest calldata
  */
 export interface SubmitPeginCalldataParams {
@@ -76,6 +89,51 @@ export function encodeSubmitPeginCalldata(
       btcPopSignature,
       unsignedPegInTxHex,
       vaultProvider,
+    ],
+  });
+}
+
+/**
+ * Encodes calldata for gas estimation purposes ONLY.
+ *
+ * ⚠️ WARNING: DO NOT use this for actual transaction submission!
+ * This function uses dummy values for addresses, pubkeys, and signatures.
+ * Submitting a transaction with this calldata will FAIL on-chain.
+ *
+ * For actual transaction submission, use `encodeSubmitPeginCalldata()` instead.
+ *
+ * Why this exists:
+ * - Gas cost depends primarily on the variable-size `unsignedPegInTx` field
+ * - Other fields (addresses, pubkeys, signature) are fixed-size and don't affect gas
+ * - This allows gas estimation before the user has signed anything
+ *
+ * @param unsignedPegInTx - Unsigned BTC transaction hex (with or without 0x prefix)
+ * @returns Encoded calldata as hex string (FOR GAS ESTIMATION ONLY)
+ *
+ * @example
+ * ```typescript
+ * // ✅ Correct: Use for gas estimation
+ * const calldata = encodeSubmitPeginCalldataForGasEstimation(unsignedTx);
+ * const gasEstimate = await client.estimateGas({ data: calldata, to: contract });
+ *
+ * // ❌ Wrong: DO NOT use for actual submission
+ * // await wallet.sendTransaction({ data: calldata, to: contract }); // WILL FAIL!
+ * ```
+ */
+export function encodeSubmitPeginCalldataForGasEstimation(
+  unsignedPegInTx: string,
+): Hex {
+  const unsignedPegInTxHex = ensureHexPrefix(unsignedPegInTx);
+
+  return encodeFunctionData({
+    abi: BTCVaultsManagerABI,
+    functionName: "submitPeginRequest",
+    args: [
+      DUMMY_ETH_ADDRESS,
+      DUMMY_BTC_PUBKEY,
+      DUMMY_POP_SIGNATURE,
+      unsignedPegInTxHex,
+      DUMMY_ETH_ADDRESS,
     ],
   });
 }
