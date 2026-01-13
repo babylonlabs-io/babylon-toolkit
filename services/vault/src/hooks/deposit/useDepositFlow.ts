@@ -28,11 +28,11 @@ import {
 import type { ClaimerTransactions } from "@/clients/vault-provider-rpc/types";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { depositService } from "@/services/deposit";
 import {
-  depositService,
   pollForPayoutTransactions,
   waitForContractVerification,
-} from "@/services/deposit";
+} from "@/services/deposit/polling";
 import {
   broadcastPeginTransaction,
   fetchVaultById,

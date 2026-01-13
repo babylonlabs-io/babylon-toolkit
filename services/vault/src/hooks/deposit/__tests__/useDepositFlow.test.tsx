@@ -63,6 +63,17 @@ vi.mock("@/services/deposit", () => ({
   },
 }));
 
+vi.mock("@/services/deposit/polling", () => ({
+  pollForPayoutTransactions: vi.fn().mockResolvedValue([
+    {
+      claimer_pubkey: "0xclaimerpubkey",
+      claim_tx: { tx_hex: "0xclaimtx" },
+      payout_tx: { tx_hex: "0xpayouttx" },
+    },
+  ]),
+  waitForContractVerification: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
