@@ -5,7 +5,9 @@
  * Gets all required data from LoanContext.
  */
 
-import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
+import { AmountSlider, Button, SubSection, Text } from "@babylonlabs-io/core-ui";
+
+import { FeatureFlags } from "@/config";
 
 import {
   getCurrencyIconWithFallback,
@@ -120,6 +122,13 @@ export function Borrow() {
         {errorMessage && (
           <p className="text-sm text-error-main">{errorMessage}</p>
         )}
+
+        {/* Borrow Unavailable Message */}
+        {!FeatureFlags.IsBorrowEnabled && (
+          <Text variant="body2" className="text-center text-warning-main">
+            Borrowing is temporarily unavailable. Please check back later.
+          </Text>
+        )}
       </div>
 
       {/* Borrow Button */}
@@ -128,11 +137,15 @@ export function Borrow() {
         color="secondary"
         size="large"
         fluid
-        disabled={isDisabled || isProcessing}
+        disabled={isDisabled || isProcessing || !FeatureFlags.IsBorrowEnabled}
         onClick={handleBorrow}
         className="mt-6"
       >
-        {isProcessing ? "Processing..." : buttonText}
+        {!FeatureFlags.IsBorrowEnabled
+          ? "Borrowing Unavailable"
+          : isProcessing
+            ? "Processing..."
+            : buttonText}
       </Button>
     </div>
   );

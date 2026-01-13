@@ -1,7 +1,8 @@
-import { Button, Card, Container } from "@babylonlabs-io/core-ui";
+import { Button, Card, Container, Text } from "@babylonlabs-io/core-ui";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
+import { FeatureFlags } from "@/config";
 
 import { DepositState } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -118,15 +119,24 @@ function DepositContent() {
               }
             />
 
+            {!FeatureFlags.IsDepositEnabled && (
+              <Text
+                variant="body2"
+                className="text-center text-warning-main"
+              >
+                Deposits are temporarily unavailable. Please check back later.
+              </Text>
+            )}
+
             <Button
               variant="contained"
               color="secondary"
               size="large"
-              disabled={!isValid}
+              disabled={!isValid || !FeatureFlags.IsDepositEnabled}
               onClick={handleDeposit}
               className="w-full"
             >
-              Deposit
+              {!FeatureFlags.IsDepositEnabled ? "Deposits Unavailable" : "Deposit"}
             </Button>
           </div>
 
