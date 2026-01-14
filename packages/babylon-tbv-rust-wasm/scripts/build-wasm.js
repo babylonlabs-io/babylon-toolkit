@@ -4,6 +4,7 @@
 // - WasmPeginTx (for creating unfunded peg-in transactions)
 // - WasmPeginPayoutConnector (for generating payout scripts)
 
+import { execFileSync } from 'node:child_process';
 import shell from 'shelljs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -79,12 +80,26 @@ const buildWasm = async () => {
     }
 
     // Build with wasm-pack from local source
+    // Use execFileSync to avoid shell command injection (CodeQL security fix)
     console.log(`Building WASM from: ${RUST_SRC_DIR}`);
-    const buildResult = shell.exec(
-      `wasm-pack build --target web --scope babylonlabs-io --out-dir ${OUTPUT_DIR} ${RUST_SRC_DIR}`,
-    );
-
-    if (buildResult.code !== 0) {
+    try {
+      execFileSync('wasm-pack', [
+        'build',
+        '--target', 'web',
+        '--scope', 'babylonlabs-io',
+        '--out-dir', OUTPUT_DIR,
+        RUST_SRC_DIR,
+      ], {
+        stdio: 'inherit',
+        env: {
+          ...process.env,
+          PATH: shell.env.PATH,
+          RUSTUP_HOME: shell.env.RUSTUP_HOME,
+          CC_wasm32_unknown_unknown: shell.env.CC_wasm32_unknown_unknown,
+          AR_wasm32_unknown_unknown: shell.env.AR_wasm32_unknown_unknown,
+        },
+      });
+    } catch {
       console.error('Error: wasm-pack build failed');
       process.exit(1);
     }
