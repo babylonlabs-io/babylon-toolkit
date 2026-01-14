@@ -18,7 +18,8 @@ import type { PayoutConnectorParams, PayoutConnectorInfo, Network } from "./type
  * const payoutInfo = await createPayoutConnector({
  *   depositor: "abc123...",
  *   vaultProvider: "def456...",
- *   liquidators: ["ghi789..."]
+ *   vaultKeepers: ["ghi789..."],
+ *   universalChallengers: ["jkl012..."]
  * }, "testnet");
  *
  * console.log(payoutInfo.taprootScriptHash); // Use this for PSBT signing
@@ -34,7 +35,8 @@ export async function createPayoutConnector(
   const connector = new WasmPeginPayoutConnector(
     params.depositor,
     params.vaultProvider,
-    params.liquidators
+    params.vaultKeepers,
+    params.universalChallengers
   );
 
   return {
