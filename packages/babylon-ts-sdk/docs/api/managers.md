@@ -334,15 +334,24 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:116](
 
 Fee rate in satoshis per vbyte for the transaction.
 
-##### liquidatorBtcPubkeys
+##### vaultKeeperBtcPubkeys
 
 ```ts
-liquidatorBtcPubkeys: string[];
+vaultKeeperBtcPubkeys: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:106](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L106)
 
-Liquidator BTC public keys (x-only, 64-char hex).
+Vault keeper BTC public keys (x-only, 64-char hex).
+Can be provided with or without "0x" prefix (will be stripped automatically).
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Universal challenger BTC public keys (x-only, 64-char hex).
 Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### vaultProvider
@@ -712,15 +721,23 @@ Depositor's BTC public key (x-only, 64-char hex).
 This should be the public key that was used when creating the vault,
 as stored on-chain. If not provided, will be fetched from the wallet.
 
-##### liquidatorBtcPubkeys
+##### vaultKeeperBtcPubkeys
 
 ```ts
-liquidatorBtcPubkeys: string[];
+vaultKeeperBtcPubkeys: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:64](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L64)
 
-Liquidator BTC public keys (x-only, 64-char hex).
+Vault keeper BTC public keys (x-only, 64-char hex).
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Universal challenger BTC public keys (x-only, 64-char hex).
 
 ##### payoutTxHex
 

@@ -54,7 +54,8 @@ import {
 const params: PayoutConnectorParams = {
   depositor: 'abc123...', // X-only pubkey (hex)
   vaultProvider: 'def456...', // X-only pubkey (hex)
-  liquidators: ['ghi789...'], // Array of x-only pubkeys (hex)
+  vaultKeepers: ['ghi789...'], // Array of vault keeper x-only pubkeys (hex)
+  universalChallengers: ['jkl012...'], // Array of universal challenger x-only pubkeys (hex)
 };
 
 const payoutInfo = await createPayoutConnector(params, 'testnet');
@@ -240,7 +241,8 @@ Creates a payout connector for signing payout transactions.
 **Parameters:**
 - `params.depositor` - Depositor's x-only pubkey (hex)
 - `params.vaultProvider` - Vault provider's x-only pubkey (hex)
-- `params.liquidators` - Array of liquidator x-only pubkeys (hex)
+- `params.vaultKeepers` - Array of vault keeper x-only pubkeys (hex)
+- `params.universalChallengers` - Array of universal challenger x-only pubkeys (hex)
 - `network` - Bitcoin network
 
 **Returns:**

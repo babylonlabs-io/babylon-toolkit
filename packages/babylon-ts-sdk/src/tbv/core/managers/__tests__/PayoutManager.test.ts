@@ -30,7 +30,6 @@ import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_PROVIDER:
     "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_KEEPER_1:

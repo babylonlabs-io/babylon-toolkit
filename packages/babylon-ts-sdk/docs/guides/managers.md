@@ -161,7 +161,7 @@ const result = await peginManager.preparePegin({
   amount: 100000n, // satoshis
   vaultProvider: "0x456...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  liquidatorBtcPubkeys: ["def..."], // Liquidator BTC pubkeys
+  vaultKeeperBtcPubkeys: ["def..."], // Vault keeper and universal challenger BTC pubkeys
   availableUTXOs: utxos, // Your available UTXOs
   feeRate: 1, // Fee rate in sat/vB
   changeAddress: "tb1q...", // Your BTC change address
@@ -301,7 +301,7 @@ for (const claimerTx of claimerTransactions) {
     peginTxHex: result.fundedTxHex,
     claimTxHex: claimerTx.claim_tx.tx_hex,
     vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey
-    liquidatorBtcPubkeys: ["def..."], // Liquidator BTC pubkeys
+    vaultKeeperBtcPubkeys: ["def..."], // Vault keeper and universal challenger BTC pubkeys
     depositorBtcPubkey: "xyz...", // Your BTC pubkey
   });
 

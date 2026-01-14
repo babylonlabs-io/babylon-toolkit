@@ -37,10 +37,10 @@ import { TEST_KEYS, initializeWasmForTests } from "./helpers";
  *
  * **Structure** (matches Rust `PeginTx`):
  * - Input: Dummy coinbase-like input (allows transaction serialization without real funding)
- * - Output: P2TR output to vault address (depositor + vault provider + liquidators script)
+ * - Output: P2TR output to vault address (depositor + vault provider + vault keepers + universal challengers script)
  *
  * In production, the pegin transaction is funded by the depositor's wallet and
- * creates the vault output that must be signed by depositor + VP + all liquidators.
+ * creates the vault output that must be signed by depositor + VP + all vault keepers.
  *
  * @returns Transaction hex string
  * @see Rust: crates/vault/src/transactions/pegin.rs::PeginTx
@@ -92,8 +92,8 @@ function createTestClaimTransaction(): string {
  *
  * **Production Structure** (Rust `PayoutTx::new()`):
  * - Input 0: PegIn output (depositor signs via Taproot script path)
- * - Input 1: Claim output 0 (claimer + liquidators sign, timelock)
- * - Input 2: Claim output 1 (claimer + liquidators sign, multisig)
+ * - Input 1: Claim output 0 (claimer + vault keepers sign, timelock)
+ * - Input 2: Claim output 1 (claimer + vault keepers sign, multisig)
  * - Output 0: Payment to recipient
  * - Output 1: Claimer compensation
  *
@@ -117,7 +117,7 @@ function createTestPayoutTransaction(
   // Input 0: Spend from pegin output (depositor must sign this)
   tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
 
-  // Input 1: Spend from claim output (claimer + liquidators sign)
+  // Input 1: Spend from claim output (claimer + vault keepers sign)
   // REQUIRED: Taproot SIGHASH_DEFAULT commits to ALL inputs' prevouts
   tx.addInput(Buffer.from(claimTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
 
@@ -434,7 +434,7 @@ describe("extractPayoutSignature", () => {
         },
         tapScriptSig: [
           {
-            pubkey: Buffer.from(TEST_KEYS.CLAIMER, "hex"), // Different pubkey
+            pubkey: Buffer.from(TEST_KEYS.VAULT_PROVIDER, "hex"), // Different pubkey
             signature: otherSig,
             leafHash: Buffer.alloc(32, 0),
           },
@@ -527,7 +527,7 @@ describe("extractPayoutSignature", () => {
         },
         tapScriptSig: [
           {
-            pubkey: Buffer.from(TEST_KEYS.CLAIMER, "hex"),
+            pubkey: Buffer.from(TEST_KEYS.VAULT_PROVIDER, "hex"),
             signature: otherSig,
             leafHash: Buffer.alloc(32, 0),
           },

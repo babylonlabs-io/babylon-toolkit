@@ -37,7 +37,8 @@ const TEST_CHAIN: Chain = {
 const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+  VAULT_PROVIDER:
+    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
   VAULT_KEEPER_2:
@@ -157,7 +158,7 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -210,7 +211,7 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN_SMALL,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -231,7 +232,7 @@ describe("PeginManager", () => {
       );
     });
 
-    it("should handle multiple liquidators", async () => {
+    it("should handle multiple vault keepers and universal challengers", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -249,7 +250,7 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -279,7 +280,7 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -323,7 +324,7 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: excessiveAmount,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: TEST_UTXOS,
@@ -352,7 +353,7 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: [], // Empty UTXOs
@@ -392,7 +393,7 @@ describe("PeginManager", () => {
       ).rejects.toThrow();
     });
 
-    it("should throw error for empty liquidators", async () => {
+    it("should throw error for empty vault keepers", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -411,7 +412,7 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [], // Empty vault keepers
           universalChallengerBtcPubkeys: [],
           availableUTXOs: TEST_UTXOS,
@@ -445,7 +446,7 @@ describe("PeginManager", () => {
       await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -482,7 +483,7 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: TEST_UTXOS,
@@ -676,7 +677,7 @@ describe("PeginManager", () => {
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
@@ -723,7 +724,7 @@ describe("PeginManager", () => {
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,

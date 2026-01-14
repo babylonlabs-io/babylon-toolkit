@@ -37,18 +37,6 @@ export const TEST_KEYS = {
   /** Universal challenger 2 */
   UNIVERSAL_CHALLENGER_2:
     "fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556",
-
-  // Legacy aliases for backward compatibility during migration
-  /** @deprecated Use VAULT_PROVIDER instead */
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-
-  /** @deprecated Use VAULT_KEEPER_1 instead */
-  LIQUIDATOR_1:
-    "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
-
-  /** @deprecated Use VAULT_KEEPER_2 instead */
-  LIQUIDATOR_2:
-    "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
 } as const;
 
 /**

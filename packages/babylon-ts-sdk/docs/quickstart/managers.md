@@ -97,7 +97,7 @@ const result = await peginManager.preparePegin({
   amount: 100000n, // Amount in satoshis (bigint)
   vaultProvider: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // From vault provider (x-only, 64 hex chars)
-  liquidatorBtcPubkeys: ["def...", "ghi..."], // From indexer (x-only, 64 hex chars each)
+  vaultKeeperBtcPubkeys: ["def...", "ghi..."], // From indexer (x-only, 64 hex chars each)
   availableUTXOs: [
     {
       txid: "abc123...",
@@ -261,7 +261,7 @@ for (const claimerTx of claimerTransactions) {
     peginTxHex: fundedTxHex,
     claimTxHex: claimerTx.claim_tx.tx_hex,
     vaultProviderBtcPubkey: "abc...",
-    liquidatorBtcPubkeys: ["def...", "ghi..."],
+    vaultKeeperBtcPubkeys: ["def...", "ghi..."],
     depositorBtcPubkey,
   });
 
@@ -448,7 +448,7 @@ const CONFIG = {
   btcVaultsManager: "0x123...", // BTCVaultsManager contract address
   vaultProvider: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  liquidatorBtcPubkeys: ["def...", "ghi..."], // Liquidator BTC pubkeys (x-only, 64 chars)
+  vaultKeeperBtcPubkeys: ["def...", "ghi..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 chars)
   vaultProviderRpcUrl: "https://vp.example.com/rpc",
 };
 
@@ -498,7 +498,7 @@ export function PeginFlow() {
         amount: 100000n,
         vaultProvider: CONFIG.vaultProvider,
         vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
-        liquidatorBtcPubkeys: CONFIG.liquidatorBtcPubkeys,
+        vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
         availableUTXOs,
         feeRate: 10,
         changeAddress: await btcWallet.getAddress(),
@@ -611,7 +611,7 @@ export function PeginFlow() {
           peginTxHex: fundedTxHex,
           claimTxHex: claimerTx.claim_tx.tx_hex,
           vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
-          liquidatorBtcPubkeys: CONFIG.liquidatorBtcPubkeys,
+          vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
           depositorBtcPubkey,
         });
 
@@ -803,7 +803,7 @@ export function PeginFlow() {
 ❌ Vault provider RPC polling logic
 ❌ Contract status polling logic
 ❌ Application-specific redemption (AAVE, Morpho, etc.)
-❌ Vault provider and liquidator discovery (use indexer/subgraph)
+❌ Vault provider and vault keeper discovery (use indexer/subgraph)
 
 ## TypeScript Types
 

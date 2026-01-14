@@ -51,16 +51,23 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:59](
 
 Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
 
-##### liquidatorBtcPubkeys
+##### vaultKeeperBtcPubkeys
 
 ```ts
-liquidatorBtcPubkeys: string[];
+vaultKeeperBtcPubkeys: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:71](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L71)
 
-Liquidator BTC public keys (x-only, 64-char hex)
-Also referred to as "challengers" in the WASM layer
+Vault keeper BTC public keys (x-only, 64-char hex)
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Universal challenger BTC public keys (x-only, 64-char hex)
 
 ##### network
 
@@ -143,13 +150,19 @@ depositor: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:21](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L21)
 
-##### liquidators
+##### vaultKeepers
 
 ```ts
-liquidators: string[];
+vaultKeepers: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts:23](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/scripts/payout.ts#L23)
+
+##### universalChallengers
+
+```ts
+universalChallengers: string[];
+```
 
 ##### network
 
@@ -219,16 +232,23 @@ Parameters for building an unsigned peg-in PSBT
 
 #### Properties
 
-##### challengerPubkeys
+##### vaultKeeperPubkeys
 
 ```ts
-challengerPubkeys: string[];
+vaultKeeperPubkeys: string[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:34](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L34)
 
-Array of liquidator BTC public keys (x-only, 64-char hex)
-Also referred to as "challengers" in the WASM layer
+Array of vault keeper BTC public keys (x-only, 64-char hex)
+
+##### universalChallengerPubkeys
+
+```ts
+universalChallengerPubkeys: string[];
+```
+
+Array of universal challenger BTC public keys (x-only, 64-char hex)
 
 ##### claimerPubkey
 
@@ -422,7 +442,8 @@ const psbt = await buildPayoutPsbt({
   peginTxHex: '0200000...',
   depositorBtcPubkey: 'abc123...',
   vaultProviderBtcPubkey: 'def456...',
-  liquidatorBtcPubkeys: ['ghi789...'],
+  vaultKeeperBtcPubkeys: ['ghi789...'],
+  universalChallengerBtcPubkeys: ['jkl012...'],
   network: 'testnet',
 });
 
@@ -478,7 +499,8 @@ import { buildPeginPsbt } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
 const result = await buildPeginPsbt({
   depositorPubkey: 'abc123...',
   claimerPubkey: 'def456...',
-  challengerPubkeys: ['ghi789...'],
+  vaultKeeperPubkeys: ['ghi789...'],
+  universalChallengerPubkeys: ['jkl012...'],
   pegInAmount: 90000n,
   network: 'testnet',
 });
