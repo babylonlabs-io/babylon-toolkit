@@ -75,6 +75,13 @@ export const NULL_TXID = Buffer.alloc(32, 0);
 export const DUMMY_TXID_1 = Buffer.alloc(32, 1);
 
 /**
+ * Dummy transaction ID (filled with 0x02).
+ *
+ * Used to create distinct dummy transactions for assert outputs.
+ */
+export const DUMMY_TXID_2 = Buffer.alloc(32, 2);
+
+/**
  * All-ones transaction ID (invalid reference).
  *
  * Used in error handling tests to verify behavior with invalid txids.

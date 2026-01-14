@@ -12,6 +12,7 @@ import { useEffect, useRef } from "react";
 import type { Address } from "viem";
 
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
+import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 const STEP_DESCRIPTIONS: Record<number, { active: string; waiting?: string }> =
   {
@@ -31,9 +32,29 @@ const STEP_DESCRIPTIONS: Record<number, { active: string; waiting?: string }> =
     5: { active: "Deposit successfully submitted!" },
   };
 
-function getStepDescription(step: number, isWaiting: boolean): string {
+const SIGNING_STEP_LABELS: Record<string, string> = {
+  payout_optimistic: "PayoutOptimistic",
+  payout: "Payout",
+};
+
+function getStepDescription(
+  step: number,
+  isWaiting: boolean,
+  payoutProgress: PayoutSigningProgress | null,
+): string {
   const desc = STEP_DESCRIPTIONS[step];
   if (!desc) return "";
+
+  // Show detailed progress for step 3 (payout signing)
+  if (step === 3 && payoutProgress?.currentStep) {
+    const stepLabel = SIGNING_STEP_LABELS[payoutProgress.currentStep];
+    const claimerInfo =
+      payoutProgress.totalClaimers > 1
+        ? ` (Claimer ${payoutProgress.currentClaimer}/${payoutProgress.totalClaimers})`
+        : "";
+    return `Signing ${stepLabel}${claimerInfo} — Step ${payoutProgress.completed + 1} of ${payoutProgress.total}`;
+  }
+
   return isWaiting && desc.waiting ? desc.waiting : desc.active;
 }
 
@@ -82,33 +103,39 @@ export function CollateralDepositSignModal({
   const prevOpenRef = useRef(false);
   const hasExecutedRef = useRef(false);
 
-  const { executeDepositFlow, currentStep, processing, error, isWaiting } =
-    useDepositFlow({
-      amount,
-      feeRate,
-      btcWalletProvider,
-      depositorEthAddress,
-      selectedApplication,
-      selectedProviders,
-      vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys,
-      onSuccess: (
-        btcTxid: string,
-        ethTxHash: string,
-        depositorBtcPubkey: string,
-      ) => {
-        // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
-        // and after Step 3 (PAYOUT_SIGNED)
+  const {
+    executeDepositFlow,
+    currentStep,
+    processing,
+    error,
+    isWaiting,
+    payoutSigningProgress,
+  } = useDepositFlow({
+    amount,
+    feeRate,
+    btcWalletProvider,
+    depositorEthAddress,
+    selectedApplication,
+    selectedProviders,
+    vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+    onSuccess: (
+      btcTxid: string,
+      ethTxHash: string,
+      depositorBtcPubkey: string,
+    ) => {
+      // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
+      // and after Step 3 (PAYOUT_SIGNED)
 
-        // Trigger refetch to immediately show the updated deposit
-        if (onRefetchActivities) {
-          onRefetchActivities();
-        }
+      // Trigger refetch to immediately show the updated deposit
+      if (onRefetchActivities) {
+        onRefetchActivities();
+      }
 
-        onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
-      },
-    });
+      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
+    },
+  });
 
   // Execute flow once when modal transitions from closed to open
   useEffect(() => {
@@ -146,7 +173,7 @@ export function CollateralDepositSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          {getStepDescription(currentStep, isWaiting)}
+          {getStepDescription(currentStep, isWaiting, payoutSigningProgress)}
         </Text>
 
         {/* 4-Step Progress Indicator */}

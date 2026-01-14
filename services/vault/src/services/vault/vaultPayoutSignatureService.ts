@@ -14,7 +14,10 @@ import {
 } from "../../utils/btc";
 import { fetchKeepersAndChallengersByVersion } from "../providers/fetchProviders";
 
-import { signPayoutTransaction } from "./btcPayoutSigner";
+import {
+  signPayoutOptimisticTransaction,
+  signPayoutTransaction,
+} from "./btcPayoutSigner";
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultById } from "./fetchVaults";
 
@@ -219,28 +222,24 @@ export function prepareTransactionsForSigning(
   }));
 }
 
+/** Type of payout transaction being signed */
+export type SigningStepType = "payout_optimistic" | "payout";
+
 /**
- * Sign both PayoutOptimistic and Payout transactions for a single claimer.
- * Returns ClaimerSignatures containing both signatures.
+ * Sign a PayoutOptimistic transaction for a single claimer.
  *
- * TODO: Currently this is "blind signing" - the Claim and Assert transactions
- * are provided by the vault provider and we sign them without verification.
- * In the future, we should:
- * 1. Verify that the Claim tx structure matches expected format
- * 2. Verify that the Assert tx structure matches expected format
- * 3. Validate that outputs go to expected addresses
- * 4. Display transaction details to user before signing
+ * @param btcWallet - Bitcoin wallet for signing
+ * @param context - Signing context with vault data
+ * @param transaction - Prepared transaction to sign
+ * @returns PayoutOptimistic signature (64-byte hex)
  */
-export async function signSingleClaimerTransactions(
+export async function signPayoutOptimistic(
   btcWallet: BitcoinWallet,
   context: SigningContext,
   transaction: PreparedTransaction,
-): Promise<ClaimerSignatures> {
-  // TODO: Verify Claim tx before using it for PayoutOptimistic signing
-  // Currently blind signing - Claim tx is trusted from vault provider
-  // Sign PayoutOptimistic transaction (uses Claim tx as input 1 reference)
-  const payoutOptimisticSignature = await signPayoutTransaction(btcWallet, {
-    payoutTxHex: transaction.payoutOptimisticTxHex,
+): Promise<string> {
+  return signPayoutOptimisticTransaction(btcWallet, {
+    payoutOptimisticTxHex: transaction.payoutOptimisticTxHex,
     peginTxHex: context.peginTxHex,
     claimTxHex: transaction.claimTxHex,
     vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
@@ -249,32 +248,57 @@ export async function signSingleClaimerTransactions(
     network: context.network,
     depositorBtcPubkey: context.depositorBtcPubkey,
   });
+}
 
-  // TODO: Verify Assert tx before using it for Payout signing
-  // Currently blind signing - Assert tx is trusted from vault provider
-  // Sign Payout transaction (uses Assert tx as input 1 reference)
-  // Note: For the challenge path Payout tx, input 1 comes from Assert:0
-  // We pass assertTxHex as claimTxHex since the PSBT builder uses it for input 1 prevout
-  const payoutSignature = await signPayoutTransaction(btcWallet, {
+/**
+ * Sign a Payout transaction for a single claimer.
+ *
+ * @param btcWallet - Bitcoin wallet for signing
+ * @param context - Signing context with vault data
+ * @param transaction - Prepared transaction to sign
+ * @returns Payout signature (64-byte hex)
+ */
+export async function signPayout(
+  btcWallet: BitcoinWallet,
+  context: SigningContext,
+  transaction: PreparedTransaction,
+): Promise<string> {
+  return signPayoutTransaction(btcWallet, {
     payoutTxHex: transaction.payoutTxHex,
     peginTxHex: context.peginTxHex,
-    claimTxHex: transaction.assertTxHex, // Assert tx for challenge path
+    assertTxHex: transaction.assertTxHex,
     vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
     network: context.network,
     depositorBtcPubkey: context.depositorBtcPubkey,
   });
+}
 
-  return {
-    payout_optimistic_signature: payoutOptimisticSignature,
-    payout_signature: payoutSignature,
-  };
+/** Detailed progress for payout signing (used by UI layer) */
+export interface PayoutSigningProgress {
+  /** Number of signing steps completed */
+  completed: number;
+  /** Total number of signing steps (2 per claimer) */
+  total: number;
+  /** Current step being signed */
+  currentStep: SigningStepType | null;
+  /** Current claimer index (1-based) */
+  currentClaimer: number;
+  /** Total number of claimers */
+  totalClaimers: number;
 }
 
 /**
  * Sign all prepared transactions.
  * Returns ClaimerSignatures for each claimer pubkey.
+ *
+ * Note: For progress tracking, use signPayoutOptimistic/signPayout directly
+ * in the UI layer to update progress between each signing step.
+ *
+ * @param btcWallet - Bitcoin wallet for signing
+ * @param context - Signing context with vault data
+ * @param transactions - Prepared transactions to sign
  */
 export async function signAllTransactions(
   btcWallet: BitcoinWallet,
@@ -284,11 +308,17 @@ export async function signAllTransactions(
   const signatures: Record<string, ClaimerSignatures> = {};
 
   for (const tx of transactions) {
-    signatures[tx.claimerPubkeyXOnly] = await signSingleClaimerTransactions(
+    const payoutOptimisticSig = await signPayoutOptimistic(
       btcWallet,
       context,
       tx,
     );
+    const payoutSig = await signPayout(btcWallet, context, tx);
+
+    signatures[tx.claimerPubkeyXOnly] = {
+      payout_optimistic_signature: payoutOptimisticSig,
+      payout_signature: payoutSig,
+    };
   }
 
   return signatures;
@@ -296,7 +326,7 @@ export async function signAllTransactions(
 
 /**
  * Prepare the signing context by fetching all required data.
- * Call this once, then use signSingleClaimerTransactions for each transaction.
+ * Call this once, then use signPayoutOptimistic/signPayout for each transaction.
  *
  * Note: This function fetches versioned vault keepers and universal challengers
  * based on the versions locked when the vault was created, ignoring any
@@ -352,7 +382,10 @@ export async function prepareSigningContext(
  * Sign payout transactions and submit signatures to vault provider.
  * Signs both PayoutOptimistic and Payout transactions for each claimer.
  * Convenience function that handles preparation, signing, and submission.
- * For progress tracking, use prepareSigningContext + signSingleClaimerTransactions instead.
+ *
+ * Note: This function does not provide progress tracking. For progress updates,
+ * use the lower-level functions (prepareSigningContext, signPayoutOptimistic,
+ * signPayout) directly in the UI layer.
  */
 export async function signAndSubmitPayoutSignatures(
   params: SignAndSubmitPayoutSignaturesParams,

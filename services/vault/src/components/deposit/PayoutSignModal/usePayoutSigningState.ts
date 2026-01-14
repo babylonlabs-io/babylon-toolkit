@@ -21,22 +21,21 @@ import {
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
-  signSingleClaimerTransactions,
+  signPayout,
+  signPayoutOptimistic,
   submitSignaturesToVaultProvider,
   validatePayoutSignatureParams,
+  type SigningStepType,
 } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
+import type { SigningProgressProps } from "./SigningProgress";
+
 export interface SigningError {
   title: string;
   message: string;
-}
-
-export interface SigningProgress {
-  signed: number;
-  total: number;
 }
 
 export interface UsePayoutSigningStateProps {
@@ -51,13 +50,16 @@ export interface UsePayoutSigningStateProps {
 export interface UsePayoutSigningStateResult {
   /** Whether signing is in progress */
   signing: boolean;
-  /** Signing progress (signed/total) */
-  progress: SigningProgress;
+  /** Signing progress details */
+  progress: SigningProgressProps;
   /** Error state if signing failed */
   error: SigningError | null;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
 }
+
+/** Number of signing steps per claimer (PayoutOptimistic + Payout) */
+const STEPS_PER_CLAIMER = 2;
 
 export function usePayoutSigningState({
   activity,
@@ -68,9 +70,12 @@ export function usePayoutSigningState({
   onClose,
 }: UsePayoutSigningStateProps): UsePayoutSigningStateResult {
   const [signing, setSigning] = useState(false);
-  const [progress, setProgress] = useState<SigningProgress>({
-    signed: 0,
+  const [progress, setProgress] = useState<SigningProgressProps>({
+    completed: 0,
     total: 0,
+    currentStep: null,
+    currentClaimer: 0,
+    totalClaimers: 0,
   });
   const [error, setError] = useState<SigningError | null>(null);
 
@@ -146,7 +151,17 @@ export function usePayoutSigningState({
     // Start signing
     setSigning(true);
     setError(null);
-    setProgress({ signed: 0, total: transactions.length });
+
+    const totalClaimers = transactions.length;
+    const totalSteps = totalClaimers * STEPS_PER_CLAIMER;
+
+    setProgress({
+      completed: 0,
+      total: totalSteps,
+      currentStep: null,
+      currentClaimer: 0,
+      totalClaimers,
+    });
 
     try {
       // Prepare signing context (fetches vault data, resolves pubkeys)
@@ -163,15 +178,48 @@ export function usePayoutSigningState({
         { payout_optimistic_signature: string; payout_signature: string }
       > = {};
 
-      // Sign each transaction with progress tracking
+      // Track completed steps across all claimers
+      let completedSteps = 0;
+
+      // Helper to update progress
+      const updateProgress = (
+        step: SigningStepType | null,
+        claimerIndex: number,
+      ) => {
+        setProgress({
+          completed: completedSteps,
+          total: totalSteps,
+          currentStep: step,
+          currentClaimer: claimerIndex,
+          totalClaimers,
+        });
+      };
+
+      // Sign each claimer's transactions with detailed progress tracking
       for (let i = 0; i < preparedTransactions.length; i++) {
         const tx = preparedTransactions[i];
-        signatures[tx.claimerPubkeyXOnly] = await signSingleClaimerTransactions(
+        const claimerIndex = i + 1; // 1-based for display
+
+        // Sign PayoutOptimistic
+        updateProgress("payout_optimistic", claimerIndex);
+        const payoutOptimisticSig = await signPayoutOptimistic(
           btcWalletProvider,
           context,
           tx,
         );
-        setProgress({ signed: i + 1, total: preparedTransactions.length });
+        completedSteps++;
+
+        // Sign Payout
+        updateProgress("payout", claimerIndex);
+        const payoutSig = await signPayout(btcWalletProvider, context, tx);
+        completedSteps++;
+
+        signatures[tx.claimerPubkeyXOnly] = {
+          payout_optimistic_signature: payoutOptimisticSig,
+          payout_signature: payoutSig,
+        };
+
+        updateProgress(null, claimerIndex);
       }
 
       // Submit signatures to vault provider

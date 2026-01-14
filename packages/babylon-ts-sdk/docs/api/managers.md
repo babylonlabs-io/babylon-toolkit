@@ -11,9 +11,13 @@ These managers accept wallet interfaces and handle the complete operation lifecy
 
 ### PayoutManager
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:92](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L92)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:134](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L134)
 
 High-level manager for payout transaction signing.
+
+Supports both payout paths:
+- Optimistic path: Use `signPayoutOptimisticTransaction()` with Claim tx
+- Challenge path: Use `signPayoutTransaction()` with Assert tx
 
 #### Constructors
 
@@ -23,7 +27,7 @@ High-level manager for payout transaction signing.
 new PayoutManager(config): PayoutManager;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:100](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L100)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:142](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L142)
 
 Creates a new PayoutManager instance.
 
@@ -47,15 +51,61 @@ Manager configuration including wallet
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:174](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L174)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:294](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L294)
 
 Gets the configured Bitcoin network.
 
 ###### Returns
 
-[`Network`](primitives.md#network-3)
+[`Network`](primitives.md#network-4)
 
 The Bitcoin network (mainnet, testnet, signet, regtest)
+
+##### signPayoutOptimisticTransaction()
+
+```ts
+signPayoutOptimisticTransaction(params): Promise<PayoutSignatureResult>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:168](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L168)
+
+Signs a PayoutOptimistic transaction and extracts the Schnorr signature.
+
+PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
+1. Vault provider submits Claim transaction
+2. Challenge period passes without challenge
+3. PayoutOptimistic can be executed (references Claim tx)
+
+This method orchestrates the following steps:
+1. Get wallet's public key and convert to x-only format
+2. Validate wallet pubkey matches on-chain depositor pubkey (if provided)
+3. Build unsigned PSBT using primitives
+4. Sign PSBT via btcWallet.signPsbt()
+5. Extract 64-byte Schnorr signature using primitives
+
+The returned signature can be submitted to the vault provider API.
+
+###### Parameters
+
+###### params
+
+[`SignPayoutOptimisticParams`](#signpayoutoptimisticparams)
+
+PayoutOptimistic signing parameters
+
+###### Returns
+
+`Promise`\<[`PayoutSignatureResult`](#payoutsignatureresult)\>
+
+Signature result with 64-byte Schnorr signature and depositor pubkey
+
+###### Throws
+
+Error if wallet pubkey doesn't match depositor pubkey
+
+###### Throws
+
+Error if wallet operations fail or signature extraction fails
 
 ##### signPayoutTransaction()
 
@@ -63,9 +113,15 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 signPayoutTransaction(params): Promise<PayoutSignatureResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:121](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L121)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:240](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L240)
 
-Signs a payout transaction and extracts the Schnorr signature.
+Signs a Payout transaction (challenge path) and extracts the Schnorr signature.
+
+Payout is used in the **challenge path** when the claimer proves validity:
+1. Vault provider submits Claim transaction
+2. Challenge is raised during challenge period
+3. Claimer submits Assert transaction to prove validity
+4. Payout can be executed (references Assert tx)
 
 This method orchestrates the following steps:
 1. Get wallet's public key and convert to x-only format
@@ -102,7 +158,7 @@ Error if wallet operations fail or signature extraction fails
 
 ### PeginManager
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:239](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L239)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:245](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L245)
 
 Manager for orchestrating peg-in operations.
 
@@ -122,7 +178,7 @@ The complete peg-in flow consists of:
 new PeginManager(config): PeginManager;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:247](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L247)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:253](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L253)
 
 Creates a new PeginManager instance.
 
@@ -146,13 +202,13 @@ Manager configuration including wallets and contract addresses
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:572](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L572)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:581](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L581)
 
 Gets the configured Bitcoin network.
 
 ###### Returns
 
-[`Network`](primitives.md#network-3)
+[`Network`](primitives.md#network-4)
 
 The Bitcoin network (mainnet, testnet, signet, regtest)
 
@@ -162,7 +218,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:581](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L581)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:590](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L590)
 
 Gets the configured BTCVaultsManager contract address.
 
@@ -178,7 +234,7 @@ The Ethereum address of the BTCVaultsManager contract
 preparePegin(params): Promise<PeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:267](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L267)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:273](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L273)
 
 Prepares a peg-in transaction by building and funding it.
 
@@ -215,7 +271,7 @@ Error if wallet operations fail or insufficient funds
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:446](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L446)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:455](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L455)
 
 Registers a peg-in on Ethereum by calling the BTCVaultsManager contract.
 
@@ -254,7 +310,7 @@ Error if vault already exists
 signAndBroadcast(params): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:334](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L334)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:343](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L343)
 
 Signs and broadcasts a funded peg-in transaction to the Bitcoin network.
 
@@ -310,7 +366,7 @@ Amount to peg in (in satoshis).
 availableUTXOs: UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:111](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L111)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:117](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L117)
 
 Available UTXOs from the depositor's wallet for funding the transaction.
 
@@ -320,7 +376,7 @@ Available UTXOs from the depositor's wallet for funding the transaction.
 changeAddress: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:121](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L121)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:127](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L127)
 
 Bitcoin address for receiving change from the transaction.
 
@@ -330,9 +386,20 @@ Bitcoin address for receiving change from the transaction.
 feeRate: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:116](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L116)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:122](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L122)
 
 Fee rate in satoshis per vbyte for the transaction.
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:112](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L112)
+
+Universal challenger BTC public keys (x-only, 64-char hex).
+Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### vaultKeeperBtcPubkeys
 
@@ -343,15 +410,6 @@ vaultKeeperBtcPubkeys: string[];
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:106](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L106)
 
 Vault keeper BTC public keys (x-only, 64-char hex).
-Can be provided with or without "0x" prefix (will be stripped automatically).
-
-##### universalChallengerBtcPubkeys
-
-```ts
-universalChallengerBtcPubkeys: string[];
-```
-
-Universal challenger BTC public keys (x-only, 64-char hex).
 Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ##### vaultProvider
@@ -379,7 +437,7 @@ Can be provided with or without "0x" prefix (will be stripped automatically).
 
 ### PayoutManagerConfig
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:22](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L22)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:27](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L27)
 
 Configuration for the PayoutManager.
 
@@ -391,7 +449,7 @@ Configuration for the PayoutManager.
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:31](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L31)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:36](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L36)
 
 Bitcoin wallet for signing payout transactions.
 
@@ -401,7 +459,7 @@ Bitcoin wallet for signing payout transactions.
 network: Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:26](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L26)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:31](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L31)
 
 Bitcoin network to use for transactions.
 
@@ -409,7 +467,7 @@ Bitcoin network to use for transactions.
 
 ### PayoutSignatureResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:77](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L77)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:115](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L115)
 
 Result of signing a payout transaction.
 
@@ -421,7 +479,7 @@ Result of signing a payout transaction.
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:86](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L86)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:124](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L124)
 
 Depositor's BTC public key used for signing.
 
@@ -431,7 +489,7 @@ Depositor's BTC public key used for signing.
 signature: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:81](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L81)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:119](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L119)
 
 64-byte Schnorr signature (128 hex characters).
 
@@ -521,7 +579,7 @@ BTCVaultsManager contract address on Ethereum.
 
 ### PeginResult
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:127](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L127)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:133](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L133)
 
 Result of a peg-in preparation.
 
@@ -533,7 +591,7 @@ Result of a peg-in preparation.
 btcTxHash: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:133](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L133)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:139](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L139)
 
 Bitcoin transaction hash (without 0x prefix).
 This is the hash of the unsigned transaction and will NOT change after signing.
@@ -545,7 +603,7 @@ Used as the unique vault identifier in the contract.
 changeAmount: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:159](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L159)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:165](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L165)
 
 Change amount in satoshis (if any).
 
@@ -555,7 +613,7 @@ Change amount in satoshis (if any).
 ethTxHash: `0x${string}` | null;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:165](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L165)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:171](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L171)
 
 Ethereum transaction hash (peg-in registration).
 Will be null until registerPeginOnChain is called.
@@ -566,7 +624,7 @@ Will be null until registerPeginOnChain is called.
 fee: bigint;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:154](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L154)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:160](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L160)
 
 Transaction fee in satoshis.
 
@@ -576,7 +634,7 @@ Transaction fee in satoshis.
 fundedTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:139](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L139)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:145](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L145)
 
 Funded but unsigned transaction hex.
 This transaction has inputs and outputs but is not yet signed.
@@ -587,7 +645,7 @@ This transaction has inputs and outputs but is not yet signed.
 selectedUTXOs: UTXO[];
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:149](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L149)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:155](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L155)
 
 UTXOs selected for funding the transaction.
 
@@ -597,7 +655,7 @@ UTXOs selected for funding the transaction.
 vaultScriptPubKey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:144](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L144)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:150](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L150)
 
 Vault script pubkey hex.
 
@@ -605,7 +663,7 @@ Vault script pubkey hex.
 
 ### RegisterPeginParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:188](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L188)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:194](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L194)
 
 Parameters for registering a peg-in on Ethereum.
 
@@ -617,7 +675,7 @@ Parameters for registering a peg-in on Ethereum.
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:193](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L193)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:199](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L199)
 
 Depositor's BTC public key (x-only, 64-char hex).
 Can be provided with or without "0x" prefix.
@@ -628,7 +686,7 @@ Can be provided with or without "0x" prefix.
 optional onPopSigned: () => void | Promise<void>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:208](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L208)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:214](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L214)
 
 Optional callback invoked after PoP signing completes but before ETH transaction.
 
@@ -642,7 +700,7 @@ Optional callback invoked after PoP signing completes but before ETH transaction
 unsignedBtcTx: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:198](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L198)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:204](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L204)
 
 Funded but unsigned BTC transaction hex.
 
@@ -652,7 +710,7 @@ Funded but unsigned BTC transaction hex.
 vaultProvider: `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:203](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L203)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:209](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L209)
 
 Vault provider's Ethereum address.
 
@@ -660,7 +718,7 @@ Vault provider's Ethereum address.
 
 ### SignAndBroadcastParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:171](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L171)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:177](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L177)
 
 Parameters for signing and broadcasting a transaction.
 
@@ -672,7 +730,7 @@ Parameters for signing and broadcasting a transaction.
 depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:182](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L182)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:188](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L188)
 
 Depositor's BTC public key (x-only, 64-char hex).
 Can be provided with or without "0x" prefix.
@@ -684,17 +742,24 @@ Required for Taproot signing.
 fundedTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:175](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L175)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:181](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L181)
 
 Funded transaction hex from preparePegin().
 
 ***
 
-### SignPayoutParams
+### SignPayoutOptimisticParams
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:37](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L37)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:78](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L78)
 
-Parameters for signing a payout transaction.
+Parameters for signing a PayoutOptimistic transaction.
+
+PayoutOptimistic is used in the optimistic path when no challenge occurs.
+Input 1 references the Claim transaction.
+
+#### Extends
+
+- `SignPayoutBaseParams`
 
 #### Properties
 
@@ -704,10 +769,10 @@ Parameters for signing a payout transaction.
 claimTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:54](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L54)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:89](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L89)
 
 Claim transaction hex.
-Required for payout script generation, obtained from vault provider.
+PayoutOptimistic input 1 references Claim output 0.
 
 ##### depositorBtcPubkey?
 
@@ -715,21 +780,45 @@ Required for payout script generation, obtained from vault provider.
 optional depositorBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:71](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L71)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:69](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L69)
 
 Depositor's BTC public key (x-only, 64-char hex).
 This should be the public key that was used when creating the vault,
 as stored on-chain. If not provided, will be fetched from the wallet.
 
-##### vaultKeeperBtcPubkeys
+###### Inherited from
 
 ```ts
-vaultKeeperBtcPubkeys: string[];
+SignPayoutBaseParams.depositorBtcPubkey
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:64](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L64)
+##### payoutOptimisticTxHex
 
-Vault keeper BTC public keys (x-only, 64-char hex).
+```ts
+payoutOptimisticTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:83](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L83)
+
+PayoutOptimistic transaction hex (unsigned).
+This is the transaction from the vault provider that needs depositor signature.
+
+##### peginTxHex
+
+```ts
+peginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:47](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L47)
+
+Peg-in transaction hex.
+The original transaction that created the vault output being spent.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.peginTxHex
+```
 
 ##### universalChallengerBtcPubkeys
 
@@ -737,7 +826,93 @@ Vault keeper BTC public keys (x-only, 64-char hex).
 universalChallengerBtcPubkeys: string[];
 ```
 
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:62](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L62)
+
 Universal challenger BTC public keys (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.universalChallengerBtcPubkeys
+```
+
+##### vaultKeeperBtcPubkeys
+
+```ts
+vaultKeeperBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:57](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L57)
+
+Vault keeper BTC public keys (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vaultKeeperBtcPubkeys
+```
+
+##### vaultProviderBtcPubkey
+
+```ts
+vaultProviderBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:52](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L52)
+
+Vault provider's BTC public key (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vaultProviderBtcPubkey
+```
+
+***
+
+### SignPayoutParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:98](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L98)
+
+Parameters for signing a Payout transaction (challenge path).
+
+Payout is used in the challenge path after Assert, when the claimer proves validity.
+Input 1 references the Assert transaction.
+
+#### Extends
+
+- `SignPayoutBaseParams`
+
+#### Properties
+
+##### assertTxHex
+
+```ts
+assertTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:109](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L109)
+
+Assert transaction hex.
+Payout input 1 references Assert output 0.
+
+##### depositorBtcPubkey?
+
+```ts
+optional depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:69](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L69)
+
+Depositor's BTC public key (x-only, 64-char hex).
+This should be the public key that was used when creating the vault,
+as stored on-chain. If not provided, will be fetched from the wallet.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.depositorBtcPubkey
+```
 
 ##### payoutTxHex
 
@@ -745,7 +920,7 @@ Universal challenger BTC public keys (x-only, 64-char hex).
 payoutTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:42](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L42)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:103](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L103)
 
 Payout transaction hex (unsigned).
 This is the transaction from the vault provider that needs depositor signature.
@@ -756,10 +931,48 @@ This is the transaction from the vault provider that needs depositor signature.
 peginTxHex: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:48](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L48)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:47](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L47)
 
 Peg-in transaction hex.
 The original transaction that created the vault output being spent.
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.peginTxHex
+```
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:62](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L62)
+
+Universal challenger BTC public keys (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.universalChallengerBtcPubkeys
+```
+
+##### vaultKeeperBtcPubkeys
+
+```ts
+vaultKeeperBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:57](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L57)
+
+Vault keeper BTC public keys (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vaultKeeperBtcPubkeys
+```
 
 ##### vaultProviderBtcPubkey
 
@@ -767,6 +980,12 @@ The original transaction that created the vault output being spent.
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:59](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L59)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:52](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L52)
 
 Vault provider's BTC public key (x-only, 64-char hex).
+
+###### Inherited from
+
+```ts
+SignPayoutBaseParams.vaultProviderBtcPubkey
+```
