@@ -1,33 +1,130 @@
 /* tslint:disable */
 /* eslint-disable */
 
+export class WasmPayoutOptimisticTx {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * Estimates the virtual size of a PayoutOptimistic transaction.
+   *
+   * # Arguments
+   *
+   * * `num_vault_keepers` - Number of vault keepers
+   * * `num_universal_challengers` - Number of universal challengers
+   * * `num_local_challengers` - Number of local challengers
+   */
+  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number): bigint;
+  /**
+   * Creates a new PayoutOptimistic transaction.
+   *
+   * # Arguments
+   *
+   * * `pegin_tx_json` - JSON string of the PegInTx
+   * * `claim_tx_json` - JSON string of the ClaimTx
+   * * `timelock_challenge` - Challenge period timelock (t3)
+   * * `payout_receiver` - Hex-encoded public key of the payout receiver
+   * * `fee` - Transaction fee in satoshis
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  constructor(pegin_tx_json: string, claim_tx_json: string, timelock_challenge: number, payout_receiver: string, fee: bigint, network: string);
+  /**
+   * Returns the transaction as hex-encoded bytes.
+   */
+  toHex(): string;
+  /**
+   * Returns the serialized PayoutOptimisticTx as JSON.
+   */
+  toJson(): string;
+  /**
+   * Returns the transaction ID.
+   */
+  getTxid(): string;
+  /**
+   * Creates a WasmPayoutOptimisticTx from a JSON string.
+   */
+  static fromJson(json: string): WasmPayoutOptimisticTx;
+}
+
+export class WasmPayoutTx {
+  free(): void;
+  [Symbol.dispose](): void;
+  /**
+   * Estimates the virtual size of a Payout transaction.
+   *
+   * # Arguments
+   *
+   * * `num_vault_keepers` - Number of vault keepers
+   * * `num_universal_challengers` - Number of universal challengers
+   * * `num_local_challengers` - Number of local challengers
+   * * `council_size` - Number of council members
+   */
+  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number): bigint;
+  /**
+   * Creates a new Payout transaction.
+   *
+   * # Arguments
+   *
+   * * `pegin_tx_json` - JSON string of the PegInTx
+   * * `assert_tx_json` - JSON string of the AssertTx
+   * * `payout_receiver` - Hex-encoded public key of the payout receiver
+   * * `fee` - Transaction fee in satoshis
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  constructor(pegin_tx_json: string, assert_tx_json: string, payout_receiver: string, fee: bigint, network: string);
+  /**
+   * Returns the transaction as hex-encoded bytes.
+   */
+  toHex(): string;
+  /**
+   * Returns the serialized PayoutTx as JSON.
+   */
+  toJson(): string;
+  /**
+   * Returns the transaction ID.
+   */
+  getTxid(): string;
+  /**
+   * Creates a WasmPayoutTx from a JSON string.
+   */
+  static fromJson(json: string): WasmPayoutTx;
+}
+
 export class WasmPeginPayoutConnector {
   free(): void;
   [Symbol.dispose](): void;
   /**
-   * Get the taproot address for this connector
+   * Returns the Taproot address for the connector.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
    */
   getAddress(network: string): string;
   /**
-   * Get the payout script (tap leaf script)
+   * Returns the payout script as hex.
    */
   getPayoutScript(): string;
   /**
-   * Get the script pubkey for this connector
+   * Returns the Taproot scriptPubKey as hex.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
    */
   getScriptPubKey(network: string): string;
   /**
-   * Get the taproot script hash (for sighash computation)
+   * Returns the taproot script hash.
    */
   getTaprootScriptHash(): string;
   /**
-   * Create a new PeginPayoutConnector
+   * Creates a new PeginPayoutConnector.
    *
    * # Arguments
-   * * `depositor` - Depositor's x-only public key (64 hex chars)
-   * * `vault_provider` - Vault provider's x-only public key (64 hex chars)
-   * * `vault_keepers` - Array of vault keeper x-only public keys
-   * * `universal_challengers` - Array of universal challenger x-only public keys
+   *
+   * * `depositor` - Hex-encoded depositor public key (64 chars)
+   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
+   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
+   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
    */
   constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[]);
 }
@@ -36,54 +133,82 @@ export class WasmPeginTx {
   free(): void;
   [Symbol.dispose](): void;
   /**
-   * Get the vault output's value in satoshis
+   * Returns the vault output value in satoshis.
    */
   getVaultValue(): bigint;
   /**
-   * Get the vault output's script pubkey
+   * Returns the vault scriptPubKey as hex.
    */
   getVaultScriptPubKey(): string;
   /**
-   * Create a new unfunded PegIn transaction
+   * Creates a new unfunded PegIn transaction.
    *
    * # Arguments
-   * * `depositor_pubkey` - Depositor's x-only public key (64 hex chars)
-   * * `vault_provider_pubkey` - Vault provider's x-only public key (64 hex chars)
-   * * `vault_keeper_pubkeys` - Array of vault keeper x-only public keys
-   * * `universal_challenger_pubkeys` - Array of universal challenger x-only public keys
-   * * `pegin_amount` - Amount in satoshis
-   * * `network` - Network ("mainnet", "testnet", "regtest", "signet")
+   *
+   * * `depositor` - Hex-encoded depositor public key (64 chars)
+   * * `vault_provider` - Hex-encoded vault provider public key (64 chars)
+   * * `vault_keepers` - Array of hex-encoded vault keeper public keys
+   * * `universal_challengers` - Array of hex-encoded universal challenger public keys
+   * * `pegin_amount` - Amount in satoshis to lock in the vault
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
    */
-  constructor(depositor_pubkey: string, vault_provider_pubkey: string, vault_keeper_pubkeys: string[], universal_challenger_pubkeys: string[], pegin_amount: bigint, network: string);
+  constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[], pegin_amount: bigint, network: string);
   /**
-   * Get the transaction as hex
+   * Returns the transaction as hex-encoded bytes.
    */
   toHex(): string;
   /**
-   * Get the transaction ID
+   * Returns the serialized PegInTx as JSON.
+   */
+  toJson(): string;
+  /**
+   * Returns the transaction ID.
    */
   getTxid(): string;
+  /**
+   * Creates a WasmPeginTx from a JSON string.
+   */
+  static fromJson(json: string): WasmPeginTx;
 }
 
+/**
+ * Initialize panic hook for better error messages in the browser console.
+ */
 export function init_panic_hook(): void;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly __wbg_wasmpayoutoptimistictx_free: (a: number, b: number) => void;
+  readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
   readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
   readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-  readonly init_panic_hook: () => void;
+  readonly wasmpayoutoptimistictx_estimateVsize: (a: number, b: number, c: number) => bigint;
+  readonly wasmpayoutoptimistictx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly wasmpayoutoptimistictx_getTxid: (a: number) => [number, number];
+  readonly wasmpayoutoptimistictx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number) => [number, number, number];
+  readonly wasmpayoutoptimistictx_toHex: (a: number) => [number, number];
+  readonly wasmpayoutoptimistictx_toJson: (a: number) => [number, number, number, number];
+  readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number) => bigint;
+  readonly wasmpayouttx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly wasmpayouttx_getTxid: (a: number) => [number, number];
+  readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
+  readonly wasmpayouttx_toHex: (a: number) => [number, number];
+  readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
   readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
   readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
   readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
   readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
   readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+  readonly wasmpegintx_fromJson: (a: number, b: number) => [number, number, number];
   readonly wasmpegintx_getTxid: (a: number) => [number, number];
   readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
   readonly wasmpegintx_getVaultValue: (a: number) => bigint;
   readonly wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number];
   readonly wasmpegintx_toHex: (a: number) => [number, number];
+  readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
+  readonly init_panic_hook: () => void;
   readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
   readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
   readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
