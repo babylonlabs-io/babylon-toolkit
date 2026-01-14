@@ -96,25 +96,6 @@ export interface PeginPsbtResult {
  *
  * @param params - Peg-in parameters
  * @returns Unsigned PSBT and transaction details
- *
- * @example
- * ```typescript
- * import { buildPeginPsbt } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
- *
- * const result = await buildPeginPsbt({
- *   depositorPubkey: 'abc123...',
- *   vaultProviderPubkey: 'def456...',
- *   vaultKeeperPubkeys: ['ghi789...'],
- *   universalChallengerPubkeys: ['jkl012...'],
- *   pegInAmount: 90000n,
- *   network: 'testnet',
- * });
- *
- * console.log(result.txid); // Transaction ID
- * console.log(result.psbtHex); // Unsigned transaction hex
- * console.log(result.vaultScriptPubKey); // Vault script pubkey
- * console.log(result.vaultValue); // 90000n
- * ```
  */
 export async function buildPeginPsbt(
   params: PeginParams,

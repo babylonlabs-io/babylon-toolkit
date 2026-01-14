@@ -2,12 +2,7 @@
  * Tests for buildPayoutOptimisticPsbt, buildPayoutPsbt, and extractPayoutSignature primitive functions
  *
  * These tests verify the PSBT building and signature extraction logic for payout
- * transactions in the Babylon vault protocol. Test structure follows Rust patterns
- * from etc/btc-vault/crates/vault/tests.
- *
- * There are two types of payout transactions:
- * - **PayoutOptimistic**: Optimistic path after Claim (no challenge). Input 1 references Claim tx.
- * - **Payout**: Challenge path after Assert (claimer proves validity). Input 1 references Assert tx.
+ * transactions in the Babylon vault protocol.
  */
 
 import { Buffer } from "buffer";
@@ -40,17 +35,7 @@ import {
 import { TEST_KEYS, initializeWasmForTests } from "./helpers";
 
 /**
- * Creates a test pegin transaction with a single P2TR output.
- *
- * **Structure** (matches Rust `PeginTx`):
- * - Input: Dummy coinbase-like input (allows transaction serialization without real funding)
- * - Output: P2TR output to vault address (depositor + vault provider + vault keepers + universal challengers script)
- *
- * In production, the pegin transaction is funded by the depositor's wallet and
- * creates the vault output that must be signed by depositor + VP + all vault keepers.
- *
- * @returns Transaction hex string
- * @see Rust: crates/vault/src/transactions/pegin.rs::PeginTx
+ * Creates a test pegin transaction with a single P2TR output (simplified for testing).
  */
 function createTestPeginTransaction(): string {
   const tx = new Transaction();
@@ -67,20 +52,8 @@ function createTestPeginTransaction(): string {
 }
 
 /**
- * Creates a test claim transaction (simplified structure).
- *
- * **Production Structure** (Rust `ClaimTx`):
- * - Spends PegIn output
- * - Creates 2 outputs:
- *   - Output 0: ClaimPayoutNoPayoutConnector (timelock path)
- *   - Output 1: ClaimPayoutNoProofConnector (multisig path)
- *
- * **Test Simplification**:
- * - Single dummy output representing a claimable UTXO
- * - Used to test multi-input PayoutOptimistic PSBT construction
- *
- * @returns Transaction hex string
- * @see Rust: crates/vault/src/transactions/claim.rs::ClaimTx
+ * Creates a test claim transaction (simplified for testing).
+ * Single dummy output used to test multi-input PayoutOptimistic PSBT construction.
  */
 function createTestClaimTransaction(): string {
   const tx = new Transaction();
@@ -95,17 +68,8 @@ function createTestClaimTransaction(): string {
 }
 
 /**
- * Creates a test assert transaction (simplified structure).
- *
- * **Production Structure** (Rust `AssertTx`):
- * - Used in the challenge path when claimer proves validity
- * - Creates outputs for the Payout transaction to spend
- *
- * **Test Simplification**:
- * - Single dummy output representing an assertable UTXO
- * - Used to test multi-input Payout PSBT construction
- *
- * @returns Transaction hex string
+ * Creates a test assert transaction (simplified for testing).
+ * Single dummy output used to test multi-input Payout PSBT construction.
  */
 function createTestAssertTransaction(): string {
   const tx = new Transaction();
@@ -120,21 +84,8 @@ function createTestAssertTransaction(): string {
 }
 
 /**
- * Creates a PayoutOptimistic transaction that spends from pegin and claim.
- *
- * **Production Structure** (Rust `PayoutOptimisticTx`):
- * - Input 0: PegIn output (depositor signs via Taproot script path)
- * - Input 1: Claim output 0 (claimer + vault keepers sign)
- * - Output 0: Payment to recipient
- * - Output 1: Claimer compensation
- *
- * **Test Structure** (simplified for testing):
- * - 2 inputs (pegin + claim) - REQUIRED because Taproot SIGHASH_DEFAULT commits to ALL prevouts
- * - 1 output (recipient payment)
- *
- * @param peginTxHex - Hex of pegin transaction to spend from
- * @param claimTxHex - Hex of claim transaction to spend from
- * @returns Transaction hex string
+ * Creates a PayoutOptimistic transaction (simplified for testing).
+ * 2 inputs (pegin + claim) required because Taproot SIGHASH_DEFAULT commits to all prevouts.
  */
 function createTestPayoutOptimisticTransaction(
   peginTxHex: string,
@@ -159,22 +110,8 @@ function createTestPayoutOptimisticTransaction(
 }
 
 /**
- * Creates a Payout transaction (challenge path) that spends from pegin and assert.
- *
- * **Production Structure** (Rust `PayoutTx::new()`):
- * - Input 0: PegIn output (depositor signs via Taproot script path)
- * - Input 1: Assert output 0 (after challenge, claimer proves validity)
- * - Output 0: Payment to recipient
- * - Output 1: Claimer compensation
- *
- * **Test Structure** (simplified for testing):
- * - 2 inputs (pegin + assert) - REQUIRED because Taproot SIGHASH_DEFAULT commits to ALL prevouts
- * - 1 output (recipient payment)
- *
- * @param peginTxHex - Hex of pegin transaction to spend from
- * @param assertTxHex - Hex of assert transaction to spend from
- * @returns Transaction hex string
- * @see Rust: crates/vault/src/transactions/payout.rs::PayoutTx::new()
+ * Creates a Payout transaction (simplified for testing).
+ * 2 inputs (pegin + assert) required because Taproot SIGHASH_DEFAULT commits to all prevouts.
  */
 function createTestPayoutTransaction(
   peginTxHex: string,

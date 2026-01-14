@@ -2,8 +2,7 @@
  * Test Constants for PSBT Primitive Tests
  *
  * This module contains Bitcoin protocol constants and test fixtures used across
- * PSBT primitive tests. Constants are named and documented to match Rust implementation
- * patterns from etc/btc-vault/crates/vault/tests.
+ * PSBT primitive tests.
  *
  * @module primitives/psbt/__tests__/constants
  */
