@@ -20,7 +20,7 @@ export default {
    * Why needed: Allows disabling deposits during maintenance or incidents
    * Default: true (deposits are enabled unless explicitly set to "false")
    */
-  get IsDepositEnabled() {
+  get isDepositEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_DEPOSIT !== "false";
   },
 
@@ -31,7 +31,7 @@ export default {
    * Why needed: Allows disabling borrowing during maintenance or incidents
    * Default: true (borrowing is enabled unless explicitly set to "false")
    */
-  get IsBorrowEnabled() {
+  get isBorrowEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_BORROW !== "false";
   },
 };

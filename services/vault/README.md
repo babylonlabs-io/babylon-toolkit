@@ -74,6 +74,18 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)
 - `NEXT_PUBLIC_CANONICAL` - Canonical URL for the application
 
+### Feature Flags
+
+- `NEXT_PUBLIC_FF_ENABLE_DEPOSIT` - Controls whether deposit functionality is available
+  - Default: `true` (deposits are enabled unless explicitly set to `"false"`)
+  - Set to `"false"` to disable deposit functionality during maintenance or incidents
+  - When disabled, users will see "Depositing Unavailable" and the deposit button will be disabled
+
+- `NEXT_PUBLIC_FF_ENABLE_BORROW` - Controls whether borrowing functionality is available
+  - Default: `true` (borrowing is enabled unless explicitly set to `"false"`)
+  - Set to `"false"` to disable borrowing functionality during maintenance or incidents
+  - When disabled, users will see "Borrowing Unavailable" and the borrow button will be disabled
+
 ## Available Scripts
 
 ### Development
