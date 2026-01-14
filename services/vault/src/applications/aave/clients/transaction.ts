@@ -1,19 +1,63 @@
 /**
  * Aave Integration Controller - Write operations (transactions)
  *
- * Provides transaction operations for the AaveIntegrationController contract.
+ * Vault-side wrapper that uses SDK transaction builders and executes with vault's wallet client.
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
 import {
-  executeWrite,
+  buildAddCollateralTx,
+  buildBorrowTx,
+  buildDepositorRedeemTx,
+  buildRepayTx,
+  buildWithdrawAllCollateralTx,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
+import { ethClient } from "../../../clients/eth-contract/client";
+import { mapViemErrorToContractError } from "../../../utils/errors";
+import {
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
-import { AAVE_FUNCTION_NAMES } from "../config";
 
-import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
+/**
+ * Execute a transaction using encoded data from SDK
+ */
+async function executeTx(
+  walletClient: WalletClient,
+  chain: Chain,
+  to: Address,
+  data: Hex,
+  errorContext: string,
+): Promise<TransactionResult> {
+  const publicClient = ethClient.getPublicClient();
+
+  try {
+    const hash = await walletClient.sendTransaction({
+      to,
+      data,
+      chain,
+      account: walletClient.account!,
+    });
+
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    // Check if transaction was reverted
+    if (receipt.status === "reverted") {
+      throw new Error(
+        `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
+      );
+    }
+
+    return {
+      transactionHash: hash,
+      receipt,
+    };
+  } catch (error) {
+    throw mapViemErrorToContractError(error, errorContext);
+  }
+}
 
 /**
  * Add collateral to Core Spoke position
@@ -35,15 +79,8 @@ export async function addCollateralToCorePosition(
   vaultIds: Hex[],
   reserveId: bigint,
 ): Promise<TransactionResult> {
-  return executeWrite({
-    walletClient,
-    chain,
-    address: contractAddress,
-    abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.ADD_COLLATERAL,
-    args: [vaultIds, reserveId],
-    errorContext: "add collateral to Aave Core position",
-  });
+  const { to, data } = buildAddCollateralTx(contractAddress, vaultIds, reserveId);
+  return executeTx(walletClient, chain, to, data, "add collateral to Aave Core position");
 }
 
 /**
@@ -64,15 +101,8 @@ export async function withdrawAllCollateralFromCorePosition(
   contractAddress: Address,
   reserveId: bigint,
 ): Promise<TransactionResult> {
-  return executeWrite({
-    walletClient,
-    chain,
-    address: contractAddress,
-    abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.WITHDRAW_ALL_COLLATERAL,
-    args: [reserveId],
-    errorContext: "withdraw all collateral from Aave Core position",
-  });
+  const { to, data } = buildWithdrawAllCollateralTx(contractAddress, reserveId);
+  return executeTx(walletClient, chain, to, data, "withdraw all collateral from Aave Core position");
 }
 
 /**
@@ -98,15 +128,8 @@ export async function borrowFromCorePosition(
   amount: bigint,
   receiver: Address,
 ): Promise<TransactionResult> {
-  return executeWrite({
-    walletClient,
-    chain,
-    address: contractAddress,
-    abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.BORROW,
-    args: [positionId, debtReserveId, amount, receiver],
-    errorContext: "borrow from Aave Core position",
-  });
+  const { to, data } = buildBorrowTx(contractAddress, positionId, debtReserveId, amount, receiver);
+  return executeTx(walletClient, chain, to, data, "borrow from Aave Core position");
 }
 
 /**
@@ -131,15 +154,8 @@ export async function repayToCorePosition(
   debtReserveId: bigint,
   amount: bigint,
 ): Promise<TransactionResult> {
-  return executeWrite({
-    walletClient,
-    chain,
-    address: contractAddress,
-    abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.REPAY,
-    args: [positionId, debtReserveId, amount],
-    errorContext: "repay to Aave Core position",
-  });
+  const { to, data } = buildRepayTx(contractAddress, positionId, debtReserveId, amount);
+  return executeTx(walletClient, chain, to, data, "repay to Aave Core position");
 }
 
 /**
@@ -160,13 +176,6 @@ export async function depositorRedeem(
   contractAddress: Address,
   vaultId: Hex,
 ): Promise<TransactionResult> {
-  return executeWrite({
-    walletClient,
-    chain,
-    address: contractAddress,
-    abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.REDEEM,
-    args: [vaultId],
-    errorContext: "depositor redeem vault",
-  });
+  const { to, data } = buildDepositorRedeemTx(contractAddress, vaultId);
+  return executeTx(walletClient, chain, to, data, "depositor redeem vault");
 }

@@ -1,38 +1,16 @@
 /**
  * Aave Integration Controller - Read operations (queries)
  *
+ * Vault-side wrapper that injects ethClient into SDK functions.
  * Only includes functions that provide data NOT available from the indexer.
- * Most position/vault data should be fetched from the GraphQL indexer instead.
  */
 
-import { type Address, type Hex } from "viem";
+import type { Address, Hex } from "viem";
+
+import { getPosition as sdkGetPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import type { AaveMarketPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { ethClient } from "../../../clients/eth-contract/client";
-import { ZERO_ADDRESS } from "../../../constants";
-
-import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
-
-/**
- * Depositor structure from contract
- */
-interface DepositorStruct {
-  ethAddress: Address;
-  btcPubKey: Hex;
-}
-
-/**
- * Aave position structure from the contract
- */
-export interface AaveMarketPosition {
-  depositor: {
-    ethAddress: Address;
-    btcPubKey: Hex;
-  };
-  reserveId: bigint;
-  proxyContract: Address;
-  vaultIds: Hex[];
-  totalCollateral: bigint;
-}
 
 /**
  * Get a position by its ID
@@ -50,42 +28,8 @@ export async function getPosition(
   positionId: Hex,
 ): Promise<AaveMarketPosition | null> {
   const publicClient = ethClient.getPublicClient();
-
-  try {
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: AaveIntegrationControllerABI,
-      functionName: "getPosition",
-      args: [positionId],
-    });
-
-    type PositionResult = {
-      depositor: DepositorStruct;
-      reserveId: bigint;
-      proxyContract: Address;
-      vaultIds: Hex[];
-      totalCollateral: bigint;
-    };
-
-    const position = result as PositionResult;
-
-    // Check if position exists (proxyContract should not be zero address)
-    if (position.proxyContract === ZERO_ADDRESS) {
-      return null;
-    }
-
-    return {
-      depositor: {
-        ethAddress: position.depositor.ethAddress,
-        btcPubKey: position.depositor.btcPubKey,
-      },
-      reserveId: position.reserveId,
-      proxyContract: position.proxyContract,
-      vaultIds: position.vaultIds,
-      totalCollateral: position.totalCollateral,
-    };
-  } catch (error) {
-    console.error(`Failed to get position ${positionId}:`, error);
-    return null;
-  }
+  return sdkGetPosition(publicClient, contractAddress, positionId);
 }
+
+// Re-export types
+export type { AaveMarketPosition };

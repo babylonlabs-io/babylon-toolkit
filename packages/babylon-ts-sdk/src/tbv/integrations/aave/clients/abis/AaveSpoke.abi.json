@@ -1,0 +1,217 @@
+[
+  {
+    "type": "function",
+    "name": "getUserAccountData",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ISpoke.UserAccountData",
+        "components": [
+          {
+            "name": "riskPremium",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "avgCollateralFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "healthFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalCollateralValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalDebtValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activeCollateralCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "borrowedCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserve",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ISpoke.Reserve",
+        "components": [
+          {
+            "name": "underlying",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "hub",
+            "type": "address",
+            "internalType": "contract IHubBase"
+          },
+          {
+            "name": "assetId",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "decimals",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "dynamicConfigKey",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "frozen",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "borrowable",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserPosition",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ISpoke.UserPosition",
+        "components": [
+          {
+            "name": "drawnShares",
+            "type": "uint120",
+            "internalType": "uint120"
+          },
+          {
+            "name": "premiumShares",
+            "type": "uint120",
+            "internalType": "uint120"
+          },
+          {
+            "name": "realizedPremiumRay",
+            "type": "uint200",
+            "internalType": "uint200"
+          },
+          {
+            "name": "premiumOffsetRay",
+            "type": "uint200",
+            "internalType": "uint200"
+          },
+          {
+            "name": "suppliedShares",
+            "type": "uint120",
+            "internalType": "uint120"
+          },
+          {
+            "name": "dynamicConfigKey",
+            "type": "uint24",
+            "internalType": "uint24"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserTotalDebt",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

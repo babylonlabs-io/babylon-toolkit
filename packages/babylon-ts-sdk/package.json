@@ -30,6 +30,11 @@
       "require": "./dist/tbv/core/utils/index.cjs",
       "import": "./dist/tbv/core/utils/index.js"
     },
+    "./tbv/integrations/aave": {
+      "types": "./dist/tbv/integrations/aave/index.d.ts",
+      "require": "./dist/tbv/integrations/aave/index.cjs",
+      "import": "./dist/tbv/integrations/aave/index.js"
+    },
     "./shared": {
       "types": "./dist/shared/index.d.ts",
       "require": "./dist/shared/index.cjs",

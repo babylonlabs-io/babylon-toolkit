@@ -9,8 +9,9 @@
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "Bundler",
-    "target": "es2022"
+    "target": "es2022",
+    "resolveJsonModule": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.json"],
   "exclude": ["node_modules", "dist"]
 }
