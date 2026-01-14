@@ -59,9 +59,14 @@ export interface SignPayoutParams {
   vaultProviderBtcPubkey: string;
 
   /**
-   * Liquidator BTC public keys (x-only, 64-char hex).
+   * Vault keeper BTC public keys (x-only, 64-char hex).
    */
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+
+  /**
+   * Universal challenger BTC public keys (x-only, 64-char hex).
+   */
+  universalChallengerBtcPubkeys: string[];
 
   /**
    * Depositor's BTC public key (x-only, 64-char hex).
@@ -135,7 +140,8 @@ export class PayoutManager {
       claimTxHex: params.claimTxHex,
       depositorBtcPubkey: depositorPubkey,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       network: this.config.network,
     });
 

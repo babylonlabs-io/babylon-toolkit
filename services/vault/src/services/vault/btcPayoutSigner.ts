@@ -13,7 +13,8 @@ export interface SignPayoutTransactionParams {
   peginTxHex: string;
   claimTxHex: string;
   vaultProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
   network: Network;
   /** Depositor's BTC public key from vault data (x-only, 64-char hex) */
   depositorBtcPubkey: string;
@@ -49,7 +50,8 @@ export async function signPayoutTransaction(
       peginTxHex: params.peginTxHex,
       claimTxHex: params.claimTxHex,
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
       depositorBtcPubkey: params.depositorBtcPubkey,
     });
 

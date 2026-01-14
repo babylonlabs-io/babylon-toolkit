@@ -44,8 +44,9 @@ export interface UseSignPeginTransactionsResult {
  *
  * This hook provides React state management (loading, error, success) and:
  * 1. Gets vault provider URL from globally cached providers (via useVaultProviders)
- * 2. Delegates business logic to peginPayoutSignatureService
- * 3. Manages state updates based on success/failure
+ * 2. Gets vault keepers (per-application) and universal challengers (system-wide)
+ * 3. Delegates business logic to peginPayoutSignatureService
+ * 4. Manages state updates based on success/failure
  *
  * @param applicationController - Application controller address for fetching providers
  * @returns Hook result with signPayoutsAndSubmit function and state
@@ -57,10 +58,9 @@ export function useSignPeginTransactions(
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Get cached vault providers and liquidators for the specific application
-  const { findProvider, liquidators } = useVaultProviders(
-    applicationController,
-  );
+  // Get cached vault providers, vault keepers, and universal challengers
+  const { findProvider, vaultKeepers, universalChallengers } =
+    useVaultProviders(applicationController);
 
   const signPayoutsAndSubmit = useCallback(
     async (params: SignPeginTransactionsParams) => {
@@ -95,7 +95,12 @@ export function useSignPeginTransactions(
               url: provider.url,
               btcPubKey: provider.btcPubKey,
             },
-            liquidators,
+            vaultKeepers: vaultKeepers.map((vk) => ({
+              btcPubKey: vk.btcPubKey,
+            })),
+            universalChallengers: universalChallengers.map((uc) => ({
+              btcPubKey: uc.btcPubKey,
+            })),
           },
           btcWallet: params.btcWallet,
         });
@@ -114,7 +119,7 @@ export function useSignPeginTransactions(
         setLoading(false);
       }
     },
-    [findProvider, liquidators],
+    [findProvider, vaultKeepers, universalChallengers],
   );
 
   return {

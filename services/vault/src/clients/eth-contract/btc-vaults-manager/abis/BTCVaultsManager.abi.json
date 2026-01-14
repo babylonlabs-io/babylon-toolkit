@@ -8,25 +8,17 @@
         "internalType": "address"
       },
       {
+        "name": "_applicationRegistry",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "_inclusionVerifier",
         "type": "address",
         "internalType": "contract BtcInclusionVerifier"
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "ACK_MESSAGE_PREFIX",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -69,47 +61,13 @@
   },
   {
     "type": "function",
-    "name": "acknowledgeVaultProviderRegistrationACK",
-    "inputs": [
-      {
-        "name": "vaultProvider",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "claimerChallenger",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "applications",
-    "inputs": [
+    "name": "applicationRegistry",
+    "inputs": [],
+    "outputs": [
       {
         "name": "",
         "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "controller",
-        "type": "address",
-        "internalType": "address"
+        "internalType": "contract IApplicationRegistry"
       }
     ],
     "stateMutability": "view"
@@ -164,9 +122,86 @@
         "name": "universalChallengersVersion",
         "type": "uint16",
         "internalType": "uint16"
+      },
+      {
+        "name": "appVaultKeepersVersion",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "offchainParamsVersion",
+        "type": "uint16",
+        "internalType": "uint16"
+      },
+      {
+        "name": "createdAt",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "bypassAndRegisterVaultProvider",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "btcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "applicationController",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "bypassPeginAndCreateVault",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "depositorBtcPubKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "vaultProvider",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "applicationController",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -188,56 +223,6 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getACKMessageHash",
-    "inputs": [
-      {
-        "name": "provider",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "function",
-    "name": "getApplicationClaimersChallengers",
-    "inputs": [
-      {
-        "name": "appController",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple[]",
-        "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair[]",
-        "components": [
-          {
-            "name": "ethAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "btcPubKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          }
-        ]
       }
     ],
     "stateMutability": "view"
@@ -297,6 +282,21 @@
             "name": "universalChallengersVersion",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "appVaultKeepersVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "offchainParamsVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -415,6 +415,21 @@
             "name": "universalChallengersVersion",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "appVaultKeepersVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "offchainParamsVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -628,30 +643,6 @@
   },
   {
     "type": "function",
-    "name": "providerACKs",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "redeemVault",
     "inputs": [
       {
@@ -670,73 +661,7 @@
   },
   {
     "type": "function",
-    "name": "redeemVaultByProvider",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerApplication",
-    "inputs": [
-      {
-        "name": "name",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "appController",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "claimersChallengers",
-        "type": "tuple[]",
-        "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair[]",
-        "components": [
-          {
-            "name": "ethAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "btcPubKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          }
-        ]
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "renounceRole",
-    "inputs": [
-      {
-        "name": "role",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "requestVaultProviderRegistration",
+    "name": "registerVaultProvider",
     "inputs": [
       {
         "name": "provider",
@@ -761,6 +686,37 @@
     ],
     "outputs": [],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "renounceRole",
+    "inputs": [
+      {
+        "name": "role",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "callerConfirmation",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "reportExpiredPegin",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -944,24 +900,28 @@
         "name": "applicationController",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "depositAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "universalChallengersVersion",
-        "type": "uint16",
-        "internalType": "uint16"
-      },
-      {
-        "name": "status",
-        "type": "uint8",
-        "internalType": "enum IBTCVaultsManager.VaultProviderStatus"
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "PeginActivated",
+    "inputs": [
+      {
+        "name": "pegInTxHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",
@@ -1039,9 +999,88 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "VaultClaimableBy",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "claimerPK",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultParamsUpdated",
+    "inputs": [
+      {
+        "name": "oldVaultParams",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newVaultParams",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultProviderRegistered",
+    "inputs": [
+      {
+        "name": "provider",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "btcPubKey",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "applicationController",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
-    "name": "ApplicationAlreadyRegistered",
+    "name": "AccessControlBadConfirmation",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AccessControlUnauthorizedAccount",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "neededRole",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1056,11 +1095,6 @@
   {
     "type": "error",
     "name": "BtcKeyMismatch",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "ClaimerChallengerNotAuthorized",
     "inputs": []
   },
   {
@@ -1085,12 +1119,7 @@
   },
   {
     "type": "error",
-    "name": "InvalidSignature",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidSignatureLength",
+    "name": "InvalidRegistrationFee",
     "inputs": []
   },
   {
@@ -1116,12 +1145,12 @@
   },
   {
     "type": "error",
-    "name": "ProviderAlreadyRegistered",
+    "name": "PeginTransactionExpired",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "ProviderNotFound",
+    "name": "ProviderAlreadyRegistered",
     "inputs": []
   },
   {
@@ -1131,12 +1160,17 @@
   },
   {
     "type": "error",
-    "name": "RefundFailed",
+    "name": "TransferFailed",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "Unauthorized",
+    "name": "VaultAlreadyExists",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "VaultKeeperNotAuthorized",
     "inputs": []
   },
   {

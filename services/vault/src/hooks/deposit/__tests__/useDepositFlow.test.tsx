@@ -142,7 +142,8 @@ vi.mock("../useVaultProviders", () => ({
       btcPubKey: "0xVaultProviderKey",
       name: "Test Provider",
     })),
-    liquidators: [{ btcPubKey: "0xLiquidatorKey1" }],
+    vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+    universalChallengers: [{ btcPubKey: "0xUniversalChallengerKey1" }],
     vaultProviders: [],
     loading: false,
     error: null,
@@ -167,7 +168,8 @@ describe("useDepositFlow - Chain Switching", () => {
     selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
-    liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
+    vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],
+    universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
     onSuccess: vi.fn(),
   };

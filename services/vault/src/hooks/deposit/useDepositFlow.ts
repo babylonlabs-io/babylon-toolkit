@@ -55,7 +55,8 @@ export interface UseDepositFlowParams {
   selectedApplication: string;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -99,7 +100,8 @@ export function useDepositFlow(
     selectedApplication,
     selectedProviders,
     vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
     onSuccess,
   } = params;
 
@@ -121,7 +123,8 @@ export function useDepositFlow(
   } = useUTXOs(btcAddress);
 
   // Get vault providers for signing
-  const { findProvider, liquidators } = useVaultProviders(selectedApplication);
+  const { findProvider, vaultKeepers, universalChallengers } =
+    useVaultProviders(selectedApplication);
 
   /**
    * Get the selected vault provider with validation
@@ -207,7 +210,8 @@ export function useDepositFlow(
         changeAddress: btcAddress,
         vaultProviderAddress: selectedProviders[0] as Address,
         vaultProviderBtcPubkey,
-        liquidatorBtcPubkeys,
+        vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys,
         availableUTXOs: confirmedUTXOs,
         // Callback to update step indicator AFTER PoP signing, BEFORE ETH signing
         onPopSigned: () => {
@@ -303,7 +307,10 @@ export function useDepositFlow(
             url: provider.url,
             btcPubKey: provider.btcPubKey,
           },
-          liquidators,
+          vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
+          universalChallengers: universalChallengers.map((uc) => ({
+            btcPubKey: uc.btcPubKey,
+          })),
         },
         btcWallet: btcWalletProvider,
       });
@@ -377,14 +384,16 @@ export function useDepositFlow(
     selectedApplication,
     selectedProviders,
     vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
     onSuccess,
     btcAddress,
     confirmedUTXOs,
     isUTXOsLoading,
     utxoError,
     getSelectedVaultProvider,
-    liquidators,
+    vaultKeepers,
+    universalChallengers,
   ]);
 
   return {

@@ -31,8 +31,12 @@ const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-  LIQUIDATOR_1:
+  VAULT_PROVIDER:
+    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+  VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+  UNIVERSAL_CHALLENGER_1:
+    "d4b83ad4c2b7c8e8b8c1e1c7c8e8b8c1e1c7c8e8b8c1e1c7c8e8b8c1e1c7c8e8",
 } as const;
 
 describe("PayoutManager", () => {
@@ -160,8 +164,9 @@ describe("PayoutManager", () => {
         payoutTxHex,
         peginTxHex,
         claimTxHex,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
       });
 
       expect(result.signature).toBe(deterministicSignature);
@@ -186,8 +191,9 @@ describe("PayoutManager", () => {
           payoutTxHex: "0200000001...",
           peginTxHex: "0200000001...",
           claimTxHex: "0200000001...",
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         }),
       ).rejects.toThrow();
     });

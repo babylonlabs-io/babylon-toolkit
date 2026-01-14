@@ -1,7 +1,7 @@
 export type {
   ClaimerTransactions,
-  RequestClaimAndPayoutTransactionsParams,
-  RequestClaimAndPayoutTransactionsResponse,
+  RequestDepositorPresignTransactionsParams,
+  RequestDepositorPresignTransactionsResponse,
   SubmitPayoutSignaturesParams,
   TransactionData,
 } from "../clients/vault-provider-rpc/types";

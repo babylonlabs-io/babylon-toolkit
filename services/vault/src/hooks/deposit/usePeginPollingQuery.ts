@@ -63,8 +63,8 @@ async function fetchFromProvider(
 
   for (const deposit of deposits) {
     try {
-      const response = await rpcClient.requestClaimAndPayoutTransactions({
-        pegin_tx_id: stripHexPrefix(deposit.activity.txHash!),
+      const response = await rpcClient.requestDepositorPresignTransactions({
+        pegin_txid: stripHexPrefix(deposit.activity.txHash!),
         depositor_pk: btcPublicKey,
       });
 

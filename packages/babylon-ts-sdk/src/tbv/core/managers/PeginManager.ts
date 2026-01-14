@@ -100,10 +100,16 @@ export interface CreatePeginParams {
   vaultProviderBtcPubkey: string;
 
   /**
-   * Liquidator BTC public keys (x-only, 64-char hex).
+   * Vault keeper BTC public keys (x-only, 64-char hex).
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+
+  /**
+   * Universal challenger BTC public keys (x-only, 64-char hex).
+   * Can be provided with or without "0x" prefix (will be stripped automatically).
+   */
+  universalChallengerBtcPubkeys: string[];
 
   /**
    * Available UTXOs from the depositor's wallet for funding the transaction.
@@ -275,14 +281,17 @@ export class PeginManager {
 
     // Strip "0x" prefix from BTC public keys if present
     const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
-    const liquidatorBtcPubkeys = params.liquidatorBtcPubkeys.map(stripHexPrefix);
+    const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
+    const universalChallengerBtcPubkeys =
+      params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
     // Step 2: Build unfunded PSBT using primitives
     // This creates a transaction with 0 inputs and 1 output (the vault output)
     const peginPsbt = await buildPeginPsbt({
       depositorPubkey: depositorBtcPubkey,
-      claimerPubkey: vaultProviderBtcPubkey,
-      challengerPubkeys: liquidatorBtcPubkeys,
+      vaultProviderPubkey: vaultProviderBtcPubkey,
+      vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
+      universalChallengerPubkeys: universalChallengerBtcPubkeys,
       pegInAmount: params.amount,
       network: this.config.btcNetwork,
     });

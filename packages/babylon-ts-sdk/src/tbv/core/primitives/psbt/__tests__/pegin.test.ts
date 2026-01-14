@@ -20,8 +20,9 @@ describe("buildPeginPsbt", () => {
     it("should build a valid peg-in PSBT for signet", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet" as Network,
       };
@@ -53,8 +54,9 @@ describe("buildPeginPsbt", () => {
       for (const network of networks) {
         const params: PeginParams = {
           depositorPubkey: TEST_KEYS.DEPOSITOR,
-          claimerPubkey: TEST_KEYS.CLAIMER,
-          challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           pegInAmount: TEST_AMOUNTS.PEGIN,
           network,
         };
@@ -79,8 +81,9 @@ describe("buildPeginPsbt", () => {
       for (const amount of amounts) {
         const params: PeginParams = {
           depositorPubkey: TEST_KEYS.DEPOSITOR,
-          claimerPubkey: TEST_KEYS.CLAIMER,
-          challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           pegInAmount: amount,
           network: "signet",
         };
@@ -91,11 +94,32 @@ describe("buildPeginPsbt", () => {
       }
     });
 
-    it("should handle multiple liquidators", async () => {
+    it("should handle multiple vault keepers", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        pegInAmount: TEST_AMOUNTS.PEGIN,
+        network: "signet",
+      };
+
+      const result = await buildPeginPsbt(params);
+
+      expect(result.psbtHex).toBeDefined();
+      expect(result.txid).toBeDefined();
+      expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
+    });
+
+    it("should handle multiple universal challengers", async () => {
+      const params: PeginParams = {
+        depositorPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [
+          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+        ],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -112,8 +136,9 @@ describe("buildPeginPsbt", () => {
     it("should produce same output as calling WASM directly", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -124,8 +149,9 @@ describe("buildPeginPsbt", () => {
       // Call WASM directly
       const wasmResult = await createPegInTransaction({
         depositorPubkey: params.depositorPubkey,
-        claimerPubkey: params.claimerPubkey,
-        challengerPubkeys: params.challengerPubkeys,
+        vaultProviderPubkey: params.vaultProviderPubkey,
+        vaultKeeperPubkeys: params.vaultKeeperPubkeys,
+        universalChallengerPubkeys: params.universalChallengerPubkeys,
         pegInAmount: params.pegInAmount,
         network: params.network,
       });
@@ -142,8 +168,9 @@ describe("buildPeginPsbt", () => {
     it("should produce the same result for the same inputs", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -160,8 +187,9 @@ describe("buildPeginPsbt", () => {
     it("should produce different results for different depositor keys", async () => {
       const params1: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -169,7 +197,7 @@ describe("buildPeginPsbt", () => {
       const params2: PeginParams = {
         ...params1,
         // Use a different depositor key to ensure different output
-        depositorPubkey: TEST_KEYS.CLAIMER, // Different from TEST_KEYS.DEPOSITOR
+        depositorPubkey: TEST_KEYS.VAULT_PROVIDER, // Different from TEST_KEYS.DEPOSITOR
       };
 
       const result1 = await buildPeginPsbt(params1);
@@ -182,24 +210,40 @@ describe("buildPeginPsbt", () => {
   });
 
   describe("Edge cases", () => {
-    it("should reject empty liquidator array", async () => {
+    it("should reject empty vault keeper array", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
 
-      // Should reject empty liquidator array
+      // Should reject empty vault keeper array
+      await expect(buildPeginPsbt(params)).rejects.toThrow();
+    });
+
+    it("should reject empty universal challenger array", async () => {
+      const params: PeginParams = {
+        depositorPubkey: TEST_KEYS.DEPOSITOR,
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [],
+        pegInAmount: TEST_AMOUNTS.PEGIN,
+        network: "signet",
+      };
+
+      // Should reject empty universal challenger array
       await expect(buildPeginPsbt(params)).rejects.toThrow();
     });
 
     it("should handle large amounts", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.MAX,
         network: "signet",
       };
@@ -215,8 +259,12 @@ describe("buildPeginPsbt", () => {
       // Realistic scenario: User pegging in 0.001 BTC (100,000 sats)
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengerPubkeys: [
+          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+        ],
         pegInAmount: TEST_AMOUNTS.PEGIN_MEDIUM,
         network: "signet",
       };
@@ -244,8 +292,9 @@ describe("buildPeginPsbt", () => {
     it("should enforce Network type", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet" as Network,
       };
@@ -257,8 +306,9 @@ describe("buildPeginPsbt", () => {
     it("should handle bigint amounts correctly", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: BigInt(90000),
         network: "signet",
       };
@@ -273,8 +323,9 @@ describe("buildPeginPsbt", () => {
     it("should reject invalid depositor pubkey format", async () => {
       const params: PeginParams = {
         depositorPubkey: "invalid-pubkey",
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -282,11 +333,12 @@ describe("buildPeginPsbt", () => {
       await expect(buildPeginPsbt(params)).rejects.toThrow();
     });
 
-    it("should reject invalid claimer pubkey format", async () => {
+    it("should reject invalid vault provider pubkey format", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: "not-a-valid-hex-key-123",
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: "not-a-valid-hex-key-123",
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -294,11 +346,12 @@ describe("buildPeginPsbt", () => {
       await expect(buildPeginPsbt(params)).rejects.toThrow();
     });
 
-    it("should reject invalid liquidator pubkey in array", async () => {
+    it("should reject invalid vault keeper pubkey in array", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: ["zzzzinvalidhexzzzz"],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: ["zzzzinvalidhexzzzz"],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -309,8 +362,9 @@ describe("buildPeginPsbt", () => {
     it("should reject invalid network string", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "invalid-network" as Network,
       };
@@ -321,8 +375,9 @@ describe("buildPeginPsbt", () => {
     it("should reject pubkey with incorrect length", async () => {
       const params: PeginParams = {
         depositorPubkey: "abcd1234", // Too short
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -333,8 +388,9 @@ describe("buildPeginPsbt", () => {
     it("should reject pubkey with non-hex characters", async () => {
       const params: PeginParams = {
         depositorPubkey: "g".repeat(64), // 'g' is not a valid hex character
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -347,8 +403,9 @@ describe("buildPeginPsbt", () => {
     it("should produce transaction with correct output structure", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -367,8 +424,9 @@ describe("buildPeginPsbt", () => {
     it("should produce deterministic vaultScriptPubKey for same inputs", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
@@ -380,24 +438,25 @@ describe("buildPeginPsbt", () => {
       expect(result1.vaultScriptPubKey).toBe(result2.vaultScriptPubKey);
     });
 
-    it("should produce different vaultScriptPubKey for different liquidators", async () => {
+    it("should produce different vaultScriptPubKey for different vault keepers", async () => {
       const params1: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
-        claimerPubkey: TEST_KEYS.CLAIMER,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         pegInAmount: TEST_AMOUNTS.PEGIN,
         network: "signet",
       };
 
       const params2: PeginParams = {
         ...params1,
-        challengerPubkeys: [TEST_KEYS.LIQUIDATOR_2],
+        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
       };
 
       const result1 = await buildPeginPsbt(params1);
       const result2 = await buildPeginPsbt(params2);
 
-      // Different liquidators should produce different vault scripts
+      // Different vault keepers should produce different vault scripts
       expect(result1.vaultScriptPubKey).not.toBe(result2.vaultScriptPubKey);
     });
   });

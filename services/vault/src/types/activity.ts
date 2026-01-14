@@ -92,7 +92,7 @@ export interface VaultActivity {
   /** Timestamp (for sorting/ordering) - milliseconds since epoch */
   timestamp?: number;
 
-  /** Application controller address (for fetching providers/liquidators) */
+  /** Application controller address (for fetching providers/vault keepers/universal challengers) */
   applicationController?: string;
 }
 

@@ -24,12 +24,33 @@ vi.mock("../../../config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("testnet"),
 }));
 
+import type { ClaimerTransactions } from "../../../clients/vault-provider-rpc/types";
 import {
-  extractLiquidatorPubkeysFromGraph,
-  getSortedLiquidatorPubkeys,
+  getSortedUniversalChallengerPubkeys,
+  getSortedVaultKeeperPubkeys,
   prepareTransactionsForSigning,
   validatePayoutSignatureParams,
 } from "../vaultPayoutSignatureService";
+
+/**
+ * Helper to create a valid ClaimerTransactions fixture with all 4 transactions
+ */
+function createClaimerTransactions(
+  claimerPubkey: string,
+  overrides?: Partial<ClaimerTransactions>,
+): ClaimerTransactions {
+  return {
+    claimer_pubkey: claimerPubkey,
+    claim_tx: { tx_hex: "claim_hex", sighash: null },
+    payout_optimistic_tx: {
+      tx_hex: "payout_optimistic_hex",
+      sighash: "sighash1",
+    },
+    assert_tx: { tx_hex: "assert_hex", sighash: null },
+    payout_tx: { tx_hex: "payout_hex", sighash: "sighash2" },
+    ...overrides,
+  };
+}
 
 describe("vaultPayoutSignatureService", () => {
   describe("validatePayoutSignatureParams", () => {
@@ -38,18 +59,13 @@ describe("vaultPayoutSignatureService", () => {
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       depositorBtcPubkey:
         "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-      claimerTransactions: [
-        {
-          claimer_pubkey: "abc",
-          payout_tx: { tx_hex: "hex" },
-          claim_tx: { tx_hex: "hex" },
-        },
-      ],
+      claimerTransactions: [createClaimerTransactions("abc")],
       vaultProvider: {
         address: "0x123" as `0x${string}`,
         url: "http://localhost:8080",
       },
-      liquidators: [{ btcPubKey: "0xabc" }],
+      vaultKeepers: [{ btcPubKey: "0xabc" }],
+      universalChallengers: [{ btcPubKey: "0xdef" }],
     };
 
     it("should pass with valid params", () => {
@@ -107,90 +123,67 @@ describe("vaultPayoutSignatureService", () => {
       ).toThrow("Invalid vaultProvider");
     });
 
-    it("should throw for empty liquidators", () => {
+    it("should throw for empty vaultKeepers", () => {
       expect(() =>
         validatePayoutSignatureParams({
           ...validParams,
-          liquidators: [],
+          vaultKeepers: [],
         }),
-      ).toThrow("Invalid liquidators");
+      ).toThrow("Invalid vaultKeepers");
+    });
+
+    it("should throw for empty universalChallengers", () => {
+      expect(() =>
+        validatePayoutSignatureParams({
+          ...validParams,
+          universalChallengers: [],
+        }),
+      ).toThrow("Invalid universalChallengers");
     });
   });
 
-  describe("extractLiquidatorPubkeysFromGraph", () => {
-    const fallbackPubkeys = ["fallback1", "fallback2"];
-
-    it("should return fallback when graphJson is null", () => {
-      const result = extractLiquidatorPubkeysFromGraph(null, fallbackPubkeys);
-      expect(result).toEqual(fallbackPubkeys);
-    });
-
-    it("should return fallback when graphJson is invalid JSON", () => {
-      const result = extractLiquidatorPubkeysFromGraph(
-        "invalid json",
-        fallbackPubkeys,
-      );
-      expect(result).toEqual(fallbackPubkeys);
-    });
-
-    it("should return fallback when liquidator_pubkeys is missing", () => {
-      const result = extractLiquidatorPubkeysFromGraph(
-        JSON.stringify({ other: "data" }),
-        fallbackPubkeys,
-      );
-      expect(result).toEqual(fallbackPubkeys);
-    });
-
-    it("should return fallback when liquidator_pubkeys is not an array", () => {
-      const result = extractLiquidatorPubkeysFromGraph(
-        JSON.stringify({ liquidator_pubkeys: "not array" }),
-        fallbackPubkeys,
-      );
-      expect(result).toEqual(fallbackPubkeys);
-    });
-
-    it("should extract and strip 0x prefix from liquidator pubkeys", () => {
-      const graphJson = JSON.stringify({
-        liquidator_pubkeys: ["0xabc123", "0xdef456"],
-      });
-      const result = extractLiquidatorPubkeysFromGraph(
-        graphJson,
-        fallbackPubkeys,
-      );
-      expect(result).toEqual(["abc123", "def456"]);
-    });
-
-    it("should handle pubkeys without 0x prefix", () => {
-      const graphJson = JSON.stringify({
-        liquidator_pubkeys: ["abc123", "def456"],
-      });
-      const result = extractLiquidatorPubkeysFromGraph(
-        graphJson,
-        fallbackPubkeys,
-      );
-      expect(result).toEqual(["abc123", "def456"]);
-    });
-  });
-
-  describe("getSortedLiquidatorPubkeys", () => {
-    it("should return empty array for empty liquidators", () => {
-      const result = getSortedLiquidatorPubkeys([]);
+  describe("getSortedVaultKeeperPubkeys", () => {
+    it("should return empty array for empty vault keepers", () => {
+      const result = getSortedVaultKeeperPubkeys([]);
       expect(result).toEqual([]);
     });
 
     it("should strip 0x prefix and sort pubkeys", () => {
-      const liquidators = [
+      const vaultKeepers = [
         { btcPubKey: "0xdef" },
         { btcPubKey: "0xabc" },
         { btcPubKey: "0xghi" },
       ];
-      const result = getSortedLiquidatorPubkeys(liquidators);
+      const result = getSortedVaultKeeperPubkeys(vaultKeepers);
       expect(result).toEqual(["abc", "def", "ghi"]);
     });
 
     it("should handle pubkeys without 0x prefix", () => {
-      const liquidators = [{ btcPubKey: "zzz" }, { btcPubKey: "aaa" }];
-      const result = getSortedLiquidatorPubkeys(liquidators);
+      const vaultKeepers = [{ btcPubKey: "zzz" }, { btcPubKey: "aaa" }];
+      const result = getSortedVaultKeeperPubkeys(vaultKeepers);
+      expect(result).toEqual(["aaa", "zzz"]);
+    });
+  });
+
+  describe("getSortedUniversalChallengerPubkeys", () => {
+    it("should return empty array for empty universal challengers", () => {
+      const result = getSortedUniversalChallengerPubkeys([]);
+      expect(result).toEqual([]);
+    });
+
+    it("should strip 0x prefix and sort pubkeys", () => {
+      const universalChallengers = [
+        { btcPubKey: "0xdef" },
+        { btcPubKey: "0xabc" },
+        { btcPubKey: "0xghi" },
+      ];
+      const result = getSortedUniversalChallengerPubkeys(universalChallengers);
+      expect(result).toEqual(["abc", "def", "ghi"]);
+    });
+
+    it("should handle pubkeys without 0x prefix", () => {
+      const universalChallengers = [{ btcPubKey: "zzz" }, { btcPubKey: "aaa" }];
+      const result = getSortedUniversalChallengerPubkeys(universalChallengers);
       expect(result).toEqual(["aaa", "zzz"]);
     });
   });
@@ -201,20 +194,32 @@ describe("vaultPayoutSignatureService", () => {
       expect(result).toEqual([]);
     });
 
-    it("should extract claimerPubkeyXOnly, payoutTxHex, and claimTxHex", () => {
+    it("should extract all transaction fields", () => {
       const transactions = [
-        {
-          claimer_pubkey:
-            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          payout_tx: { tx_hex: "payout_hex_1" },
-          claim_tx: { tx_hex: "claim_hex_1" },
-        },
-        {
-          claimer_pubkey:
-            "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-          payout_tx: { tx_hex: "payout_hex_2" },
-          claim_tx: { tx_hex: "claim_hex_2" },
-        },
+        createClaimerTransactions(
+          "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          {
+            claim_tx: { tx_hex: "claim_hex_1", sighash: null },
+            payout_optimistic_tx: {
+              tx_hex: "payout_optimistic_hex_1",
+              sighash: "sig1",
+            },
+            assert_tx: { tx_hex: "assert_hex_1", sighash: null },
+            payout_tx: { tx_hex: "payout_hex_1", sighash: "sig2" },
+          },
+        ),
+        createClaimerTransactions(
+          "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+          {
+            claim_tx: { tx_hex: "claim_hex_2", sighash: null },
+            payout_optimistic_tx: {
+              tx_hex: "payout_optimistic_hex_2",
+              sighash: "sig3",
+            },
+            assert_tx: { tx_hex: "assert_hex_2", sighash: null },
+            payout_tx: { tx_hex: "payout_hex_2", sighash: "sig4" },
+          },
+        ),
       ];
 
       const result = prepareTransactionsForSigning(transactions);
@@ -223,26 +228,27 @@ describe("vaultPayoutSignatureService", () => {
       expect(result[0]).toEqual({
         claimerPubkeyXOnly:
           "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        payoutOptimisticTxHex: "payout_optimistic_hex_1",
         payoutTxHex: "payout_hex_1",
         claimTxHex: "claim_hex_1",
+        assertTxHex: "assert_hex_1",
       });
       expect(result[1]).toEqual({
         claimerPubkeyXOnly:
           "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        payoutOptimisticTxHex: "payout_optimistic_hex_2",
         payoutTxHex: "payout_hex_2",
         claimTxHex: "claim_hex_2",
+        assertTxHex: "assert_hex_2",
       });
     });
 
     it("should convert 66-char pubkey to 64-char x-only format", () => {
       const transactions = [
-        {
+        createClaimerTransactions(
           // 66 chars (33 bytes with prefix)
-          claimer_pubkey:
-            "021234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          payout_tx: { tx_hex: "payout" },
-          claim_tx: { tx_hex: "claim" },
-        },
+          "021234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        ),
       ];
 
       const result = prepareTransactionsForSigning(transactions);

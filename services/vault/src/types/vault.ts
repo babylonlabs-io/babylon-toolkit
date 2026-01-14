@@ -49,6 +49,14 @@ export interface Vault {
   /** Application controller address (immutable, set at creation) */
   applicationController: Address;
 
+  // === Version fields (locked at vault creation for payout signing) ===
+
+  /** Version of vault keepers when vault was created */
+  appVaultKeepersVersion: number;
+
+  /** Version of universal challengers when vault was created */
+  universalChallengersVersion: number;
+
   // === Timestamps ===
 
   /** Timestamp when vault was created (pendingAt from indexer) */

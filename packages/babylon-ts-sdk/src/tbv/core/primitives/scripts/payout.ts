@@ -20,7 +20,8 @@ import {
 export interface PayoutScriptParams {
   depositor: string;
   vaultProvider: string;
-  liquidators: string[];
+  vaultKeepers: string[];
+  universalChallengers: string[];
   network: Network;
 }
 
@@ -52,7 +53,8 @@ export async function createPayoutScript(
     {
       depositor: params.depositor,
       vaultProvider: params.vaultProvider,
-      liquidators: params.liquidators,
+      vaultKeepers: params.vaultKeepers,
+      universalChallengers: params.universalChallengers,
     },
     params.network,
   );

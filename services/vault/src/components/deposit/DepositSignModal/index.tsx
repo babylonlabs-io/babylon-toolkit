@@ -52,7 +52,8 @@ interface CollateralDepositSignModalProps {
   selectedApplication: string;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
-  liquidatorBtcPubkeys: string[]; // Liquidators' BTC public keys from API
+  vaultKeeperBtcPubkeys: string[]; // Vault keepers' BTC public keys from API
+  universalChallengerBtcPubkeys: string[]; // Universal challengers' BTC public keys from API
   onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
 }
 
@@ -73,7 +74,8 @@ export function CollateralDepositSignModal({
   selectedApplication,
   selectedProviders,
   vaultProviderBtcPubkey,
-  liquidatorBtcPubkeys,
+  vaultKeeperBtcPubkeys,
+  universalChallengerBtcPubkeys,
   onRefetchActivities,
 }: CollateralDepositSignModalProps) {
   // Track previous open state to detect transitions
@@ -89,7 +91,8 @@ export function CollateralDepositSignModal({
       selectedApplication,
       selectedProviders,
       vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
       onSuccess: (
         btcTxid: string,
         ethTxHash: string,

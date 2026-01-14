@@ -60,15 +60,18 @@ export interface PayoutParams {
 
   /**
    * Vault provider's BTC public key (x-only, 64-char hex)
-   * Also referred to as "claimer" in the WASM layer
    */
   vaultProviderBtcPubkey: string;
 
   /**
-   * Liquidator BTC public keys (x-only, 64-char hex)
-   * Also referred to as "challengers" in the WASM layer
+   * Vault keeper BTC public keys (x-only, 64-char hex)
    */
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+
+  /**
+   * Universal challenger BTC public keys (x-only, 64-char hex)
+   */
+  universalChallengerBtcPubkeys: string[];
 
   /**
    * Bitcoin network
@@ -106,7 +109,8 @@ export interface PayoutPsbtResult {
  *   peginTxHex: '0200000...',
  *   depositorBtcPubkey: 'abc123...',
  *   vaultProviderBtcPubkey: 'def456...',
- *   liquidatorBtcPubkeys: ['ghi789...'],
+ *   vaultKeeperBtcPubkeys: ['ghi789...'],
+ *   universalChallengerBtcPubkeys: ['jkl012...'],
  *   network: 'testnet',
  * });
  *
@@ -128,7 +132,8 @@ export async function buildPayoutPsbt(
   const payoutConnector = await createPayoutScript({
     depositor: params.depositorBtcPubkey,
     vaultProvider: params.vaultProviderBtcPubkey,
-    liquidators: params.liquidatorBtcPubkeys,
+    vaultKeepers: params.vaultKeeperBtcPubkeys,
+    universalChallengers: params.universalChallengerBtcPubkeys,
     network: params.network,
   });
 

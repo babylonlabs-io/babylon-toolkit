@@ -21,7 +21,7 @@ import {
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
-  signSingleTransaction,
+  signSingleClaimerTransactions,
   submitSignaturesToVaultProvider,
   validatePayoutSignatureParams,
 } from "../../../services/vault/vaultPayoutSignatureService";
@@ -75,9 +75,8 @@ export function usePayoutSigningState({
   const [error, setError] = useState<SigningError | null>(null);
 
   // Get providers for the activity's application
-  const { findProvider, liquidators } = useVaultProviders(
-    activity.applicationController,
-  );
+  const { findProvider, vaultKeepers, universalChallengers } =
+    useVaultProviders(activity.applicationController);
   const btcConnector = useChainConnector("BTC");
 
   // Get optimistic update from polling context
@@ -123,7 +122,10 @@ export function usePayoutSigningState({
         url: provider.url,
         btcPubKey: provider.btcPubKey,
       },
-      liquidators,
+      vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
+      universalChallengers: universalChallengers.map((uc) => ({
+        btcPubKey: uc.btcPubKey,
+      })),
     };
 
     // Validate inputs
@@ -133,7 +135,8 @@ export function usePayoutSigningState({
         depositorBtcPubkey: btcPublicKey,
         claimerTransactions: transactions,
         vaultProvider: providers.vaultProvider,
-        liquidators: providers.liquidators,
+        vaultKeepers: providers.vaultKeepers,
+        universalChallengers: providers.universalChallengers,
       });
     } catch (err) {
       setError(formatPayoutSignatureError(err));
@@ -155,12 +158,15 @@ export function usePayoutSigningState({
 
       // Prepare transactions for signing
       const preparedTransactions = prepareTransactionsForSigning(transactions);
-      const signatures: Record<string, string> = {};
+      const signatures: Record<
+        string,
+        { payout_optimistic_signature: string; payout_signature: string }
+      > = {};
 
       // Sign each transaction with progress tracking
       for (let i = 0; i < preparedTransactions.length; i++) {
         const tx = preparedTransactions[i];
-        signatures[tx.claimerPubkeyXOnly] = await signSingleTransaction(
+        signatures[tx.claimerPubkeyXOnly] = await signSingleClaimerTransactions(
           btcWalletProvider,
           context,
           tx,
@@ -205,7 +211,8 @@ export function usePayoutSigningState({
     activity.txHash,
     activity.id,
     findProvider,
-    liquidators,
+    vaultKeepers,
+    universalChallengers,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,

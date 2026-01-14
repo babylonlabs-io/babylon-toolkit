@@ -3,68 +3,141 @@ import { gql } from "graphql-request";
 import { graphqlClient } from "../../clients/graphql";
 import { getVaultProviderMetadata } from "../../registry";
 import type {
-  Liquidator,
   ProvidersResponse,
+  UniversalChallenger,
+  VaultKeeper,
   VaultProvider,
 } from "../../types/vaultProvider";
 
-/** GraphQL response shape for vault providers and liquidators query */
+/** GraphQL response shape for vault providers, vault keepers, and universal challengers */
 interface GraphQLProvidersResponse {
   vaultProviders: {
     items: Array<{
       id: string;
       btcPubKey: string;
-      status: string;
     }>;
   };
-  liquidatorApplications: {
+  vaultKeeperApplications: {
     items: Array<{
-      liquidator: string;
-      liquidatorInfo: {
+      vaultKeeper: string;
+      version: number;
+      vaultKeeperInfo: {
         btcPubKey: string;
       };
     }>;
   };
+  universalChallengers: {
+    items: Array<{
+      id: string;
+      btcPubKey: string;
+      version: number;
+    }>;
+  };
 }
 
-const GET_PROVIDERS_AND_LIQUIDATORS = gql`
-  query GetProvidersAndLiquidators($appController: String!) {
+/** GraphQL response for versioned keepers/challengers query */
+interface VersionedKeepersChallengersResponse {
+  vaultKeeperApplications: {
+    items: Array<{
+      vaultKeeper: string;
+      version: number;
+      vaultKeeperInfo: {
+        btcPubKey: string;
+      };
+    }>;
+  };
+  universalChallengers: {
+    items: Array<{
+      id: string;
+      btcPubKey: string;
+      version: number;
+    }>;
+  };
+}
+
+const GET_PROVIDERS_AND_KEEPERS = gql`
+  query GetProvidersAndKeepers($appController: String!) {
     vaultProviders(where: { applicationController: $appController }) {
       items {
         id
         btcPubKey
-        status
       }
     }
-    liquidatorApplications(where: { applicationController: $appController }) {
+    vaultKeeperApplications(where: { applicationController: $appController }) {
       items {
-        liquidator
-        liquidatorInfo {
+        vaultKeeper
+        version
+        vaultKeeperInfo {
           btcPubKey
         }
+      }
+    }
+    universalChallengers {
+      items {
+        id
+        btcPubKey
+        version
       }
     }
   }
 `;
 
 /**
- * Fetches vault providers and liquidators for a specific application.
+ * GraphQL query to fetch vault keepers and universal challengers by version.
+ * Used for payout signing where we need the keepers/challengers that were
+ * active when the vault was created.
+ */
+const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
+  query GetKeepersAndChallengersByVersion(
+    $appController: String!
+    $keepersVersion: Int!
+    $challengersVersion: Int!
+  ) {
+    vaultKeeperApplications(
+      where: {
+        applicationController: $appController
+        version_lte: $keepersVersion
+      }
+    ) {
+      items {
+        vaultKeeper
+        version
+        vaultKeeperInfo {
+          btcPubKey
+        }
+      }
+    }
+    universalChallengers(where: { version_lte: $challengersVersion }) {
+      items {
+        id
+        btcPubKey
+        version
+      }
+    }
+  }
+`;
+
+/**
+ * Fetches vault providers, vault keepers, and universal challengers for a specific application.
  *
- * Uses a single GraphQL query with nested relation to fetch both vault providers
- * and liquidators (with their BTC public keys) in one request.
+ * Uses a single GraphQL query to fetch:
+ * - Vault providers (per-application)
+ * - Vault keepers (per-application)
+ * - Universal challengers (system-wide)
  *
  * @param applicationController - The application controller address to filter by.
- * @returns Object containing vaultProviders and liquidators arrays
+ * @returns Object containing vaultProviders, vaultKeepers, and universalChallengers arrays
  */
 export async function fetchProviders(
   applicationController: string,
 ): Promise<ProvidersResponse> {
   const response = await graphqlClient.request<GraphQLProvidersResponse>(
-    GET_PROVIDERS_AND_LIQUIDATORS,
+    GET_PROVIDERS_AND_KEEPERS,
     { appController: applicationController.toLowerCase() },
   );
 
   // Transform vault providers with metadata from registry
+  // Note: All providers are immediately active upon registration
   const vaultProviders: VaultProvider[] = response.vaultProviders.items.map(
     (provider) => {
       const metadata = getVaultProviderMetadata(provider.id);
@@ -72,43 +145,95 @@ export async function fetchProviders(
       return {
         id: provider.id,
         btcPubKey: provider.btcPubKey,
-        status: provider.status,
         url: metadata.url,
       };
     },
   );
 
-  // Extract liquidators with btcPubKey from nested relation
-  const liquidators: Liquidator[] = response.liquidatorApplications.items.map(
-    (item) => ({
-      id: item.liquidator,
-      btcPubKey: item.liquidatorInfo.btcPubKey,
-    }),
-  );
+  // Extract vault keepers with btcPubKey from nested relation
+  const vaultKeepers: VaultKeeper[] =
+    response.vaultKeeperApplications.items.map((item) => ({
+      id: item.vaultKeeper,
+      btcPubKey: item.vaultKeeperInfo.btcPubKey,
+    }));
+
+  // Extract universal challengers (system-wide)
+  const universalChallengers: UniversalChallenger[] =
+    response.universalChallengers.items.map((item) => ({
+      id: item.id,
+      btcPubKey: item.btcPubKey,
+    }));
 
   return {
     vaultProviders,
-    liquidators,
+    vaultKeepers,
+    universalChallengers,
   };
 }
 
 /**
- * Fetches only active vault providers and liquidators for a specific application.
+ * Fetches only active vault providers along with vault keepers and universal challengers.
+ *
+ * Note: All providers are immediately active upon registration, so this is equivalent
+ * to fetchProviders(). Kept for backwards compatibility.
  *
  * @param applicationController - The application controller address to filter by.
- * @returns Object containing active vaultProviders and liquidators arrays
+ * @returns Object containing vaultProviders, vaultKeepers, and universalChallengers
  */
 export async function fetchActiveProviders(
   applicationController: string,
 ): Promise<ProvidersResponse> {
-  const { vaultProviders, liquidators } = await fetchProviders(
-    applicationController,
-  );
+  // All providers are immediately active upon registration (no pending state)
+  return fetchProviders(applicationController);
+}
+
+/** Response from fetchKeepersAndChallengersByVersion */
+export interface VersionedKeepersChallengersResult {
+  vaultKeepers: VaultKeeper[];
+  universalChallengers: UniversalChallenger[];
+}
+
+/**
+ * Fetches vault keepers and universal challengers that were active at specific versions.
+ * Used for payout signing where we need the keepers/challengers that were
+ * locked when the vault was created.
+ *
+ * @param applicationController - The application controller address
+ * @param appVaultKeepersVersion - The vault keepers version locked at vault creation
+ * @param universalChallengersVersion - The universal challengers version locked at vault creation
+ * @returns Object containing vaultKeepers and universalChallengers for those versions
+ */
+export async function fetchKeepersAndChallengersByVersion(
+  applicationController: string,
+  appVaultKeepersVersion: number,
+  universalChallengersVersion: number,
+): Promise<VersionedKeepersChallengersResult> {
+  const response =
+    await graphqlClient.request<VersionedKeepersChallengersResponse>(
+      GET_KEEPERS_CHALLENGERS_BY_VERSION,
+      {
+        appController: applicationController.toLowerCase(),
+        keepersVersion: appVaultKeepersVersion,
+        challengersVersion: universalChallengersVersion,
+      },
+    );
+
+  // Extract vault keepers with btcPubKey from nested relation
+  const vaultKeepers: VaultKeeper[] =
+    response.vaultKeeperApplications.items.map((item) => ({
+      id: item.vaultKeeper,
+      btcPubKey: item.vaultKeeperInfo.btcPubKey,
+    }));
+
+  // Extract universal challengers
+  const universalChallengers: UniversalChallenger[] =
+    response.universalChallengers.items.map((item) => ({
+      id: item.id,
+      btcPubKey: item.btcPubKey,
+    }));
 
   return {
-    vaultProviders: vaultProviders.filter(
-      (provider) => provider.status === "active",
-    ),
-    liquidators,
+    vaultKeepers,
+    universalChallengers,
   };
 }

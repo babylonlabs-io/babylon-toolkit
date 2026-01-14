@@ -23,8 +23,9 @@ describe("createPayoutScript", () => {
     it("should create a valid payout script for signet", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -58,8 +59,9 @@ describe("createPayoutScript", () => {
       for (const network of networks) {
         const params: PayoutScriptParams = {
           depositor: TEST_KEYS.DEPOSITOR,
-          vaultProvider: TEST_KEYS.CLAIMER,
-          liquidators: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           network,
         };
 
@@ -81,11 +83,32 @@ describe("createPayoutScript", () => {
       }
     });
 
-    it("should handle multiple liquidators", async () => {
+    it("should handle multiple vault keepers", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        network: "signet",
+      };
+
+      const result = await createPayoutScript(params);
+
+      expect(result.payoutScript).toBeDefined();
+      expect(result.taprootScriptHash).toBeDefined();
+      expect(result.scriptPubKey).toBeDefined();
+      expect(result.address).toBeDefined();
+    });
+
+    it("should handle multiple universal challengers", async () => {
+      const params: PayoutScriptParams = {
+        depositor: TEST_KEYS.DEPOSITOR,
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [
+          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+        ],
         network: "signet",
       };
 
@@ -102,8 +125,9 @@ describe("createPayoutScript", () => {
     it("should produce same output as calling WASM directly", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -115,7 +139,8 @@ describe("createPayoutScript", () => {
         {
           depositor: params.depositor,
           vaultProvider: params.vaultProvider,
-          liquidators: params.liquidators,
+          vaultKeepers: params.vaultKeepers,
+          universalChallengers: params.universalChallengers,
         },
         params.network,
       );
@@ -132,8 +157,9 @@ describe("createPayoutScript", () => {
     it("should produce the same result for the same inputs", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -149,14 +175,15 @@ describe("createPayoutScript", () => {
     it("should produce different results for different depositors", async () => {
       const params1: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
       const params2: PayoutScriptParams = {
         ...params1,
-        depositor: TEST_KEYS.CLAIMER, // Different depositor
+        depositor: TEST_KEYS.VAULT_PROVIDER, // Different depositor
       };
 
       const result1 = await createPayoutScript(params1);
@@ -171,14 +198,15 @@ describe("createPayoutScript", () => {
     it("should produce different results for different vault providers", async () => {
       const params1: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
       const params2: PayoutScriptParams = {
         ...params1,
-        vaultProvider: TEST_KEYS.LIQUIDATOR_1, // Different vault provider
+        vaultProvider: TEST_KEYS.VAULT_KEEPER_1, // Different vault provider
       };
 
       const result1 = await createPayoutScript(params1);
@@ -190,17 +218,18 @@ describe("createPayoutScript", () => {
       expect(result1.address).not.toBe(result2.address);
     });
 
-    it("should produce different results for different liquidators", async () => {
+    it("should produce different results for different vault keepers", async () => {
       const params1: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
       const params2: PayoutScriptParams = {
         ...params1,
-        liquidators: [TEST_KEYS.LIQUIDATOR_2],
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_2],
       };
 
       const result1 = await createPayoutScript(params1);
@@ -214,26 +243,44 @@ describe("createPayoutScript", () => {
   });
 
   describe("Edge cases", () => {
-    it("should reject empty liquidator array", async () => {
+    it("should reject empty vault keepers array", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
-      // Should reject empty liquidator array
+      // Should reject empty vault keepers array
+      await expect(createPayoutScript(params)).rejects.toThrow();
+    });
+
+    it("should reject empty universal challengers array", async () => {
+      const params: PayoutScriptParams = {
+        depositor: TEST_KEYS.DEPOSITOR,
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [],
+        network: "signet",
+      };
+
+      // Should reject empty universal challengers array
       await expect(createPayoutScript(params)).rejects.toThrow();
     });
   });
 
   describe("Real-world scenario", () => {
     it("should create a payout script for a realistic vault scenario", async () => {
-      // Realistic scenario: Vault with 2 liquidators
+      // Realistic scenario: Vault with 2 vault keepers and 2 universal challengers
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengers: [
+          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
+          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+        ],
         network: "signet",
       };
 
@@ -261,8 +308,9 @@ describe("createPayoutScript", () => {
     it("should enforce Network type", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -275,8 +323,9 @@ describe("createPayoutScript", () => {
     it("should reject invalid depositor pubkey format", async () => {
       const params: PayoutScriptParams = {
         depositor: "invalid-pubkey",
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -287,18 +336,20 @@ describe("createPayoutScript", () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
         vaultProvider: "not-a-valid-hex-key-123",
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
       await expect(createPayoutScript(params)).rejects.toThrow();
     });
 
-    it("should reject invalid liquidator pubkey in array", async () => {
+    it("should reject invalid vault keeper pubkey in array", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: ["zzzzinvalidhexzzzz"],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: ["zzzzinvalidhexzzzz"],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -308,8 +359,9 @@ describe("createPayoutScript", () => {
     it("should reject invalid network string", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "invalid-network" as Network,
       };
 
@@ -319,8 +371,9 @@ describe("createPayoutScript", () => {
     it("should reject pubkey with incorrect length", async () => {
       const params: PayoutScriptParams = {
         depositor: "abcd1234", // Too short
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -330,8 +383,9 @@ describe("createPayoutScript", () => {
     it("should reject pubkey with non-hex characters", async () => {
       const params: PayoutScriptParams = {
         depositor: "g".repeat(64), // 'g' is not a valid hex character
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -343,8 +397,9 @@ describe("createPayoutScript", () => {
     it("should produce valid hex-encoded payout script", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -357,8 +412,9 @@ describe("createPayoutScript", () => {
     it("should produce valid taproot script hash", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -374,8 +430,9 @@ describe("createPayoutScript", () => {
     it("should produce valid script pubkey", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -388,8 +445,9 @@ describe("createPayoutScript", () => {
     it("should produce deterministic taproot script hash for same inputs", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet",
       };
 
@@ -405,8 +463,9 @@ describe("createPayoutScript", () => {
     it("should produce bitcoin mainnet addresses with bc1p prefix", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "bitcoin",
       };
 
@@ -418,8 +477,9 @@ describe("createPayoutScript", () => {
     it("should produce testnet addresses with tb1p prefix", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "testnet",
       };
 
@@ -431,8 +491,9 @@ describe("createPayoutScript", () => {
     it("should produce regtest addresses with bcrt1p prefix", async () => {
       const params: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "regtest",
       };
 
@@ -444,8 +505,9 @@ describe("createPayoutScript", () => {
     it("should produce same script for different networks", async () => {
       const params1: PayoutScriptParams = {
         depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.CLAIMER,
-        liquidators: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "bitcoin",
       };
 

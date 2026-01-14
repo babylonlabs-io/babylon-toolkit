@@ -12,7 +12,7 @@ import type { Hex } from "viem";
 import { VaultProviderRpcApi } from "../../services/vault";
 import type {
   ClaimerTransactions,
-  RequestClaimAndPayoutTransactionsResponse,
+  RequestDepositorPresignTransactionsResponse,
 } from "../../types";
 import { stripHexPrefix } from "../../utils/btc";
 
@@ -117,8 +117,8 @@ export function usePendingPeginTxPolling(
         // Request claim and payout transactions
         // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
         // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
-        const response = await rpcClient.requestClaimAndPayoutTransactions({
-          pegin_tx_id: stripHexPrefix(params.peginTxId),
+        const response = await rpcClient.requestDepositorPresignTransactions({
+          pegin_txid: stripHexPrefix(params.peginTxId),
           depositor_pk: params.depositorBtcPubkey,
         });
 
@@ -177,7 +177,7 @@ export function usePendingPeginTxPolling(
  * @returns true if all transactions have both claim_tx and payout_tx
  */
 function areTransactionsReady(
-  response: RequestClaimAndPayoutTransactionsResponse,
+  response: RequestDepositorPresignTransactionsResponse,
 ): boolean {
   if (!response.txs || response.txs.length === 0) {
     return false;

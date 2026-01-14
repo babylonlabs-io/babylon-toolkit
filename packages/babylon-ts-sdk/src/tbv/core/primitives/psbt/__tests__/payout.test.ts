@@ -152,8 +152,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -199,8 +200,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -237,8 +239,9 @@ describe("buildPayoutPsbt", () => {
           peginTxHex,
           claimTxHex,
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           network,
         };
 
@@ -263,8 +266,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -298,8 +302,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -334,8 +339,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 
@@ -356,8 +362,9 @@ describe("buildPayoutPsbt", () => {
         peginTxHex,
         claimTxHex,
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         network: "signet" as Network,
       };
 

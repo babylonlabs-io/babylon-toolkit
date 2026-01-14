@@ -20,7 +20,8 @@ interface DepositModalsProps {
   btcWalletProvider: unknown;
   ethAddress: Address | undefined;
   selectedProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
   onClose: () => void;
   onConfirmReview: (feeRate: number) => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
@@ -36,7 +37,8 @@ export function DepositModals({
   btcWalletProvider,
   ethAddress,
   selectedProviderBtcPubkey,
-  liquidatorBtcPubkeys,
+  vaultKeeperBtcPubkeys,
+  universalChallengerBtcPubkeys,
   onClose,
   onConfirmReview,
   onSignSuccess,
@@ -65,7 +67,8 @@ export function DepositModals({
           selectedApplication={selectedApplication}
           selectedProviders={selectedProviders}
           vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+          vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+          universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
           onRefetchActivities={onRefetchActivities}
         />
       )}
