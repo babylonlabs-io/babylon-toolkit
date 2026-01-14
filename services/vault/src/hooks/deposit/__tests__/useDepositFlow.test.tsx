@@ -78,6 +78,10 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
 
+vi.mock("@/services/vault/utxoReservation", () => ({
+  getReservedUtxoRefs: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   submitPeginRequest: vi.fn().mockResolvedValue({
     btcTxHash: "0xmocktxid123",

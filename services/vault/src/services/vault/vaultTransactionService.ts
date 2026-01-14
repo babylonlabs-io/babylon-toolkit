@@ -16,6 +16,8 @@ import { executeWrite } from "../../clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
+import { filterUtxos, utxoRefToKey, type UtxoRef } from "./utxoReservation";
+
 /**
  * UTXO parameters for peg-in transaction
  */
@@ -46,6 +48,8 @@ export interface SubmitPeginParams {
   /** Universal challenger BTC public keys (system-wide) */
   universalChallengerBtcPubkeys: string[];
   availableUTXOs: UTXO[];
+  /** UTXOs to avoid (from in-flight deposits). Falls back to using them if needed. */
+  avoidUtxoRefs?: UtxoRef[];
   /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
    * Useful for updating UI step indicators between Step 1 (PoP) and Step 2 (ETH).
