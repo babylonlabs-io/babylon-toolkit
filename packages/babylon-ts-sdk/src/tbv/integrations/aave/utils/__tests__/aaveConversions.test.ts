@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { aaveValueToUsd, wadToNumber } from "../aaveConversions";
+import { aaveValueToUsd, wadToNumber } from "../aaveConversions.js";
 
 describe("aaveConversions", () => {
   describe("aaveValueToUsd", () => {

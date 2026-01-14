@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculateTotalVaultAmount,
   selectVaultsForAmount,
-} from "../vaultSelection";
+} from "../vaultSelection.js";
 
 describe("vaultSelection utils", () => {
   describe("selectVaultsForAmount", () => {

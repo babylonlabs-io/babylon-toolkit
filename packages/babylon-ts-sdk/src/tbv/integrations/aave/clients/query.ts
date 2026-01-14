@@ -29,44 +29,39 @@ export async function getPosition(
   contractAddress: Address,
   positionId: Hex,
 ): Promise<AaveMarketPosition | null> {
-  try {
-    const result = await publicClient.readContract({
-      address: contractAddress,
-      abi: AaveIntegrationControllerABI,
-      functionName: "getPosition",
-      args: [positionId],
-    });
+  const result = await publicClient.readContract({
+    address: contractAddress,
+    abi: AaveIntegrationControllerABI,
+    functionName: "getPosition",
+    args: [positionId],
+  });
 
-    type PositionResult = {
-      depositor: {
-        ethAddress: Address;
-        btcPubKey: Hex;
-      };
-      reserveId: bigint;
-      proxyContract: Address;
-      vaultIds: Hex[];
-      totalCollateral: bigint;
+  type PositionResult = {
+    depositor: {
+      ethAddress: Address;
+      btcPubKey: Hex;
     };
+    reserveId: bigint;
+    proxyContract: Address;
+    vaultIds: Hex[];
+    totalCollateral: bigint;
+  };
 
-    const position = result as PositionResult;
+  const position = result as PositionResult;
 
-    // Check if position exists (proxyContract should not be zero address)
-    if (position.proxyContract === ZERO_ADDRESS) {
-      return null;
-    }
-
-    return {
-      depositor: {
-        ethAddress: position.depositor.ethAddress,
-        btcPubKey: position.depositor.btcPubKey,
-      },
-      reserveId: position.reserveId,
-      proxyContract: position.proxyContract,
-      vaultIds: position.vaultIds,
-      totalCollateral: position.totalCollateral,
-    };
-  } catch (error) {
-    console.error(`Failed to get position ${positionId}:`, error);
+  // Check if position exists (proxyContract should not be zero address)
+  if (position.proxyContract === ZERO_ADDRESS) {
     return null;
   }
+
+  return {
+    depositor: {
+      ethAddress: position.depositor.ethAddress,
+      btcPubKey: position.depositor.btcPubKey,
+    },
+    reserveId: position.reserveId,
+    proxyContract: position.proxyContract,
+    vaultIds: position.vaultIds,
+    totalCollateral: position.totalCollateral,
+  };
 }
