@@ -17,12 +17,10 @@ export type Network = "bitcoin" | "testnet" | "regtest" | "signet";
 export interface PegInParams {
   /** X-only public key of the depositor (hex encoded) */
   depositorPubkey: string;
-  /** X-only public key of the vault provider (hex encoded) */
-  vaultProviderPubkey: string;
-  /** Array of x-only public keys of vault keepers (hex encoded) */
-  vaultKeeperPubkeys: string[];
-  /** Array of x-only public keys of universal challengers (hex encoded) */
-  universalChallengerPubkeys: string[];
+  /** X-only public key of the claimer/vault provider (hex encoded) */
+  claimerPubkey: string;
+  /** Array of x-only public keys of challengers (hex encoded) */
+  challengerPubkeys: string[];
   /** Amount to peg-in in satoshis */
   pegInAmount: bigint;
   /** Bitcoin network */
@@ -57,10 +55,8 @@ export interface PayoutConnectorParams {
   depositor: string;
   /** X-only public key of the vault provider (hex encoded) */
   vaultProvider: string;
-  /** Array of x-only public keys of vault keepers (hex encoded) */
-  vaultKeepers: string[];
-  /** Array of x-only public keys of universal challengers (hex encoded) */
-  universalChallengers: string[];
+  /** Array of x-only public keys of liquidators (hex encoded) */
+  liquidators: string[];
 }
 
 /**
