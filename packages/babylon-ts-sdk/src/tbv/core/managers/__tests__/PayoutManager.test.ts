@@ -25,7 +25,7 @@ import {
 } from "../../primitives/psbt/__tests__/constants";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
-// Test constants
+// Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
@@ -34,7 +34,7 @@ const TEST_KEYS = {
   VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
   UNIVERSAL_CHALLENGER_1:
-    "d4b83ad4c2b7c8e8b8c1e1c7c8e8b8c1e1c7c8e8b8c1e1c7c8e8b8c1e1c7c8e8",
+    "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
 
 describe("PayoutManager", () => {

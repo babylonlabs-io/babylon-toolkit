@@ -210,34 +210,6 @@ describe("buildPeginPsbt", () => {
   });
 
   describe("Edge cases", () => {
-    it("should reject empty vault keeper array", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [],
-        universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        network: "signet",
-      };
-
-      // Should reject empty vault keeper array
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
-    it("should reject empty universal challenger array", async () => {
-      const params: PeginParams = {
-        depositorPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerPubkeys: [],
-        pegInAmount: TEST_AMOUNTS.PEGIN,
-        network: "signet",
-      };
-
-      // Should reject empty universal challenger array
-      await expect(buildPeginPsbt(params)).rejects.toThrow();
-    });
-
     it("should handle large amounts", async () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,

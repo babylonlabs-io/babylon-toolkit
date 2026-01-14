@@ -116,6 +116,33 @@ vi.mock("@/services/vault", () => ({
   signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock payout signature service to avoid SDK imports triggering initEccLib
+vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
+  prepareSigningContext: vi.fn().mockResolvedValue({
+    context: {
+      peginTxHex: "0xmockhex",
+      vaultProviderBtcPubkey: "0xmockpubkey",
+      vaultKeeperBtcPubkeys: ["0xmockkeeper"],
+      universalChallengerBtcPubkeys: ["0xmockchallenger"],
+      depositorBtcPubkey: "0xmockdepositor",
+      network: "signet",
+    },
+    vaultProviderUrl: "https://vault-provider.test",
+  }),
+  prepareTransactionsForSigning: vi.fn().mockReturnValue([
+    {
+      claimerPubkeyXOnly: "0xmockclaimer",
+      payoutOptimisticTxHex: "0xmockpayoutoptimistic",
+      payoutTxHex: "0xmockpayout",
+      claimTxHex: "0xmockclaim",
+      assertTxHex: "0xmockassert",
+    },
+  ]),
+  signPayoutOptimistic: vi.fn().mockResolvedValue("0xmocksignature1"),
+  signPayout: vi.fn().mockResolvedValue("0xmocksignature2"),
+  submitSignaturesToVaultProvider: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock vault provider RPC
 vi.mock("@/clients/vault-provider-rpc", () => {
   return {

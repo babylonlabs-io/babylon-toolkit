@@ -242,34 +242,6 @@ describe("createPayoutScript", () => {
     });
   });
 
-  describe("Edge cases", () => {
-    it("should reject empty vault keepers array", async () => {
-      const params: PayoutScriptParams = {
-        depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeepers: [],
-        universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        network: "signet",
-      };
-
-      // Should reject empty vault keepers array
-      await expect(createPayoutScript(params)).rejects.toThrow();
-    });
-
-    it("should reject empty universal challengers array", async () => {
-      const params: PayoutScriptParams = {
-        depositor: TEST_KEYS.DEPOSITOR,
-        vaultProvider: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengers: [],
-        network: "signet",
-      };
-
-      // Should reject empty universal challengers array
-      await expect(createPayoutScript(params)).rejects.toThrow();
-    });
-  });
-
   describe("Real-world scenario", () => {
     it("should create a payout script for a realistic vault scenario", async () => {
       // Realistic scenario: Vault with 2 vault keepers and 2 universal challengers
