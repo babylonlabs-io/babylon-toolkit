@@ -10,3 +10,6 @@ dist/tsconfig.lib.tsbuildinfo
 # Temporary build directories
 btc-vault-temp/
 wasm-build-output/
+
+# Rust build artifacts
+rust-src/target/

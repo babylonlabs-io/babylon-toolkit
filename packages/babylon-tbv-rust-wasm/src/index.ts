@@ -46,8 +46,9 @@ export async function createPegInTransaction(
 
   const tx = new WasmPeginTx(
     params.depositorPubkey,
-    params.claimerPubkey,
-    params.challengerPubkeys,
+    params.vaultProviderPubkey,
+    params.vaultKeeperPubkeys,
+    params.universalChallengerPubkeys,
     params.pegInAmount,
     params.network
   );

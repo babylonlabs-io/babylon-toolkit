@@ -1,0 +1,30 @@
+[package]
+name = "babylon-vault-wasm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Minimal WASM bindings for BTC vault PegIn and Payout operations"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+
+[dependencies]
+bitcoin = { version = "0.32", features = ["std", "serde"] }
+bitcoin-script = { git = "https://github.com/BitVM/rust-bitcoin-script" }
+hex = "0.4"
+thiserror = "2.0"
+
+# WASM dependencies
+wasm-bindgen = "0.2"
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+lto = true
+opt-level = "s"
