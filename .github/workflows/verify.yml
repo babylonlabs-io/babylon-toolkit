@@ -39,19 +39,15 @@ jobs:
           fi
 
       - name: Build all
-        # TODO: Remove --exclude flags after ts-sdk interface migration PR is merged
-        run: pnpm exec nx run-many --target=build --all --exclude @babylonlabs-io/ts-sdk --exclude @services/vault
+        run: pnpm build
 
       - name: Lint all
-        # TODO: Remove --exclude flags after ts-sdk interface migration PR is merged
-        run: pnpm exec nx run-many --target=lint --all --verbose --exclude @babylonlabs-io/ts-sdk --exclude @services/vault
+        run: pnpm run lint
 
       - name: Test affected
-        # TODO: Remove --exclude flags after ts-sdk interface migration PR is merged
-        run: pnpm exec nx affected --target=test --base=origin/main --verbose --exclude @babylonlabs-io/ts-sdk --exclude @services/vault
+        run: pnpm exec nx affected --target=test --base=origin/main --verbose
 
-      # TODO: Uncomment after ts-sdk interface migration PR is merged
-      # - name: Validate TypeDoc
-      #   run: |
-      #     cd packages/babylon-ts-sdk
-      #     pnpm docs:validate
+      - name: Validate TypeDoc
+        run: |
+          cd packages/babylon-ts-sdk
+          pnpm docs:validate
