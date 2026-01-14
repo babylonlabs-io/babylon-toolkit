@@ -1,8 +1,7 @@
 // scripts/build-wasm.js
 //
-// Builds a minimal WASM module containing ONLY:
-// - WasmPeginTx (for creating unfunded peg-in transactions)
-// - WasmPeginPayoutConnector (for generating payout scripts)
+// Builds WASM module from btc-vault repository.
+// Exports: WasmPeginTx, WasmPeginPayoutConnector, WasmPayoutTx, WasmPayoutOptimisticTx
 
 import { execFileSync } from 'node:child_process';
 import shell from 'shelljs';
@@ -11,12 +10,18 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const RUST_SRC_DIR = path.join(__dirname, '..', 'rust-src');
+// Configuration - Update these when btc-vault updates
+const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
+const BTC_VAULT_BRANCH = 'new-tx-graph-wasm';
+const BTC_VAULT_COMMIT = '52f3ec98';
+// TODO: When btc-vault merges to main, update branch to 'main' and commit hash
+
+const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
 
 const buildWasm = async () => {
   try {
-    console.log('Building Babylon Vault WASM (minimal - PegIn & PayoutConnector only)...\n');
+    console.log('Building BTC Vault WASM...\n');
 
     // Ensure rustup toolchain is used
     const HOME = process.env.HOME;
@@ -32,7 +37,7 @@ const buildWasm = async () => {
     const rustcPath = rustcPathResult.stdout.trim();
     const rustupBinPath = path.dirname(rustcPath);
 
-    // Setup LLVM for wasm32 target
+    // Setup LLVM for wasm32 target (required for secp256k1-sys compilation)
     let LLVM_BIN_PATH = process.env.LLVM_BIN_PATH;
     if (!LLVM_BIN_PATH) {
       const homebrewLlvmPath = '/opt/homebrew/opt/llvm/bin';
@@ -73,64 +78,137 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Verify rust-src exists
-    if (!shell.test('-d', RUST_SRC_DIR)) {
-      console.error(`Error: Rust source directory not found: ${RUST_SRC_DIR}`);
+    // Verify rustup is being used
+    const verifyRustc = shell
+      .exec('which rustc', { silent: true })
+      .stdout.trim();
+    console.log(`Using rustc from: ${verifyRustc}`);
+
+    // Clean up any previous temp directory
+    if (shell.test('-d', REPO_DIR)) {
+      console.log('Cleaning up previous temp directory...');
+      shell.rm('-rf', REPO_DIR);
+    }
+
+    // Clone the repository
+    // Use execFileSync with argument array to avoid shell command injection
+    console.log(
+      `Cloning btc-vault repository (branch: ${BTC_VAULT_BRANCH})...`,
+    );
+    try {
+      execFileSync(
+        'git',
+        ['clone', '--branch', BTC_VAULT_BRANCH, BTC_VAULT_REPO_URL, REPO_DIR],
+        { stdio: 'inherit' },
+      );
+    } catch {
+      console.error('Error: Failed to clone repository');
       process.exit(1);
     }
 
-    // Build with wasm-pack from local source
-    // Use execFileSync to avoid shell command injection (CodeQL security fix)
-    console.log(`Building WASM from: ${RUST_SRC_DIR}`);
+    // Checkout specific commit
+    // Use execFileSync with argument array to avoid shell command injection
+    console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
     try {
-      execFileSync('wasm-pack', [
-        'build',
-        '--target', 'web',
-        '--scope', 'babylonlabs-io',
-        '--out-dir', OUTPUT_DIR,
-        RUST_SRC_DIR,
-      ], {
+      execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
+        cwd: REPO_DIR,
         stdio: 'inherit',
-        env: {
-          ...process.env,
-          PATH: shell.env.PATH,
-          RUSTUP_HOME: shell.env.RUSTUP_HOME,
-          CC_wasm32_unknown_unknown: shell.env.CC_wasm32_unknown_unknown,
-          AR_wasm32_unknown_unknown: shell.env.AR_wasm32_unknown_unknown,
-        },
       });
     } catch {
-      console.error('Error: wasm-pack build failed');
+      console.error('Error: Failed to checkout commit');
+      shell.rm('-rf', REPO_DIR);
       process.exit(1);
     }
 
-    // Rename output files to match expected names
-    console.log('Renaming output files...');
-    const pkgName = 'babylon_vault_wasm';
-    const targetName = 'btc_vault';
+    // Build with wasm-pack from vault-new crate
+    console.log('Building WASM with wasm-pack from crates/vault-new...');
+    const wasmOutputDir = path.join(REPO_DIR, 'wasm-build-output');
 
-    // Rename files if needed (wasm-pack uses package name)
-    if (shell.test('-f', `${OUTPUT_DIR}/${pkgName}.js`)) {
-      shell.mv(`${OUTPUT_DIR}/${pkgName}.js`, `${OUTPUT_DIR}/${targetName}.js`);
-      shell.mv(`${OUTPUT_DIR}/${pkgName}.d.ts`, `${OUTPUT_DIR}/${targetName}.d.ts`);
-      shell.mv(`${OUTPUT_DIR}/${pkgName}_bg.wasm`, `${OUTPUT_DIR}/${targetName}_bg.wasm`);
-      shell.mv(`${OUTPUT_DIR}/${pkgName}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`);
+    try {
+      execFileSync(
+        'wasm-pack',
+        [
+          'build',
+          '--target',
+          'web',
+          '--scope',
+          'babylonlabs-io',
+          '--out-dir',
+          wasmOutputDir,
+          'crates/vault-new',
+          '--',
+          '--no-default-features',
+          '--features',
+          'wasm',
+        ],
+        {
+          cwd: REPO_DIR,
+          stdio: 'inherit',
+          env: {
+            ...process.env,
+            PATH: shell.env.PATH,
+            RUSTUP_HOME: shell.env.RUSTUP_HOME,
+            CC_wasm32_unknown_unknown: shell.env.CC_wasm32_unknown_unknown,
+            AR_wasm32_unknown_unknown: shell.env.AR_wasm32_unknown_unknown,
+          },
+        },
+      );
+    } catch {
+      console.error('Error: wasm-pack build failed');
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
     }
 
-    // Clean up package.json and .gitignore created by wasm-pack
-    shell.rm('-f', `${OUTPUT_DIR}/package.json`);
-    shell.rm('-f', `${OUTPUT_DIR}/.gitignore`);
+    // Copy generated files to dist/generated
+    console.log('Copying generated files...');
+    shell.rm('-rf', OUTPUT_DIR);
+    shell.mkdir('-p', OUTPUT_DIR);
+
+    // The output files are named btc_vault_new (from package name)
+    // Rename to btc_vault for consistency
+    const srcName = 'btc_vault_new';
+    const targetName = 'btc_vault';
+
+    shell.cp(`${wasmOutputDir}/${srcName}.js`, `${OUTPUT_DIR}/${targetName}.js`);
+    shell.cp(`${wasmOutputDir}/${srcName}.d.ts`, `${OUTPUT_DIR}/${targetName}.d.ts`);
+    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm`, `${OUTPUT_DIR}/${targetName}_bg.wasm`);
+    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`);
+
+    // Update imports in JS file to match renamed wasm file
+    const jsFilePath = `${OUTPUT_DIR}/${targetName}.js`;
+    const jsContent = shell.cat(jsFilePath).toString();
+    const updatedJsContent = jsContent.replace(
+      new RegExp(`${srcName}_bg\\.wasm`, 'g'),
+      `${targetName}_bg.wasm`,
+    );
+    shell.ShellString(updatedJsContent).to(jsFilePath);
+
+    // Update imports in d.ts file
+    const dtsFilePath = `${OUTPUT_DIR}/${targetName}.d.ts`;
+    const dtsContent = shell.cat(dtsFilePath).toString();
+    const updatedDtsContent = dtsContent.replace(
+      new RegExp(`${srcName}_bg\\.wasm`, 'g'),
+      `${targetName}_bg.wasm`,
+    );
+    shell.ShellString(updatedDtsContent).to(dtsFilePath);
+
+    // Clean up
+    console.log('Cleaning up...');
+    shell.rm('-rf', REPO_DIR);
 
     console.log('\n✅ WASM build completed successfully!');
     console.log(`Generated files are in: ${OUTPUT_DIR}`);
     console.log('\nExported modules:');
     console.log('  - WasmPeginTx (PegIn transaction creation)');
     console.log('  - WasmPeginPayoutConnector (Payout script generation)');
-    console.log('\nConfidential code NOT included:');
-    console.log('  - Transaction graph (tx_graphs)');
-    console.log('  - Claim, Assert, Challenge transactions');
+    console.log('  - WasmPayoutTx (Payout transaction)');
+    console.log('  - WasmPayoutOptimisticTx (Optimistic payout transaction)');
   } catch (error) {
     console.error('Error during WASM build:', error);
+    // Clean up on error
+    if (shell.test('-d', REPO_DIR)) {
+      shell.rm('-rf', REPO_DIR);
+    }
     process.exit(1);
   }
 };
