@@ -91,28 +91,31 @@ const buildWasm = async () => {
     }
 
     // Clone the repository
+    // Use execFileSync with argument array to avoid shell command injection
     console.log(
       `Cloning btc-vault repository (branch: ${BTC_VAULT_BRANCH})...`,
     );
-    const cloneResult = shell.exec(
-      `git clone --branch ${BTC_VAULT_BRANCH} ${BTC_VAULT_REPO_URL} ${REPO_DIR}`,
-      { silent: false },
-    );
-
-    if (cloneResult.code !== 0) {
+    try {
+      execFileSync(
+        'git',
+        ['clone', '--branch', BTC_VAULT_BRANCH, BTC_VAULT_REPO_URL, REPO_DIR],
+        { stdio: 'inherit' },
+      );
+    } catch {
       console.error('Error: Failed to clone repository');
       process.exit(1);
     }
 
     // Checkout specific commit
+    // Use execFileSync with argument array to avoid shell command injection
     console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
-    const prevDir = shell.pwd().toString();
-    shell.cd(REPO_DIR);
-
-    const checkoutResult = shell.exec(`git checkout ${BTC_VAULT_COMMIT}`);
-    if (checkoutResult.code !== 0) {
+    try {
+      execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
+        cwd: REPO_DIR,
+        stdio: 'inherit',
+      });
+    } catch {
       console.error('Error: Failed to checkout commit');
-      shell.cd(prevDir);
       shell.rm('-rf', REPO_DIR);
       process.exit(1);
     }
@@ -152,12 +155,9 @@ const buildWasm = async () => {
       );
     } catch {
       console.error('Error: wasm-pack build failed');
-      shell.cd(prevDir);
       shell.rm('-rf', REPO_DIR);
       process.exit(1);
     }
-
-    shell.cd(prevDir);
 
     // Copy generated files to dist/generated
     console.log('Copying generated files...');
