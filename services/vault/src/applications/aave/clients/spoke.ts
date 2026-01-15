@@ -5,8 +5,10 @@
  * Used to fetch live user position data (debt, collateral) from the Core Spoke.
  */
 
-import type { Address } from "viem";
-
+import type {
+  AaveSpokeUserAccountData,
+  AaveSpokeUserPosition,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
   getUserAccountData as sdkGetUserAccountData,
   getUserPosition as sdkGetUserPosition,
@@ -14,10 +16,7 @@ import {
   hasCollateral as sdkHasCollateral,
   hasDebt as sdkHasDebt,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import type {
-  AaveSpokeUserAccountData,
-  AaveSpokeUserPosition,
-} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import type { Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 
@@ -111,7 +110,12 @@ export async function getUserTotalDebt(
   userAddress: Address,
 ): Promise<bigint> {
   const publicClient = ethClient.getPublicClient();
-  return sdkGetUserTotalDebt(publicClient, spokeAddress, reserveId, userAddress);
+  return sdkGetUserTotalDebt(
+    publicClient,
+    spokeAddress,
+    reserveId,
+    userAddress,
+  );
 }
 
 // Re-export types

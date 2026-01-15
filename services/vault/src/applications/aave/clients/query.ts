@@ -5,10 +5,9 @@
  * Only includes functions that provide data NOT available from the indexer.
  */
 
-import type { Address, Hex } from "viem";
-
-import { getPosition as sdkGetPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { AaveMarketPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { getPosition as sdkGetPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import type { Address, Hex } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 

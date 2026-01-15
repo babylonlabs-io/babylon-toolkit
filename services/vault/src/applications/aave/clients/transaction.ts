@@ -5,8 +5,6 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
-import { type Address, type Chain, type Hex, type WalletClient } from "viem";
-
 import {
   buildAddCollateralTx,
   buildBorrowTx,
@@ -14,12 +12,11 @@ import {
   buildRepayTx,
   buildWithdrawAllCollateralTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
+import { type TransactionResult } from "../../../clients/eth-contract/transactionFactory";
 import { mapViemErrorToContractError } from "../../../utils/errors";
-import {
-  type TransactionResult,
-} from "../../../clients/eth-contract/transactionFactory";
 
 /**
  * Execute a transaction using encoded data from SDK
@@ -79,8 +76,18 @@ export async function addCollateralToCorePosition(
   vaultIds: Hex[],
   reserveId: bigint,
 ): Promise<TransactionResult> {
-  const { to, data } = buildAddCollateralTx(contractAddress, vaultIds, reserveId);
-  return executeTx(walletClient, chain, to, data, "add collateral to Aave Core position");
+  const { to, data } = buildAddCollateralTx(
+    contractAddress,
+    vaultIds,
+    reserveId,
+  );
+  return executeTx(
+    walletClient,
+    chain,
+    to,
+    data,
+    "add collateral to Aave Core position",
+  );
 }
 
 /**
@@ -102,7 +109,13 @@ export async function withdrawAllCollateralFromCorePosition(
   reserveId: bigint,
 ): Promise<TransactionResult> {
   const { to, data } = buildWithdrawAllCollateralTx(contractAddress, reserveId);
-  return executeTx(walletClient, chain, to, data, "withdraw all collateral from Aave Core position");
+  return executeTx(
+    walletClient,
+    chain,
+    to,
+    data,
+    "withdraw all collateral from Aave Core position",
+  );
 }
 
 /**
@@ -128,8 +141,20 @@ export async function borrowFromCorePosition(
   amount: bigint,
   receiver: Address,
 ): Promise<TransactionResult> {
-  const { to, data } = buildBorrowTx(contractAddress, positionId, debtReserveId, amount, receiver);
-  return executeTx(walletClient, chain, to, data, "borrow from Aave Core position");
+  const { to, data } = buildBorrowTx(
+    contractAddress,
+    positionId,
+    debtReserveId,
+    amount,
+    receiver,
+  );
+  return executeTx(
+    walletClient,
+    chain,
+    to,
+    data,
+    "borrow from Aave Core position",
+  );
 }
 
 /**
@@ -154,8 +179,19 @@ export async function repayToCorePosition(
   debtReserveId: bigint,
   amount: bigint,
 ): Promise<TransactionResult> {
-  const { to, data } = buildRepayTx(contractAddress, positionId, debtReserveId, amount);
-  return executeTx(walletClient, chain, to, data, "repay to Aave Core position");
+  const { to, data } = buildRepayTx(
+    contractAddress,
+    positionId,
+    debtReserveId,
+    amount,
+  );
+  return executeTx(
+    walletClient,
+    chain,
+    to,
+    data,
+    "repay to Aave Core position",
+  );
 }
 
 /**
