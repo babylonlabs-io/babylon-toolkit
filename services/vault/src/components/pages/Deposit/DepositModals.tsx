@@ -55,7 +55,8 @@ export function DepositModals({
           providers={selectedProviders}
           selectedApplication={selectedApplication}
           vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-          liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+          vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+          universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
         />
       )}
       {depositStep === DepositStep.SIGN && (

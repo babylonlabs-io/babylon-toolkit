@@ -23,7 +23,8 @@ interface CollateralDepositReviewModalProps {
   providers: string[];
   selectedApplication: string;
   vaultProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
 }
 
 export function CollateralDepositReviewModal({
@@ -34,7 +35,8 @@ export function CollateralDepositReviewModal({
   providers,
   selectedApplication,
   vaultProviderBtcPubkey,
-  liquidatorBtcPubkeys,
+  vaultKeeperBtcPubkeys,
+  universalChallengerBtcPubkeys,
 }: CollateralDepositReviewModalProps) {
   const {
     amountBtc,
@@ -50,7 +52,8 @@ export function CollateralDepositReviewModal({
   } = useDepositReviewData(amount, providers, open, {
     selectedApplication,
     vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
   });
 
   const { isCopied, copyToClipboard } = useCopy();

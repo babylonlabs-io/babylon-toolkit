@@ -27,8 +27,10 @@ export interface UnsignedPeginTxParams {
   feeRate: number;
   /** Vault provider's BTC public key (x-only, 64 hex chars) */
   vaultProviderBtcPubkey: string;
-  /** Liquidator BTC public keys (x-only, 64 hex chars each) */
-  liquidatorBtcPubkeys: string[];
+  /** Vault keeper BTC public keys (x-only, 64 hex chars each) */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys (x-only, 64 hex chars each) */
+  universalChallengerBtcPubkeys: string[];
 }
 
 /**
@@ -47,7 +49,8 @@ function getQueryKey(params: UnsignedPeginTxParams | null) {
     params.confirmedUTXOs?.length,
     params.feeRate,
     params.vaultProviderBtcPubkey,
-    params.liquidatorBtcPubkeys.join(","),
+    params.vaultKeeperBtcPubkeys.join(","),
+    params.universalChallengerBtcPubkeys.join(","),
   ];
 }
 
@@ -77,7 +80,8 @@ export function useUnsignedPeginTx(
         confirmedUTXOs,
         feeRate,
         vaultProviderBtcPubkey,
-        liquidatorBtcPubkeys,
+        vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys,
       } = params;
       const depositorBtcPubkey = params.depositorBtcPubkey;
 
@@ -86,8 +90,11 @@ export function useUnsignedPeginTx(
       // Step 1: Build unfunded PSBT
       const peginPsbt = await buildPeginPsbt({
         depositorPubkey: depositorBtcPubkey,
-        claimerPubkey: vaultProviderBtcPubkey.replace(/^0x/, ""),
-        challengerPubkeys: liquidatorBtcPubkeys.map((pk) =>
+        vaultProviderPubkey: vaultProviderBtcPubkey.replace(/^0x/, ""),
+        vaultKeeperPubkeys: vaultKeeperBtcPubkeys.map((pk) =>
+          pk.replace(/^0x/, ""),
+        ),
+        universalChallengerPubkeys: universalChallengerBtcPubkeys.map((pk) =>
           pk.replace(/^0x/, ""),
         ),
         pegInAmount: amount,

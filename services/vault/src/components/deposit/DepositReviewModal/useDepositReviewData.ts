@@ -60,8 +60,10 @@ export interface PeginParams {
   selectedApplication: string;
   /** Vault provider's BTC public key (x-only, 64 hex chars) */
   vaultProviderBtcPubkey: string;
-  /** Liquidator BTC public keys (x-only, 64 hex chars each) */
-  liquidatorBtcPubkeys: string[];
+  /** Vault keeper BTC public keys (x-only, 64 hex chars each) */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys (x-only, 64 hex chars each) */
+  universalChallengerBtcPubkeys: string[];
 }
 
 /**
@@ -113,7 +115,8 @@ export function useDepositReviewData(
       confirmedUTXOs,
       feeRate,
       vaultProviderBtcPubkey: peginParams.vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys: peginParams.liquidatorBtcPubkeys,
+      vaultKeeperBtcPubkeys: peginParams.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: peginParams.universalChallengerBtcPubkeys,
     };
   }, [
     amount,
