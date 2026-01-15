@@ -10,7 +10,6 @@
 export { PeginManager } from "./PeginManager";
 export type {
   CreatePeginParams,
-  EstimateEthGasParams,
   PeginManagerConfig,
   PeginResult,
   RegisterPeginParams,

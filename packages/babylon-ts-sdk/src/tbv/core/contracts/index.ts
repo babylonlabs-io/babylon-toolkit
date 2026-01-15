@@ -10,9 +10,8 @@
 export { BTCVaultsManagerABI } from "./abis/BTCVaultsManager.abi";
 
 export {
-  DUMMY_POP_SIGNATURE,
+  calculatePeginGasEstimate,
   encodeSubmitPeginCalldata,
-  encodeSubmitPeginCalldataForGasEstimation,
   type SubmitPeginCalldataParams,
 } from "./calldata";
 

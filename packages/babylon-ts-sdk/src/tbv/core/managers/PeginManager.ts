@@ -25,7 +25,6 @@ import { getUtxoInfo, pushTx } from "../clients/mempool";
 import {
   BTCVaultsManagerABI,
   encodeSubmitPeginCalldata,
-  encodeSubmitPeginCalldataForGasEstimation,
   handleContractError,
 } from "../contracts";
 import { buildPeginPsbt, type Network } from "../primitives";
@@ -240,21 +239,6 @@ export interface RegisterPeginResult {
    * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
    */
   vaultId: Hex;
-}
-
-/**
- * Parameters for estimating ETH gas for peg-in registration.
- *
- * Only requires the unsigned BTC transaction since it's the only variable-size field
- * that affects gas cost. All other fields (addresses, pubkeys, signature) are fixed-size
- * and use dummy values internally.
- */
-export interface EstimateEthGasParams {
-  /**
-   * Funded but unsigned BTC transaction hex.
-   * Can be provided with or without "0x" prefix.
-   */
-  unsignedBtcTx: string;
 }
 
 /**
@@ -593,42 +577,6 @@ export class PeginManager {
       // If reading fails, assume vault doesn't exist and let contract handle it
       return false;
     }
-  }
-
-  /**
-   * Estimates the ETH gas required for registering a peg-in on Ethereum.
-   *
-   * ⚠️ This method is for GAS ESTIMATION ONLY. It uses dummy values internally
-   * for fixed-size fields (addresses, pubkeys, signature) since they don't affect
-   * gas cost. For actual transaction submission, use `registerPeginOnChain()`.
-   *
-   * Only requires the unsigned BTC transaction since it's the only variable-size
-   * field that affects gas cost.
-   *
-   * Use this to show users the estimated ETH fee before they confirm the deposit.
-   *
-   * @param params - Parameters for gas estimation (only unsignedBtcTx required)
-   * @returns Estimated gas in gas units (as bigint)
-   * @throws Error if estimation fails
-   */
-  async estimateEthGas(params: EstimateEthGasParams): Promise<bigint> {
-    const { unsignedBtcTx } = params;
-
-    // Encode calldata with dummy values for fixed-size fields
-    const callData = encodeSubmitPeginCalldataForGasEstimation(unsignedBtcTx);
-
-    const publicClient = createPublicClient({
-      chain: this.config.ethChain,
-      transport: this.createTransport(),
-    });
-
-    // Estimate gas (no account needed since we use dummy values)
-    const gasEstimate = await publicClient.estimateGas({
-      to: this.config.vaultContracts.btcVaultsManager,
-      data: callData,
-    });
-
-    return gasEstimate;
   }
 
   /**

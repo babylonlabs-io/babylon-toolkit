@@ -1,9 +1,9 @@
 /**
  * Contract Calldata Encoding Utilities
  *
- * Shared utilities for encoding contract calldata, used by both:
- * - PeginManager (actual transactions)
- * - Gas estimation hooks (with dummy signature)
+ * Provides utilities for:
+ * - Encoding submitPeginRequest calldata (for actual transactions)
+ * - Calculating gas estimates (pure calculation, no RPC needed)
  *
  * @module contracts/calldata
  */
@@ -13,24 +13,34 @@ import { encodeFunctionData, type Address, type Hex } from "viem";
 import { BTCVaultsManagerABI } from "./abis/BTCVaultsManager.abi";
 
 /**
- * Dummy 64-byte Schnorr signature for gas estimation.
- * The actual signature value doesn't affect gas cost, only the size matters.
- * 64 bytes = 128 hex chars + 0x prefix
+ * Gas constants for submitPeginRequest estimation.
+ *
+ * Gas breakdown:
+ * - Base transaction: 21,000
+ * - Contract execution overhead: ~170,000 (parsing, storage, events)
+ * - Calldata: 16 gas per non-zero byte, 4 per zero byte
+ * - Buffer for safety: 20%
  */
-export const DUMMY_POP_SIGNATURE: Hex = `0x${"00".repeat(64)}` as Hex;
+const GAS_ESTIMATE_BASE = 21_000n;
+const GAS_ESTIMATE_EXECUTION_OVERHEAD = 170_000n;
+const GAS_ESTIMATE_PER_CALLDATA_BYTE = 16n;
+const GAS_ESTIMATE_BUFFER_PERCENT = 120n;
 
 /**
- * Dummy 20-byte Ethereum address for gas estimation.
- * Used when actual address is not needed for estimation.
+ * Fixed calldata size for submitPeginRequest (excluding BTC tx).
+ *
+ * submitPeginRequest(address, bytes32, bytes, bytes, address) ABI encoding:
+ * - Function selector: 4 bytes
+ * - depositorEthAddress: 32 bytes (address padded)
+ * - depositorBtcPubkey: 32 bytes (bytes32)
+ * - btcPopSignature offset: 32 bytes
+ * - unsignedPegInTx offset: 32 bytes
+ * - vaultProvider: 32 bytes (address padded)
+ * - btcPopSignature length: 32 bytes
+ * - btcPopSignature data: 64 bytes → 96 bytes (padded to 32)
+ * Total fixed: 4 + 32*5 + 32 + 96 = 292 bytes
  */
-const DUMMY_ETH_ADDRESS: Address =
-  "0x0000000000000000000000000000000000000000" as Address;
-
-/**
- * Dummy 32-byte BTC public key for gas estimation.
- * 32 bytes = 64 hex chars + 0x prefix
- */
-const DUMMY_BTC_PUBKEY: Hex = `0x${"00".repeat(32)}` as Hex;
+const FIXED_CALLDATA_BYTES = 292n;
 
 /**
  * Parameters for encoding submitPeginRequest calldata
@@ -94,46 +104,29 @@ export function encodeSubmitPeginCalldata(
 }
 
 /**
- * Encodes calldata for gas estimation purposes ONLY.
+ * Calculates gas estimate for submitPeginRequest based on calldata size.
  *
- * ⚠️ WARNING: DO NOT use this for actual transaction submission!
- * This function uses dummy values for addresses, pubkeys, and signatures.
- * Submitting a transaction with this calldata will FAIL on-chain.
+ * This is a pure utility function - no RPC calls or encoding needed.
+ * Calculates the ABI-encoded calldata size directly from the BTC tx size.
  *
- * For actual transaction submission, use `encodeSubmitPeginCalldata()` instead.
- *
- * Why this exists:
- * - Gas cost depends primarily on the variable-size `unsignedPegInTx` field
- * - Other fields (addresses, pubkeys, signature) are fixed-size and don't affect gas
- * - This allows gas estimation before the user has signed anything
- *
- * @param unsignedPegInTx - Unsigned BTC transaction hex (with or without 0x prefix)
- * @returns Encoded calldata as hex string (FOR GAS ESTIMATION ONLY)
- *
- * @example
- * ```typescript
- * // ✅ Correct: Use for gas estimation
- * const calldata = encodeSubmitPeginCalldataForGasEstimation(unsignedTx);
- * const gasEstimate = await client.estimateGas({ data: calldata, to: contract });
- *
- * // ❌ Wrong: DO NOT use for actual submission
- * // await wallet.sendTransaction({ data: calldata, to: contract }); // WILL FAIL!
- * ```
+ * @param unsignedBtcTx - Unsigned BTC transaction hex (with or without 0x prefix)
+ * @returns Estimated gas in gas units (as bigint)
  */
-export function encodeSubmitPeginCalldataForGasEstimation(
-  unsignedPegInTx: string,
-): Hex {
-  const unsignedPegInTxHex = ensureHexPrefix(unsignedPegInTx);
+export function calculatePeginGasEstimate(unsignedBtcTx: string): bigint {
+  // Calculate BTC tx bytes (remove 0x prefix if present)
+  const btcTxHex = unsignedBtcTx.startsWith("0x")
+    ? unsignedBtcTx.slice(2)
+    : unsignedBtcTx;
+  const btcTxBytes = BigInt(btcTxHex.length / 2);
 
-  return encodeFunctionData({
-    abi: BTCVaultsManagerABI,
-    functionName: "submitPeginRequest",
-    args: [
-      DUMMY_ETH_ADDRESS,
-      DUMMY_BTC_PUBKEY,
-      DUMMY_POP_SIGNATURE,
-      unsignedPegInTxHex,
-      DUMMY_ETH_ADDRESS,
-    ],
-  });
+  // ABI encoding for dynamic bytes: length prefix (32) + data padded to 32-byte boundary
+  const btcTxPadded = ((btcTxBytes + 31n) / 32n) * 32n + 32n;
+
+  // Total calldata size
+  const calldataBytes = FIXED_CALLDATA_BYTES + btcTxPadded;
+  const calldataGas = calldataBytes * GAS_ESTIMATE_PER_CALLDATA_BYTE;
+
+  const totalGas =
+    GAS_ESTIMATE_BASE + GAS_ESTIMATE_EXECUTION_OVERHEAD + calldataGas;
+  return (totalGas * GAS_ESTIMATE_BUFFER_PERCENT) / 100n;
 }
