@@ -34,6 +34,15 @@ export interface UnsignedPeginTxParams {
 }
 
 /**
+ * Creates a stable identifier for a set of UTXOs.
+ * Uses txid:vout pairs to uniquely identify the UTXO set.
+ */
+function getUtxoSetId(utxos: MempoolUTXO[] | undefined): string {
+  if (!utxos || utxos.length === 0) return "";
+  return utxos.map((u) => `${u.txid}:${u.vout}`).join(",");
+}
+
+/**
  * Builds an unsigned pegin transaction for ETH gas estimation.
  *
  * @param params - Parameters for building the transaction
@@ -46,7 +55,7 @@ function getQueryKey(params: UnsignedPeginTxParams | null) {
     params.amount.toString(),
     params.depositorBtcPubkey,
     params.btcAddress,
-    params.confirmedUTXOs?.length,
+    getUtxoSetId(params.confirmedUTXOs),
     params.feeRate,
     params.vaultProviderBtcPubkey,
     params.vaultKeeperBtcPubkeys.join(","),
