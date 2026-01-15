@@ -89,13 +89,14 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
   ];
 
   // Base params for tests
-  const baseParams: Omit<SubmitPeginParams, "avoidUtxoRefs"> = {
+  const baseParams: SubmitPeginParams = {
     pegInAmount: 100000n,
     feeRate: 10,
     changeAddress: "bc1qtest",
     vaultProviderAddress: "0xprovider" as `0x${string}`,
     vaultProviderBtcPubkey: "pubkey",
-    liquidatorBtcPubkeys: ["liquidator1"],
+    vaultKeeperBtcPubkeys: ["keeper1"],
+    universalChallengerBtcPubkeys: ["challenger1"],
     availableUTXOs: mockUTXOs,
   };
 
@@ -127,38 +128,8 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
     };
   });
 
-  describe("UTXO filtering with avoidUtxoRefs", () => {
-    it("should use filtered UTXOs when avoidUtxoRefs is provided", async () => {
-      const avoidUtxoRefs = [{ txid: "txid1", vout: 0 }];
-
-      await submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-        ...baseParams,
-        avoidUtxoRefs,
-      });
-
-      // Verify preparePegin was called with filtered UTXOs (excluding txid1:0)
-      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
-      const callArgs = mockPreparePegin.mock.calls[0][0];
-      expect(callArgs.availableUTXOs).toHaveLength(3);
-      expect(callArgs.availableUTXOs.map((u: UTXO) => u.txid)).toEqual([
-        "txid2",
-        "txid3",
-        "txid4",
-      ]);
-    });
-
-    it("should use full UTXOs when avoidUtxoRefs is empty", async () => {
-      await submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-        ...baseParams,
-        avoidUtxoRefs: [],
-      });
-
-      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
-      const callArgs = mockPreparePegin.mock.calls[0][0];
-      expect(callArgs.availableUTXOs).toHaveLength(4);
-    });
-
-    it("should use full UTXOs when avoidUtxoRefs is undefined", async () => {
+  describe("basic functionality", () => {
+    it("should use all available UTXOs", async () => {
       await submitPeginRequest(
         mockBtcWallet as any,
         mockEthWallet as any,
@@ -168,78 +139,6 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
       expect(mockPreparePegin).toHaveBeenCalledTimes(1);
       const callArgs = mockPreparePegin.mock.calls[0][0];
       expect(callArgs.availableUTXOs).toHaveLength(4);
-    });
-  });
-
-  describe("fallback to full UTXO set on failure", () => {
-    it("should fallback to full UTXOs when filtered UTXOs fail", async () => {
-      const avoidUtxoRefs = [{ txid: "txid1", vout: 0 }];
-
-      // First call fails, second call succeeds
-      mockPreparePegin
-        .mockRejectedValueOnce(new Error("Insufficient funds"))
-        .mockResolvedValueOnce({
-          fundedTxHex: "0x123abc",
-          selectedUTXOs: [mockUTXOs[0]],
-          fee: 1000n,
-        });
-
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      await submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-        ...baseParams,
-        avoidUtxoRefs,
-      });
-
-      // Verify preparePegin was called twice
-      expect(mockPreparePegin).toHaveBeenCalledTimes(2);
-
-      // First call with filtered UTXOs
-      const firstCallArgs = mockPreparePegin.mock.calls[0][0];
-      expect(firstCallArgs.availableUTXOs).toHaveLength(3);
-
-      // Second call (fallback) with full UTXOs
-      const secondCallArgs = mockPreparePegin.mock.calls[1][0];
-      expect(secondCallArgs.availableUTXOs).toHaveLength(4);
-
-      // Verify warning was logged
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[submitPeginRequest] preparePegin failed with filtered UTXOs, retrying with full set",
-      );
-
-      consoleSpy.mockRestore();
-    });
-
-    it("should NOT retry when no UTXOs were filtered", async () => {
-      // avoidUtxoRefs that don't match any UTXOs
-      const avoidUtxoRefs = [{ txid: "nonexistent", vout: 99 }];
-
-      const error = new Error("Insufficient funds");
-      mockPreparePegin.mockRejectedValue(error);
-
-      await expect(
-        submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-          ...baseParams,
-          avoidUtxoRefs,
-        }),
-      ).rejects.toThrow("Insufficient funds");
-
-      // Should only be called once (no retry since no UTXOs were actually filtered)
-      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
-    });
-
-    it("should NOT retry when avoidUtxoRefs is empty", async () => {
-      const error = new Error("Insufficient funds");
-      mockPreparePegin.mockRejectedValue(error);
-
-      await expect(
-        submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-          ...baseParams,
-          avoidUtxoRefs: [],
-        }),
-      ).rejects.toThrow("Insufficient funds");
-
-      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -256,44 +155,14 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
       ).rejects.toThrow("Ethereum wallet account not found");
     });
 
-    it("should propagate error from fallback attempt", async () => {
-      const avoidUtxoRefs = [{ txid: "txid1", vout: 0 }];
-
-      // Both calls fail
+    it("should propagate error from preparePegin", async () => {
       mockPreparePegin.mockRejectedValue(new Error("Network error"));
 
-      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       await expect(
-        submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-          ...baseParams,
-          avoidUtxoRefs,
-        }),
+        submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, baseParams),
       ).rejects.toThrow("Network error");
 
-      // Both attempts should have been made
-      expect(mockPreparePegin).toHaveBeenCalledTimes(2);
-
-      consoleSpy.mockRestore();
-    });
-  });
-
-  describe("UTXO ref key normalization", () => {
-    it("should handle case-insensitive txid matching for avoidUtxoRefs", async () => {
-      // avoidUtxoRefs with uppercase txid
-      const avoidUtxoRefs = [{ txid: "TXID1", vout: 0 }];
-
-      await submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, {
-        ...baseParams,
-        avoidUtxoRefs,
-      });
-
-      // utxoRefToKey lowercases both, so TXID1:0 should match txid1:0
-      const callArgs = mockPreparePegin.mock.calls[0][0];
-      expect(callArgs.availableUTXOs).toHaveLength(3);
-      expect(callArgs.availableUTXOs.map((u: UTXO) => u.txid)).not.toContain(
-        "txid1",
-      );
+      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
     });
   });
 });

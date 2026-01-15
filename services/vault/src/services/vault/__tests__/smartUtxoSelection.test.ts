@@ -186,6 +186,8 @@ describe("Smart UTXO Selection", () => {
       applicationController: "0xcontroller" as any,
       createdAt: Date.now(),
       isInUse: false,
+      appVaultKeepersVersion: 1,
+      universalChallengersVersion: 1,
     });
 
     it("should collect outpoints from localStorage selectedUTXOs", () => {
