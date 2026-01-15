@@ -1,12 +1,13 @@
 /**
- * Payout PSBT Builder Primitive
+ * Payout PSBT Builder Primitives
  *
  * This module provides pure functions for building unsigned payout PSBTs and extracting
  * Schnorr signatures from signed PSBTs. It uses WASM-generated scripts from the payout
  * connector and bitcoinjs-lib for PSBT construction.
  *
- * The payout transaction is used when the depositor needs to sign off on a payout from
- * the vault.
+ * There are two types of payout transactions:
+ * - **PayoutOptimistic**: Optimistic path after Claim (no challenge). Input 1 references Claim tx.
+ * - **Payout**: Challenge path after Assert (claimer proves validity). Input 1 references Assert tx.
  *
  * @module primitives/psbt/payout
  */
@@ -29,29 +30,14 @@ import {
 initEccLib(ecc);
 
 /**
- * Parameters for building an unsigned payout PSBT
+ * Base parameters shared by both payout transaction types
  */
-export interface PayoutParams {
-  /**
-   * Payout transaction hex (unsigned)
-   * This is the transaction that needs to be signed by the depositor
-   */
-  payoutTxHex: string;
-
+interface PayoutBaseParams {
   /**
    * Peg-in transaction hex
    * This transaction created the vault output that we're spending
    */
   peginTxHex: string;
-
-  /**
-   * Claim transaction hex (required).
-   * Obtained from the Vault Provider RPC API when
-   * requesting claim/payout transaction pairs.
-   *
-   * @see Rust: crates/vault/src/transactions/payout.rs::PayoutTx::new()
-   */
-  claimTxHex: string;
 
   /**
    * Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
@@ -60,20 +46,63 @@ export interface PayoutParams {
 
   /**
    * Vault provider's BTC public key (x-only, 64-char hex)
-   * Also referred to as "claimer" in the WASM layer
    */
   vaultProviderBtcPubkey: string;
 
   /**
-   * Liquidator BTC public keys (x-only, 64-char hex)
-   * Also referred to as "challengers" in the WASM layer
+   * Vault keeper BTC public keys (x-only, 64-char hex)
    */
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+
+  /**
+   * Universal challenger BTC public keys (x-only, 64-char hex)
+   */
+  universalChallengerBtcPubkeys: string[];
 
   /**
    * Bitcoin network
    */
   network: Network;
+}
+
+/**
+ * Parameters for building an unsigned PayoutOptimistic PSBT
+ *
+ * PayoutOptimistic is used in the optimistic path when no challenge occurs.
+ * Input 1 references the Claim transaction.
+ */
+export interface PayoutOptimisticParams extends PayoutBaseParams {
+  /**
+   * PayoutOptimistic transaction hex (unsigned)
+   * This is the transaction that needs to be signed by the depositor
+   */
+  payoutOptimisticTxHex: string;
+
+  /**
+   * Claim transaction hex
+   * PayoutOptimistic input 1 references Claim output 0
+   */
+  claimTxHex: string;
+}
+
+/**
+ * Parameters for building an unsigned Payout PSBT (challenge path)
+ *
+ * Payout is used in the challenge path after Assert, when the claimer proves validity.
+ * Input 1 references the Assert transaction.
+ */
+export interface PayoutParams extends PayoutBaseParams {
+  /**
+   * Payout transaction hex (unsigned)
+   * This is the transaction that needs to be signed by the depositor
+   */
+  payoutTxHex: string;
+
+  /**
+   * Assert transaction hex
+   * Payout input 1 references Assert output 0
+   */
+  assertTxHex: string;
 }
 
 /**
@@ -87,48 +116,41 @@ export interface PayoutPsbtResult {
 }
 
 /**
- * Build unsigned payout PSBT for depositor to sign
- *
- * This function:
- * 1. Uses WASM to generate the payout script via createPayoutScript()
- * 2. Builds a PSBT with taproot script path spend information
- * 3. Returns unsigned PSBT ready for depositor to sign
- *
- * @param params - Payout parameters
- * @returns Unsigned PSBT
- *
- * @example
- * ```typescript
- * import { buildPayoutPsbt } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
- *
- * const psbt = await buildPayoutPsbt({
- *   payoutTxHex: '0200000...',
- *   peginTxHex: '0200000...',
- *   depositorBtcPubkey: 'abc123...',
- *   vaultProviderBtcPubkey: 'def456...',
- *   liquidatorBtcPubkeys: ['ghi789...'],
- *   network: 'testnet',
- * });
- *
- * // Now sign with wallet
- * const signedPsbt = await wallet.signPsbt(psbt.psbtHex);
- *
- * // Extract signature
- * const signature = extractPayoutSignature(signedPsbt, 'abc123...');
- * ```
+ * Internal parameters for the shared PSBT builder
+ * @internal
  */
-export async function buildPayoutPsbt(
-  params: PayoutParams,
+interface InternalPayoutParams extends PayoutBaseParams {
+  /** The payout transaction hex (either PayoutOptimistic or Payout) */
+  payoutTxHex: string;
+  /** The input 1 reference transaction hex (either Claim or Assert) */
+  input1TxHex: string;
+  /** Name of input 1 tx for error messages */
+  input1TxName: string;
+}
+
+/**
+ * Internal shared function for building payout PSBTs
+ *
+ * Both PayoutOptimistic and Payout transactions have the same structure:
+ * - Input 0: from PeginTx output0 (signed by depositor)
+ * - Input 1: from Claim/Assert output0 (NOT signed by depositor)
+ *
+ * @internal
+ */
+async function buildPayoutPsbtInternal(
+  params: InternalPayoutParams,
 ): Promise<PayoutPsbtResult> {
   // Normalize hex inputs (strip 0x prefix if present)
   const payoutTxHex = stripHexPrefix(params.payoutTxHex);
   const peginTxHex = stripHexPrefix(params.peginTxHex);
+  const input1TxHex = stripHexPrefix(params.input1TxHex);
 
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
     depositor: params.depositorBtcPubkey,
     vaultProvider: params.vaultProviderBtcPubkey,
-    liquidators: params.liquidatorBtcPubkeys,
+    vaultKeepers: params.vaultKeeperBtcPubkeys,
+    universalChallengers: params.universalChallengerBtcPubkeys,
     network: params.network,
   });
 
@@ -138,8 +160,7 @@ export async function buildPayoutPsbt(
   // Parse transactions
   const payoutTx = Transaction.fromHex(payoutTxHex);
   const peginTx = Transaction.fromHex(peginTxHex);
-  const claimTxHex = stripHexPrefix(params.claimTxHex);
-  const claimTx = Transaction.fromHex(claimTxHex);
+  const input1Tx = Transaction.fromHex(input1TxHex);
 
   // Create PSBT
   const psbt = new Psbt();
@@ -148,7 +169,7 @@ export async function buildPayoutPsbt(
 
   // PayoutTx has exactly 2 inputs:
   // - Input 0: from PeginTx output0 (signed by depositor using taproot script path)
-  // - Input 1: from ClaimTx output0 (signed by claimer/challengers, not depositor)
+  // - Input 1: from Claim/Assert output0 (signed by claimer/challengers, not depositor)
   //
   // IMPORTANT: For Taproot SIGHASH_DEFAULT (0x00), the sighash commits to ALL inputs'
   // prevouts, not just the one being signed. Therefore, we must include BOTH inputs
@@ -177,16 +198,16 @@ export async function buildPayoutPsbt(
     );
   }
 
-  // Verify input 1 references the claim transaction
+  // Verify input 1 references the expected transaction (Claim or Assert)
   const input1Txid = uint8ArrayToHex(
     new Uint8Array(input1.hash).slice().reverse(),
   );
-  const claimTxid = claimTx.getId();
+  const expectedInput1Txid = input1Tx.getId();
 
-  if (input1Txid !== claimTxid) {
+  if (input1Txid !== expectedInput1Txid) {
     throw new Error(
-      `Input 1 does not reference claim transaction. ` +
-        `Expected ${claimTxid}, got ${input1Txid}`,
+      `Input 1 does not reference ${params.input1TxName} transaction. ` +
+        `Expected ${expectedInput1Txid}, got ${input1Txid}`,
     );
   }
 
@@ -197,8 +218,8 @@ export async function buildPayoutPsbt(
     );
   }
 
-  const claimPrevOut = claimTx.outs[input1.index];
-  if (!claimPrevOut) {
+  const input1PrevOut = input1Tx.outs[input1.index];
+  if (!input1PrevOut) {
     throw new Error(
       `Previous output not found for input 1 (txid: ${input1Txid}, index: ${input1.index})`,
     );
@@ -225,7 +246,7 @@ export async function buildPayoutPsbt(
     // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
   });
 
-  // Input 1: From claim transaction (NOT signed by depositor)
+  // Input 1: From Claim/Assert transaction (NOT signed by depositor)
   // We include this with witnessUtxo so the sighash is computed correctly,
   // but we do NOT include tapLeafScript since the depositor doesn't sign it.
   psbt.addInput({
@@ -233,8 +254,8 @@ export async function buildPayoutPsbt(
     index: input1.index,
     sequence: input1.sequence,
     witnessUtxo: {
-      script: claimPrevOut.script,
-      value: claimPrevOut.value,
+      script: input1PrevOut.script,
+      value: input1PrevOut.value,
     },
     // No tapLeafScript - depositor doesn't sign this input
   });
@@ -253,6 +274,61 @@ export async function buildPayoutPsbt(
 }
 
 /**
+ * Build unsigned PayoutOptimistic PSBT for depositor to sign
+ *
+ * PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
+ * 1. Vault provider submits Claim transaction
+ * 2. Challenge period passes without challenge
+ * 3. PayoutOptimistic can be executed (references Claim tx)
+ *
+ * @param params - PayoutOptimistic parameters
+ * @returns Unsigned PSBT ready for depositor to sign
+ */
+export async function buildPayoutOptimisticPsbt(
+  params: PayoutOptimisticParams,
+): Promise<PayoutPsbtResult> {
+  return buildPayoutPsbtInternal({
+    payoutTxHex: params.payoutOptimisticTxHex,
+    peginTxHex: params.peginTxHex,
+    input1TxHex: params.claimTxHex,
+    input1TxName: "claim",
+    depositorBtcPubkey: params.depositorBtcPubkey,
+    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+    network: params.network,
+  });
+}
+
+/**
+ * Build unsigned Payout PSBT for depositor to sign (challenge path)
+ *
+ * Payout is used in the **challenge path** when the claimer proves validity:
+ * 1. Vault provider submits Claim transaction
+ * 2. Challenge is raised during challenge period
+ * 3. Claimer submits Assert transaction to prove validity
+ * 4. Payout can be executed (references Assert tx)
+ *
+ * @param params - Payout parameters
+ * @returns Unsigned PSBT ready for depositor to sign
+ */
+export async function buildPayoutPsbt(
+  params: PayoutParams,
+): Promise<PayoutPsbtResult> {
+  return buildPayoutPsbtInternal({
+    payoutTxHex: params.payoutTxHex,
+    peginTxHex: params.peginTxHex,
+    input1TxHex: params.assertTxHex,
+    input1TxName: "assert",
+    depositorBtcPubkey: params.depositorBtcPubkey,
+    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+    network: params.network,
+  });
+}
+
+/**
  * Extract Schnorr signature from signed payout PSBT
  *
  * This function supports two cases:
@@ -262,24 +338,14 @@ export async function buildPayoutPsbt(
  * The signature is returned as a 64-byte hex string (128 hex characters)
  * with any sighash flag byte removed if present.
  *
+ * Works with both PayoutOptimistic and Payout signed PSBTs.
+ *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)
  * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)
  *
  * @throws {Error} If no signature is found in the PSBT
  * @throws {Error} If the signature has an unexpected length
- *
- * @example
- * ```typescript
- * import { extractPayoutSignature } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
- *
- * const signature = extractPayoutSignature(
- *   signedPsbtHex,
- *   'abc123...',
- * );
- *
- * console.log(signature.length); // 128 (64 bytes)
- * ```
  */
 export function extractPayoutSignature(
   signedPsbtHex: string,

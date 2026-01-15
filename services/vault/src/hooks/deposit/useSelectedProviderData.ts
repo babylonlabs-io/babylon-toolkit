@@ -1,37 +1,50 @@
 /**
  * useSelectedProviderData Hook
- * Extracts BTC public keys and liquidator data from selected providers
+ * Extracts BTC public keys from selected providers, vault keepers, and universal challengers
  */
 
 import { useMemo } from "react";
 
-import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
+import type {
+  UniversalChallenger,
+  VaultKeeper,
+  VaultProvider,
+} from "../../types/vaultProvider";
 
 export interface UseSelectedProviderDataParams {
   selectedProviders: string[];
   vaultProviders: VaultProvider[];
-  liquidators: Liquidator[];
+  vaultKeepers: VaultKeeper[];
+  universalChallengers: UniversalChallenger[];
 }
 
 export interface UseSelectedProviderDataReturn {
   selectedProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
 }
 
 export function useSelectedProviderData(
   params: UseSelectedProviderDataParams,
 ): UseSelectedProviderDataReturn {
-  const { selectedProviders, vaultProviders, liquidators } = params;
+  const {
+    selectedProviders,
+    vaultProviders,
+    vaultKeepers,
+    universalChallengers,
+  } = params;
 
   return useMemo(() => {
     if (
       selectedProviders.length === 0 ||
       vaultProviders.length === 0 ||
-      liquidators.length === 0
+      vaultKeepers.length === 0 ||
+      universalChallengers.length === 0
     ) {
       return {
         selectedProviderBtcPubkey: "",
-        liquidatorBtcPubkeys: [],
+        vaultKeeperBtcPubkeys: [],
+        universalChallengerBtcPubkeys: [],
       };
     }
 
@@ -42,13 +55,17 @@ export function useSelectedProviderData(
     if (!selectedProvider) {
       return {
         selectedProviderBtcPubkey: "",
-        liquidatorBtcPubkeys: [],
+        vaultKeeperBtcPubkeys: [],
+        universalChallengerBtcPubkeys: [],
       };
     }
 
     return {
       selectedProviderBtcPubkey: selectedProvider.btcPubKey || "",
-      liquidatorBtcPubkeys: liquidators.map((liq) => liq.btcPubKey),
+      vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
+      universalChallengerBtcPubkeys: universalChallengers.map(
+        (uc) => uc.btcPubKey,
+      ),
     };
-  }, [selectedProviders, vaultProviders, liquidators]);
+  }, [selectedProviders, vaultProviders, vaultKeepers, universalChallengers]);
 }

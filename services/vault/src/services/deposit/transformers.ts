@@ -22,7 +22,10 @@ export interface DepositTransactionData {
   pegInAmount: bigint;
   vaultProviderAddress: Hex;
   vaultProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  /** Vault keeper BTC public keys (per-application) */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys (system-wide) */
+  universalChallengerBtcPubkeys: string[];
   selectedUTXOs: UTXO[];
   fee: bigint;
   unsignedTxHex?: string;
@@ -43,7 +46,8 @@ export function transformFormToTransactionData(
   providerData: {
     address: Hex;
     btcPubkey: string;
-    liquidatorPubkeys: string[];
+    vaultKeeperPubkeys: string[];
+    universalChallengerPubkeys: string[];
   },
   utxoData: {
     selectedUTXOs: UTXO[];
@@ -56,7 +60,8 @@ export function transformFormToTransactionData(
     pegInAmount: parseBtcToSatoshis(formData.amount),
     vaultProviderAddress: providerData.address,
     vaultProviderBtcPubkey: providerData.btcPubkey,
-    liquidatorBtcPubkeys: providerData.liquidatorPubkeys,
+    vaultKeeperBtcPubkeys: providerData.vaultKeeperPubkeys,
+    universalChallengerBtcPubkeys: providerData.universalChallengerPubkeys,
     selectedUTXOs: utxoData.selectedUTXOs,
     fee: utxoData.fee,
   };

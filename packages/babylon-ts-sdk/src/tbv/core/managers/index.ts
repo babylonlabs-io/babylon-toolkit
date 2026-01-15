@@ -20,5 +20,6 @@ export { PayoutManager } from "./PayoutManager";
 export type {
   PayoutManagerConfig,
   PayoutSignatureResult,
+  SignPayoutOptimisticParams,
   SignPayoutParams,
 } from "./PayoutManager";

@@ -41,7 +41,8 @@ export type { Network, PayoutConnectorInfo, PayoutConnectorParams };
  * const payoutInfo = await createPayoutConnector({
  *   depositor: "abc123...",
  *   vaultProvider: "def456...",
- *   liquidators: ["ghi789..."]
+ *   vaultKeepers: ["ghi789..."],
+ *   universalChallengers: ["jkl012..."]
  * }, "testnet");
  *
  * console.log(payoutInfo.taprootScriptHash); // Use this for PSBT signing

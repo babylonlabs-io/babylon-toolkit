@@ -22,8 +22,11 @@ const VAULT_FIELDS = `
   amount
   applicationController
   status
+  inUse
   ackCount
   unsignedPegInTx
+  appVaultKeepersVersion
+  universalChallengersVersion
   pendingAt
   verifiedAt
   activatedAt
@@ -57,20 +60,6 @@ const GET_VAULT_BY_ID = gql`
 `;
 
 /**
- * GraphQL query to fetch Aave vault status by vault IDs
- */
-const GET_AAVE_VAULT_STATUSES = gql`
-  query GetAaveVaultStatuses($vaultIds: [String!]!) {
-    aaveVaultStatuss(where: { vaultId_in: $vaultIds }) {
-      items {
-        vaultId
-        status
-      }
-    }
-  }
-`;
-
-/**
  * GraphQL vault status values
  */
 type GraphQLVaultStatus =
@@ -91,42 +80,16 @@ interface GraphQLVaultItem {
   amount: string;
   applicationController: string;
   status: GraphQLVaultStatus;
+  inUse: boolean;
   ackCount: number;
   unsignedPegInTx: string;
+  appVaultKeepersVersion: number;
+  universalChallengersVersion: number;
   pendingAt: string;
   verifiedAt: string | null;
   activatedAt: string | null;
   blockNumber: string;
   transactionHash: string;
-}
-
-/**
- * App-specific vault usage status values
- */
-const AppVaultUsageStatus = {
-  AVAILABLE: "available",
-  IN_USE: "in_use",
-  REDEEMED: "redeemed",
-} as const;
-
-type AppVaultUsageStatus =
-  (typeof AppVaultUsageStatus)[keyof typeof AppVaultUsageStatus];
-
-/**
- * App vault status item from GraphQL
- */
-interface GraphQLAppVaultStatusItem {
-  vaultId: string;
-  status: AppVaultUsageStatus;
-}
-
-/**
- * GraphQL response for Aave vault statuses query
- */
-interface AaveVaultStatusesResponse {
-  aaveVaultStatuss: {
-    items: GraphQLAppVaultStatusItem[];
-  };
 }
 
 /**
@@ -171,7 +134,7 @@ function mapGraphQLStatusToVaultStatus(
 /**
  * Transform GraphQL vault item to Vault
  */
-function transformVaultItem(item: GraphQLVaultItem, isInUse: boolean): Vault {
+function transformVaultItem(item: GraphQLVaultItem): Vault {
   return {
     id: item.id as Hex,
     depositor: item.depositor as Address,
@@ -181,47 +144,15 @@ function transformVaultItem(item: GraphQLVaultItem, isInUse: boolean): Vault {
     vaultProvider: item.vaultProvider as Address,
     status: mapGraphQLStatusToVaultStatus(item.status),
     applicationController: item.applicationController as Address,
+    appVaultKeepersVersion: item.appVaultKeepersVersion,
+    universalChallengersVersion: item.universalChallengersVersion,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
-    isInUse,
+    isInUse: item.inUse,
   };
 }
 
 /**
- * Fetch app-specific vault statuses for given vault IDs
- * Queries Aave vault status table
- *
- * @returns Map of vaultId to isInUse boolean
- */
-async function fetchAppVaultStatuses(
-  vaultIds: string[],
-): Promise<Map<string, boolean>> {
-  if (vaultIds.length === 0) {
-    return new Map();
-  }
-
-  const aaveData = await graphqlClient.request<AaveVaultStatusesResponse>(
-    GET_AAVE_VAULT_STATUSES,
-    { vaultIds },
-  );
-
-  const inUseMap = new Map<string, boolean>();
-
-  // Check Aave statuses
-  for (const item of aaveData.aaveVaultStatuss.items) {
-    if (item.status === AppVaultUsageStatus.IN_USE) {
-      inUseMap.set(item.vaultId, true);
-    }
-  }
-
-  return inUseMap;
-}
-
-/**
  * Fetch vaults by depositor address from GraphQL
- *
- * Uses two-query pattern:
- * 1. Fetch core vault data
- * 2. Fetch app-specific vault statuses (Aave) to determine if vaults are in use
  *
  * @param depositorAddress - Depositor's Ethereum address
  * @returns Array of vaults with isInUse status
@@ -229,32 +160,16 @@ async function fetchAppVaultStatuses(
 export async function fetchVaultsByDepositor(
   depositorAddress: Address,
 ): Promise<Vault[]> {
-  // 1. Fetch core vault data
   const data = await graphqlClient.request<VaultsGraphQLResponse>(
     GET_VAULTS_BY_DEPOSITOR,
     { depositor: depositorAddress.toLowerCase() },
   );
 
-  const vaultItems = data.vaults.items;
-  if (vaultItems.length === 0) {
-    return [];
-  }
-
-  // 2. Fetch app-specific vault statuses
-  const vaultIds = vaultItems.map((v) => v.id);
-  const inUseMap = await fetchAppVaultStatuses(vaultIds);
-
-  // 3. Merge and transform
-  return vaultItems.map((item) => {
-    const isInUse = inUseMap.get(item.id) ?? false;
-    return transformVaultItem(item, isInUse);
-  });
+  return data.vaults.items.map(transformVaultItem);
 }
 
 /**
  * Fetch a single vault by ID from GraphQL
- *
- * Uses two-query pattern to include app-specific vault status.
  *
  * @param vaultId - Vault ID (pegin tx hash)
  * @returns Vault with isInUse status, or null if not found
@@ -269,9 +184,5 @@ export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
     return null;
   }
 
-  // Fetch app-specific vault statuses
-  const inUseMap = await fetchAppVaultStatuses([data.vault.id]);
-  const isInUse = inUseMap.get(data.vault.id) ?? false;
-
-  return transformVaultItem(data.vault, isInUse);
+  return transformVaultItem(data.vault);
 }

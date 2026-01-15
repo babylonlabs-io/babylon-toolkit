@@ -80,10 +80,10 @@ export interface PollForPayoutTransactionsParams {
 }
 
 /**
- * Poll vault provider for payout transactions.
+ * Poll vault provider for depositor presign transactions.
  *
- * Waits until the vault provider has prepared the claim and payout
- * transactions for signing.
+ * Waits until the vault provider has prepared the transactions
+ * for depositor to sign (PayoutOptimistic and Payout).
  *
  * @returns Array of claimer transactions ready for signing
  * @throws Error on timeout, abort, or non-transient RPC error
@@ -97,8 +97,8 @@ export async function pollForPayoutTransactions(
 
   return pollUntil<ClaimerTransactions[]>(
     async () => {
-      const response = await rpcClient.requestClaimAndPayoutTransactions({
-        pegin_tx_id: stripHexPrefix(btcTxid),
+      const response = await rpcClient.requestDepositorPresignTransactions({
+        pegin_txid: stripHexPrefix(btcTxid),
         depositor_pk: depositorBtcPubkey,
       });
 

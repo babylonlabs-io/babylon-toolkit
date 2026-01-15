@@ -1,7 +1,7 @@
 /**
  * Type definitions for vault provider RPC API
  *
- * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/crates/vaultd/src/rpc/types.rs
+ * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/crates/vaultd-new/src/rpc/server/vault_provider.rs
  */
 
 // ============================================================================
@@ -9,49 +9,51 @@
 // ============================================================================
 
 /**
- * Parameters for requesting claim and payout transactions
- * Corresponds to: RequestClaimAndPayoutTransactionsParams (types.rs:251-258)
+ * Parameters for requesting depositor presign transactions
+ * Corresponds to: RequestDepositorPresignTransactionsParams
  */
-export interface RequestClaimAndPayoutTransactionsParams {
+export interface RequestDepositorPresignTransactionsParams {
   /** The PegIn transaction ID (hex encoded txid) */
-  pegin_tx_id: string;
+  pegin_txid: string;
   /** Hex encoded 32-byte x-only BTC public key of the depositor (no prefix) */
   depositor_pk: string;
 }
 
 /**
+ * Depositor's signatures for a single claimer's transactions
+ * Contains signatures for both PayoutOptimistic and Payout transactions
+ */
+export interface ClaimerSignatures {
+  /** Signature for PayoutOptimistic transaction (64-byte Schnorr, 128 hex chars) */
+  payout_optimistic_signature: string;
+  /** Signature for Payout transaction (64-byte Schnorr, 128 hex chars) */
+  payout_signature: string;
+}
+
+/**
  * Parameters for submitting payout signatures
- * Corresponds to: SubmitPayoutSignaturesParams (types.rs:260-273)
+ * Corresponds to: SubmitPayoutSignaturesParams
  */
 export interface SubmitPayoutSignaturesParams {
   /** The PegIn transaction ID (hex encoded txid) */
-  pegin_tx_id: string;
+  pegin_txid: string;
   /** Depositor's 32-byte x-only BTC public key (hex encoded, no prefix) */
   depositor_pk: string;
   /**
-   * Map of claimer public key to depositor's payout signature
-   * - Key: Claimer 32-byte x-only public key (VP, hex encoded, no prefix)
-   * - Value: Depositor's 64-byte Schnorr signature for that claimer's payout tx (hex encoded)
+   * Map of claimer public key to depositor's signatures
+   * - Key: Claimer 32-byte x-only public key (hex encoded, no prefix)
+   * - Value: ClaimerSignatures containing both PayoutOptimistic and Payout signatures
    */
-  signatures: Record<string, string>;
+  signatures: Record<string, ClaimerSignatures>;
 }
 
 /**
  * Parameters for getting PegIn status
- * Corresponds to: GetPeginStatusParams (types.rs:276-281)
+ * Corresponds to: GetPeginStatusParams
  */
 export interface GetPeginStatusParams {
   /** The PegIn transaction ID (hex encoded txid) */
-  pegin_tx_id: string;
-}
-
-/**
- * Parameters for getting PegIn claim transaction graph
- * Corresponds to: GetPeginClaimTxGraphParams (types.rs:196-199)
- */
-export interface GetPeginClaimTxGraphParams {
-  /** The PegIn transaction ID (hex encoded txid) */
-  pegin_tx_id: string;
+  pegin_txid: string;
 }
 
 // ============================================================================
@@ -60,55 +62,59 @@ export interface GetPeginClaimTxGraphParams {
 
 /**
  * Transaction data in the response
- * Corresponds to: TransactionData (types.rs:277-281)
+ * Corresponds to: TransactionData
  */
 export interface TransactionData {
   /** Transaction hex */
   tx_hex: string;
+  /**
+   * Sighash that the depositor should sign (hex encoded 32 bytes)
+   * Provided for PayoutOptimistic and Payout transactions
+   */
+  sighash: string | null;
 }
 
 /**
- * Single claimer's transactions
- * Corresponds to: ClaimerTransactions (types.rs:326-335)
+ * Single claimer's transactions for depositor to sign
+ * Corresponds to: ClaimerTransactions
+ *
+ * The depositor needs to sign both:
+ * - PayoutOptimistic (optimistic path after Claim, if no challenge)
+ * - Payout (challenge path after Assert, if claimer proves validity)
  */
 export interface ClaimerTransactions {
-  /** Claimer's public key (hex encoded) */
+  /** Claimer's public key (hex encoded 32 bytes x-only) */
   claimer_pubkey: string;
-  /** Claim transaction */
+  /** Claim transaction (for reference) */
   claim_tx: TransactionData;
-  /** Payout transaction */
+  /** PayoutOptimistic transaction (depositor signs input 0) */
+  payout_optimistic_tx: TransactionData;
+  /** Assert transaction (for reference) */
+  assert_tx: TransactionData;
+  /** Payout transaction (depositor signs input 0) */
   payout_tx: TransactionData;
 }
 
 /**
- * Response for requesting claim and payout transactions
- * Corresponds to: RequestClaimAndPayoutTransactionsResponse (types.rs:337-342)
+ * Response for requesting depositor presign transactions
+ * Corresponds to: RequestDepositorPresignTransactionsResponse
  */
-export interface RequestClaimAndPayoutTransactionsResponse {
-  /** List of transactions for each claimer (VP and L) */
+export interface RequestDepositorPresignTransactionsResponse {
+  /** List of transactions for each claimer (VP and VKs) */
   txs: ClaimerTransactions[];
 }
 
 /**
  * Response for getting PegIn status
- * Corresponds to: GetPeginStatusResponse (types.rs:354-361)
+ * Corresponds to: GetPeginStatusResponse
  */
 export interface GetPeginStatusResponse {
   /**
    * The current status of the PegIn in vault provider's database
-   * Possible values: "PendingChallengerSignatures", "PendingDepositorSignatures",
-   * "Acknowledged", "Activated", "ClaimPosted", "ChallengePeriod", "PeggedOut"
+   * Possible values: "PendingDepositorSignatures", "Acknowledged",
+   * "Activated", "ClaimPosted", "ChallengePeriod", "PeggedOut"
    */
   status: string;
-}
-
-/**
- * Response for querying PegIn claim transaction graph
- * Corresponds to: GetPeginClaimTxGraphResponse (types.rs:342-345)
- */
-export interface GetPeginClaimTxGraphResponse {
-  /** The PegInClaimTxGraph serialized as JSON string */
-  graph_json: string;
 }
 
 // ============================================================================
@@ -117,7 +123,7 @@ export interface GetPeginClaimTxGraphResponse {
 
 /**
  * Error codes that can be returned by the btc-vault RPC service
- * Based on: RpcError enum (error.rs:4-42)
+ * Based on: RpcError enum
  */
 export enum RpcErrorCode {
   DATABASE_ERROR = -32005,

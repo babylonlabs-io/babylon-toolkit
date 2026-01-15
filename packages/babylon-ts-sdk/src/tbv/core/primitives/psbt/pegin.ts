@@ -23,15 +23,18 @@ export interface PeginParams {
 
   /**
    * Vault provider's BTC public key (x-only, 64-char hex)
-   * Also referred to as "claimer" in the WASM layer
    */
-  claimerPubkey: string;
+  vaultProviderPubkey: string;
 
   /**
-   * Array of liquidator BTC public keys (x-only, 64-char hex)
-   * Also referred to as "challengers" in the WASM layer
+   * Array of vault keeper BTC public keys (x-only, 64-char hex)
    */
-  challengerPubkeys: string[];
+  vaultKeeperPubkeys: string[];
+
+  /**
+   * Array of universal challenger BTC public keys (x-only, 64-char hex)
+   */
+  universalChallengerPubkeys: string[];
 
   /**
    * Amount to peg in (in satoshis)
@@ -93,24 +96,6 @@ export interface PeginPsbtResult {
  *
  * @param params - Peg-in parameters
  * @returns Unsigned PSBT and transaction details
- *
- * @example
- * ```typescript
- * import { buildPeginPsbt } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
- *
- * const result = await buildPeginPsbt({
- *   depositorPubkey: 'abc123...',
- *   claimerPubkey: 'def456...',
- *   challengerPubkeys: ['ghi789...'],
- *   pegInAmount: 90000n,
- *   network: 'testnet',
- * });
- *
- * console.log(result.txid); // Transaction ID
- * console.log(result.psbtHex); // Unsigned transaction hex
- * console.log(result.vaultScriptPubKey); // Vault script pubkey
- * console.log(result.vaultValue); // 90000n
- * ```
  */
 export async function buildPeginPsbt(
   params: PeginParams,
@@ -118,8 +103,9 @@ export async function buildPeginPsbt(
   // Call the WASM wrapper with the exact parameter names it expects
   const result = await createPegInTransaction({
     depositorPubkey: params.depositorPubkey,
-    claimerPubkey: params.claimerPubkey,
-    challengerPubkeys: params.challengerPubkeys,
+    vaultProviderPubkey: params.vaultProviderPubkey,
+    vaultKeeperPubkeys: params.vaultKeeperPubkeys,
+    universalChallengerPubkeys: params.universalChallengerPubkeys,
     pegInAmount: params.pegInAmount,
     network: params.network,
   });

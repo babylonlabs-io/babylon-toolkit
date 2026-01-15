@@ -52,7 +52,8 @@ function DepositContent() {
     btcWalletProvider,
     ethAddress,
     selectedProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
     startDeposit,
     confirmReview,
     onSignSuccess,
@@ -150,7 +151,8 @@ function DepositContent() {
         btcWalletProvider={btcWalletProvider}
         ethAddress={ethAddress}
         selectedProviderBtcPubkey={selectedProviderBtcPubkey}
-        liquidatorBtcPubkeys={liquidatorBtcPubkeys}
+        vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+        universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
         onClose={resetDeposit}
         onConfirmReview={confirmReview}
         onSignSuccess={onSignSuccess}

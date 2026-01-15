@@ -2,8 +2,7 @@
  * Test Constants for PSBT Primitive Tests
  *
  * This module contains Bitcoin protocol constants and test fixtures used across
- * PSBT primitive tests. Constants are named and documented to match Rust implementation
- * patterns from etc/btc-vault/crates/vault/tests.
+ * PSBT primitive tests.
  *
  * @module primitives/psbt/__tests__/constants
  */
@@ -73,6 +72,13 @@ export const NULL_TXID = Buffer.alloc(32, 0);
  * Used to create distinct dummy transactions for claim outputs.
  */
 export const DUMMY_TXID_1 = Buffer.alloc(32, 1);
+
+/**
+ * Dummy transaction ID (filled with 0x02).
+ *
+ * Used to create distinct dummy transactions for assert outputs.
+ */
+export const DUMMY_TXID_2 = Buffer.alloc(32, 2);
 
 /**
  * All-ones transaction ID (invalid reference).

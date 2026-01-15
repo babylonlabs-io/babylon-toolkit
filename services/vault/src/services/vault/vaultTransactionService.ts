@@ -41,7 +41,10 @@ export interface SubmitPeginParams {
   changeAddress: string;
   vaultProviderAddress: Address;
   vaultProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  /** Vault keeper BTC public keys (per-application) */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys (system-wide) */
+  universalChallengerBtcPubkeys: string[];
   availableUTXOs: UTXO[];
   /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
@@ -112,7 +115,8 @@ export async function submitPeginRequest(
     amount: params.pegInAmount,
     vaultProvider: params.vaultProviderAddress,
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    liquidatorBtcPubkeys: params.liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
     availableUTXOs: params.availableUTXOs,
     feeRate: params.feeRate,
     changeAddress: params.changeAddress,

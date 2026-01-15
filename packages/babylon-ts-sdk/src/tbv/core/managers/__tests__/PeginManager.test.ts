@@ -33,15 +33,18 @@ const TEST_CHAIN: Chain = {
   },
 };
 
-// Test constants
+// Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-  LIQUIDATOR_1:
+  VAULT_PROVIDER:
+    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+  VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
-  LIQUIDATOR_2:
+  VAULT_KEEPER_2:
     "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+  UNIVERSAL_CHALLENGER_1:
+    "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
 
 const TEST_AMOUNTS = {
@@ -155,8 +158,9 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -207,8 +211,9 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN_SMALL,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 5,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -227,7 +232,7 @@ describe("PeginManager", () => {
       );
     });
 
-    it("should handle multiple liquidators", async () => {
+    it("should handle multiple vault keepers and universal challengers", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -245,8 +250,9 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1, TEST_KEYS.LIQUIDATOR_2],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -274,8 +280,9 @@ describe("PeginManager", () => {
       const result = await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -317,8 +324,9 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: excessiveAmount,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -345,8 +353,9 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: [], // Empty UTXOs
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -375,7 +384,8 @@ describe("PeginManager", () => {
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
           vaultProviderBtcPubkey: "invalid-pubkey",
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -383,7 +393,7 @@ describe("PeginManager", () => {
       ).rejects.toThrow();
     });
 
-    it("should throw error for empty liquidators", async () => {
+    it("should throw error for empty vault keepers", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -402,8 +412,9 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [], // Empty liquidators
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [], // Empty vault keepers
+          universalChallengerBtcPubkeys: [],
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -414,7 +425,7 @@ describe("PeginManager", () => {
 
   describe("Wallet integration", () => {
     it("should use wallet public key for depositor", async () => {
-      const customPubkey = TEST_KEYS.LIQUIDATOR_2;
+      const customPubkey = TEST_KEYS.VAULT_KEEPER_2;
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: customPubkey,
       });
@@ -435,8 +446,9 @@ describe("PeginManager", () => {
       await manager.preparePegin({
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -471,8 +483,9 @@ describe("PeginManager", () => {
         manager.preparePegin({
           amount: TEST_AMOUNTS.PEGIN,
           vaultProvider: TEST_CONTRACT_ADDRESS,
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -664,8 +677,9 @@ describe("PeginManager", () => {
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -685,7 +699,7 @@ describe("PeginManager", () => {
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
       const btcWallet2 = new MockBitcoinWallet({
-        publicKeyHex: TEST_KEYS.LIQUIDATOR_1, // Different key
+        publicKeyHex: TEST_KEYS.VAULT_KEEPER_1, // Different key
       });
       const ethWallet = new MockEthereumWallet();
 
@@ -710,8 +724,9 @@ describe("PeginManager", () => {
       const params = {
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_2],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,

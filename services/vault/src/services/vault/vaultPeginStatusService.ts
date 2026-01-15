@@ -57,7 +57,7 @@ export async function checkPeginStatus(
   // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
   // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
   const response = await rpcClient.getPeginStatus({
-    pegin_tx_id: stripHexPrefix(peginTxId),
+    pegin_txid: stripHexPrefix(peginTxId),
   });
 
   // Parse the status string into DaemonStatus enum

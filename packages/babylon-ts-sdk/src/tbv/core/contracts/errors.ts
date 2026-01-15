@@ -18,6 +18,32 @@ export const CONTRACT_ERRORS: Record<string, string> = {
   "0x04aabf33":
     "Vault already exists: This Bitcoin transaction has already been registered. " +
     "Please select different UTXOs or use a different amount to create a unique transaction.",
+  // ScriptPubKeyMismatch() - taproot output doesn't match expected script
+  "0x4fec082d":
+    "Script mismatch: The Bitcoin transaction's taproot output does not match the expected vault script. " +
+    "This may be caused by incorrect vault participants or key configuration.",
+  // InvalidBTCProofOfPossession()
+  "0x6cc363a5":
+    "Invalid BTC proof of possession: The signature could not be verified. " +
+    "Please ensure you're signing with the correct Bitcoin wallet.",
+  // InvalidBTCPublicKey()
+  "0x6c3f2bf6":
+    "Invalid BTC public key: The Bitcoin public key format is invalid.",
+  // InvalidAmount()
+  "0x2c5211c6":
+    "Invalid amount: The deposit amount is invalid or below the minimum required.",
+  // ApplicationNotRegistered()
+  "0x0405f772":
+    "Application not registered: The application controller is not registered in the system.",
+  // InvalidProviderStatus()
+  "0x24e165cc":
+    "Invalid provider status: The vault provider is not in a valid state to accept deposits.",
+  // ZeroAddress()
+  "0xd92e233d":
+    "Zero address: One of the required addresses is the zero address.",
+  // BtcKeyMismatch()
+  "0x65aa7007":
+    "BTC key mismatch: The Bitcoin public key does not match the expected key.",
   // Unauthorized()
   "0x82b42900":
     "Unauthorized: You must be the depositor or vault provider to submit this transaction.",
@@ -113,13 +139,18 @@ export function isKnownContractError(error: unknown): boolean {
  * @throws Always throws an error with a descriptive message
  */
 export function handleContractError(error: unknown): never {
+  // Log full error for debugging
+  console.error("[Contract Error] Raw error:", error);
+
   // Extract error data from the error chain
   const errorData = extractErrorData(error);
+  console.error("[Contract Error] Extracted error data:", errorData);
 
   // Check for known contract error signatures
   if (errorData) {
     const knownError = CONTRACT_ERRORS[errorData];
     if (knownError) {
+      console.error("[Contract Error] Known error:", knownError);
       throw new Error(knownError);
     }
   }
@@ -133,6 +164,12 @@ export function handleContractError(error: unknown): never {
   ) {
     // If we found error data but it's not in our known list, include it
     const errorHint = errorData ? ` (error code: ${errorData})` : "";
+    console.error(
+      "[Contract Error] Transaction rejected. Error code:",
+      errorData,
+      "Message:",
+      errorMsg,
+    );
     throw new Error(
       `Transaction failed: The contract rejected this transaction${errorHint}. ` +
         "Possible causes: (1) Vault already exists for this transaction, " +
@@ -143,6 +180,7 @@ export function handleContractError(error: unknown): never {
 
   // Default: re-throw original error with better context
   if (error instanceof Error) {
+    console.error("[Contract Error] Unhandled error:", error.message);
     throw error;
   }
   throw new Error(`Contract call failed: ${String(error)}`);

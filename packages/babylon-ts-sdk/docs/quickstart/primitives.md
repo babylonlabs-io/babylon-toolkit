@@ -89,7 +89,7 @@ import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 const peginResult = await buildPeginPsbt({
   depositorPubkey: "abc123...", // Your BTC pubkey (x-only, 64 hex chars, no 0x)
   claimerPubkey: "def456...", // Vault provider BTC pubkey (x-only, 64 hex chars)
-  challengerPubkeys: ["ghi789...", "jkl012..."], // Liquidator BTC pubkeys (x-only, 64 hex chars each)
+  vaultKeeperPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 hex chars each)
   pegInAmount: 100000n, // Amount in satoshis (bigint)
   network: "signet" as Network,
 });
@@ -329,7 +329,7 @@ for (const claimerTx of claimerTransactions) {
     claimTxHex: claimerTx.claim_tx.tx_hex,
     depositorBtcPubkey: "abc123...", // Your BTC pubkey (x-only, 64 hex chars)
     vaultProviderBtcPubkey: "def456...", // Vault provider BTC pubkey
-    liquidatorBtcPubkeys: ["ghi789...", "jkl012..."], // Liquidator BTC pubkeys
+    vaultKeeperBtcPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys
     network: "signet" as Network,
   });
 
@@ -491,7 +491,7 @@ const CONFIG = {
   btcNetwork: "signet" as Network,
   vaultProviderEthAddress: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "def456...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  liquidatorBtcPubkeys: ["ghi789...", "jkl012..."], // Liquidator BTC pubkeys (x-only, 64 chars)
+  vaultKeeperBtcPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 chars)
   btcVaultsManagerAddress: "0x123...", // BTCVaultsManager contract address
   vaultProviderRpcUrl: "https://vp.example.com/rpc",
   pegInAmount: 100000n,
@@ -525,7 +525,7 @@ async function completePeginFlow(
   const peginResult = await buildPeginPsbt({
     depositorPubkey: depositorBtcPubkey,
     claimerPubkey: CONFIG.vaultProviderBtcPubkey,
-    challengerPubkeys: CONFIG.liquidatorBtcPubkeys,
+    vaultKeeperPubkeys: CONFIG.vaultKeeperBtcPubkeys,
     pegInAmount: CONFIG.pegInAmount,
     network: CONFIG.btcNetwork,
   });
@@ -623,7 +623,7 @@ async function completePeginFlow(
       claimTxHex: claimerTx.claim_tx.tx_hex,
       depositorBtcPubkey,
       vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
-      liquidatorBtcPubkeys: CONFIG.liquidatorBtcPubkeys,
+      vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
       network: CONFIG.btcNetwork,
     });
 

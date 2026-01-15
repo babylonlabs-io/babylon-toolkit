@@ -34,7 +34,8 @@ describe("Deposit Transformers", () => {
       const providerData = {
         address: "0xProvider123" as any,
         btcPubkey: "0xProviderBtcKey",
-        liquidatorPubkeys: ["0xLiquidator1", "0xLiquidator2"],
+        vaultKeeperPubkeys: ["0xVaultKeeper1", "0xVaultKeeper2"],
+        universalChallengerPubkeys: ["0xUniversalChallenger1"],
       };
 
       const utxoData = {
@@ -56,7 +57,8 @@ describe("Deposit Transformers", () => {
       expect(result.pegInAmount).toBe(100000n);
       expect(result.vaultProviderAddress).toBe("0xProvider123");
       expect(result.vaultProviderBtcPubkey).toBe("0xProviderBtcKey");
-      expect(result.liquidatorBtcPubkeys).toHaveLength(2);
+      expect(result.vaultKeeperBtcPubkeys).toHaveLength(2);
+      expect(result.universalChallengerBtcPubkeys).toHaveLength(1);
       expect(result.selectedUTXOs).toHaveLength(1);
       expect(result.fee).toBe(1000n);
       expect(result.unsignedTxHex).toBeUndefined();

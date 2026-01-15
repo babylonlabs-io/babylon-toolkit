@@ -1,8 +1,8 @@
 /**
- * Hook to fetch and cache vault providers and liquidators
+ * Hook to fetch and cache vault providers, vault keepers, and universal challengers
  *
- * This hook fetches vault providers and liquidators from the GraphQL indexer.
- * The data is cached per application controller using React Query.
+ * This hook fetches vault providers, vault keepers, and universal challengers
+ * from the GraphQL indexer. The data is cached per application controller using React Query.
  *
  * Since provider data rarely changes, we use aggressive caching:
  * - Cache for 5 minutes (staleTime)
@@ -14,13 +14,20 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
 import { fetchProviders } from "../../services/providers";
-import type { Liquidator, ProvidersResponse, VaultProvider } from "../../types";
+import type {
+  ProvidersResponse,
+  UniversalChallenger,
+  VaultKeeper,
+  VaultProvider,
+} from "../../types";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
   vaultProviders: VaultProvider[];
-  /** Array of liquidators */
-  liquidators: Liquidator[];
+  /** Array of vault keepers (per-application) */
+  vaultKeepers: VaultKeeper[];
+  /** Array of universal challengers (system-wide) */
+  universalChallengers: UniversalChallenger[];
   /** Loading state - true while fetching */
   loading: boolean;
   /** Error state */
@@ -38,14 +45,14 @@ export interface UseVaultProvidersResult {
 }
 
 /**
- * Hook to fetch vault providers and liquidators from the GraphQL indexer
+ * Hook to fetch vault providers, vault keepers, and universal challengers from the GraphQL indexer
  *
  * Data is cached per application controller and shared across all components.
  * When applicationController changes, providers are re-fetched for the new application.
  *
  * @param applicationController - The application controller address to filter by.
  *                                If undefined or empty, the query is disabled.
- * @returns Hook result with vaultProviders, liquidators, loading, error states
+ * @returns Hook result with vaultProviders, vaultKeepers, universalChallengers, loading, error states
  */
 export function useVaultProviders(
   applicationController?: string,
@@ -104,7 +111,8 @@ export function useVaultProviders(
 
   return {
     vaultProviders: data?.vaultProviders || [],
-    liquidators: data?.liquidators || [],
+    vaultKeepers: data?.vaultKeepers || [],
+    universalChallengers: data?.universalChallengers || [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,

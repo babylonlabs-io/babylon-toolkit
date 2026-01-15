@@ -12,9 +12,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
-const BTC_VAULT_BRANCH = 'new-tx-graph-wasm';
-const BTC_VAULT_COMMIT = '52f3ec98';
-// TODO: When btc-vault merges to main, update branch to 'main' and commit hash
+const BTC_VAULT_BRANCH = 'main';
+const BTC_VAULT_COMMIT = '60e316739ac76cdf852556715224334254d16e2d';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');

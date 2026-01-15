@@ -116,6 +116,33 @@ vi.mock("@/services/vault", () => ({
   signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock payout signature service to avoid SDK imports triggering initEccLib
+vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
+  prepareSigningContext: vi.fn().mockResolvedValue({
+    context: {
+      peginTxHex: "0xmockhex",
+      vaultProviderBtcPubkey: "0xmockpubkey",
+      vaultKeeperBtcPubkeys: ["0xmockkeeper"],
+      universalChallengerBtcPubkeys: ["0xmockchallenger"],
+      depositorBtcPubkey: "0xmockdepositor",
+      network: "signet",
+    },
+    vaultProviderUrl: "https://vault-provider.test",
+  }),
+  prepareTransactionsForSigning: vi.fn().mockReturnValue([
+    {
+      claimerPubkeyXOnly: "0xmockclaimer",
+      payoutOptimisticTxHex: "0xmockpayoutoptimistic",
+      payoutTxHex: "0xmockpayout",
+      claimTxHex: "0xmockclaim",
+      assertTxHex: "0xmockassert",
+    },
+  ]),
+  signPayoutOptimistic: vi.fn().mockResolvedValue("0xmocksignature1"),
+  signPayout: vi.fn().mockResolvedValue("0xmocksignature2"),
+  submitSignaturesToVaultProvider: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock vault provider RPC
 vi.mock("@/clients/vault-provider-rpc", () => {
   return {
@@ -142,7 +169,8 @@ vi.mock("../useVaultProviders", () => ({
       btcPubKey: "0xVaultProviderKey",
       name: "Test Provider",
     })),
-    liquidators: [{ btcPubKey: "0xLiquidatorKey1" }],
+    vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+    universalChallengers: [{ btcPubKey: "0xUniversalChallengerKey1" }],
     vaultProviders: [],
     loading: false,
     error: null,
@@ -167,7 +195,8 @@ describe("useDepositFlow - Chain Switching", () => {
     selectedApplication: "0xcb3843752798493344c254d8d88640621e202395", // Aave controller address
     selectedProviders: ["0xProvider123" as Address],
     vaultProviderBtcPubkey: "0xVaultProviderKey",
-    liquidatorBtcPubkeys: ["0xLiquidatorKey1"],
+    vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],
+    universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
     onSuccess: vi.fn(),
   };

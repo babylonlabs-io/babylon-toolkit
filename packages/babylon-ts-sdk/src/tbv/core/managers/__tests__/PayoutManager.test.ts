@@ -19,20 +19,22 @@ import {
   SEQUENCE_MAX,
   TEST_CLAIM_VALUE,
   TEST_COMBINED_VALUE,
-  TEST_PAYOUT_VALUE,
   TEST_PEGIN_VALUE,
   createDummyP2TR,
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
-// Test constants
+// Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
   DEPOSITOR:
     "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-  LIQUIDATOR_1:
+  VAULT_PROVIDER:
+    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+  VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+  UNIVERSAL_CHALLENGER_1:
+    "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
 
 describe("PayoutManager", () => {
@@ -61,28 +63,19 @@ describe("PayoutManager", () => {
   }
 
   /**
-   * Creates a deterministic payout transaction that spends the peg-in output.
+   * Creates a deterministic PayoutOptimistic transaction that spends the peg-in output + claim output.
    */
-  function createTestPayoutTransaction(
+  function createTestPayoutOptimisticTransaction(
     peginTxHex: string,
-    claimTxHex?: string,
+    claimTxHex: string,
   ): string {
     const peginTx = Transaction.fromHex(peginTxHex);
+    const claimTx = Transaction.fromHex(claimTxHex);
     const tx = new Transaction();
 
     tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
-
-    if (claimTxHex) {
-      const claimTx = Transaction.fromHex(claimTxHex);
-      tx.addInput(
-        Buffer.from(claimTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
-    }
-
-    const outputValue = claimTxHex ? TEST_COMBINED_VALUE : TEST_PAYOUT_VALUE;
-    tx.addOutput(createDummyP2WPKH("a"), Number(outputValue));
+    tx.addInput(Buffer.from(claimTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
+    tx.addOutput(createDummyP2WPKH("a"), Number(TEST_COMBINED_VALUE));
 
     return tx.toHex();
   }
@@ -119,11 +112,14 @@ describe("PayoutManager", () => {
     });
   });
 
-  describe("signPayoutTransaction", () => {
-    it("should sign payout tx and return signature plus depositor pubkey", async () => {
+  describe("signPayoutOptimisticTransaction", () => {
+    it("should sign PayoutOptimistic tx and return signature plus depositor pubkey", async () => {
       const peginTxHex = createTestPeginTransaction();
       const claimTxHex = createTestClaimTransaction();
-      const payoutTxHex = createTestPayoutTransaction(peginTxHex, claimTxHex);
+      const payoutOptimisticTxHex = createTestPayoutOptimisticTransaction(
+        peginTxHex,
+        claimTxHex,
+      );
       const deterministicSignature = "11".repeat(64);
 
       const getPublicKeyHex = vi
@@ -156,12 +152,13 @@ describe("PayoutManager", () => {
         btcWallet: wallet,
       });
 
-      const result = await manager.signPayoutTransaction({
-        payoutTxHex,
+      const result = await manager.signPayoutOptimisticTransaction({
+        payoutOptimisticTxHex,
         peginTxHex,
         claimTxHex,
-        vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-        liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
       });
 
       expect(result.signature).toBe(deterministicSignature);
@@ -182,16 +179,16 @@ describe("PayoutManager", () => {
       });
 
       await expect(
-        manager.signPayoutTransaction({
-          payoutTxHex: "0200000001...",
+        manager.signPayoutOptimisticTransaction({
+          payoutOptimisticTxHex: "0200000001...",
           peginTxHex: "0200000001...",
           claimTxHex: "0200000001...",
-          vaultProviderBtcPubkey: TEST_KEYS.CLAIMER,
-          liquidatorBtcPubkeys: [TEST_KEYS.LIQUIDATOR_1],
+          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         }),
       ).rejects.toThrow();
     });
-
   });
 });
 

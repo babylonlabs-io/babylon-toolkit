@@ -14,7 +14,7 @@ import {
   useDepositState,
 } from "../../context/deposit/DepositState";
 import { useETHWallet } from "../../context/wallet";
-import type { Liquidator, VaultProvider } from "../../types/vaultProvider";
+import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
 
 import { useVaultProviders } from "./useVaultProviders";
@@ -33,7 +33,8 @@ export interface UseDepositPageFlowResult {
 
   // Provider data
   selectedProviderBtcPubkey: string;
-  liquidatorBtcPubkeys: string[];
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
 
   // Actions
   startDeposit: (
@@ -68,20 +69,24 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     reset: resetDeposit,
   } = useDepositState();
 
-  // Fetch vault providers and liquidators based on selected application
-  const { vaultProviders, liquidators } = useVaultProviders(
-    selectedApplication || undefined,
-  );
+  // Fetch vault providers, vault keepers, and universal challengers based on selected application
+  const { vaultProviders, vaultKeepers, universalChallengers } =
+    useVaultProviders(selectedApplication || undefined);
 
   // Get activities refetch function
   const { refetchActivities } = useVaultDeposits(ethAddress);
 
-  // Get selected provider's BTC public key and liquidators
-  const { selectedProviderBtcPubkey, liquidatorBtcPubkeys } = useMemo(() => {
+  // Get selected provider's BTC public key, vault keepers, and universal challengers
+  const {
+    selectedProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+  } = useMemo(() => {
     if (selectedProviders.length === 0 || vaultProviders.length === 0) {
       return {
         selectedProviderBtcPubkey: "",
-        liquidatorBtcPubkeys: [],
+        vaultKeeperBtcPubkeys: [],
+        universalChallengerBtcPubkeys: [],
       };
     }
 
@@ -92,9 +97,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
     return {
       selectedProviderBtcPubkey: selectedProvider?.btcPubKey || "",
-      liquidatorBtcPubkeys: liquidators.map((liq: Liquidator) => liq.btcPubKey),
+      vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
+      universalChallengerBtcPubkeys: universalChallengers.map(
+        (uc) => uc.btcPubKey,
+      ),
     };
-  }, [selectedProviders, vaultProviders, liquidators]);
+  }, [selectedProviders, vaultProviders, vaultKeepers, universalChallengers]);
 
   // Actions
   const startDeposit = (
@@ -125,7 +133,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     btcWalletProvider,
     ethAddress,
     selectedProviderBtcPubkey,
-    liquidatorBtcPubkeys,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
     startDeposit,
     confirmReview,
     onSignSuccess,

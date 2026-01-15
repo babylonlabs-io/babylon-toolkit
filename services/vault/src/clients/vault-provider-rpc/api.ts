@@ -5,12 +5,10 @@
 import { JsonRpcClient } from "../../utils/rpc";
 
 import type {
-  GetPeginClaimTxGraphParams,
-  GetPeginClaimTxGraphResponse,
   GetPeginStatusParams,
   GetPeginStatusResponse,
-  RequestClaimAndPayoutTransactionsParams,
-  RequestClaimAndPayoutTransactionsResponse,
+  RequestDepositorPresignTransactionsParams,
+  RequestDepositorPresignTransactionsResponse,
   SubmitPayoutSignaturesParams,
 } from "./types";
 
@@ -25,27 +23,37 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Request unsigned claim and payout transactions for a PegIn
+   * Request transactions for depositor to presign
    *
-   * Depositors call this method to get the claim and payout transactions
-   * that they need to sign for the PegIn claim flow.
+   * Depositors call this method to get the transactions that they need to sign
+   * for the PegIn flow. Returns 4 transactions per claimer:
+   * - Claim (for reference)
+   * - PayoutOptimistic (depositor signs)
+   * - Assert (for reference)
+   * - Payout (depositor signs)
    *
    * @param params - PegIn transaction ID and depositor's 32-byte x-only public key
-   * @returns List of claim/payout transaction pairs for each claimer (VP and L)
+   * @returns List of transaction sets for each claimer (VP and VKs)
    */
-  async requestClaimAndPayoutTransactions(
-    params: RequestClaimAndPayoutTransactionsParams,
-  ): Promise<RequestClaimAndPayoutTransactionsResponse> {
+  async requestDepositorPresignTransactions(
+    params: RequestDepositorPresignTransactionsParams,
+  ): Promise<RequestDepositorPresignTransactionsResponse> {
     return this.client.call<
-      RequestClaimAndPayoutTransactionsParams,
-      RequestClaimAndPayoutTransactionsResponse
-    >("vaultProvider_requestClaimAndPayoutTransactions", params);
+      RequestDepositorPresignTransactionsParams,
+      RequestDepositorPresignTransactionsResponse
+    >("vaultProvider_requestDepositorPresignTransactions", params);
   }
 
   /**
-   * Submit depositor signatures for payout transactions
+   * Submit depositor signatures for PayoutOptimistic and Payout transactions
    *
-   * @param params - PegIn TX ID, depositor's 32-byte x-only public key, and Schnorr signatures
+   * After the depositor receives transactions via `requestDepositorPresignTransactions`,
+   * they sign both PayoutOptimistic and Payout transactions and submit their signatures
+   * through this API. The vault provider will store these signatures and use them to
+   * finalize the PegIn flow.
+   *
+   * @param params - PegIn TX ID, depositor's 32-byte x-only public key, and signatures
+   *                 (both PayoutOptimistic and Payout signatures for each claimer)
    * @returns void on success
    */
   async submitPayoutSignatures(
@@ -70,23 +78,5 @@ export class VaultProviderRpcApi {
       "vaultProvider_getPeginStatus",
       params,
     );
-  }
-
-  /**
-   * Get the PegIn claim transaction graph
-   *
-   * This returns the complete transaction graph including all public keys,
-   * which can be used to verify the exact order of liquidators used by the VP.
-   *
-   * @param params - PegIn transaction ID
-   * @returns The PegInClaimTxGraph serialized as JSON
-   */
-  async getPeginClaimTxGraph(
-    params: GetPeginClaimTxGraphParams,
-  ): Promise<GetPeginClaimTxGraphResponse> {
-    return this.client.call<
-      GetPeginClaimTxGraphParams,
-      GetPeginClaimTxGraphResponse
-    >("vaultProvider_getPeginClaimTxGraph", params);
   }
 }

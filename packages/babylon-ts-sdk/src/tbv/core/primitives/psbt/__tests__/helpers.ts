@@ -18,13 +18,25 @@ import { readFile } from "node:fs/promises";
 export const TEST_KEYS = {
   DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
 
-  CLAIMER: "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+  /** Vault provider (formerly claimer) */
+  VAULT_PROVIDER:
+    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
 
-  LIQUIDATOR_1:
+  /** Vault keeper 1 */
+  VAULT_KEEPER_1:
     "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
 
-  LIQUIDATOR_2:
+  /** Vault keeper 2 */
+  VAULT_KEEPER_2:
     "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
+
+  /** Universal challenger 1 */
+  UNIVERSAL_CHALLENGER_1:
+    "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+
+  /** Universal challenger 2 */
+  UNIVERSAL_CHALLENGER_2:
+    "fff97bd5755eeea420453a14355235d382f6472f8568a18b2f057a1460297556",
 } as const;
 
 /**

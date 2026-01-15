@@ -22,8 +22,16 @@ export type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 export { buildPeginPsbt } from "./psbt/pegin";
 export type { PeginParams, PeginPsbtResult } from "./psbt/pegin";
 
-export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
-export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
+export {
+  buildPayoutOptimisticPsbt,
+  buildPayoutPsbt,
+  extractPayoutSignature,
+} from "./psbt/payout";
+export type {
+  PayoutOptimisticParams,
+  PayoutParams,
+  PayoutPsbtResult,
+} from "./psbt/payout";
 
 // Script generators
 export { createPayoutScript } from "./scripts/payout";

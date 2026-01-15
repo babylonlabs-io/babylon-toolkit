@@ -185,7 +185,7 @@ async function pegin() {
   const pegin = await buildPeginPsbt({
     depositorPubkey: "a1b2c3d4...", // your x-only pubkey (64 hex chars)
     claimerPubkey: "e5f6a7b8...", // vault provider pubkey
-    challengerPubkeys: ["c9d0e1f2..."], // liquidator pubkeys
+    vaultKeeperPubkeys: ["c9d0e1f2..."], // vault keeper pubkeys
     pegInAmount: 100000n, // satoshis
     network: "signet",
   });
@@ -278,7 +278,7 @@ async function payout() {
     claimTxHex,
     depositorBtcPubkey: "a1b2c3d4...", // your x-only pubkey
     vaultProviderBtcPubkey: "e5f6a7b8...", // vault provider pubkey
-    liquidatorBtcPubkeys: ["c9d0e1f2..."], // liquidator pubkeys
+    vaultKeeperBtcPubkeys: ["c9d0e1f2..."], // vault keeper pubkeys
     network: "signet",
   });
 
