@@ -9,7 +9,7 @@ import {
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatusFromValue,
-} from "../../../utils/healthFactor";
+} from "../../../utils";
 
 interface HealthFactorValueProps {
   /** Current health factor value (Infinity when no debt) */

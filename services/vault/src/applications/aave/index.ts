@@ -1,12 +1,12 @@
+import {
+  AAVE_FUNCTION_NAMES,
+  AaveIntegrationControllerABI,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
-import AaveIntegrationControllerABI from "./clients/abis/AaveIntegrationController.abi.json";
-import {
-  AAVE_APP_ID,
-  AAVE_FUNCTION_NAMES,
-  getAaveControllerAddress,
-} from "./config";
+import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
 import { AaveRoutes } from "./routes";
 
 export const aaveApp: ApplicationRegistration = {

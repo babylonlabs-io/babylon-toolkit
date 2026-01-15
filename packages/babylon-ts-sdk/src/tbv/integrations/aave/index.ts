@@ -72,3 +72,7 @@ export type {
   SelectableVault,
   VaultSelectionResult,
 } from "./utils/index.js";
+
+// Export ABIs for application registration
+export { default as AaveIntegrationControllerABI } from "./clients/abis/AaveIntegrationController.abi.json";
+export { default as AaveSpokeABI } from "./clients/abis/AaveSpoke.abi.json";
