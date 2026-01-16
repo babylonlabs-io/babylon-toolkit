@@ -56,9 +56,10 @@ const formatDisplayValue = (key: string, value: any): ReactNode => {
   }
   // Finality providers, covenant public keys
   if (Array.isArray(value)) {
+    const sortedValue = key === "covenantPks" ? [...value].sort() : value;
     return (
       <div className="flex max-w-xs flex-col items-end">
-        {value.map((item, index) => (
+        {sortedValue.map((item, index) => (
           <Hash key={index} value={String(item)} small noFade address />
         ))}
       </div>
