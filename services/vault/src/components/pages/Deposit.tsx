@@ -121,10 +121,7 @@ function DepositContent() {
             />
 
             {!FeatureFlags.isDepositEnabled && (
-              <Text
-                variant="body2"
-                className="text-center text-warning-main"
-              >
+              <Text variant="body2" className="text-center text-warning-main">
                 Depositing is temporarily unavailable. Please check back later.
               </Text>
             )}
@@ -137,7 +134,9 @@ function DepositContent() {
               onClick={handleDeposit}
               className="w-full"
             >
-              {FeatureFlags.isDepositEnabled ? "Deposit" : "Depositing Unavailable"}
+              {FeatureFlags.isDepositEnabled
+                ? "Deposit"
+                : "Depositing Unavailable"}
             </Button>
           </div>
 

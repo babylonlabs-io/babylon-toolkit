@@ -5,7 +5,12 @@
  * Gets all required data from LoanContext.
  */
 
-import { AmountSlider, Button, SubSection, Text } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Button,
+  SubSection,
+  Text,
+} from "@babylonlabs-io/core-ui";
 
 import { FeatureFlags } from "@/config";
 
