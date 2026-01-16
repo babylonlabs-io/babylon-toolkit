@@ -465,9 +465,13 @@ export class PeginManager {
     const depositorEthAddress = this.config.ethWallet.account.address;
 
     // Step 2: Create proof of possession
-    // The depositor signs their ETH address with their BTC key using BIP-322 simple
-    // Message format: "<lowercase-address>:<chainId>" to match BTCProofOfPossession.sol
-    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}`;
+    // The depositor signs a message with their BTC key using BIP-322 simple
+    // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
+    // This matches BTCProofOfPossession.sol buildMessage() format
+    // Addresses already include 0x prefix and must be lowercase
+    // Action is "pegin" for peg-in operations
+    const verifyingContract = this.config.vaultContracts.btcVaultsManager;
+    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
     const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
       popMessage,
       "bip322-simple",

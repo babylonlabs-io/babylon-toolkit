@@ -55,6 +55,10 @@ export interface DepositValidationParams {
   }> | null;
   isUTXOsLoading: boolean;
   utxoError: Error | null;
+  /** Vault keeper BTC public keys - required for Taproot script */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challenger BTC public keys - required for Taproot script */
+  universalChallengerBtcPubkeys: string[];
 }
 
 export interface PeginSubmitParams {
@@ -129,6 +133,8 @@ export function validateDepositInputs(params: DepositValidationParams): void {
     confirmedUTXOs,
     isUTXOsLoading,
     utxoError,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
   } = params;
 
   if (!btcAddress) {
@@ -149,6 +155,23 @@ export function validateDepositInputs(params: DepositValidationParams): void {
 
   if (selectedProviders.length === 0) {
     throw new Error("No providers selected");
+  }
+
+  // Validate vault keepers - required for Taproot script construction
+  if (!vaultKeeperBtcPubkeys || vaultKeeperBtcPubkeys.length === 0) {
+    throw new Error(
+      "No vault keepers available. The system requires at least one vault keeper to create a deposit.",
+    );
+  }
+
+  // Validate universal challengers - required for Taproot script construction
+  if (
+    !universalChallengerBtcPubkeys ||
+    universalChallengerBtcPubkeys.length === 0
+  ) {
+    throw new Error(
+      "No universal challengers available. The system requires at least one universal challenger to create a deposit.",
+    );
   }
 
   if (isUTXOsLoading) {

@@ -8,6 +8,12 @@
 
 import type { Address } from "viem";
 
+/**
+ * Action types for PoP signatures
+ * Must match BTCProofOfPossession.sol ACTION_* constants
+ */
+export type PopAction = "register" | "pegin";
+
 export interface ProofOfPossessionParams {
   /**
    * Depositor's Ethereum address
@@ -25,6 +31,17 @@ export interface ProofOfPossessionParams {
   chainId: number;
 
   /**
+   * Action context for the signature (e.g., "register", "pegin")
+   */
+  action: PopAction;
+
+  /**
+   * Verifying contract address (BTCVaultsManager)
+   * Required to prevent cross-contract replay attacks
+   */
+  verifyingContract: Address;
+
+  /**
    * BTC wallet signing function
    */
   signMessage?: (message: string) => Promise<string>;
@@ -33,8 +50,9 @@ export interface ProofOfPossessionParams {
 /**
  * Create proof of possession signature
  *
- * The depositor signs their Ethereum address with their BTC private key
- * to prove they control the BTC public key.
+ * The depositor signs a message containing their Ethereum address, chain ID,
+ * action, and verifying contract with their BTC private key to prove they
+ * control the BTC public key.
  *
  * @param params - PoP parameters
  * @returns Signature
@@ -50,6 +68,12 @@ export async function createProofOfPossession(
   if (!params.btcAddress) {
     throw new Error("[PoP] BTC address is required");
   }
+  if (!params.action) {
+    throw new Error("[PoP] Action is required");
+  }
+  if (!params.verifyingContract) {
+    throw new Error("[PoP] Verifying contract address is required");
+  }
 
   // Check if wallet supports message signing
   if (!params.signMessage) {
@@ -58,9 +82,10 @@ export async function createProofOfPossession(
     );
   }
 
-  // Message format: "0x<lowercase-address>:<chainId>"
+  // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
   // This matches BTCProofOfPossession.sol buildMessage() format
-  const message = `${params.ethAddress.toLowerCase()}:${params.chainId}`;
+  // Addresses already include 0x prefix and must be lowercase
+  const message = `${params.ethAddress.toLowerCase()}:${params.chainId}:${params.action}:${params.verifyingContract.toLowerCase()}`;
 
   // Request signature from BTC wallet
   const signature = await params.signMessage(message);
