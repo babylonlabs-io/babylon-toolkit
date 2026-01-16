@@ -131,6 +131,8 @@ export function useDepositFlow(
         confirmedUTXOs,
         isUTXOsLoading,
         utxoError,
+        vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys,
       });
 
       // Step 1: Get ETH wallet client

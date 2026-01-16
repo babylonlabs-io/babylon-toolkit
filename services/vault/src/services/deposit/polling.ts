@@ -41,9 +41,11 @@ const TRANSIENT_ERROR_PATTERNS = [
 
 /**
  * Invalid state patterns that indicate the vault provider is still processing.
+ * These states occur before PendingDepositorSignatures and should be waited through.
  */
 const INVALID_STATE_PATTERNS = [
   "Acknowledged",
+  "PendingGCAssignment",
   "PendingChallengerSignatures",
 ] as const;
 
