@@ -82,9 +82,9 @@ export async function createProofOfPossession(
     );
   }
 
-  // Message format: "0x<address>:<chainId>:<action>:0x<verifying_contract>"
+  // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
   // This matches BTCProofOfPossession.sol buildMessage() format
-  // Both addresses must be lowercase with 0x prefix
+  // Addresses already include 0x prefix and must be lowercase
   const message = `${params.ethAddress.toLowerCase()}:${params.chainId}:${params.action}:${params.verifyingContract.toLowerCase()}`;
 
   // Request signature from BTC wallet
