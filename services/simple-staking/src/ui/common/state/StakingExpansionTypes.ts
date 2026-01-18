@@ -14,8 +14,6 @@ import type { FinalityProvider } from "@/ui/common/types/finalityProviders";
  * Extends shared EOI steps to avoid code duplication.
  */
 export enum StakingExpansionStep {
-  /** Initial step for selecting BSN and Finality Provider pairs - unique to expansion */
-  BSN_FP_SELECTION = "bsn-fp-selection",
   /** Step for showing renewal timelock information */
   RENEWAL_TIMELOCK = "renewal-timelock",
   /** Base workflow steps - reuse shared base steps */
