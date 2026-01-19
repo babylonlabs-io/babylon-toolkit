@@ -240,10 +240,13 @@ const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
 
 ```typescript
 // Poll vault provider RPC for transactions
+// Vault provider returns BOTH PayoutOptimistic and Payout transactions
 interface ClaimerTransaction {
   claimer_pubkey: string;
   claim_tx: { tx_hex: string };
-  payout_tx: { tx_hex: string };
+  assert_tx: { tx_hex: string };
+  payout_optimistic_tx: { tx_hex: string }; // Optimistic path
+  payout_tx: { tx_hex: string };           // Challenge path
 }
 
 async function requestClaimAndPayoutTransactions(
@@ -285,7 +288,21 @@ while (!claimerTransactions) {
 }
 ```
 
-**Sign payout authorization** using PayoutManager:
+#### Payout Transaction Types
+
+During Step 3, you sign **TWO payout transactions** for each claimer:
+
+1. **PayoutOptimistic** (Optimistic Path) - Used when no challenge occurs
+   - Flow: Vault → Claim → PayoutOptimistic
+   - Faster, lower cost execution
+
+2. **Payout** (Challenge Path) - Used when a challenge is raised
+   - Flow: Vault → Claim → Assert → Payout
+   - Claimer must prove validity via Assert transaction
+
+Both are pre-signed now, but only one will be executed depending on whether a challenge occurs during redemption.
+
+**Sign payout authorizations** using PayoutManager:
 
 ```typescript
 const payoutManager = new PayoutManager({
@@ -293,20 +310,47 @@ const payoutManager = new PayoutManager({
   btcWallet,
 });
 
-// Sign each payout transaction
-const signatures: Record<string, string> = {};
+// Sign BOTH payout transactions for each claimer
+interface ClaimerSignatures {
+  payout_optimistic_signature: string;
+  payout_signature: string;
+}
+
+const signatures: Record<string, ClaimerSignatures> = {};
+
 for (const claimerTx of claimerTransactions) {
-  const { signature } = await payoutManager.signPayoutTransaction({
-    payoutTxHex: claimerTx.payout_tx.tx_hex,
+  // Sign PayoutOptimistic (optimistic path)
+  const { signature: payoutOptimisticSig } = await payoutManager.signPayoutOptimisticTransaction({
+    payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
     peginTxHex: result.fundedTxHex,
     claimTxHex: claimerTx.claim_tx.tx_hex,
     vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey
-    vaultKeeperBtcPubkeys: ["def..."], // Vault keeper and universal challenger BTC pubkeys
+    vaultKeeperBtcPubkeys: ["def..."], // Vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["ghi..."], // Universal challenger pubkeys
     depositorBtcPubkey: "xyz...", // Your BTC pubkey
   });
 
-  // Store signature keyed by claimer pubkey
-  signatures[claimerTx.claimer_pubkey] = signature;
+  // Sign Payout (challenge path)
+  const { signature: payoutSig } = await payoutManager.signPayoutTransaction({
+    payoutTxHex: claimerTx.payout_tx.tx_hex,
+    peginTxHex: result.fundedTxHex,
+    assertTxHex: claimerTx.assert_tx.tx_hex,
+    vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey
+    vaultKeeperBtcPubkeys: ["def..."], // Vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["ghi..."], // Universal challenger pubkeys
+    depositorBtcPubkey: "xyz...", // Your BTC pubkey
+  });
+
+  // Store BOTH signatures keyed by claimer pubkey
+  const claimerPubkeyXOnly =
+    claimerTx.claimer_pubkey.length === 66
+      ? claimerTx.claimer_pubkey.substring(2)
+      : claimerTx.claimer_pubkey;
+
+  signatures[claimerPubkeyXOnly] = {
+    payout_optimistic_signature: payoutOptimisticSig,
+    payout_signature: payoutSig,
+  };
 }
 ```
 
@@ -317,7 +361,7 @@ async function submitPayoutSignatures(
   vaultProviderUrl: string,
   peginTxId: string,
   depositorPk: string,
-  signatures: Record<string, string>,
+  signatures: Record<string, ClaimerSignatures>,
 ): Promise<void> {
   const response = await fetch(vaultProviderUrl, {
     method: "POST",
@@ -358,13 +402,18 @@ console.log(
 
 1. Gets depositor BTC public key from wallet and converts to x-only format
 2. Validates wallet pubkey matches on-chain depositor pubkey
-3. Builds unsigned PSBT using `buildPayoutPsbt()` primitive
-4. Signs PSBT via `btcWallet.signPsbt()`
-5. Extracts 64-byte Schnorr signature using `extractPayoutSignature()` primitive
+3. For PayoutOptimistic: Builds unsigned PSBT using `buildPayoutOptimisticPsbt()` primitive
+4. For Payout: Builds unsigned PSBT using `buildPayoutPsbt()` primitive
+5. Signs both PSBTs via `btcWallet.signPsbt()`
+6. Extracts 64-byte Schnorr signatures using `extractPayoutSignature()` primitive
 
 **What you're authorizing:**
 
-By signing these payout transactions, you're **pre-authorizing** the vault provider to distribute your funds in specific ways in the future. These signatures will be used later when you initiate redemption or if other payout scenarios occur.
+By signing these payout transactions, you're **pre-authorizing** the vault provider to distribute your funds in two possible ways:
+- **Optimistic path**: Faster redemption if no challenge occurs
+- **Challenge path**: Secure redemption even if challenged
+
+These signatures will be used later when you initiate redemption, depending on whether a challenge occurs.
 
 **Wait for contract status update:** After vault provider collects all required signatures, they'll submit acknowledgements on-chain. The vault contract status will change from `PENDING` (0) → `VERIFIED` (1). Only then can you proceed to Step 4.
 

@@ -276,6 +276,7 @@ console.log(`Vault ID: ${vaultId}`);
 
 ```typescript
 import {
+  buildPayoutOptimisticPsbt,
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -318,40 +319,78 @@ async function pollForClaimerTransactions(vaultId: string) {
 const claimerTransactions = await pollForClaimerTransactions(vaultId);
 console.log(`Found ${claimerTransactions.length} claimer transactions`);
 
-// Step 3b: Build and sign each payout PSBT using PRIMITIVES
-const signatures: Record<string, string> = {};
+// Step 3b: Build and sign BOTH payout PSBTs for each claimer using PRIMITIVES
+// Vault provider returns BOTH PayoutOptimistic and Payout transactions
+interface ClaimerSignatures {
+  payout_optimistic_signature: string;
+  payout_signature: string;
+}
+
+const signatures: Record<string, ClaimerSignatures> = {};
 
 for (const claimerTx of claimerTransactions) {
-  // Build unsigned payout PSBT using PRIMITIVE
-  const payoutPsbtResult = await buildPayoutPsbt({
-    payoutTxHex: claimerTx.payout_tx.tx_hex,
+  // Build unsigned PayoutOptimistic PSBT (optimistic path - no challenge)
+  const payoutOptimisticPsbt = await buildPayoutOptimisticPsbt({
+    payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
     peginTxHex: fundedTxHex,
-    claimTxHex: claimerTx.claim_tx.tx_hex,
+    claimTxHex: claimerTx.claim_tx.tx_hex, // Input 1 from Claim
     depositorBtcPubkey: "abc123...", // Your BTC pubkey (x-only, 64 hex chars)
     vaultProviderBtcPubkey: "def456...", // Vault provider BTC pubkey
-    vaultKeeperBtcPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys
+    vaultKeeperBtcPubkeys: ["ghi789..."], // Vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["jkl012..."], // Universal challenger pubkeys
     network: "signet" as Network,
   });
 
-  // Sign PSBT with YOUR wallet
-  const signedPayoutPsbtHex = await btcWallet.signPsbt(
-    payoutPsbtResult.psbtHex,
+  // Build unsigned Payout PSBT (challenge path - after Assert)
+  const payoutPsbt = await buildPayoutPsbt({
+    payoutTxHex: claimerTx.payout_tx.tx_hex,
+    peginTxHex: fundedTxHex,
+    assertTxHex: claimerTx.assert_tx.tx_hex, // Input 1 from Assert
+    depositorBtcPubkey: "abc123...", // Your BTC pubkey (x-only, 64 hex chars)
+    vaultProviderBtcPubkey: "def456...", // Vault provider BTC pubkey
+    vaultKeeperBtcPubkeys: ["ghi789..."], // Vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["jkl012..."], // Universal challenger pubkeys
+    network: "signet" as Network,
+  });
+
+  // Sign PayoutOptimistic PSBT
+  const signedPayoutOptimisticHex = await btcWallet.signPsbt(
+    payoutOptimisticPsbt.psbtHex,
     {
       autoFinalized: false,
       signInputs: [
         {
           index: 0, // Only sign input 0 (vault UTXO)
-          publicKey: depositorBtcPubkey, // Use compressed format if wallet expects it
-          disableTweakSigner: true, // Required for Taproot script path spend
+          publicKey: depositorBtcPubkey,
+          disableTweakSigner: true,
         },
       ],
     },
   );
 
-  // Extract 64-byte Schnorr signature using PRIMITIVE
-  const signature = extractPayoutSignature(
-    signedPayoutPsbtHex,
-    "abc123...", // depositorBtcPubkey (x-only, 64 hex chars)
+  // Sign Payout PSBT
+  const signedPayoutHex = await btcWallet.signPsbt(
+    payoutPsbt.psbtHex,
+    {
+      autoFinalized: false,
+      signInputs: [
+        {
+          index: 0, // Only sign input 0 (vault UTXO)
+          publicKey: depositorBtcPubkey,
+          disableTweakSigner: true,
+        },
+      ],
+    },
+  );
+
+  // Extract BOTH signatures
+  const payoutOptimisticSig = extractPayoutSignature(
+    signedPayoutOptimisticHex,
+    "abc123...",
+  );
+  const payoutSig = extractPayoutSignature(
+    signedPayoutHex,
+    "abc123...",
   );
 
   // Convert claimer pubkey to x-only format
@@ -360,11 +399,14 @@ for (const claimerTx of claimerTransactions) {
       ? claimerTx.claimer_pubkey.substring(2)
       : claimerTx.claimer_pubkey;
 
-  signatures[claimerPubkeyXOnly] = signature;
-  console.log(`Signed for claimer: ${claimerPubkeyXOnly.slice(0, 8)}...`);
+  signatures[claimerPubkeyXOnly] = {
+    payout_optimistic_signature: payoutOptimisticSig,
+    payout_signature: payoutSig,
+  };
+  console.log(`Signed BOTH payouts for claimer: ${claimerPubkeyXOnly.slice(0, 8)}...`);
 }
 
-// Step 3c: Submit signatures to vault provider (YOU implement submission)
+// Step 3c: Submit BOTH signatures to vault provider (YOU implement submission)
 const submitResponse = await fetch(vpRpcUrl, {
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -375,7 +417,7 @@ const submitResponse = await fetch(vpRpcUrl, {
       {
         pegin_tx_id: vaultId.replace("0x", ""),
         depositor_pk: "abc123...", // Your BTC pubkey (x-only, 64 hex chars, no 0x)
-        signatures,
+        signatures, // Contains both signatures for each claimer
       },
     ],
     id: 2,
@@ -392,8 +434,12 @@ console.log("Payout signatures submitted!");
 // Contract status will change to VERIFIED (1) after vault provider submits acknowledgements
 ```
 
-**What primitives provide:** `buildPayoutPsbt()` and `extractPayoutSignature()`
+**What primitives provide:** `buildPayoutOptimisticPsbt()`, `buildPayoutPsbt()`, and `extractPayoutSignature()`
 **What YOU implement:** VP polling, PSBT signing, signature submission
+
+**Why two payout types?**
+- **PayoutOptimistic**: Used when no challenge occurs (normal case - faster, cheaper)
+- **Payout**: Used when a challenge is raised (claimer proves validity via Assert tx)
 
 ### Step 4: Broadcast to Bitcoin Network
 
