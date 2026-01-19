@@ -146,6 +146,7 @@ export function useDepositFlow(
         amount,
         feeRate,
         btcAddress: btcAddress!,
+        depositorEthAddress: depositorEthAddress!,
         selectedProviders,
         vaultProviderBtcPubkey,
         vaultKeeperBtcPubkeys,

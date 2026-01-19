@@ -1,12 +1,4 @@
-/**
- * Tests for vaultTransactionService - UTXO selection and fallback logic
- *
- * These tests verify:
- * 1. Filtered UTXOs are used when avoidUtxoRefs is provided
- * 2. Fallback to full UTXO set when preparation fails with filtered UTXOs
- * 3. No retry when no UTXOs were filtered
- * 4. Error handling and logging behavior
- */
+/** Tests for vaultTransactionService. */
 
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
@@ -16,13 +8,11 @@ import {
   type UTXO,
 } from "../vaultTransactionService";
 
-// Use vi.hoisted to create mock functions that are available during module hoisting
 const { mockPreparePegin, mockRegisterPeginOnChain, MockPeginManager } =
   vi.hoisted(() => {
     const mockPreparePegin = vi.fn();
     const mockRegisterPeginOnChain = vi.fn();
 
-    // Create a mock class for PeginManager
     class MockPeginManager {
       preparePegin = mockPreparePegin;
       registerPeginOnChain = mockRegisterPeginOnChain;
@@ -35,7 +25,6 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   PeginManager: MockPeginManager,
 }));
 
-// Mock config - need to provide all used exports
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({ id: 1, name: "Ethereum" })),
   getNetworkConfigETH: vi.fn(() => ({
@@ -62,7 +51,6 @@ vi.mock("../../../config/contracts", () => ({
   },
 }));
 
-// Mock the ETH client to avoid initialization issues
 vi.mock("../../../clients/eth-contract/client", () => ({
   ETHClient: {
     getInstance: vi.fn(() => ({
@@ -71,8 +59,7 @@ vi.mock("../../../clients/eth-contract/client", () => ({
   },
 }));
 
-describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
-  // Mock wallets
+describe("vaultTransactionService - submitPeginRequest", () => {
   let mockBtcWallet: {
     getPublicKeyHex: Mock;
   };
@@ -80,7 +67,6 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
     account: { address: string };
   };
 
-  // Test UTXOs
   const mockUTXOs: UTXO[] = [
     { txid: "txid1", vout: 0, value: 50000, scriptPubKey: "script1" },
     { txid: "txid2", vout: 1, value: 100000, scriptPubKey: "script2" },
@@ -88,7 +74,6 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
     { txid: "txid4", vout: 2, value: 200000, scriptPubKey: "script4" },
   ];
 
-  // Base params for tests
   const baseParams: SubmitPeginParams = {
     pegInAmount: 100000n,
     feeRate: 10,
@@ -103,7 +88,6 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Setup default successful responses for the mocked PeginManager methods
     mockPreparePegin.mockResolvedValue({
       fundedTxHex: "0x123abc",
       selectedUTXOs: [mockUTXOs[0]],
@@ -115,14 +99,10 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
       vaultId: "0xvaultid",
     });
 
-    // Mock BTC wallet
     mockBtcWallet = {
-      getPublicKeyHex: vi.fn().mockResolvedValue(
-        "02" + "a".repeat(64), // 66 char pubkey (will be trimmed to x-only)
-      ),
+      getPublicKeyHex: vi.fn().mockResolvedValue("02" + "a".repeat(64)),
     };
 
-    // Mock ETH wallet
     mockEthWallet = {
       account: { address: "0xdepositor" },
     };
@@ -159,7 +139,11 @@ describe("vaultTransactionService - submitPeginRequest UTXO Selection", () => {
       mockPreparePegin.mockRejectedValue(new Error("Network error"));
 
       await expect(
-        submitPeginRequest(mockBtcWallet as any, mockEthWallet as any, baseParams),
+        submitPeginRequest(
+          mockBtcWallet as any,
+          mockEthWallet as any,
+          baseParams,
+        ),
       ).rejects.toThrow("Network error");
 
       expect(mockPreparePegin).toHaveBeenCalledTimes(1);

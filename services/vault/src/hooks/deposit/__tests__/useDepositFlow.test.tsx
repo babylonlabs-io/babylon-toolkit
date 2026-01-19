@@ -80,6 +80,7 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
 
 vi.mock("@/services/vault/utxoReservation", () => ({
   getReservedUtxoRefs: vi.fn().mockResolvedValue([]),
+  collectReservedUtxoRefs: vi.fn().mockReturnValue(new Set()),
 }));
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
@@ -97,6 +98,7 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
+  getPendingPegins: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("@/context/deposit/DepositState", () => ({
@@ -117,7 +119,16 @@ vi.mock("@/services/vault", () => ({
     unsignedBtcTx: "0xmockunsignedtx",
     status: 1,
   }),
+  fetchVaultsByDepositor: vi.fn().mockResolvedValue([]),
+  collectReservedUtxoRefs: vi.fn().mockReturnValue(new Set()),
   signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/utils/utxoSelection", () => ({
+  selectAvailableUtxos: vi.fn(({ availableUtxos }) => ({
+    utxos: availableUtxos,
+    usedFallback: false,
+  })),
 }));
 
 // Mock payout signature service to avoid SDK imports triggering initEccLib
