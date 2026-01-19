@@ -126,6 +126,7 @@ Your Application
 ┌───────────────────────────────────┐
 │ Level 1: Primitives               │
 │ - buildPeginPsbt()                │
+│ - buildPayoutOptimisticPsbt()     │
 │ - buildPayoutPsbt()               │
 │ - extractPayoutSignature()        │
 │ - Pure functions, no side effects │
@@ -145,6 +146,7 @@ Your Application
 ```typescript
 import {
   buildPeginPsbt,
+  buildPayoutOptimisticPsbt,
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -184,8 +186,9 @@ async function pegin() {
   // Step 1: Build unfunded transaction with vault output
   const pegin = await buildPeginPsbt({
     depositorPubkey: "a1b2c3d4...", // your x-only pubkey (64 hex chars)
-    claimerPubkey: "e5f6a7b8...", // vault provider pubkey
+    vaultProviderPubkey: "e5f6a7b8...", // vault provider pubkey
     vaultKeeperPubkeys: ["c9d0e1f2..."], // vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["f3g4h5i6..."], // universal challenger pubkeys
     pegInAmount: 100000n, // satoshis
     network: "signet",
   });

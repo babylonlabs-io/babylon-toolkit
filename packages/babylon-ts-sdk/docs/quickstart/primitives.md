@@ -88,8 +88,9 @@ import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 // Step 1a: Build UNFUNDED PSBT using primitive
 const peginResult = await buildPeginPsbt({
   depositorPubkey: "abc123...", // Your BTC pubkey (x-only, 64 hex chars, no 0x)
-  claimerPubkey: "def456...", // Vault provider BTC pubkey (x-only, 64 hex chars)
-  vaultKeeperPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 hex chars each)
+  vaultProviderPubkey: "def456...", // Vault provider BTC pubkey (x-only, 64 hex chars)
+  vaultKeeperPubkeys: ["ghi789..."], // Vault keeper BTC pubkeys (x-only, 64 hex chars each)
+  universalChallengerBtcPubkeys: ["jkl012..."], // Universal challenger BTC pubkeys (x-only, 64 hex chars each)
   pegInAmount: 100000n, // Amount in satoshis (bigint)
   network: "signet" as Network,
 });
@@ -517,6 +518,7 @@ Here's a complete example showing all 4 steps with primitives:
 ```typescript
 import {
   buildPeginPsbt,
+  buildPayoutOptimisticPsbt,
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -537,7 +539,8 @@ const CONFIG = {
   btcNetwork: "signet" as Network,
   vaultProviderEthAddress: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "def456...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  vaultKeeperBtcPubkeys: ["ghi789...", "jkl012..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 chars)
+  vaultKeeperBtcPubkeys: ["ghi789..."], // Vault keeper BTC pubkeys (x-only, 64 chars)
+  universalChallengerBtcPubkeys: ["jkl012..."], // Universal challenger BTC pubkeys (x-only, 64 chars)
   btcVaultsManagerAddress: "0x123...", // BTCVaultsManager contract address
   vaultProviderRpcUrl: "https://vp.example.com/rpc",
   pegInAmount: 100000n,
@@ -570,8 +573,9 @@ async function completePeginFlow(
   // Build unfunded PSBT using PRIMITIVE
   const peginResult = await buildPeginPsbt({
     depositorPubkey: depositorBtcPubkey,
-    claimerPubkey: CONFIG.vaultProviderBtcPubkey,
+    vaultProviderPubkey: CONFIG.vaultProviderBtcPubkey,
     vaultKeeperPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
     pegInAmount: CONFIG.pegInAmount,
     network: CONFIG.btcNetwork,
   });
@@ -658,22 +662,58 @@ async function completePeginFlow(
   const claimerTransactions = await pollForClaimerTransactions(vaultId);
   console.log(`Found ${claimerTransactions.length} claimer transactions`);
 
-  // Sign each payout
-  const signatures: Record<string, string> = {};
+  // Sign BOTH payout types for each claimer
+  const signatures: Record<
+    string,
+    { payout_optimistic_signature: string; payout_signature: string }
+  > = {};
 
   for (const claimerTx of claimerTransactions) {
-    // Build payout PSBT using PRIMITIVE
-    const payoutPsbtResult = await buildPayoutPsbt({
-      payoutTxHex: claimerTx.payout_tx.tx_hex,
+    // Build PayoutOptimistic PSBT using PRIMITIVE (optimistic path)
+    const payoutOptimisticPsbtResult = await buildPayoutOptimisticPsbt({
+      payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
       peginTxHex: fundedTxHex,
       claimTxHex: claimerTx.claim_tx.tx_hex,
       depositorBtcPubkey,
       vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
       network: CONFIG.btcNetwork,
     });
 
-    // Sign and extract signature using PRIMITIVE
+    // Sign and extract PayoutOptimistic signature using PRIMITIVE
+    const signedPayoutOptimisticPsbtHex = await btcWallet.signPsbt(
+      payoutOptimisticPsbtResult.psbtHex,
+      {
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: depositorBtcPubkey,
+            disableTweakSigner: true,
+          },
+        ],
+      },
+    );
+
+    const payoutOptimisticSignature = extractPayoutSignature(
+      signedPayoutOptimisticPsbtHex,
+      depositorBtcPubkey,
+    );
+
+    // Build Payout PSBT using PRIMITIVE (challenge path)
+    const payoutPsbtResult = await buildPayoutPsbt({
+      payoutTxHex: claimerTx.payout_tx.tx_hex,
+      peginTxHex: fundedTxHex,
+      assertTxHex: claimerTx.assert_tx.tx_hex,
+      depositorBtcPubkey,
+      vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
+      network: CONFIG.btcNetwork,
+    });
+
+    // Sign and extract Payout signature using PRIMITIVE
     const signedPayoutPsbtHex = await btcWallet.signPsbt(
       payoutPsbtResult.psbtHex,
       {
@@ -688,7 +728,7 @@ async function completePeginFlow(
       },
     );
 
-    const signature = extractPayoutSignature(
+    const payoutSignature = extractPayoutSignature(
       signedPayoutPsbtHex,
       depositorBtcPubkey,
     );
@@ -698,7 +738,10 @@ async function completePeginFlow(
         ? claimerTx.claimer_pubkey.substring(2)
         : claimerTx.claimer_pubkey;
 
-    signatures[claimerPubkeyXOnly] = signature;
+    signatures[claimerPubkeyXOnly] = {
+      payout_optimistic_signature: payoutOptimisticSignature,
+      payout_signature: payoutSignature,
+    };
   }
 
   // Submit signatures

@@ -161,7 +161,8 @@ const result = await peginManager.preparePegin({
   amount: 100000n, // satoshis
   vaultProvider: "0x456...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  vaultKeeperBtcPubkeys: ["def..."], // Vault keeper and universal challenger BTC pubkeys
+  vaultKeeperBtcPubkeys: ["def..."], // Vault keeper BTC pubkeys
+  universalChallengerBtcPubkeys: ["ghi..."], // Universal challenger BTC pubkeys
   availableUTXOs: utxos, // Your available UTXOs
   feeRate: 1, // Fee rate in sat/vB
   changeAddress: "tb1q...", // Your BTC change address
