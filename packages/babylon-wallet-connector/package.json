@@ -27,7 +27,6 @@
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "prepare": "husky",
     "release": "npm run build && changeset publish",
     "extensions:download": "tsx tests/e2e/setup/downloadExtensions.ts",
     "test:e2e:setup": "npm run extensions:download",
