@@ -196,7 +196,7 @@ class VaultProviderRpcClient {
   async submitPayoutSignatures(params: {
     pegin_tx_id: string;
     depositor_pk: string;
-    signatures: Record<string, string>;
+    signatures: Record<string, { payout_optimistic_signature: string; payout_signature: string }>;
   }) {
     const response = await fetch(this.baseUrl, {
       method: "POST",
@@ -252,16 +252,34 @@ const payoutManager = new PayoutManager({
   btcWallet,
 });
 
-// Sign each payout authorization transaction
-const signatures: Record<string, string> = {};
+// Sign BOTH payout authorization transactions for each claimer
+interface ClaimerSignatures {
+  payout_optimistic_signature: string;
+  payout_signature: string;
+}
+
+const signatures: Record<string, ClaimerSignatures> = {};
 
 for (const claimerTx of claimerTransactions) {
-  const { signature } = await payoutManager.signPayoutTransaction({
-    payoutTxHex: claimerTx.payout_tx.tx_hex,
+  // Sign PayoutOptimistic (optimistic path - no challenge)
+  const { signature: payoutOptimisticSig } = await payoutManager.signPayoutOptimisticTransaction({
+    payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
     peginTxHex: fundedTxHex,
     claimTxHex: claimerTx.claim_tx.tx_hex,
     vaultProviderBtcPubkey: "abc...",
-    vaultKeeperBtcPubkeys: ["def...", "ghi..."],
+    vaultKeeperBtcPubkeys: ["def..."],
+    universalChallengerBtcPubkeys: ["ghi..."],
+    depositorBtcPubkey,
+  });
+
+  // Sign Payout (challenge path - after Assert)
+  const { signature: payoutSig } = await payoutManager.signPayoutTransaction({
+    payoutTxHex: claimerTx.payout_tx.tx_hex,
+    peginTxHex: fundedTxHex,
+    assertTxHex: claimerTx.assert_tx.tx_hex,
+    vaultProviderBtcPubkey: "abc...",
+    vaultKeeperBtcPubkeys: ["def..."],
+    universalChallengerBtcPubkeys: ["ghi..."],
     depositorBtcPubkey,
   });
 
@@ -271,13 +289,16 @@ for (const claimerTx of claimerTransactions) {
       ? claimerTx.claimer_pubkey.substring(2) // Strip 02/03 prefix
       : claimerTx.claimer_pubkey; // Already x-only
 
-  signatures[claimerPubkeyXOnly] = signature;
+  signatures[claimerPubkeyXOnly] = {
+    payout_optimistic_signature: payoutOptimisticSig,
+    payout_signature: payoutSig,
+  };
   console.log(
-    `Signed payout authorization for claimer: ${claimerPubkeyXOnly.slice(0, 8)}...`,
+    `Signed BOTH payout authorizations for claimer: ${claimerPubkeyXOnly.slice(0, 8)}...`,
   );
 }
 
-// Submit signatures to vault provider
+// Submit BOTH signatures to vault provider
 await vpRpcClient.submitPayoutSignatures({
   pegin_tx_id: vaultId.replace("0x", ""),
   depositor_pk: depositorBtcPubkey,
@@ -294,9 +315,15 @@ console.log("Waiting for vault provider to acknowledge...");
 
 1. Gets depositor BTC public key from wallet and converts to x-only format
 2. Validates wallet pubkey matches on-chain depositor pubkey
-3. Builds unsigned PSBT using `buildPayoutPsbt()` primitive
-4. Signs PSBT via `btcWallet.signPsbt()`
-5. Extracts 64-byte Schnorr signature using `extractPayoutSignature()` primitive
+3. For PayoutOptimistic: Builds unsigned PSBT using `buildPayoutOptimisticPsbt()` primitive
+4. For Payout: Builds unsigned PSBT using `buildPayoutPsbt()` primitive
+5. Signs both PSBTs via `btcWallet.signPsbt()`
+6. Extracts 64-byte Schnorr signatures using `extractPayoutSignature()` primitive
+
+**What you're signing:**
+
+- **PayoutOptimistic**: Optimistic path (Claim → PayoutOptimistic) - faster, cheaper if no challenge
+- **Payout**: Challenge path (Claim → Assert → Payout) - secure fallback if challenged
 
 **Important:** After Step 3, wait for the vault provider to submit acknowledgements on-chain. The vault contract status will change from `PENDING` (0) → `VERIFIED` (1). Only then can you proceed to Step 4.
 
@@ -425,7 +452,7 @@ class VaultProviderRpcClient {
   async submitPayoutSignatures(params: {
     pegin_tx_id: string;
     depositor_pk: string;
-    signatures: Record<string, string>;
+    signatures: Record<string, { payout_optimistic_signature: string; payout_signature: string }>;
   }) {
     const response = await fetch(this.baseUrl, {
       method: "POST",
@@ -448,7 +475,8 @@ const CONFIG = {
   btcVaultsManager: "0x123...", // BTCVaultsManager contract address
   vaultProvider: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // Vault provider's BTC pubkey (x-only, 64 chars)
-  vaultKeeperBtcPubkeys: ["def...", "ghi..."], // Vault keeper and universal challenger BTC pubkeys (x-only, 64 chars)
+  vaultKeeperBtcPubkeys: ["def..."], // Vault keeper BTC pubkeys (x-only, 64 chars)
+  universalChallengerBtcPubkeys: ["ghi..."], // Universal challenger BTC pubkeys (x-only, 64 chars)
   vaultProviderRpcUrl: "https://vp.example.com/rpc",
 };
 
@@ -601,17 +629,30 @@ export function PeginFlow() {
 
       setStatus("Signing payout authorizations...");
 
-      // Sign payout authorizations
+      // Sign BOTH payout authorizations (PayoutOptimistic and Payout)
       const payoutManager = new PayoutManager({ network: "signet", btcWallet });
-      const signatures: Record<string, string> = {};
+      const signatures: Record<string, { payout_optimistic_signature: string; payout_signature: string }> = {};
 
       for (const claimerTx of claimerTransactions) {
-        const { signature } = await payoutManager.signPayoutTransaction({
-          payoutTxHex: claimerTx.payout_tx.tx_hex,
+        // Sign PayoutOptimistic (optimistic path)
+        const { signature: payoutOptimisticSig } = await payoutManager.signPayoutOptimisticTransaction({
+          payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
           peginTxHex: fundedTxHex,
           claimTxHex: claimerTx.claim_tx.tx_hex,
           vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
+          depositorBtcPubkey,
+        });
+
+        // Sign Payout (challenge path)
+        const { signature: payoutSig } = await payoutManager.signPayoutTransaction({
+          payoutTxHex: claimerTx.payout_tx.tx_hex,
+          peginTxHex: fundedTxHex,
+          assertTxHex: claimerTx.assert_tx.tx_hex,
+          vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
           depositorBtcPubkey,
         });
 
@@ -619,7 +660,10 @@ export function PeginFlow() {
           ? claimerTx.claimer_pubkey.substring(2)
           : claimerTx.claimer_pubkey;
 
-        signatures[claimerPubkeyXOnly] = signature;
+        signatures[claimerPubkeyXOnly] = {
+          payout_optimistic_signature: payoutOptimisticSig,
+          payout_signature: payoutSig,
+        };
       }
 
       setStatus("Submitting signatures...");

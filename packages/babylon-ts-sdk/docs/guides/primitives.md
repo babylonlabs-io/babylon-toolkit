@@ -240,56 +240,103 @@ See the [Managers Guide - Payout Authorization](./managers.md#payout-authorizati
 
 1. You register peg-in on Ethereum → vault status = PENDING
 2. Vault provider prepares claim/payout transaction pairs
-3. You sign payout authorizations using `buildPayoutPsbt()` ← **YOU ARE HERE**
+3. You sign payout authorizations using **TWO primitives** ← **YOU ARE HERE**
 4. Vault provider collects signatures → vault status = VERIFIED
 5. You broadcast Bitcoin transaction (Step 4)
 
-`buildPayoutPsbt()` returns:
+#### Payout Transaction Types
 
-- `psbtHex` - Unsigned PSBT ready for signing (input 0 is the vault UTXO)
+During Step 3, you sign **TWO payout transactions** for each claimer to support both execution paths:
+
+1. **PayoutOptimistic** (Optimistic Path)
+   - Used when no challenge occurs (normal case)
+   - Flow: Vault → Claim → **PayoutOptimistic**
+   - Input 1 references Claim transaction output 0
+   - Faster, lower cost
+
+2. **Payout** (Challenge Path)
+   - Used when a challenge is raised
+   - Flow: Vault → Claim → Assert → **Payout**
+   - Input 1 references Assert transaction output 0
+   - Claimer must prove validity via Assert
+
+Both transactions are pre-signed during peg-in, but only one will be executed depending on whether a challenge occurs.
+
+#### Primitives for Payout Signing
+
+`buildPayoutOptimisticPsbt()` returns:
+- `psbtHex` - Unsigned PSBT for optimistic path (input 1 from Claim tx)
+
+`buildPayoutPsbt()` returns:
+- `psbtHex` - Unsigned PSBT for challenge path (input 1 from Assert tx)
 
 `extractPayoutSignature()` returns:
-
-- 64-byte Schnorr signature (128 hex chars) to submit to the vault provider
+- 64-byte Schnorr signature (128 hex chars) to submit to vault provider
 
 **Required:**
 
-1. Poll vault provider RPC for prepared transactions
-2. Sign each payout transaction
-3. Extract signatures
-4. Submit to vault provider RPC
+1. Poll vault provider RPC for prepared transactions (receives BOTH types)
+2. Sign BOTH payout transactions for each claimer
+3. Extract both signatures
+4. Submit both signatures to vault provider RPC
 
 ```typescript
 import {
+  buildPayoutOptimisticPsbt,
   buildPayoutPsbt,
   extractPayoutSignature,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
-async function payout() {
-  // Step 1: Receive payout request from vault keeper
-  const payoutTxHex = "..."; // from vault keeper
-  const claimTxHex = "..."; // from vault keeper
+async function signPayoutAuthorizations() {
+  // Step 1: Receive transactions from vault provider
+  // Vault provider returns BOTH PayoutOptimistic and Payout transactions
+  const claimerTx = {
+    claimer_pubkey: "abc123...",
+    claim_tx: { tx_hex: "..." },
+    assert_tx: { tx_hex: "..." },
+    payout_optimistic_tx: { tx_hex: "..." }, // Optimistic path
+    payout_tx: { tx_hex: "..." },           // Challenge path
+  };
   const peginTxHex = "..."; // your original peg-in transaction
 
-  // Step 2: Build unsigned PSBT for signing
-  const payoutPsbt = await buildPayoutPsbt({
-    payoutTxHex,
+  // Step 2a: Build unsigned PSBT for PayoutOptimistic (optimistic path)
+  const payoutOptimisticPsbt = await buildPayoutOptimisticPsbt({
+    payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
     peginTxHex,
-    claimTxHex,
+    claimTxHex: claimerTx.claim_tx.tx_hex, // Input 1 from Claim
     depositorBtcPubkey: "a1b2c3d4...", // your x-only pubkey
     vaultProviderBtcPubkey: "e5f6a7b8...", // vault provider pubkey
     vaultKeeperBtcPubkeys: ["c9d0e1f2..."], // vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["f3g4h5i6..."], // universal challenger pubkeys
     network: "signet",
   });
 
-  console.log("PSBT to sign:", payoutPsbt.psbtHex);
+  // Step 2b: Build unsigned PSBT for Payout (challenge path)
+  const payoutPsbt = await buildPayoutPsbt({
+    payoutTxHex: claimerTx.payout_tx.tx_hex,
+    peginTxHex,
+    assertTxHex: claimerTx.assert_tx.tx_hex, // Input 1 from Assert
+    depositorBtcPubkey: "a1b2c3d4...", // your x-only pubkey
+    vaultProviderBtcPubkey: "e5f6a7b8...", // vault provider pubkey
+    vaultKeeperBtcPubkeys: ["c9d0e1f2..."], // vault keeper pubkeys
+    universalChallengerBtcPubkeys: ["f3g4h5i6..."], // universal challenger pubkeys
+    network: "signet",
+  });
 
-  // Step 3: Sign input 0 (the vault UTXO) with your wallet
-  // const signedPsbtHex = await yourWallet.signPsbt(payoutPsbt.psbtHex);
+  // Step 3: Sign BOTH PSBTs with your wallet (input 0 only)
+  // const signedPayoutOptimisticHex = await yourWallet.signPsbt(payoutOptimisticPsbt.psbtHex);
+  // const signedPayoutHex = await yourWallet.signPsbt(payoutPsbt.psbtHex);
 
-  // Step 4: Extract signature and submit to vault provider
-  // const signature = extractPayoutSignature(signedPsbtHex, "a1b2c3d4...");
-  // await submitToVaultProvider(signature);
+  // Step 4: Extract BOTH signatures
+  // const payoutOptimisticSig = extractPayoutSignature(signedPayoutOptimisticHex, "a1b2c3d4...");
+  // const payoutSig = extractPayoutSignature(signedPayoutHex, "a1b2c3d4...");
+
+  // Step 5: Submit BOTH signatures to vault provider
+  // await submitToVaultProvider({
+  //   claimer_pubkey: claimerTx.claimer_pubkey,
+  //   payout_optimistic_signature: payoutOptimisticSig,
+  //   payout_signature: payoutSig,
+  // });
 }
 ```
 
