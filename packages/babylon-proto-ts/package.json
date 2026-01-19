@@ -15,7 +15,6 @@
   "scripts": {
     "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
     "build-proto": "node scripts/build-proto.js",
-    "prepare": "husky",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\""
   },
