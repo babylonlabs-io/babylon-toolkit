@@ -97,7 +97,8 @@ const result = await peginManager.preparePegin({
   amount: 100000n, // Amount in satoshis (bigint)
   vaultProvider: "0xABC...", // Vault provider's Ethereum address
   vaultProviderBtcPubkey: "abc...", // From vault provider (x-only, 64 hex chars)
-  vaultKeeperBtcPubkeys: ["def...", "ghi..."], // From indexer (x-only, 64 hex chars each)
+  vaultKeeperBtcPubkeys: ["def..."], // Vault keeper pubkeys from indexer (x-only, 64 hex chars each)
+  universalChallengerBtcPubkeys: ["ghi..."], // Universal challenger pubkeys from indexer (x-only, 64 hex chars each)
   availableUTXOs: [
     {
       txid: "abc123...",
@@ -527,6 +528,7 @@ export function PeginFlow() {
         vaultProvider: CONFIG.vaultProvider,
         vaultProviderBtcPubkey: CONFIG.vaultProviderBtcPubkey,
         vaultKeeperBtcPubkeys: CONFIG.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys: CONFIG.universalChallengerBtcPubkeys,
         availableUTXOs,
         feeRate: 10,
         changeAddress: await btcWallet.getAddress(),
