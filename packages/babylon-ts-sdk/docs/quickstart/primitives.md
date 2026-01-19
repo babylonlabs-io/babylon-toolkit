@@ -7,7 +7,8 @@ Complete guide to implementing Bitcoin TBV peg-in using **low-level Primitives o
 **Primitives** are pure functions for **Bitcoin PSBT building ONLY**:
 
 - ✅ `buildPeginPsbt()` - Build unfunded peg-in PSBT (0 inputs, 1 vault output)
-- ✅ `buildPayoutPsbt()` - Build unsigned payout PSBT for depositor signing
+- ✅ `buildPayoutOptimisticPsbt()` - Build unsigned PayoutOptimistic PSBT for depositor signing (optimistic path)
+- ✅ `buildPayoutPsbt()` - Build unsigned Payout PSBT for depositor signing (challenge path)
 - ✅ `extractPayoutSignature()` - Extract 64-byte Schnorr signature from signed PSBT
 
 **Primitives do NOT provide:**

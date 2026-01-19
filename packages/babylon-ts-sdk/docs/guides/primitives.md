@@ -30,7 +30,7 @@ The SDK provides three levels of abstraction:
 
 **What Primitives Provide:**
 
-- ✅ Pure Bitcoin transaction builders (`buildPeginPsbt`, `buildPayoutPsbt`)
+- ✅ Pure Bitcoin transaction builders (`buildPeginPsbt`, `buildPayoutOptimisticPsbt`, `buildPayoutPsbt`)
 - ✅ Signature extraction (`extractPayoutSignature`)
 - ✅ Bitcoin utility functions (pubkey conversion, hex helpers)
 
