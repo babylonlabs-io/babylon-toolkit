@@ -650,7 +650,7 @@ Unsigned PSBT ready for depositor to sign
 function buildPeginPsbt(params): Promise<PeginPsbtResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:119](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L119)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts:100](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts#L100)
 
 Build unsigned peg-in PSBT using WASM
 
@@ -678,26 +678,6 @@ Peg-in parameters
 `Promise`\<[`PeginPsbtResult`](#peginpsbtresult)\>
 
 Unsigned PSBT and transaction details
-
-#### Example
-
-```typescript
-import { buildPeginPsbt } from '@babylonlabs-io/ts-sdk/tbv/core/primitives';
-
-const result = await buildPeginPsbt({
-  depositorPubkey: 'abc123...',
-  vaultProviderPubkey: 'def456...',
-  vaultKeeperPubkeys: ['ghi789...'],
-  universalChallengerPubkeys: ['jkl012...'],
-  pegInAmount: 90000n,
-  network: 'testnet',
-});
-
-console.log(result.txid); // Transaction ID
-console.log(result.psbtHex); // Unsigned transaction hex
-console.log(result.vaultScriptPubKey); // Vault script pubkey
-console.log(result.vaultValue); // 90000n
-```
 
 ***
 

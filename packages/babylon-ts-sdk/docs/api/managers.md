@@ -202,7 +202,7 @@ Manager configuration including wallets and contract addresses
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:581](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L581)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:585](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L585)
 
 Gets the configured Bitcoin network.
 
@@ -218,7 +218,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:590](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L590)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:594](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L594)
 
 Gets the configured BTCVaultsManager contract address.
 
