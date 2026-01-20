@@ -28,13 +28,16 @@ import {
 import { getPendingPegins } from "@/storage/peginStorage";
 
 import {
+  broadcastBtcTransaction,
+  DepositStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   savePendingPegin,
   submitPayoutSignatures,
   submitPeginAndWait,
   validateDepositInputs,
-  waitAndBroadcast,
+  waitForContractVerification,
+  type DepositFlowResult,
 } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -48,26 +51,12 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  onSuccess: (
-    btcTxid: string,
-    ethTxHash: string,
-    depositorBtcPubkey: string,
-    transactionData?: {
-      unsignedTxHex: string;
-      selectedUTXOs: Array<{
-        txid: string;
-        vout: number;
-        value: number;
-        scriptPubKey: string;
-      }>;
-      fee: bigint;
-    },
-  ) => void;
 }
 
 export interface UseDepositFlowReturn {
-  executeDepositFlow: () => Promise<void>;
-  currentStep: number;
+  /** Execute the deposit flow. Returns result on success, null on error. */
+  executeDepositFlow: () => Promise<DepositFlowResult | null>;
+  currentStep: DepositStep;
   processing: boolean;
   error: string | null;
   isWaiting: boolean;
@@ -87,11 +76,12 @@ export function useDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    onSuccess,
   } = params;
 
   // State
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState<DepositStep>(
+    DepositStep.SIGN_POP,
+  );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
@@ -121,161 +111,167 @@ export function useDepositFlow(
     return provider;
   }, [findProvider, selectedProviders]);
 
-  const executeDepositFlow = useCallback(async () => {
-    try {
-      setProcessing(true);
-      setError(null);
+  const executeDepositFlow =
+    useCallback(async (): Promise<DepositFlowResult | null> => {
+      try {
+        setProcessing(true);
+        setError(null);
 
-      // Step 0: Validate inputs
-      validateDepositInputs({
-        btcAddress,
-        depositorEthAddress,
-        amount,
-        selectedProviders,
-        confirmedUTXOs,
-        isUTXOsLoading,
-        utxoError,
-        vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys,
-      });
-
-      // Step 1: Get ETH wallet client
-      setCurrentStep(1);
-      const walletClient = await getEthWalletClient(depositorEthAddress!);
-
-      // Compute reserved UTXOs from cached vaults + localStorage
-      const pendingPegins = getPendingPegins(depositorEthAddress!);
-      const reservedUtxoRefs = collectReservedUtxoRefs({
-        vaults: vaults ?? [],
-        pendingPegins,
-      });
-
-      // Step 1-2: Submit pegin request and wait for ETH confirmation
-      const peginResult = await submitPeginAndWait({
-        btcWalletProvider,
-        walletClient,
-        amount,
-        feeRate,
-        btcAddress: btcAddress!,
-        selectedProviders,
-        vaultProviderBtcPubkey,
-        vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys,
-        confirmedUTXOs: confirmedUTXOs!,
-        reservedUtxoRefs,
-        onPopSigned: () => setCurrentStep(2),
-      });
-
-      // Save to localStorage
-      savePendingPegin(
-        depositorEthAddress!,
-        peginResult.btcTxid,
-        peginResult.ethTxHash,
-        amount,
-        selectedProviders,
-        selectedApplication,
-        peginResult.btcTxHex,
-        peginResult.selectedUTXOs,
-      );
-
-      // Step 3: Poll and sign payout transactions
-      setCurrentStep(3);
-      setIsWaiting(true);
-
-      const provider = getSelectedVaultProvider();
-      if (!provider.url) {
-        throw new Error("Vault provider has no RPC URL");
-      }
-
-      const { context, vaultProviderUrl, preparedTransactions } =
-        await pollAndPreparePayoutSigning({
-          btcTxid: peginResult.btcTxid,
-          depositorBtcPubkey: peginResult.depositorBtcPubkey,
-          providerUrl: provider.url,
-          providerId: provider.id as Hex,
-          providerBtcPubKey: provider.btcPubKey,
-          vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
-          universalChallengers: universalChallengers.map((uc) => ({
-            btcPubKey: uc.btcPubKey,
-          })),
+        // Step 0: Validate inputs
+        validateDepositInputs({
+          btcAddress,
+          depositorEthAddress,
+          amount,
+          selectedProviders,
+          confirmedUTXOs,
+          isUTXOsLoading,
+          utxoError,
+          vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys,
         });
 
-      setIsWaiting(false);
+        // Step 1: Get ETH wallet client
+        setCurrentStep(DepositStep.SIGN_POP);
+        const walletClient = await getEthWalletClient(depositorEthAddress!);
 
-      // Sign with progress tracking (loop stays in hook for state updates)
-      const signatures = await signPayoutTransactionsWithProgress(
-        btcWalletProvider,
-        context,
-        preparedTransactions,
-        setPayoutSigningProgress,
-      );
+        // Compute reserved UTXOs from cached vaults + localStorage
+        const pendingPegins = getPendingPegins(depositorEthAddress!);
+        const reservedUtxoRefs = collectReservedUtxoRefs({
+          vaults: vaults ?? [],
+          pendingPegins,
+        });
 
-      // Submit signatures
-      await submitPayoutSignatures(
-        vaultProviderUrl,
-        peginResult.btcTxid,
-        peginResult.depositorBtcPubkey,
-        signatures,
-        depositorEthAddress!,
-      );
-      setPayoutSigningProgress(null);
-
-      // Step 4: Wait for verification and broadcast
-      setCurrentStep(4);
-      setIsWaiting(true);
-
-      await waitAndBroadcast(
-        {
-          btcTxid: peginResult.btcTxid,
-          depositorBtcPubkey: peginResult.depositorBtcPubkey,
+        // Step 1-2: Submit pegin request and wait for ETH confirmation
+        const peginResult = await submitPeginAndWait({
           btcWalletProvider,
-        },
-        depositorEthAddress!,
-      );
+          walletClient,
+          amount,
+          feeRate,
+          btcAddress: btcAddress!,
+          selectedProviders,
+          vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys,
+          confirmedUTXOs: confirmedUTXOs!,
+          reservedUtxoRefs,
+          onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+        });
 
-      setIsWaiting(false);
-
-      // Complete
-      setCurrentStep(5);
-      onSuccess(
-        peginResult.btcTxid,
-        peginResult.ethTxHash,
-        peginResult.depositorBtcPubkey,
-        {
+        // Save to localStorage
+        savePendingPegin({
+          depositorEthAddress: depositorEthAddress!,
+          btcTxid: peginResult.btcTxid,
+          ethTxHash: peginResult.ethTxHash,
+          amount,
+          selectedProviders,
+          applicationController: selectedApplication,
           unsignedTxHex: peginResult.btcTxHex,
           selectedUTXOs: peginResult.selectedUTXOs,
-          fee: peginResult.fee,
-        },
-      );
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      setError(errorMessage);
-      console.error("Deposit flow error:", err);
-      setCurrentStep(1);
-    } finally {
-      setProcessing(false);
-      setIsWaiting(false);
-    }
-  }, [
-    amount,
-    feeRate,
-    btcWalletProvider,
-    depositorEthAddress,
-    selectedApplication,
-    selectedProviders,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    onSuccess,
-    btcAddress,
-    confirmedUTXOs,
-    isUTXOsLoading,
-    utxoError,
-    vaults,
-    getSelectedVaultProvider,
-    vaultKeepers,
-    universalChallengers,
-  ]);
+        });
+
+        // Step 3: Poll and sign payout transactions
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
+
+        const provider = getSelectedVaultProvider();
+        if (!provider.url) {
+          throw new Error("Vault provider has no RPC URL");
+        }
+
+        const { context, vaultProviderUrl, preparedTransactions } =
+          await pollAndPreparePayoutSigning({
+            btcTxid: peginResult.btcTxid,
+            btcTxHex: peginResult.btcTxHex,
+            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            providerUrl: provider.url,
+            providerBtcPubKey: provider.btcPubKey,
+            vaultKeepers: vaultKeepers.map((vk) => ({
+              btcPubKey: vk.btcPubKey,
+            })),
+            universalChallengers: universalChallengers.map((uc) => ({
+              btcPubKey: uc.btcPubKey,
+            })),
+          });
+
+        setIsWaiting(false);
+
+        // Sign with progress tracking (loop stays in hook for state updates)
+        const signatures = await signPayoutTransactionsWithProgress(
+          btcWalletProvider,
+          context,
+          preparedTransactions,
+          setPayoutSigningProgress,
+        );
+
+        // Submit signatures
+        await submitPayoutSignatures(
+          vaultProviderUrl,
+          peginResult.btcTxid,
+          peginResult.depositorBtcPubkey,
+          signatures,
+          depositorEthAddress!,
+        );
+        setPayoutSigningProgress(null);
+
+        // Step 4a: Wait for verification
+        setCurrentStep(DepositStep.BROADCAST_BTC);
+        setIsWaiting(true);
+        await waitForContractVerification({ btcTxid: peginResult.btcTxid });
+        setIsWaiting(false);
+
+        // Step 4b: Broadcast BTC transaction
+        await broadcastBtcTransaction(
+          {
+            btcTxid: peginResult.btcTxid,
+            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            btcWalletProvider,
+          },
+          depositorEthAddress!,
+        );
+
+        // Complete
+        setCurrentStep(DepositStep.COMPLETED);
+
+        return {
+          btcTxid: peginResult.btcTxid,
+          ethTxHash: peginResult.ethTxHash,
+          depositorBtcPubkey: peginResult.depositorBtcPubkey,
+          transactionData: {
+            unsignedTxHex: peginResult.btcTxHex,
+            selectedUTXOs: peginResult.selectedUTXOs,
+            fee: peginResult.fee,
+          },
+        };
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
+        setError(errorMessage);
+        console.error("Deposit flow error:", err);
+        // Keep currentStep where error occurred - UI can show error at that step
+        return null;
+      } finally {
+        setProcessing(false);
+        setIsWaiting(false);
+      }
+    }, [
+      amount,
+      feeRate,
+      btcWalletProvider,
+      depositorEthAddress,
+      selectedApplication,
+      selectedProviders,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      btcAddress,
+      confirmedUTXOs,
+      isUTXOsLoading,
+      utxoError,
+      vaults,
+      getSelectedVaultProvider,
+      vaultKeepers,
+      universalChallengers,
+    ]);
 
   return {
     executeDepositFlow,

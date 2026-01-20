@@ -129,7 +129,10 @@ export function usePeginStorage({
     // Create a map of confirmed activities by ID for quick lookup
     const confirmedMap = new Map(confirmedPegins.map((p) => [p.id, p]));
 
-    // Convert pending peg-ins to VaultActivity format
+    // Create a map of pending pegins by ID for quick lookup
+    const pendingMap = new Map(pendingPegins.map((p) => [p.id, p]));
+
+    // Convert pending peg-ins to VaultActivity format (only those not yet on blockchain)
     const pendingActivities: VaultActivity[] = pendingPegins
       .filter((pending) => !confirmedMap.has(pending.id))
       .map((pending) => ({
@@ -153,9 +156,33 @@ export function usePeginStorage({
         timestamp: pending.timestamp,
       }));
 
+    // Update confirmed activities with localStorage status (for displayLabel)
+    // This ensures e.g. "CONFIRMING" status shows "Pending Bitcoin Confirmations" instead of "Verified"
+    const confirmedWithLocalStatus: VaultActivity[] = confirmedPegins.map(
+      (activity) => {
+        const pendingPegin = pendingMap.get(activity.id);
+        if (pendingPegin?.status) {
+          // Re-compute displayLabel with localStorage status
+          const state = getPeginState(
+            (activity.contractStatus ??
+              ContractStatus.PENDING) as ContractStatus,
+            {
+              localStatus: pendingPegin.status,
+              isInUse: activity.isInUse,
+            },
+          );
+          return {
+            ...activity,
+            displayLabel: state.displayLabel,
+          };
+        }
+        return activity;
+      },
+    );
+
     // Combine and sort by timestamp (newest first)
     // Use Date.now() as fallback for items without timestamps
-    return [...pendingActivities, ...confirmedPegins].sort((a, b) => {
+    return [...pendingActivities, ...confirmedWithLocalStatus].sort((a, b) => {
       const aTime = a.timestamp || Date.now();
       const bTime = b.timestamp || Date.now();
       return bTime - aTime;

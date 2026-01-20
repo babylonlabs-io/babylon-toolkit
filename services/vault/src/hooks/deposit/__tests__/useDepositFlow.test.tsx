@@ -78,14 +78,11 @@ vi.mock("@/services/deposit", () => ({
 }));
 
 vi.mock("@/services/deposit/polling", () => ({
-  pollForPayoutTransactions: vi.fn().mockResolvedValue([
-    {
-      claimer_pubkey: "0xclaimerpubkey",
-      claim_tx: { tx_hex: "0xclaimtx" },
-      payout_tx: { tx_hex: "0xpayouttx" },
-    },
-  ]),
   waitForContractVerification: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/utils/async", () => ({
+  pollUntil: vi.fn(async (fn) => fn()),
 }));
 
 vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
@@ -129,17 +126,6 @@ vi.mock("@/services/vault", () => ({
 
 // Mock payout signature service to avoid SDK imports triggering initEccLib
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
-  prepareSigningContext: vi.fn().mockResolvedValue({
-    context: {
-      peginTxHex: "0xmockhex",
-      vaultProviderBtcPubkey: "0xmockpubkey",
-      vaultKeeperBtcPubkeys: ["0xmockkeeper"],
-      universalChallengerBtcPubkeys: ["0xmockchallenger"],
-      depositorBtcPubkey: "0xmockdepositor",
-      network: "signet",
-    },
-    vaultProviderUrl: "https://vault-provider.test",
-  }),
   prepareTransactionsForSigning: vi.fn().mockReturnValue([
     {
       claimerPubkeyXOnly: "0xmockclaimer",
@@ -149,21 +135,36 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
       assertTxHex: "0xmockassert",
     },
   ]),
+  getSortedVaultKeeperPubkeys: vi.fn((keepers) =>
+    keepers.map((k: { btcPubKey: string }) => k.btcPubKey),
+  ),
+  getSortedUniversalChallengerPubkeys: vi.fn((challengers) =>
+    challengers.map((c: { btcPubKey: string }) => c.btcPubKey),
+  ),
   signPayoutOptimistic: vi.fn().mockResolvedValue("0xmocksignature1"),
   signPayout: vi.fn().mockResolvedValue("0xmocksignature2"),
   submitSignaturesToVaultProvider: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/config/pegin", () => ({
+  getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
 }));
 
 // Mock vault provider RPC
 vi.mock("@/clients/vault-provider-rpc", () => {
   return {
     VaultProviderRpcApi: class MockVaultProviderRpcApi {
-      requestClaimAndPayoutTransactions = vi.fn().mockResolvedValue({
+      requestDepositorPresignTransactions = vi.fn().mockResolvedValue({
         txs: [
           {
             claimer_pubkey: "0xclaimerpubkey",
-            claim_tx: { tx_hex: "0xclaimtx" },
-            payout_tx: { tx_hex: "0xpayouttx" },
+            claim_tx: { tx_hex: "0xclaimtx", sighash: null },
+            payout_optimistic_tx: {
+              tx_hex: "0xpayoutoptimistictx",
+              sighash: "0xsighash1",
+            },
+            assert_tx: { tx_hex: "0xasserttx", sighash: null },
+            payout_tx: { tx_hex: "0xpayouttx", sighash: "0xsighash2" },
           },
         ],
       });
@@ -209,7 +210,6 @@ describe("useDepositFlow - Chain Switching", () => {
     vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],
     universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
-    onSuccess: vi.fn(),
   };
 
   beforeEach(() => {
@@ -432,11 +432,12 @@ describe("useDepositFlow - Chain Switching", () => {
       expect(result.current.currentStep).toBe(1);
       expect(result.current.processing).toBe(false);
 
-      await result.current.executeDepositFlow();
+      const flowResult = await result.current.executeDepositFlow();
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
-        expect(mockParams.onSuccess).toHaveBeenCalled();
+        // executeDepositFlow now returns result instead of calling onSuccess
+        expect(flowResult).not.toBeNull();
       });
 
       // Verify chain switch happened
