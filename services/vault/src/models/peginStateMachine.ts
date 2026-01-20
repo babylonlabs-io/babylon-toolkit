@@ -345,28 +345,42 @@ export function getNextLocalStatus(
 
 /**
  * Check if localStorage entry should be removed (blockchain is source of truth)
+ *
+ * localStorage tracks user actions that may not be reflected on-chain yet.
+ * We keep entries only when they provide information the blockchain doesn't have.
+ *
+ * Keep logic:
+ * - PENDING localStorage: only useful when contract is still PENDING (pegin might not be indexed)
+ * - PAYOUT_SIGNED localStorage: useful when contract is PENDING or VERIFIED (user signed, waiting for ACK or broadcast)
+ * - CONFIRMING localStorage: useful when contract is VERIFIED (user broadcast BTC, waiting for confirmations)
+ *
+ * Remove when:
+ * - Contract reached terminal states (ACTIVE, REDEEMED, INVALID)
+ * - localStorage status is stale relative to contract status
  */
 export function shouldRemoveFromLocalStorage(
   contractStatus: ContractStatus,
   localStatus: LocalStorageStatus,
 ): boolean {
-  // Remove if contract status has progressed beyond local status
-  if (
-    contractStatus === ContractStatus.VERIFIED &&
-    localStatus === LocalStorageStatus.PAYOUT_SIGNED
-  ) {
-    return true; // On-chain ACK received, no longer need local flag
-  }
-
-  // Remove for terminal/confirmed states
-  // Use explicit checks instead of >= to avoid fragility if enum values change
+  // Remove for terminal/confirmed states - blockchain is source of truth
   if (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||
     contractStatus === ContractStatus.INVALID
   ) {
-    return true; // Fully confirmed, blockchain is source of truth
+    return true;
   }
 
+  // Remove stale localStorage entries based on status progression
+  // localStorage PENDING is only useful when contract is still PENDING
+  if (
+    localStatus === LocalStorageStatus.PENDING &&
+    contractStatus === ContractStatus.VERIFIED
+  ) {
+    return true; // Contract moved past PENDING, localStorage adds no value
+  }
+
+  // Keep PAYOUT_SIGNED when contract is PENDING or VERIFIED (user needs to broadcast)
+  // Keep CONFIRMING when contract is VERIFIED (waiting for BTC confirmations)
   return false;
 }

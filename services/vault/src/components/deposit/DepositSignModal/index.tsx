@@ -5,58 +5,18 @@ import {
   DialogHeader,
   Loader,
   ResponsiveDialog,
-  Step,
   Text,
 } from "@babylonlabs-io/core-ui";
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
-import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
+import { useOnModalOpen } from "@/hooks/useOnModalOpen";
 
-const STEP_DESCRIPTIONS: Record<number, { active: string; waiting?: string }> =
-  {
-    1: { active: "Please sign the proof of possession in your BTC wallet." },
-    2: {
-      active: "Please sign and submit the peg-in request in your ETH wallet.",
-    },
-    3: {
-      active: "Please sign the payout transaction(s) in your BTC wallet.",
-      waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
-    },
-    4: {
-      active:
-        "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
-      waiting: "Waiting for on-chain verification...",
-    },
-    5: { active: "Deposit successfully submitted!" },
-  };
-
-const SIGNING_STEP_LABELS: Record<string, string> = {
-  payout_optimistic: "PayoutOptimistic",
-  payout: "Payout",
-};
-
-function getStepDescription(
-  step: number,
-  isWaiting: boolean,
-  payoutProgress: PayoutSigningProgress | null,
-): string {
-  const desc = STEP_DESCRIPTIONS[step];
-  if (!desc) return "";
-
-  // Show detailed progress for step 3 (payout signing)
-  if (step === 3 && payoutProgress?.currentStep) {
-    const stepLabel = SIGNING_STEP_LABELS[payoutProgress.currentStep];
-    const claimerInfo =
-      payoutProgress.totalClaimers > 1
-        ? ` (Claimer ${payoutProgress.currentClaimer}/${payoutProgress.totalClaimers})`
-        : "";
-    return `Signing ${stepLabel}${claimerInfo} — Step ${payoutProgress.completed + 1} of ${payoutProgress.total}`;
-  }
-
-  return isWaiting && desc.waiting ? desc.waiting : desc.active;
-}
+import { canCloseModal, DepositStep, getStepDescription } from "./constants";
+import { DepositSteps } from "./DepositSteps";
+import { StatusBanner } from "./StatusBanner";
+import { StepProgress } from "./StepProgress";
 
 interface CollateralDepositSignModalProps {
   open: boolean;
@@ -66,22 +26,16 @@ interface CollateralDepositSignModalProps {
     ethTxHash: string,
     depositorBtcPubkey: string,
   ) => void;
-  amount: bigint; // in satoshis
-  feeRate: number; // Fee rate from review modal (sat/vB)
+  amount: bigint;
+  feeRate: number;
   btcWalletProvider: any; // TODO: Type this properly with IBTCProvider
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
-  vaultProviderBtcPubkey: string; // Vault provider's BTC public key from API
-  vaultKeeperBtcPubkeys: string[]; // Vault keepers' BTC public keys from API
-  universalChallengerBtcPubkeys: string[]; // Universal challengers' BTC public keys from API
-  onRefetchActivities?: () => Promise<void>; // Optional refetch function to refresh deposit data
-}
-
-function canCloseModal(currentStep: number, error: string | null): boolean {
-  if (error) return true;
-  if (currentStep === 5) return true; // Complete
-  return false;
+  vaultProviderBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
+  onRefetchActivities?: () => Promise<void>;
 }
 
 export function CollateralDepositSignModal({
@@ -99,10 +53,6 @@ export function CollateralDepositSignModal({
   universalChallengerBtcPubkeys,
   onRefetchActivities,
 }: CollateralDepositSignModalProps) {
-  // Track previous open state to detect transitions
-  const prevOpenRef = useRef(false);
-  const hasExecutedRef = useRef(false);
-
   const {
     executeDepositFlow,
     currentStep,
@@ -120,45 +70,23 @@ export function CollateralDepositSignModal({
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    onSuccess: (
-      btcTxid: string,
-      ethTxHash: string,
-      depositorBtcPubkey: string,
-    ) => {
-      // NOTE: localStorage was already updated in useDepositFlow after Step 2 (PENDING)
-      // and after Step 3 (PAYOUT_SIGNED)
-
-      // Trigger refetch to immediately show the updated deposit
-      if (onRefetchActivities) {
-        onRefetchActivities();
-      }
-
-      onSuccess(btcTxid, ethTxHash, depositorBtcPubkey);
-    },
   });
 
-  // Execute flow once when modal transitions from closed to open
-  useEffect(() => {
-    const justOpened = open && !prevOpenRef.current;
-    if (justOpened && !hasExecutedRef.current) {
-      // Mark as executed immediately to prevent duplicate calls (React 18 Strict Mode)
-      hasExecutedRef.current = true;
-      executeDepositFlow();
+  // Execute flow and handle success
+  const handleExecuteFlow = useCallback(async () => {
+    const result = await executeDepositFlow();
+    if (result) {
+      onRefetchActivities?.();
+      onSuccess(result.btcTxid, result.ethTxHash, result.depositorBtcPubkey);
     }
+  }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
-    // Reset execution flag when modal closes
-    if (!open && prevOpenRef.current) {
-      hasExecutedRef.current = false;
-    }
+  // Execute flow once when modal opens
+  useOnModalOpen(open, handleExecuteFlow);
 
-    // Update previous open state
-    prevOpenRef.current = open;
-    // executeDepositFlow is intentionally not in deps - we only want to execute on modal open transition
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const isComplete = currentStep === 5;
+  const isComplete = currentStep === DepositStep.COMPLETED;
   const canClose = canCloseModal(currentStep, error);
+  const isProcessing = (processing || isWaiting) && !error && !isComplete;
 
   return (
     <ResponsiveDialog open={open} onClose={canClose ? onClose : undefined}>
@@ -176,51 +104,33 @@ export function CollateralDepositSignModal({
           {getStepDescription(currentStep, isWaiting, payoutSigningProgress)}
         </Text>
 
-        {/* 4-Step Progress Indicator */}
-        <div className="flex flex-col items-start gap-4 py-4">
-          <Step step={1} currentStep={currentStep}>
-            Sign proof of possession
-          </Step>
-          <Step step={2} currentStep={currentStep}>
-            Sign & submit peg-in request to Ethereum
-          </Step>
-          <Step step={3} currentStep={currentStep}>
-            Sign payout transaction(s)
-          </Step>
-          <Step step={4} currentStep={currentStep}>
-            Sign & broadcast Bitcoin transaction
-          </Step>
-        </div>
+        <DepositSteps currentStep={currentStep} />
 
-        {/* Error State */}
-        {error && (
-          <div className="rounded-lg bg-error-main/10 p-4">
-            <Text variant="body2" className="text-sm text-error-main">
-              {error}
-            </Text>
-          </div>
-        )}
+        <StepProgress
+          currentStep={currentStep}
+          isWaiting={isWaiting}
+          payoutSigningProgress={payoutSigningProgress}
+        />
 
-        {/* Success State */}
+        {error && <StatusBanner variant="error">{error}</StatusBanner>}
+
         {isComplete && (
-          <div className="rounded-lg bg-success-main/10 p-4">
-            <Text variant="body2" className="text-sm text-success-main">
-              Your Bitcoin transaction has been broadcast to the network. It
-              will be confirmed after receiving the required number of Bitcoin
-              confirmations.
-            </Text>
-          </div>
+          <StatusBanner variant="success">
+            Your Bitcoin transaction has been broadcast to the network. It will
+            be confirmed after receiving the required number of Bitcoin
+            confirmations.
+          </StatusBanner>
         )}
       </DialogBody>
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={(processing || isWaiting) && !error && !isComplete}
+          disabled={isProcessing}
           variant="contained"
           className="w-full text-xs sm:text-base"
           onClick={canClose ? onClose : undefined}
         >
-          {(processing || isWaiting) && !error && !isComplete ? (
+          {isProcessing ? (
             <Loader size={16} className="text-accent-contrast" />
           ) : error ? (
             "Close"

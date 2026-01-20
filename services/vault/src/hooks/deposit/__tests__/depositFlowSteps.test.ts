@@ -28,8 +28,17 @@ vi.mock("@/services/deposit", () => ({
 }));
 
 vi.mock("@/services/deposit/polling", () => ({
-  pollForPayoutTransactions: vi.fn(),
   waitForContractVerification: vi.fn(),
+}));
+
+vi.mock("@/clients/vault-provider-rpc", () => ({
+  VaultProviderRpcApi: vi.fn().mockImplementation(() => ({
+    requestDepositorPresignTransactions: vi.fn(),
+  })),
+}));
+
+vi.mock("@/utils/async", () => ({
+  pollUntil: vi.fn((fn) => fn()),
 }));
 
 vi.mock("@/services/vault", () => ({
@@ -39,9 +48,18 @@ vi.mock("@/services/vault", () => ({
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
-  prepareSigningContext: vi.fn(),
   prepareTransactionsForSigning: vi.fn(),
+  getSortedVaultKeeperPubkeys: vi.fn((keepers) =>
+    keepers.map((k: { btcPubKey: string }) => k.btcPubKey),
+  ),
+  getSortedUniversalChallengerPubkeys: vi.fn((challengers) =>
+    challengers.map((c: { btcPubKey: string }) => c.btcPubKey),
+  ),
   submitSignaturesToVaultProvider: vi.fn(),
+}));
+
+vi.mock("@/config/pegin", () => ({
+  getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
 }));
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
@@ -55,6 +73,7 @@ vi.mock("@/storage/peginStorage", () => ({
 
 vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
+  stripHexPrefix: vi.fn((hex) => hex.replace("0x", "")),
 }));
 
 vi.mock("@/models/peginStateMachine", () => ({
