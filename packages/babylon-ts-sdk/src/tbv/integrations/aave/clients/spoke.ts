@@ -53,16 +53,52 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
 }
 
 /**
- * Get user account data from the Spoke
+ * Get aggregated user account health data from AAVE spoke.
  *
- * Returns aggregated position health data including health factor, collateral value,
- * and debt value. These values are calculated by Aave using on-chain oracle prices
- * and are the authoritative values for liquidation decisions.
+ * **Live data** - Fetches real-time account health including health factor, total collateral,
+ * and total debt across all reserves. Values are calculated on-chain using AAVE oracles
+ * and are the authoritative source for liquidation decisions.
  *
- * @param publicClient - Viem public client for reading contracts
- * @param spokeAddress - Aave Spoke contract address
- * @param userAddress - User's proxy contract address
- * @returns User account data with health factor and values
+ * @param publicClient - Viem public client for reading contracts (from `createPublicClient()`)
+ * @param spokeAddress - AAVE Spoke contract address (BTC Vault Core Spoke for vBTC collateral)
+ * @param userAddress - User's proxy contract address (NOT user's wallet address)
+ * @returns User account data with health metrics, collateral, and debt values
+ *
+ * @example
+ * ```typescript
+ * import { getUserAccountData } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { createPublicClient, http } from "viem";
+ * import { sepolia } from "viem/chains";
+ *
+ * const publicClient = createPublicClient({
+ *   chain: sepolia,
+ *   transport: http()
+ * });
+ *
+ * const accountData = await getUserAccountData(
+ *   publicClient,
+ *   "0x123...", // AAVE Spoke address
+ *   "0x456..."  // User's AAVE proxy address (from getPosition)
+ * );
+ *
+ * console.log("Health Factor:", accountData.healthFactor);
+ * console.log("Collateral (USD):", accountData.totalCollateralValue);
+ * console.log("Debt (USD):", accountData.totalDebtValue);
+ * ```
+ *
+ * @remarks
+ * **Return values:**
+ * - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
+ * - `totalCollateralValue` - USD value in base currency (1e26 = $1)
+ * - `totalDebtValue` - USD value in base currency (1e26 = $1)
+ * - `avgCollateralFactor` - Weighted average LTV in BPS (8000 = 80%)
+ * - `riskPremium` - Additional risk premium
+ *
+ * **Use cases:**
+ * - Check liquidation risk before borrowing
+ * - Calculate safe borrow amount
+ * - Monitor position health
+ * - Display UI health indicators
  */
 export async function getUserAccountData(
   publicClient: PublicClient,
@@ -165,16 +201,40 @@ export async function hasCollateral(
 }
 
 /**
- * Get user's total debt in a reserve (in token units, not shares)
+ * Get user's exact total debt in a reserve (token units, not shares).
  *
- * This returns the exact amount of tokens owed, including accrued interest.
- * Use this for full repayment to get the precise amount needed.
+ * Returns the precise amount owed including accrued interest. Essential for full repayment.
+ * Debt accrues interest every block, so this must be fetched live from the contract.
  *
  * @param publicClient - Viem public client for reading contracts
- * @param spokeAddress - Aave Spoke contract address
- * @param reserveId - Reserve ID
+ * @param spokeAddress - AAVE Spoke contract address
+ * @param reserveId - Reserve ID for the debt asset (e.g., `2n` for USDC)
  * @param userAddress - User's proxy contract address
- * @returns Total debt amount in token units (with token decimals)
+ * @returns Total debt amount in token units (e.g., for USDC: `100000000n` = 100 USDC)
+ *
+ * @example
+ * ```typescript
+ * import { getUserTotalDebt, FULL_REPAY_BUFFER_BPS } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { formatUnits } from "viem";
+ *
+ * const totalDebt = await getUserTotalDebt(
+ *   publicClient,
+ *   AAVE_SPOKE_ADDRESS,
+ *   2n, // USDC reserve
+ *   proxyAddress
+ * );
+ *
+ * // For full repayment, add buffer to account for interest accrual
+ * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_BPS);
+ *
+ * console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
+ * ```
+ *
+ * @remarks
+ * **Important for full repayment:**
+ * - Add `FULL_REPAY_BUFFER_BPS` buffer to account for interest between fetch and tx execution
+ * - Contract only takes what's owed; excess stays in wallet
+ * - For partial repayment, use any amount less than total debt
  */
 export async function getUserTotalDebt(
   publicClient: PublicClient,

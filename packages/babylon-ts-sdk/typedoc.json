@@ -2,7 +2,8 @@
   "$schema": "https://typedoc.org/schema.json",
   "entryPoints": [
     "src/tbv/core/primitives/index.ts",
-    "src/tbv/core/managers/index.ts"
+    "src/tbv/core/managers/index.ts",
+    "src/tbv/integrations/aave/index.ts"
   ],
   "out": "docs/api",
   "gitRevision": "main",

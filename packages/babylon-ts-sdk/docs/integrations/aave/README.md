@@ -25,7 +25,7 @@ npm install @babylonlabs-io/ts-sdk viem
 ## Quick Links
 
 - **[Quickstart Guide](./quickstart.md)** - Step-by-step examples for all operations
-- **[API Reference](./api-reference.md)** - Complete function documentation
+- **[API Reference](../../api/integrations/aave.md)** - Auto-generated API documentation (TypeDoc)
 - **[TBV Core Docs](../../README.md)** - Bitcoin vault (peg-in) documentation
 
 ---
