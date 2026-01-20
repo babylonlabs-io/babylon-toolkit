@@ -35,6 +35,7 @@ vi.mock("@/services/deposit/polling", () => ({
 vi.mock("@/services/vault", () => ({
   broadcastPeginTransaction: vi.fn(),
   fetchVaultById: vi.fn(),
+  selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({

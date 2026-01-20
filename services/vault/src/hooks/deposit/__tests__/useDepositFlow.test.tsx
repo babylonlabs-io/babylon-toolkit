@@ -53,6 +53,20 @@ vi.mock("@/hooks/useUTXOs", () => ({
   })),
 }));
 
+vi.mock("@/hooks/useVaults", () => ({
+  useVaults: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+vi.mock("@/storage/peginStorage", () => ({
+  addPendingPegin: vi.fn(),
+  updatePendingPeginStatus: vi.fn(),
+  getPendingPegins: vi.fn().mockReturnValue([]),
+}));
+
 vi.mock("@/services/deposit", () => ({
   depositService: {
     validateDepositAmount: vi.fn(() => ({ valid: true })),
@@ -90,11 +104,6 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
   }),
 }));
 
-vi.mock("@/storage/peginStorage", () => ({
-  addPendingPegin: vi.fn(),
-  updatePendingPeginStatus: vi.fn(),
-}));
-
 vi.mock("@/context/deposit/DepositState", () => ({
   useDepositState: vi.fn(() => ({
     selectedApplication: "0xAaveController123",
@@ -113,6 +122,8 @@ vi.mock("@/services/vault", () => ({
     unsignedBtcTx: "0xmockunsignedtx",
     status: 1,
   }),
+  collectReservedUtxoRefs: vi.fn().mockReturnValue([]),
+  selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
   signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
 }));
 

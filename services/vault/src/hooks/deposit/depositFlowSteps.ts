@@ -23,7 +23,12 @@ import {
   pollForPayoutTransactions,
   waitForContractVerification,
 } from "@/services/deposit/polling";
-import { broadcastPeginTransaction, fetchVaultById } from "@/services/vault";
+import {
+  broadcastPeginTransaction,
+  fetchVaultById,
+  selectUtxosForDeposit,
+  type UtxoRef,
+} from "@/services/vault";
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
@@ -77,6 +82,8 @@ export interface PeginSubmitParams {
     value: number;
     scriptPubKey: string;
   }>;
+  /** Reserved UTXOs to avoid (from in-flight deposits). */
+  reservedUtxoRefs: UtxoRef[];
   onPopSigned?: () => void;
 }
 
@@ -241,8 +248,16 @@ export async function submitPeginAndWait(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     confirmedUTXOs,
+    reservedUtxoRefs,
     onPopSigned,
   } = params;
+
+  const utxosToUse = selectUtxosForDeposit({
+    availableUtxos: confirmedUTXOs,
+    reservedUtxoRefs,
+    requiredAmount: amount,
+    feeRate,
+  });
 
   // Submit pegin request
   const result = await submitPeginRequest(btcWalletProvider, walletClient, {
@@ -253,7 +268,7 @@ export async function submitPeginAndWait(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
-    availableUTXOs: confirmedUTXOs,
+    availableUTXOs: utxosToUse,
     onPopSigned,
   });
 

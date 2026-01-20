@@ -17,12 +17,15 @@ import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useUTXOs } from "@/hooks/useUTXOs";
+import { useVaults } from "@/hooks/useVaults";
+import { collectReservedUtxoRefs } from "@/services/vault";
 import {
   signPayout,
   signPayoutOptimistic,
   type PayoutSigningProgress,
   type SigningStepType,
 } from "@/services/vault/vaultPayoutSignatureService";
+import { getPendingPegins } from "@/storage/peginStorage";
 
 import {
   getEthWalletClient,
@@ -103,6 +106,7 @@ export function useDepositFlow(
     isLoading: isUTXOsLoading,
     error: utxoError,
   } = useUTXOs(btcAddress);
+  const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers, universalChallengers } =
     useVaultProviders(selectedApplication);
 
@@ -139,6 +143,13 @@ export function useDepositFlow(
       setCurrentStep(1);
       const walletClient = await getEthWalletClient(depositorEthAddress!);
 
+      // Compute reserved UTXOs from cached vaults + localStorage
+      const pendingPegins = getPendingPegins(depositorEthAddress!);
+      const reservedUtxoRefs = collectReservedUtxoRefs({
+        vaults: vaults ?? [],
+        pendingPegins,
+      });
+
       // Step 1-2: Submit pegin request and wait for ETH confirmation
       const peginResult = await submitPeginAndWait({
         btcWalletProvider,
@@ -151,6 +162,7 @@ export function useDepositFlow(
         vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys,
         confirmedUTXOs: confirmedUTXOs!,
+        reservedUtxoRefs,
         onPopSigned: () => setCurrentStep(2),
       });
 
@@ -259,6 +271,7 @@ export function useDepositFlow(
     confirmedUTXOs,
     isUTXOsLoading,
     utxoError,
+    vaults,
     getSelectedVaultProvider,
     vaultKeepers,
     universalChallengers,
