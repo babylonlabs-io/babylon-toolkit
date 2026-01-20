@@ -13,7 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '38ddb350e9c332f2dff3570ed9f588b724baaf8c';
+const BTC_VAULT_COMMIT = 'd0c94b71ac42af25caaa5852b0a2c0f51a013cd5';
+const REQUIRED_RUSTC_VERSION = '1.92.0';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
@@ -82,6 +83,28 @@ const buildWasm = async () => {
       .exec('which rustc', { silent: true })
       .stdout.trim();
     console.log(`Using rustc from: ${verifyRustc}`);
+
+    // Verify rustc version matches required version
+    const rustcVersionResult = shell.exec('rustc --version', { silent: true });
+    if (rustcVersionResult.code !== 0) {
+      console.error('Error: Failed to get rustc version');
+      process.exit(1);
+    }
+    const rustcVersion = rustcVersionResult.stdout.trim();
+    console.log(`Rustc version: ${rustcVersion}`);
+
+    if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
+      console.error(
+        `\nError: Incorrect rustc version detected.`,
+        `\nRequired: ${REQUIRED_RUSTC_VERSION}`,
+        `\nFound: ${rustcVersion}`,
+        `\n\nPlease update your Rust toolchain:`,
+        `\n  rustup update stable`,
+        `\nThen verify the version:`,
+        `\n  rustc --version\n`
+      );
+      process.exit(1);
+    }
 
     // Clean up any previous temp directory
     if (shell.test('-d', REPO_DIR)) {

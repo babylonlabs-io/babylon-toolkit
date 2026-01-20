@@ -99,16 +99,47 @@ console.log(tapInternalPubkey);
 
 **For updating WASM bindings (rare):**
 
-- Rust toolchain (`rustup`)
-- `wasm-pack`
+- **Rust 1.92.0** (via `rustup`) - **Required for reproducible builds**
+- `wasm-pack` >= 0.13.1
 - `LLVM` (for `secp256k1` compilation)
 
 On macOS with Homebrew:
 
 ```bash
-brew install llvm
+# Install Rust via rustup (not Homebrew)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install wasm32 target
+rustup target add wasm32-unknown-unknown
+
+# Install wasm-pack
 cargo install wasm-pack
+
+# Install LLVM
+brew install llvm
+
+# The rust-toolchain.toml file in this directory will automatically
+# install and use Rust 1.92.0 when you enter this directory.
+# Just cd into the directory and rustup will handle it:
+cd packages/babylon-tbv-rust-wasm/
+rustc --version  # Will automatically be 1.92.0
 ```
+
+**How version pinning works:**
+
+This package includes a `rust-toolchain.toml` file that pins Rust to version 1.92.0:
+
+```toml
+[toolchain]
+channel = "1.92.0"
+```
+
+When you `cd` into this directory, rustup automatically:
+1. Downloads Rust 1.92.0 if not already installed
+2. Switches to use 1.92.0 for all commands in this directory
+3. Ensures everyone on the team uses the exact same version
+
+The build script also enforces this version with a runtime check, failing early if wrong version is detected.
 
 ### Building
 
@@ -182,30 +213,72 @@ packages/babylon-tbv-rust-wasm/
 
 When `btc-vault` releases a new version or you want to update the WASM bindings:
 
-1. **Edit configuration** in `scripts/build-wasm.js`:
+1. **Ensure you have Rust 1.92.0**:
+
+   ```bash
+   rustc --version
+   # Should output: rustc 1.92.0 (ded5c06cf 2025-12-08)
+
+   # If not, update:
+   rustup update stable
+   ```
+
+2. **Edit configuration** in `scripts/build-wasm.js`:
 
    ```javascript
    const BTC_VAULT_BRANCH = 'main'; // or "feat/branch-name"
    const BTC_VAULT_COMMIT = '<new-commit-sha>';
+   const REQUIRED_RUSTC_VERSION = '1.92.0'; // Update if needed
    ```
 
-2. **Rebuild WASM**:
+3. **Rebuild WASM**:
 
    ```bash
    pnpm run build-wasm
    ```
 
-3. **Test the build**:
+   The build script will:
+   - Verify your Rust version matches `REQUIRED_RUSTC_VERSION`
+   - Clone btc-vault at the specified commit
+   - Build WASM bindings
+   - Copy generated files to `dist/generated/`
+
+4. **Test the build**:
 
    ```bash
    pnpm run build
    ```
 
-4. **Commit the updated WASM files** to git:
+5. **Commit the updated WASM files** to git:
    ```bash
-   git add dist/generated/
+   git add scripts/build-wasm.js dist/generated/
    git commit -m "chore: update btc-vault WASM to <commit-sha>"
    ```
+
+### Reproducible Builds
+
+**Why WASM binaries may differ between developers:**
+
+The WASM binary includes debug information with file paths, which contain usernames:
+- Developer A: `/Users/alice/.cargo/...` (21 chars)
+- Developer B: `/Users/bob/.cargo/...` (18 chars)
+- 29 embedded paths × 3 byte difference = ~87 byte size difference
+
+This causes ~64-100 byte size differences due to different path lengths. This is **expected and normal** - the binaries are functionally equivalent and work identically.
+
+**Why we can't remove paths (yet):**
+- Rust's `trim-paths` feature (RFC 3127) would solve this
+- ❌ Still nightly-only, not available in stable Rust 1.92.0
+- ✅ Will be monitored and adopted when stabilized
+- Alternative (Docker) adds complexity without sufficient benefit
+
+**To minimize differences:**
+- ✅ All developers use **Rust 1.92.0** (enforced by `rust-toolchain.toml` + build script)
+- ✅ Same `wasm-pack` version
+- ✅ Same build flags and optimization levels
+- ⏰ When `trim-paths` stabilizes: Add to Cargo.toml profile
+
+**Bottom line:** Small size differences are cosmetic only. Functionality is identical.
 
 ## API Reference
 
