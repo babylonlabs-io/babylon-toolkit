@@ -53,6 +53,20 @@ vi.mock("@/hooks/useUTXOs", () => ({
   })),
 }));
 
+vi.mock("@/hooks/useVaults", () => ({
+  useVaults: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+vi.mock("@/storage/peginStorage", () => ({
+  addPendingPegin: vi.fn(),
+  updatePendingPeginStatus: vi.fn(),
+  getPendingPegins: vi.fn().mockReturnValue([]),
+}));
+
 vi.mock("@/services/deposit", () => ({
   depositService: {
     validateDepositAmount: vi.fn(() => ({ valid: true })),
@@ -78,11 +92,6 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
   createProofOfPossession: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock("@/services/vault/utxoReservation", () => ({
-  getReservedUtxoRefs: vi.fn().mockResolvedValue([]),
-  collectReservedUtxoRefs: vi.fn().mockReturnValue(new Set()),
-}));
-
 vi.mock("@/services/vault/vaultTransactionService", () => ({
   submitPeginRequest: vi.fn().mockResolvedValue({
     btcTxHash: "0xmocktxid123",
@@ -93,12 +102,6 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
     ],
     fee: 1000n,
   }),
-}));
-
-vi.mock("@/storage/peginStorage", () => ({
-  addPendingPegin: vi.fn(),
-  updatePendingPeginStatus: vi.fn(),
-  getPendingPegins: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("@/context/deposit/DepositState", () => ({
@@ -119,16 +122,9 @@ vi.mock("@/services/vault", () => ({
     unsignedBtcTx: "0xmockunsignedtx",
     status: 1,
   }),
-  fetchVaultsByDepositor: vi.fn().mockResolvedValue([]),
-  collectReservedUtxoRefs: vi.fn().mockReturnValue(new Set()),
+  collectReservedUtxoRefs: vi.fn().mockReturnValue([]),
+  selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
   signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock("@/utils/utxoSelection", () => ({
-  selectAvailableUtxos: vi.fn(({ availableUtxos }) => ({
-    utxos: availableUtxos,
-    usedFallback: false,
-  })),
 }));
 
 // Mock payout signature service to avoid SDK imports triggering initEccLib

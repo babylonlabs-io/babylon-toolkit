@@ -35,8 +35,7 @@ vi.mock("@/services/deposit/polling", () => ({
 vi.mock("@/services/vault", () => ({
   broadcastPeginTransaction: vi.fn(),
   fetchVaultById: vi.fn(),
-  fetchVaultsByDepositor: vi.fn().mockResolvedValue([]),
-  collectReservedUtxoRefs: vi.fn().mockReturnValue(new Set()),
+  selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
@@ -52,18 +51,10 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
 vi.mock("@/storage/peginStorage", () => ({
   addPendingPegin: vi.fn(),
   updatePendingPeginStatus: vi.fn(),
-  getPendingPegins: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("@/utils/btc", () => ({
   processPublicKeyToXOnly: vi.fn((key) => key),
-}));
-
-vi.mock("@/utils/utxoSelection", () => ({
-  selectAvailableUtxos: vi.fn(({ availableUtxos }) => ({
-    utxos: availableUtxos,
-    usedFallback: false,
-  })),
 }));
 
 vi.mock("@/models/peginStateMachine", () => ({

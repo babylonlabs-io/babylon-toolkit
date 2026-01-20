@@ -25,9 +25,9 @@ import {
 } from "@/services/deposit/polling";
 import {
   broadcastPeginTransaction,
-  collectReservedUtxoRefs,
   fetchVaultById,
-  fetchVaultsByDepositor,
+  selectUtxosForDeposit,
+  type UtxoRef,
 } from "@/services/vault";
 import {
   prepareSigningContext,
@@ -39,25 +39,9 @@ import {
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import {
   addPendingPegin,
-  getPendingPegins,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import { processPublicKeyToXOnly } from "@/utils/btc";
-import { selectAvailableUtxos } from "@/utils/utxoSelection";
-
-/** Select UTXOs, filtering out reserved ones from in-flight transactions with fallback. */
-async function selectUtxosWithFallback<
-  T extends { txid: string; vout: number },
->(availableUtxos: T[], depositorEthAddress: Address): Promise<T[]> {
-  const [vaults, pendingPegins] = await Promise.all([
-    fetchVaultsByDepositor(depositorEthAddress).catch(() => []),
-    Promise.resolve(getPendingPegins(depositorEthAddress)),
-  ]);
-
-  const reservedUtxoRefs = collectReservedUtxoRefs({ vaults, pendingPegins });
-  const { utxos } = selectAvailableUtxos({ availableUtxos, reservedUtxoRefs });
-  return utxos;
-}
 
 // ============================================================================
 // Types
@@ -88,7 +72,6 @@ export interface PeginSubmitParams {
   amount: bigint;
   feeRate: number;
   btcAddress: string;
-  depositorEthAddress: Address;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
@@ -99,6 +82,8 @@ export interface PeginSubmitParams {
     value: number;
     scriptPubKey: string;
   }>;
+  /** Reserved UTXOs to avoid (from in-flight deposits). */
+  reservedUtxoRefs: UtxoRef[];
   onPopSigned?: () => void;
 }
 
@@ -258,19 +243,21 @@ export async function submitPeginAndWait(
     amount,
     feeRate,
     btcAddress,
-    depositorEthAddress,
     selectedProviders,
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     confirmedUTXOs,
+    reservedUtxoRefs,
     onPopSigned,
   } = params;
 
-  const utxosToUse = await selectUtxosWithFallback(
-    confirmedUTXOs,
-    depositorEthAddress,
-  );
+  const utxosToUse = selectUtxosForDeposit({
+    availableUtxos: confirmedUTXOs,
+    reservedUtxoRefs,
+    requiredAmount: amount,
+    feeRate,
+  });
 
   // Submit pegin request
   const result = await submitPeginRequest(btcWalletProvider, walletClient, {
