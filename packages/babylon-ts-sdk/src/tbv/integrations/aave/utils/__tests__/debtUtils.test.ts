@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { hasDebtFromPosition } from "../debtUtils";
+import { hasDebtFromPosition } from "../debtUtils.js";
 
 describe("debtUtils", () => {
   describe("hasDebtFromPosition", () => {

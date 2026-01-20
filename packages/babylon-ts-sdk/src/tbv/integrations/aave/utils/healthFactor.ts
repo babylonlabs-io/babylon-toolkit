@@ -17,7 +17,7 @@
  * - Gray (#5A5A5A): no_debt
  */
 
-import { BPS_SCALE, HEALTH_FACTOR_WARNING_THRESHOLD } from "../constants";
+import { BPS_SCALE, HEALTH_FACTOR_WARNING_THRESHOLD } from "../constants.js";
 
 export const HEALTH_FACTOR_COLORS = {
   GREEN: "#00E676",
@@ -115,13 +115,44 @@ export function getHealthFactorStatusFromValue(
 }
 
 /**
- * Calculate health factor
- * HF = (Collateral * Liquidation Threshold) / Total Debt
+ * Calculate health factor for an AAVE position.
  *
- * @param collateralValueUsd - Collateral value in USD
- * @param totalDebtUsd - Total debt in USD
- * @param liquidationThresholdBps - Liquidation threshold in basis points (e.g., 8000 = 80%)
- * @returns Health factor value, or 0 if no debt
+ * **Formula:** `HF = (Collateral × Liquidation Threshold) / Total Debt`
+ *
+ * Health factor determines liquidation risk:
+ * - `>= 1.5` - Safe (green)
+ * - `1.0 - 1.5` - Warning (amber)
+ * - `< 1.0` - Danger, position can be liquidated (red)
+ *
+ * @param collateralValueUsd - Total collateral value in USD (as number, not bigint)
+ * @param totalDebtUsd - Total debt value in USD (as number, not bigint)
+ * @param liquidationThresholdBps - Liquidation threshold in basis points (e.g., `8000` = 80%)
+ * @returns Health factor value (e.g., `1.5`), or `0` if no debt
+ *
+ * @example
+ * ```typescript
+ * import { calculateHealthFactor, HEALTH_FACTOR_WARNING_THRESHOLD } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ *
+ * // User has $10,000 BTC collateral, $5,000 debt, 80% LT
+ * const hf = calculateHealthFactor(10000, 5000, 8000);
+ * // Result: 1.6 (safe to borrow more)
+ *
+ * if (hf < 1.0) {
+ *   console.error("Position can be liquidated!");
+ * } else if (hf < HEALTH_FACTOR_WARNING_THRESHOLD) {
+ *   console.warn("Position at risk, consider repaying");
+ * } else {
+ *   console.log("Position is safe");
+ * }
+ * ```
+ *
+ * @remarks
+ * **Before borrowing:**
+ * Use this to calculate resulting health factor and ensure it stays above safe threshold.
+ *
+ * **Unit conversions:**
+ * - Convert AAVE base currency (1e26) to USD by dividing by 1e26
+ * - Use `aaveValueToUsd()` helper for automatic conversion
  */
 export function calculateHealthFactor(
   collateralValueUsd: number,

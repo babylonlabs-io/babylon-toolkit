@@ -4,7 +4,7 @@
  * Converts Aave on-chain values to human-readable numbers.
  */
 
-import { AAVE_BASE_CURRENCY_DECIMALS, WAD_DECIMALS } from "../constants";
+import { AAVE_BASE_CURRENCY_DECIMALS, WAD_DECIMALS } from "../constants.js";
 
 /**
  * Convert Aave base currency value to USD

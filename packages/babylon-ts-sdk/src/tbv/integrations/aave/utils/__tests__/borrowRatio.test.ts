@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { calculateBorrowRatio } from "../borrowRatio";
+import { calculateBorrowRatio } from "../borrowRatio.js";
 
 describe("borrowRatio", () => {
   describe("calculateBorrowRatio", () => {

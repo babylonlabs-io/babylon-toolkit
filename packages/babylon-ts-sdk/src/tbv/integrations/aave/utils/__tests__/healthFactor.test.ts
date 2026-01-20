@@ -12,7 +12,7 @@ import {
   getHealthFactorStatusFromValue,
   HEALTH_FACTOR_COLORS,
   isHealthFactorHealthy,
-} from "../healthFactor";
+} from "../healthFactor.js";
 
 describe("healthFactor", () => {
   describe("formatHealthFactor", () => {

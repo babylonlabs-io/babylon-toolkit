@@ -4,7 +4,7 @@
  * Shared utility functions for debt calculations.
  */
 
-import type { AaveSpokeUserPosition } from "../clients/spoke";
+import type { AaveSpokeUserPosition } from "../types.js";
 
 /**
  * Check if a position has any debt based on Spoke position data.

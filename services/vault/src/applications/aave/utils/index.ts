@@ -1,18 +1,23 @@
-export { aaveValueToUsd, wadToNumber } from "./aaveConversions";
-export { calculateBorrowRatio } from "./borrowRatio";
-export { hasDebtFromPosition } from "./debtUtils";
+// Re-export utilities from SDK
 export {
   HEALTH_FACTOR_COLORS,
+  aaveValueToUsd,
+  calculateBorrowRatio,
   calculateHealthFactor,
+  calculateTotalVaultAmount,
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
+  hasDebtFromPosition,
   isHealthFactorHealthy,
-} from "./healthFactor";
-export type { HealthFactorColor, HealthFactorStatus } from "./healthFactor";
-export {
-  calculateTotalVaultAmount,
   selectVaultsForAmount,
-} from "./vaultSelection";
-export type { SelectableVault, VaultSelectionResult } from "./vaultSelection";
+  wadToNumber,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
+export type {
+  HealthFactorColor,
+  HealthFactorStatus,
+  SelectableVault,
+  VaultSelectionResult,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";

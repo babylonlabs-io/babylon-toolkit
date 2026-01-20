@@ -1,93 +1,24 @@
 /**
  * Aave Spoke Client - Read operations
  *
- * Provides read operations for interacting with Aave v4 Spoke contracts.
+ * Vault-side wrapper that injects ethClient into SDK functions.
  * Used to fetch live user position data (debt, collateral) from the Core Spoke.
- *
- * Note: Reserve data should be fetched from the indexer via fetchReserves.ts
- * since it doesn't need to be live and benefits from caching.
  */
 
+import type {
+  AaveSpokeUserAccountData,
+  AaveSpokeUserPosition,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import {
+  getUserAccountData as sdkGetUserAccountData,
+  getUserPosition as sdkGetUserPosition,
+  getUserTotalDebt as sdkGetUserTotalDebt,
+  hasCollateral as sdkHasCollateral,
+  hasDebt as sdkHasDebt,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
 import { ethClient } from "../../../clients/eth-contract/client";
-import { hasDebtFromPosition } from "../utils";
-
-import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
-
-/**
- * User account data from the Spoke
- * Contains aggregated position health data calculated by Aave using on-chain oracle prices.
- */
-export interface AaveSpokeUserAccountData {
-  /** Risk premium in BPS */
-  riskPremium: bigint;
-  /** Weighted average collateral factor in WAD (1e18 = 100%) */
-  avgCollateralFactor: bigint;
-  /** Health factor in WAD (1e18 = 1.00) */
-  healthFactor: bigint;
-  /** Total collateral value in base currency (1e26 = $1 USD) */
-  totalCollateralValue: bigint;
-  /** Total debt value in base currency (1e26 = $1 USD) */
-  totalDebtValue: bigint;
-  /** Number of active collateral reserves */
-  activeCollateralCount: bigint;
-  /** Number of borrowed reserves */
-  borrowedCount: bigint;
-}
-
-/** Account data result type from contract */
-type AccountDataResult = {
-  riskPremium: bigint;
-  avgCollateralFactor: bigint;
-  healthFactor: bigint;
-  totalCollateralValue: bigint;
-  totalDebtValue: bigint;
-  activeCollateralCount: bigint;
-  borrowedCount: bigint;
-};
-
-/**
- * User position data from the Spoke
- */
-export interface AaveSpokeUserPosition {
-  /** Drawn debt shares */
-  drawnShares: bigint;
-  /** Premium shares (interest) */
-  premiumShares: bigint;
-  /** Realized premium (ray) */
-  realizedPremiumRay: bigint;
-  /** Premium offset (ray) */
-  premiumOffsetRay: bigint;
-  /** Supplied collateral shares */
-  suppliedShares: bigint;
-  /** Dynamic config key */
-  dynamicConfigKey: number;
-}
-
-/** Position result type from contract */
-type PositionResult = {
-  drawnShares: bigint;
-  premiumShares: bigint;
-  realizedPremiumRay: bigint;
-  premiumOffsetRay: bigint;
-  suppliedShares: bigint;
-  dynamicConfigKey: number;
-};
-
-/**
- * Maps contract result to AaveSpokeUserPosition
- */
-function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
-  return {
-    drawnShares: result.drawnShares,
-    premiumShares: result.premiumShares,
-    realizedPremiumRay: result.realizedPremiumRay,
-    premiumOffsetRay: result.premiumOffsetRay,
-    suppliedShares: result.suppliedShares,
-    dynamicConfigKey: result.dynamicConfigKey,
-  };
-}
 
 /**
  * Get user account data from the Spoke
@@ -105,24 +36,7 @@ export async function getUserAccountData(
   userAddress: Address,
 ): Promise<AaveSpokeUserAccountData> {
   const publicClient = ethClient.getPublicClient();
-
-  const result = await publicClient.readContract({
-    address: spokeAddress,
-    abi: AaveSpokeABI,
-    functionName: "getUserAccountData",
-    args: [userAddress],
-  });
-
-  const data = result as AccountDataResult;
-  return {
-    riskPremium: data.riskPremium,
-    avgCollateralFactor: data.avgCollateralFactor,
-    healthFactor: data.healthFactor,
-    totalCollateralValue: data.totalCollateralValue,
-    totalDebtValue: data.totalDebtValue,
-    activeCollateralCount: data.activeCollateralCount,
-    borrowedCount: data.borrowedCount,
-  };
+  return sdkGetUserAccountData(publicClient, spokeAddress, userAddress);
 }
 
 /**
@@ -142,15 +56,7 @@ export async function getUserPosition(
   userAddress: Address,
 ): Promise<AaveSpokeUserPosition> {
   const publicClient = ethClient.getPublicClient();
-
-  const result = await publicClient.readContract({
-    address: spokeAddress,
-    abi: AaveSpokeABI,
-    functionName: "getUserPosition",
-    args: [reserveId, userAddress],
-  });
-
-  return mapPositionResult(result as PositionResult);
+  return sdkGetUserPosition(publicClient, spokeAddress, reserveId, userAddress);
 }
 
 /**
@@ -166,8 +72,8 @@ export async function hasDebt(
   reserveId: bigint,
   userAddress: Address,
 ): Promise<boolean> {
-  const position = await getUserPosition(spokeAddress, reserveId, userAddress);
-  return hasDebtFromPosition(position);
+  const publicClient = ethClient.getPublicClient();
+  return sdkHasDebt(publicClient, spokeAddress, reserveId, userAddress);
 }
 
 /**
@@ -183,8 +89,8 @@ export async function hasCollateral(
   reserveId: bigint,
   userAddress: Address,
 ): Promise<boolean> {
-  const position = await getUserPosition(spokeAddress, reserveId, userAddress);
-  return position.suppliedShares > 0n;
+  const publicClient = ethClient.getPublicClient();
+  return sdkHasCollateral(publicClient, spokeAddress, reserveId, userAddress);
 }
 
 /**
@@ -204,13 +110,13 @@ export async function getUserTotalDebt(
   userAddress: Address,
 ): Promise<bigint> {
   const publicClient = ethClient.getPublicClient();
-
-  const result = await publicClient.readContract({
-    address: spokeAddress,
-    abi: AaveSpokeABI,
-    functionName: "getUserTotalDebt",
-    args: [reserveId, userAddress],
-  });
-
-  return result as bigint;
+  return sdkGetUserTotalDebt(
+    publicClient,
+    spokeAddress,
+    reserveId,
+    userAddress,
+  );
 }
+
+// Re-export types
+export type { AaveSpokeUserAccountData, AaveSpokeUserPosition };
