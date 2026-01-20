@@ -5,16 +5,6 @@ export class WasmPayoutOptimisticTx {
   free(): void;
   [Symbol.dispose](): void;
   /**
-   * Estimates the virtual size of a PayoutOptimistic transaction.
-   *
-   * # Arguments
-   *
-   * * `num_vault_keepers` - Number of vault keepers
-   * * `num_universal_challengers` - Number of universal challengers
-   * * `num_local_challengers` - Number of local challengers
-   */
-  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number): bigint;
-  /**
    * Creates a new PayoutOptimistic transaction.
    *
    * # Arguments
@@ -32,33 +22,32 @@ export class WasmPayoutOptimisticTx {
    */
   toHex(): string;
   /**
-   * Returns the serialized PayoutOptimisticTx as JSON.
-   */
-  toJson(): string;
-  /**
    * Returns the transaction ID.
    */
   getTxid(): string;
   /**
+   * Returns the serialized PayoutOptimisticTx as JSON.
+   */
+  toJson(): string;
+  /**
    * Creates a WasmPayoutOptimisticTx from a JSON string.
    */
   static fromJson(json: string): WasmPayoutOptimisticTx;
-}
-
-export class WasmPayoutTx {
-  free(): void;
-  [Symbol.dispose](): void;
   /**
-   * Estimates the virtual size of a Payout transaction.
+   * Estimates the virtual size of a PayoutOptimistic transaction.
    *
    * # Arguments
    *
    * * `num_vault_keepers` - Number of vault keepers
    * * `num_universal_challengers` - Number of universal challengers
    * * `num_local_challengers` - Number of local challengers
-   * * `council_size` - Number of council members
    */
-  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number): bigint;
+  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number): bigint;
+}
+
+export class WasmPayoutTx {
+  free(): void;
+  [Symbol.dispose](): void;
   /**
    * Creates a new Payout transaction.
    *
@@ -76,46 +65,33 @@ export class WasmPayoutTx {
    */
   toHex(): string;
   /**
-   * Returns the serialized PayoutTx as JSON.
-   */
-  toJson(): string;
-  /**
    * Returns the transaction ID.
    */
   getTxid(): string;
   /**
+   * Returns the serialized PayoutTx as JSON.
+   */
+  toJson(): string;
+  /**
    * Creates a WasmPayoutTx from a JSON string.
    */
   static fromJson(json: string): WasmPayoutTx;
+  /**
+   * Estimates the virtual size of a Payout transaction.
+   *
+   * # Arguments
+   *
+   * * `num_vault_keepers` - Number of vault keepers
+   * * `num_universal_challengers` - Number of universal challengers
+   * * `num_local_challengers` - Number of local challengers
+   * * `council_size` - Number of council members
+   */
+  static estimateVsize(num_vault_keepers: number, num_universal_challengers: number, num_local_challengers: number, council_size: number): bigint;
 }
 
 export class WasmPeginPayoutConnector {
   free(): void;
   [Symbol.dispose](): void;
-  /**
-   * Returns the Taproot address for the connector.
-   *
-   * # Arguments
-   *
-   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
-   */
-  getAddress(network: string): string;
-  /**
-   * Returns the payout script as hex.
-   */
-  getPayoutScript(): string;
-  /**
-   * Returns the Taproot scriptPubKey as hex.
-   *
-   * # Arguments
-   *
-   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
-   */
-  getScriptPubKey(network: string): string;
-  /**
-   * Returns the taproot script hash.
-   */
-  getTaprootScriptHash(): string;
   /**
    * Creates a new PeginPayoutConnector.
    *
@@ -127,19 +103,35 @@ export class WasmPeginPayoutConnector {
    * * `universal_challengers` - Array of hex-encoded universal challenger public keys
    */
   constructor(depositor: string, vault_provider: string, vault_keepers: string[], universal_challengers: string[]);
+  /**
+   * Returns the Taproot address for the connector.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  getAddress(network: string): string;
+  /**
+   * Returns the Taproot scriptPubKey as hex.
+   *
+   * # Arguments
+   *
+   * * `network` - Network name: "mainnet", "testnet", "regtest", or "signet"
+   */
+  getScriptPubKey(network: string): string;
+  /**
+   * Returns the payout script as hex.
+   */
+  getPayoutScript(): string;
+  /**
+   * Returns the taproot script hash.
+   */
+  getTaprootScriptHash(): string;
 }
 
 export class WasmPeginTx {
   free(): void;
   [Symbol.dispose](): void;
-  /**
-   * Returns the vault output value in satoshis.
-   */
-  getVaultValue(): bigint;
-  /**
-   * Returns the vault scriptPubKey as hex.
-   */
-  getVaultScriptPubKey(): string;
   /**
    * Creates a new unfunded PegIn transaction.
    *
@@ -158,13 +150,21 @@ export class WasmPeginTx {
    */
   toHex(): string;
   /**
-   * Returns the serialized PegInTx as JSON.
-   */
-  toJson(): string;
-  /**
    * Returns the transaction ID.
    */
   getTxid(): string;
+  /**
+   * Returns the vault scriptPubKey as hex.
+   */
+  getVaultScriptPubKey(): string;
+  /**
+   * Returns the vault output value in satoshis.
+   */
+  getVaultValue(): bigint;
+  /**
+   * Returns the serialized PegInTx as JSON.
+   */
+  toJson(): string;
   /**
    * Creates a WasmPeginTx from a JSON string.
    */
@@ -180,39 +180,39 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_wasmpayoutoptimistictx_free: (a: number, b: number) => void;
-  readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
   readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
-  readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-  readonly wasmpayoutoptimistictx_estimateVsize: (a: number, b: number, c: number) => bigint;
-  readonly wasmpayoutoptimistictx_fromJson: (a: number, b: number) => [number, number, number];
-  readonly wasmpayoutoptimistictx_getTxid: (a: number) => [number, number];
-  readonly wasmpayoutoptimistictx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number) => [number, number, number];
-  readonly wasmpayoutoptimistictx_toHex: (a: number) => [number, number];
-  readonly wasmpayoutoptimistictx_toJson: (a: number) => [number, number, number, number];
-  readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number) => bigint;
-  readonly wasmpayouttx_fromJson: (a: number, b: number) => [number, number, number];
-  readonly wasmpayouttx_getTxid: (a: number) => [number, number];
-  readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
-  readonly wasmpayouttx_toHex: (a: number) => [number, number];
-  readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
-  readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
-  readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-  readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
   readonly wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
-  readonly wasmpegintx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
+  readonly wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
+  readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
+  readonly wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number];
+  readonly wasmpegintx_toHex: (a: number) => [number, number];
   readonly wasmpegintx_getTxid: (a: number) => [number, number];
   readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
   readonly wasmpegintx_getVaultValue: (a: number) => bigint;
-  readonly wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number];
-  readonly wasmpegintx_toHex: (a: number) => [number, number];
   readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
+  readonly wasmpegintx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
+  readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
+  readonly wasmpayouttx_toHex: (a: number) => [number, number];
+  readonly wasmpayouttx_getTxid: (a: number) => [number, number];
+  readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
+  readonly wasmpayouttx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number) => bigint;
+  readonly __wbg_wasmpayoutoptimistictx_free: (a: number, b: number) => void;
+  readonly wasmpayoutoptimistictx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number) => [number, number, number];
+  readonly wasmpayoutoptimistictx_toHex: (a: number) => [number, number];
+  readonly wasmpayoutoptimistictx_getTxid: (a: number) => [number, number];
+  readonly wasmpayoutoptimistictx_toJson: (a: number) => [number, number, number, number];
+  readonly wasmpayoutoptimistictx_fromJson: (a: number, b: number) => [number, number, number];
+  readonly wasmpayoutoptimistictx_estimateVsize: (a: number, b: number, c: number) => bigint;
   readonly init_panic_hook: () => void;
   readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
   readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
-  readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
   readonly rustsecp256k1_v0_10_0_default_illegal_callback_fn: (a: number, b: number) => void;
+  readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
