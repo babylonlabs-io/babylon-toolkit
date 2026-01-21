@@ -15,7 +15,6 @@ import type {
 } from "viem";
 
 import { ERC20 } from "../../../clients/eth-contract";
-import { MAX_UINT256 } from "../../../constants";
 import { AaveControllerTx, AaveSpoke } from "../clients";
 import { getAaveControllerAddress } from "../config";
 import { FULL_REPAY_BUFFER_BPS } from "../constants";
@@ -105,29 +104,31 @@ export async function borrow(
  * Approve debt token for repayment
  *
  * User must approve the controller to spend debt tokens before repaying.
+ * Approves exact amount + buffer for interest accrual (safer than unlimited).
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
  * @param debtReserveId - Reserve ID for the debt token
- * @param amount - Amount to approve (use max uint256 for unlimited)
+ * @param amount - Exact amount to approve (required for security)
  * @returns Transaction result
  */
 export async function approveForRepay(
   walletClient: WalletClient,
   chain: Chain,
   debtReserveId: bigint,
-  amount?: bigint,
+  amount: bigint,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
   const reserve = await getReserveById(debtReserveId);
   if (!reserve) {
     throw new Error(`Reserve ${debtReserveId} not found`);
   }
 
-  // TODO: Instead of max uint256, calculate the exact amount needed plus a small
-  // buffer for interest accrual (e.g., amount + 1% buffer). This is safer and
-  // follows best practices for token approvals. The buffer accounts for interest
-  // that may accrue between approval and repayment transaction.
-  const approvalAmount = amount ?? MAX_UINT256;
+  if (amount <= 0n) {
+    throw new Error("Approval amount must be greater than 0");
+  }
+
+  // Add buffer for interest accrual between approval and repayment transaction
+  const approvalAmount = amount + amount / FULL_REPAY_BUFFER_BPS;
 
   return ERC20.approveERC20(
     walletClient,
@@ -291,7 +292,7 @@ export async function repayFull(
       chain,
       tokenAddress,
       controllerAddress,
-      MAX_UINT256,
+      amountToRepay,
     );
   }
 
