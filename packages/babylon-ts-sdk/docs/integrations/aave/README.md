@@ -371,7 +371,6 @@ Before integrating the Aave SDK:
 **Required** - The indexer provides contract addresses, positions, and vault data.
 
 - **Indexer Endpoint**: Contact Babylon team for endpoint URL
-- **Authentication**: May require API key
 - **GraphQL Queries**: See [Integration Guide](./integration-guide.md#babylon-indexer-integration) for complete examples
 
 ### 2. Active BTC Vaults
@@ -379,7 +378,7 @@ Before integrating the Aave SDK:
 Users must have completed the TBV peg-in flow to have vaults available for collateral.
 
 - See [TBV Peg-In Guide](../../quickstart/managers.md) for implementation
-- Vaults must be in `Available` status (not `InUse` or `Redeemed`)
+- Vaults must be in `Available` status
 - Check vault status via indexer: `aaveVaultStatuss` query
 
 ### 3. Ethereum Wallet
@@ -389,16 +388,7 @@ viem `WalletClient` for signing transactions.
 - Connected to Sepolia testnet (for testing) or mainnet
 - User must have ETH for gas fees
 
-### 4. Understanding of AAVE v4
-
-Basic knowledge of:
-
-- **Collateral and Debt** - How lending protocols work
-- **Health Factor** - Liquidation risk metric (HF < 1.0 = liquidation)
-- **Reserves** - AAVE markets for different assets
-- **AAVE v4 Protocol** - Core Spoke architecture
-
-### 5. Development Dependencies
+### 4. Development Dependencies
 
 ```bash
 npm install @babylonlabs-io/ts-sdk viem
@@ -450,39 +440,6 @@ For a complete end-to-end example combining the Babylon indexer with SDK functio
 - How to combine indexer data with live RPC queries
 - Real-world patterns from the Babylon vault service
 
-### Health Factor Monitoring
-
-```typescript
-import {
-  getUserAccountData,
-  getHealthFactorStatus,
-  aaveValueToUsd,
-} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-
-// Get live data via RPC
-const accountData = await getUserAccountData(
-  publicClient,
-  spokeAddress,
-  proxyAddress,
-);
-
-// Convert to numbers
-const healthFactor = Number(accountData.healthFactor) / 1e18;
-const collateralUsd = aaveValueToUsd(accountData.totalCollateralValue);
-const debtUsd = aaveValueToUsd(accountData.totalDebtValue);
-
-// Check status
-const status = getHealthFactorStatus(
-  healthFactor,
-  accountData.borrowedCount > 0n,
-);
-// Returns: "safe" | "warning" | "danger" | "no_debt"
-
-console.log(`HF: ${healthFactor.toFixed(2)} (${status})`);
-console.log(`Collateral: $${collateralUsd.toFixed(2)}`);
-console.log(`Debt: $${debtUsd.toFixed(2)}`);
-```
-
 ---
 
 ## Support
@@ -498,4 +455,4 @@ console.log(`Debt: $${debtUsd.toFixed(2)}`);
 - **[Quickstart Guide](./quickstart.md)** - Step-by-step SDK function examples
 - **[Full Integration Guide](./integration-guide.md)** - Complete implementation with indexer
 - **[API Reference](../../api/integrations/aave.md)** - Complete function documentation
-- **[TBV Peg-In Guide](../../quickstart/managers.md)** - Create Bitcoin vaults
+- **[TBV Guide](../../quickstart/managers.md)** - Create Bitcoin vaults
