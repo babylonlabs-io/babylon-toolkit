@@ -24,7 +24,6 @@ Step-by-step examples for using each SDK function.
 ### Required
 
 - **Ethereum wallet** - viem `WalletClient` for signing transactions
-- **Sepolia testnet** - Or mainnet (ensure you're on correct network)
 - **Active BTC vaults** - Completed TBV peg-in flow (see [peg-in guide](../../quickstart/managers.md))
 - **Contract addresses** - AAVE controller, spoke, and reserve IDs (get from AAVE team or indexer)
 
@@ -37,6 +36,7 @@ npm install @babylonlabs-io/ts-sdk viem
 ### Data Requirements
 
 You'll need to provide:
+
 - Contract addresses (controller, spoke, reserve IDs)
 - Available vaults for collateral
 - User positions
@@ -161,7 +161,6 @@ const availableVaults: SelectableVault[] = [
 Use the SDK's vault selection utility to choose which vaults to use:
 
 ```typescript
-
 // Select vaults to reach target amount (e.g., 0.6 BTC)
 const targetBtc = 0.6;
 const { vaultIds, actualAmount } = selectVaultsForAmount(
