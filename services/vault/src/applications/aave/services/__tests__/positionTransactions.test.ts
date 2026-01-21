@@ -78,7 +78,6 @@ vi.mock("../fetchConfig", () => ({
 
 import {
   addCollateral,
-  approveForRepay,
   borrow,
   canWithdraw,
   redeemVault,
@@ -185,66 +184,6 @@ describe("positionTransactions", () => {
       await expect(
         borrow(noAccountWallet, mockChain, "0xposition" as any, 1n, 1000n),
       ).rejects.toThrow("Wallet address not available");
-    });
-  });
-
-  // ============================================================================
-  // approveForRepay - Token Approval Security
-  // ============================================================================
-  describe("approveForRepay", () => {
-    it("should approve exact amount plus buffer (not unlimited)", async () => {
-      const amount = 1000000n;
-      const expectedApproval = amount + amount / FULL_REPAY_BUFFER_BPS;
-
-      await approveForRepay(mockWalletClient, mockChain, 1n, amount);
-
-      expect(mockApproveERC20).toHaveBeenCalledWith(
-        mockWalletClient,
-        mockChain,
-        mockReserve.token.address,
-        "0xcontroller",
-        expectedApproval,
-      );
-    });
-
-    it("should throw error when amount is 0", async () => {
-      await expect(
-        approveForRepay(mockWalletClient, mockChain, 1n, 0n),
-      ).rejects.toThrow("Approval amount must be greater than 0");
-
-      expect(mockApproveERC20).not.toHaveBeenCalled();
-    });
-
-    it("should throw error when amount is negative", async () => {
-      await expect(
-        approveForRepay(mockWalletClient, mockChain, 1n, -100n),
-      ).rejects.toThrow("Approval amount must be greater than 0");
-
-      expect(mockApproveERC20).not.toHaveBeenCalled();
-    });
-
-    it("should throw error when reserve not found", async () => {
-      mockGetReserveById.mockResolvedValue(null);
-
-      await expect(
-        approveForRepay(mockWalletClient, mockChain, 999n, 1000n),
-      ).rejects.toThrow("Reserve 999 not found");
-    });
-
-    it("should add correct buffer percentage", async () => {
-      // FULL_REPAY_BUFFER_BPS = 10000n means 0.01% buffer
-      const amount = 10000n;
-      const expectedApproval = amount + amount / FULL_REPAY_BUFFER_BPS;
-
-      await approveForRepay(mockWalletClient, mockChain, 1n, amount);
-
-      expect(mockApproveERC20).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        expectedApproval,
-      );
     });
   });
 
@@ -413,10 +352,6 @@ describe("positionTransactions", () => {
         "0xcontroller",
         expectedRepayAmount,
       );
-
-      // Ensure MAX_UINT256 was NOT used
-      const approvalAmount = mockApproveERC20.mock.calls[0][4];
-      expect(approvalAmount).toBeLessThan(2n ** 256n - 1n);
     });
 
     it("should fetch current debt from contract", async () => {

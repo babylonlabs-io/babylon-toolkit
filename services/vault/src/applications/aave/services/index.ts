@@ -60,7 +60,6 @@ export {
 // Position transactions
 export {
   addCollateral,
-  approveForRepay,
   borrow,
   canWithdraw,
   redeemVault,
