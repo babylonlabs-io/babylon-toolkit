@@ -15,7 +15,6 @@ export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";
 
 export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
-export { useEstimatedEthFee } from "./useEstimatedEthFee";
 export { useVaultActions } from "./useVaultActions";
 export type {
   BroadcastPeginParams,
