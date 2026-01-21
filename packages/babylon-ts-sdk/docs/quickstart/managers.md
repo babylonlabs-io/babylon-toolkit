@@ -918,3 +918,4 @@ interface Window {
 - [OKX EVM Provider](https://web3.okx.com/build/dev-docs/sdks/chains/evm/introduce)
 - [GitHub Repository](https://github.com/babylonlabs-io/babylon-toolkit)
 - [GitHub Issues](https://github.com/babylonlabs-io/babylon-toolkit/issues)
+

@@ -989,3 +989,4 @@ Vault provider's BTC public key (x-only, 64-char hex).
 ```ts
 SignPayoutBaseParams.vaultProviderBtcPubkey
 ```
+

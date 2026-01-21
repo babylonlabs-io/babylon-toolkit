@@ -1055,3 +1055,4 @@ const { walletPubkeyRaw, depositorPubkey } = validateWalletPubkey(
   vault.depositorBtcPubkey
 );
 ```
+

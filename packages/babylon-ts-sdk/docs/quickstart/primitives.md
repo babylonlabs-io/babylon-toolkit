@@ -1115,3 +1115,4 @@ const xOnlyPubkey =
 - [GitHub Repository](https://github.com/babylonlabs-io/babylon-toolkit)
 - [GitHub Issues](https://github.com/babylonlabs-io/babylon-toolkit/issues)
 - [Primitives API Reference](../api/primitives.md)
+
