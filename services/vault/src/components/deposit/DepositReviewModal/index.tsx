@@ -37,7 +37,6 @@ export function CollateralDepositReviewModal({
     btcFeeUsd,
     feeRate,
     feeError,
-    ethFee,
     selectedProviders,
     isLoading,
   } = useDepositReviewData(amount, providers, open);
@@ -166,15 +165,6 @@ export function CollateralDepositReviewModal({
             ) : (
               <Text variant="body1" className="text-error-main">
                 {feeError ?? "Fee estimate unavailable"}
-              </Text>
-            )}
-
-            {/* ETH Gas Fee */}
-            {ethFee !== null ? (
-              <Text variant="body1">~{ethFee.toFixed(6)} ETH</Text>
-            ) : (
-              <Text variant="body1" className="text-accent-secondary">
-                ETH gas estimate pending...
               </Text>
             )}
           </div>

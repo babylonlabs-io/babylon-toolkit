@@ -7,7 +7,6 @@ import { useMemo } from "react";
 
 import { useBTCWallet } from "../../../context/wallet";
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
-import { useEstimatedEthFee } from "../../../hooks/deposit/useEstimatedEthFee";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import { usePrices } from "../../../hooks/usePrices";
 import { useUTXOs } from "../../../hooks/useUTXOs";
@@ -23,7 +22,6 @@ export interface DepositReviewData {
   btcFeeUsd: number | null;
   feeRate: number;
   feeError: string | null;
-  ethFee: number | null;
 
   // Provider data
   selectedProviders: Array<{
@@ -70,7 +68,6 @@ export function useDepositReviewData(
     isLoading: feeLoading,
     error: feeError,
   } = useEstimatedBtcFee(amount, confirmedUTXOs);
-  const ethFee = useEstimatedEthFee();
 
   // Compute derived values
   const computedData = useMemo(() => {
@@ -96,7 +93,6 @@ export function useDepositReviewData(
     ...computedData,
     feeRate,
     feeError,
-    ethFee,
     isLoading: {
       price: priceLoading,
       providers: providersLoading,
