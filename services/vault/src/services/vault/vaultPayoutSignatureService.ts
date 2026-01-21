@@ -1,4 +1,5 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
@@ -7,11 +8,7 @@ import type {
   ClaimerTransactions,
 } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
-import {
-  processPublicKeyToXOnly,
-  stripHexPrefix,
-  type Network,
-} from "../../utils/btc";
+import { processPublicKeyToXOnly, stripHexPrefix } from "../../utils/btc";
 import { fetchKeepersAndChallengersByVersion } from "../providers/fetchProviders";
 
 import {

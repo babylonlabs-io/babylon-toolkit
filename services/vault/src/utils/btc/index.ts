@@ -12,10 +12,3 @@ export {
   type PsbtInputFields,
   type UTXO,
 } from "./getPsbtInputFields";
-export {
-  WasmPeginPayoutConnector,
-  createPayoutConnector,
-  type Network,
-  type PayoutConnectorInfo,
-  type PayoutConnectorParams,
-} from "./wasm";
