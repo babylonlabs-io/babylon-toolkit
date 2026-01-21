@@ -76,7 +76,6 @@ Complete flows and tutorials:
 
 - **[Using Managers](./docs/guides/managers.md)** - High-level orchestration for vault operations with wallet integration (recommended for most users)
 - **[Using Primitives](./docs/guides/primitives.md)** - Low-level primitives for advanced use cases and custom implementations
-- **[Protocol Integrations](./docs/guides/integrations.md)** - For protocol developers - ⚠️WIP
 
 ### 🔍 API Reference
 
