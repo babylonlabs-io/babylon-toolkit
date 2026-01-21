@@ -79,7 +79,7 @@ export const PEGIN_DISPLAY_LABELS = {
   SIGNING_REQUIRED: "Signing required",
   PROCESSING: "Processing",
   VERIFIED: "Verified",
-  PENDING_BITCOIN_CONFIRMATIONS: "Pending Bitcoin Confirmations",
+  PENDING_BITCOIN_CONFIRMATIONS: "Pending Confirmations",
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEMED: "Redeemed",
@@ -162,7 +162,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: "Processing",
+        displayLabel: PEGIN_DISPLAY_LABELS.PROCESSING,
         displayVariant: "pending",
         availableActions: [PeginAction.NONE],
         message:
@@ -175,7 +175,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: "Pending",
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
         availableActions: [PeginAction.NONE],
         message:
@@ -187,7 +187,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Signing required",
+      displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
       displayVariant: "pending",
       availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
     };
@@ -200,7 +200,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: "Pending Bitcoin Confirmations",
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING_BITCOIN_CONFIRMATIONS,
         displayVariant: "pending",
         availableActions: [PeginAction.NONE],
         message:
@@ -212,7 +212,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Verified",
+      displayLabel: PEGIN_DISPLAY_LABELS.VERIFIED,
       displayVariant: "pending",
       availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
     };
@@ -227,7 +227,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: "In Use",
+        displayLabel: PEGIN_DISPLAY_LABELS.IN_USE,
         displayVariant: "active",
         availableActions: [PeginAction.NONE],
         message:
@@ -239,7 +239,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Available",
+      displayLabel: PEGIN_DISPLAY_LABELS.AVAILABLE,
       displayVariant: "active",
       availableActions: [PeginAction.REDEEM],
     };
@@ -250,7 +250,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Redeemed",
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEMED,
       displayVariant: "inactive",
       availableActions: [PeginAction.NONE],
       message: "Vault has been redeemed, BTC is claimable",
@@ -262,7 +262,7 @@ export function getPeginState(
     return {
       contractStatus,
       localStatus,
-      displayLabel: "Invalid",
+      displayLabel: PEGIN_DISPLAY_LABELS.INVALID,
       displayVariant: "warning",
       availableActions: [PeginAction.NONE],
       message:
@@ -274,7 +274,7 @@ export function getPeginState(
   return {
     contractStatus,
     localStatus,
-    displayLabel: "Unknown",
+    displayLabel: PEGIN_DISPLAY_LABELS.UNKNOWN,
     displayVariant: "inactive",
     availableActions: [PeginAction.NONE],
   };
