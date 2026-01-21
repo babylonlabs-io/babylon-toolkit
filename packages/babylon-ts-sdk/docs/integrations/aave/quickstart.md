@@ -1,6 +1,8 @@
 # Quickstart: AAVE Integration SDK
 
-Complete guide to integrating AAVE v4 with Babylon TBV in your TypeScript application.
+Step-by-step examples for using each SDK function.
+
+> 💡 **Looking for a complete integration?** This guide shows SDK function usage with placeholder data. For full end-to-end implementation including indexer integration, see the **[Full Integration Guide](./integration-guide.md)**.
 
 ## Table of Contents
 
@@ -32,13 +34,14 @@ Complete guide to integrating AAVE v4 with Babylon TBV in your TypeScript applic
 npm install @babylonlabs-io/ts-sdk viem
 ```
 
-### Get Contract Addresses
+### Data Requirements
 
-You'll need these from the AAVE team or indexer:
+You'll need to provide:
+- Contract addresses (controller, spoke, reserve IDs)
+- Available vaults for collateral
+- User positions
 
-- `AaveIntegrationController` contract address
-- `AaveSpoke` contract address
-- Reserve IDs (e.g., `1n` for vBTC, `2n` for USDC)
+**How to get this data**: See the **[Integration Guide](./integration-guide.md)** for complete examples using the Babylon GraphQL indexer.
 
 ---
 
@@ -93,7 +96,6 @@ import {
   type VaultSelectionResult,
   type HealthFactorStatus,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-
 import {
   createPublicClient,
   createWalletClient,
@@ -121,10 +123,17 @@ const walletClient = createWalletClient({
   transport: http(),
   account: "0x...", // Your Ethereum account address
 });
+```
 
-// Contract addresses (get from AAVE team)
+### Contract Addresses
+
+You'll need contract addresses and reserve IDs. For this quickstart, we'll use placeholders:
+
+```typescript
+// These would come from your indexer integration
+// See Integration Guide for how to fetch these: ./integration-guide.md
 const AAVE_CONTROLLER: Address = "0x..."; // AaveIntegrationController
-const AAVE_SPOKE: Address = "0x..."; // AaveSpoke (AAVE v4)
+const AAVE_SPOKE: Address = "0x..."; // AaveSpoke
 const VBTC_RESERVE_ID = 1n; // vBTC reserve ID
 const USDC_RESERVE_ID = 2n; // USDC reserve ID
 ```
@@ -135,19 +144,24 @@ const USDC_RESERVE_ID = 2n; // USDC reserve ID
 
 Deposit BTC vaults into your AAVE position as collateral.
 
-### Step 1: Select Vaults
+### Step 1: Get Available Vaults
 
-Use the SDK's vault selection utility to choose which vaults to use:
+First, you need your available vaults. This data comes from the indexer (see [Integration Guide](./integration-guide.md) for details):
 
 ```typescript
-// Your available vaults (fetch from your backend/indexer)
-// Vaults must be in "Available" status (not in use, not redeemed)
+// Example vault data (would come from indexer)
 const availableVaults: SelectableVault[] = [
   { id: "0xabc...", amount: 0.5 }, // 0.5 BTC
   { id: "0xdef...", amount: 0.3 }, // 0.3 BTC
   { id: "0x123...", amount: 0.2 }, // 0.2 BTC
-  { id: "0x456...", amount: 0.15 }, // 0.15 BTC
 ];
+```
+
+### Step 2: Select Vaults Using SDK
+
+Use the SDK's vault selection utility to choose which vaults to use:
+
+```typescript
 
 // Select vaults to reach target amount (e.g., 0.6 BTC)
 const targetBtc = 0.6;
@@ -165,7 +179,7 @@ console.log(`Target: ${targetBtc} BTC, Actual: ${actualAmount} BTC`);
 
 **Note**: The algorithm may select more than the target amount since it selects whole vaults.
 
-### Step 2: Build Transaction
+### Step 3: Build Transaction
 
 ```typescript
 // Build unsigned transaction
@@ -179,7 +193,7 @@ console.log("Transaction to:", txParams.to);
 console.log("Transaction data:", txParams.data);
 ```
 
-### Step 3: Execute Transaction
+### Step 4: Execute Transaction
 
 ```typescript
 try {
@@ -1223,6 +1237,7 @@ publicClient.watchContractEvent({
 
 ## Next Steps
 
-- **Full API Reference** → [api-reference.md](./api-reference.md) - Complete function documentation
-- **TBV Peg-In Guide** → [../../quickstart/managers.md](../../quickstart/managers.md) - Create BTC vaults
-- **Integration Overview** → [README.md](./README.md) - Architecture and concepts
+- **[Full Integration Guide](./integration-guide.md)** - Complete implementation with indexer + SDK
+- **[API Reference](../../api/integrations/aave.md)** - Complete function documentation
+- **[TBV Peg-In Guide](../../quickstart/managers.md)** - Create BTC vaults
+- **[README](./README.md)** - Architecture overview and concepts
