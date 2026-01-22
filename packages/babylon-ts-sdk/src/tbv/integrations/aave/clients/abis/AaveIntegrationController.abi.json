@@ -346,16 +346,6 @@
             "name": "proxyContract",
             "type": "address",
             "internalType": "address"
-          },
-          {
-            "name": "vaultIds",
-            "type": "bytes32[]",
-            "internalType": "bytes32[]"
-          },
-          {
-            "name": "totalCollateral",
-            "type": "uint256",
-            "internalType": "uint256"
           }
         ]
       }
@@ -377,25 +367,6 @@
         "name": "totalCollateral",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getUserPositions",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "positionIds",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
       }
     ],
     "stateMutability": "view"
@@ -584,11 +555,6 @@
         "name": "proxyContract",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "totalCollateral",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -752,37 +718,6 @@
       }
     ],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "event",
-    "name": "AllCollateralWithdrawn",
-    "inputs": [
-      {
-        "name": "positionId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "depositor",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "pegInTxHashes",
-        "type": "bytes32[]",
-        "indexed": false,
-        "internalType": "bytes32[]"
-      },
-      {
-        "name": "withdrawnAmount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
   },
   {
     "type": "event",
@@ -968,16 +903,61 @@
         "internalType": "address"
       },
       {
-        "name": "pegInTxHashes",
-        "type": "bytes32[]",
-        "indexed": false,
-        "internalType": "bytes32[]"
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CollateralWithdrawn",
+    "inputs": [
+      {
+        "name": "positionId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       },
       {
-        "name": "totalCollateralAdded",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AddedVault",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RemovedVault",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false

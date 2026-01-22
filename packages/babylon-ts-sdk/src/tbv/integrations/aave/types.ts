@@ -24,8 +24,6 @@ export interface AaveMarketPosition {
   };
   reserveId: bigint;
   proxyContract: Address;
-  vaultIds: Hex[];
-  totalCollateral: bigint;
 }
 
 /**

@@ -43,8 +43,6 @@ export async function getPosition(
     };
     reserveId: bigint;
     proxyContract: Address;
-    vaultIds: Hex[];
-    totalCollateral: bigint;
   };
 
   const position = result as PositionResult;
@@ -61,7 +59,5 @@ export async function getPosition(
     },
     reserveId: position.reserveId,
     proxyContract: position.proxyContract,
-    vaultIds: position.vaultIds,
-    totalCollateral: position.totalCollateral,
   };
 }
