@@ -1,4 +1,8 @@
-import { SeverityLevel, addBreadcrumb, captureException } from "@sentry/react";
+import {
+  type SeverityLevel,
+  addBreadcrumb,
+  captureException,
+} from "@babylonlabs-io/observability";
 import { useMemo } from "react";
 
 import { ClientError } from "@/ui/common/errors";

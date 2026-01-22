@@ -19,8 +19,3 @@ export const PENDING_COLLATERAL_KEY_PREFIX = "vault-pending-collateral";
 export const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
 export const MAX_UINT256 = 2n ** 256n - 1n;
-
-// Sentry replay sampling rate (5% by default)
-export const REPLAYS_ON_ERROR_RATE = Number.parseFloat(
-  process.env.NEXT_PUBLIC_REPLAYS_RATE ?? "0.05",
-);

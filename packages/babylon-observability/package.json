@@ -1,0 +1,44 @@
+{
+  "name": "@babylonlabs-io/observability",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./vite": {
+      "types": "./src/vite/plugin.ts",
+      "default": "./src/vite/plugin.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@sentry/react": "8.33.0",
+    "uuid": "11.1.0"
+  },
+  "devDependencies": {
+    "@sentry/vite-plugin": "^2.22.6",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.4.1"
+  },
+  "peerDependencies": {
+    "@sentry/vite-plugin": "^2.22.6",
+    "vite": "^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/vite-plugin": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    }
+  }
+}

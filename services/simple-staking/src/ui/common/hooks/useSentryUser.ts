@@ -1,4 +1,4 @@
-import { getIsolationScope, setUser } from "@sentry/react";
+import { getIsolationScope, setUser } from "@babylonlabs-io/observability";
 import { useCallback } from "react";
 
 import { redactTelemetry } from "../utils/telemetry";
