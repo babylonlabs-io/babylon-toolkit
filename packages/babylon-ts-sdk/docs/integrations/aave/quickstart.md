@@ -277,8 +277,7 @@ if (!position) {
 console.log("Position details:");
 console.log("  Depositor:", position.depositor.ethAddress);
 console.log("  Proxy contract:", position.proxyContract);
-console.log("  Total collateral:", position.totalCollateral, "satoshis");
-console.log("  Vault count:", position.vaultIds.length);
+console.log("  Reserve ID:", position.reserveId);
 ```
 
 ### Step 2: Check Account Health
@@ -1007,7 +1006,7 @@ export function AavePositionManager({
           <h2>Position Status</h2>
           <p><strong>Position ID:</strong> {positionId.slice(0, 10)}...</p>
           <p><strong>Proxy Contract:</strong> {position.proxyContract}</p>
-          <p><strong>Vaults:</strong> {position.vaultIds.length} vaults</p>
+          <p><strong>Reserve ID:</strong> {position.reserveId.toString()}</p>
           <hr />
           <p><strong>Collateral Value:</strong> ${collateralUsd.toFixed(2)}</p>
           <p><strong>Debt Value:</strong> ${debtUsd.toFixed(2)}</p>
