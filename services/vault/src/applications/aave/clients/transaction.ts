@@ -30,7 +30,18 @@ async function executeTx(
 ): Promise<TransactionResult> {
   const publicClient = ethClient.getPublicClient();
 
+  console.group("📡 [Transaction Execution]");
+  console.log("Operation:", errorContext);
+  console.log("To:", to);
+  console.log("Calldata:", data);
+  console.log("Calldata length:", data.length, "chars");
+  console.log("Function selector:", data.slice(0, 10));
+  console.log("Chain ID:", chain.id);
+  console.log("From:", walletClient.account?.address);
+  console.groupEnd();
+
   try {
+    console.log("⏳ Sending transaction...");
     const hash = await walletClient.sendTransaction({
       to,
       data,
@@ -38,10 +49,21 @@ async function executeTx(
       account: walletClient.account!,
     });
 
+    console.log("✓ Transaction sent. Hash:", hash);
+    console.log("⏳ Waiting for confirmation...");
+
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+    console.group("📝 [Transaction Receipt]");
+    console.log("Status:", receipt.status);
+    console.log("Block:", receipt.blockNumber);
+    console.log("Gas Used:", receipt.gasUsed.toString());
+    console.log("Logs count:", receipt.logs.length);
+    console.groupEnd();
 
     // Check if transaction was reverted
     if (receipt.status === "reverted") {
+      console.error("❌ Transaction reverted on-chain");
       throw new Error(
         `Transaction reverted. Hash: ${hash}. Check the transaction on block explorer for details.`,
       );
@@ -52,6 +74,22 @@ async function executeTx(
       receipt,
     };
   } catch (error) {
+    console.group("❌ [Transaction Error - Raw]");
+    console.error("Error type:", typeof error);
+    console.error("Error object:", error);
+    console.error("Error constructor:", error?.constructor?.name);
+    if (error && typeof error === "object") {
+      const err = error as any;
+      console.error("Properties:", Object.keys(err));
+      if (err.shortMessage) console.error("Short message:", err.shortMessage);
+      if (err.details) console.error("Details:", err.details);
+      if (err.metaMessages) console.error("Meta messages:", err.metaMessages);
+      if (err.cause) console.error("Cause:", err.cause);
+      if (err.data) console.error("Data:", err.data);
+      if (err.code) console.error("Code:", err.code);
+    }
+    console.groupEnd();
+
     throw mapViemErrorToContractError(error, errorContext);
   }
 }

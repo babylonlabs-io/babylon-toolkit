@@ -103,6 +103,25 @@ export function useRepayTransaction({
           );
         }
 
+        console.group("💰 [Full Repayment Context]");
+        console.log("Reserve Info:");
+        console.log("  - Name:", reserve.token.name);
+        console.log("  - Symbol:", reserve.token.symbol);
+        console.log("  - Address:", reserve.token.address);
+        console.log("  - Decimals:", reserve.token.decimals);
+        console.log("  - Reserve ID:", reserve.reserveId.toString());
+        console.log("Position Info:");
+        console.log("  - Position ID:", positionId);
+        console.log("  - Proxy Contract:", proxyContract);
+        console.log("Config:");
+        console.log("  - Controller:", config.controllerAddress);
+        console.log("  - Spoke:", config.btcVaultCoreSpokeAddress);
+        console.log("User:");
+        console.log("  - Address:", address);
+        console.log("  - Repay Amount (input):", repayAmount);
+        console.log("  - Is Full Repayment:", isFullRepayment);
+        console.groupEnd();
+
         await repayFull(
           walletClient,
           chain,

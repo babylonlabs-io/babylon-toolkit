@@ -46,20 +46,43 @@ export function mapViemErrorToContractError(
   error: unknown,
   operationName: string,
 ): ContractError {
+  console.group("🔍 [Error Mapping]");
+
   const errorMessage = error instanceof Error ? error.message : "Unknown error";
   const errorName = error instanceof Error ? error.name : "UnknownError";
   let code: ErrorCode = ErrorCode.CONTRACT_EXECUTION_FAILED;
   let reason: string | undefined;
   let transactionHash: string | undefined;
 
+  console.log("Original error message:", errorMessage);
+  console.log("Error name:", errorName);
+
   if (error && typeof error === "object") {
     const errorObj = error as Record<string, unknown>;
+
+    console.log("Error object keys:", Object.keys(errorObj));
+
+    // Extract all possible error messages for analysis
+    if ("shortMessage" in errorObj) {
+      console.log("shortMessage:", errorObj.shortMessage);
+    }
+    if ("details" in errorObj) {
+      console.log("details:", errorObj.details);
+    }
+    if ("metaMessages" in errorObj) {
+      console.log("metaMessages:", errorObj.metaMessages);
+    }
+    if ("data" in errorObj) {
+      console.log("data:", errorObj.data);
+    }
 
     if ("shortMessage" in errorObj || "message" in errorObj) {
       const message =
         (errorObj.shortMessage as string) ||
         (errorObj.message as string) ||
         errorMessage;
+
+      console.log("Using message for classification:", message);
 
       if (
         errorName === "ContractFunctionRevertedError" ||
@@ -68,6 +91,18 @@ export function mapViemErrorToContractError(
       ) {
         code = ErrorCode.CONTRACT_REVERT;
         reason = message;
+
+        // Try to extract the actual revert reason from the error
+        if ("cause" in errorObj && errorObj.cause) {
+          const cause = errorObj.cause as any;
+          if (cause.reason) {
+            console.log("Found revert reason:", cause.reason);
+            reason = cause.reason;
+          }
+          if (cause.data) {
+            console.log("Found revert data:", cause.data);
+          }
+        }
       } else if (
         message.includes("gas") ||
         message.includes("insufficient funds for gas") ||
@@ -92,11 +127,12 @@ export function mapViemErrorToContractError(
       }
 
       if ("cause" in errorObj && errorObj.cause) {
-        reason =
-          reason ||
-          (errorObj.cause instanceof Error
+        const causeReason =
+          errorObj.cause instanceof Error
             ? errorObj.cause.message
-            : String(errorObj.cause));
+            : String(errorObj.cause);
+        console.log("Cause reason:", causeReason);
+        reason = reason || causeReason;
       }
     }
 
@@ -109,7 +145,15 @@ export function mapViemErrorToContractError(
     }
   }
 
-  const enhancedMessage = getEnhancedErrorMessage(errorMessage, operationName);
+  console.log("Final reason:", reason);
+  console.log("Error code:", code);
+
+  const enhancedMessage = getEnhancedErrorMessage(
+    reason || errorMessage,
+    operationName,
+  );
+  console.log("Enhanced message:", enhancedMessage);
+  console.groupEnd();
 
   return new ContractError(enhancedMessage, code, transactionHash, reason, {
     cause: error,

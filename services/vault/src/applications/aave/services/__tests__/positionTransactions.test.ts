@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { maxUint256 } from "viem";
 
 // Buffer for full repayment (0.01% = 1/10000)
 // Matches FULL_REPAY_BUFFER_BPS from @babylonlabs-io/ts-sdk
@@ -328,9 +329,9 @@ describe("positionTransactions", () => {
       mockGetERC20Allowance.mockResolvedValue(0n);
     });
 
-    it("should approve exact debt amount plus buffer (not MAX_UINT256)", async () => {
+    it("should approve debt amount plus buffer for approval, but pass maxUint256 to repay", async () => {
       const currentDebt = 1000000n;
-      const expectedRepayAmount =
+      const expectedApprovalAmount =
         currentDebt + currentDebt / FULL_REPAY_BUFFER_BPS;
 
       await repayFull(
@@ -344,13 +345,23 @@ describe("positionTransactions", () => {
         "0xproxy" as any,
       );
 
-      // Verify approval is for exact amount, not MAX_UINT256
+      // Verify approval is for buffer amount (for safety), not maxUint256
       expect(mockApproveERC20).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xtoken",
         "0xcontroller",
-        expectedRepayAmount,
+        expectedApprovalAmount,
+      );
+
+      // Verify repay is called with maxUint256 to trigger contract's full repayment logic
+      expect(mockRepayToCorePosition).toHaveBeenCalledWith(
+        mockWalletClient,
+        mockChain,
+        "0xcontroller",
+        "0xposition",
+        1n,
+        maxUint256,
       );
     });
 
