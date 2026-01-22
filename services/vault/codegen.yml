@@ -1,0 +1,8 @@
+schema: ${NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT}
+documents: 'src/**/*.ts'
+generates:
+  ./src/graphql/schema.json:
+    plugins:
+      - introspection
+    config:
+      minify: true

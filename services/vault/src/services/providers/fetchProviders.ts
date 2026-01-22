@@ -30,7 +30,6 @@ interface GraphQLProvidersResponse {
     items: Array<{
       id: string;
       btcPubKey: string;
-      version: number;
     }>;
   };
 }
@@ -46,11 +45,14 @@ interface VersionedKeepersChallengersResponse {
       };
     }>;
   };
-  universalChallengers: {
+  universalChallengerVersions: {
     items: Array<{
-      id: string;
-      btcPubKey: string;
+      challengerId: string;
       version: number;
+      challengerInfo: {
+        id: string;
+        btcPubKey: string;
+      };
     }>;
   };
 }
@@ -76,7 +78,6 @@ const GET_PROVIDERS_AND_KEEPERS = gql`
       items {
         id
         btcPubKey
-        version
       }
     }
   }
@@ -107,11 +108,14 @@ const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
         }
       }
     }
-    universalChallengers(where: { version_lte: $challengersVersion }) {
+    universalChallengerVersions(where: { version_lte: $challengersVersion }) {
       items {
-        id
-        btcPubKey
+        challengerId
         version
+        challengerInfo {
+          id
+          btcPubKey
+        }
       }
     }
   }
@@ -225,11 +229,11 @@ export async function fetchKeepersAndChallengersByVersion(
       btcPubKey: item.vaultKeeperInfo.btcPubKey,
     }));
 
-  // Extract universal challengers
+  // Extract universal challengers from version records
   const universalChallengers: UniversalChallenger[] =
-    response.universalChallengers.items.map((item) => ({
-      id: item.id,
-      btcPubKey: item.btcPubKey,
+    response.universalChallengerVersions.items.map((item) => ({
+      id: item.challengerInfo.id,
+      btcPubKey: item.challengerInfo.btcPubKey,
     }));
 
   return {
