@@ -111,22 +111,6 @@ reserveId: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:25](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L25)
 
-##### totalCollateral
-
-```ts
-totalCollateral: bigint;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:28](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L28)
-
-##### vaultIds
-
-```ts
-vaultIds: `0x${string}`[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts:27](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts#L27)
-
 ---
 
 ### AaveSpokeUserAccountData
