@@ -6,7 +6,10 @@ import type { Address } from "viem";
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { LocalStorageStatus } from "@/models/peginStateMachine";
+import {
+  isPreDepositorSignaturesError,
+  LocalStorageStatus,
+} from "@/models/peginStateMachine";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
@@ -43,16 +46,6 @@ const TRANSIENT_ERROR_PATTERNS = [
   "Vault or pegin transaction not found",
 ] as const;
 
-/**
- * Invalid state patterns that indicate the vault provider is still processing.
- * These states occur before PendingDepositorSignatures and should be waited through.
- */
-const INVALID_STATE_PATTERNS = [
-  "Acknowledged",
-  "PendingGCAssignment",
-  "PendingChallengerSignatures",
-] as const;
-
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -62,20 +55,16 @@ const INVALID_STATE_PATTERNS = [
  */
 function isTransientError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  const msg = error.message;
 
-  if (TRANSIENT_ERROR_PATTERNS.some((pattern) => msg.includes(pattern))) {
+  // Check for pre-depositor-signatures states (vault provider still processing)
+  if (isPreDepositorSignaturesError(error)) {
     return true;
   }
 
-  if (
-    msg.includes("Invalid state") &&
-    INVALID_STATE_PATTERNS.some((pattern) => msg.includes(pattern))
-  ) {
-    return true;
-  }
-
-  return false;
+  // Check for other transient patterns
+  return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
+    error.message.includes(pattern),
+  );
 }
 
 // ============================================================================

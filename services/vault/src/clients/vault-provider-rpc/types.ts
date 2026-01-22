@@ -111,8 +111,8 @@ export interface RequestDepositorPresignTransactionsResponse {
 export interface GetPeginStatusResponse {
   /**
    * The current status of the PegIn in vault provider's database
-   * Possible values: "PendingDepositorSignatures", "Acknowledged",
-   * "Activated", "ClaimPosted", "ChallengePeriod", "PeggedOut"
+   * State flow: PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures
+   *             -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
    */
   status: string;
 }

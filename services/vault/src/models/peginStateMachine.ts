@@ -54,16 +54,45 @@ export enum LocalStorageStatus {
 
 /**
  * Backend daemon status (vault provider database)
- * Source: /btc-vault/crates/vaultd/src/db.rs PegInStatus enum
+ * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
+ *
+ * State flow:
+ * PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
  */
 export enum DaemonStatus {
-  PENDING_CHALLENGER_SIGNATURES = "PendingChallengerSignatures",
+  PENDING_GC_DATA = "PendingGCData",
+  PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
-  ACKNOWLEDGED = "Acknowledged",
+  PENDING_ACKS = "PendingACKs",
+  PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
   CLAIM_POSTED = "ClaimPosted",
-  CHALLENGE_PERIOD = "ChallengePeriod",
   PEGGED_OUT = "PeggedOut",
+}
+
+/**
+ * States that occur before PendingDepositorSignatures.
+ * When vault provider returns these states, frontend should wait/poll.
+ */
+export const PRE_DEPOSITOR_SIGNATURES_STATES = [
+  DaemonStatus.PENDING_GC_DATA,
+  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
+] as const;
+
+/**
+ * Check if an error indicates the vault provider is still processing
+ * (before PendingDepositorSignatures state).
+ *
+ * Use this to determine if polling should continue vs showing an error.
+ */
+export function isPreDepositorSignaturesError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message;
+
+  return (
+    msg.includes("Invalid state") &&
+    PRE_DEPOSITOR_SIGNATURES_STATES.some((state) => msg.includes(state))
+  );
 }
 
 // ============================================================================

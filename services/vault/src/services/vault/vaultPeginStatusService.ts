@@ -7,7 +7,7 @@
 import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import type { DaemonStatus } from "../../models/peginStateMachine";
+import { DaemonStatus } from "../../models/peginStateMachine";
 import { stripHexPrefix } from "../../utils/btc";
 
 /**
@@ -61,30 +61,34 @@ export async function checkPeginStatus(
   });
 
   // Parse the status string into DaemonStatus enum
+  // State flow: PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
   const rawStatus = response.status;
   let status: DaemonStatus;
 
   switch (rawStatus) {
-    case "PendingChallengerSignatures":
-      status = "PendingChallengerSignatures" as DaemonStatus;
+    case "PendingGCData":
+      status = DaemonStatus.PENDING_GC_DATA;
+      break;
+    case "PendingChallengerPresigning":
+      status = DaemonStatus.PENDING_CHALLENGER_PRESIGNING;
       break;
     case "PendingDepositorSignatures":
-      status = "PendingDepositorSignatures" as DaemonStatus;
+      status = DaemonStatus.PENDING_DEPOSITOR_SIGNATURES;
       break;
-    case "Acknowledged":
-      status = "Acknowledged" as DaemonStatus;
+    case "PendingACKs":
+      status = DaemonStatus.PENDING_ACKS;
+      break;
+    case "PendingActivation":
+      status = DaemonStatus.PENDING_ACTIVATION;
       break;
     case "Activated":
-      status = "Activated" as DaemonStatus;
+      status = DaemonStatus.ACTIVATED;
       break;
     case "ClaimPosted":
-      status = "ClaimPosted" as DaemonStatus;
-      break;
-    case "ChallengePeriod":
-      status = "ChallengePeriod" as DaemonStatus;
+      status = DaemonStatus.CLAIM_POSTED;
       break;
     case "PeggedOut":
-      status = "PeggedOut" as DaemonStatus;
+      status = DaemonStatus.PEGGED_OUT;
       break;
     default:
       throw new Error(`Unknown daemon status: ${rawStatus}`);

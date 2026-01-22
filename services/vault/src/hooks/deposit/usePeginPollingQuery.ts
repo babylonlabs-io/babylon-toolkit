@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -72,13 +73,8 @@ async function fetchFromProvider(
         results.set(deposit.activity.id, response.txs);
       }
     } catch (error) {
-      // Expected error: Daemon is still processing
-      if (
-        error instanceof Error &&
-        error.message.includes("Invalid state") &&
-        (error.message.includes("Acknowledged") ||
-          error.message.includes("PendingChallengerSignatures"))
-      ) {
+      // Expected error: Daemon is still processing (before PendingDepositorSignatures)
+      if (isPreDepositorSignaturesError(error)) {
         // Transactions not ready yet - continue polling
         continue;
       }
