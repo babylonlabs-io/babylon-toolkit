@@ -2,12 +2,16 @@
  * Payout Manager
  *
  * High-level manager that orchestrates the payout signing flow by coordinating
- * SDK primitives (buildPayoutOptimisticPsbt, buildPayoutPsbt, extractPayoutSignature)
- * with a user-provided Bitcoin wallet.
+ * SDK primitives ({@link buildPayoutOptimisticPsbt}, {@link buildPayoutPsbt},
+ * {@link extractPayoutSignature}) with a user-provided Bitcoin wallet.
  *
  * There are two types of payout transactions:
  * - **PayoutOptimistic**: Optimistic path after Claim (no challenge). Input 1 references Claim tx.
  * - **Payout**: Challenge path after Assert (claimer proves validity). Input 1 references Assert tx.
+ *
+ * @see {@link PeginManager} - For Steps 1, 2, and 4 of peg-in flow
+ * @see {@link buildPayoutPsbt} - Lower-level primitive for custom implementations
+ * @see {@link extractPayoutSignature} - Extract signatures from signed PSBTs
  *
  * @module managers/PayoutManager
  */
@@ -128,8 +132,26 @@ export interface PayoutSignatureResult {
  * High-level manager for payout transaction signing.
  *
  * Supports both payout paths:
- * - Optimistic path: Use `signPayoutOptimisticTransaction()` with Claim tx
- * - Challenge path: Use `signPayoutTransaction()` with Assert tx
+ * - Optimistic path: Use {@link signPayoutOptimisticTransaction} with Claim tx
+ * - Challenge path: Use {@link signPayoutTransaction} with Assert tx
+ *
+ * @remarks
+ * After registering your peg-in on Ethereum (Step 2), the vault provider prepares
+ * claim/payout transaction pairs. You must sign each payout transaction using this
+ * manager and submit the signatures to the vault provider's RPC API.
+ *
+ * **What happens internally:**
+ * 1. Validates your wallet's public key matches the vault's depositor
+ * 2. Builds an unsigned PSBT with taproot script path spend info
+ * 3. Signs input 0 (the vault UTXO) with your wallet
+ * 4. Extracts the 64-byte Schnorr signature
+ *
+ * **Note:** The payout transaction has 2 inputs. PayoutManager only signs input 0
+ * (from the peg-in tx). Input 1 (from the claim/assert tx) is signed by the vault provider.
+ *
+ * @see {@link PeginManager} - For the complete peg-in flow context
+ * @see {@link buildPayoutPsbt} - Lower-level primitive used internally
+ * @see {@link extractPayoutSignature} - Signature extraction primitive
  */
 export class PayoutManager {
   private readonly config: PayoutManagerConfig;

@@ -15,10 +15,28 @@ import {
   TX_BUFFER_SIZE_OVERHEAD,
 } from "../fee/constants";
 
+/**
+ * Unspent Transaction Output (UTXO) for funding peg-in transactions.
+ */
 export interface UTXO {
+  /**
+   * Transaction ID of the UTXO (64-char hex without 0x prefix).
+   */
   txid: string;
+
+  /**
+   * Output index within the transaction.
+   */
   vout: number;
+
+  /**
+   * Value in satoshis.
+   */
   value: number;
+
+  /**
+   * Script public key hex.
+   */
   scriptPubKey: string;
 }
 

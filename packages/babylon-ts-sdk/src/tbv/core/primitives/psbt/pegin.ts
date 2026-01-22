@@ -81,7 +81,7 @@ export interface PeginPsbtResult {
 }
 
 /**
- * Build unsigned peg-in PSBT using WASM
+ * Build unsigned peg-in PSBT using WASM.
  *
  * This is a pure function that wraps the Rust WASM implementation.
  * It creates an unfunded Bitcoin transaction with no inputs and one output
@@ -96,6 +96,8 @@ export interface PeginPsbtResult {
  *
  * @param params - Peg-in parameters
  * @returns Unsigned PSBT and transaction details
+ *
+ * @throws If WASM initialization fails or parameters are invalid
  */
 export async function buildPeginPsbt(
   params: PeginParams,

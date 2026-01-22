@@ -4,6 +4,16 @@
  * This module provides the PeginManager class that orchestrates the complete
  * peg-in flow using SDK primitives, utilities, and wallet interfaces.
  *
+ * @remarks
+ * PeginManager handles the first 2 steps and step 4 of the 4-step peg-in flow:
+ * 1. **preparePegin()** - Build and fund the Bitcoin transaction
+ * 2. **registerPeginOnChain()** - Submit to Ethereum contract with PoP
+ * 3. *(Use {@link PayoutManager} for payout authorization signing - sign BOTH PayoutOptimistic and Payout)*
+ * 4. **signAndBroadcast()** - Sign and broadcast to Bitcoin network
+ *
+ * @see {@link PayoutManager} - For Step 3: sign both PayoutOptimistic (optimistic path) and Payout (challenge path)
+ * @see {@link buildPeginPsbt} - Lower-level primitive used internally
+ *
  * @module managers/PeginManager
  */
 
@@ -237,10 +247,32 @@ export interface RegisterPeginResult {
  * This manager provides a high-level API for creating peg-in transactions
  * by coordinating between SDK primitives, utilities, and wallet interfaces.
  *
- * The complete peg-in flow consists of:
- * 1. preparePegin() - Build and fund the transaction
- * 2. registerPeginOnChain() - Submit to Ethereum contract
- * 3. signAndBroadcast() - Sign and broadcast to Bitcoin network
+ * @remarks
+ * The complete peg-in flow consists of 4 steps:
+ *
+ * | Step | Method | Description |
+ * |------|--------|-------------|
+ * | 1 | {@link preparePegin} | Build and fund the transaction |
+ * | 2 | {@link registerPeginOnChain} | Submit to Ethereum contract with PoP |
+ * | 3 | {@link PayoutManager} | Sign BOTH payout authorizations |
+ * | 4 | {@link signAndBroadcast} | Sign and broadcast to Bitcoin network |
+ *
+ * **Important:** Step 3 uses {@link PayoutManager}, not this class. After step 2,
+ * the vault provider prepares 4 transactions per claimer:
+ * - `claim_tx` - Claim transaction
+ * - `payout_optimistic_tx` - PayoutOptimistic transaction
+ * - `assert_tx` - Assert transaction
+ * - `payout_tx` - Payout transaction
+ *
+ * You must sign **BOTH** PayoutOptimistic and Payout transactions for each claimer:
+ * - {@link PayoutManager.signPayoutOptimisticTransaction} - uses claim_tx as input reference
+ * - {@link PayoutManager.signPayoutTransaction} - uses assert_tx as input reference
+ *
+ * Submit all signatures to the vault provider before proceeding to step 4.
+ *
+ * @see {@link PayoutManager} - Required for Step 3 (payout authorization)
+ * @see {@link buildPeginPsbt} - Lower-level primitive for custom implementations
+ * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/managers.md | Managers Guide}
  */
 export class PeginManager {
   private readonly config: PeginManagerConfig;

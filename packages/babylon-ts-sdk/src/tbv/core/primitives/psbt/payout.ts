@@ -116,7 +116,7 @@ export interface PayoutPsbtResult {
 }
 
 /**
- * Internal parameters for the shared PSBT builder
+ * Internal parameters for the shared PSBT builder.
  * @internal
  */
 interface InternalPayoutParams extends PayoutBaseParams {
@@ -274,7 +274,7 @@ async function buildPayoutPsbtInternal(
 }
 
 /**
- * Build unsigned PayoutOptimistic PSBT for depositor to sign
+ * Build unsigned PayoutOptimistic PSBT for depositor to sign.
  *
  * PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
  * 1. Vault provider submits Claim transaction
@@ -283,6 +283,11 @@ async function buildPayoutPsbtInternal(
  *
  * @param params - PayoutOptimistic parameters
  * @returns Unsigned PSBT ready for depositor to sign
+ *
+ * @throws If payout transaction does not have exactly 2 inputs
+ * @throws If input 0 does not reference the pegin transaction
+ * @throws If input 1 does not reference the claim transaction
+ * @throws If previous output is not found for either input
  */
 export async function buildPayoutOptimisticPsbt(
   params: PayoutOptimisticParams,
@@ -301,7 +306,7 @@ export async function buildPayoutOptimisticPsbt(
 }
 
 /**
- * Build unsigned Payout PSBT for depositor to sign (challenge path)
+ * Build unsigned Payout PSBT for depositor to sign (challenge path).
  *
  * Payout is used in the **challenge path** when the claimer proves validity:
  * 1. Vault provider submits Claim transaction
@@ -311,6 +316,11 @@ export async function buildPayoutOptimisticPsbt(
  *
  * @param params - Payout parameters
  * @returns Unsigned PSBT ready for depositor to sign
+ *
+ * @throws If payout transaction does not have exactly 2 inputs
+ * @throws If input 0 does not reference the pegin transaction
+ * @throws If input 1 does not reference the assert transaction
+ * @throws If previous output is not found for either input
  */
 export async function buildPayoutPsbt(
   params: PayoutParams,
@@ -329,7 +339,7 @@ export async function buildPayoutPsbt(
 }
 
 /**
- * Extract Schnorr signature from signed payout PSBT
+ * Extract Schnorr signature from signed payout PSBT.
  *
  * This function supports two cases:
  * 1. Non-finalized PSBT: Extracts from tapScriptSig field
@@ -344,8 +354,8 @@ export async function buildPayoutPsbt(
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)
  * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)
  *
- * @throws {Error} If no signature is found in the PSBT
- * @throws {Error} If the signature has an unexpected length
+ * @throws If no signature is found in the PSBT
+ * @throws If the signature has an unexpected length
  */
 export function extractPayoutSignature(
   signedPsbtHex: string,

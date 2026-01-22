@@ -13,38 +13,24 @@
  */
 
 /**
- * Strip "0x" prefix from hex string if present
+ * Strip "0x" prefix from hex string if present.
  *
  * Bitcoin expects plain hex (no "0x" prefix), but frontend often uses
  * Ethereum-style "0x"-prefixed hex.
  *
  * @param hex - Hex string with or without "0x" prefix
  * @returns Hex string without "0x" prefix
- *
- * @example
- * ```typescript
- * stripHexPrefix('0xabc123') // 'abc123'
- * stripHexPrefix('abc123')   // 'abc123'
- * stripHexPrefix('')         // ''
- * ```
  */
 export function stripHexPrefix(hex: string): string {
   return hex.startsWith("0x") ? hex.slice(2) : hex;
 }
 
 /**
- * Convert hex string to Uint8Array
+ * Convert hex string to Uint8Array.
  *
  * @param hex - Hex string (with or without 0x prefix)
  * @returns Uint8Array
- * @throws Error if hex is invalid
- *
- * @example
- * ```typescript
- * hexToUint8Array('abc123')     // Uint8Array [0xab, 0xc1, 0x23]
- * hexToUint8Array('0xabc123')   // Uint8Array [0xab, 0xc1, 0x23]
- * hexToUint8Array('xyz')        // throws Error
- * ```
+ * @throws If hex is invalid
  */
 export function hexToUint8Array(hex: string): Uint8Array {
   const cleanHex = stripHexPrefix(hex);
@@ -59,16 +45,10 @@ export function hexToUint8Array(hex: string): Uint8Array {
 }
 
 /**
- * Convert Uint8Array to hex string (without 0x prefix)
+ * Convert Uint8Array to hex string (without 0x prefix).
  *
  * @param bytes - Uint8Array to convert
  * @returns Hex string without 0x prefix
- *
- * @example
- * ```typescript
- * const bytes = new Uint8Array([0xab, 0xc1, 0x23]);
- * uint8ArrayToHex(bytes)  // 'abc123'
- * ```
  */
 export function uint8ArrayToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -77,22 +57,13 @@ export function uint8ArrayToHex(bytes: Uint8Array): string {
 }
 
 /**
- * Convert a 33-byte public key to 32-byte x-only format (removes first byte)
+ * Convert a 33-byte public key to 32-byte x-only format (removes first byte).
  *
  * Used for Taproot/Schnorr signatures which only need the x-coordinate.
  * If the input is already 32 bytes, returns it unchanged.
  *
  * @param pubKey - 33-byte or 32-byte public key
  * @returns 32-byte x-only public key
- *
- * @example
- * ```typescript
- * const compressedPubkey = hexToUint8Array('02abc123...'); // 33 bytes
- * const xOnly = toXOnly(compressedPubkey); // 32 bytes
- *
- * const alreadyXOnly = hexToUint8Array('abc123...'); // 32 bytes
- * toXOnly(alreadyXOnly); // Returns same array
- * ```
  */
 export function toXOnly(pubKey: Uint8Array): Uint8Array {
   return pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
@@ -110,7 +81,7 @@ function isValidHexRaw(hex: string): boolean {
 }
 
 /**
- * Process and convert a public key to x-only format (32 bytes hex)
+ * Process and convert a public key to x-only format (32 bytes hex).
  *
  * Handles:
  * - 0x prefix removal
@@ -125,26 +96,7 @@ function isValidHexRaw(hex: string): boolean {
  *
  * @param publicKeyHex - Public key in hex format (with or without 0x prefix)
  * @returns X-only public key as 32 bytes hex string (without 0x prefix)
- * @throws Error if public key format is invalid or contains invalid hex characters
- *
- * @example
- * ```typescript
- * // Already x-only
- * processPublicKeyToXOnly('abc123...') // 64 chars
- * // => 'abc123...' (same, 64 chars)
- *
- * // Compressed pubkey
- * processPublicKeyToXOnly('02abc123...') // 66 chars
- * // => 'abc123...' (64 chars, first byte removed)
- *
- * // With 0x prefix
- * processPublicKeyToXOnly('0x02abc123...') // 66 chars + 0x
- * // => 'abc123...' (64 chars)
- *
- * // Uncompressed pubkey (65 bytes = 130 hex chars)
- * processPublicKeyToXOnly('04abc123...') // 130 chars
- * // => first 32 bytes after prefix
- * ```
+ * @throws If public key format is invalid or contains invalid hex characters
  */
 export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Remove '0x' prefix if present
@@ -172,22 +124,13 @@ export function processPublicKeyToXOnly(publicKeyHex: string): string {
 }
 
 /**
- * Validate hex string format
+ * Validate hex string format.
  *
  * Checks that the string contains only valid hexadecimal characters (0-9, a-f, A-F)
  * and has an even length (since each byte is represented by 2 hex characters).
  *
  * @param hex - String to validate (with or without 0x prefix)
  * @returns true if valid hex string
- *
- * @example
- * ```typescript
- * isValidHex('abc123')     // true
- * isValidHex('0xabc123')   // true (prefix is stripped)
- * isValidHex('xyz')        // false (invalid characters)
- * isValidHex('abc')        // false (odd length)
- * isValidHex('')           // true (empty is valid)
- * ```
  */
 export function isValidHex(hex: string): boolean {
   const cleanHex = stripHexPrefix(hex);
@@ -217,16 +160,7 @@ export interface WalletPubkeyValidationResult {
  * @param walletPubkeyRaw - Raw public key from wallet (may be compressed 66 chars or x-only 64 chars)
  * @param expectedDepositorPubkey - Expected depositor public key (x-only, optional)
  * @returns Validation result with both pubkey formats
- * @throws Error if wallet pubkey doesn't match expected depositor pubkey
- *
- * @example
- * ```typescript
- * const walletPubkey = await wallet.getPublicKeyHex(); // "02abc123..."
- * const { walletPubkeyRaw, depositorPubkey } = validateWalletPubkey(
- *   walletPubkey,
- *   vault.depositorBtcPubkey
- * );
- * ```
+ * @throws If wallet pubkey doesn't match expected depositor pubkey
  */
 export function validateWalletPubkey(
   walletPubkeyRaw: string,
