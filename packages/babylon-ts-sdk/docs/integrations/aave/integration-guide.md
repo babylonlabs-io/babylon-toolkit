@@ -458,12 +458,18 @@ async function repayFlow(assetSymbol: string, partialAmountUsd?: number) {
   });
 
   const position = positions.aavePositions.items[0];
+  if (!position) {
+    throw new Error("No Aave position found for this user");
+  }
 
   // Step 2: Get reserve info
   const { aaveReserves } = await graphqlClient.request(GET_AAVE_RESERVES);
   const reserve = aaveReserves.items.find(
     r => r.underlyingToken.symbol === assetSymbol
   );
+  if (!reserve) {
+    throw new Error(`No Aave reserve found for asset symbol: ${assetSymbol}`);
+  }
 
   const reserveId = BigInt(reserve.id);
   const decimals = reserve.underlyingToken.decimals;
@@ -545,6 +551,9 @@ async function withdrawCollateralFlow() {
   });
 
   const position = positions.aavePositions.items[0];
+  if (!position) {
+    throw new Error("No Aave position found for this user");
+  }
 
   // Step 2: Verify no debt across all borrowable reserves
   const { aaveReserves } = await graphqlClient.request(GET_AAVE_RESERVES);
