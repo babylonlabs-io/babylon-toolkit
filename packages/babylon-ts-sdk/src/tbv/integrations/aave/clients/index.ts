@@ -1,5 +1,5 @@
 // Query operations
-export { getPosition } from "./query.js";
+export { getPosition, getPositionCollateral } from "./query.js";
 
 // Spoke operations
 export {

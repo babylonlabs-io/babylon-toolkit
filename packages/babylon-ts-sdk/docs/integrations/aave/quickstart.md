@@ -57,6 +57,7 @@ import {
 
   // Query functions
   getPosition,
+  getPositionCollateral,
   getUserAccountData,
   getUserPosition,
   getUserTotalDebt,
@@ -274,10 +275,17 @@ if (!position) {
   throw new Error("Position not found");
 }
 
+// Get total collateral (separate call)
+const totalCollateral = await getPositionCollateral(
+  publicClient,
+  AAVE_CONTROLLER,
+  positionId,
+);
+
 console.log("Position details:");
 console.log("  Depositor:", position.depositor.ethAddress);
 console.log("  Proxy contract:", position.proxyContract);
-console.log("  Total collateral:", position.totalCollateral, "satoshis");
+console.log("  Total collateral:", totalCollateral, "satoshis");
 console.log("  Vault count:", position.vaultIds.length);
 ```
 
