@@ -16,10 +16,7 @@ const GET_VAULT_PROVIDERS = gql`
         id
         btcPubKey
         applicationController
-        depositAmount
-        status
         registeredAt
-        activatedAt
         blockNumber
         transactionHash
       }
@@ -33,10 +30,7 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
       id
       btcPubKey
       applicationController
-      depositAmount
-      status
       registeredAt
-      activatedAt
       blockNumber
       transactionHash
     }
@@ -50,10 +44,7 @@ export interface VaultProvider {
   id: string;
   btcPubKey: string;
   applicationController: string;
-  depositAmount: string;
-  status: string;
   registeredAt: string;
-  activatedAt: string | null;
   blockNumber: string;
   transactionHash: string;
 }
