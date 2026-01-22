@@ -102,7 +102,7 @@ describe("Deposit Transformers", () => {
         getPeginState(ContractStatus.VERIFIED, {
           localStatus: LocalStorageStatus.CONFIRMING,
         }).displayLabel,
-      ).toBe("Pending Bitcoin Confirmations");
+      ).toBe("Pending Confirmations");
     });
 
     it("should handle undefined local status", () => {
