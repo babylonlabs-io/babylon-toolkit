@@ -254,11 +254,12 @@ Build unsigned transactions for all AAVE operations:
 - `buildWithdrawAllCollateralTx()` - Remove all collateral
 - `buildDepositorRedeemTx()` - Redeem vault to vault provider
 
-### Query Functions (6 functions)
+### Query Functions (7 functions)
 
 Read on-chain state:
 
 - `getPosition()` - Get position data
+- `getPositionCollateral()` - Get total collateral amount
 - `getUserAccountData()` - Get health factor and values
 - `getUserPosition()` - Get reserve-specific position
 - `getUserTotalDebt()` - Get exact debt amount

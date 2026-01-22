@@ -26,11 +26,13 @@ interface GraphQLProvidersResponse {
       };
     }>;
   };
-  universalChallengers: {
+  universalChallengerVersions: {
     items: Array<{
-      id: string;
-      btcPubKey: string;
       version: number;
+      challengerInfo: {
+        id: string;
+        btcPubKey: string;
+      };
     }>;
   };
 }
@@ -46,11 +48,13 @@ interface VersionedKeepersChallengersResponse {
       };
     }>;
   };
-  universalChallengers: {
+  universalChallengerVersions: {
     items: Array<{
-      id: string;
-      btcPubKey: string;
       version: number;
+      challengerInfo: {
+        id: string;
+        btcPubKey: string;
+      };
     }>;
   };
 }
@@ -72,11 +76,13 @@ const GET_PROVIDERS_AND_KEEPERS = gql`
         }
       }
     }
-    universalChallengers {
+    universalChallengerVersions {
       items {
-        id
-        btcPubKey
         version
+        challengerInfo {
+          id
+          btcPubKey
+        }
       }
     }
   }
@@ -107,11 +113,13 @@ const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
         }
       }
     }
-    universalChallengers(where: { version_lte: $challengersVersion }) {
+    universalChallengerVersions(where: { version_lte: $challengersVersion }) {
       items {
-        id
-        btcPubKey
         version
+        challengerInfo {
+          id
+          btcPubKey
+        }
       }
     }
   }
@@ -159,9 +167,9 @@ export async function fetchProviders(
 
   // Extract universal challengers (system-wide)
   const universalChallengers: UniversalChallenger[] =
-    response.universalChallengers.items.map((item) => ({
-      id: item.id,
-      btcPubKey: item.btcPubKey,
+    response.universalChallengerVersions.items.map((item) => ({
+      id: item.challengerInfo.id,
+      btcPubKey: item.challengerInfo.btcPubKey,
     }));
 
   return {
@@ -227,9 +235,9 @@ export async function fetchKeepersAndChallengersByVersion(
 
   // Extract universal challengers
   const universalChallengers: UniversalChallenger[] =
-    response.universalChallengers.items.map((item) => ({
-      id: item.id,
-      btcPubKey: item.btcPubKey,
+    response.universalChallengerVersions.items.map((item) => ({
+      id: item.challengerInfo.id,
+      btcPubKey: item.challengerInfo.btcPubKey,
     }));
 
   return {

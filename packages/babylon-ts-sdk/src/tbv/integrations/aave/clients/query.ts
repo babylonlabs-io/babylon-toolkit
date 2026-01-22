@@ -44,7 +44,6 @@ export async function getPosition(
     reserveId: bigint;
     proxyContract: Address;
     vaultIds: Hex[];
-    totalCollateral: bigint;
   };
 
   const position = result as PositionResult;
@@ -62,6 +61,28 @@ export async function getPosition(
     reserveId: position.reserveId,
     proxyContract: position.proxyContract,
     vaultIds: position.vaultIds,
-    totalCollateral: position.totalCollateral,
   };
+}
+
+/**
+ * Get total collateral for a position
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param contractAddress - AaveIntegrationController contract address
+ * @param positionId - Position ID (bytes32)
+ * @returns Total collateral amount
+ */
+export async function getPositionCollateral(
+  publicClient: PublicClient,
+  contractAddress: Address,
+  positionId: Hex,
+): Promise<bigint> {
+  const result = await publicClient.readContract({
+    address: contractAddress,
+    abi: AaveIntegrationControllerABI,
+    functionName: "getPositionCollateral",
+    args: [positionId],
+  });
+
+  return result as bigint;
 }

@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
+import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import { VaultProviderRpcApi } from "../../services/vault";
 import type {
   ClaimerTransactions,
@@ -124,14 +125,9 @@ export function usePendingPeginTxPolling(
 
         return response;
       } catch (error) {
-        // Expected error: Daemon is still processing (e.g., in "Acknowledged" state)
+        // Expected error: Daemon is still processing (before PendingDepositorSignatures)
         // Transactions are not ready yet - keep polling
-        if (
-          error instanceof Error &&
-          error.message.includes("Invalid state") &&
-          (error.message.includes("Acknowledged") ||
-            error.message.includes("PendingChallengerSignatures"))
-        ) {
+        if (isPreDepositorSignaturesError(error)) {
           // Return empty response to indicate transactions not ready yet
           // This will continue polling without throwing error to console
           return { txs: [] };

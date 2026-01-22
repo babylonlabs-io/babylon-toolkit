@@ -80,6 +80,7 @@ export {
   buildRepayTx,
   buildWithdrawAllCollateralTx,
   getPosition,
+  getPositionCollateral,
   getUserAccountData,
   getUserPosition,
   getUserTotalDebt,
