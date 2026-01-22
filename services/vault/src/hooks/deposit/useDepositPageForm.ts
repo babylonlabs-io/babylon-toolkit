@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getAppIdByController } from "../../applications";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
@@ -78,6 +79,38 @@ export function useDepositPageForm(
       logoUrl: app.logoUrl,
     }));
   }, [applicationsData]);
+
+  const hasResolvedInitialApp = useRef(false);
+  useEffect(() => {
+    if (
+      !initialApplicationId ||
+      isLoadingApplications ||
+      !applicationsData?.length ||
+      hasResolvedInitialApp.current
+    ) {
+      return;
+    }
+
+    // Check if initialApplicationId is already a valid controller address
+    const directMatch = applicationsData.find(
+      (app) => app.id === initialApplicationId,
+    );
+    if (directMatch) {
+      hasResolvedInitialApp.current = true;
+      return;
+    }
+
+    const matchingApp = applicationsData.find(
+      (app) => getAppIdByController(app.id) === initialApplicationId,
+    );
+    if (matchingApp) {
+      hasResolvedInitialApp.current = true;
+      setFormDataInternal((prev) => ({
+        ...prev,
+        selectedApplication: matchingApp.id,
+      }));
+    }
+  }, [initialApplicationId, applicationsData, isLoadingApplications]);
 
   // Fetch providers based on selected application
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
