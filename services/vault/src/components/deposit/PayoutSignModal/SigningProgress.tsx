@@ -1,5 +1,10 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
+import type { DaemonProgressState } from "../../../hooks/deposit/useDepositFlow";
+import {
+  getDaemonProgressTooltip,
+  getDaemonStatusLabel,
+} from "../../../models/peginStateMachine";
 import type { SigningStepType } from "../../../services/vault/vaultPayoutSignatureService";
 import { DepositStep } from "../DepositSignModal/constants";
 
@@ -28,6 +33,8 @@ export interface SigningProgressProps {
   step?: DepositStep;
   /** Whether we're in a waiting/polling state. Optional for standalone use. */
   isWaiting?: boolean;
+  /** Daemon progress during waiting state (for detailed display) */
+  daemonProgress?: DaemonProgressState | null;
 }
 
 const STEP_LABELS: Record<SigningStepType, string> = {
@@ -51,7 +58,8 @@ function getProgressMode(
   if (step === DepositStep.SIGN_PAYOUTS && isWaiting) {
     return ProgressMode.WAITING_FOR_PROVIDER;
   }
-  if (step === DepositStep.BROADCAST_BTC && isWaiting) {
+  // AWAIT_ACKS step always shows verification progress (no user action)
+  if (step === DepositStep.AWAIT_ACKS) {
     return ProgressMode.WAITING_FOR_VERIFICATION;
   }
   if (step === DepositStep.SIGN_PAYOUTS && total > 0) {
@@ -68,41 +76,88 @@ export function SigningProgress({
   currentStep,
   currentClaimer,
   totalClaimers,
+  daemonProgress,
 }: SigningProgressProps) {
   const mode = getProgressMode(step, isWaiting, total);
 
   if (!mode) return null;
 
   if (mode === ProgressMode.WAITING_FOR_PROVIDER) {
+    // Show daemon status progress if available
+    const statusLabel = daemonProgress?.status
+      ? getDaemonStatusLabel(daemonProgress.status, daemonProgress.progress)
+      : "Preparing";
+    const tooltipText = daemonProgress?.status
+      ? getDaemonProgressTooltip(daemonProgress.status, daemonProgress.progress)
+      : "The provider is generating Claim and Assert transactions for your deposit.";
+
+    // Calculate progress percentage for the bar
+    const hasProgress =
+      daemonProgress?.progress && daemonProgress.progress.total > 0;
+    const progressPercentage = hasProgress
+      ? (daemonProgress.progress!.completed / daemonProgress.progress!.total) *
+        100
+      : 0;
+
     return (
       <div className="rounded-lg bg-primary-light/10 p-4">
         <div className="flex items-center gap-3">
           <Loader size={16} className="text-primary-main" />
           <Text variant="body2" className="text-accent-primary">
-            Vault Provider is preparing payout transactions...
+            Vault Provider: {statusLabel}
           </Text>
         </div>
         <Text variant="body2" className="mt-2 text-sm text-accent-secondary">
-          This may take a moment. The provider is generating Claim and Assert
-          transactions for your deposit.
+          {tooltipText}
         </Text>
+        {hasProgress && (
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-primary-light/20">
+            <div
+              className="h-full bg-primary-main transition-all duration-300"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+        )}
       </div>
     );
   }
 
   if (mode === ProgressMode.WAITING_FOR_VERIFICATION) {
+    // Show daemon status progress if available (collecting ACKs)
+    const statusLabel = daemonProgress?.status
+      ? getDaemonStatusLabel(daemonProgress.status, daemonProgress.progress)
+      : "Verifying";
+    const tooltipText = daemonProgress?.status
+      ? getDaemonProgressTooltip(daemonProgress.status, daemonProgress.progress)
+      : "Your payout signatures have been submitted. The system is verifying them on-chain before the Bitcoin transaction can be broadcast.";
+
+    // Calculate progress percentage for the bar
+    const hasProgress =
+      daemonProgress?.progress && daemonProgress.progress.total > 0;
+    const progressPercentage = hasProgress
+      ? (daemonProgress.progress!.completed / daemonProgress.progress!.total) *
+        100
+      : 0;
+
     return (
       <div className="rounded-lg bg-primary-light/10 p-4">
         <div className="flex items-center gap-3">
           <Loader size={16} className="text-primary-main" />
           <Text variant="body2" className="text-accent-primary">
-            Waiting for on-chain verification...
+            {statusLabel}
           </Text>
         </div>
         <Text variant="body2" className="mt-2 text-sm text-accent-secondary">
-          Your payout signatures have been submitted. The system is verifying
-          them on-chain before the Bitcoin transaction can be broadcast.
+          {tooltipText}
         </Text>
+        {hasProgress && (
+          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-primary-light/20">
+            <div
+              className="h-full bg-primary-main transition-all duration-300"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
+        )}
       </div>
     );
   }

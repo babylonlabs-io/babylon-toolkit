@@ -413,3 +413,122 @@ export function shouldRemoveFromLocalStorage(
   // Keep CONFIRMING when contract is VERIFIED (waiting for BTC confirmations)
   return false;
 }
+
+// ============================================================================
+// Daemon Status Helpers
+// ============================================================================
+
+/**
+ * Check if user has already signed payout transactions based on daemon status
+ *
+ * User has signed if daemon status is PendingACKs or later.
+ * PendingDepositorSignatures means user still needs to sign.
+ */
+export function hasUserSignedPayout(daemonStatus: DaemonStatus): boolean {
+  // These states occur AFTER user signs payout transactions
+  const postSigningStates = [
+    DaemonStatus.PENDING_ACKS,
+    DaemonStatus.PENDING_ACTIVATION,
+    DaemonStatus.ACTIVATED,
+    DaemonStatus.CLAIM_POSTED,
+    DaemonStatus.PEGGED_OUT,
+  ];
+  return postSigningStates.includes(daemonStatus);
+}
+
+/**
+ * Check if daemon status indicates user needs to sign payout transactions
+ */
+export function needsUserPayoutSignature(daemonStatus: DaemonStatus): boolean {
+  return daemonStatus === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES;
+}
+
+/**
+ * Progress info from daemon for display
+ */
+export interface DaemonProgress {
+  completed: number;
+  total: number;
+}
+
+/**
+ * Get short progress text for UI display (e.g., "3/5")
+ * Returns null if no progress info available
+ */
+export function getDaemonProgressText(
+  daemonStatus: DaemonStatus,
+  progress?: { completed: number; total: number },
+): string | null {
+  if (!progress || progress.total === 0) {
+    return null;
+  }
+  return `${progress.completed}/${progress.total}`;
+}
+
+/**
+ * Get detailed progress tooltip text
+ */
+export function getDaemonProgressTooltip(
+  daemonStatus: DaemonStatus,
+  progress?: { completed: number; total: number },
+): string {
+  const progressText = progress
+    ? ` (${progress.completed}/${progress.total} challengers)`
+    : "";
+
+  switch (daemonStatus) {
+    case DaemonStatus.PENDING_GC_DATA:
+      return `Vault provider is collecting garbled circuit data from challengers${progressText}`;
+    case DaemonStatus.PENDING_CHALLENGER_PRESIGNING:
+      return `Vault provider is collecting presignatures from challengers${progressText}`;
+    case DaemonStatus.PENDING_DEPOSITOR_SIGNATURES:
+      return "Ready for you to sign payout transactions";
+    case DaemonStatus.PENDING_ACKS:
+      return `Collecting acknowledgements from challengers${progressText}`;
+    case DaemonStatus.PENDING_ACTIVATION:
+      return "Ready for you to broadcast Bitcoin transaction";
+    case DaemonStatus.ACTIVATED:
+      return "Vault is active and ready to use";
+    case DaemonStatus.CLAIM_POSTED:
+      return "Claim has been posted, waiting for challenge period";
+    case DaemonStatus.PEGGED_OUT:
+      return "Peg-out complete";
+    default:
+      return "Processing...";
+  }
+}
+
+/**
+ * Get short display label for daemon status
+ * Designed to be concise for table display
+ */
+export function getDaemonStatusLabel(
+  daemonStatus: DaemonStatus,
+  progress?: { completed: number; total: number },
+): string {
+  const progressSuffix =
+    progress && progress.total > 0
+      ? ` (${progress.completed}/${progress.total})`
+      : "";
+
+  switch (daemonStatus) {
+    case DaemonStatus.PENDING_GC_DATA:
+      return `Preparing${progressSuffix}`;
+    case DaemonStatus.PENDING_CHALLENGER_PRESIGNING:
+      return `Presigning${progressSuffix}`;
+    case DaemonStatus.PENDING_DEPOSITOR_SIGNATURES:
+      return "Sign Required";
+    case DaemonStatus.PENDING_ACKS:
+      return `Confirming${progressSuffix}`;
+    case DaemonStatus.PENDING_ACTIVATION:
+      return "Broadcast BTC";
+    case DaemonStatus.ACTIVATED:
+      return "Active";
+    case DaemonStatus.CLAIM_POSTED:
+      return "Claiming";
+    case DaemonStatus.PEGGED_OUT:
+      return "Complete";
+    default:
+      return "Processing";
+  }
+}

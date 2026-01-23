@@ -97,7 +97,9 @@ export function PeginPollingProvider({
         | LocalStorageStatus
         | undefined;
 
-      const transactions = data?.get(depositId) ?? null;
+      // Get polling entry (includes transactions, daemon status, and progress)
+      const pollingEntry = data?.get(depositId);
+      const transactions = pollingEntry?.transactions ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
 
       const peginState = getPeginState(contractStatus, {
@@ -113,6 +115,8 @@ export function PeginPollingProvider({
         loading: isLoading,
         error: null,
         peginState,
+        daemonStatus: pollingEntry?.daemonStatus,
+        daemonProgress: pollingEntry?.daemonProgress,
       };
     },
     [activities, pendingPegins, data, isLoading, optimisticStatuses],

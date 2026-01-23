@@ -6,7 +6,10 @@
 
 import type { Hex } from "viem";
 
-import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import {
+  VaultProviderRpcApi,
+  type PeginProgressDetails,
+} from "../../clients/vault-provider-rpc";
 import { DaemonStatus } from "../../models/peginStateMachine";
 import { stripHexPrefix } from "../../utils/btc";
 
@@ -28,6 +31,8 @@ export interface PeginStatusResult {
   status: DaemonStatus;
   /** Raw status string from the API */
   rawStatus: string;
+  /** Detailed progress for multi-party coordination steps */
+  progress: PeginProgressDetails;
 }
 
 /**
@@ -97,5 +102,6 @@ export async function checkPeginStatus(
   return {
     status,
     rawStatus,
+    progress: response.progress || {},
   };
 }

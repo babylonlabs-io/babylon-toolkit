@@ -10,7 +10,12 @@ import { Hint, StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 import { getNetworkConfigBTC } from "@/config";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
-import { getPrimaryActionButton } from "../../../models/peginStateMachine";
+import {
+  ContractStatus,
+  getDaemonProgressTooltip,
+  getDaemonStatusLabel,
+  getPrimaryActionButton,
+} from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 
@@ -35,9 +40,25 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const { peginState, transactions } = pollingResult;
+  const { peginState, transactions, daemonStatus, daemonProgress } =
+    pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
   const actions = getCardActions(actionButton);
+
+  // Use daemon status for more detailed progress display when available
+  // Only show daemon status for pending contract states (status 0 or 1)
+  const useDaemonStatus =
+    daemonStatus &&
+    (peginState.contractStatus === ContractStatus.PENDING ||
+      peginState.contractStatus === ContractStatus.VERIFIED);
+
+  const statusLabel = useDaemonStatus
+    ? getDaemonStatusLabel(daemonStatus, daemonProgress)
+    : peginState.displayLabel;
+
+  const statusTooltip = useDaemonStatus
+    ? getDaemonProgressTooltip(daemonStatus, daemonProgress)
+    : peginState.message;
 
   return (
     <VaultDetailCard
@@ -71,10 +92,10 @@ export function DepositMobileCard({
         {
           label: "Status",
           value: (
-            <Hint tooltip={peginState.message} attachToChildren>
+            <Hint tooltip={statusTooltip} attachToChildren>
               <StatusBadge
                 status={peginState.displayVariant}
-                label={peginState.displayLabel}
+                label={statusLabel}
               />
             </Hint>
           ),

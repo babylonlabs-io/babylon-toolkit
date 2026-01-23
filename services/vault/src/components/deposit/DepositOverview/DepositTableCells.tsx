@@ -10,6 +10,9 @@ import { useState } from "react";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 import {
+  ContractStatus,
+  getDaemonProgressTooltip,
+  getDaemonStatusLabel,
   getPrimaryActionButton,
   PeginAction,
 } from "../../../models/peginStateMachine";
@@ -51,20 +54,35 @@ export function getCardActions(
  *
  * Uses displayVariant from the state machine directly instead of
  * mapping from displayLabel strings.
+ *
+ * When daemon status is available (for pending deposits), shows detailed
+ * progress like "Preparing (3/5)" with a tooltip explaining what's happening.
  */
 export function StatusCell({ depositId }: { depositId: string }) {
   const pollingResult = useDepositPollingResult(depositId);
 
   if (!pollingResult) return null;
 
-  const { peginState } = pollingResult;
+  const { peginState, daemonStatus, daemonProgress } = pollingResult;
+
+  // Use daemon status for more detailed progress display when available
+  // Only show daemon status for pending contract states (status 0 or 1)
+  const useDaemonStatus =
+    daemonStatus &&
+    (peginState.contractStatus === ContractStatus.PENDING ||
+      peginState.contractStatus === ContractStatus.VERIFIED);
+
+  const label = useDaemonStatus
+    ? getDaemonStatusLabel(daemonStatus, daemonProgress)
+    : peginState.displayLabel;
+
+  const tooltip = useDaemonStatus
+    ? getDaemonProgressTooltip(daemonStatus, daemonProgress)
+    : peginState.message;
 
   return (
-    <Hint tooltip={peginState.message} attachToChildren>
-      <StatusBadge
-        status={peginState.displayVariant}
-        label={peginState.displayLabel}
-      />
+    <Hint tooltip={tooltip} attachToChildren>
+      <StatusBadge status={peginState.displayVariant} label={label} />
     </Hint>
   );
 }

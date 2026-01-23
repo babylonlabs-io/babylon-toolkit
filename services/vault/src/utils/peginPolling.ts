@@ -67,7 +67,9 @@ export function getDepositsNeedingPolling(
 }
 
 /**
- * Group deposits by vault provider URL for batched RPC calls
+ * Group deposits by vault provider address for batched RPC calls
+ *
+ * @returns Map keyed by provider address (lowercase) with providerUrl and deposits
  */
 export function groupDepositsByProvider(
   depositsToPoll: DepositToPoll[],
@@ -82,11 +84,13 @@ export function groupDepositsByProvider(
 
     if (!provider?.url) continue;
 
-    const existing = grouped.get(provider.url);
+    // Key by provider address (lowercase) so we can pass it to fetchFromProvider
+    const providerKey = provider.id.toLowerCase();
+    const existing = grouped.get(providerKey);
     if (existing) {
       existing.deposits.push(deposit);
     } else {
-      grouped.set(provider.url, {
+      grouped.set(providerKey, {
         providerUrl: provider.url,
         deposits: [deposit],
       });

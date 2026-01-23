@@ -9,6 +9,8 @@ import { getBTCNetworkForWASM } from "@/config/pegin";
 import {
   isPreDepositorSignaturesError,
   LocalStorageStatus,
+  type DaemonProgress,
+  type DaemonStatus,
 } from "@/models/peginStateMachine";
 import {
   getSortedUniversalChallengerPubkeys,
@@ -17,11 +19,18 @@ import {
   submitSignaturesToVaultProvider,
   type SigningContext,
 } from "@/services/vault/vaultPayoutSignatureService";
+import { checkPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
 
 import type { PayoutSigningContext, PayoutSigningParams } from "./types";
+
+/** Callback for reporting daemon progress during polling */
+export type DaemonProgressCallback = (
+  status: DaemonStatus,
+  progress?: DaemonProgress,
+) => void;
 
 // ============================================================================
 // Constants
@@ -72,14 +81,50 @@ function isTransientError(error: unknown): boolean {
 // ============================================================================
 
 /**
+ * Extract progress from daemon status result
+ */
+function extractProgress(
+  statusResult: Awaited<ReturnType<typeof checkPeginStatus>>,
+): DaemonProgress | undefined {
+  const { status, progress } = statusResult;
+
+  if (status === DaemonStatus.PENDING_GC_DATA && progress.gc_data) {
+    return {
+      completed: progress.gc_data.completed_challengers,
+      total: progress.gc_data.total_challengers,
+    };
+  }
+  if (
+    status === DaemonStatus.PENDING_CHALLENGER_PRESIGNING &&
+    progress.presigning
+  ) {
+    return {
+      completed: progress.presigning.completed_challengers,
+      total: progress.presigning.total_challengers,
+    };
+  }
+  if (status === DaemonStatus.PENDING_ACKS && progress.ack_collection) {
+    return {
+      completed: progress.ack_collection.completed_challengers,
+      total: progress.ack_collection.total_challengers,
+    };
+  }
+  return undefined;
+}
+
+/**
  * Poll for payout transactions and prepare signing context.
  *
  * This function polls the vault provider until payout transactions are ready.
  * The signing context is constructed from data passed in (from step 2),
  * avoiding any dependency on the GraphQL indexer for step 3.
+ *
+ * @param params - Polling parameters
+ * @param onDaemonProgress - Optional callback to report daemon status during polling
  */
 export async function pollAndPreparePayoutSigning(
   params: PayoutSigningParams,
+  onDaemonProgress?: DaemonProgressCallback,
 ): Promise<PayoutSigningContext> {
   const {
     btcTxid,
@@ -96,6 +141,20 @@ export async function pollAndPreparePayoutSigning(
   // Poll vault provider until payout transactions are ready
   return pollUntil<PayoutSigningContext>(
     async () => {
+      // Fetch daemon status to report progress (optional, don't fail if it errors)
+      if (onDaemonProgress) {
+        try {
+          const statusResult = await checkPeginStatus(btcTxid, {
+            address: "0x0" as `0x${string}`, // Not used by checkPeginStatus
+            url: providerUrl,
+          });
+          const daemonProgress = extractProgress(statusResult);
+          onDaemonProgress(statusResult.status, daemonProgress);
+        } catch {
+          // Ignore status fetch errors - transactions fetch is the primary operation
+        }
+      }
+
       // Fetch payout transactions from vault provider
       const response = await rpcClient.requestDepositorPresignTransactions({
         pegin_txid: stripHexPrefix(btcTxid),

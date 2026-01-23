@@ -60,6 +60,7 @@ export function CollateralDepositSignModal({
     error,
     isWaiting,
     payoutSigningProgress,
+    daemonProgress,
   } = useDepositFlow({
     amount,
     feeRate,
@@ -101,7 +102,12 @@ export function CollateralDepositSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          {getStepDescription(currentStep, isWaiting, payoutSigningProgress)}
+          {getStepDescription(
+            currentStep,
+            isWaiting,
+            payoutSigningProgress,
+            daemonProgress,
+          )}
         </Text>
 
         <DepositSteps currentStep={currentStep} />
@@ -110,6 +116,7 @@ export function CollateralDepositSignModal({
           currentStep={currentStep}
           isWaiting={isWaiting}
           payoutSigningProgress={payoutSigningProgress}
+          daemonProgress={daemonProgress}
         />
 
         {error && <StatusBanner variant="error">{error}</StatusBanner>}

@@ -5,6 +5,8 @@
 import type { PropsWithChildren } from "react";
 
 import type {
+  DaemonProgress,
+  DaemonStatus,
   LocalStorageStatus,
   PeginState,
 } from "../models/peginStateMachine";
@@ -26,6 +28,10 @@ export interface DepositPollingResult {
   error: Error | null;
   /** Current state from pegin state machine */
   peginState: PeginState;
+  /** Daemon status from vault provider (for detailed progress display) */
+  daemonStatus?: DaemonStatus;
+  /** Progress information (completed/total challengers) */
+  daemonProgress?: DaemonProgress;
 }
 
 /** Context value type */

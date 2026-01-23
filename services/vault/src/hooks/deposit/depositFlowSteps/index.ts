@@ -42,6 +42,7 @@ export {
 export {
   pollAndPreparePayoutSigning,
   submitPayoutSignatures,
+  type DaemonProgressCallback,
 } from "./payoutSigning";
 
 // Step 4: Broadcast

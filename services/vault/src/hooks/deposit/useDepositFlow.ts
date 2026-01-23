@@ -18,6 +18,7 @@ import type { Address, Hex } from "viem";
 
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
+import type { DaemonProgress, DaemonStatus } from "@/models/peginStateMachine";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
   signPayout,
@@ -41,6 +42,12 @@ import {
 } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
+/** Daemon progress state for UI display */
+export interface DaemonProgressState {
+  status: DaemonStatus;
+  progress?: DaemonProgress;
+}
+
 export interface UseDepositFlowParams {
   amount: bigint;
   feeRate: number;
@@ -61,6 +68,8 @@ export interface UseDepositFlowReturn {
   error: string | null;
   isWaiting: boolean;
   payoutSigningProgress: PayoutSigningProgress | null;
+  /** Daemon progress during waiting state (for detailed UI display) */
+  daemonProgress: DaemonProgressState | null;
 }
 
 export function useDepositFlow(
@@ -87,6 +96,8 @@ export function useDepositFlow(
   const [isWaiting, setIsWaiting] = useState(false);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
+  const [daemonProgress, setDaemonProgress] =
+    useState<DaemonProgressState | null>(null);
 
   // Hooks
   const btcConnector = useChainConnector("BTC");
@@ -172,6 +183,7 @@ export function useDepositFlow(
         // Step 3: Poll and sign payout transactions
         setCurrentStep(DepositStep.SIGN_PAYOUTS);
         setIsWaiting(true);
+        setDaemonProgress(null);
 
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
@@ -179,21 +191,28 @@ export function useDepositFlow(
         }
 
         const { context, vaultProviderUrl, preparedTransactions } =
-          await pollAndPreparePayoutSigning({
-            btcTxid: peginResult.btcTxid,
-            btcTxHex: peginResult.btcTxHex,
-            depositorBtcPubkey: peginResult.depositorBtcPubkey,
-            providerUrl: provider.url,
-            providerBtcPubKey: provider.btcPubKey,
-            vaultKeepers: vaultKeepers.map((vk) => ({
-              btcPubKey: vk.btcPubKey,
-            })),
-            universalChallengers: universalChallengers.map((uc) => ({
-              btcPubKey: uc.btcPubKey,
-            })),
-          });
+          await pollAndPreparePayoutSigning(
+            {
+              btcTxid: peginResult.btcTxid,
+              btcTxHex: peginResult.btcTxHex,
+              depositorBtcPubkey: peginResult.depositorBtcPubkey,
+              providerUrl: provider.url,
+              providerBtcPubKey: provider.btcPubKey,
+              vaultKeepers: vaultKeepers.map((vk) => ({
+                btcPubKey: vk.btcPubKey,
+              })),
+              universalChallengers: universalChallengers.map((uc) => ({
+                btcPubKey: uc.btcPubKey,
+              })),
+            },
+            // Report daemon progress during polling
+            (status, progress) => {
+              setDaemonProgress({ status, progress });
+            },
+          );
 
         setIsWaiting(false);
+        setDaemonProgress(null);
 
         // Sign with progress tracking (loop stays in hook for state updates)
         const signatures = await signPayoutTransactionsWithProgress(
@@ -213,13 +232,23 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
-        // Step 4a: Wait for verification
-        setCurrentStep(DepositStep.BROADCAST_BTC);
-        setIsWaiting(true);
-        await waitForContractVerification({ btcTxid: peginResult.btcTxid });
-        setIsWaiting(false);
+        // Step 4: Await acknowledgements from challengers
+        setCurrentStep(DepositStep.AWAIT_ACKS);
+        setDaemonProgress(null);
+        await waitForContractVerification(
+          {
+            btcTxid: peginResult.btcTxid,
+            providerUrl: vaultProviderUrl,
+          },
+          // Report daemon progress during verification polling
+          (status, progress) => {
+            setDaemonProgress({ status, progress });
+          },
+        );
+        setDaemonProgress(null);
 
-        // Step 4b: Broadcast BTC transaction
+        // Step 5: Broadcast BTC transaction
+        setCurrentStep(DepositStep.BROADCAST_BTC);
         await broadcastBtcTransaction(
           {
             btcTxid: peginResult.btcTxid,
@@ -280,6 +309,7 @@ export function useDepositFlow(
     error,
     isWaiting,
     payoutSigningProgress,
+    daemonProgress,
   };
 }
 

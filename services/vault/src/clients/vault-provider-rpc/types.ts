@@ -105,6 +105,34 @@ export interface RequestDepositorPresignTransactionsResponse {
 }
 
 /**
+ * Progress tracking for a coordination step
+ * Shows which challengers have completed vs pending
+ */
+export interface ChallengerProgress {
+  /** Total number of challengers involved */
+  total_challengers: number;
+  /** Number of challengers that have completed this step */
+  completed_challengers: number;
+  /** Public keys of challengers that completed (hex, 32 bytes) */
+  completed_challenger_pubkeys: string[];
+  /** Public keys of challengers still pending (hex, 32 bytes) */
+  pending_challenger_pubkeys: string[];
+}
+
+/**
+ * Detailed progress information for a PegIn
+ * Different fields are populated based on current status
+ */
+export interface PeginProgressDetails {
+  /** GC data collection progress (present in PendingGCData state) */
+  gc_data?: ChallengerProgress;
+  /** Presigning progress (present in PendingChallengerPresigning state) */
+  presigning?: ChallengerProgress;
+  /** ACK collection progress (present in PendingACKs state) */
+  ack_collection?: ChallengerProgress;
+}
+
+/**
  * Response for getting PegIn status
  * Corresponds to: GetPeginStatusResponse
  */
@@ -115,6 +143,11 @@ export interface GetPeginStatusResponse {
    *             -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
    */
   status: string;
+  /**
+   * Detailed progress information for multi-party coordination steps
+   * Only populated for states that involve challenger coordination
+   */
+  progress: PeginProgressDetails;
 }
 
 // ============================================================================

@@ -1,4 +1,6 @@
 import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
+import type { DaemonProgressState } from "@/hooks/deposit/useDepositFlow";
+import { getDaemonStatusLabel } from "@/models/peginStateMachine";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 // Re-export for convenience
@@ -21,10 +23,12 @@ export const STEP_DESCRIPTIONS: Record<
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
   },
+  [DepositStep.AWAIT_ACKS]: {
+    active: "Waiting for challengers to acknowledge your payout signatures...",
+  },
   [DepositStep.BROADCAST_BTC]: {
     active:
       "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
-    waiting: "Waiting for on-chain verification...",
   },
   [DepositStep.COMPLETED]: {
     active: "Deposit successfully submitted!",
@@ -46,13 +50,14 @@ export const STEP_LABELS = [
   "Sign proof of possession",
   "Sign & submit peg-in request to Ethereum",
   "Sign payout transaction(s)",
+  "Await acknowledgements",
   "Sign & broadcast Bitcoin transaction",
 ] as const;
 
 /**
  * Total number of steps in the deposit flow (excluding completion)
  */
-export const TOTAL_STEPS = 4;
+export const TOTAL_STEPS = 5;
 
 /**
  * Get the description text for the current step
@@ -61,6 +66,7 @@ export function getStepDescription(
   step: DepositStep,
   isWaiting: boolean,
   payoutProgress: PayoutSigningProgress | null,
+  daemonProgress?: DaemonProgressState | null,
 ): string {
   const desc = STEP_DESCRIPTIONS[step];
   if (!desc) return "";
@@ -73,6 +79,28 @@ export function getStepDescription(
         ? ` (Claimer ${payoutProgress.currentClaimer}/${payoutProgress.totalClaimers})`
         : "";
     return `Signing ${stepLabel}${claimerInfo} — Step ${payoutProgress.completed + 1} of ${payoutProgress.total}`;
+  }
+
+  // Show daemon progress when waiting for vault provider (Step 3)
+  if (
+    step === DepositStep.SIGN_PAYOUTS &&
+    isWaiting &&
+    daemonProgress?.status
+  ) {
+    const statusLabel = getDaemonStatusLabel(
+      daemonProgress.status,
+      daemonProgress.progress,
+    );
+    return `Vault Provider: ${statusLabel}`;
+  }
+
+  // Show daemon progress for AWAIT_ACKS step (Step 4)
+  if (step === DepositStep.AWAIT_ACKS && daemonProgress?.status) {
+    const statusLabel = getDaemonStatusLabel(
+      daemonProgress.status,
+      daemonProgress.progress,
+    );
+    return `Collecting acknowledgements: ${statusLabel}`;
   }
 
   return isWaiting && desc.waiting ? desc.waiting : desc.active;
