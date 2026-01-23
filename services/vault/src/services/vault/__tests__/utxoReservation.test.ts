@@ -209,6 +209,57 @@ describe("UTXO Reservation", () => {
       expect(reserved).toHaveLength(0);
     });
 
+    it("should NOT include refs from LIQUIDATED vaults", () => {
+      const vault = createMockVault(
+        ContractStatus.LIQUIDATED,
+        createValidTxHex(
+          "5555555555555555555555555555555555555555555555555555555555555555",
+          0,
+        ),
+      );
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [vault],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
+    it("should NOT include refs from INVALID vaults", () => {
+      const vault = createMockVault(
+        ContractStatus.INVALID,
+        createValidTxHex(
+          "6666666666666666666666666666666666666666666666666666666666666666",
+          0,
+        ),
+      );
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [vault],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
+    it("should NOT include refs from DEPOSITOR_WITHDRAWN vaults", () => {
+      const vault = createMockVault(
+        ContractStatus.DEPOSITOR_WITHDRAWN,
+        createValidTxHex(
+          "7777777777777777777777777777777777777777777777777777777777777777",
+          0,
+        ),
+      );
+
+      const reserved = collectReservedUtxoRefs({
+        pendingPegins: [],
+        vaults: [vault],
+      });
+
+      expect(reserved).toHaveLength(0);
+    });
+
     it("should combine refs from multiple sources", () => {
       const pendingVault = createMockVault(
         ContractStatus.PENDING,

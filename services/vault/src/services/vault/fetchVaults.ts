@@ -67,7 +67,9 @@ type GraphQLVaultStatus =
   | "verified"
   | "available"
   | "redeemed"
-  | "invalid";
+  | "liquidated"
+  | "invalid"
+  | "depositor_withdrawn";
 
 /**
  * Raw vault item from GraphQL
@@ -124,8 +126,12 @@ function mapGraphQLStatusToVaultStatus(
       return VaultStatus.ACTIVE;
     case "redeemed":
       return VaultStatus.REDEEMED;
+    case "liquidated":
+      return VaultStatus.LIQUIDATED;
     case "invalid":
       return VaultStatus.INVALID;
+    case "depositor_withdrawn":
+      return VaultStatus.DEPOSITOR_WITHDRAWN;
     default:
       return VaultStatus.PENDING;
   }
