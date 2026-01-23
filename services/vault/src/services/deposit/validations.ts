@@ -5,6 +5,8 @@
 
 import type { UTXO } from "../vault/vaultTransactionService";
 
+import { MAX_DEPOSIT_SATS } from "./constants";
+
 export interface ValidationResult {
   valid: boolean;
   error?: string;
@@ -17,6 +19,54 @@ export interface DepositValidationParams {
   minDeposit: bigint;
   maxDeposit: bigint;
   utxos: UTXO[];
+}
+
+/**
+ * Parameters for checking if a deposit form is valid
+ */
+export interface DepositFormValidityParams {
+  /** Deposit amount in satoshis */
+  amountSats: bigint;
+  /** Minimum deposit from protocol params */
+  minDeposit: bigint;
+  /** Maximum deposit (defaults to MAX_DEPOSIT_SATS) */
+  maxDeposit?: bigint;
+  /** User's available BTC balance in satoshis */
+  btcBalance: bigint;
+}
+
+/**
+ * Check if deposit amount is within valid range and balance
+ *
+ * This is a pure function that validates deposit constraints without side effects.
+ * Used by form hooks to determine if the submit button should be enabled.
+ *
+ * @param params - Validation parameters
+ * @returns true if deposit amount is valid
+ */
+export function isDepositAmountValid(
+  params: DepositFormValidityParams,
+): boolean {
+  const {
+    amountSats,
+    minDeposit,
+    maxDeposit = MAX_DEPOSIT_SATS,
+    btcBalance,
+  } = params;
+
+  // Must have a positive amount
+  if (amountSats <= 0n) return false;
+
+  // Must meet minimum
+  if (amountSats < minDeposit) return false;
+
+  // Must not exceed maximum
+  if (amountSats > maxDeposit) return false;
+
+  // Must not exceed balance
+  if (amountSats > btcBalance) return false;
+
+  return true;
 }
 
 /**

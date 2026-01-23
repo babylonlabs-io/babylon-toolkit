@@ -131,6 +131,21 @@ vi.mock("../../../services/deposit", () => ({
     formatSatoshisToBtc: vi.fn((sats: bigint, decimals: number) => {
       return (Number(sats) / 100000000).toFixed(decimals);
     }),
+    isDepositAmountValid: vi.fn(
+      (params: {
+        amountSats: bigint;
+        minDeposit: bigint;
+        maxDeposit: bigint;
+        btcBalance: bigint;
+      }) => {
+        const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
+        if (amountSats <= 0n) return false;
+        if (amountSats < minDeposit) return false;
+        if (amountSats > maxDeposit) return false;
+        if (amountSats > btcBalance) return false;
+        return true;
+      },
+    ),
   },
 }));
 
@@ -595,6 +610,37 @@ describe("useDepositPageForm", () => {
       });
 
       expect(result.current.isValid).toBe(true);
+    });
+
+    it("should be false when amount exceeds balance", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Balance is 800,000 sats (from mocked UTXOs: 500000 + 300000)
+      // 1 BTC = 100,000,000 sats, so we set an amount higher than balance
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.01", // 1,000,000 sats - exceeds 800,000 balance
+          selectedApplication: "app1",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      expect(result.current.isValid).toBe(false);
+    });
+
+    it("should be false when amount exceeds maximum deposit", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Max deposit is 21M BTC (21000000_00000000 sats)
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "22000000", // 22M BTC - exceeds 21M max
+          selectedApplication: "app1",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      expect(result.current.isValid).toBe(false);
     });
   });
 

@@ -1,0 +1,124 @@
+[
+  {
+    "type": "function",
+    "name": "minimumPegInAmount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInFee",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInActivationTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInConfirmationDepth",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getTBVProtocolParams",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IProtocolParams.TBVProtocolParams",
+        "components": [
+          {
+            "name": "btcPrismAddress",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "vpRegistrationFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "feeCollector",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "minimumPegInAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pegInFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pegInActivationTimeout",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pegInConfirmationDepth",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "liquidatorFeeBps",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "arbitrageurDiscountBps",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "coreSpokeLiquidationFeeBps",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "protocolFeeRecipient",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  }
+]

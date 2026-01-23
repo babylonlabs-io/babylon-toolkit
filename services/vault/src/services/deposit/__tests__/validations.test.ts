@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import type { UTXO } from "../../vault/vaultTransactionService";
 import {
+  isDepositAmountValid,
   validateDepositAmount,
   validateProviderSelection,
   validateSufficientBalance,
@@ -247,6 +248,92 @@ describe("Deposit Validations", () => {
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Invalid vault provider");
+    });
+  });
+
+  describe("isDepositAmountValid", () => {
+    const minDeposit = 10000n;
+    const maxDeposit = 21000000_00000000n;
+    const btcBalance = 1000000n; // 0.01 BTC
+
+    it("should return true for valid deposit within all constraints", () => {
+      const result = isDepositAmountValid({
+        amountSats: 100000n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(true);
+    });
+
+    it("should return false for zero amount", () => {
+      const result = isDepositAmountValid({
+        amountSats: 0n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return false for amount below minimum", () => {
+      const result = isDepositAmountValid({
+        amountSats: 5000n, // below 10000n min
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return false for amount above maximum", () => {
+      const result = isDepositAmountValid({
+        amountSats: maxDeposit + 1n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return false for amount exceeding balance", () => {
+      const result = isDepositAmountValid({
+        amountSats: btcBalance + 1n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return true for exact minimum amount", () => {
+      const result = isDepositAmountValid({
+        amountSats: minDeposit,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(true);
+    });
+
+    it("should return true for exact balance amount", () => {
+      const result = isDepositAmountValid({
+        amountSats: btcBalance,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(true);
+    });
+
+    it("should use default maxDeposit when not provided", () => {
+      // This tests the default parameter value
+      const result = isDepositAmountValid({
+        amountSats: 100000n,
+        minDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(true);
     });
   });
 });

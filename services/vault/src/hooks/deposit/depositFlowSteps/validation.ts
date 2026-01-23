@@ -9,6 +9,8 @@ import type { DepositValidationParams } from "./types";
 /**
  * Validate all deposit inputs before starting the flow.
  * Throws an error if any validation fails.
+ *
+ * @param params - Validation parameters including min/max deposit from protocol params
  */
 export function validateDepositInputs(params: DepositValidationParams): void {
   const {
@@ -21,6 +23,8 @@ export function validateDepositInputs(params: DepositValidationParams): void {
     utxoError,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    minDeposit,
+    maxDeposit,
   } = params;
 
   if (!btcAddress) {
@@ -30,11 +34,11 @@ export function validateDepositInputs(params: DepositValidationParams): void {
     throw new Error("ETH wallet not connected");
   }
 
-  // TODO: Min and Max values to be fetched from contract
+  // Validate amount using on-chain min/max values from protocol params
   const amountValidation = depositService.validateDepositAmount(
     amount,
-    10000n, // MIN_DEPOSIT
-    21000000_00000000n, // MAX_DEPOSIT
+    minDeposit,
+    maxDeposit,
   );
   if (!amountValidation.valid) {
     throw new Error(amountValidation.error);

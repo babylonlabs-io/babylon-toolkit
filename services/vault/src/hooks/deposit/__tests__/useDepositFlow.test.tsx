@@ -23,6 +23,11 @@ vi.mock("@babylonlabs-io/config", () => ({
     id: 11155111, // Sepolia
     name: "Sepolia",
   })),
+  getNetworkConfigETH: vi.fn(() => ({
+    chainId: 11155111,
+    name: "sepolia",
+    rpcUrl: "https://rpc.sepolia.org",
+  })),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -148,6 +153,23 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
 
 vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
+}));
+
+// Mock protocol params hook
+vi.mock("@/hooks/useProtocolParams", () => ({
+  usePegInConfig: vi.fn(() => ({
+    config: {
+      minimumPegInAmount: 10000n,
+      pegInFee: 0n,
+      pegInActivationTimeout: 50400n,
+      pegInConfirmationDepth: 30n,
+    },
+    minDeposit: 10000n,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
+  MAX_DEPOSIT_SATS: 21_000_000_00_000_000n,
 }));
 
 // Mock vault provider RPC

@@ -1,7 +1,9 @@
 /**
- * Minimum deposit amount in satoshis (0.0001 BTC)
+ * Deposit amount limits are now fetched from the ProtocolParams contract.
  *
- * This is a fixed minimum - fee validation happens during UTXO selection
- * in the review modal where we have the actual fee rate.
+ * Use `usePegInConfig()` hook to get:
+ * - minDeposit: Minimum deposit amount from contract (minimumPegInAmount)
+ * - MAX_DEPOSIT_SATS: Maximum deposit (21M BTC - Bitcoin's max supply)
+ *
+ * @see src/hooks/useProtocolParams.ts
  */
-export const MIN_DEPOSIT_SATS = 10_000n;

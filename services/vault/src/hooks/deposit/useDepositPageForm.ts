@@ -193,16 +193,32 @@ export function useDepositPageForm(
     const hasApplication = formData.selectedApplication !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
-    const meetsMinimum = amountSats >= validation.minDeposit;
+
+    // Delegate amount validation to service layer
+    const isAmountValid = depositService.isDepositAmountValid({
+      amountSats,
+      minDeposit: validation.minDeposit,
+      maxDeposit: validation.maxDeposit,
+      btcBalance,
+    });
+
     return (
       isWalletConnected &&
       hasAmount &&
       hasApplication &&
       hasProvider &&
       noErrors &&
-      meetsMinimum
+      isAmountValid
     );
-  }, [isWalletConnected, formData, errors, amountSats, validation.minDeposit]);
+  }, [
+    isWalletConnected,
+    formData,
+    errors,
+    amountSats,
+    validation.minDeposit,
+    validation.maxDeposit,
+    btcBalance,
+  ]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({

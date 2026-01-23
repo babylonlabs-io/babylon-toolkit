@@ -64,6 +64,10 @@ export interface DepositValidationParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys - required for Taproot script */
   universalChallengerBtcPubkeys: string[];
+  /** Minimum deposit amount in satoshis (from protocol params contract) */
+  minDeposit: bigint;
+  /** Maximum deposit amount in satoshis */
+  maxDeposit: bigint;
 }
 
 // ============================================================================

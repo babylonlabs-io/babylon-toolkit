@@ -21,6 +21,23 @@ vi.mock("../../../hooks/useUTXOs", () => ({
   })),
 }));
 
+// Mock the useProtocolParams hook
+vi.mock("../../useProtocolParams", () => ({
+  usePegInConfig: vi.fn(() => ({
+    config: {
+      minimumPegInAmount: 10000n,
+      pegInFee: 0n,
+      pegInActivationTimeout: 50400n,
+      pegInConfirmationDepth: 30n,
+    },
+    minDeposit: 10000n,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
+  MAX_DEPOSIT_SATS: 21_000_000_00_000_000n,
+}));
+
 // Mock useQuery for provider fetching
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query");

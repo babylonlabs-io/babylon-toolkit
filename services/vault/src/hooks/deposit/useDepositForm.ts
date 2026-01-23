@@ -137,14 +137,29 @@ export function useDepositForm(): UseDepositFormResult {
     return Object.keys(newErrors).length === 0;
   }, [formData, validation]);
 
-  // Check if form is valid
+  // Check if form is valid - delegate amount validation to service layer
   const isValid = useMemo(() => {
     const hasAmount = formData.amountBtc !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
-    const result = hasAmount && hasProvider && noErrors;
-    return result;
-  }, [formData, errors]);
+
+    // Delegate amount validation to service layer
+    const isAmountValid = depositService.isDepositAmountValid({
+      amountSats,
+      minDeposit: validation.minDeposit,
+      maxDeposit: validation.maxDeposit,
+      btcBalance,
+    });
+
+    return hasAmount && hasProvider && noErrors && isAmountValid;
+  }, [
+    formData,
+    errors,
+    amountSats,
+    validation.minDeposit,
+    validation.maxDeposit,
+    btcBalance,
+  ]);
 
   // Reset form
   const resetForm = useCallback(() => {
