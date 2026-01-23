@@ -146,8 +146,19 @@ function getEnhancedErrorMessage(
   ) {
     return `${operationName} failed: Insufficient liquidity. Please try a smaller amount.`;
   }
-  if (lowerMessage.includes("cap") || lowerMessage.includes("supply cap")) {
-    return `${operationName} failed: The collateral cap has been reached.`;
+  // Supply/borrow caps are protocol-level limits set by Aave governance to manage risk.
+  // They limit the maximum amount of an asset that can be supplied or borrowed.
+  // When a cap is reached, no more deposits/borrows of that asset are allowed until
+  // existing positions are withdrawn or repaid.
+  // Be specific here - don't match unrelated errors like "gas limit cap".
+  if (
+    lowerMessage.includes("supply cap") ||
+    lowerMessage.includes("collateral cap") ||
+    lowerMessage.includes("borrow cap") ||
+    lowerMessage.includes("cap reached") ||
+    lowerMessage.includes("cap exceeded")
+  ) {
+    return `${operationName} failed: The protocol cap for this asset has been reached. Try a smaller amount or wait for capacity to free up.`;
   }
   if (
     lowerMessage.includes("user rejected") ||
