@@ -33,8 +33,12 @@ export enum ContractStatus {
   ACTIVE = 2,
   /** Status 3: Vault has been redeemed, BTC is claimable */
   REDEEMED = 3,
-  /** Status 4: Vault is invalid - BTC UTXOs were spent in a different transaction */
-  INVALID = 4,
+  /** Status 4: Vault was liquidated (collateral seized due to unpaid debt) */
+  LIQUIDATED = 4,
+  /** Status 5: Vault is invalid - BTC UTXOs were spent in a different transaction */
+  INVALID = 5,
+  /** Status 6: Depositor has withdrawn their BTC (redemption complete) */
+  DEPOSITOR_WITHDRAWN = 6,
 }
 
 /**
@@ -112,6 +116,8 @@ export const PEGIN_DISPLAY_LABELS = {
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEMED: "Redeemed",
+  LIQUIDATED: "Liquidated",
+  WITHDRAWN: "Withdrawn",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
@@ -286,7 +292,20 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 4: Invalid (UTXOs spent in a different transaction)
+  // Contract Status 4: Liquidated (collateral was seized due to unpaid debt)
+  if (contractStatus === ContractStatus.LIQUIDATED) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: PEGIN_DISPLAY_LABELS.LIQUIDATED,
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault was liquidated. The collateral was seized to cover unpaid debt.",
+    };
+  }
+
+  // Contract Status 5: Invalid (UTXOs spent in a different transaction)
   if (contractStatus === ContractStatus.INVALID) {
     return {
       contractStatus,
@@ -296,6 +315,18 @@ export function getPeginState(
       availableActions: [PeginAction.NONE],
       message:
         "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+    };
+  }
+
+  // Contract Status 6: Depositor Withdrawn (redemption complete, BTC withdrawn)
+  if (contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: PEGIN_DISPLAY_LABELS.WITHDRAWN,
+      displayVariant: "inactive",
+      availableActions: [PeginAction.NONE],
+      message: "Withdrawal complete. Your BTC has been returned.",
     };
   }
 
@@ -384,7 +415,7 @@ export function getNextLocalStatus(
  * - CONFIRMING localStorage: useful when contract is VERIFIED (user broadcast BTC, waiting for confirmations)
  *
  * Remove when:
- * - Contract reached terminal states (ACTIVE, REDEEMED, INVALID)
+ * - Contract reached terminal states (ACTIVE, REDEEMED, LIQUIDATED, INVALID, DEPOSITOR_WITHDRAWN)
  * - localStorage status is stale relative to contract status
  */
 export function shouldRemoveFromLocalStorage(
@@ -395,7 +426,9 @@ export function shouldRemoveFromLocalStorage(
   if (
     contractStatus === ContractStatus.ACTIVE ||
     contractStatus === ContractStatus.REDEEMED ||
-    contractStatus === ContractStatus.INVALID
+    contractStatus === ContractStatus.LIQUIDATED ||
+    contractStatus === ContractStatus.INVALID ||
+    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
   ) {
     return true;
   }

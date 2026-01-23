@@ -82,6 +82,15 @@ describe("Deposit Transformers", () => {
       expect(getPeginState(ContractStatus.REDEEMED).displayLabel).toBe(
         "Redeemed",
       );
+      expect(getPeginState(ContractStatus.LIQUIDATED).displayLabel).toBe(
+        "Liquidated",
+      );
+      expect(getPeginState(ContractStatus.INVALID).displayLabel).toBe(
+        "Invalid",
+      );
+      expect(
+        getPeginState(ContractStatus.DEPOSITOR_WITHDRAWN).displayLabel,
+      ).toBe("Withdrawn");
     });
 
     it("should prioritize local status when present", () => {
