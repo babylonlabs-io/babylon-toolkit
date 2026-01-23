@@ -14,6 +14,9 @@ export interface VaultProviderMetadata {
  * Registry of known vault providers, keyed by lowercase provider address
  */
 export const VAULT_PROVIDER_REGISTRY: Record<string, VaultProviderMetadata> = {
+  "0x3c6ffca2f02f8524f59a7aa5e7c2ea46a0cb7c77": {
+    url: "https://btc-vault-api.vault-devnet.babylonlabs.io",
+  },
   "0xe650c9bd9be8755cf1df382f668741ab3d1ff11c": {
     url: "https://btc-vault-api.vault-devnet.babylonlabs.io",
   },
