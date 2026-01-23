@@ -1,8 +1,14 @@
 schema: ${NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT}
 documents: 'src/**/*.ts'
 generates:
-  ./src/graphql/schema.json:
+  ./src/graphql/generated.ts:
     plugins:
-      - introspection
+      - typescript
+      - typescript-operations
+      - typed-document-node
     config:
-      minify: true
+      avoidOptionals: false
+      maybeValue: T | null
+      skipTypename: false
+      scalars:
+        BigInt: string

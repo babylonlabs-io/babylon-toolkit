@@ -989,9 +989,15 @@ importers:
       '@graphql-codegen/cli':
         specifier: ^6.1.1
         version: 6.1.1(@types/node@22.17.0)(bufferutil@4.0.9)(crossws@0.3.5)(graphql@16.12.0)(typescript@5.9.2)(utf-8-validate@5.0.10)
-      '@graphql-codegen/introspection':
-        specifier: ^5.0.0
-        version: 5.0.0(graphql@16.12.0)
+      '@graphql-codegen/typed-document-node':
+        specifier: ^6.1.5
+        version: 6.1.5(graphql@16.12.0)
+      '@graphql-codegen/typescript':
+        specifier: ^5.0.7
+        version: 5.0.7(graphql@16.12.0)
+      '@graphql-codegen/typescript-operations':
+        specifier: ^5.0.7
+        version: 5.0.7(graphql@16.12.0)
       '@playwright/test':
         specifier: ^1.55.1
         version: 1.56.1
@@ -2466,12 +2472,6 @@ packages:
 
   '@graphql-codegen/gql-tag-operations@5.1.2':
     resolution: {integrity: sha512-BIv66VJ2bKlpfXBeVakJxihBSKnBIdGFLMaFdnGPxqYlKIzaGffjsGbhViPwwBinmBChW4Se6PU4Py7eysYEiA==}
-    engines: {node: '>=16'}
-    peerDependencies:
-      graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
-
-  '@graphql-codegen/introspection@5.0.0':
-    resolution: {integrity: sha512-7GaV4o8J3yllz7hdvQVAwB8L5oizeLCRKCU5vEq6XyFsoi4mSVMAPhvDPkNgt4wtXPyEh59NU7QwG84JChrqHQ==}
     engines: {node: '>=16'}
     peerDependencies:
       graphql: ^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0
@@ -13274,15 +13274,6 @@ snapshots:
       '@graphql-codegen/visitor-plugin-common': 6.2.2(graphql@16.12.0)
       '@graphql-tools/utils': 10.11.0(graphql@16.12.0)
       auto-bind: 4.0.0
-      graphql: 16.12.0
-      tslib: 2.6.3
-    transitivePeerDependencies:
-      - encoding
-
-  '@graphql-codegen/introspection@5.0.0(graphql@16.12.0)':
-    dependencies:
-      '@graphql-codegen/plugin-helpers': 6.1.0(graphql@16.12.0)
-      '@graphql-codegen/visitor-plugin-common': 6.2.2(graphql@16.12.0)
       graphql: 16.12.0
       tslib: 2.6.3
     transitivePeerDependencies:

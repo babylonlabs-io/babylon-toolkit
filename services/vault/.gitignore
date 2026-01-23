@@ -270,5 +270,8 @@ next-env.d.ts
 # E2E Chrome Extensions
 extensions
 
+# GraphQL Codegen
+src/graphql/generated.ts
+src/graphql/schema.json
 
 local-server.js
