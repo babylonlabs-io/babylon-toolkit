@@ -1,5 +1,7 @@
 /**
  * Transaction factory for reducing boilerplate in contract write operations
+ *
+ * Includes pre-flight simulation to catch errors before user signs.
  */
 
 import {
@@ -41,10 +43,11 @@ export interface ExecuteWriteOptions {
  * Execute a contract write operation with standard error handling
  *
  * Handles the common pattern:
- * 1. Call writeContract
- * 2. Wait for transaction receipt
- * 3. Return hash + receipt
- * 4. Map errors to ContractError
+ * 1. Pre-flight simulation (catches errors before user signs)
+ * 2. Call writeContract
+ * 3. Wait for transaction receipt
+ * 4. Return hash + receipt
+ * 5. Map errors to ContractError with ABI decoding
  */
 export async function executeWrite(
   options: ExecuteWriteOptions,
@@ -60,15 +63,30 @@ export async function executeWrite(
   } = options;
 
   const publicClient = ethClient.getPublicClient();
+  const account = walletClient.account;
+
+  if (!account) {
+    throw new Error("Wallet account not available");
+  }
 
   try {
+    // Pre-flight simulation - catches errors before user signs
+    await publicClient.simulateContract({
+      address,
+      abi,
+      functionName,
+      args,
+      account,
+    });
+
+    // Simulation passed, now send the actual transaction
     const hash = await walletClient.writeContract({
       address,
       abi,
       functionName,
       args,
       chain,
-      account: walletClient.account!,
+      account,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -85,7 +103,8 @@ export async function executeWrite(
       receipt,
     };
   } catch (error) {
-    throw mapViemErrorToContractError(error, errorContext);
+    // Pass the ABI for better error decoding
+    throw mapViemErrorToContractError(error, errorContext, [abi as Abi]);
   }
 }
 
@@ -105,7 +124,8 @@ export async function executeWriteWithProcessor<TResult>(
 /**
  * Execute a contract write with timeout-aware error handling
  *
- * Use for operations where you want to preserve the tx hash even if receipt polling times out
+ * Use for operations where you want to preserve the tx hash even if receipt polling times out.
+ * Includes pre-flight simulation to catch errors before user signs.
  */
 export async function executeWriteWithHashRecovery(
   options: ExecuteWriteOptions,
@@ -121,16 +141,31 @@ export async function executeWriteWithHashRecovery(
   } = options;
 
   const publicClient = ethClient.getPublicClient();
+  const account = walletClient.account;
   let hash: Hash | undefined;
 
+  if (!account) {
+    throw new Error("Wallet account not available");
+  }
+
   try {
+    // Pre-flight simulation - catches errors before user signs
+    await publicClient.simulateContract({
+      address,
+      abi,
+      functionName,
+      args,
+      account,
+    });
+
+    // Simulation passed, now send the actual transaction
     hash = await walletClient.writeContract({
       address,
       abi,
       functionName,
       args,
       chain,
-      account: walletClient.account!,
+      account,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -158,6 +193,7 @@ export async function executeWriteWithHashRecovery(
       throw enhancedError;
     }
 
-    throw mapViemErrorToContractError(error, errorContext);
+    // Pass the ABI for better error decoding
+    throw mapViemErrorToContractError(error, errorContext, [abi as Abi]);
   }
 }

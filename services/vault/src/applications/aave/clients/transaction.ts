@@ -5,7 +5,9 @@
  * Only includes Core Spoke operations for regular users (no Arbitrageur operations).
  */
 
+import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
+  AaveIntegrationControllerABI,
   buildAddCollateralTx,
   buildBorrowTx,
   buildDepositorRedeemTx,
@@ -19,7 +21,33 @@ import { type TransactionResult } from "../../../clients/eth-contract/transactio
 import { mapViemErrorToContractError } from "../../../utils/errors";
 
 /**
+ * Simulate a transaction to catch errors before sending
+ *
+ * Uses eth_call to simulate the transaction against current blockchain state.
+ * No signature required - this is a read-only operation.
+ *
+ * @throws Error with revert reason if simulation fails
+ */
+async function simulateTx(
+  to: Address,
+  data: Hex,
+  account: Address,
+): Promise<void> {
+  const publicClient = ethClient.getPublicClient();
+
+  // eth_call simulates the transaction without submitting
+  // If it reverts, we get the error data back
+  await publicClient.call({
+    to,
+    data,
+    account,
+  });
+}
+
+/**
  * Execute a transaction using encoded data from SDK
+ *
+ * Performs pre-flight simulation first to catch errors before user signs.
  */
 async function executeTx(
   walletClient: WalletClient,
@@ -29,8 +57,17 @@ async function executeTx(
   errorContext: string,
 ): Promise<TransactionResult> {
   const publicClient = ethClient.getPublicClient();
+  const account = walletClient.account?.address;
+
+  if (!account) {
+    throw new Error("Wallet account not available");
+  }
 
   try {
+    // Pre-flight simulation - catches errors before user signs
+    await simulateTx(to, data, account);
+
+    // Simulation passed, now send the actual transaction
     const hash = await walletClient.sendTransaction({
       to,
       data,
@@ -52,7 +89,12 @@ async function executeTx(
       receipt,
     };
   } catch (error) {
-    throw mapViemErrorToContractError(error, errorContext);
+    // Include both ABIs for comprehensive error decoding
+    // AaveIntegrationController may call into BTCVaultsManager
+    throw mapViemErrorToContractError(error, errorContext, [
+      AaveIntegrationControllerABI,
+      BTCVaultsManagerABI,
+    ]);
   }
 }
 
