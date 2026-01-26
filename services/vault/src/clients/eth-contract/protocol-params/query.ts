@@ -102,33 +102,21 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
     functionName: "getTBVProtocolParams",
   });
 
-  // Type assertion - viem returns tuple as array
-  const result = params as [
-    Address, // btcPrismAddress
-    bigint, // vpRegistrationFee
-    Address, // feeCollector
-    bigint, // minimumPegInAmount
-    bigint, // pegInFee
-    bigint, // pegInActivationTimeout
-    bigint, // pegInConfirmationDepth
-    bigint, // liquidatorFeeBps
-    bigint, // arbitrageurDiscountBps
-    bigint, // coreSpokeLiquidationFeeBps
-    Address, // protocolFeeRecipient
-  ];
+  // Viem returns named tuple components as an object with named properties
+  const result = params as TBVProtocolParams;
 
   return {
-    btcPrismAddress: result[0],
-    vpRegistrationFee: result[1],
-    feeCollector: result[2],
-    minimumPegInAmount: result[3],
-    pegInFee: result[4],
-    pegInActivationTimeout: result[5],
-    pegInConfirmationDepth: result[6],
-    liquidatorFeeBps: result[7],
-    arbitrageurDiscountBps: result[8],
-    coreSpokeLiquidationFeeBps: result[9],
-    protocolFeeRecipient: result[10],
+    btcPrismAddress: result.btcPrismAddress,
+    vpRegistrationFee: result.vpRegistrationFee,
+    feeCollector: result.feeCollector,
+    minimumPegInAmount: result.minimumPegInAmount,
+    pegInFee: result.pegInFee,
+    pegInActivationTimeout: result.pegInActivationTimeout,
+    pegInConfirmationDepth: result.pegInConfirmationDepth,
+    liquidatorFeeBps: result.liquidatorFeeBps,
+    arbitrageurDiscountBps: result.arbitrageurDiscountBps,
+    coreSpokeLiquidationFeeBps: result.coreSpokeLiquidationFeeBps,
+    protocolFeeRecipient: result.protocolFeeRecipient,
   };
 }
 

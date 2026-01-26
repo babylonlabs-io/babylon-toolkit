@@ -19,7 +19,6 @@ export type {
   BroadcastParams,
   DepositFlowResult,
   DepositUtxo,
-  DepositValidationParams,
   PayoutSigningContext,
   PayoutSigningParams,
   PeginSubmitParams,
@@ -28,8 +27,9 @@ export type {
   UtxoRef,
 } from "./types";
 
-// Step 0: Validation
+// Step 0: Validation (from service layer)
 export { validateDepositInputs } from "./validation";
+export type { DepositFlowInputs } from "./validation";
 
 // Steps 1-2: ETH wallet and pegin submission
 export {

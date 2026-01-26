@@ -16,52 +16,44 @@ import {
 describe("Deposit Validations", () => {
   describe("validateDepositAmount", () => {
     const minDeposit = 10000n; // 0.0001 BTC
-    const maxDeposit = 21000000_00000000n; // 21M BTC
 
     it("should accept valid deposit amount", () => {
-      const result = validateDepositAmount(100000n, minDeposit, maxDeposit);
+      const result = validateDepositAmount(100000n, minDeposit);
 
       expect(result.valid).toBe(true);
       expect(result.error).toBeUndefined();
     });
 
     it("should reject zero amount", () => {
-      const result = validateDepositAmount(0n, minDeposit, maxDeposit);
+      const result = validateDepositAmount(0n, minDeposit);
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("greater than zero");
     });
 
     it("should reject negative amount", () => {
-      const result = validateDepositAmount(-1000n, minDeposit, maxDeposit);
+      const result = validateDepositAmount(-1000n, minDeposit);
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("greater than zero");
     });
 
     it("should reject amount below minimum", () => {
-      const result = validateDepositAmount(5000n, minDeposit, maxDeposit);
+      const result = validateDepositAmount(5000n, minDeposit);
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Minimum deposit");
     });
 
-    it("should reject amount above maximum", () => {
-      const tooMuch = maxDeposit + 1n;
-      const result = validateDepositAmount(tooMuch, minDeposit, maxDeposit);
-
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("Maximum deposit");
-    });
-
     it("should accept exact minimum amount", () => {
-      const result = validateDepositAmount(minDeposit, minDeposit, maxDeposit);
+      const result = validateDepositAmount(minDeposit, minDeposit);
 
       expect(result.valid).toBe(true);
     });
 
-    it("should accept exact maximum amount", () => {
-      const result = validateDepositAmount(maxDeposit, minDeposit, maxDeposit);
+    it("should accept very large amounts (no max limit)", () => {
+      const veryLargeAmount = 21_000_000_00_000_000n; // 21M BTC
+      const result = validateDepositAmount(veryLargeAmount, minDeposit);
 
       expect(result.valid).toBe(true);
     });
@@ -253,14 +245,12 @@ describe("Deposit Validations", () => {
 
   describe("isDepositAmountValid", () => {
     const minDeposit = 10000n;
-    const maxDeposit = 21000000_00000000n;
     const btcBalance = 1000000n; // 0.01 BTC
 
     it("should return true for valid deposit within all constraints", () => {
       const result = isDepositAmountValid({
         amountSats: 100000n,
         minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(true);
@@ -270,7 +260,6 @@ describe("Deposit Validations", () => {
       const result = isDepositAmountValid({
         amountSats: 0n,
         minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(false);
@@ -280,17 +269,6 @@ describe("Deposit Validations", () => {
       const result = isDepositAmountValid({
         amountSats: 5000n, // below 10000n min
         minDeposit,
-        maxDeposit,
-        btcBalance,
-      });
-      expect(result).toBe(false);
-    });
-
-    it("should return false for amount above maximum", () => {
-      const result = isDepositAmountValid({
-        amountSats: maxDeposit + 1n,
-        minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(false);
@@ -300,7 +278,6 @@ describe("Deposit Validations", () => {
       const result = isDepositAmountValid({
         amountSats: btcBalance + 1n,
         minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(false);
@@ -310,7 +287,6 @@ describe("Deposit Validations", () => {
       const result = isDepositAmountValid({
         amountSats: minDeposit,
         minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(true);
@@ -320,18 +296,17 @@ describe("Deposit Validations", () => {
       const result = isDepositAmountValid({
         amountSats: btcBalance,
         minDeposit,
-        maxDeposit,
         btcBalance,
       });
       expect(result).toBe(true);
     });
 
-    it("should use default maxDeposit when not provided", () => {
-      // This tests the default parameter value
+    it("should accept very large amounts if balance allows (no max limit)", () => {
+      const largeBalance = 21_000_000_00_000_000n; // 21M BTC
       const result = isDepositAmountValid({
-        amountSats: 100000n,
+        amountSats: largeBalance,
         minDeposit,
-        btcBalance,
+        btcBalance: largeBalance,
       });
       expect(result).toBe(true);
     });

@@ -2,15 +2,15 @@
  * Deposit validation hook
  *
  * Handles all validation logic for deposits using pure service functions.
- * Integrates with wallet data, UTXO queries, and on-chain protocol params.
+ * Integrates with wallet data, UTXO queries, and protocol params from context.
  */
 
 import { useCallback } from "react";
 
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
 import { depositService } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
-import { MAX_DEPOSIT_SATS, usePegInConfig } from "../useProtocolParams";
 import { useUTXOs } from "../useUTXOs";
 
 export interface UseDepositValidationResult {
@@ -19,16 +19,8 @@ export interface UseDepositValidationResult {
   validateProviders: (providers: string[]) => ValidationResult;
   validateDeposit: (data: DepositFormData) => Promise<ValidationResult>;
 
-  // Available providers (passed in, not fetched)
   availableProviders: string[];
-
-  // Validation state (fetched from contract)
   minDeposit: bigint;
-  maxDeposit: bigint;
-
-  // Loading and error state for protocol params
-  isLoadingParams: boolean;
-  paramsError: Error | null;
 }
 
 /**
@@ -44,12 +36,7 @@ export function useDepositValidation(
 ): UseDepositValidationResult {
   const providers = availableProviders;
 
-  // Get protocol params from contract
-  const {
-    minDeposit,
-    isLoading: isLoadingParams,
-    error: paramsError,
-  } = usePegInConfig();
+  const { minDeposit } = useProtocolParamsContext();
 
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
@@ -59,11 +46,7 @@ export function useDepositValidation(
     (amount: string): ValidationResult => {
       try {
         const satoshis = depositService.parseBtcToSatoshis(amount);
-        return depositService.validateDepositAmount(
-          satoshis,
-          minDeposit,
-          MAX_DEPOSIT_SATS,
-        );
+        return depositService.validateDepositAmount(satoshis, minDeposit);
       } catch {
         return {
           valid: false,
@@ -158,8 +141,5 @@ export function useDepositValidation(
     validateDeposit,
     availableProviders: providers,
     minDeposit,
-    maxDeposit: MAX_DEPOSIT_SATS,
-    isLoadingParams,
-    paramsError,
   };
 }

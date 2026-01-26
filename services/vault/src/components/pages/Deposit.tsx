@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { FeatureFlags } from "@/config";
+import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 
 import { DepositState } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -41,6 +42,7 @@ function DepositContent() {
     isLoadingProviders,
     amountSats,
     validateForm,
+    validateAmountOnBlur,
   } = useDepositPageForm({ initialApplicationId: initialAppId });
 
   // Deposit flow (modals, wallet, provider data)
@@ -94,6 +96,7 @@ function DepositContent() {
               error={errors.amount}
               completed={formData.amountBtc !== "" && !errors.amount}
               onAmountChange={(value) => setFormData({ amountBtc: value })}
+              onAmountBlur={validateAmountOnBlur}
               onMaxClick={handleMaxClick}
             />
 
@@ -173,10 +176,12 @@ function DepositContent() {
 
 export default function Deposit() {
   return (
-    <DepositState>
-      <VaultRedeemState>
-        <DepositContent />
-      </VaultRedeemState>
-    </DepositState>
+    <ProtocolParamsProvider>
+      <DepositState>
+        <VaultRedeemState>
+          <DepositContent />
+        </VaultRedeemState>
+      </DepositState>
+    </ProtocolParamsProvider>
   );
 }

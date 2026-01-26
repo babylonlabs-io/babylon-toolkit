@@ -155,9 +155,9 @@ vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
 }));
 
-// Mock protocol params hook
-vi.mock("@/hooks/useProtocolParams", () => ({
-  usePegInConfig: vi.fn(() => ({
+// Mock protocol params context
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: vi.fn(() => ({
     config: {
       minimumPegInAmount: 10000n,
       pegInFee: 0n,
@@ -165,11 +165,7 @@ vi.mock("@/hooks/useProtocolParams", () => ({
       pegInConfirmationDepth: 30n,
     },
     minDeposit: 10000n,
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
   })),
-  MAX_DEPOSIT_SATS: 21_000_000_00_000_000n,
 }));
 
 // Mock vault provider RPC

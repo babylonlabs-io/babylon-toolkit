@@ -19,6 +19,7 @@ interface DepositAmountSectionProps {
   error?: string;
   completed?: boolean;
   onAmountChange: (value: string) => void;
+  onAmountBlur?: () => void;
   onMaxClick: () => void;
 }
 
@@ -29,6 +30,7 @@ export function DepositAmountSection({
   error,
   completed,
   onAmountChange,
+  onAmountBlur,
   onMaxClick,
 }: DepositAmountSectionProps) {
   const btcBalanceFormatted = useMemo(() => {
@@ -60,28 +62,31 @@ export function DepositAmountSection({
         {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       <SubSection className="flex w-full flex-col gap-2">
-        <AmountItem
-          amount={amount}
-          amountUsd={amountUsd}
-          currencyIcon={btcConfig.icon}
-          currencyName={btcConfig.name}
-          placeholder="Enter amount"
-          displayBalance={true}
-          balanceDetails={{
-            balance: btcBalanceFormatted,
-            symbol: btcConfig.coinSymbol,
-            price: btcPrice,
-            displayUSD: btcConfig.displayUSD,
-            decimals: 4,
-          }}
-          min="0"
-          step="any"
-          autoFocus={false}
-          onChange={(e) => onAmountChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onMaxClick={onMaxClick}
-          subtitle={error || ""}
-        />
+        <div onBlur={onAmountBlur}>
+          <AmountItem
+            amount={amount}
+            amountUsd={amountUsd}
+            currencyIcon={btcConfig.icon}
+            currencyName={btcConfig.name}
+            placeholder="Enter amount"
+            displayBalance={true}
+            balanceDetails={{
+              balance: btcBalanceFormatted,
+              symbol: btcConfig.coinSymbol,
+              price: btcPrice,
+              displayUSD: btcConfig.displayUSD,
+              decimals: 4,
+            }}
+            min="0"
+            step="any"
+            autoFocus={false}
+            onChange={(e) => onAmountChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onMaxClick={onMaxClick}
+            subtitle={error || ""}
+          />
+        </div>
+        {error && <p className="text-sm text-error-main">{error}</p>}
       </SubSection>
     </Card>
   );

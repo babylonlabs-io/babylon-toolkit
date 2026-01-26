@@ -44,6 +44,7 @@ export interface UseDepositPageFormResult {
   amountSats: bigint;
 
   validateForm: () => boolean;
+  validateAmountOnBlur: () => void;
   resetForm: () => void;
 }
 
@@ -133,6 +134,7 @@ export function useDepositPageForm(
       ...prev,
       ...data,
     }));
+    // Clear errors when user starts typing (they'll be validated on blur)
     if (data.amountBtc !== undefined) {
       setErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -155,6 +157,15 @@ export function useDepositPageForm(
       });
     }
   }, []);
+
+  // Validate amount on blur
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
+    }
+  }, [formData.amountBtc, validation]);
 
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
@@ -198,7 +209,6 @@ export function useDepositPageForm(
     const isAmountValid = depositService.isDepositAmountValid({
       amountSats,
       minDeposit: validation.minDeposit,
-      maxDeposit: validation.maxDeposit,
       btcBalance,
     });
 
@@ -216,7 +226,6 @@ export function useDepositPageForm(
     errors,
     amountSats,
     validation.minDeposit,
-    validation.maxDeposit,
     btcBalance,
   ]);
 
@@ -244,6 +253,7 @@ export function useDepositPageForm(
     isLoadingProviders,
     amountSats,
     validateForm,
+    validateAmountOnBlur,
     resetForm,
   };
 }

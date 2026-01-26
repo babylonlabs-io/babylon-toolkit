@@ -19,11 +19,7 @@ export {
 export { useNetworkFees } from "./useNetworkFees";
 export { usePrice, usePrices, type UsePricesResult } from "./usePrices";
 export {
-  MAX_DEPOSIT_SATS,
-  useMinDeposit,
-  usePegInConfig,
   useProtocolParams,
-  type UsePegInConfigResult,
   type UseProtocolParamsResult,
 } from "./useProtocolParams";
 export {

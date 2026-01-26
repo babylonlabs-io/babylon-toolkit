@@ -135,13 +135,11 @@ vi.mock("../../../services/deposit", () => ({
       (params: {
         amountSats: bigint;
         minDeposit: bigint;
-        maxDeposit: bigint;
         btcBalance: bigint;
       }) => {
-        const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
+        const { amountSats, minDeposit, btcBalance } = params;
         if (amountSats <= 0n) return false;
         if (amountSats < minDeposit) return false;
-        if (amountSats > maxDeposit) return false;
         if (amountSats > btcBalance) return false;
         return true;
       },
@@ -174,7 +172,6 @@ vi.mock("../useDepositValidation", () => ({
     validateAmount: mockValidateAmount,
     validateProviders: mockValidateProviders,
     minDeposit: 10000n,
-    maxDeposit: 21000000_00000000n,
     availableProviders: [
       "0x1234567890abcdef1234567890abcdef12345678",
       "0xabcdef1234567890abcdef1234567890abcdef12",
@@ -620,21 +617,6 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.01", // 1,000,000 sats - exceeds 800,000 balance
-          selectedApplication: "app1",
-          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
-        });
-      });
-
-      expect(result.current.isValid).toBe(false);
-    });
-
-    it("should be false when amount exceeds maximum deposit", () => {
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      // Max deposit is 21M BTC (21000000_00000000 sats)
-      act(() => {
-        result.current.setFormData({
-          amountBtc: "22000000", // 22M BTC - exceeds 21M max
           selectedApplication: "app1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });

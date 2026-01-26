@@ -16,7 +16,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import { MAX_DEPOSIT_SATS, usePegInConfig } from "@/hooks/useProtocolParams";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
 import { collectReservedUtxoRefs } from "@/services/vault";
@@ -100,8 +100,7 @@ export function useDepositFlow(
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers, universalChallengers } =
     useVaultProviders(selectedApplication);
-  // Get deposit limits from protocol params contract
-  const { minDeposit } = usePegInConfig();
+  const { minDeposit } = useProtocolParamsContext();
 
   const getSelectedVaultProvider = useCallback(() => {
     if (!selectedProviders || selectedProviders.length === 0) {
@@ -132,7 +131,6 @@ export function useDepositFlow(
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
           minDeposit,
-          maxDeposit: MAX_DEPOSIT_SATS,
         });
 
         // Step 1: Get ETH wallet client

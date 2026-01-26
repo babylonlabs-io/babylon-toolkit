@@ -147,19 +147,11 @@ export function useDepositForm(): UseDepositFormResult {
     const isAmountValid = depositService.isDepositAmountValid({
       amountSats,
       minDeposit: validation.minDeposit,
-      maxDeposit: validation.maxDeposit,
       btcBalance,
     });
 
     return hasAmount && hasProvider && noErrors && isAmountValid;
-  }, [
-    formData,
-    errors,
-    amountSats,
-    validation.minDeposit,
-    validation.maxDeposit,
-    btcBalance,
-  ]);
+  }, [formData, errors, amountSats, validation.minDeposit, btcBalance]);
 
   // Reset form
   const resetForm = useCallback(() => {

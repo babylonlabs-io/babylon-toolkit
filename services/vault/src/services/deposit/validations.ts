@@ -3,9 +3,11 @@
  * All validations return consistent ValidationResult format
  */
 
-import type { UTXO } from "../vault/vaultTransactionService";
+import type { Address } from "viem";
 
-import { MAX_DEPOSIT_SATS } from "./constants";
+import { formatSatoshisToBtc } from "@/utils/btcConversion";
+
+import type { UTXO } from "../vault/vaultTransactionService";
 
 export interface ValidationResult {
   valid: boolean;
@@ -13,12 +15,20 @@ export interface ValidationResult {
   warnings?: string[];
 }
 
-export interface DepositValidationParams {
+/**
+ * Parameters for validating deposit flow inputs before starting
+ */
+export interface DepositFlowInputs {
+  btcAddress: string | undefined;
+  depositorEthAddress: Address | undefined;
   amount: bigint;
-  btcBalance: bigint;
+  selectedProviders: string[];
+  confirmedUTXOs: UTXO[] | null;
+  isUTXOsLoading: boolean;
+  utxoError: Error | null;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
   minDeposit: bigint;
-  maxDeposit: bigint;
-  utxos: UTXO[];
 }
 
 /**
@@ -29,8 +39,6 @@ export interface DepositFormValidityParams {
   amountSats: bigint;
   /** Minimum deposit from protocol params */
   minDeposit: bigint;
-  /** Maximum deposit (defaults to MAX_DEPOSIT_SATS) */
-  maxDeposit?: bigint;
   /** User's available BTC balance in satoshis */
   btcBalance: bigint;
 }
@@ -47,21 +55,13 @@ export interface DepositFormValidityParams {
 export function isDepositAmountValid(
   params: DepositFormValidityParams,
 ): boolean {
-  const {
-    amountSats,
-    minDeposit,
-    maxDeposit = MAX_DEPOSIT_SATS,
-    btcBalance,
-  } = params;
+  const { amountSats, minDeposit, btcBalance } = params;
 
   // Must have a positive amount
   if (amountSats <= 0n) return false;
 
   // Must meet minimum
   if (amountSats < minDeposit) return false;
-
-  // Must not exceed maximum
-  if (amountSats > maxDeposit) return false;
 
   // Must not exceed balance
   if (amountSats > btcBalance) return false;
@@ -70,16 +70,14 @@ export function isDepositAmountValid(
 }
 
 /**
- * Validate deposit amount against constraints
+ * Validate deposit amount against minimum constraint
  * @param amount - Deposit amount in satoshis
- * @param minDeposit - Minimum allowed deposit
- * @param maxDeposit - Maximum allowed deposit
+ * @param minDeposit - Minimum allowed deposit (from contract)
  * @returns Validation result
  */
 export function validateDepositAmount(
   amount: bigint,
   minDeposit: bigint,
-  maxDeposit: bigint,
 ): ValidationResult {
   if (amount <= 0n) {
     return {
@@ -91,14 +89,7 @@ export function validateDepositAmount(
   if (amount < minDeposit) {
     return {
       valid: false,
-      error: `Minimum deposit is ${minDeposit} satoshis`,
-    };
-  }
-
-  if (amount > maxDeposit) {
-    return {
-      valid: false,
-      error: `Maximum deposit is ${maxDeposit} satoshis`,
+      error: `Minimum deposit is ${formatSatoshisToBtc(minDeposit)} BTC`,
     };
   }
 
@@ -221,4 +212,64 @@ export function validateProviderSelection(
   }
 
   return { valid: true };
+}
+
+/**
+ * Validate all deposit inputs before starting the flow.
+ * Throws an error if any validation fails.
+ */
+export function validateDepositInputs(params: DepositFlowInputs): void {
+  const {
+    btcAddress,
+    depositorEthAddress,
+    amount,
+    selectedProviders,
+    confirmedUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+    minDeposit,
+  } = params;
+
+  if (!btcAddress) {
+    throw new Error("BTC wallet not connected");
+  }
+  if (!depositorEthAddress) {
+    throw new Error("ETH wallet not connected");
+  }
+
+  const amountValidation = validateDepositAmount(amount, minDeposit);
+  if (!amountValidation.valid) {
+    throw new Error(amountValidation.error);
+  }
+
+  if (selectedProviders.length === 0) {
+    throw new Error("No providers selected");
+  }
+
+  if (!vaultKeeperBtcPubkeys || vaultKeeperBtcPubkeys.length === 0) {
+    throw new Error(
+      "No vault keepers available. The system requires at least one vault keeper to create a deposit.",
+    );
+  }
+
+  if (
+    !universalChallengerBtcPubkeys ||
+    universalChallengerBtcPubkeys.length === 0
+  ) {
+    throw new Error(
+      "No universal challengers available. The system requires at least one universal challenger to create a deposit.",
+    );
+  }
+
+  if (isUTXOsLoading) {
+    throw new Error("Loading UTXOs...");
+  }
+  if (utxoError) {
+    throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
+  }
+  if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+    throw new Error("No confirmed UTXOs available");
+  }
 }

@@ -49,28 +49,6 @@ export interface UtxoRef {
 }
 
 // ============================================================================
-// Step 0: Validation
-// ============================================================================
-
-export interface DepositValidationParams {
-  btcAddress: string | undefined;
-  depositorEthAddress: Address | undefined;
-  amount: bigint;
-  selectedProviders: string[];
-  confirmedUTXOs: DepositUtxo[] | null;
-  isUTXOsLoading: boolean;
-  utxoError: Error | null;
-  /** Vault keeper BTC public keys - required for Taproot script */
-  vaultKeeperBtcPubkeys: string[];
-  /** Universal challenger BTC public keys - required for Taproot script */
-  universalChallengerBtcPubkeys: string[];
-  /** Minimum deposit amount in satoshis (from protocol params contract) */
-  minDeposit: bigint;
-  /** Maximum deposit amount in satoshis */
-  maxDeposit: bigint;
-}
-
-// ============================================================================
 // Steps 1-2: Pegin Submit
 // ============================================================================
 
