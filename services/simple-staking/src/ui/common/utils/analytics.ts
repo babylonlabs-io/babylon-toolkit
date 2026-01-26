@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import * as Sentry from "@sentry/react";
+import * as Sentry from "@babylonlabs-io/observability";
 
 import { isRef } from "./isRef";
 
