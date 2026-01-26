@@ -46,38 +46,33 @@ export interface PegInConfiguration {
 }
 
 /**
- * Cache for protocol params address.
- *
- * This cache persists for the module lifetime. It should be cleared if:
- * - The network changes
- * - After a contract upgrade
- * - During development when switching environments
- *
- * In production, users should reload the application after contract upgrades.
+ * Cache for protocol params address, keyed by chainId.
+ * This ensures correct address is used when switching networks.
  */
-let protocolParamsAddressCache: Address | null = null;
+const protocolParamsAddressCache = new Map<number, Address>();
 
 /**
  * Clear the protocol params address cache.
  *
  * Call this when:
- * - Switching networks/environments
  * - After contract upgrades
  * - During testing to reset state
  */
 export function clearProtocolParamsCache(): void {
-  protocolParamsAddressCache = null;
+  protocolParamsAddressCache.clear();
 }
 
 /**
  * Get the ProtocolParams contract address from BTCVaultsManager
  */
 export async function getProtocolParamsAddress(): Promise<Address> {
-  if (protocolParamsAddressCache) {
-    return protocolParamsAddressCache;
-  }
-
   const publicClient = ethClient.getPublicClient();
+  const chainId = await publicClient.getChainId();
+
+  const cached = protocolParamsAddressCache.get(chainId);
+  if (cached) {
+    return cached;
+  }
 
   const address = await publicClient.readContract({
     address: CONTRACTS.BTC_VAULTS_MANAGER,
@@ -85,8 +80,8 @@ export async function getProtocolParamsAddress(): Promise<Address> {
     functionName: "protocolParams",
   });
 
-  protocolParamsAddressCache = address as Address;
-  return protocolParamsAddressCache;
+  protocolParamsAddressCache.set(chainId, address as Address);
+  return address as Address;
 }
 
 /**

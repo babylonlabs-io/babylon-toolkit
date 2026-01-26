@@ -62,6 +62,7 @@ export function DepositAmountSection({
         {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       <SubSection className="flex w-full flex-col gap-2">
+        {/* Wrapper div captures blur from AmountItem's internal input */}
         <div onBlur={onAmountBlur}>
           <AmountItem
             amount={amount}
@@ -83,7 +84,6 @@ export function DepositAmountSection({
             onChange={(e) => onAmountChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onMaxClick={onMaxClick}
-            subtitle={error || ""}
           />
         </div>
         {error && <p className="text-sm text-error-main">{error}</p>}
