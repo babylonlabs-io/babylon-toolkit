@@ -12,13 +12,24 @@
   "excludePrivate": true,
   "excludeInternal": true,
   "excludeExternals": true,
+  "exclude": ["**/*.abi.json"],
   "router": "module",
   "alwaysCreateEntryPointModule": true,
   "useCodeBlocks": true,
   "readme": "none",
   "validation": {
-    "notDocumented": false,
+    "notDocumented": true,
     "invalidLink": true,
-    "notExported": false
-  }
+    "notExported": true
+  },
+  "sort": ["source-order", "alphabetical"],
+  "groupOrder": ["Classes", "Interfaces", "Type Aliases", "Functions"],
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "navigationLinks": {
+    "Guides": "../guides/",
+    "GitHub": "https://github.com/babylonlabs-io/babylon-toolkit"
+  },
+  "includeVersion": true,
+  "sourceLinkTemplate": "../../{path}#L{line}"
 }

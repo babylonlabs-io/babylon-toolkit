@@ -41,13 +41,16 @@ export interface SignPsbtOptions {
    * Use this to restrict signing to specific inputs (e.g., only depositor's input).
    */
   signInputs?: SignInputOptions[];
-  /** Contract information for the signing operation */
+  /** Contract information for the signing operation. */
   contracts?: Array<{
+    /** Contract identifier. */
     id: string;
+    /** Contract parameters. */
     params: Record<string, string | number | string[] | number[]>;
   }>;
-  /** Action metadata */
+  /** Action metadata. */
   action?: {
+    /** Action name for tracking. */
     name: string;
   };
 }
