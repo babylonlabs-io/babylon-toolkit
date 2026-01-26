@@ -2,18 +2,16 @@
  * Deposit validation hook
  *
  * Handles all validation logic for deposits using pure service functions.
- * Integrates with wallet data and UTXO queries.
+ * Integrates with wallet data, UTXO queries, and protocol params from context.
  */
 
 import { useCallback } from "react";
 
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import type { DepositFormData, ValidationResult } from "../../services/deposit";
-import { depositService, MIN_DEPOSIT_SATS } from "../../services/deposit";
+import { depositService } from "../../services/deposit";
 import { formatErrorMessage } from "../../utils/errors";
 import { useUTXOs } from "../useUTXOs";
-
-// Constants
-const MAX_DEPOSIT_SATS = 21000000_00000000n; // 21M BTC (theoretical max)
 
 export interface UseDepositValidationResult {
   // Validation functions
@@ -21,12 +19,8 @@ export interface UseDepositValidationResult {
   validateProviders: (providers: string[]) => ValidationResult;
   validateDeposit: (data: DepositFormData) => Promise<ValidationResult>;
 
-  // Available providers (passed in, not fetched)
   availableProviders: string[];
-
-  // Validation state
   minDeposit: bigint;
-  maxDeposit: bigint;
 }
 
 /**
@@ -42,25 +36,26 @@ export function useDepositValidation(
 ): UseDepositValidationResult {
   const providers = availableProviders;
 
+  const { minDeposit } = useProtocolParamsContext();
+
   // Get UTXOs for validation
   const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
 
-  // Validate amount
-  const validateAmount = useCallback((amount: string): ValidationResult => {
-    try {
-      const satoshis = depositService.parseBtcToSatoshis(amount);
-      return depositService.validateDepositAmount(
-        satoshis,
-        MIN_DEPOSIT_SATS,
-        MAX_DEPOSIT_SATS,
-      );
-    } catch {
-      return {
-        valid: false,
-        error: "Invalid amount format",
-      };
-    }
-  }, []);
+  // Validate amount using on-chain minDeposit
+  const validateAmount = useCallback(
+    (amount: string): ValidationResult => {
+      try {
+        const satoshis = depositService.parseBtcToSatoshis(amount);
+        return depositService.validateDepositAmount(satoshis, minDeposit);
+      } catch {
+        return {
+          valid: false,
+          error: "Invalid amount format",
+        };
+      }
+    },
+    [minDeposit],
+  );
 
   // Validate provider selection
   const validateProviders = useCallback(
@@ -145,7 +140,6 @@ export function useDepositValidation(
     validateProviders,
     validateDeposit,
     availableProviders: providers,
-    minDeposit: MIN_DEPOSIT_SATS,
-    maxDeposit: MAX_DEPOSIT_SATS,
+    minDeposit,
   };
 }

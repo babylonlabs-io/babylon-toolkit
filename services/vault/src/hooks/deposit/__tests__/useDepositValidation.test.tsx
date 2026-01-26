@@ -21,6 +21,19 @@ vi.mock("../../../hooks/useUTXOs", () => ({
   })),
 }));
 
+// Mock the protocol params context
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: vi.fn(() => ({
+    config: {
+      minimumPegInAmount: 10000n,
+      pegInFee: 0n,
+      pegInActivationTimeout: 50400n,
+      pegInConfirmationDepth: 30n,
+    },
+    minDeposit: 10000n,
+  })),
+}));
+
 // Mock useQuery for provider fetching
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual("@tanstack/react-query");
@@ -122,7 +135,6 @@ describe("useDepositValidation", () => {
       );
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
-      expect(result.current.maxDeposit).toBe(21000000_00000000n);
     });
   });
 
@@ -352,7 +364,7 @@ describe("useDepositValidation", () => {
       expect(validationResult.valid).toBe(true);
     });
 
-    it("should handle very large amounts", () => {
+    it("should accept very large amounts (no max limit)", () => {
       const { result } = renderHook(
         () => useDepositValidation("bc1qaddress", mockProviders),
         {
@@ -360,10 +372,9 @@ describe("useDepositValidation", () => {
         },
       );
 
-      const validationResult = result.current.validateAmount("21000001"); // More than max supply
+      const validationResult = result.current.validateAmount("21000001");
 
-      expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toContain("Maximum deposit");
+      expect(validationResult.valid).toBe(true);
     });
 
     it("should handle negative amounts by stripping minus sign", () => {

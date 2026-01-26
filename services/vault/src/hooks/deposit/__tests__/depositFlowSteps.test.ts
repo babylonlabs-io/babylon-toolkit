@@ -100,6 +100,7 @@ describe("validateDepositInputs", () => {
     utxoError: null,
     vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],
     universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
+    minDeposit: 10000n,
   };
 
   describe("vault keepers validation", () => {

@@ -44,6 +44,7 @@ export interface UseDepositPageFormResult {
   amountSats: bigint;
 
   validateForm: () => boolean;
+  validateAmountOnBlur: () => void;
   resetForm: () => void;
 }
 
@@ -133,6 +134,7 @@ export function useDepositPageForm(
       ...prev,
       ...data,
     }));
+    // Clear errors when user starts typing (they'll be validated on blur)
     if (data.amountBtc !== undefined) {
       setErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -155,6 +157,15 @@ export function useDepositPageForm(
       });
     }
   }, []);
+
+  // Validate amount on blur
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
+    }
+  }, [formData.amountBtc, validation]);
 
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
@@ -193,16 +204,30 @@ export function useDepositPageForm(
     const hasApplication = formData.selectedApplication !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
-    const meetsMinimum = amountSats >= validation.minDeposit;
+
+    // Delegate amount validation to service layer
+    const isAmountValid = depositService.isDepositAmountValid({
+      amountSats,
+      minDeposit: validation.minDeposit,
+      btcBalance,
+    });
+
     return (
       isWalletConnected &&
       hasAmount &&
       hasApplication &&
       hasProvider &&
       noErrors &&
-      meetsMinimum
+      isAmountValid
     );
-  }, [isWalletConnected, formData, errors, amountSats, validation.minDeposit]);
+  }, [
+    isWalletConnected,
+    formData,
+    errors,
+    amountSats,
+    validation.minDeposit,
+    btcBalance,
+  ]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
@@ -228,6 +253,7 @@ export function useDepositPageForm(
     isLoadingProviders,
     amountSats,
     validateForm,
+    validateAmountOnBlur,
     resetForm,
   };
 }

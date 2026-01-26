@@ -19,6 +19,10 @@ export {
 export { useNetworkFees } from "./useNetworkFees";
 export { usePrice, usePrices, type UsePricesResult } from "./usePrices";
 export {
+  useProtocolParams,
+  type UseProtocolParamsResult,
+} from "./useProtocolParams";
+export {
   STATS_QUERY_KEY,
   useStats,
   type StatsData,
