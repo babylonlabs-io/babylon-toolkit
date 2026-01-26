@@ -85,13 +85,13 @@ vi.mock("../../useApplications", () => ({
   useApplications: vi.fn(() => ({
     data: [
       {
-        id: "app1",
+        id: "0xControllerAddress1",
         name: "App One",
         type: "type1",
         logoUrl: "https://example.com/logo1.png",
       },
       {
-        id: "app2",
+        id: "0xControllerAddress2",
         name: null,
         type: "type2",
         logoUrl: null,
@@ -99,6 +99,17 @@ vi.mock("../../useApplications", () => ({
     ],
     isLoading: false,
   })),
+}));
+
+// Mock getAppIdByController - maps controller addresses to app IDs
+vi.mock("../../../applications", () => ({
+  getAppIdByController: vi.fn((controllerAddress: string) => {
+    const mapping: Record<string, string> = {
+      "0xControllerAddress1": "aave",
+      "0xControllerAddress2": "compound",
+    };
+    return mapping[controllerAddress];
+  }),
 }));
 
 vi.mock("../useVaultProviders", () => ({
@@ -210,17 +221,40 @@ describe("useDepositPageForm", () => {
       expect(result.current.isValid).toBe(false);
     });
 
-    it("should initialize with initial application ID when provided", () => {
+    it("should initialize with initial application ID when provided as controller address", () => {
       const { result } = renderHook(
-        () => useDepositPageForm({ initialApplicationId: "app1" }),
+        () =>
+          useDepositPageForm({ initialApplicationId: "0xControllerAddress1" }),
         { wrapper },
       );
 
-      expect(result.current.formData).toEqual({
-        amountBtc: "",
-        selectedApplication: "app1",
-        selectedProvider: "",
+      expect(result.current.formData.selectedApplication).toBe(
+        "0xControllerAddress1",
+      );
+    });
+
+    it("should resolve app ID to controller address when provided as app ID", async () => {
+      const { result } = renderHook(
+        () => useDepositPageForm({ initialApplicationId: "aave" }),
+        { wrapper },
+      );
+
+      // After effect runs, should resolve "aave" to "0xControllerAddress1"
+      await vi.waitFor(() => {
+        expect(result.current.formData.selectedApplication).toBe(
+          "0xControllerAddress1",
+        );
       });
+    });
+
+    it("should not resolve if initialApplicationId does not match any app", () => {
+      const { result } = renderHook(
+        () => useDepositPageForm({ initialApplicationId: "unknown-app" }),
+        { wrapper },
+      );
+
+      // Should keep the original value since no match found
+      expect(result.current.formData.selectedApplication).toBe("unknown-app");
     });
 
     it("should calculate BTC balance from UTXOs", () => {
@@ -240,13 +274,13 @@ describe("useDepositPageForm", () => {
 
       expect(result.current.applications).toHaveLength(2);
       expect(result.current.applications[0]).toEqual({
-        id: "app1",
+        id: "0xControllerAddress1",
         name: "App One",
         type: "type1",
         logoUrl: "https://example.com/logo1.png",
       });
       expect(result.current.applications[1]).toEqual({
-        id: "app2",
+        id: "0xControllerAddress2",
         name: "type2",
         type: "type2",
         logoUrl: null,
@@ -285,10 +319,14 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
-        result.current.setFormData({ selectedApplication: "app1" });
+        result.current.setFormData({
+          selectedApplication: "0xControllerAddress1",
+        });
       });
 
-      expect(result.current.formData.selectedApplication).toBe("app1");
+      expect(result.current.formData.selectedApplication).toBe(
+        "0xControllerAddress1",
+      );
     });
 
     it("should update provider field", () => {
@@ -311,12 +349,14 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.002",
-          selectedApplication: "app2",
+          selectedApplication: "0xControllerAddress2",
         });
       });
 
       expect(result.current.formData.amountBtc).toBe("0.002");
-      expect(result.current.formData.selectedApplication).toBe("app2");
+      expect(result.current.formData.selectedApplication).toBe(
+        "0xControllerAddress2",
+      );
     });
 
     it("should clear amount error when amount is updated", () => {
@@ -345,7 +385,9 @@ describe("useDepositPageForm", () => {
       expect(result.current.errors.application).toBeDefined();
 
       act(() => {
-        result.current.setFormData({ selectedApplication: "app1" });
+        result.current.setFormData({
+          selectedApplication: "0xControllerAddress1",
+        });
       });
 
       expect(result.current.errors.application).toBeUndefined();
@@ -425,7 +467,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.00001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -468,7 +510,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
         });
       });
 
@@ -489,7 +531,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -509,7 +551,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -537,7 +579,7 @@ describe("useDepositPageForm", () => {
 
       act(() => {
         result.current.setFormData({
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -564,7 +606,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
         });
       });
 
@@ -577,7 +619,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -601,7 +643,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
@@ -633,7 +675,7 @@ describe("useDepositPageForm", () => {
       act(() => {
         result.current.setFormData({
           amountBtc: "0.001",
-          selectedApplication: "app1",
+          selectedApplication: "0xControllerAddress1",
           selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
         });
       });
