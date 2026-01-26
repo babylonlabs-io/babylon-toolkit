@@ -47,9 +47,7 @@ export function OverviewCard({
 
         <div className="space-y-4">
           {/* Collateral Value Row */}
-          <div
-            className={`flex items-center justify-between ${isConnected ? "border-b border-secondary-strokeLight pb-4" : ""}`}
-          >
+          <div className="flex items-center justify-between">
             <span className="text-sm text-accent-secondary">
               Collateral Value
             </span>
