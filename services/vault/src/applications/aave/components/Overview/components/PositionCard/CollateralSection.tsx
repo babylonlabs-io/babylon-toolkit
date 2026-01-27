@@ -100,6 +100,7 @@ export function CollateralSection({
   const showWithdrawButton = hasCollateral && !isPending;
 
   const renderContent = () => {
+    if (!isConnected) return <EmptyContent />;
     if (isPendingAdd) return <PendingContent message="Pending Add" />;
     if (isPendingWithdraw)
       return <PendingContent message="Pending Withdrawal" />;

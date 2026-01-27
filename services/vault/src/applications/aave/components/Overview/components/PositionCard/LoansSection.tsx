@@ -81,7 +81,7 @@ export function LoansSection({
       </div>
 
       {/* Content - either loan info or empty state */}
-      {hasLoans ? (
+      {hasLoans && isConnected ? (
         <SubSection className="w-full">
           <div className="space-y-4">
             {/* Borrowed Rows - one per asset */}

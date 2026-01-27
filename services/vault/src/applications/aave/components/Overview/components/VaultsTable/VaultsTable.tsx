@@ -131,8 +131,9 @@ export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
     },
   ];
 
-  // Show empty state if no vaults
-  if (vaults.length === 0) {
+  // Show empty state if no vaults or wallet is disconnected
+  // When disconnected, don't show cached vault data
+  if (vaults.length === 0 || !isConnected) {
     const emptyStateTitle = isConnected
       ? `You have no ${btcConfig.coinSymbol} Vaults available.`
       : `Please connect your wallet to view your ${btcConfig.coinSymbol} collateral.`;
