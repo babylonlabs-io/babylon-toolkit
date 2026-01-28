@@ -60,7 +60,11 @@ export function ActivityTable({ activities }: ActivityTableProps) {
       headerClassName: "w-[15%]",
       cellClassName: "w-[15%]",
       render: (_value, row) => (
-        <span className="text-sm text-accent-primary">{row.type}</span>
+        <span
+          className={`text-sm ${row.isPending ? "text-accent-secondary" : "text-accent-primary"}`}
+        >
+          {row.type}
+        </span>
       ),
     },
     {
@@ -88,16 +92,21 @@ export function ActivityTable({ activities }: ActivityTableProps) {
       header: "Transaction Hash",
       headerClassName: "w-[25%]",
       cellClassName: "w-[25%]",
-      render: (_value, row) => (
-        <a
-          href={getExplorerTxUrl(row.transactionHash)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-mono text-sm text-accent-secondary hover:text-primary-main hover:underline"
-        >
-          {trim(row.transactionHash)}
-        </a>
-      ),
+      render: (_value, row) =>
+        row.isPending || !row.transactionHash ? (
+          <span className="text-sm italic text-accent-secondary">
+            Pending...
+          </span>
+        ) : (
+          <a
+            href={getExplorerTxUrl(row.transactionHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm text-accent-secondary hover:text-primary-main hover:underline"
+          >
+            {trim(row.transactionHash)}
+          </a>
+        ),
     },
   ];
 
