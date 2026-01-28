@@ -9,6 +9,7 @@
 // Data fetching hooks
 export { useVaultActions } from "./deposit/useVaultActions";
 export { useActivities } from "./useActivities";
+export { useActivitiesWithPending } from "./useActivitiesWithPending";
 export { useApplications } from "./useApplications";
 export { useBTCBalance, type UseBTCBalanceResult } from "./useBTCBalance";
 export { useBtcPublicKey } from "./useBtcPublicKey";
