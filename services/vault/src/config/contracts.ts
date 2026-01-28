@@ -19,9 +19,4 @@ export const CONTRACTS = {
    * Controls collateral, borrowing, and lending operations for Aave protocol
    */
   AAVE_CONTROLLER: ENV.AAVE_CONTROLLER as Address,
-
-  /**
-   * VaultBTC token contract - ERC20 representation of BTC vaults
-   */
-  BTC_VAULT: ENV.BTC_VAULT as Address,
 } as const;

@@ -14,8 +14,8 @@ import { fetchVaultById } from "@/services/vault";
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
 
-/** Timeout for RPC requests (30 seconds) */
-const RPC_TIMEOUT_MS = 30 * 1000;
+/** Timeout for RPC requests (60 seconds) */
+const RPC_TIMEOUT_MS = 60 * 1000;
 
 /**
  * Polling interval for payout transactions.

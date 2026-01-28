@@ -21,7 +21,6 @@ vi.mock("@/config", async () => {
     getBTCNetwork: () => 1, // Network.SIGNET
     CONTRACTS: {}, // Mock other exports as needed
     ENV: {},
-    ENV_DEFAULTS: {},
     isProductionEnv: () => false,
     getCommitHash: () => "test-commit",
   };

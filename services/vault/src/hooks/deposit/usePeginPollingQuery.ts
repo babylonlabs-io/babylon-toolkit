@@ -24,8 +24,8 @@ import {
   groupDepositsByProvider,
 } from "../../utils/peginPolling";
 
-/** Timeout for RPC requests to vault provider (30 seconds) */
-const RPC_TIMEOUT_MS = 30 * 1000;
+/** Timeout for RPC requests to vault provider (60 seconds) */
+const RPC_TIMEOUT_MS = 60 * 1000;
 /** Interval between polling attempts (30 seconds) */
 const POLLING_INTERVAL_MS = 30 * 1000;
 /** Number of retry attempts on failure */

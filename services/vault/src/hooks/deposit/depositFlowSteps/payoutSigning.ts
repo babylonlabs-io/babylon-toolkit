@@ -27,8 +27,8 @@ import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 // Constants
 // ============================================================================
 
-/** Timeout for RPC requests (30 seconds) */
-const RPC_TIMEOUT_MS = 30 * 1000;
+/** Timeout for RPC requests (60 seconds) */
+const RPC_TIMEOUT_MS = 60 * 1000;
 
 /** Polling interval (10 seconds) */
 const POLLING_INTERVAL_MS = 10 * 1000;

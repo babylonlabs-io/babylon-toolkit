@@ -57,13 +57,10 @@ Create a `.env` file with the following variables:
   - Use `11155111` (Sepolia) for devnet/testnet
   - Use `1` (Ethereum Mainnet) for production
   - Example: `11155111`
-- `NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL` - Vault provider RPC endpoint
-  - Example: `https://btc-vault-api.vault-devnet.babylonlabs.io`
-- `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data
+- `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data (also provides vault provider RPC URLs)
   - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
 - `NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER` - TBV BTC Vaults Manager contract address
 - `NEXT_PUBLIC_TBV_AAVE_CONTROLLER` - TBV Aave Integration Controller contract address
-- `NEXT_PUBLIC_TBV_BTC_VAULT` - TBV BTC Vault contract address
 
 ### Optional
 

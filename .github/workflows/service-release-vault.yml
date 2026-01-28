@@ -90,14 +90,11 @@ jobs:
           # Ethereum Network Configuration (Vault)
           NEXT_PUBLIC_ETH_CHAINID: ${{ vars.NEXT_PUBLIC_ETH_CHAINID }}
           NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
-          # Vault Services
-          NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL: ${{ vars.NEXT_PUBLIC_VAULT_PROVIDER_RPC_URL }}
           # GraphQL Endpoint
           NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: ${{ vars.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT }}
           # Trustless Bitcoin Vault (TBV) Contracts
           NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER }}
           NEXT_PUBLIC_TBV_AAVE_CONTROLLER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_CONTROLLER }}
-          NEXT_PUBLIC_TBV_BTC_VAULT: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT }}
           # Build Metadata
           NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
           NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
