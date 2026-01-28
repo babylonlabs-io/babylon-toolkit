@@ -39,21 +39,34 @@ vi.mock("@/services/health", () => ({
   }),
 }));
 
-function TestComponent({ onError }: { onError: (error: unknown) => void }) {
-  useHealthCheck();
+function TestComponent({
+  onError,
+  onGeoBlocked,
+}: {
+  onError: (error: unknown) => void;
+  onGeoBlocked?: (isGeoBlocked: boolean) => void;
+}) {
+  const { isGeoBlocked } = useHealthCheck();
   const { error, isOpen } = useError();
 
   if (isOpen && error.message) {
     onError(error);
   }
 
+  if (onGeoBlocked) {
+    onGeoBlocked(isGeoBlocked);
+  }
+
   return <div data-testid="test">Test</div>;
 }
 
-function renderWithProviders(onError: (error: unknown) => void) {
+function renderWithProviders(
+  onError: (error: unknown) => void,
+  onGeoBlocked?: (isGeoBlocked: boolean) => void,
+) {
   return render(
     <ErrorProvider>
-      <TestComponent onError={onError} />
+      <TestComponent onError={onError} onGeoBlocked={onGeoBlocked} />
     </ErrorProvider>,
   );
 }
@@ -61,7 +74,10 @@ function renderWithProviders(onError: (error: unknown) => void) {
 describe("useHealthCheck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRunHealthChecks.mockResolvedValue({ healthy: true });
+    mockRunHealthChecks.mockResolvedValue({
+      healthy: true,
+      isGeoBlocked: false,
+    });
   });
 
   afterEach(() => {
@@ -119,6 +135,34 @@ describe("useHealthCheck", () => {
           title: "Application Paused",
         }),
       );
+    });
+  });
+
+  it("shows blocking error and sets isGeoBlocked when user is geo-blocked", async () => {
+    mockRunHealthChecks.mockResolvedValueOnce({
+      healthy: false,
+      isGeoBlocked: true,
+      error: {
+        title: "Access Restricted",
+        message:
+          "We're sorry, but this page isn't accessible in your location at the moment due to the regional restrictions",
+      },
+    });
+
+    const onError = vi.fn();
+    const onGeoBlocked = vi.fn();
+    renderWithProviders(onError, onGeoBlocked);
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Access Restricted",
+        }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(onGeoBlocked).toHaveBeenCalledWith(true);
     });
   });
 });

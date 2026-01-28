@@ -1,9 +1,36 @@
+import { ApiError, fetchHealthCheck, isError451 } from "@/api";
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
+import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
+import { ErrorCode } from "@/utils/errors/types";
 
 export interface HealthCheckResult {
   healthy: boolean;
+  isGeoBlocked?: boolean;
   error?: AppError;
+}
+
+export async function checkGeofencing(): Promise<HealthCheckResult> {
+  try {
+    await fetchHealthCheck();
+    return { healthy: true, isGeoBlocked: false };
+  } catch (error) {
+    if (error instanceof ApiError && isError451(error)) {
+      return {
+        healthy: false,
+        isGeoBlocked: true,
+        error: {
+          code: ErrorCode.GEO_BLOCK,
+          title: "Access Restricted",
+          message: GEO_BLOCK_MESSAGE,
+        },
+      };
+    }
+
+    // Non-451 errors don't block the user - GraphQL check handles general availability
+    console.warn("Healthcheck endpoint error:", error);
+    return { healthy: true, isGeoBlocked: false };
+  }
 }
 
 export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
@@ -39,12 +66,17 @@ export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
 }
 
 export async function runHealthChecks(): Promise<HealthCheckResult> {
+  const geoResult = await checkGeofencing();
+  if (geoResult.isGeoBlocked) {
+    return geoResult;
+  }
+
   const graphqlResult = await checkGraphQLEndpoint();
   if (!graphqlResult.healthy) {
     return graphqlResult;
   }
 
-  return { healthy: true };
+  return { healthy: true, isGeoBlocked: false };
 }
 
 export function createWagmiInitError(): AppError {

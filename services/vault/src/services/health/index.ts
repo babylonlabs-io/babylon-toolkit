@@ -1,4 +1,5 @@
 export {
+  checkGeofencing,
   checkGraphQLEndpoint,
   createEnvConfigError,
   createWagmiInitError,

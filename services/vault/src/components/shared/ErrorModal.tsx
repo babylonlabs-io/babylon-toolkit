@@ -18,6 +18,8 @@ const ERROR_TITLES: Record<ErrorCode, string> = {
   [ErrorCode.API_SERVER_ERROR]: "Server Error",
   [ErrorCode.API_CLIENT_ERROR]: "Request Error",
 
+  [ErrorCode.GEO_BLOCK]: "Access Restricted",
+
   [ErrorCode.CONTRACT_ERROR]: "Contract Error",
   [ErrorCode.CONTRACT_REVERT]: "Transaction Reverted",
   [ErrorCode.CONTRACT_EXECUTION_FAILED]: "Execution Failed",
