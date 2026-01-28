@@ -47,25 +47,53 @@ export function getCardActions(
 }
 
 /**
+ * Warning indicator for provider connectivity errors.
+ * Shows a warning icon with tooltip when there's an error reaching the vault provider.
+ */
+export function ProviderErrorIndicator({ error }: { error: Error | null }) {
+  if (!error) return null;
+
+  return (
+    <Hint
+      tooltip="Unable to reach vault provider. The provider may be temporarily unavailable."
+      attachToChildren
+    >
+      <span className="text-base text-warning-main" title="Provider error">
+        ⚠
+      </span>
+    </Hint>
+  );
+}
+
+/**
  * Status cell using centralized polling context
  *
  * Uses displayVariant from the state machine directly instead of
  * mapping from displayLabel strings.
+ * Shows a warning indicator when there's a provider connectivity error.
  */
 export function StatusCell({ depositId }: { depositId: string }) {
   const pollingResult = useDepositPollingResult(depositId);
 
   if (!pollingResult) return null;
 
-  const { peginState } = pollingResult;
+  const { peginState, error } = pollingResult;
+
+  // Build tooltip message, including error info if present
+  const tooltipMessage = error
+    ? `${peginState.message}\n\n⚠️ Provider connectivity issue: ${error.message}`
+    : peginState.message;
 
   return (
-    <Hint tooltip={peginState.message} attachToChildren>
-      <StatusBadge
-        status={peginState.displayVariant}
-        label={peginState.displayLabel}
-      />
-    </Hint>
+    <div className="flex items-center gap-1.5">
+      <Hint tooltip={tooltipMessage} attachToChildren>
+        <StatusBadge
+          status={peginState.displayVariant}
+          label={peginState.displayLabel}
+        />
+      </Hint>
+      <ProviderErrorIndicator error={error} />
+    </div>
   );
 }
 

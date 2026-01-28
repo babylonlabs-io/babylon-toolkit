@@ -40,9 +40,19 @@ interface UsePeginPollingQueryParams {
   vaultProviders: VaultProvider[];
 }
 
+/** Result from polling query */
+interface PollingQueryData {
+  /** Map of depositId -> transactions */
+  transactions: Map<string, ClaimerTransactions[]>;
+  /** Map of depositId -> error (for deposits with provider connectivity issues) */
+  errors: Map<string, Error>;
+}
+
 interface UsePeginPollingQueryResult {
   /** Map of depositId -> transactions */
   data: Map<string, ClaimerTransactions[]> | undefined;
+  /** Map of depositId -> error */
+  errors: Map<string, Error> | undefined;
   /** Whether any polling is in progress */
   isLoading: boolean;
   /** Trigger manual refetch */
@@ -59,6 +69,7 @@ async function fetchFromProvider(
   deposits: DepositToPoll[],
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
+  errors: Map<string, Error>,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
@@ -72,13 +83,20 @@ async function fetchFromProvider(
       if (response.txs && response.txs.length > 0) {
         results.set(deposit.activity.id, response.txs);
       }
+      // Clear any previous error for this deposit on success
+      errors.delete(deposit.activity.id);
     } catch (error) {
       // Expected error: Daemon is still processing (before PendingDepositorSignatures)
       if (isPreDepositorSignaturesError(error)) {
         // Transactions not ready yet - continue polling
+        // Clear any previous error since provider is reachable
+        errors.delete(deposit.activity.id);
         continue;
       }
-      // Log unexpected errors but don't fail the entire batch
+      // Track provider connectivity errors per deposit
+      const errorObj =
+        error instanceof Error ? error : new Error("Provider unreachable");
+      errors.set(deposit.activity.id, errorObj);
       console.warn(`Failed to poll deposit ${deposit.activity.id}:`, error);
     }
   }
@@ -127,13 +145,16 @@ export function usePeginPollingQuery({
       btcPublicKey,
       depositsToPoll.map((d) => d.activity.id).join(","),
     ],
-    queryFn: async () => {
+    queryFn: async (): Promise<PollingQueryData> => {
       const currentDeposits = depositsRef.current;
       const currentProviders = providersRef.current;
       const currentBtcPubKey = btcPubKeyRef.current;
 
       if (!currentBtcPubKey || currentDeposits.length === 0) {
-        return new Map<string, ClaimerTransactions[]>();
+        return {
+          transactions: new Map<string, ClaimerTransactions[]>(),
+          errors: new Map<string, Error>(),
+        };
       }
 
       // Group by provider using current values
@@ -142,27 +163,34 @@ export function usePeginPollingQuery({
         currentProviders,
       );
 
-      const results = new Map<string, ClaimerTransactions[]>();
+      const transactions = new Map<string, ClaimerTransactions[]>();
+      const errors = new Map<string, Error>();
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
         ([, { providerUrl, deposits }]: [string, DepositsByProvider]) =>
-          fetchFromProvider(providerUrl, deposits, currentBtcPubKey, results),
+          fetchFromProvider(
+            providerUrl,
+            deposits,
+            currentBtcPubKey,
+            transactions,
+            errors,
+          ),
       );
 
       await Promise.all(fetchPromises);
-      return results;
+      return { transactions, errors };
     },
     enabled: isEnabled,
     staleTime: 0,
     refetchInterval: (query) => {
       // Stop polling if all deposits have ready transactions
       const currentDeposits = depositsRef.current;
-      const hasAllData =
-        query.state.data && query.state.data.size === currentDeposits.length;
+      const txMap = query.state.data?.transactions;
+      const hasAllData = txMap && txMap.size === currentDeposits.length;
       if (hasAllData) {
         const allReady = currentDeposits.every((d) => {
-          const txs = query.state.data?.get(d.activity.id);
+          const txs = txMap?.get(d.activity.id);
           return txs && areTransactionsReady(txs);
         });
         if (allReady) return false;
@@ -184,7 +212,8 @@ export function usePeginPollingQuery({
   }, [isEnabled, refetch]);
 
   return {
-    data,
+    data: data?.transactions,
+    errors: data?.errors,
     isLoading,
     refetch,
     depositsToPoll,
