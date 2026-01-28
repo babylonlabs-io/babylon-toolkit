@@ -55,7 +55,7 @@ export function PeginPollingProvider({
   >(new Map());
 
   // Use the polling query hook
-  const { data, isLoading, refetch } = usePeginPollingQuery({
+  const { data, errors, isLoading, refetch } = usePeginPollingQuery({
     activities,
     pendingPegins,
     btcPublicKey,
@@ -100,6 +100,9 @@ export function PeginPollingProvider({
       const transactions = data?.get(depositId) ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
 
+      // Get provider error for this deposit (if any)
+      const providerError = errors?.get(depositId) ?? null;
+
       const peginState = getPeginState(contractStatus, {
         localStatus,
         transactionsReady: isReady,
@@ -111,11 +114,11 @@ export function PeginPollingProvider({
         transactions,
         isReady,
         loading: isLoading,
-        error: null,
+        error: providerError,
         peginState,
       };
     },
-    [activities, pendingPegins, data, isLoading, optimisticStatuses],
+    [activities, pendingPegins, data, errors, isLoading, optimisticStatuses],
   );
 
   const contextValue = useMemo(

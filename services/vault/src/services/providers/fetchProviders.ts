@@ -1,7 +1,6 @@
 import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
-import { getVaultProviderMetadata } from "../../registry";
 import type {
   ProvidersResponse,
   UniversalChallenger,
@@ -15,6 +14,8 @@ interface GraphQLProvidersResponse {
     items: Array<{
       id: string;
       btcPubKey: string;
+      name: string | null;
+      rpcUrl: string | null;
     }>;
   };
   vaultKeeperApplications: {
@@ -65,6 +66,8 @@ const GET_PROVIDERS_AND_KEEPERS = gql`
       items {
         id
         btcPubKey
+        name
+        rpcUrl
       }
     }
     vaultKeeperApplications(where: { applicationController: $appController }) {
@@ -144,19 +147,16 @@ export async function fetchProviders(
     { appController: applicationController.toLowerCase() },
   );
 
-  // Transform vault providers with metadata from registry
-  // Note: All providers are immediately active upon registration
-  const vaultProviders: VaultProvider[] = response.vaultProviders.items.map(
-    (provider) => {
-      const metadata = getVaultProviderMetadata(provider.id);
-
-      return {
-        id: provider.id,
-        btcPubKey: provider.btcPubKey,
-        url: metadata.url,
-      };
-    },
-  );
+  const vaultProviders: VaultProvider[] = response.vaultProviders.items
+    .filter(
+      (provider): provider is typeof provider & { rpcUrl: string } =>
+        provider.rpcUrl !== null,
+    )
+    .map((provider) => ({
+      id: provider.id,
+      btcPubKey: provider.btcPubKey,
+      url: provider.rpcUrl,
+    }));
 
   // Extract vault keepers with btcPubKey from nested relation
   const vaultKeepers: VaultKeeper[] =

@@ -14,7 +14,11 @@ import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 
-import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
+import {
+  CopyableAddressCell,
+  getCardActions,
+  ProviderErrorIndicator,
+} from "./DepositTableCells";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -35,7 +39,7 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const { peginState, transactions } = pollingResult;
+  const { peginState, transactions, error } = pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
   const actions = getCardActions(actionButton);
 
@@ -71,12 +75,22 @@ export function DepositMobileCard({
         {
           label: "Status",
           value: (
-            <Hint tooltip={peginState.message} attachToChildren>
-              <StatusBadge
-                status={peginState.displayVariant}
-                label={peginState.displayLabel}
-              />
-            </Hint>
+            <div className="flex items-center gap-1.5">
+              <Hint
+                tooltip={
+                  error
+                    ? `${peginState.message}\n\n⚠️ Provider connectivity issue: ${error.message}`
+                    : peginState.message
+                }
+                attachToChildren
+              >
+                <StatusBadge
+                  status={peginState.displayVariant}
+                  label={peginState.displayLabel}
+                />
+              </Hint>
+              <ProviderErrorIndicator error={error} />
+            </div>
           ),
         },
       ]}

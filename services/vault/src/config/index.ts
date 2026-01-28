@@ -5,7 +5,7 @@
 export { getBTCNetwork, getNetworkConfigBTC } from "./btc";
 export type { ExtendedBTCConfig } from "./btc";
 export { CONTRACTS } from "./contracts";
-export { ENV, ENV_DEFAULTS } from "./env";
+export { ENV } from "./env";
 export { default as FeatureFlags } from "./featureFlags";
 
 const PROD_ENVS = ["phase-2-mainnet"];
