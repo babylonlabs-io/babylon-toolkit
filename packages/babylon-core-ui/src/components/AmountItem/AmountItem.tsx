@@ -47,20 +47,18 @@ export const AmountItem = ({
   onMaxClick,
 }: AmountItemProps) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    let value = e.target.value;
 
-    if (maxDecimals !== undefined) {
-      if (value === "" || value === ".") {
-        onChange(e);
-        return;
-      }
+    if (maxDecimals !== undefined && maxDecimals >= 0) {
+      const [integer, decimal] = value.split(".", 2);
 
-      const decimalIndex = value.indexOf(".");
-      if (decimalIndex !== -1) {
-        const decimalPlaces = value.length - decimalIndex - 1;
-        if (decimalPlaces > maxDecimals) {
-          return;
-        }
+      if (decimal !== undefined && decimal.length > maxDecimals) {
+        value = integer + "." + decimal.slice(0, maxDecimals);
+        e.target.value = value;
+      } else if (decimal !== undefined) {
+        value = integer + "." + decimal;
+      } else if (value.includes(".")) {
+        value = integer;
       }
     }
 
