@@ -52,25 +52,8 @@ export const AmountSubsection = ({
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
-    
-    // If decimals is specified, validate and restrict input
-    if (decimals !== undefined && decimals >= 0) {
-      // Handle multiple decimal points by taking only the first one
-      const [integer, decimal] = value.split('.', 2);
-      
-      if (decimal !== undefined && decimal.length > decimals) {
-        // Truncate decimal part to specified length
-        value = integer + '.' + decimal.slice(0, decimals);
-      } else if (decimal !== undefined) {
-        // Ensure we only have one decimal point
-        value = integer + '.' + decimal;
-      } else if (value.includes('.')) {
-        // Handle case where there are multiple dots but no decimal part
-        value = integer;
-      }
-    }
-    
+    const value = e.target.value;
+
     setValue(fieldName, value, {
       shouldValidate: true,
       shouldDirty: true,
@@ -78,19 +61,14 @@ export const AmountSubsection = ({
     });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      e.preventDefault();
-    }
-  };
-
   const handleMaxClick = () => {
     if (balanceDetails?.balance !== undefined) {
       const balanceValue = Number(balanceDetails.balance);
       // Use specified decimals if provided, otherwise use full precision
-      const maxValue = balanceDetails.decimals !== undefined
-        ? maxDecimals(balanceValue, balanceDetails.decimals).toString()
-        : balanceValue.toString();
+      const maxValue =
+        balanceDetails.decimals !== undefined
+          ? maxDecimals(balanceValue, balanceDetails.decimals).toString()
+          : balanceValue.toString();
       setValue(fieldName, maxValue, {
         shouldValidate: true,
         shouldDirty: true,
@@ -121,9 +99,9 @@ export const AmountSubsection = ({
           step={step}
           autoFocus={autoFocus}
           onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
           amountUsd={amountUsd}
           subtitle={subtitle}
+          maxDecimals={decimals}
           {...(enableMaxButton && { onMaxClick: handleMaxClick })}
         />
       </SubSection>
