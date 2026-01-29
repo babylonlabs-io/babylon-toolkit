@@ -13,12 +13,10 @@ import { useDepositPollingResult } from "../../../context/deposit/PeginPollingCo
 import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
+import { WALLET_OWNERSHIP_WARNING } from "../../../utils/walletOwnership";
 
-import {
-  CopyableAddressCell,
-  getCardActions,
-  ProviderErrorIndicator,
-} from "./DepositTableCells";
+import { ActionWarningIndicator } from "./ActionWarningIndicator";
+import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -39,11 +37,16 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const { peginState, transactions, error } = pollingResult;
+  const { peginState, transactions, isOwnedByCurrentWallet, error } =
+    pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
-  const actions = getCardActions(actionButton);
 
-  return (
+  // Only show actions if the vault is owned by the connected wallet
+  const actions = isOwnedByCurrentWallet
+    ? getCardActions(actionButton)
+    : undefined;
+
+  const card = (
     <VaultDetailCard
       key={deposit.id}
       id={deposit.id}
@@ -76,20 +79,20 @@ export function DepositMobileCard({
           label: "Status",
           value: (
             <div className="flex items-center gap-1.5">
-              <Hint
-                tooltip={
-                  error
-                    ? `${peginState.message}\n\n⚠️ Provider connectivity issue: ${error.message}`
-                    : peginState.message
-                }
-                attachToChildren
-              >
+              <Hint tooltip={peginState.message} attachToChildren>
                 <StatusBadge
                   status={peginState.displayVariant}
                   label={peginState.displayLabel}
                 />
               </Hint>
-              <ProviderErrorIndicator error={error} />
+              <ActionWarningIndicator
+                messages={[
+                  ...(error ? [error.message] : []),
+                  ...(!isOwnedByCurrentWallet
+                    ? [WALLET_OWNERSHIP_WARNING]
+                    : []),
+                ]}
+              />
             </div>
           ),
         },
@@ -106,4 +109,11 @@ export function DepositMobileCard({
       }}
     />
   );
+
+  // Apply disabled styling if vault is not owned by connected wallet
+  if (!isOwnedByCurrentWallet) {
+    return <div className="opacity-50">{card}</div>;
+  }
+
+  return card;
 }

@@ -7,6 +7,7 @@ export function Row<T extends { id: string | number }>({
   columns,
   isSelected,
   isSelectable,
+  isDisabled = false,
   onSelect,
   onRowClick,
   isLeftScrolled,
@@ -19,6 +20,8 @@ export function Row<T extends { id: string | number }>({
   columns: ColumnProps<T>[];
   isSelected: boolean;
   isSelectable: boolean;
+  /** Whether the row should be visually disabled (greyed out) */
+  isDisabled?: boolean;
   onSelect: (row: T) => void;
   onRowClick?: (row: T) => void;
   isLeftScrolled?: boolean;
@@ -65,7 +68,7 @@ export function Row<T extends { id: string | number }>({
       className={twJoin(
         isSelected && "selected",
         (!!onSelect || !!onRowClick) && isSelectable && "cursor-pointer",
-        !isSelectable && "opacity-50",
+        (!isSelectable || isDisabled) && "bbn-table-row-disabled",
       )}
       onClick={handleClick}
     >

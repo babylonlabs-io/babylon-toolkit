@@ -31,6 +31,7 @@ import type {
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
 import { areTransactionsReady } from "../../utils/peginPolling";
+import { isVaultOwnedByWallet } from "../../utils/walletOwnership";
 
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
   null,
@@ -109,6 +110,11 @@ export function PeginPollingProvider({
         isInUse: activity.isInUse,
       });
 
+      const isOwnedByCurrentWallet = isVaultOwnedByWallet(
+        activity.depositorBtcPubkey,
+        btcPublicKey,
+      );
+
       return {
         depositId,
         transactions,
@@ -116,9 +122,18 @@ export function PeginPollingProvider({
         loading: isLoading,
         error: providerError,
         peginState,
+        isOwnedByCurrentWallet,
       };
     },
-    [activities, pendingPegins, data, errors, isLoading, optimisticStatuses],
+    [
+      activities,
+      pendingPegins,
+      data,
+      errors,
+      isLoading,
+      optimisticStatuses,
+      btcPublicKey,
+    ],
   );
 
   const contextValue = useMemo(

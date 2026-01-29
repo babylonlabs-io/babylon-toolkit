@@ -347,6 +347,11 @@
   }
 }
 
+/* Disabled row styles - apply opacity to cells except the last one (action column) */
+.bbn-table-row-disabled > td:not(:last-child) {
+  @apply opacity-50;
+}
+
 /* Fluid table */
 .bbn-table-fluid {
   @apply w-full;

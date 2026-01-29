@@ -94,6 +94,9 @@ export interface VaultActivity {
 
   /** Application controller address (for fetching providers/vault keepers/universal challengers) */
   applicationController?: string;
+
+  /** Depositor's BTC public key (x-only, 32 bytes) */
+  depositorBtcPubkey?: string;
 }
 
 /**

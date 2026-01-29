@@ -80,6 +80,7 @@ function TableBase<T extends TableData>(
     onRowSelect,
     onRowClick,
     isRowSelectable,
+    isRowDisabled,
     stylePreset,
     styleConfig,
 
@@ -304,6 +305,7 @@ function TableBase<T extends TableData>(
                 columns={columns}
                 isSelected={selectable ? safeSelectedRows.includes(row.id) : selectedRow === row.id}
                 isSelectable={isRowSelectable ? isRowSelectable(row) : true}
+                isDisabled={isRowDisabled?.(row) ?? false}
                 onSelect={selectable ? handleMultiRowSelect : handleRowSelect}
                 onRowClick={onRowClick}
                 isLeftScrolled={isLeftScrolled}
