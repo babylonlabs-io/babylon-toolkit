@@ -25,13 +25,19 @@ interface VaultsTableProps {
 
 function ActionMenu({
   vaultId,
+  status,
   onRedeem,
 }: {
   vaultId: string;
+  status: string;
   onRedeem?: (vaultId: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  if (status !== PEGIN_DISPLAY_LABELS.AVAILABLE) {
+    return null;
+  }
 
   const handleRedeem = () => {
     onRedeem?.(vaultId);
@@ -125,7 +131,11 @@ export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
       cellClassName: "w-[10%]",
       render: (_value, row) => (
         <div className="flex justify-end">
-          <ActionMenu vaultId={row.id} onRedeem={onRedeem} />
+          <ActionMenu
+            vaultId={row.id}
+            status={row.status}
+            onRedeem={onRedeem}
+          />
         </div>
       ),
     },
