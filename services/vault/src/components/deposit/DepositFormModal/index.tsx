@@ -102,13 +102,6 @@ export function CollateralDepositModal({
     }
   };
 
-  // Handler: Prevent arrow keys
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      e.preventDefault();
-    }
-  };
-
   // Handler: Reset state on close
   const handleClose = () => {
     resetForm();
@@ -152,7 +145,6 @@ export function CollateralDepositModal({
               step="any"
               autoFocus
               onChange={handleAmountChange}
-              onKeyDown={handleKeyDown}
               onMaxClick={handleBalanceClick}
               subtitle={errors.amount ? errors.amount : ""}
             />

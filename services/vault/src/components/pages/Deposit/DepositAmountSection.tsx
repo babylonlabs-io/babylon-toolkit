@@ -49,12 +49,6 @@ export function DepositAmountSection({
     })}`;
   }, [amount, btcPrice]);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      e.preventDefault();
-    }
-  };
-
   return (
     <Card>
       <h3 className="mb-4 flex items-center gap-4 text-2xl font-normal capitalize text-accent-primary md:mb-6">
@@ -82,7 +76,6 @@ export function DepositAmountSection({
             step="any"
             autoFocus={false}
             onChange={(e) => onAmountChange(e.target.value)}
-            onKeyDown={handleKeyDown}
             onMaxClick={onMaxClick}
           />
         </div>
