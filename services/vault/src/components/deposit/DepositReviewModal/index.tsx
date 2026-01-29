@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Button,
   CheckIcon,
   CopyIcon,
@@ -7,6 +6,7 @@ import {
   DialogFooter,
   DialogHeader,
   Heading,
+  ProviderAvatar,
   ResponsiveDialog,
   Text,
   useCopy,
@@ -94,14 +94,11 @@ export function CollateralDepositReviewModal({
             ) : (
               selectedProviders.map((provider) => (
                 <div key={provider.id} className="flex items-center gap-3">
-                  <Avatar size="tiny" className="h-6 w-6">
-                    <Text
-                      as="span"
-                      className="inline-flex h-full w-full items-center justify-center bg-primary-main text-xs font-semibold text-white"
-                    >
-                      {provider.id.replace(/^0x/, "").charAt(0).toUpperCase()}
-                    </Text>
-                  </Avatar>
+                  <ProviderAvatar
+                    name={provider.name}
+                    size="tiny"
+                    className="h-6 w-6"
+                  />
                   <Text variant="body1">
                     {provider.name.startsWith("0x")
                       ? truncateAddress(provider.name)

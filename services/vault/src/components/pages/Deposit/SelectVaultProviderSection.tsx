@@ -1,9 +1,9 @@
 import {
-  Avatar,
   Card,
   CheckIcon,
   ChevronRightIcon,
   Loader,
+  ProviderAvatar,
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
@@ -78,17 +78,11 @@ export function SelectVaultProviderSection({
           >
             <div className="flex items-center gap-3">
               {selectedProviderData && (
-                <Avatar size="small" className="h-8 w-8">
-                  <Text
-                    as="span"
-                    className="inline-flex h-full w-full items-center justify-center bg-primary-main text-sm font-semibold text-white"
-                  >
-                    {selectedProviderData.id
-                      .replace(/^0x/, "")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </Text>
-                </Avatar>
+                <ProviderAvatar
+                  name={selectedProviderData.name}
+                  size="small"
+                  className="h-8 w-8"
+                />
               )}
               <span>{selectedProviderData?.name || "Add Vault Provider"}</span>
             </div>
