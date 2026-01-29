@@ -58,7 +58,7 @@ export function ProviderAvatar({ url, name, variant = "circular", size = "large"
     <Avatar {...props} url={url} alt={name} variant={variant} size={size}>
       <Text
         as="span"
-        className="inline-flex h-full w-full items-center justify-center bg-primary-main font-semibold text-white"
+        className="inline-flex h-full w-full items-center justify-center bg-secondary-main text-xs text-accent-contrast"
       >
         {getProviderInitial(name)}
       </Text>
