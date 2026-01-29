@@ -22,6 +22,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24.2.0'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install Corepack
         run: npm install -g corepack && corepack enable
@@ -60,3 +61,4 @@ jobs:
           pnpm run ci:release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

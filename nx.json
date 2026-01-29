@@ -74,6 +74,9 @@
       "versionActionsOptions": {
         "skipLockFileUpdate": true
       }
+    },
+    "publish": {
+      "registry": "https://registry.npmjs.org"
     }
   },
   "cli": {
