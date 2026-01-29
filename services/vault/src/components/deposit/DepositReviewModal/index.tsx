@@ -1,4 +1,5 @@
 import {
+  Avatar,
   Button,
   CheckIcon,
   CopyIcon,
@@ -93,14 +94,14 @@ export function CollateralDepositReviewModal({
             ) : (
               selectedProviders.map((provider) => (
                 <div key={provider.id} className="flex items-center gap-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent-primary">
+                  <Avatar size="tiny" className="h-6 w-6">
                     <Text
-                      variant="body2"
-                      className="text-sm font-medium text-accent-contrast"
+                      as="span"
+                      className="inline-flex h-full w-full items-center justify-center bg-primary-main text-xs font-semibold text-white"
                     >
-                      {provider.name.charAt(0).toUpperCase()}
+                      {provider.id.replace(/^0x/, "").charAt(0).toUpperCase()}
                     </Text>
-                  </div>
+                  </Avatar>
                   <Text variant="body1">
                     {provider.name.startsWith("0x")
                       ? truncateAddress(provider.name)
