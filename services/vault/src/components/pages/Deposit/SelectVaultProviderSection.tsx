@@ -80,8 +80,7 @@ export function SelectVaultProviderSection({
               {selectedProviderData && (
                 <ProviderAvatar
                   name={selectedProviderData.name}
-                  size="small"
-                  className="h-8 w-8"
+                  size="medium"
                 />
               )}
               <span>{selectedProviderData?.name || "Add Vault Provider"}</span>

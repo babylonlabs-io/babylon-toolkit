@@ -71,7 +71,7 @@ export function SelectVaultProviderModal({
         cellClassName: "text-primary-dark max-w-[240px]",
         render: (_, row) => (
           <div className="flex min-w-0 items-center gap-2">
-            <ProviderAvatar name={row.name} size="small" className="h-8 w-8" />
+            <ProviderAvatar name={row.name} size="medium" />
             <span className="truncate">{row.name}</span>
           </div>
         ),
