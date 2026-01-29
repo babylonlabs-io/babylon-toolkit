@@ -2,6 +2,7 @@ import {
   CheckIcon,
   CopyIcon,
   IconButton,
+  ProviderAvatar,
   useCopy,
   ValidatorSelector,
   type ColumnProps,
@@ -68,20 +69,12 @@ export function SelectVaultProviderModal({
         header: "Vault Provider",
         headerClassName: "max-w-[240px]",
         cellClassName: "text-primary-dark max-w-[240px]",
-        render: (_, row) => {
-          const initial = String(row.id)
-            .replace(/^0x/, "")
-            .charAt(0)
-            .toUpperCase();
-          return (
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-main text-sm font-semibold text-white">
-                {initial}
-              </div>
-              <span className="truncate">{row.name}</span>
-            </div>
-          );
-        },
+        render: (_, row) => (
+          <div className="flex min-w-0 items-center gap-2">
+            <ProviderAvatar name={row.name} size="medium" />
+            <span className="truncate">{row.name}</span>
+          </div>
+        ),
         sorter: (a, b) => a.name.localeCompare(b.name),
       },
       {

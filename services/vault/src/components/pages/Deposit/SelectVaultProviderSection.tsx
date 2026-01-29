@@ -3,6 +3,7 @@ import {
   CheckIcon,
   ChevronRightIcon,
   Loader,
+  ProviderAvatar,
   SubSection,
   Text,
 } from "@babylonlabs-io/core-ui";
@@ -36,10 +37,6 @@ export function SelectVaultProviderSection({
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const selectedProviderData = providers.find((p) => p.id === selectedProvider);
-  const providerInitial = selectedProviderData?.id
-    .replace(/^0x/, "")
-    .charAt(0)
-    .toUpperCase();
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
@@ -81,9 +78,10 @@ export function SelectVaultProviderSection({
           >
             <div className="flex items-center gap-3">
               {selectedProviderData && (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-main text-sm font-semibold text-white">
-                  {providerInitial}
-                </div>
+                <ProviderAvatar
+                  name={selectedProviderData.name}
+                  size="medium"
+                />
               )}
               <span>{selectedProviderData?.name || "Add Vault Provider"}</span>
             </div>
