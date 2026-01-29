@@ -49,6 +49,7 @@
     "@cosmjs/tendermint-rpc": "0.36.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }
