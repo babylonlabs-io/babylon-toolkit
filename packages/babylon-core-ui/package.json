@@ -4,7 +4,8 @@
   "type": "module",
   "types": "dist/index.d.ts",
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "repository": {
     "type": "git",
