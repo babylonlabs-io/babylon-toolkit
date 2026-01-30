@@ -6,13 +6,12 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Chain } from "viem";
+import type { Address, Chain } from "viem";
 
 import {
   MockBitcoinWallet,
   MockEthereumWallet,
 } from "../../../../shared/wallets/mocks";
-import type { Address } from "../../../../shared/wallets/interfaces/EthereumWallet";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import type { UTXO } from "../../utils";

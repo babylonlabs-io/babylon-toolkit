@@ -584,12 +584,13 @@ export class PeginManager {
     // Step 7: Submit peg-in request to contract (estimation passed)
     try {
       // Send transaction with pre-estimated gas to skip internal estimation
+      // Note: viem's sendTransaction uses `gas`, not `gasLimit`
       const ethTxHash = await this.config.ethWallet.sendTransaction({
         to: this.config.vaultContracts.btcVaultsManager,
         data: callData,
         account: this.config.ethWallet.account,
         chain: this.config.ethChain,
-        gasLimit: gasEstimate,
+        gas: gasEstimate,
       });
 
       return {

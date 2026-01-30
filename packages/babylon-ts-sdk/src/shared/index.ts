@@ -3,14 +3,10 @@
 
 // Wallet interfaces and implementations
 export type {
-  Address,
   BitcoinNetwork,
   BitcoinWallet,
-  EthereumWallet,
   Hash,
   SignPsbtOptions,
-  TransactionRequest,
-  TypedData,
 } from "./wallets";
 
 export { MockBitcoinWallet, MockEthereumWallet } from "./wallets";
