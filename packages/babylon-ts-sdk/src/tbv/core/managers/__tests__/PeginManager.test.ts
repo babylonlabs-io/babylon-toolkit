@@ -6,13 +6,12 @@
  */
 
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { Chain } from "viem";
+import type { Address, Chain } from "viem";
 
 import {
   MockBitcoinWallet,
   MockEthereumWallet,
 } from "../../../../shared/wallets/mocks";
-import type { Address } from "../../../../shared/wallets/interfaces/EthereumWallet";
 import { MEMPOOL_API_URLS } from "../../clients/mempool";
 import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import type { UTXO } from "../../utils";
@@ -22,6 +21,18 @@ import { PeginManager, type PeginManagerConfig } from "../PeginManager";
 vi.mock("../../utils/transaction/btcTxHash", () => ({
   calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
 }));
+
+// Mock viem's createPublicClient to avoid HTTP requests during gas estimation
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return {
+    ...actual,
+    createPublicClient: vi.fn(() => ({
+      estimateGas: vi.fn().mockResolvedValue(100000n),
+      readContract: vi.fn().mockResolvedValue({ depositor: actual.zeroAddress }),
+    })),
+  };
+});
 
 // Test chain configuration (minimal viem Chain)
 const TEST_CHAIN: Chain = {

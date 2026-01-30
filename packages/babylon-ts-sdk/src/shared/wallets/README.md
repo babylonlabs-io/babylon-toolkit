@@ -24,27 +24,16 @@ interface BitcoinWallet {
 }
 ```
 
-### EthereumWallet
+### Ethereum Wallets
 
-Interface for Ethereum wallet operations (EIP-191, EIP-712, EIP-1559, etc.).
+For Ethereum, the SDK uses viem's `WalletClient` interface directly. This ensures compatibility with the broader Ethereum ecosystem without maintaining a separate abstraction.
 
 ```typescript
-import type { EthereumWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type { WalletClient } from "viem";
 
-interface EthereumWallet {
-  getAddress(): Promise<Address>;
-  getChainId(): Promise<number>;
-  signMessage(message: string): Promise<Hash>; // EIP-191 personal_sign
-  signTypedData(typedData: TypedData): Promise<Hash>; // EIP-712 structured data
-  sendTransaction(tx: TransactionRequest): Promise<Hash>; // Sign + broadcast
-}
+// The SDK expects a viem WalletClient
+const ethWallet: WalletClient = await getWalletClient(wagmiConfig);
 ```
-
-**Key Methods:**
-
-- `signMessage`: Personal message signing (EIP-191) for authentication
-- `signTypedData`: Structured data signing (EIP-712) for permits, approvals, meta-transactions
-- `sendTransaction`: Signs and broadcasts transactions to the network
 
 ## Usage Examples
 
@@ -100,46 +89,17 @@ describe("My SDK Feature", () => {
     expect(address).toBe("tb1pCustomTestAddress");
   });
 
-  it("should work with Ethereum wallet - sendTransaction", async () => {
+  it("should work with Ethereum wallet", async () => {
     const wallet = new MockEthereumWallet({
       chainId: 1, // Mainnet
     });
 
     const txHash = await wallet.sendTransaction({
       to: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
-      value: "1000000000000000000", // 1 ETH
+      value: 1000000000000000000n, // 1 ETH
     });
 
     expect(txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-  });
-
-  it("should work with Ethereum wallet - signTypedData", async () => {
-    const wallet = new MockEthereumWallet();
-
-    const typedData = {
-      domain: {
-        name: "MyDApp",
-        version: "1",
-        chainId: 1,
-        verifyingContract: "0x1234567890123456789012345678901234567890",
-      },
-      types: {
-        Permit: [
-          { name: "owner", type: "address" },
-          { name: "spender", type: "address" },
-          { name: "value", type: "uint256" },
-        ],
-      },
-      primaryType: "Permit",
-      message: {
-        owner: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0",
-        spender: "0x1234567890123456789012345678901234567890",
-        value: "1000000000000000000",
-      },
-    };
-
-    const signature = await wallet.signTypedData(typedData);
-    expect(signature).toMatch(/^0x[a-fA-F0-9]+$/);
   });
 });
 ```
@@ -151,6 +111,7 @@ describe("My SDK Feature", () => {
 3. **Type Safe**: Full TypeScript support with comprehensive JSDoc documentation
 4. **Testable**: Mock implementations provided for easy testing
 5. **Extensible**: Easy to create adapters for any wallet implementation
+6. **Viem Compatible**: Ethereum wallets use viem's WalletClient for ecosystem compatibility
 
 ## Supported Wallets
 
@@ -166,9 +127,9 @@ The interfaces are designed to work with popular wallets including:
 
 **Ethereum:**
 
-- MetaMask
-- WalletConnect
-- Any wallet supporting EIP-1193
+- MetaMask (via wagmi/viem)
+- WalletConnect (via wagmi/viem)
+- Any wallet supporting EIP-1193 (via viem adapter)
 
 ## Testing
 

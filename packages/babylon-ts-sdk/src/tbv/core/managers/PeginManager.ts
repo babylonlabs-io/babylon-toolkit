@@ -477,12 +477,14 @@ export class PeginManager {
    * 2. Creates proof of possession (BTC signature of ETH address)
    * 3. Checks if vault already exists (pre-flight check)
    * 4. Encodes the contract call using viem
-   * 5. Sends transaction via ethWallet.sendTransaction()
+   * 5. Estimates gas (catches contract errors early with proper revert reasons)
+   * 6. Sends transaction with pre-estimated gas via ethWallet.sendTransaction()
    *
    * @param params - Registration parameters including BTC pubkey and unsigned tx
    * @returns Result containing Ethereum transaction hash and vault ID
    * @throws Error if signing or transaction fails
    * @throws Error if vault already exists
+   * @throws Error if contract simulation fails (e.g., invalid signature, unauthorized)
    */
   async registerPeginOnChain(
     params: RegisterPeginParams,
@@ -546,28 +548,49 @@ export class PeginManager {
       );
     }
 
-    // Step 5: Submit peg-in request to contract
-    // Using encodeFunctionData + sendTransaction pattern to avoid simulation issues
-    try {
-      // Encode the contract call data
-      const callData = encodeFunctionData({
-        abi: BTCVaultsManagerABI,
-        functionName: "submitPeginRequest",
-        args: [
-          depositorEthAddress,
-          depositorBtcPubkeyHex,
-          btcPopSignature,
-          unsignedPegInTx,
-          vaultProvider,
-        ],
-      });
+    // Step 5: Encode the contract call data
+    const callData = encodeFunctionData({
+      abi: BTCVaultsManagerABI,
+      functionName: "submitPeginRequest",
+      args: [
+        depositorEthAddress,
+        depositorBtcPubkeyHex,
+        btcPopSignature,
+        unsignedPegInTx,
+        vaultProvider,
+      ],
+    });
 
-      // Send as raw transaction
+    // Step 6: Estimate gas first to catch contract errors before showing wallet popup
+    // This ensures users see actual contract revert reasons instead of gas errors
+    // The gas estimate is then passed to sendTransaction to avoid double estimation
+    const publicClient = createPublicClient({
+      chain: this.config.ethChain,
+      transport: http(),
+    });
+
+    let gasEstimate: bigint;
+    try {
+      gasEstimate = await publicClient.estimateGas({
+        to: this.config.vaultContracts.btcVaultsManager,
+        data: callData,
+        account: this.config.ethWallet.account.address,
+      });
+    } catch (error) {
+      // Estimation failed - handle contract error with actual revert reason
+      handleContractError(error);
+    }
+
+    // Step 7: Submit peg-in request to contract (estimation passed)
+    try {
+      // Send transaction with pre-estimated gas to skip internal estimation
+      // Note: viem's sendTransaction uses `gas`, not `gasLimit`
       const ethTxHash = await this.config.ethWallet.sendTransaction({
         to: this.config.vaultContracts.btcVaultsManager,
         data: callData,
         account: this.config.ethWallet.account,
         chain: this.config.ethChain,
+        gas: gasEstimate,
       });
 
       return {
