@@ -347,9 +347,14 @@
   }
 }
 
-/* Disabled row styles - apply opacity to cells except the last one (action column) */
-.bbn-table-row-disabled > td:not(:last-child) {
+/* Disabled row styles - apply opacity to all cells by default */
+.bbn-table-row-disabled > td {
   @apply opacity-50;
+}
+
+/* Opt-out class for cells that should remain fully visible in disabled rows */
+.bbn-table-row-disabled > td.bbn-table-cell-no-dim {
+  @apply opacity-100;
 }
 
 /* Fluid table */

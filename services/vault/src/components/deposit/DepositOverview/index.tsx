@@ -78,13 +78,18 @@ export function DepositOverview() {
       .reduce((sum, d) => sum + d.amount, 0);
   }, [deposits, redeemDepositIds]);
 
+  // Memoized map for O(1) activity lookups by id
+  const activityById = useMemo(() => {
+    return new Map(allActivities.map((a) => [a.id, a]));
+  }, [allActivities]);
+
   // Check if a deposit row should be disabled (not owned by connected wallet)
   const isRowDisabled = useCallback(
     (deposit: Deposit) => {
-      const activity = allActivities.find((a) => a.id === deposit.id);
+      const activity = activityById.get(deposit.id);
       return !isVaultOwnedByWallet(activity?.depositorBtcPubkey, btcPublicKey);
     },
-    [allActivities, btcPublicKey],
+    [activityById, btcPublicKey],
   );
 
   // Show empty state when not connected OR when connected but no data
@@ -147,6 +152,7 @@ export function DepositOverview() {
     {
       key: "actions",
       header: "",
+      cellClassName: "bbn-table-cell-no-dim",
       render: (_value: unknown, row: Deposit) => (
         <ActionCell
           depositId={row.id}

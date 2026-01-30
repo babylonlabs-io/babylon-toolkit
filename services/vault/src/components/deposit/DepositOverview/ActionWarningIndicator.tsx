@@ -16,7 +16,13 @@ export function ActionWarningIndicator({ messages }: { messages: string[] }) {
 
   return (
     <Hint tooltip={tooltip} attachToChildren>
-      <span className="text-base text-warning-main">⚠</span>
+      <span
+        className="text-base text-warning-main"
+        role="img"
+        aria-label={tooltip}
+      >
+        ⚠
+      </span>
     </Hint>
   );
 }
