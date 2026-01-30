@@ -26,6 +26,8 @@ export interface DepositPollingResult {
   error: Error | null;
   /** Current state from pegin state machine */
   peginState: PeginState;
+  /** Whether the vault is owned by the currently connected BTC wallet */
+  isOwnedByCurrentWallet: boolean;
 }
 
 /** Context value type */

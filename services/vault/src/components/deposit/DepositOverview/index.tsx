@@ -12,7 +12,7 @@ import {
   useIsMobile,
   type ColumnProps,
 } from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { Hex } from "viem";
 
 import { getNetworkConfigBTC } from "@/config";
@@ -21,6 +21,7 @@ import { PeginPollingProvider } from "../../../context/deposit/PeginPollingConte
 import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
+import { isVaultOwnedByWallet } from "../../../utils/walletOwnership";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
@@ -29,12 +30,9 @@ import { RedeemCollateralReviewModal } from "../RedeemReviewModal";
 import { RedeemCollateralSignModal } from "../RedeemSignModal";
 import { RedeemCollateralSuccessModal } from "../RedeemSuccessModal";
 
+import { ActionCell } from "./ActionCell";
 import { DepositMobileCard } from "./DepositMobileCard";
-import {
-  ActionCell,
-  CopyableAddressCell,
-  StatusCell,
-} from "./DepositTableCells";
+import { CopyableAddressCell, StatusCell } from "./DepositTableCells";
 import { EmptyState } from "./EmptyState";
 import { useDepositOverviewState } from "./useDepositOverviewState";
 
@@ -79,6 +77,20 @@ export function DepositOverview() {
       .filter((d) => redeemDepositIds.includes(d.id))
       .reduce((sum, d) => sum + d.amount, 0);
   }, [deposits, redeemDepositIds]);
+
+  // Memoized map for O(1) activity lookups by id
+  const activityById = useMemo(() => {
+    return new Map(allActivities.map((a) => [a.id, a]));
+  }, [allActivities]);
+
+  // Check if a deposit row should be disabled (not owned by connected wallet)
+  const isRowDisabled = useCallback(
+    (deposit: Deposit) => {
+      const activity = activityById.get(deposit.id);
+      return !isVaultOwnedByWallet(activity?.depositorBtcPubkey, btcPublicKey);
+    },
+    [activityById, btcPublicKey],
+  );
 
   // Show empty state when not connected OR when connected but no data
   if (!isConnected || allActivities.length === 0) {
@@ -140,6 +152,7 @@ export function DepositOverview() {
     {
       key: "actions",
       header: "",
+      cellClassName: "bbn-table-cell-no-dim",
       render: (_value: unknown, row: Deposit) => (
         <ActionCell
           depositId={row.id}
@@ -174,7 +187,13 @@ export function DepositOverview() {
           </div>
         ) : (
           <div className="max-h-[500px] overflow-x-auto overflow-y-auto dark:bg-primary-main">
-            <Table data={deposits} columns={columns} fluid stylePreset="card" />
+            <Table
+              data={deposits}
+              columns={columns}
+              fluid
+              stylePreset="card"
+              isRowDisabled={isRowDisabled}
+            />
           </div>
         )}
 

@@ -347,6 +347,16 @@
   }
 }
 
+/* Disabled row styles - apply opacity to all cells by default */
+.bbn-table-row-disabled > td {
+  @apply opacity-50;
+}
+
+/* Opt-out class for cells that should remain fully visible in disabled rows */
+.bbn-table-row-disabled > td.bbn-table-cell-no-dim {
+  @apply opacity-100;
+}
+
 /* Fluid table */
 .bbn-table-fluid {
   @apply w-full;

@@ -186,6 +186,8 @@ export type TableProps<T extends TableData> = ControlledTableProps & {
   onRowSelect?: (row: T | null) => void;
   onRowClick?: (row: T) => void;
   isRowSelectable?: (row: T) => boolean;
+  /** Function to determine if a row should be visually disabled (greyed out) */
+  isRowDisabled?: (row: T) => boolean;
 
   /**
    * Base style preset for the table ('default', 'card').
