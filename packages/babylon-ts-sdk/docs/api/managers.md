@@ -385,7 +385,7 @@ Error if signing or broadcasting fails
 registerPeginOnChain(params): Promise<RegisterPeginResult>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:487](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L487)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:489](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L489)
 
 Registers a peg-in on Ethereum by calling the BTCVaultsManager contract.
 
@@ -394,7 +394,8 @@ This method:
 2. Creates proof of possession (BTC signature of ETH address)
 3. Checks if vault already exists (pre-flight check)
 4. Encodes the contract call using viem
-5. Sends transaction via ethWallet.sendTransaction()
+5. Estimates gas (catches contract errors early with proper revert reasons)
+6. Sends transaction with pre-estimated gas via ethWallet.sendTransaction()
 
 ###### Parameters
 
@@ -418,13 +419,17 @@ Error if signing or transaction fails
 
 Error if vault already exists
 
+###### Throws
+
+Error if contract simulation fails (e.g., invalid signature, unauthorized)
+
 ##### getNetwork()
 
 ```ts
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:617](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L617)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:639](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L639)
 
 Gets the configured Bitcoin network.
 
@@ -440,7 +445,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:626](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L626)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:648](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L648)
 
 Gets the configured BTCVaultsManager contract address.
 
