@@ -1,8 +1,11 @@
 /**
- * Hook to fetch and cache vault providers, vault keepers, and universal challengers
+ * Hook to fetch and cache vault providers and vault keepers (per-application)
  *
- * This hook fetches vault providers, vault keepers, and universal challengers
- * from the GraphQL indexer. The data is cached per application controller using React Query.
+ * This hook fetches vault providers and vault keepers from the GraphQL indexer.
+ * The data is cached per application controller using React Query.
+ *
+ * Note: Universal challengers are system-wide and should be accessed via
+ * useProtocolParamsContext() instead.
  *
  * Since provider data rarely changes, we use aggressive caching:
  * - Cache for 5 minutes (staleTime)
@@ -13,10 +16,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import { fetchProviders } from "../../services/providers";
+import { fetchAppProviders } from "../../services/providers";
 import type {
-  ProvidersResponse,
-  UniversalChallenger,
+  AppProvidersResponse,
   VaultKeeper,
   VaultProvider,
 } from "../../types";
@@ -26,8 +28,6 @@ export interface UseVaultProvidersResult {
   vaultProviders: VaultProvider[];
   /** Array of vault keepers (per-application) */
   vaultKeepers: VaultKeeper[];
-  /** Array of universal challengers (system-wide) */
-  universalChallengers: UniversalChallenger[];
   /** Loading state - true while fetching */
   loading: boolean;
   /** Error state */
@@ -45,21 +45,23 @@ export interface UseVaultProvidersResult {
 }
 
 /**
- * Hook to fetch vault providers, vault keepers, and universal challengers from the GraphQL indexer
+ * Hook to fetch vault providers and vault keepers from the GraphQL indexer
  *
  * Data is cached per application controller and shared across all components.
  * When applicationController changes, providers are re-fetched for the new application.
  *
+ * Note: For universal challengers (system-wide), use useProtocolParamsContext() instead.
+ *
  * @param applicationController - The application controller address to filter by.
  *                                If undefined or empty, the query is disabled.
- * @returns Hook result with vaultProviders, vaultKeepers, universalChallengers, loading, error states
+ * @returns Hook result with vaultProviders, vaultKeepers, loading, error states
  */
 export function useVaultProviders(
   applicationController?: string,
 ): UseVaultProvidersResult {
-  const { data, isLoading, error, refetch } = useQuery<ProvidersResponse>({
+  const { data, isLoading, error, refetch } = useQuery<AppProvidersResponse>({
     queryKey: ["providers", applicationController],
-    queryFn: () => fetchProviders(applicationController!),
+    queryFn: () => fetchAppProviders(applicationController!),
     // Only fetch when applicationController is provided
     enabled: Boolean(applicationController),
     // Fetch once on mount
@@ -112,7 +114,6 @@ export function useVaultProviders(
   return {
     vaultProviders: data?.vaultProviders || [],
     vaultKeepers: data?.vaultKeepers || [],
-    universalChallengers: data?.universalChallengers || [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,

@@ -6,6 +6,9 @@
  * 2. Fetches providers for each application in parallel
  * 3. Merges results into a single flat list
  *
+ * Note: Universal challengers are system-wide and should be accessed via
+ * useProtocolParamsContext() instead.
+ *
  * This enables the centralized polling manager to have all provider URLs
  * available without needing to fetch per-deposit.
  */
@@ -13,12 +16,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { fetchProviders } from "../../services/providers";
-import type {
-  UniversalChallenger,
-  VaultKeeper,
-  VaultProvider,
-} from "../../types";
+import { fetchAppProviders } from "../../services/providers";
+import type { VaultKeeper, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 
 /** Provider data rarely changes, cache for 5 minutes */
@@ -31,8 +30,6 @@ export interface UseAllDepositProvidersResult {
   vaultProviders: VaultProvider[];
   /** All vault keepers across all applications */
   vaultKeepers: VaultKeeper[];
-  /** All universal challengers (system-wide) */
-  universalChallengers: UniversalChallenger[];
   /** Loading state */
   loading: boolean;
   /** Error (first error encountered) */
@@ -65,7 +62,7 @@ export function useAllDepositProviders(
   const queries = useQueries({
     queries: applicationControllers.map((appController) => ({
       queryKey: ["providers", appController],
-      queryFn: () => fetchProviders(appController),
+      queryFn: () => fetchAppProviders(appController),
       staleTime: PROVIDER_STALE_TIME_MS,
       gcTime: PROVIDER_GC_TIME_MS,
       refetchOnMount: false,
@@ -74,53 +71,41 @@ export function useAllDepositProviders(
   });
 
   // Step 3: Merge results
-  const { vaultProviders, vaultKeepers, universalChallengers, loading, error } =
-    useMemo(() => {
-      const allProviders: VaultProvider[] = [];
-      const allVaultKeepers: VaultKeeper[] = [];
-      const allUniversalChallengers: UniversalChallenger[] = [];
-      let isLoading = false;
-      let firstError: Error | null = null;
+  const { vaultProviders, vaultKeepers, loading, error } = useMemo(() => {
+    const allProviders: VaultProvider[] = [];
+    const allVaultKeepers: VaultKeeper[] = [];
+    let isLoading = false;
+    let firstError: Error | null = null;
 
-      for (const query of queries) {
-        if (query.isLoading) {
-          isLoading = true;
-        }
-        if (query.error && !firstError) {
-          firstError = query.error as Error;
-        }
-        if (query.data) {
-          // Dedupe by provider id
-          for (const provider of query.data.vaultProviders) {
-            if (!allProviders.some((p) => p.id === provider.id)) {
-              allProviders.push(provider);
-            }
+    for (const query of queries) {
+      if (query.isLoading) {
+        isLoading = true;
+      }
+      if (query.error && !firstError) {
+        firstError = query.error as Error;
+      }
+      if (query.data) {
+        // Dedupe by provider id
+        for (const provider of query.data.vaultProviders) {
+          if (!allProviders.some((p) => p.id === provider.id)) {
+            allProviders.push(provider);
           }
-          for (const vaultKeeper of query.data.vaultKeepers) {
-            if (!allVaultKeepers.some((vk) => vk.id === vaultKeeper.id)) {
-              allVaultKeepers.push(vaultKeeper);
-            }
-          }
-          for (const universalChallenger of query.data.universalChallengers) {
-            if (
-              !allUniversalChallengers.some(
-                (uc) => uc.id === universalChallenger.id,
-              )
-            ) {
-              allUniversalChallengers.push(universalChallenger);
-            }
+        }
+        for (const vaultKeeper of query.data.vaultKeepers) {
+          if (!allVaultKeepers.some((vk) => vk.id === vaultKeeper.id)) {
+            allVaultKeepers.push(vaultKeeper);
           }
         }
       }
+    }
 
-      return {
-        vaultProviders: allProviders,
-        vaultKeepers: allVaultKeepers,
-        universalChallengers: allUniversalChallengers,
-        loading: isLoading,
-        error: firstError,
-      };
-    }, [queries]);
+    return {
+      vaultProviders: allProviders,
+      vaultKeepers: allVaultKeepers,
+      loading: isLoading,
+      error: firstError,
+    };
+  }, [queries]);
 
   // Step 4: Helper to find provider by address
   const findProvider = useMemo(() => {
@@ -134,7 +119,6 @@ export function useAllDepositProviders(
   return {
     vaultProviders,
     vaultKeepers,
-    universalChallengers,
     loading,
     error,
     findProvider,

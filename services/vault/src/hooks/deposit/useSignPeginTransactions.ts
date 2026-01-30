@@ -10,6 +10,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { signAndSubmitPayoutSignatures } from "../../services/vault";
 import type { ClaimerTransactions } from "../../types";
 
@@ -58,9 +59,10 @@ export function useSignPeginTransactions(
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  // Get cached vault providers, vault keepers, and universal challengers
-  const { findProvider, vaultKeepers, universalChallengers } =
-    useVaultProviders(applicationController);
+  const { latestUniversalChallengers } = useProtocolParamsContext();
+  const { findProvider, vaultKeepers } = useVaultProviders(
+    applicationController,
+  );
 
   const signPayoutsAndSubmit = useCallback(
     async (params: SignPeginTransactionsParams) => {
@@ -98,7 +100,7 @@ export function useSignPeginTransactions(
             vaultKeepers: vaultKeepers.map((vk) => ({
               btcPubKey: vk.btcPubKey,
             })),
-            universalChallengers: universalChallengers.map((uc) => ({
+            universalChallengers: latestUniversalChallengers.map((uc) => ({
               btcPubKey: uc.btcPubKey,
             })),
           },
@@ -119,7 +121,7 @@ export function useSignPeginTransactions(
         setLoading(false);
       }
     },
-    [findProvider, vaultKeepers, universalChallengers],
+    [findProvider, vaultKeepers, latestUniversalChallengers],
   );
 
   return {

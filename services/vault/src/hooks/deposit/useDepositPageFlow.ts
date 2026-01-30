@@ -13,6 +13,7 @@ import {
   DepositStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
@@ -69,9 +70,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     reset: resetDeposit,
   } = useDepositState();
 
-  // Fetch vault providers, vault keepers, and universal challengers based on selected application
-  const { vaultProviders, vaultKeepers, universalChallengers } =
-    useVaultProviders(selectedApplication || undefined);
+  const { vaultProviders, vaultKeepers } = useVaultProviders(
+    selectedApplication || undefined,
+  );
+  const { latestUniversalChallengers } = useProtocolParamsContext();
 
   // Get activities refetch function
   const { refetchActivities } = useVaultDeposits(ethAddress);
@@ -98,11 +100,16 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     return {
       selectedProviderBtcPubkey: selectedProvider?.btcPubKey || "",
       vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
-      universalChallengerBtcPubkeys: universalChallengers.map(
+      universalChallengerBtcPubkeys: latestUniversalChallengers.map(
         (uc) => uc.btcPubKey,
       ),
     };
-  }, [selectedProviders, vaultProviders, vaultKeepers, universalChallengers]);
+  }, [
+    selectedProviders,
+    vaultProviders,
+    vaultKeepers,
+    latestUniversalChallengers,
+  ]);
 
   // Actions
   const startDeposit = (

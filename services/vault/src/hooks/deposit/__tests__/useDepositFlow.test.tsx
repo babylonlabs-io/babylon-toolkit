@@ -164,6 +164,9 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
       pegInConfirmationDepth: 30n,
     },
     minDeposit: 10000n,
+    latestUniversalChallengers: [
+      { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
+    ],
   })),
 }));
 
@@ -199,7 +202,6 @@ vi.mock("../useVaultProviders", () => ({
       name: "Test Provider",
     })),
     vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
-    universalChallengers: [{ btcPubKey: "0xUniversalChallengerKey1" }],
     vaultProviders: [],
     loading: false,
     error: null,

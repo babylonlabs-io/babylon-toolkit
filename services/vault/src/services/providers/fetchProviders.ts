@@ -2,14 +2,14 @@ import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
 import type {
-  ProvidersResponse,
+  AppProvidersResponse,
   UniversalChallenger,
   VaultKeeper,
   VaultProvider,
 } from "../../types/vaultProvider";
 
-/** GraphQL response shape for vault providers, vault keepers, and universal challengers */
-interface GraphQLProvidersResponse {
+/** GraphQL response for app-specific providers and keepers */
+interface GraphQLAppProvidersResponse {
   vaultProviders: {
     items: Array<{
       id: string;
@@ -23,15 +23,6 @@ interface GraphQLProvidersResponse {
       vaultKeeper: string;
       version: number;
       vaultKeeperInfo: {
-        btcPubKey: string;
-      };
-    }>;
-  };
-  universalChallengerVersions: {
-    items: Array<{
-      version: number;
-      challengerInfo: {
-        id: string;
         btcPubKey: string;
       };
     }>;
@@ -60,8 +51,8 @@ interface VersionedKeepersChallengersResponse {
   };
 }
 
-const GET_PROVIDERS_AND_KEEPERS = gql`
-  query GetProvidersAndKeepers($appController: String!) {
+const GET_APP_PROVIDERS = gql`
+  query GetAppProviders($appController: String!) {
     vaultProviders(where: { applicationController: $appController }) {
       items {
         id
@@ -75,15 +66,6 @@ const GET_PROVIDERS_AND_KEEPERS = gql`
         vaultKeeper
         version
         vaultKeeperInfo {
-          btcPubKey
-        }
-      }
-    }
-    universalChallengerVersions {
-      items {
-        version
-        challengerInfo {
-          id
           btcPubKey
         }
       }
@@ -129,21 +111,19 @@ const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
 `;
 
 /**
- * Fetches vault providers, vault keepers, and universal challengers for a specific application.
+ * Fetches vault providers and vault keepers for a specific application.
  *
- * Uses a single GraphQL query to fetch:
- * - Vault providers (per-application)
- * - Vault keepers (per-application)
- * - Universal challengers (system-wide)
+ * Note: Universal challengers are system-wide and should be fetched from
+ * ProtocolParamsContext instead of per-application.
  *
  * @param applicationController - The application controller address to filter by.
- * @returns Object containing vaultProviders, vaultKeepers, and universalChallengers arrays
+ * @returns Object containing vaultProviders and vaultKeepers arrays
  */
-export async function fetchProviders(
+export async function fetchAppProviders(
   applicationController: string,
-): Promise<ProvidersResponse> {
-  const response = await graphqlClient.request<GraphQLProvidersResponse>(
-    GET_PROVIDERS_AND_KEEPERS,
+): Promise<AppProvidersResponse> {
+  const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
+    GET_APP_PROVIDERS,
     { appController: applicationController.toLowerCase() },
   );
 
@@ -165,35 +145,21 @@ export async function fetchProviders(
       btcPubKey: item.vaultKeeperInfo.btcPubKey,
     }));
 
-  // Extract universal challengers (system-wide)
-  const universalChallengers: UniversalChallenger[] =
-    response.universalChallengerVersions.items.map((item) => ({
-      id: item.challengerInfo.id,
-      btcPubKey: item.challengerInfo.btcPubKey,
-    }));
-
   return {
     vaultProviders,
     vaultKeepers,
-    universalChallengers,
   };
 }
 
 /**
- * Fetches only active vault providers along with vault keepers and universal challengers.
- *
- * Note: All providers are immediately active upon registration, so this is equivalent
- * to fetchProviders(). Kept for backwards compatibility.
- *
- * @param applicationController - The application controller address to filter by.
- * @returns Object containing vaultProviders, vaultKeepers, and universalChallengers
+ * @deprecated Use fetchAppProviders() for per-app data and get UCs from ProtocolParamsContext
  */
-export async function fetchActiveProviders(
-  applicationController: string,
-): Promise<ProvidersResponse> {
-  // All providers are immediately active upon registration (no pending state)
-  return fetchProviders(applicationController);
-}
+export const fetchProviders = fetchAppProviders;
+
+/**
+ * @deprecated Use fetchAppProviders() for per-app data and get UCs from ProtocolParamsContext
+ */
+export const fetchActiveProviders = fetchAppProviders;
 
 /** Response from fetchKeepersAndChallengersByVersion */
 export interface VersionedKeepersChallengersResult {

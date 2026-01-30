@@ -39,13 +39,20 @@ export interface VaultProvider {
 }
 
 /**
- * Response from fetchProviders containing vault providers, vault keepers, and universal challengers
+ * Response from fetchAppProviders containing per-application data only
  */
-export interface ProvidersResponse {
+export interface AppProvidersResponse {
   /** Vault providers for the application */
   vaultProviders: VaultProvider[];
   /** Vault keepers for the application (per-application) */
   vaultKeepers: VaultKeeper[];
-  /** Universal challengers (system-wide) */
+}
+
+/**
+ * Response from fetchProviders containing vault providers, vault keepers, and universal challengers
+ * @deprecated Use AppProvidersResponse for per-app data and get UCs from ProtocolParamsContext
+ */
+export interface ProvidersResponse extends AppProvidersResponse {
+  /** Universal challengers (system-wide) - get from ProtocolParamsContext instead */
   universalChallengers: UniversalChallenger[];
 }
