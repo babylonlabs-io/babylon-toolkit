@@ -98,9 +98,8 @@ export function useDepositFlow(
     error: utxoError,
   } = useUTXOs(btcAddress);
   const { data: vaults } = useVaults(depositorEthAddress);
-  const { findProvider, vaultKeepers, universalChallengers } =
-    useVaultProviders(selectedApplication);
-  const { minDeposit } = useProtocolParamsContext();
+  const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
+  const { minDeposit, latestUniversalChallengers } = useProtocolParamsContext();
 
   const getSelectedVaultProvider = useCallback(() => {
     if (!selectedProviders || selectedProviders.length === 0) {
@@ -191,7 +190,7 @@ export function useDepositFlow(
             vaultKeepers: vaultKeepers.map((vk) => ({
               btcPubKey: vk.btcPubKey,
             })),
-            universalChallengers: universalChallengers.map((uc) => ({
+            universalChallengers: latestUniversalChallengers.map((uc) => ({
               btcPubKey: uc.btcPubKey,
             })),
           });
@@ -273,7 +272,7 @@ export function useDepositFlow(
       vaults,
       getSelectedVaultProvider,
       vaultKeepers,
-      universalChallengers,
+      latestUniversalChallengers,
       minDeposit,
     ]);
 

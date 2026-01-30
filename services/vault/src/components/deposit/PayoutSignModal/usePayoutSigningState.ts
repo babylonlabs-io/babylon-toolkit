@@ -12,6 +12,7 @@ import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
+import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
 import {
   getNextLocalStatus,
@@ -79,12 +80,12 @@ export function usePayoutSigningState({
   });
   const [error, setError] = useState<SigningError | null>(null);
 
-  // Get providers for the activity's application
-  const { findProvider, vaultKeepers, universalChallengers } =
-    useVaultProviders(activity.applicationController);
+  const { findProvider, vaultKeepers } = useVaultProviders(
+    activity.applicationController,
+  );
+  const { latestUniversalChallengers, getUniversalChallengersByVersion } =
+    useProtocolParamsContext();
   const btcConnector = useChainConnector("BTC");
-
-  // Get optimistic update from polling context
   const { setOptimisticStatus } = usePeginPolling();
 
   const handleSign = useCallback(async () => {
@@ -128,7 +129,7 @@ export function usePayoutSigningState({
         btcPubKey: provider.btcPubKey,
       },
       vaultKeepers: vaultKeepers.map((vk) => ({ btcPubKey: vk.btcPubKey })),
-      universalChallengers: universalChallengers.map((uc) => ({
+      universalChallengers: latestUniversalChallengers.map((uc) => ({
         btcPubKey: uc.btcPubKey,
       })),
     };
@@ -165,10 +166,12 @@ export function usePayoutSigningState({
 
     try {
       // Prepare signing context (fetches vault data, resolves pubkeys)
+      // Uses versioned keepers and challengers based on vault's locked versions
       const { context, vaultProviderUrl } = await prepareSigningContext({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         providers,
+        getUniversalChallengersByVersion,
       });
 
       // Prepare transactions for signing
@@ -260,7 +263,8 @@ export function usePayoutSigningState({
     activity.id,
     findProvider,
     vaultKeepers,
-    universalChallengers,
+    latestUniversalChallengers,
+    getUniversalChallengersByVersion,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,
