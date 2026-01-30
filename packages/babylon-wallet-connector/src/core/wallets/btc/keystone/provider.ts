@@ -163,7 +163,7 @@ export class KeystoneProvider implements IBTCProvider {
     psbt = this.enhancePsbt(psbt, inputIndexesToSign);
     const enhancedPsbt = psbt.toHex();
     // sign the psbt with keystone
-    const signedPsbt = await this.sign(enhancedPsbt);
+    const signedPsbt = await this.sign(enhancedPsbt, inputIndexesToSign);
     return signedPsbt.toHex();
   };
 
@@ -290,9 +290,10 @@ export class KeystoneProvider implements IBTCProvider {
    * Sign the PSBT with the Keystone device.
    *
    * @param psbtHex - The PSBT in hex format.
+   * @param inputIndexes - Optional array of input indexes that were signed.
    * @returns The signed PSBT in hex format.
    * */
-  private sign = async (psbtHex: string): Promise<Psbt> => {
+  private sign = async (psbtHex: string, inputIndexes?: number[]): Promise<Psbt> => {
     if (!psbtHex)
       throw new WalletError({
         code: ERROR_CODES.PSBT_HEX_REQUIRED,
@@ -310,7 +311,14 @@ export class KeystoneProvider implements IBTCProvider {
     // extract the signed PSBT from the UR
     const signedPsbtHex = this.dataSdk.btc.parsePSBT(signePsbtUR);
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
-    signedPsbt.finalizeAllInputs();
+
+    // Only finalize the inputs that were signed
+    if (inputIndexes && inputIndexes.length > 0) {
+      inputIndexes.forEach((index) => signedPsbt.finalizeInput(index));
+    } else {
+      signedPsbt.finalizeAllInputs();
+    }
+
     return signedPsbt;
   };
 
