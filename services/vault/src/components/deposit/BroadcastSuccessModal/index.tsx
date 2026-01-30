@@ -67,8 +67,8 @@ export function BroadcastSuccessModal({
           variant="body2"
           className="mt-4 text-xs text-accent-secondary sm:text-sm"
         >
-          This usually takes a few hours. You can continue using the platform
-          while your deposit confirms.
+          This usually takes a few hours. You can continue using the app while
+          your deposit is being confirmed.
         </Text>
       </DialogBody>
 
