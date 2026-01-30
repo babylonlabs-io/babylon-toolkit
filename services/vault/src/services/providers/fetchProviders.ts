@@ -3,7 +3,6 @@ import { gql } from "graphql-request";
 import { graphqlClient } from "../../clients/graphql";
 import type {
   AppProvidersResponse,
-  UniversalChallenger,
   VaultKeeper,
   VaultProvider,
 } from "../../types/vaultProvider";
@@ -29,22 +28,13 @@ interface GraphQLAppProvidersResponse {
   };
 }
 
-/** GraphQL response for versioned keepers/challengers query */
-interface VersionedKeepersChallengersResponse {
+/** GraphQL response for versioned keepers-only query */
+interface VersionedKeepersResponse {
   vaultKeeperApplications: {
     items: Array<{
       vaultKeeper: string;
       version: number;
       vaultKeeperInfo: {
-        btcPubKey: string;
-      };
-    }>;
-  };
-  universalChallengerVersions: {
-    items: Array<{
-      version: number;
-      challengerInfo: {
-        id: string;
         btcPubKey: string;
       };
     }>;
@@ -73,17 +63,9 @@ const GET_APP_PROVIDERS = gql`
   }
 `;
 
-/**
- * GraphQL query to fetch vault keepers and universal challengers by version.
- * Used for payout signing where we need the keepers/challengers that were
- * active when the vault was created.
- */
-const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
-  query GetKeepersAndChallengersByVersion(
-    $appController: String!
-    $keepersVersion: Int!
-    $challengersVersion: Int!
-  ) {
+/** GraphQL query to fetch vault keepers by version */
+const GET_KEEPERS_BY_VERSION = gql`
+  query GetKeepersByVersion($appController: String!, $keepersVersion: Int!) {
     vaultKeeperApplications(
       where: {
         applicationController: $appController
@@ -98,17 +80,35 @@ const GET_KEEPERS_CHALLENGERS_BY_VERSION = gql`
         }
       }
     }
-    universalChallengerVersions(where: { version_lte: $challengersVersion }) {
-      items {
-        version
-        challengerInfo {
-          id
-          btcPubKey
-        }
-      }
-    }
   }
 `;
+
+/**
+ * Fetches vault keepers by version for a specific application.
+ * Used for payout signing where we need the keepers that were locked
+ * when the vault was created.
+ *
+ * @param applicationController - The application controller address
+ * @param appVaultKeepersVersion - The vault keepers version locked at vault creation
+ * @returns Array of vault keepers for that version
+ */
+export async function fetchVaultKeepersByVersion(
+  applicationController: string,
+  appVaultKeepersVersion: number,
+): Promise<VaultKeeper[]> {
+  const response = await graphqlClient.request<VersionedKeepersResponse>(
+    GET_KEEPERS_BY_VERSION,
+    {
+      appController: applicationController.toLowerCase(),
+      keepersVersion: appVaultKeepersVersion,
+    },
+  );
+
+  return response.vaultKeeperApplications.items.map((item) => ({
+    id: item.vaultKeeper,
+    btcPubKey: item.vaultKeeperInfo.btcPubKey,
+  }));
+}
 
 /**
  * Fetches vault providers and vault keepers for a specific application.
@@ -148,66 +148,5 @@ export async function fetchAppProviders(
   return {
     vaultProviders,
     vaultKeepers,
-  };
-}
-
-/**
- * @deprecated Use fetchAppProviders() for per-app data and get UCs from ProtocolParamsContext
- */
-export const fetchProviders = fetchAppProviders;
-
-/**
- * @deprecated Use fetchAppProviders() for per-app data and get UCs from ProtocolParamsContext
- */
-export const fetchActiveProviders = fetchAppProviders;
-
-/** Response from fetchKeepersAndChallengersByVersion */
-export interface VersionedKeepersChallengersResult {
-  vaultKeepers: VaultKeeper[];
-  universalChallengers: UniversalChallenger[];
-}
-
-/**
- * Fetches vault keepers and universal challengers that were active at specific versions.
- * Used for payout signing where we need the keepers/challengers that were
- * locked when the vault was created.
- *
- * @param applicationController - The application controller address
- * @param appVaultKeepersVersion - The vault keepers version locked at vault creation
- * @param universalChallengersVersion - The universal challengers version locked at vault creation
- * @returns Object containing vaultKeepers and universalChallengers for those versions
- */
-export async function fetchKeepersAndChallengersByVersion(
-  applicationController: string,
-  appVaultKeepersVersion: number,
-  universalChallengersVersion: number,
-): Promise<VersionedKeepersChallengersResult> {
-  const response =
-    await graphqlClient.request<VersionedKeepersChallengersResponse>(
-      GET_KEEPERS_CHALLENGERS_BY_VERSION,
-      {
-        appController: applicationController.toLowerCase(),
-        keepersVersion: appVaultKeepersVersion,
-        challengersVersion: universalChallengersVersion,
-      },
-    );
-
-  // Extract vault keepers with btcPubKey from nested relation
-  const vaultKeepers: VaultKeeper[] =
-    response.vaultKeeperApplications.items.map((item) => ({
-      id: item.vaultKeeper,
-      btcPubKey: item.vaultKeeperInfo.btcPubKey,
-    }));
-
-  // Extract universal challengers
-  const universalChallengers: UniversalChallenger[] =
-    response.universalChallengerVersions.items.map((item) => ({
-      id: item.challengerInfo.id,
-      btcPubKey: item.challengerInfo.btcPubKey,
-    }));
-
-  return {
-    vaultKeepers,
-    universalChallengers,
   };
 }

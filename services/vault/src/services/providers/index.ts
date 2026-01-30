@@ -1,6 +1,8 @@
 export {
-  fetchActiveProviders,
   fetchAppProviders,
-  fetchProviders,
+  fetchVaultKeepersByVersion,
 } from "./fetchProviders";
-export { fetchUniversalChallengers } from "./fetchUniversalChallengers";
+export {
+  fetchAllUniversalChallengers,
+  type UniversalChallengersData,
+} from "./fetchUniversalChallengers";

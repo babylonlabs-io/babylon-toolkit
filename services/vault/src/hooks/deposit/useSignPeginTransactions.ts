@@ -59,7 +59,8 @@ export function useSignPeginTransactions(
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const { latestUniversalChallengers } = useProtocolParamsContext();
+  const { latestUniversalChallengers, getUniversalChallengersByVersion } =
+    useProtocolParamsContext();
   const { findProvider, vaultKeepers } = useVaultProviders(
     applicationController,
   );
@@ -87,6 +88,7 @@ export function useSignPeginTransactions(
         }
 
         // Delegate to service layer (state-unaware, reusable business logic)
+        // Uses versioned keepers and challengers based on vault's locked versions
         await signAndSubmitPayoutSignatures({
           peginTxId: params.peginTxId,
           depositorBtcPubkey: params.depositorBtcPubkey,
@@ -105,6 +107,7 @@ export function useSignPeginTransactions(
             })),
           },
           btcWallet: params.btcWallet,
+          getUniversalChallengersByVersion,
         });
 
         setSuccess(true);
@@ -121,7 +124,12 @@ export function useSignPeginTransactions(
         setLoading(false);
       }
     },
-    [findProvider, vaultKeepers, latestUniversalChallengers],
+    [
+      findProvider,
+      vaultKeepers,
+      latestUniversalChallengers,
+      getUniversalChallengersByVersion,
+    ],
   );
 
   return {

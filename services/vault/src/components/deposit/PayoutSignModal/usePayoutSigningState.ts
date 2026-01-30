@@ -83,7 +83,8 @@ export function usePayoutSigningState({
   const { findProvider, vaultKeepers } = useVaultProviders(
     activity.applicationController,
   );
-  const { latestUniversalChallengers } = useProtocolParamsContext();
+  const { latestUniversalChallengers, getUniversalChallengersByVersion } =
+    useProtocolParamsContext();
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
 
@@ -165,10 +166,12 @@ export function usePayoutSigningState({
 
     try {
       // Prepare signing context (fetches vault data, resolves pubkeys)
+      // Uses versioned keepers and challengers based on vault's locked versions
       const { context, vaultProviderUrl } = await prepareSigningContext({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         providers,
+        getUniversalChallengersByVersion,
       });
 
       // Prepare transactions for signing
@@ -261,6 +264,7 @@ export function usePayoutSigningState({
     findProvider,
     vaultKeepers,
     latestUniversalChallengers,
+    getUniversalChallengersByVersion,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,

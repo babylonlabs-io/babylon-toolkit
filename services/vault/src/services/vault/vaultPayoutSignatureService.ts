@@ -8,8 +8,9 @@ import type {
   ClaimerTransactions,
 } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
+import type { UniversalChallenger } from "../../types";
 import { processPublicKeyToXOnly, stripHexPrefix } from "../../utils/btc";
-import { fetchKeepersAndChallengersByVersion } from "../providers/fetchProviders";
+import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import {
   signPayoutOptimisticTransaction,
@@ -56,12 +57,16 @@ export interface SignAndSubmitPayoutSignaturesParams {
   claimerTransactions: ClaimerTransactions[];
   providers: PayoutProviders;
   btcWallet: BitcoinWallet;
+  /** Function to get UCs by version from context (for versioned payout signing) */
+  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
 
 export interface PrepareSigningContextParams {
   peginTxId: string;
   depositorBtcPubkey: string;
   providers: PayoutProviders;
+  /** Function to get UCs by version from context (avoids redundant fetch) */
+  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
 
 export interface PreparedSigningData {
@@ -325,14 +330,18 @@ export async function signAllTransactions(
  * Prepare the signing context by fetching all required data.
  * Call this once, then use signPayoutOptimistic/signPayout for each transaction.
  *
- * Note: This function fetches versioned vault keepers and universal challengers
- * based on the versions locked when the vault was created, ignoring any
- * keepers/challengers passed in the providers param.
+ * Uses versioned vault keepers (fetched) and universal challengers (from context)
+ * based on the versions locked when the vault was created.
  */
 export async function prepareSigningContext(
   params: PrepareSigningContextParams,
 ): Promise<PreparedSigningData> {
-  const { peginTxId, depositorBtcPubkey, providers } = params;
+  const {
+    peginTxId,
+    depositorBtcPubkey,
+    providers,
+    getUniversalChallengersByVersion,
+  } = params;
   const { vaultProvider } = providers;
 
   // Fetch vault data from GraphQL
@@ -341,14 +350,22 @@ export async function prepareSigningContext(
     throw new Error("Vault or pegin transaction not found");
   }
 
-  // Fetch versioned vault keepers and universal challengers
-  // These are the keepers/challengers that were active when the vault was created
-  const { vaultKeepers, universalChallengers } =
-    await fetchKeepersAndChallengersByVersion(
-      vault.applicationController,
-      vault.appVaultKeepersVersion,
-      vault.universalChallengersVersion,
+  // Fetch versioned vault keepers (per-application)
+  const vaultKeepers = await fetchVaultKeepersByVersion(
+    vault.applicationController,
+    vault.appVaultKeepersVersion,
+  );
+
+  // Get versioned universal challengers from context (system-wide)
+  const universalChallengers = getUniversalChallengersByVersion(
+    vault.universalChallengersVersion,
+  );
+
+  if (universalChallengers.length === 0) {
+    throw new Error(
+      `No universal challengers found for version ${vault.universalChallengersVersion}`,
     );
+  }
 
   // Resolve vault provider's BTC public key
   const vaultProviderBtcPubkey =
@@ -393,6 +410,7 @@ export async function signAndSubmitPayoutSignatures(
     claimerTransactions,
     providers,
     btcWallet,
+    getUniversalChallengersByVersion,
   } = params;
 
   // Validate inputs
@@ -405,11 +423,12 @@ export async function signAndSubmitPayoutSignatures(
     universalChallengers: providers.universalChallengers,
   });
 
-  // Prepare signing context
+  // Prepare signing context (uses versioned keepers and challengers)
   const { context, vaultProviderUrl } = await prepareSigningContext({
     peginTxId,
     depositorBtcPubkey,
     providers,
+    getUniversalChallengersByVersion,
   });
 
   // Prepare and sign all transactions (both PayoutOptimistic and Payout)

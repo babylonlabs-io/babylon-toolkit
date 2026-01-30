@@ -2,7 +2,7 @@
  * Protocol Params Context
  *
  * Provides protocol parameters from the ProtocolParams contract to all child components.
- * Also provides system-wide data like universal challengers.
+ * Also provides system-wide data like universal challengers (all versions).
  * Fetches params once when the app loads and caches for 5 minutes.
  *
  * This is a BLOCKING provider - children are not rendered until params are loaded.
@@ -11,13 +11,19 @@
 
 import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
-import { createContext, useContext, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 import {
   getPegInConfiguration,
   type PegInConfiguration,
 } from "@/clients/eth-contract/protocol-params";
-import { fetchUniversalChallengers } from "@/services/providers";
+import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
 
 const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
@@ -28,8 +34,10 @@ interface ProtocolParamsContextValue {
   config: PegInConfiguration;
   /** Minimum deposit amount in satoshis (from contract) */
   minDeposit: bigint;
-  /** Latest universal challengers (system-wide) - use for new peg-ins */
+  /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
+  /** Get universal challengers by version - use for payout signing existing vaults */
+  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
 
 const ProtocolParamsContext = createContext<ProtocolParamsContextValue | null>(
@@ -50,7 +58,6 @@ interface ProtocolParamsProviderProps {
 export function ProtocolParamsProvider({
   children,
 }: ProtocolParamsProviderProps) {
-  // Fetch peg-in configuration from contract
   const {
     data: configData,
     isLoading: configLoading,
@@ -63,14 +70,13 @@ export function ProtocolParamsProvider({
     retry: 3,
   });
 
-  // Fetch universal challengers (system-wide, rarely change)
   const {
     data: ucData,
     isLoading: ucLoading,
     error: ucError,
   } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "universalChallengers"],
-    queryFn: fetchUniversalChallengers,
+    queryFn: fetchAllUniversalChallengers,
     staleTime: FIVE_MINUTES,
     refetchOnWindowFocus: false,
     retry: 3,
@@ -79,7 +85,19 @@ export function ProtocolParamsProvider({
   const isLoading = configLoading || ucLoading;
   const error = configError || ucError;
 
-  // Show loader while fetching
+  const latestUniversalChallengers = useMemo(() => {
+    if (!ucData) return [];
+    return ucData.byVersion.get(ucData.latestVersion) ?? [];
+  }, [ucData]);
+
+  const getUniversalChallengersByVersion = useCallback(
+    (version: number): UniversalChallenger[] => {
+      if (!ucData) return [];
+      return ucData.byVersion.get(version) ?? [];
+    },
+    [ucData],
+  );
+
   if (isLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
@@ -88,7 +106,6 @@ export function ProtocolParamsProvider({
     );
   }
 
-  // Show error if fetch failed or data is incomplete
   if (error || !configData || configData.minimumPegInAmount === undefined) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
@@ -103,7 +120,8 @@ export function ProtocolParamsProvider({
   const value: ProtocolParamsContextValue = {
     config: configData,
     minDeposit: configData.minimumPegInAmount,
-    latestUniversalChallengers: ucData ?? [],
+    latestUniversalChallengers,
+    getUniversalChallengersByVersion,
   };
 
   return (
