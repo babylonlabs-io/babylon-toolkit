@@ -122,7 +122,7 @@ export class OneKeyProvider implements IBTCProvider {
     return this.provider.signPsbt(psbtHex);
   };
 
-  signPsbts = async (psbtsHexes: string[]): Promise<string[]> => {
+  signPsbts = async (psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> => {
     if (!this.walletInfo)
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -135,6 +135,26 @@ export class OneKeyProvider implements IBTCProvider {
         message: "psbts hexes are required and must be a non-empty array",
         wallet: WALLET_PROVIDER_NAME,
       });
+    }
+
+    // If options provided, map them to OneKey format (similar to Unisat/OKX)
+    if (options && options.length > 0) {
+      const onekeyOptions = options.map((opt) => {
+        if (opt?.signInputs && opt.signInputs.length > 0) {
+          return {
+            autoFinalized: opt.autoFinalized ?? false,
+            toSignInputs: opt.signInputs.map((input) => ({
+              index: input.index,
+              publicKey: input.publicKey,
+              address: input.address,
+              sighashTypes: input.sighashTypes,
+              disableTweakSigner: input.disableTweakSigner,
+            })),
+          };
+        }
+        return undefined;
+      });
+      return this.provider.signPsbts(psbtsHexes, onekeyOptions);
     }
 
     return this.provider.signPsbts(psbtsHexes);
