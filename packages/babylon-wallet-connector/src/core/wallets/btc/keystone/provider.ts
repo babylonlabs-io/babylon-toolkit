@@ -163,7 +163,7 @@ export class KeystoneProvider implements IBTCProvider {
     psbt = this.enhancePsbt(psbt, inputIndexesToSign);
     const enhancedPsbt = psbt.toHex();
     // sign the psbt with keystone
-    const signedPsbt = await this.sign(enhancedPsbt);
+    const signedPsbt = await this.sign(enhancedPsbt, options);
     return signedPsbt.toHex();
   };
 
@@ -290,9 +290,10 @@ export class KeystoneProvider implements IBTCProvider {
    * Sign the PSBT with the Keystone device.
    *
    * @param psbtHex - The PSBT in hex format.
-   * @returns The signed PSBT in hex format.
+   * @param options - Optional signing parameters.
+   * @returns The signed PSBT.
    * */
-  private sign = async (psbtHex: string): Promise<Psbt> => {
+  private sign = async (psbtHex: string, options?: SignPsbtOptions): Promise<Psbt> => {
     if (!psbtHex)
       throw new WalletError({
         code: ERROR_CODES.PSBT_HEX_REQUIRED,
@@ -311,8 +312,14 @@ export class KeystoneProvider implements IBTCProvider {
     const signedPsbtHex = this.dataSdk.btc.parsePSBT(signePsbtUR);
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
-    // Return non-finalized PSBT to preserve tapScriptSig for signature extraction
-    // Finalization would move signatures from tapScriptSig to finalScriptWitness
+    if (options?.autoFinalized === false) {
+      // Don't finalize - caller needs non-finalized PSBT (e.g., for signature extraction)
+      // Finalization would move signatures from tapScriptSig to finalScriptWitness
+      return signedPsbt;
+    }
+
+    // Default - finalize all inputs for transaction broadcasting
+    signedPsbt.finalizeAllInputs();
     return signedPsbt;
   };
 
