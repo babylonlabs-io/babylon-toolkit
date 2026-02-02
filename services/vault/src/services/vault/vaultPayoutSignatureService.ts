@@ -15,6 +15,9 @@ import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 import {
   signPayoutOptimisticTransaction,
   signPayoutTransaction,
+  signPayoutTransactionsBatch,
+  supportsBatchSigning,
+  type BatchSignTransactionPair,
 } from "./btcPayoutSigner";
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultById } from "./fetchVaults";
@@ -320,6 +323,71 @@ export async function signAllTransactions(
     signatures[tx.claimerPubkeyXOnly] = {
       payout_optimistic_signature: payoutOptimisticSig,
       payout_signature: payoutSig,
+    };
+  }
+
+  return signatures;
+}
+
+/**
+ * Check if wallet supports batch signing (signPsbts).
+ * Batch signing allows signing all transactions with a single wallet interaction.
+ */
+export function walletSupportsBatchSigning(btcWallet: BitcoinWallet): boolean {
+  return supportsBatchSigning(btcWallet);
+}
+
+/**
+ * Sign all transactions in batch using signPsbts (single wallet popup).
+ * This provides a better UX when the wallet supports it (e.g., Unisat).
+ *
+ * @param btcWallet - Bitcoin wallet with signPsbts support
+ * @param context - Signing context with vault data
+ * @param transactions - Prepared transactions to sign
+ * @returns Signatures keyed by claimer pubkey
+ */
+export async function signAllTransactionsBatch(
+  btcWallet: BitcoinWallet,
+  context: SigningContext,
+  transactions: PreparedTransaction[],
+): Promise<Record<string, ClaimerSignatures>> {
+  // Build batch signing params
+  const batchParams: BatchSignTransactionPair[] = transactions.map((tx) => ({
+    payoutOptimistic: {
+      payoutOptimisticTxHex: tx.payoutOptimisticTxHex,
+      peginTxHex: context.peginTxHex,
+      claimTxHex: tx.claimTxHex,
+      vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+      network: context.network,
+      depositorBtcPubkey: context.depositorBtcPubkey,
+    },
+    payout: {
+      payoutTxHex: tx.payoutTxHex,
+      peginTxHex: context.peginTxHex,
+      assertTxHex: tx.assertTxHex,
+      vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+      network: context.network,
+      depositorBtcPubkey: context.depositorBtcPubkey,
+    },
+  }));
+
+  // Sign all in one batch
+  const batchResults = await signPayoutTransactionsBatch(
+    btcWallet,
+    batchParams,
+    context.network,
+  );
+
+  // Map results to signatures record
+  const signatures: Record<string, ClaimerSignatures> = {};
+  for (let i = 0; i < transactions.length; i++) {
+    signatures[transactions[i].claimerPubkeyXOnly] = {
+      payout_optimistic_signature: batchResults[i].payoutOptimisticSignature,
+      payout_signature: batchResults[i].payoutSignature,
     };
   }
 

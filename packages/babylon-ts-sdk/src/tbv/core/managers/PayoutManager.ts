@@ -316,4 +316,149 @@ export class PayoutManager {
   getNetwork(): Network {
     return this.config.network;
   }
+
+  /**
+   * Checks if the wallet supports batch signing (signPsbts).
+   *
+   * @returns true if batch signing is supported
+   */
+  supportsBatchSigning(): boolean {
+    return typeof this.config.btcWallet.signPsbts === "function";
+  }
+
+  /**
+   * Batch signs multiple payout transactions (both PayoutOptimistic and Payout).
+   * This allows signing all transactions with a single wallet interaction.
+   *
+   * @param transactions - Array of transaction pairs to sign
+   * @returns Array of signature results matching input order
+   * @throws Error if wallet doesn't support batch signing
+   * @throws Error if any signing operation fails
+   */
+  async signPayoutTransactionsBatch(
+    transactions: Array<{
+      payoutOptimistic: SignPayoutOptimisticParams;
+      payout: SignPayoutParams;
+    }>,
+  ): Promise<
+    Array<{
+      payoutOptimisticSignature: string;
+      payoutSignature: string;
+      depositorBtcPubkey: string;
+    }>
+  > {
+    if (!this.supportsBatchSigning()) {
+      throw new Error(
+        "Wallet does not support batch signing (signPsbts method not available)",
+      );
+    }
+
+    // Get wallet pubkey once
+    const walletPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+
+    // Build all PSBTs
+    const psbtsToSign: string[] = [];
+    const signOptions: Array<{
+      autoFinalized: boolean;
+      signInputs: Array<{
+        index: number;
+        publicKey: string;
+        disableTweakSigner: boolean;
+      }>;
+    }> = [];
+    const depositorPubkeys: string[] = [];
+
+    for (const tx of transactions) {
+      // Validate wallet pubkey matches depositor
+      const { depositorPubkey } = validateWalletPubkey(
+        walletPubkeyRaw,
+        tx.payoutOptimistic.depositorBtcPubkey,
+      );
+      depositorPubkeys.push(depositorPubkey);
+
+      // Build PayoutOptimistic PSBT
+      const payoutOptimisticPsbt = await buildPayoutOptimisticPsbt({
+        payoutOptimisticTxHex: tx.payoutOptimistic.payoutOptimisticTxHex,
+        peginTxHex: tx.payoutOptimistic.peginTxHex,
+        claimTxHex: tx.payoutOptimistic.claimTxHex,
+        depositorBtcPubkey: depositorPubkey,
+        vaultProviderBtcPubkey: tx.payoutOptimistic.vaultProviderBtcPubkey,
+        vaultKeeperBtcPubkeys: tx.payoutOptimistic.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys:
+          tx.payoutOptimistic.universalChallengerBtcPubkeys,
+        network: this.config.network,
+      });
+      psbtsToSign.push(payoutOptimisticPsbt.psbtHex);
+      signOptions.push({
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: walletPubkeyRaw,
+            disableTweakSigner: true,
+          },
+        ],
+      });
+
+      // Build Payout PSBT
+      const payoutPsbt = await buildPayoutPsbt({
+        payoutTxHex: tx.payout.payoutTxHex,
+        peginTxHex: tx.payout.peginTxHex,
+        assertTxHex: tx.payout.assertTxHex,
+        depositorBtcPubkey: depositorPubkey,
+        vaultProviderBtcPubkey: tx.payout.vaultProviderBtcPubkey,
+        vaultKeeperBtcPubkeys: tx.payout.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys:
+          tx.payout.universalChallengerBtcPubkeys,
+        network: this.config.network,
+      });
+      psbtsToSign.push(payoutPsbt.psbtHex);
+      signOptions.push({
+        autoFinalized: false,
+        signInputs: [
+          {
+            index: 0,
+            publicKey: walletPubkeyRaw,
+            disableTweakSigner: true,
+          },
+        ],
+      });
+    }
+
+    // Batch sign all PSBTs with single wallet interaction
+    const signedPsbts = await this.config.btcWallet.signPsbts!(
+      psbtsToSign,
+      signOptions,
+    );
+
+    // Extract signatures from signed PSBTs
+    const results: Array<{
+      payoutOptimisticSignature: string;
+      payoutSignature: string;
+      depositorBtcPubkey: string;
+    }> = [];
+
+    for (let i = 0; i < transactions.length; i++) {
+      const payoutOptimisticIndex = i * 2;
+      const payoutIndex = i * 2 + 1;
+      const depositorPubkey = depositorPubkeys[i];
+
+      const payoutOptimisticSignature = extractPayoutSignature(
+        signedPsbts[payoutOptimisticIndex],
+        depositorPubkey,
+      );
+      const payoutSignature = extractPayoutSignature(
+        signedPsbts[payoutIndex],
+        depositorPubkey,
+      );
+
+      results.push({
+        payoutOptimisticSignature,
+        payoutSignature,
+        depositorBtcPubkey: depositorPubkey,
+      });
+    }
+
+    return results;
+  }
 }

@@ -127,3 +127,97 @@ export async function signPayoutTransaction(
     throw new Error("Failed to sign Payout transaction: Unknown error");
   }
 }
+
+/** Transaction pair for batch signing */
+export interface BatchSignTransactionPair {
+  payoutOptimistic: SignPayoutOptimisticTransactionParams;
+  payout: SignPayoutTransactionParams;
+}
+
+/** Result from batch signing */
+export interface BatchSignResult {
+  payoutOptimisticSignature: string;
+  payoutSignature: string;
+}
+
+/**
+ * Check if wallet supports batch signing (signPsbts method).
+ *
+ * @param btcWallet - Bitcoin wallet to check
+ * @returns true if batch signing is supported
+ */
+export function supportsBatchSigning(btcWallet: BitcoinWallet): boolean {
+  return typeof btcWallet.signPsbts === "function";
+}
+
+/**
+ * Batch sign multiple payout transaction pairs using a single wallet interaction.
+ * This provides better UX by showing one signing popup instead of many.
+ *
+ * Requires wallet to support signPsbts (e.g., Unisat).
+ *
+ * @param btcWallet - Bitcoin wallet with signPsbts support
+ * @param transactions - Array of transaction pairs to sign
+ * @param network - Bitcoin network
+ * @returns Array of signature results matching input order
+ * @throws Error if wallet doesn't support batch signing
+ */
+export async function signPayoutTransactionsBatch(
+  btcWallet: BitcoinWallet,
+  transactions: BatchSignTransactionPair[],
+  network: Network,
+): Promise<BatchSignResult[]> {
+  try {
+    const payoutManager = new PayoutManager({
+      network,
+      btcWallet,
+    });
+
+    if (!payoutManager.supportsBatchSigning()) {
+      throw new Error(
+        "Wallet does not support batch signing. Use signPsbts-compatible wallet like Unisat.",
+      );
+    }
+
+    const results = await payoutManager.signPayoutTransactionsBatch(
+      transactions.map((tx) => ({
+        payoutOptimistic: {
+          payoutOptimisticTxHex: tx.payoutOptimistic.payoutOptimisticTxHex,
+          peginTxHex: tx.payoutOptimistic.peginTxHex,
+          claimTxHex: tx.payoutOptimistic.claimTxHex,
+          vaultProviderBtcPubkey: tx.payoutOptimistic.vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys: tx.payoutOptimistic.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys:
+            tx.payoutOptimistic.universalChallengerBtcPubkeys,
+          depositorBtcPubkey: tx.payoutOptimistic.depositorBtcPubkey,
+        },
+        payout: {
+          payoutTxHex: tx.payout.payoutTxHex,
+          peginTxHex: tx.payout.peginTxHex,
+          assertTxHex: tx.payout.assertTxHex,
+          vaultProviderBtcPubkey: tx.payout.vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys: tx.payout.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys:
+            tx.payout.universalChallengerBtcPubkeys,
+          depositorBtcPubkey: tx.payout.depositorBtcPubkey,
+        },
+      })),
+    );
+
+    return results.map((r) => ({
+      payoutOptimisticSignature: r.payoutOptimisticSignature,
+      payoutSignature: r.payoutSignature,
+    }));
+  } catch (error) {
+    console.error(
+      "[btcPayoutSigner] Error batch signing payout transactions:",
+      error,
+    );
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to batch sign payout transactions: ${error.message}`,
+      );
+    }
+    throw new Error("Failed to batch sign payout transactions: Unknown error");
+  }
+}
