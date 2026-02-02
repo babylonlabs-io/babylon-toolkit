@@ -1,35 +1,39 @@
 /**
  * Provider Icon Service
  *
- * Constructs icon URLs for vault providers using the icon service.
- * Icons are served from S3 via the configured icon service URL.
+ * Constructs icon URLs for vault providers using the staking API.
+ * Icons are served from S3 via the same API used by simple-staking.
  *
- * @see NEXT_PUBLIC_ICON_SERVICE_URL environment variable
+ * @see NEXT_PUBLIC_API_URL environment variable
  */
 
-const ICON_SERVICE_URL = process.env.NEXT_PUBLIC_ICON_SERVICE_URL ?? "";
+function getApiUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+}
 
 /**
  * Generates the icon URL for a vault provider.
  *
  * @param providerId - The provider's Ethereum address
  * @returns The full URL to the provider's icon image, or undefined if the
- *          icon service is not configured or providerId is empty
+ *          API URL is not configured or providerId is empty
  *
  * @example
- * // With NEXT_PUBLIC_ICON_SERVICE_URL="https://icons.babylonlabs.io"
+ * // With NEXT_PUBLIC_API_URL="https://staking-api.testnet.babylonlabs.io"
  * getProviderIconUrl("0xABC123...")
- * // Returns: "https://icons.babylonlabs.io/providers/0xabc123....png"
+ * // Returns: "https://staking-api.testnet.babylonlabs.io/v1/icons/providers/0xabc123....png"
  *
  * @example
- * // Without NEXT_PUBLIC_ICON_SERVICE_URL configured
+ * // Without NEXT_PUBLIC_API_URL configured
  * getProviderIconUrl("0xABC123...")
  * // Returns: undefined
  */
 export function getProviderIconUrl(providerId: string): string | undefined {
-  if (!ICON_SERVICE_URL || !providerId) {
+  const apiUrl = getApiUrl();
+
+  if (!apiUrl || !providerId) {
     return undefined;
   }
 
-  return `${ICON_SERVICE_URL}/providers/${providerId.toLowerCase()}.png`;
+  return `${apiUrl}/v1/icons/providers/${providerId.toLowerCase()}.png`;
 }

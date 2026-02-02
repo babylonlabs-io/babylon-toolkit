@@ -61,6 +61,7 @@ export function SelectVaultProviderModal({
       votingPower: "",
       commission: "",
       iconUrl: p.iconUrl,
+      status: p.status,
     }));
   }, [providers, filterValue]);
 
@@ -71,19 +72,16 @@ export function SelectVaultProviderModal({
         header: "Vault Provider",
         headerClassName: "max-w-[240px]",
         cellClassName: "text-primary-dark max-w-[240px]",
-        render: (_, row) => {
-          const provider = providers.find((p) => p.id === row.id);
-          return (
-            <div className="flex min-w-0 items-center gap-2">
-              <ProviderAvatar
-                name={row.name}
-                url={provider?.iconUrl}
-                size="medium"
-              />
-              <span className="truncate">{row.name}</span>
-            </div>
-          );
-        },
+        render: (_, row) => (
+          <div className="flex min-w-0 items-center gap-2">
+            <ProviderAvatar
+              name={row.name}
+              url={(row as ValidatorRow & { iconUrl?: string }).iconUrl}
+              size="medium"
+            />
+            <span className="truncate">{row.name}</span>
+          </div>
+        ),
         sorter: (a, b) => a.name.localeCompare(b.name),
       },
       {
@@ -119,8 +117,7 @@ export function SelectVaultProviderModal({
         headerClassName: "max-w-[100px]",
         cellClassName: "max-w-[100px]",
         render: (_, row) => {
-          const provider = providers.find((p) => p.id === row.id);
-          const status = provider?.status;
+          const status = (row as ValidatorRow & { status?: string }).status;
           if (!status) {
             return <span className="text-accent-secondary">—</span>;
           }
@@ -148,7 +145,7 @@ export function SelectVaultProviderModal({
         ),
       },
     ],
-    [providers, copyToClipboard, isCopied],
+    [copyToClipboard, isCopied],
   );
 
   const handleSelect = (row: ValidatorRow) => {
