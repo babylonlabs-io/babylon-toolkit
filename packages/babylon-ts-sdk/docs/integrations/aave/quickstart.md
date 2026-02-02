@@ -89,7 +89,13 @@ if (status !== "safe" && status !== "no_debt") {
 // 2. Build transaction
 const positionId: Hex = "0x..."; // From your position data
 const amount = parseUnits("100", 6); // 100 USDC
-const receiver = walletClient.account.address;
+
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const receiver: Address =
+  typeof account === "string" ? account : account.address;
 
 const tx = buildBorrowTx(CONTROLLER, positionId, USDC_RESERVE_ID, amount, receiver);
 
@@ -118,12 +124,13 @@ const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_BPS;
 
 // 2. Approve token spending (required!)
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
-await walletClient.writeContract({
+const approveHash = await walletClient.writeContract({
   address: USDC_ADDRESS,
   abi: [{ name: "approve", type: "function", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
   functionName: "approve",
   args: [CONTROLLER, repayAmount],
 });
+await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
 // 3. Build transaction
 const positionId: Hex = "0x...";

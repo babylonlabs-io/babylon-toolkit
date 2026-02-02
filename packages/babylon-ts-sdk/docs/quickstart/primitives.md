@@ -35,7 +35,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ### 1. buildPeginPsbt
 
-Builds an **unfunded** peg-in PSBT (0 inputs, 1 vault output).
+Builds an **unfunded** peg-in transaction hex (0 inputs, 1 vault output).
 
 ```typescript
 import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -51,12 +51,14 @@ const result = await buildPeginPsbt({
 
 // Returns:
 // {
-//   psbtHex: "...",           // Unfunded PSBT (you add inputs)
+//   psbtHex: "...",           // Unfunded transaction hex (you add inputs via PSBT)
 //   vaultScriptPubKey: "...", // Vault output script
 //   vaultValue: 100000n,      // Vault amount
-//   txid: "...",              // Transaction ID
+//   txid: "...",              // Transaction ID (will change after funding)
 // }
 ```
+
+**Note:** Despite the field name `psbtHex`, this contains raw unfunded transaction hex (not PSBT format). You must construct a PSBT from it, add UTXOs as inputs, add change output, sign, and broadcast.
 
 **You then:** Add UTXOs as inputs, add change output, sign, broadcast.
 
@@ -134,7 +136,7 @@ The SDK also provides utility functions you'll need when using primitives:
 import {
   selectUtxosForPegin,    // UTXO selection with fee calculation
   calculateBtcTxHash,     // Get tx hash from hex
-  fundPeginTransaction,   // Add inputs/change to unfunded PSBT
+  fundPeginTransaction,   // Add inputs/change to unfunded tx hex
   P2TR_INPUT_SIZE,        // Fee calculation constants
   BTC_DUST_SAT,
 } from "@babylonlabs-io/ts-sdk/tbv/core";

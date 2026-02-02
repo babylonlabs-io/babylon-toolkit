@@ -54,6 +54,8 @@ const peginManager = new PeginManager({
 ### 4-Step Flow
 
 ```typescript
+import { PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
+
 // Step 1: Prepare transaction (builds funded tx, selects UTXOs)
 const result = await peginManager.preparePegin({
   amount: 100000n, // satoshis
@@ -136,7 +138,7 @@ Signs payout authorizations for vault providers.
 import { PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 const payoutManager = new PayoutManager({
-  btcNetwork: "signet",
+  network: "signet",
   btcWallet, // Your BitcoinWallet implementation
 });
 ```
@@ -178,8 +180,10 @@ Managers require wallet implementations. You provide these based on your app.
 ```typescript
 interface BitcoinWallet {
   getPublicKeyHex(): Promise<string>; // x-only pubkey (64 hex chars)
+  getAddress(): Promise<string>; // Bitcoin address
+  getNetwork(): Promise<string>; // Bitcoin network (mainnet, testnet, signet)
   signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
-  signMessage(message: string, type: "bip322-simple"): Promise<string>;
+  signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string>;
 }
 ```
 
