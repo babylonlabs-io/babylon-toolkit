@@ -20,6 +20,7 @@ export interface Provider {
   id: string;
   name: string;
   status?: string;
+  iconUrl?: string;
 }
 
 interface SelectVaultProviderModalProps {
@@ -59,6 +60,7 @@ export function SelectVaultProviderModal({
       apr: "",
       votingPower: "",
       commission: "",
+      iconUrl: p.iconUrl,
     }));
   }, [providers, filterValue]);
 
@@ -69,12 +71,19 @@ export function SelectVaultProviderModal({
         header: "Vault Provider",
         headerClassName: "max-w-[240px]",
         cellClassName: "text-primary-dark max-w-[240px]",
-        render: (_, row) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <ProviderAvatar name={row.name} size="medium" />
-            <span className="truncate">{row.name}</span>
-          </div>
-        ),
+        render: (_, row) => {
+          const provider = providers.find((p) => p.id === row.id);
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <ProviderAvatar
+                name={row.name}
+                url={provider?.iconUrl}
+                size="medium"
+              />
+              <span className="truncate">{row.name}</span>
+            </div>
+          );
+        },
         sorter: (a, b) => a.name.localeCompare(b.name),
       },
       {

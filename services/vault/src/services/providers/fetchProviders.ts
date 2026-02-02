@@ -7,6 +7,8 @@ import type {
   VaultProvider,
 } from "../../types/vaultProvider";
 
+import { getProviderIconUrl } from "./providerIconService";
+
 /** GraphQL response for app-specific providers and keepers */
 interface GraphQLAppProvidersResponse {
   vaultProviders: {
@@ -136,6 +138,7 @@ export async function fetchAppProviders(
       id: provider.id,
       btcPubKey: provider.btcPubKey,
       url: provider.rpcUrl,
+      iconUrl: getProviderIconUrl(provider.id),
     }));
 
   // Extract vault keepers with btcPubKey from nested relation

@@ -16,6 +16,7 @@ import {
   getPeginState,
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
+import { getProviderIconUrl } from "@/services/providers";
 import type { Vault } from "@/types/vault";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
@@ -39,8 +40,8 @@ function transformVaultToTableData(
     amount: btcAmount,
     usdValue,
     provider: {
-      // Use truncated address as name, icon is undefined to use Avatar fallback
       name: `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`,
+      icon: getProviderIconUrl(vault.vaultProvider),
     },
     status: peginState.displayLabel,
   };
