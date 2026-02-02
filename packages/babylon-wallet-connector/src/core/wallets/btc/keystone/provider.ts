@@ -167,7 +167,7 @@ export class KeystoneProvider implements IBTCProvider {
     return signedPsbt.toHex();
   };
 
-  signPsbts = async (psbtsHexes: string[]): Promise<string[]> => {
+  signPsbts = async (psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> => {
     if (!this.keystoneWalletInfo?.address || !this.keystoneWalletInfo?.publicKeyHex) {
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -183,8 +183,8 @@ export class KeystoneProvider implements IBTCProvider {
       });
 
     const result = [];
-    for (const psbt of psbtsHexes) {
-      const signedHex = await this.signPsbt(psbt);
+    for (let index = 0; index < psbtsHexes.length; index++) {
+      const signedHex = await this.signPsbt(psbtsHexes[index], options?.[index]);
       result.push(signedHex);
     }
     return result;
