@@ -13,11 +13,8 @@ import { useDepositPollingResult } from "../../../context/deposit/PeginPollingCo
 import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
-import {
-  UTXO_UNAVAILABLE_WARNING,
-  WALLET_OWNERSHIP_WARNING,
-} from "../../../utils/vaultWarnings";
 
+import { getWarningMessages, isDepositDisabled } from "./actionStatus";
 import { ActionWarningIndicator } from "./ActionWarningIndicator";
 import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
 
@@ -25,7 +22,7 @@ const btcConfig = getNetworkConfigBTC();
 
 interface DepositMobileCardProps {
   deposit: Deposit;
-  onSignClick: (depositId: string, transactions: any[]) => void;
+  onSignClick: (depositId: string, transactions: unknown[]) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
 }
@@ -40,20 +37,13 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const {
-    peginState,
-    transactions,
-    isOwnedByCurrentWallet,
-    error,
-    utxoUnavailable,
-  } = pollingResult;
+  const { peginState, transactions } = pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
+  const warnings = getWarningMessages(pollingResult);
+  const disabled = isDepositDisabled(pollingResult);
 
-  // Only show actions if the vault is owned by the connected wallet and UTXO is available
-  const actions =
-    isOwnedByCurrentWallet && !utxoUnavailable
-      ? getCardActions(actionButton)
-      : undefined;
+  // Only show actions if the deposit is not disabled
+  const actions = !disabled ? getCardActions(actionButton) : undefined;
 
   const card = (
     <VaultDetailCard
@@ -94,15 +84,7 @@ export function DepositMobileCard({
                   label={peginState.displayLabel}
                 />
               </Hint>
-              <ActionWarningIndicator
-                messages={[
-                  ...(error ? [error.message] : []),
-                  ...(!isOwnedByCurrentWallet
-                    ? [WALLET_OWNERSHIP_WARNING]
-                    : []),
-                  ...(utxoUnavailable ? [UTXO_UNAVAILABLE_WARNING] : []),
-                ]}
-              />
+              <ActionWarningIndicator messages={warnings} />
             </div>
           ),
         },
@@ -120,8 +102,8 @@ export function DepositMobileCard({
     />
   );
 
-  // Apply disabled styling if vault is not owned by connected wallet or UTXO unavailable
-  if (!isOwnedByCurrentWallet || utxoUnavailable) {
+  // Apply disabled styling if deposit is disabled
+  if (disabled) {
     return <div className="opacity-50">{card}</div>;
   }
 

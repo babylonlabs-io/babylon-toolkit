@@ -71,7 +71,14 @@ export function extractInputsFromTransaction(
     ? unsignedTxHex.slice(2)
     : unsignedTxHex;
 
-  const tx = Transaction.fromHex(cleanHex);
+  let tx: Transaction;
+  try {
+    tx = Transaction.fromHex(cleanHex);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse unsigned BTC transaction: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 
   return tx.ins.map((input) => ({
     // Bitcoin stores txid in reverse byte order

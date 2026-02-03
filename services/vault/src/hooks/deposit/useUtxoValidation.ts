@@ -2,22 +2,20 @@
  * useUtxoValidation Hook
  *
  * Validates UTXO availability for pending broadcast deposits.
- * Runs on mount and when dependencies change.
+ * Accepts pre-fetched UTXOs to leverage React Query caching.
  *
  * This hook is designed to be used in PeginPollingContext to
  * proactively detect spent UTXOs before users attempt to broadcast.
  */
 
-import { useEffect, useState } from "react";
+import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
+import { useMemo } from "react";
 
 import {
   ContractStatus,
   LocalStorageStatus,
 } from "../../models/peginStateMachine";
-import {
-  extractInputsFromTransaction,
-  fetchAvailableUtxoSet,
-} from "../../services/vault/vaultUtxoValidationService";
+import { extractInputsFromTransaction } from "../../services/vault/vaultUtxoValidationService";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { VaultActivity } from "../../types/activity";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
@@ -29,8 +27,8 @@ export interface UseUtxoValidationProps {
   pendingPegins: PendingPeginRequest[];
   /** Connected wallet's BTC public key */
   btcPublicKey?: string;
-  /** Connected wallet's BTC address */
-  btcAddress?: string;
+  /** Pre-fetched UTXOs from useUTXOs hook (uses React Query caching) */
+  availableUtxos?: MempoolUTXO[];
 }
 
 export interface UseUtxoValidationResult {
@@ -39,11 +37,12 @@ export interface UseUtxoValidationResult {
 }
 
 /**
- * Filter activities to those pending broadcast and owned by current wallet
+ * Filter activities to those pending broadcast and owned by current wallet.
+ * Uses O(1) lookup for pending pegin statuses.
  */
 function getPendingBroadcastDeposits(
   activities: VaultActivity[],
-  pendingPegins: PendingPeginRequest[],
+  pendingPeginStatusMap: Map<string, LocalStorageStatus | undefined>,
   btcPublicKey: string,
 ): VaultActivity[] {
   return activities.filter((activity) => {
@@ -59,8 +58,8 @@ function getPendingBroadcastDeposits(
     }
 
     // Skip if already confirming (tx was broadcasted)
-    const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
-    if (pendingPegin?.status === LocalStorageStatus.CONFIRMING) {
+    const status = pendingPeginStatusMap.get(activity.id);
+    if (status === LocalStorageStatus.CONFIRMING) {
       return false;
     }
 
@@ -72,66 +71,70 @@ function getPendingBroadcastDeposits(
 /**
  * Hook to validate UTXO availability for pending broadcast deposits.
  *
- * Fetches the connected wallet's UTXOs once and checks all pending
- * deposits against that set.
+ * Accepts pre-fetched UTXOs from useUTXOs hook to leverage React Query
+ * caching with 30-second staleTime, avoiding duplicate API calls.
  */
 export function useUtxoValidation({
   activities,
   pendingPegins,
   btcPublicKey,
-  btcAddress,
+  availableUtxos,
 }: UseUtxoValidationProps): UseUtxoValidationResult {
-  const [unavailableUtxos, setUnavailableUtxos] = useState<Set<string>>(
-    new Set(),
-  );
-
-  useEffect(() => {
-    if (!btcAddress || !btcPublicKey) {
-      setUnavailableUtxos(new Set());
-      return;
+  const unavailableUtxos = useMemo(() => {
+    // Skip validation if missing required data.
+    // Note: undefined means "not loaded yet" (skip validation),
+    // while [] means "loaded but wallet has no UTXOs" (validate normally).
+    // Callers should pass undefined while loading to avoid false positives.
+    if (!btcPublicKey || !availableUtxos) {
+      return new Set<string>();
     }
+
+    // Precompute status map for O(1) lookups (avoids O(N*M) in filter)
+    const pendingPeginStatusMap = new Map(
+      pendingPegins.map((p) => [p.id, p.status]),
+    );
 
     const pendingBroadcasts = getPendingBroadcastDeposits(
       activities,
-      pendingPegins,
+      pendingPeginStatusMap,
       btcPublicKey,
     );
 
     if (pendingBroadcasts.length === 0) {
-      setUnavailableUtxos(new Set());
-      return;
+      return new Set<string>();
     }
 
-    const validateUtxos = async () => {
+    // Build a set of available UTXOs for O(1) lookup
+    const availableUtxoSet = new Set(
+      availableUtxos.map((utxo) => `${utxo.txid}:${utxo.vout}`),
+    );
+
+    // Check each deposit's inputs against available UTXOs
+    const unavailable = new Set<string>();
+
+    for (const deposit of pendingBroadcasts) {
       try {
-        // Fetch available UTXOs once for the address
-        const availableUtxoSet = await fetchAvailableUtxoSet(btcAddress);
+        const inputs = extractInputsFromTransaction(deposit.unsignedBtcTx!);
 
-        // Check each deposit's inputs against available UTXOs
-        const unavailable = new Set<string>();
+        // If any input is not in the available set, mark deposit as unavailable
+        const hasUnavailableInput = inputs.some(
+          (input) => !availableUtxoSet.has(`${input.txid}:${input.vout}`),
+        );
 
-        for (const deposit of pendingBroadcasts) {
-          const inputs = extractInputsFromTransaction(deposit.unsignedBtcTx!);
-
-          // If any input is not in the available set, mark deposit as unavailable
-          const hasUnavailableInput = inputs.some(
-            (input) => !availableUtxoSet.has(`${input.txid}:${input.vout}`),
-          );
-
-          if (hasUnavailableInput) {
-            unavailable.add(deposit.id);
-          }
+        if (hasUnavailableInput) {
+          unavailable.add(deposit.id);
         }
-
-        setUnavailableUtxos(unavailable);
       } catch (error) {
-        console.warn("[useUtxoValidation] Validation failed:", error);
-        // Don't block on errors - broadcast will handle it
+        // Skip deposits with invalid transaction hex
+        console.warn(
+          `[useUtxoValidation] Failed to parse tx for ${deposit.id}:`,
+          error,
+        );
       }
-    };
+    }
 
-    validateUtxos();
-  }, [activities, pendingPegins, btcAddress, btcPublicKey]);
+    return unavailable;
+  }, [activities, pendingPegins, btcPublicKey, availableUtxos]);
 
   return { unavailableUtxos };
 }

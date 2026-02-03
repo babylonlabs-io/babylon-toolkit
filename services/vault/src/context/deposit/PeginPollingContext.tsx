@@ -21,6 +21,7 @@ import {
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useUtxoValidation } from "../../hooks/deposit/useUtxoValidation";
+import { useUTXOs } from "../../hooks/useUTXOs";
 import {
   ContractStatus,
   getPeginState,
@@ -65,12 +66,18 @@ export function PeginPollingProvider({
     vaultProviders,
   });
 
+  // Fetch UTXOs using React Query (cached with 30s staleTime)
+  const { allUTXOs, isLoading: isLoadingUtxos } = useUTXOs(btcAddress);
+
   // Validate UTXOs for pending broadcast deposits
+  // Pass undefined while loading or when btcAddress is missing to avoid false positives
+  // (empty array would incorrectly mark all deposits as unavailable)
+  const hasUtxoData = !!btcAddress && !isLoadingUtxos;
   const { unavailableUtxos } = useUtxoValidation({
     activities,
     pendingPegins,
     btcPublicKey,
-    btcAddress,
+    availableUtxos: hasUtxoData ? allUTXOs : undefined,
   });
 
   // Optimistic status handlers

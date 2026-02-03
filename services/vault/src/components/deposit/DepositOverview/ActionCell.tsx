@@ -7,15 +7,8 @@
 import { Button } from "@babylonlabs-io/core-ui";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
-import {
-  getPrimaryActionButton,
-  PeginAction,
-} from "../../../models/peginStateMachine";
-import {
-  UTXO_UNAVAILABLE_WARNING,
-  WALLET_OWNERSHIP_WARNING,
-} from "../../../utils/vaultWarnings";
 
+import { getActionStatus, PeginAction } from "./actionStatus";
 import { ActionWarningIndicator } from "./ActionWarningIndicator";
 
 interface ActionCellProps {
@@ -23,27 +16,6 @@ interface ActionCellProps {
   onSignClick: (depositId: string, transactions: unknown[]) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
-}
-
-/**
- * Build warning messages based on error, ownership, and UTXO state.
- */
-function buildWarningMessages(
-  error: Error | null,
-  isOwnedByCurrentWallet: boolean,
-  utxoUnavailable: boolean,
-): string[] {
-  const messages: string[] = [];
-  if (error) {
-    messages.push(error.message);
-  }
-  if (!isOwnedByCurrentWallet) {
-    messages.push(WALLET_OWNERSHIP_WARNING);
-  }
-  if (utxoUnavailable) {
-    messages.push(UTXO_UNAVAILABLE_WARNING);
-  }
-  return messages;
 }
 
 /**
@@ -60,27 +32,15 @@ export function ActionCell({
 
   if (!pollingResult) return null;
 
-  const {
-    peginState,
-    loading,
-    transactions,
-    isOwnedByCurrentWallet,
-    error,
-    utxoUnavailable,
-  } = pollingResult;
-  const actionButton = getPrimaryActionButton(peginState);
+  const { loading, transactions } = pollingResult;
+  const status = getActionStatus(pollingResult);
 
-  // Show warning indicator if vault not owned, UTXO unavailable, or no action available
-  if (!isOwnedByCurrentWallet || utxoUnavailable || !actionButton) {
-    const messages = buildWarningMessages(
-      error,
-      isOwnedByCurrentWallet,
-      utxoUnavailable,
-    );
-    return <ActionWarningIndicator messages={messages} />;
+  // Show warning indicator if action is unavailable
+  if (status.type === "unavailable") {
+    return <ActionWarningIndicator messages={status.reasons} />;
   }
 
-  const { label, action } = actionButton;
+  const { label, action } = status.action;
 
   switch (action) {
     case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
