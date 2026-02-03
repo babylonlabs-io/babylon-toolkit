@@ -354,10 +354,12 @@ describe("vaultPayoutSignatureService", () => {
 
       const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
 
-      (PayoutManager as any).mockImplementation(() => ({
-        supportsBatchSigning: mockSupportsBatchSigning,
-        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
-      }));
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: mockSupportsBatchSigning,
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
 
       const wallet = {
         getPublicKeyHex: vi.fn(),
@@ -458,9 +460,11 @@ describe("vaultPayoutSignatureService", () => {
 
       const mockSupportsBatchSigning = vi.fn().mockReturnValue(false);
 
-      (PayoutManager as any).mockImplementation(() => ({
-        supportsBatchSigning: mockSupportsBatchSigning,
-      }));
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: mockSupportsBatchSigning,
+        };
+      });
 
       const wallet = {
         getPublicKeyHex: vi.fn(),
@@ -507,10 +511,12 @@ describe("vaultPayoutSignatureService", () => {
 
       const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
 
-      (PayoutManager as any).mockImplementation(() => ({
-        supportsBatchSigning: mockSupportsBatchSigning,
-        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
-      }));
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: mockSupportsBatchSigning,
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
 
       const wallet = {
         getPublicKeyHex: vi.fn(),
@@ -557,10 +563,12 @@ describe("vaultPayoutSignatureService", () => {
 
       const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
 
-      (PayoutManager as any).mockImplementation(() => ({
-        supportsBatchSigning: mockSupportsBatchSigning,
-        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
-      }));
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: mockSupportsBatchSigning,
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
 
       const wallet = {
         getPublicKeyHex: vi.fn(),
