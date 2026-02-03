@@ -20,6 +20,7 @@ import {
 } from "react";
 
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
+import { useUtxoValidation } from "../../hooks/deposit/useUtxoValidation";
 import {
   ContractStatus,
   getPeginState,
@@ -31,7 +32,7 @@ import type {
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
 import { areTransactionsReady } from "../../utils/peginPolling";
-import { isVaultOwnedByWallet } from "../../utils/walletOwnership";
+import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
   null,
@@ -48,6 +49,7 @@ export function PeginPollingProvider({
   activities,
   pendingPegins,
   btcPublicKey,
+  btcAddress,
   vaultProviders,
 }: PeginPollingProviderProps) {
   // Optimistic status overrides (for immediate UI feedback after signing)
@@ -61,6 +63,14 @@ export function PeginPollingProvider({
     pendingPegins,
     btcPublicKey,
     vaultProviders,
+  });
+
+  // Validate UTXOs for pending broadcast deposits
+  const { unavailableUtxos } = useUtxoValidation({
+    activities,
+    pendingPegins,
+    btcPublicKey,
+    btcAddress,
   });
 
   // Optimistic status handlers
@@ -104,10 +114,14 @@ export function PeginPollingProvider({
       // Get provider error for this deposit (if any)
       const providerError = errors?.get(depositId) ?? null;
 
+      // Check if UTXO is unavailable for this deposit
+      const utxoUnavailable = unavailableUtxos.has(depositId);
+
       const peginState = getPeginState(contractStatus, {
         localStatus,
         transactionsReady: isReady,
         isInUse: activity.isInUse,
+        utxoUnavailable,
       });
 
       const isOwnedByCurrentWallet = isVaultOwnedByWallet(
@@ -123,6 +137,7 @@ export function PeginPollingProvider({
         error: providerError,
         peginState,
         isOwnedByCurrentWallet,
+        utxoUnavailable,
       };
     },
     [
@@ -133,6 +148,7 @@ export function PeginPollingProvider({
       isLoading,
       optimisticStatuses,
       btcPublicKey,
+      unavailableUtxos,
     ],
   );
 

@@ -11,7 +11,10 @@ import {
   getPrimaryActionButton,
   PeginAction,
 } from "../../../models/peginStateMachine";
-import { WALLET_OWNERSHIP_WARNING } from "../../../utils/walletOwnership";
+import {
+  UTXO_UNAVAILABLE_WARNING,
+  WALLET_OWNERSHIP_WARNING,
+} from "../../../utils/vaultWarnings";
 
 import { ActionWarningIndicator } from "./ActionWarningIndicator";
 
@@ -23,11 +26,12 @@ interface ActionCellProps {
 }
 
 /**
- * Build warning messages based on error and ownership state.
+ * Build warning messages based on error, ownership, and UTXO state.
  */
 function buildWarningMessages(
   error: Error | null,
   isOwnedByCurrentWallet: boolean,
+  utxoUnavailable: boolean,
 ): string[] {
   const messages: string[] = [];
   if (error) {
@@ -35,6 +39,9 @@ function buildWarningMessages(
   }
   if (!isOwnedByCurrentWallet) {
     messages.push(WALLET_OWNERSHIP_WARNING);
+  }
+  if (utxoUnavailable) {
+    messages.push(UTXO_UNAVAILABLE_WARNING);
   }
   return messages;
 }
@@ -53,13 +60,23 @@ export function ActionCell({
 
   if (!pollingResult) return null;
 
-  const { peginState, loading, transactions, isOwnedByCurrentWallet, error } =
-    pollingResult;
+  const {
+    peginState,
+    loading,
+    transactions,
+    isOwnedByCurrentWallet,
+    error,
+    utxoUnavailable,
+  } = pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
 
-  // Show warning indicator if vault not owned or no action available
-  if (!isOwnedByCurrentWallet || !actionButton) {
-    const messages = buildWarningMessages(error, isOwnedByCurrentWallet);
+  // Show warning indicator if vault not owned, UTXO unavailable, or no action available
+  if (!isOwnedByCurrentWallet || utxoUnavailable || !actionButton) {
+    const messages = buildWarningMessages(
+      error,
+      isOwnedByCurrentWallet,
+      utxoUnavailable,
+    );
     return <ActionWarningIndicator messages={messages} />;
   }
 

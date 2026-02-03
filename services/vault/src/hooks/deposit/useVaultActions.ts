@@ -13,8 +13,10 @@ import {
   type LocalStorageStatus,
 } from "../../models/peginStateMachine";
 import {
+  assertUtxosAvailable,
   broadcastPeginTransaction,
   fetchVaultById,
+  UtxoNotAvailableError,
 } from "../../services/vault";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
@@ -137,6 +139,13 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Get depositor's BTC address for UTXO validation
+      const depositorAddress = await btcWalletProvider.getAddress();
+
+      // Validate UTXOs are still available BEFORE asking user to sign
+      // This prevents wasted signing effort if UTXOs have been spent
+      await assertUtxosAvailable(unsignedTxHex, depositorAddress);
+
       // Broadcast the transaction (UTXO will be derived from mempool API)
       const txId = await broadcastPeginTransaction({
         unsignedTxHex,
@@ -173,8 +182,17 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       setBroadcasting(false);
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to broadcast transaction";
+      let errorMessage: string;
+
+      if (err instanceof UtxoNotAvailableError) {
+        // UTXO not available - provide specific error message
+        errorMessage = err.message;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = "Failed to broadcast transaction";
+      }
+
       setBroadcastError(errorMessage);
       setBroadcasting(false);
     }

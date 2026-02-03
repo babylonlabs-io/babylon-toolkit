@@ -13,7 +13,10 @@ import { useDepositPollingResult } from "../../../context/deposit/PeginPollingCo
 import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
-import { WALLET_OWNERSHIP_WARNING } from "../../../utils/walletOwnership";
+import {
+  UTXO_UNAVAILABLE_WARNING,
+  WALLET_OWNERSHIP_WARNING,
+} from "../../../utils/vaultWarnings";
 
 import { ActionWarningIndicator } from "./ActionWarningIndicator";
 import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
@@ -37,14 +40,20 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const { peginState, transactions, isOwnedByCurrentWallet, error } =
-    pollingResult;
+  const {
+    peginState,
+    transactions,
+    isOwnedByCurrentWallet,
+    error,
+    utxoUnavailable,
+  } = pollingResult;
   const actionButton = getPrimaryActionButton(peginState);
 
-  // Only show actions if the vault is owned by the connected wallet
-  const actions = isOwnedByCurrentWallet
-    ? getCardActions(actionButton)
-    : undefined;
+  // Only show actions if the vault is owned by the connected wallet and UTXO is available
+  const actions =
+    isOwnedByCurrentWallet && !utxoUnavailable
+      ? getCardActions(actionButton)
+      : undefined;
 
   const card = (
     <VaultDetailCard
@@ -91,6 +100,7 @@ export function DepositMobileCard({
                   ...(!isOwnedByCurrentWallet
                     ? [WALLET_OWNERSHIP_WARNING]
                     : []),
+                  ...(utxoUnavailable ? [UTXO_UNAVAILABLE_WARNING] : []),
                 ]}
               />
             </div>
@@ -110,8 +120,8 @@ export function DepositMobileCard({
     />
   );
 
-  // Apply disabled styling if vault is not owned by connected wallet
-  if (!isOwnedByCurrentWallet) {
+  // Apply disabled styling if vault is not owned by connected wallet or UTXO unavailable
+  if (!isOwnedByCurrentWallet || utxoUnavailable) {
     return <div className="opacity-50">{card}</div>;
   }
 
