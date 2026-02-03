@@ -60,6 +60,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     applicationController: vault.applicationController,
     timestamp: vault.createdAt,
     depositorBtcPubkey: vault.depositorBtcPubkey,
+    unsignedBtcTx: vault.unsignedBtcTx,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No position details in deposit tab

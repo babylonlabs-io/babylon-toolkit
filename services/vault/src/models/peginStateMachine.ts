@@ -176,6 +176,8 @@ export interface GetPeginStateOptions {
   transactionsReady?: boolean;
   /** Whether vault is in use by an application (from ApplicationVaultTracker) */
   isInUse?: boolean;
+  /** Whether the UTXO for this deposit is no longer available (spent) */
+  utxoUnavailable?: boolean;
 }
 
 /**
@@ -189,7 +191,22 @@ export function getPeginState(
   contractStatus: ContractStatus,
   options: GetPeginStateOptions = {},
 ): PeginState {
-  const { localStatus, transactionsReady, isInUse } = options;
+  const { localStatus, transactionsReady, isInUse, utxoUnavailable } = options;
+
+  // Early check: If UTXO is unavailable (spent), show Invalid state
+  // This provides immediate feedback before the backend updates the status
+  if (utxoUnavailable) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: PEGIN_DISPLAY_LABELS.INVALID,
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+    };
+  }
+
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
   if (contractStatus === ContractStatus.PENDING) {
     // Sub-state: Depositor already signed (waiting for on-chain ACK)

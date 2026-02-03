@@ -10,6 +10,7 @@ import {
   ResponsiveDialog,
   Text,
   useCopy,
+  Warning,
 } from "@babylonlabs-io/core-ui";
 
 import { truncateAddress } from "../../../utils/addressUtils";
@@ -165,6 +166,13 @@ export function CollateralDepositReviewModal({
         </div>
 
         <div className="border-divider border-t" />
+
+        {/* UTXO Warning */}
+        <Warning>
+          Do not spend the Bitcoin used for this deposit until the transaction
+          is confirmed on the Bitcoin network. Spending it will cause the
+          deposit to fail.
+        </Warning>
 
         {/* Attention Section */}
         <div className="flex flex-col gap-3">

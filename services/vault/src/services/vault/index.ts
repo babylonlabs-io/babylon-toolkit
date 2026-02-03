@@ -7,3 +7,4 @@ export * from "./vaultPeginBroadcastService";
 export * from "./vaultProofOfPossessionService";
 export * from "./vaultRpcService";
 export * from "./vaultTransactionService";
+export * from "./vaultUtxoValidationService";

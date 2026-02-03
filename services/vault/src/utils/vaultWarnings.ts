@@ -1,12 +1,16 @@
 /**
- * Wallet ownership utilities
+ * Vault warnings and ownership utilities
  *
- * Functions for checking if a vault belongs to the currently connected wallet.
+ * Warning messages and functions for vault action validation.
  */
 
 /** Warning message for wallet ownership mismatch */
 export const WALLET_OWNERSHIP_WARNING =
   "This vault belongs to a different wallet. Connect the wallet that created this vault to perform actions.";
+
+/** Warning message for unavailable UTXO */
+export const UTXO_UNAVAILABLE_WARNING =
+  "The UTXO for this deposit is no longer available. It may have been spent in another transaction.";
 
 /**
  * Check if a vault is owned by the connected wallet

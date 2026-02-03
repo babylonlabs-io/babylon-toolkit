@@ -21,7 +21,7 @@ import { PeginPollingProvider } from "../../../context/deposit/PeginPollingConte
 import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
-import { isVaultOwnedByWallet } from "../../../utils/walletOwnership";
+import { isVaultOwnedByWallet } from "../../../utils/vaultWarnings";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
@@ -46,6 +46,7 @@ export function DepositOverview() {
     isConnected,
     ethAddress,
     btcPublicKey,
+    btcAddress,
     allActivities,
     pendingPegins,
     vaultProviders,
@@ -169,6 +170,7 @@ export function DepositOverview() {
       activities={allActivities}
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
+      btcAddress={btcAddress}
       vaultProviders={vaultProviders}
     >
       <div className="relative">

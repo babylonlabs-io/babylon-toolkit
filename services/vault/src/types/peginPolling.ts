@@ -28,6 +28,8 @@ export interface DepositPollingResult {
   peginState: PeginState;
   /** Whether the vault is owned by the currently connected BTC wallet */
   isOwnedByCurrentWallet: boolean;
+  /** Whether the UTXO for this deposit is no longer available (spent) */
+  utxoUnavailable: boolean;
 }
 
 /** Context value type */
@@ -55,6 +57,8 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   pendingPegins: PendingPeginRequest[];
   /** Depositor's BTC public key (x-only, 32 bytes without 0x prefix) */
   btcPublicKey?: string;
+  /** Depositor's BTC address (for UTXO validation) */
+  btcAddress?: string;
   /** Vault providers data (pre-fetched at page level) */
   vaultProviders: VaultProvider[];
 }
