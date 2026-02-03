@@ -29,7 +29,9 @@ import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
   prepareTransactionsForSigning,
+  signAllTransactionsBatch,
   validatePayoutSignatureParams,
+  walletSupportsBatchSigning,
 } from "../vaultPayoutSignatureService";
 
 /**
@@ -256,6 +258,323 @@ describe("vaultPayoutSignatureService", () => {
       // Should strip first 2 chars (prefix byte)
       expect(result[0].claimerPubkeyXOnly).toBe(
         "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      );
+    });
+  });
+
+  describe("walletSupportsBatchSigning", () => {
+    it("should return true when wallet has signPsbts method", () => {
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(), // Has batch signing method
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      expect(walletSupportsBatchSigning(wallet as any)).toBe(true);
+    });
+
+    it("should return false when wallet does not have signPsbts method", () => {
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        // No signPsbts method
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      expect(walletSupportsBatchSigning(wallet as any)).toBe(false);
+    });
+
+    it("should return false when signPsbts is not a function", () => {
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: "not a function", // Not a function
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      expect(walletSupportsBatchSigning(wallet as any)).toBe(false);
+    });
+  });
+
+  describe("signAllTransactionsBatch", () => {
+    it("should batch sign transactions for multiple claimers", async () => {
+      const claimer1Pubkey =
+        "1111111111111111111111111111111111111111111111111111111111111111";
+      const claimer2Pubkey =
+        "2222222222222222222222222222222222222222222222222222222222222222";
+
+      const transactions = [
+        {
+          claimerPubkeyXOnly: claimer1Pubkey,
+          payoutOptimisticTxHex: "payout_optimistic_1",
+          payoutTxHex: "payout_1",
+          claimTxHex: "claim_1",
+          assertTxHex: "assert_1",
+        },
+        {
+          claimerPubkeyXOnly: claimer2Pubkey,
+          payoutOptimisticTxHex: "payout_optimistic_2",
+          payoutTxHex: "payout_2",
+          claimTxHex: "claim_2",
+          assertTxHex: "assert_2",
+        },
+      ];
+
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: "provider_pubkey",
+        vaultKeeperBtcPubkeys: ["keeper1"],
+        universalChallengerBtcPubkeys: ["challenger1"],
+        depositorBtcPubkey: "depositor_pubkey",
+        network: "testnet" as const,
+      };
+
+      // Mock PayoutManager
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransactionsBatch = vi.fn().mockResolvedValue([
+        {
+          payoutOptimisticSignature: "sig_optimistic_1",
+          payoutSignature: "sig_payout_1",
+          depositorBtcPubkey: "depositor_pubkey",
+        },
+        {
+          payoutOptimisticSignature: "sig_optimistic_2",
+          payoutSignature: "sig_payout_2",
+          depositorBtcPubkey: "depositor_pubkey",
+        },
+      ]);
+
+      const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
+
+      (PayoutManager as any).mockImplementation(() => ({
+        supportsBatchSigning: mockSupportsBatchSigning,
+        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+      }));
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      const result = await signAllTransactionsBatch(
+        wallet as any,
+        context,
+        transactions,
+      );
+
+      // Verify correct mapping to claimer pubkeys
+      expect(result).toEqual({
+        [claimer1Pubkey]: {
+          payout_optimistic_signature: "sig_optimistic_1",
+          payout_signature: "sig_payout_1",
+        },
+        [claimer2Pubkey]: {
+          payout_optimistic_signature: "sig_optimistic_2",
+          payout_signature: "sig_payout_2",
+        },
+      });
+
+      // Verify PayoutManager was called correctly
+      expect(mockSupportsBatchSigning).toHaveBeenCalledTimes(1);
+      expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledTimes(1);
+      expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledWith([
+        {
+          payoutOptimistic: {
+            payoutOptimisticTxHex: "payout_optimistic_1",
+            peginTxHex: "pegin_hex",
+            claimTxHex: "claim_1",
+            vaultProviderBtcPubkey: "provider_pubkey",
+            vaultKeeperBtcPubkeys: ["keeper1"],
+            universalChallengerBtcPubkeys: ["challenger1"],
+            depositorBtcPubkey: "depositor_pubkey",
+          },
+          payout: {
+            payoutTxHex: "payout_1",
+            peginTxHex: "pegin_hex",
+            assertTxHex: "assert_1",
+            vaultProviderBtcPubkey: "provider_pubkey",
+            vaultKeeperBtcPubkeys: ["keeper1"],
+            universalChallengerBtcPubkeys: ["challenger1"],
+            depositorBtcPubkey: "depositor_pubkey",
+          },
+        },
+        {
+          payoutOptimistic: {
+            payoutOptimisticTxHex: "payout_optimistic_2",
+            peginTxHex: "pegin_hex",
+            claimTxHex: "claim_2",
+            vaultProviderBtcPubkey: "provider_pubkey",
+            vaultKeeperBtcPubkeys: ["keeper1"],
+            universalChallengerBtcPubkeys: ["challenger1"],
+            depositorBtcPubkey: "depositor_pubkey",
+          },
+          payout: {
+            payoutTxHex: "payout_2",
+            peginTxHex: "pegin_hex",
+            assertTxHex: "assert_2",
+            vaultProviderBtcPubkey: "provider_pubkey",
+            vaultKeeperBtcPubkeys: ["keeper1"],
+            universalChallengerBtcPubkeys: ["challenger1"],
+            depositorBtcPubkey: "depositor_pubkey",
+          },
+        },
+      ]);
+    });
+
+    it("should throw error when wallet does not support batch signing", async () => {
+      const transactions = [
+        {
+          claimerPubkeyXOnly: "claimer1",
+          payoutOptimisticTxHex: "payout_optimistic_1",
+          payoutTxHex: "payout_1",
+          claimTxHex: "claim_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: "provider_pubkey",
+        vaultKeeperBtcPubkeys: ["keeper1"],
+        universalChallengerBtcPubkeys: ["challenger1"],
+        depositorBtcPubkey: "depositor_pubkey",
+        network: "testnet" as const,
+      };
+
+      // Mock PayoutManager without batch signing support
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSupportsBatchSigning = vi.fn().mockReturnValue(false);
+
+      (PayoutManager as any).mockImplementation(() => ({
+        supportsBatchSigning: mockSupportsBatchSigning,
+      }));
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        // No signPsbts method
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await expect(
+        signAllTransactionsBatch(wallet as any, context, transactions),
+      ).rejects.toThrow(
+        "Wallet does not support batch signing (signPsbts method not available)",
+      );
+    });
+
+    it("should throw error with proper message when batch signing fails", async () => {
+      const transactions = [
+        {
+          claimerPubkeyXOnly: "claimer1",
+          payoutOptimisticTxHex: "payout_optimistic_1",
+          payoutTxHex: "payout_1",
+          claimTxHex: "claim_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: "provider_pubkey",
+        vaultKeeperBtcPubkeys: ["keeper1"],
+        universalChallengerBtcPubkeys: ["challenger1"],
+        depositorBtcPubkey: "depositor_pubkey",
+        network: "testnet" as const,
+      };
+
+      // Mock PayoutManager that throws during signing
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransactionsBatch = vi
+        .fn()
+        .mockRejectedValue(new Error("Signing failed due to user rejection"));
+
+      const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
+
+      (PayoutManager as any).mockImplementation(() => ({
+        supportsBatchSigning: mockSupportsBatchSigning,
+        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+      }));
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await expect(
+        signAllTransactionsBatch(wallet as any, context, transactions),
+      ).rejects.toThrow(
+        "Failed to batch sign payout transactions: Signing failed due to user rejection",
+      );
+    });
+
+    it("should handle unknown errors gracefully", async () => {
+      const transactions = [
+        {
+          claimerPubkeyXOnly: "claimer1",
+          payoutOptimisticTxHex: "payout_optimistic_1",
+          payoutTxHex: "payout_1",
+          claimTxHex: "claim_1",
+          assertTxHex: "assert_1",
+        },
+      ];
+
+      const context = {
+        peginTxHex: "pegin_hex",
+        vaultProviderBtcPubkey: "provider_pubkey",
+        vaultKeeperBtcPubkeys: ["keeper1"],
+        universalChallengerBtcPubkeys: ["challenger1"],
+        depositorBtcPubkey: "depositor_pubkey",
+        network: "testnet" as const,
+      };
+
+      // Mock PayoutManager that throws non-Error object
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransactionsBatch = vi
+        .fn()
+        .mockRejectedValue("Unknown error");
+
+      const mockSupportsBatchSigning = vi.fn().mockReturnValue(true);
+
+      (PayoutManager as any).mockImplementation(() => ({
+        supportsBatchSigning: mockSupportsBatchSigning,
+        signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+      }));
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      await expect(
+        signAllTransactionsBatch(wallet as any, context, transactions),
+      ).rejects.toThrow(
+        "Failed to batch sign payout transactions: Unknown error",
       );
     });
   });
