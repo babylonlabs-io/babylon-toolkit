@@ -84,7 +84,11 @@ function mapActivityType(type: GraphQLActivityType): ActivityType {
     remove_collateral: "Remove Collateral",
     liquidation: "Liquidation",
   };
-  return typeMap[type];
+  const mapped = typeMap[type];
+  if (!mapped) {
+    throw new Error(`Unknown activity type from GraphQL API: ${type}`);
+  }
+  return mapped;
 }
 
 function formatAmount(amount: string): string {
