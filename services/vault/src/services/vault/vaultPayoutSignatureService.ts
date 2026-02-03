@@ -485,7 +485,6 @@ export function walletSupportsBatchSigning(btcWallet: BitcoinWallet): boolean {
 
 /**
  * Sign all transactions in batch using signPsbts (single wallet popup).
- * This provides a better UX when the wallet supports it (e.g., Unisat, OKX, OneKey).
  *
  * @param btcWallet - Bitcoin wallet with signPsbts support
  * @param context - Signing context with vault data
