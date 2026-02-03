@@ -41,7 +41,8 @@ export class OneKeyProvider implements IBTCProvider {
       if (errorMessage.includes("single address mode") || errorMessage.includes("multiple addresses")) {
         throw new WalletError({
           code: ERROR_CODES.WALLET_CONFIG_REQUIRED,
-          message: "OneKey Wallet requires single address mode. Please disable multiple addresses in your wallet settings and try again.",
+          message:
+            "OneKey Wallet requires single address mode. Please disable multiple addresses in your wallet settings and try again.",
           wallet: WALLET_PROVIDER_NAME,
         });
       } else if (errorMessage.includes("rejected")) {
@@ -145,7 +146,7 @@ export class OneKeyProvider implements IBTCProvider {
       });
     }
 
-    // If options provided, map them to OneKey format (similar to Unisat/OKX)
+    // If options provided, map them to OneKey format
     if (options && options.length > 0) {
       const onekeyOptions = options.map((opt) => {
         if (opt?.signInputs && opt.signInputs.length > 0) {
