@@ -10,11 +10,10 @@ import { Hint, StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 import { getNetworkConfigBTC } from "@/config";
 
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
-import { getPrimaryActionButton } from "../../../models/peginStateMachine";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 
-import { getWarningMessages, isDepositDisabled } from "./actionStatus";
+import { getActionStatus, getWarningMessages } from "./actionStatus";
 import { ActionWarningIndicator } from "./ActionWarningIndicator";
 import { CopyableAddressCell, getCardActions } from "./DepositTableCells";
 
@@ -38,12 +37,14 @@ export function DepositMobileCard({
   if (!pollingResult) return null;
 
   const { peginState, transactions } = pollingResult;
-  const actionButton = getPrimaryActionButton(peginState);
+  const status = getActionStatus(pollingResult);
   const warnings = getWarningMessages(pollingResult);
-  const disabled = isDepositDisabled(pollingResult);
 
-  // Only show actions if the deposit is not disabled
-  const actions = !disabled ? getCardActions(actionButton) : undefined;
+  // Only show actions if available
+  const actions =
+    status.type === "available" ? getCardActions(status.action) : undefined;
+  // Disabled styling when there are blocking warnings (not just when no action)
+  const disabled = warnings.length > 0;
 
   const card = (
     <VaultDetailCard

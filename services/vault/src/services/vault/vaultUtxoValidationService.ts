@@ -7,8 +7,6 @@
  *
  * Uses a simple approach: fetch the depositor's current UTXOs and verify
  * that the transaction inputs are still available.
- *
- * @see Audit finding BTV-047: Missing UTXO tracking before broadcast
  */
 
 import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
@@ -159,19 +157,4 @@ export async function assertUtxosAvailable(
   if (!result.allAvailable) {
     throw new UtxoNotAvailableError(result.missingUtxos);
   }
-}
-
-/**
- * Fetch available UTXOs for an address and return as a Set for O(1) lookup.
- *
- * @param depositorAddress - Depositor's Bitcoin address
- * @returns Set of available UTXO keys in "txid:vout" format
- */
-export async function fetchAvailableUtxoSet(
-  depositorAddress: string,
-): Promise<Set<string>> {
-  const mempoolUrl = getMempoolApiUrl();
-  const availableUtxos = await getAddressUtxos(depositorAddress, mempoolUrl);
-
-  return new Set(availableUtxos.map((utxo) => `${utxo.txid}:${utxo.vout}`));
 }

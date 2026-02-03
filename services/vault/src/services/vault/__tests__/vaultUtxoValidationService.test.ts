@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   assertUtxosAvailable,
   extractInputsFromTransaction,
-  fetchAvailableUtxoSet,
   UtxoNotAvailableError,
   validateUtxosAvailable,
 } from "../vaultUtxoValidationService";
@@ -336,54 +335,6 @@ describe("vaultUtxoValidationService", () => {
         expect(error).toBeInstanceOf(UtxoNotAvailableError);
         expect((error as Error).message).toContain("2 UTXOs for this peg-in");
       }
-    });
-  });
-
-  describe("fetchAvailableUtxoSet", () => {
-    const TEST_ADDRESS = "bc1qtest...";
-
-    it("should return Set of available UTXOs", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([
-        {
-          txid: "txid1",
-          vout: 0,
-          value: 50000,
-          scriptPubKey: "s",
-          confirmed: true,
-        },
-        {
-          txid: "txid2",
-          vout: 1,
-          value: 100000,
-          scriptPubKey: "s",
-          confirmed: true,
-        },
-      ]);
-
-      const utxoSet = await fetchAvailableUtxoSet(TEST_ADDRESS);
-
-      expect(utxoSet).toBeInstanceOf(Set);
-      expect(utxoSet.size).toBe(2);
-      expect(utxoSet.has("txid1:0")).toBe(true);
-      expect(utxoSet.has("txid2:1")).toBe(true);
-      expect(utxoSet.has("txid3:0")).toBe(false);
-    });
-
-    it("should return empty Set when no UTXOs available", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([]);
-
-      const utxoSet = await fetchAvailableUtxoSet(TEST_ADDRESS);
-
-      expect(utxoSet).toBeInstanceOf(Set);
-      expect(utxoSet.size).toBe(0);
-    });
-
-    it("should propagate API errors", async () => {
-      mockedGetAddressUtxos.mockRejectedValue(new Error("Network error"));
-
-      await expect(fetchAvailableUtxoSet(TEST_ADDRESS)).rejects.toThrow(
-        "Network error",
-      );
     });
   });
 

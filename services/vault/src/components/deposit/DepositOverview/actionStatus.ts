@@ -118,17 +118,5 @@ export function getWarningMessages(
   return messages;
 }
 
-/**
- * Check if deposit row should be disabled (for table styling).
- *
- * @param pollingResult - The deposit polling result
- * @returns true if the row should appear disabled
- */
-export function isDepositDisabled(
-  pollingResult: DepositPollingResult,
-): boolean {
-  return !pollingResult.isOwnedByCurrentWallet || pollingResult.utxoUnavailable;
-}
-
 // Re-export PeginAction for convenience
 export { PeginAction };

@@ -28,7 +28,6 @@ export interface BroadcastPeginParams {
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
   activityApplicationController?: string;
-  connectedAddress: string;
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     peginId: string,
@@ -49,7 +48,6 @@ export interface SignPayoutParams {
   activityAmount: string;
   activityProviders: Array<{ id: string }>;
   activityApplicationController?: string;
-  connectedAddress: string;
   updatePendingPeginStatus?: (
     peginId: string,
     status: LocalStorageStatus,
@@ -95,7 +93,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       activityAmount,
       activityProviders,
       activityApplicationController,
-      // connectedAddress,
       pendingPegin,
       updatePendingPeginStatus,
       addPendingPegin,
@@ -211,7 +208,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       activityAmount,
       activityProviders,
       activityApplicationController,
-      // connectedAddress,
       updatePendingPeginStatus,
       addPendingPegin,
       onRefetchActivities,
