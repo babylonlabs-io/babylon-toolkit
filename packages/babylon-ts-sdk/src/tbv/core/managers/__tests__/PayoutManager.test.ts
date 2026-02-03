@@ -10,9 +10,8 @@ import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { MockBitcoinWallet } from "../../../../shared/wallets/mocks";
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces/BitcoinWallet";
-import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import { MockBitcoinWallet } from "../../../../shared/wallets/mocks";
 import {
   DUMMY_TXID_1,
   NULL_TXID,
@@ -23,12 +22,12 @@ import {
   createDummyP2TR,
   createDummyP2WPKH,
 } from "../../primitives/psbt/__tests__/constants";
+import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import { PayoutManager, type PayoutManagerConfig } from "../PayoutManager";
 
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
-  DEPOSITOR:
-    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   VAULT_PROVIDER:
     "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_KEEPER_1:
@@ -138,10 +137,21 @@ describe("PayoutManager", () => {
           ];
           return psbt.toHex();
         });
+      const signPsbts = vi
+        .fn<(psbtsHexes: string[]) => Promise<string[]>>()
+        .mockImplementation(async (psbtsHexes: string[]) => {
+          const signedPsbts: string[] = [];
+          for (const psbtHex of psbtsHexes) {
+            const signedPsbt = await signPsbt(psbtHex);
+            signedPsbts.push(signedPsbt);
+          }
+          return signedPsbts;
+        });
 
       const wallet: BitcoinWallet = {
         getPublicKeyHex,
         signPsbt,
+        signPsbts,
         getAddress: vi.fn(),
         signMessage: vi.fn(),
         getNetwork: vi.fn().mockResolvedValue("signet"),
@@ -191,4 +201,3 @@ describe("PayoutManager", () => {
     });
   });
 });
-

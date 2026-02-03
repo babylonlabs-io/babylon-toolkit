@@ -36,7 +36,15 @@ export class OneKeyProvider implements IBTCProvider {
     try {
       await this.provider.connectWallet();
     } catch (error) {
-      if ((error as Error)?.message?.includes("rejected")) {
+      const errorMessage = (error as Error)?.message || "";
+
+      if (errorMessage.includes("single address mode") || errorMessage.includes("multiple addresses")) {
+        throw new WalletError({
+          code: ERROR_CODES.WALLET_CONFIG_REQUIRED,
+          message: "OneKey Wallet requires single address mode. Please disable multiple addresses in your wallet settings and try again.",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      } else if (errorMessage.includes("rejected")) {
         throw new WalletError({
           code: ERROR_CODES.CONNECTION_REJECTED,
           message: "Connection to OneKey Wallet was rejected",
@@ -45,7 +53,7 @@ export class OneKeyProvider implements IBTCProvider {
       } else {
         throw new WalletError({
           code: ERROR_CODES.CONNECTION_FAILED,
-          message: (error as Error)?.message || "Failed to connect to OneKey Wallet",
+          message: errorMessage || "Failed to connect to OneKey Wallet",
           wallet: WALLET_PROVIDER_NAME,
         });
       }
@@ -122,7 +130,7 @@ export class OneKeyProvider implements IBTCProvider {
     return this.provider.signPsbt(psbtHex);
   };
 
-  signPsbts = async (psbtsHexes: string[]): Promise<string[]> => {
+  signPsbts = async (psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> => {
     if (!this.walletInfo)
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
@@ -135,6 +143,26 @@ export class OneKeyProvider implements IBTCProvider {
         message: "psbts hexes are required and must be a non-empty array",
         wallet: WALLET_PROVIDER_NAME,
       });
+    }
+
+    // If options provided, map them to OneKey format (similar to Unisat/OKX)
+    if (options && options.length > 0) {
+      const onekeyOptions = options.map((opt) => {
+        if (opt?.signInputs && opt.signInputs.length > 0) {
+          return {
+            autoFinalized: opt.autoFinalized ?? false,
+            toSignInputs: opt.signInputs.map((input) => ({
+              index: input.index,
+              publicKey: input.publicKey,
+              address: input.address,
+              sighashTypes: input.sighashTypes,
+              disableTweakSigner: input.disableTweakSigner,
+            })),
+          };
+        }
+        return undefined;
+      });
+      return this.provider.signPsbts(psbtsHexes, onekeyOptions);
     }
 
     return this.provider.signPsbts(psbtsHexes);

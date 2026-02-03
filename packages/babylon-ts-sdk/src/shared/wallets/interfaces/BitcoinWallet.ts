@@ -87,6 +87,19 @@ export interface BitcoinWallet {
   signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
 
   /**
+   * Signs multiple PSBTs and returns the signed PSBTs as hex.
+   * This allows batch signing with a single wallet interaction.
+   *
+   * @param psbtsHexes - Array of PSBTs to sign in hex format
+   * @param options - Optional array of signing parameters for each PSBT
+   * @throws {Error} If any PSBT is invalid or signing fails
+   */
+  signPsbts(
+    psbtsHexes: string[],
+    options?: SignPsbtOptions[],
+  ): Promise<string[]>;
+
+  /**
    * Signs a message for authentication or proof of ownership.
    *
    * @param message - The message to sign
