@@ -1,7 +1,6 @@
 import { FinalityProviderSubsection, useField } from "@babylonlabs-io/core-ui";
 import { Fragment, useMemo } from "react";
 
-import { ChainSelectionModal } from "@/ui/common/components/Multistaking/ChainSelectionModal/ChainSelectionModal";
 import { FinalityProviderModal } from "@/ui/common/components/Multistaking/FinalityProviderField/FinalityProviderModal";
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { MODAL_CLOSE_DELAY } from "@/ui/common/constants";
@@ -35,7 +34,6 @@ export function FinalityProvidersSection() {
 
   const {
     bsnList,
-    bsnLoading,
     stakingModalPage,
     selectedBsnId,
     setStakingModalPage,
@@ -100,9 +98,6 @@ export function FinalityProvidersSection() {
     }, MODAL_CLOSE_DELAY);
   };
 
-  const handleNext = () =>
-    setStakingModalPage(StakingModalPage.FINALITY_PROVIDER);
-  const handleSelectBsn = (chainId: string) => setSelectedBsnId(chainId);
   const handleBack = () => {
     if (allowsMultipleBsns) {
       setStakingModalPage(StakingModalPage.BSN);
@@ -124,18 +119,6 @@ export function FinalityProvidersSection() {
         onAdd={handleOpen}
         onRemove={handleRemove}
         showChain={false} // No BSN chain display needed
-      />
-
-      <ChainSelectionModal
-        loading={bsnLoading}
-        open={stakingModalPage === StakingModalPage.BSN}
-        bsns={bsnList}
-        activeBsnId={selectedBsnId}
-        selectedBsns={selectedProviderMap}
-        onNext={handleNext}
-        onClose={handleClose}
-        onSelect={handleSelectBsn}
-        onRemove={handleRemove}
       />
 
       <FinalityProviderModal
