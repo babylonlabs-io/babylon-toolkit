@@ -17,7 +17,8 @@ import {
   SubSection,
 } from "@babylonlabs-io/core-ui";
 
-import { DetailsCard } from "@/components/shared";
+import { DetailsCard, PriceWarningBanner } from "@/components/shared";
+import { usePrices } from "@/hooks/usePrices";
 import { getCurrencyIconWithFallback } from "@/services/token";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
@@ -73,6 +74,9 @@ export function CollateralModal({
     errorMessage,
   } = hook;
 
+  // Fetch price metadata for warnings
+  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
+
   const onSubmit = async () => {
     const success = await handleSubmit();
     if (success) {
@@ -91,6 +95,15 @@ export function CollateralModal({
       />
       <DialogBody className="space-y-6 pb-6">
         <p className="text-base text-accent-secondary">{config.description}</p>
+
+        {/* Price warning banner */}
+        {(hasStalePrices || hasPriceFetchError) && (
+          <PriceWarningBanner
+            metadata={metadata}
+            hasPriceFetchError={hasPriceFetchError}
+            hasStalePrices={hasStalePrices}
+          />
+        )}
 
         {/* BTC Amount Slider - uses vault bucket steps */}
         <SubSection>
@@ -116,9 +129,13 @@ export function CollateralModal({
               value: formatBtcAmount(maxCollateralAmount),
             }}
             onMaxClick={() => setCollateralAmount(maxCollateralAmount)}
-            rightField={{
-              value: formatUsdValue(selectedCollateralValueUsd),
-            }}
+            rightField={
+              hasPriceFetchError
+                ? undefined
+                : {
+                    value: formatUsdValue(selectedCollateralValueUsd),
+                  }
+            }
             sliderActiveColor="#F7931A"
           />
         </SubSection>

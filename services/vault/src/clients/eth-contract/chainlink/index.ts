@@ -5,4 +5,6 @@ export {
   getTokenPrices,
   isPriceFresh,
   type ChainlinkRoundData,
+  type PriceMetadata,
+  type TokenPricesResult,
 } from "./query";
