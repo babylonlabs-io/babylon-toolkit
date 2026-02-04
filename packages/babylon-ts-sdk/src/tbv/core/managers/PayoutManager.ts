@@ -438,6 +438,10 @@ export class PayoutManager {
       depositorBtcPubkey: string;
     }> = [];
 
+    // Map each transaction pair to its 2 PSBTs in the flattened signedPsbts array:
+    // - Each transaction generates 2 PSBTs (PayoutOptimistic first, then Payout)
+    // - i * 2 = PayoutOptimistic PSBT index (even indices: 0, 2, 4...)
+    // - i * 2 + 1 = Payout PSBT index (odd indices: 1, 3, 5...)
     for (let i = 0; i < transactions.length; i++) {
       const payoutOptimisticIndex = i * 2;
       const payoutIndex = i * 2 + 1;
