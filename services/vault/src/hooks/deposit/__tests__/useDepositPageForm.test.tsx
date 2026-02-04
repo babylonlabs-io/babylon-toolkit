@@ -61,6 +61,14 @@ vi.mock("../../../context/wallet", () => ({
 
 vi.mock("../../usePrices", () => ({
   usePrice: vi.fn(() => 95000.5),
+  usePrices: vi.fn(() => ({
+    prices: { BTC: 95000.5 },
+    metadata: {},
+    isLoading: false,
+    error: null,
+    hasStalePrices: false,
+    hasPriceFetchError: false,
+  })),
 }));
 
 vi.mock("../../useUTXOs", () => ({
