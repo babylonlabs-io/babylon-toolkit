@@ -5,20 +5,13 @@
  * to ActivityLog format for display in the Activity page.
  */
 
-import {
-  getApplicationMetadataByController,
-  getEnabledApplications,
-} from "../../applications";
+import { getApplicationMetadataByController } from "../../applications";
 import { getNetworkConfigBTC } from "../../config";
 import {
   getPendingPegins,
   type PendingPeginRequest,
 } from "../../storage/peginStorage";
-import {
-  getPendingCollateralVaults,
-  type PendingVaultInfo,
-} from "../../storage/pendingCollateralStorage";
-import type { ActivityLog, ActivityType } from "../../types/activityLog";
+import type { ActivityLog } from "../../types/activityLog";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -27,87 +20,42 @@ const btcConfig = getNetworkConfigBTC();
  */
 function convertPendingPeginToActivity(
   pending: PendingPeginRequest,
-): ActivityLog {
-  // Get application metadata if available
-  const appMetadata = pending.applicationController
-    ? getApplicationMetadataByController(pending.applicationController)
-    : undefined;
+): ActivityLog | null {
+  if (!pending.applicationController || !pending.amount) {
+    return null;
+  }
+
+  const appMetadata = getApplicationMetadataByController(
+    pending.applicationController,
+  );
+  if (!appMetadata) {
+    return null;
+  }
 
   return {
     id: pending.id,
     date: new Date(pending.timestamp),
     application: {
-      id: appMetadata?.id ?? "unknown",
-      name: appMetadata?.name ?? "Unknown App",
-      logoUrl: appMetadata?.logoUrl ?? "/images/unknown-app.svg",
+      id: appMetadata.id,
+      name: appMetadata.name,
+      logoUrl: appMetadata.logoUrl,
     },
     type: "Pending Deposit",
     amount: {
-      value: pending.amount ?? "0",
+      value: pending.amount,
       symbol: btcConfig.coinSymbol,
       icon: btcConfig.icon,
     },
-    transactionHash: "", // No tx hash yet for pending
+    transactionHash: pending.btcTxHash ?? "",
     isPending: true,
   };
 }
 
 /**
- * Map pending collateral operation to ActivityType
- */
-function mapCollateralOperationType(
-  operation: PendingVaultInfo["operation"],
-): ActivityType {
-  return operation === "add"
-    ? "Pending Add Collateral"
-    : "Pending Remove Collateral";
-}
-
-/**
- * Convert pending collateral operations from localStorage to ActivityLog format
- *
- * Note: Pending collateral operations are stored per-app, so we need to
- * iterate through all enabled applications to find pending entries.
- */
-function getPendingCollateralActivities(ethAddress: string): ActivityLog[] {
-  const activities: ActivityLog[] = [];
-  const enabledApps = getEnabledApplications();
-
-  for (const app of enabledApps) {
-    const pendingVaults = getPendingCollateralVaults(
-      app.metadata.id,
-      ethAddress,
-    );
-
-    for (const pending of pendingVaults) {
-      activities.push({
-        id: `pending-collateral-${app.metadata.id}-${pending.id}`,
-        date: new Date(), // No timestamp stored for collateral operations
-        application: {
-          id: app.metadata.id,
-          name: app.metadata.name,
-          logoUrl: app.metadata.logoUrl,
-        },
-        type: mapCollateralOperationType(pending.operation),
-        amount: {
-          value: "—", // Amount not stored in pending collateral
-          symbol: btcConfig.coinSymbol,
-          icon: btcConfig.icon,
-        },
-        transactionHash: "", // No tx hash yet for pending
-        isPending: true,
-      });
-    }
-  }
-
-  return activities;
-}
-
-/**
  * Get all pending activities from localStorage
  *
- * Combines pending peg-ins (deposits) and pending collateral operations
- * into a single list sorted by date (newest first).
+ * Returns pending peg-in (deposit) activities sorted by date (newest first).
+ * Only includes entries with valid, complete data.
  *
  * @param ethAddress - User's Ethereum address
  * @returns Array of pending activities as ActivityLog
@@ -115,18 +63,14 @@ function getPendingCollateralActivities(ethAddress: string): ActivityLog[] {
 export function getPendingActivities(ethAddress: string): ActivityLog[] {
   if (!ethAddress) return [];
 
-  // Get pending deposits
+  // Get pending deposits, filtering out any with missing data
   const pendingPegins = getPendingPegins(ethAddress);
-  const pendingDepositActivities = pendingPegins.map(
-    convertPendingPeginToActivity,
-  );
+  const pendingDepositActivities = pendingPegins
+    .map(convertPendingPeginToActivity)
+    .filter((activity): activity is ActivityLog => activity !== null);
 
-  // Get pending collateral operations
-  const pendingCollateralActivities =
-    getPendingCollateralActivities(ethAddress);
-
-  // Combine and sort by date (newest first)
-  return [...pendingDepositActivities, ...pendingCollateralActivities].sort(
+  // Sort by date (newest first)
+  return pendingDepositActivities.sort(
     (a, b) => b.date.getTime() - a.date.getTime(),
   );
 }

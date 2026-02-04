@@ -17,9 +17,7 @@ export type ActivityType =
   | "Borrow"
   | "Repay"
   // Pending activity types (not yet confirmed on-chain)
-  | "Pending Deposit"
-  | "Pending Add Collateral"
-  | "Pending Remove Collateral";
+  | "Pending Deposit";
 
 /**
  * Application information for an activity

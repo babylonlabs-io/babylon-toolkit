@@ -4,11 +4,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ApplicationRegistration } from "@/applications/types";
 import { getNetworkConfigBTC } from "@/config";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import type { PendingPeginRequest } from "@/storage/peginStorage";
-import type { PendingVaultInfo } from "@/storage/pendingCollateralStorage";
 
 import { getPendingActivities } from "../pendingActivities";
 
@@ -17,39 +15,11 @@ vi.mock("@/storage/peginStorage", () => ({
   getPendingPegins: vi.fn(),
 }));
 
-vi.mock("@/storage/pendingCollateralStorage", () => ({
-  getPendingCollateralVaults: vi.fn(),
-}));
-
 vi.mock("@/applications", () => ({
   getApplicationMetadataByController: vi.fn(),
-  getEnabledApplications: vi.fn(),
 }));
 
 const btcConfig = getNetworkConfigBTC();
-
-/**
- * Create a mock ApplicationRegistration for testing
- */
-function createMockApp(id: string, name: string): ApplicationRegistration {
-  return {
-    metadata: {
-      id,
-      name,
-      type: "Lending",
-      description: `${name} description`,
-      logoUrl: `/images/${id}.svg`,
-      websiteUrl: `https://${id}.com`,
-    },
-    Routes: () => null,
-    contracts: {
-      abi: [],
-      functionNames: {
-        redeem: "redeem",
-      },
-    },
-  };
-}
 
 describe("getPendingActivities", () => {
   const mockEthAddress = "0x1234567890abcdef1234567890abcdef12345678";
@@ -63,8 +33,9 @@ describe("getPendingActivities", () => {
   describe("pending deposits", () => {
     it("should convert pending pegins to ActivityLog format", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getEnabledApplications, getApplicationMetadataByController } =
-        await import("@/applications");
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
+      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
@@ -75,7 +46,6 @@ describe("getPendingActivities", () => {
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getEnabledApplications).mockReturnValue([]);
       vi.mocked(getApplicationMetadataByController).mockReturnValue({
         id: "aave",
         name: "Aave",
@@ -104,134 +74,165 @@ describe("getPendingActivities", () => {
       });
     });
 
-    it("should use fallback app metadata when controller is unknown", async () => {
+    it("should include btcTxHash when available", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getEnabledApplications, getApplicationMetadataByController } =
-        await import("@/applications");
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
+      );
+
+      const mockPendingPegin: PendingPeginRequest = {
+        id: "0xabc123",
+        timestamp: mockTimestamp - 60000,
+        amount: "1.5",
+        status: LocalStorageStatus.CONFIRMING,
+        applicationController: "0xcontroller",
+        btcTxHash: "0xbtctxhash123",
+      };
+
+      vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
+      vi.mocked(getApplicationMetadataByController).mockReturnValue({
+        id: "aave",
+        name: "Aave",
+        type: "Lending",
+        description: "Aave lending protocol",
+        logoUrl: "/images/aave.svg",
+        websiteUrl: "https://aave.com",
+      });
+
+      const result = getPendingActivities(mockEthAddress);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].transactionHash).toBe("0xbtctxhash123");
+    });
+
+    it("should skip pegins without applicationController", async () => {
+      const { getPendingPegins } = await import("@/storage/peginStorage");
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
+      );
 
       const mockPendingPegin: PendingPeginRequest = {
         id: "0xabc123",
         timestamp: mockTimestamp,
+        amount: "1.5",
         status: LocalStorageStatus.PENDING,
         // No applicationController
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getEnabledApplications).mockReturnValue([]);
       vi.mocked(getApplicationMetadataByController).mockReturnValue(undefined);
 
       const result = getPendingActivities(mockEthAddress);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].application).toMatchObject({
-        id: "unknown",
-        name: "Unknown App",
-      });
-    });
-  });
-
-  describe("pending collateral operations", () => {
-    it("should convert pending add collateral to ActivityLog format", async () => {
-      const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getPendingCollateralVaults } = await import(
-        "@/storage/pendingCollateralStorage"
-      );
-      const { getEnabledApplications } = await import("@/applications");
-
-      const mockApp = createMockApp("aave", "Aave");
-
-      const mockPendingVault: PendingVaultInfo = {
-        id: "vault123",
-        operation: "add",
-      };
-
-      vi.mocked(getPendingPegins).mockReturnValue([]);
-      vi.mocked(getEnabledApplications).mockReturnValue([mockApp]);
-      vi.mocked(getPendingCollateralVaults).mockReturnValue([mockPendingVault]);
-
-      const result = getPendingActivities(mockEthAddress);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        id: "pending-collateral-aave-vault123",
-        type: "Pending Add Collateral",
-        isPending: true,
-        application: {
-          id: "aave",
-          name: "Aave",
-        },
-        transactionHash: "",
-      });
+      expect(result).toHaveLength(0);
     });
 
-    it("should convert pending withdraw collateral to ActivityLog format", async () => {
+    it("should skip pegins without amount", async () => {
       const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getPendingCollateralVaults } = await import(
-        "@/storage/pendingCollateralStorage"
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
       );
-      const { getEnabledApplications } = await import("@/applications");
 
-      const mockApp = createMockApp("aave", "Aave");
-
-      const mockPendingVault: PendingVaultInfo = {
-        id: "vault456",
-        operation: "withdraw",
-      };
-
-      vi.mocked(getPendingPegins).mockReturnValue([]);
-      vi.mocked(getEnabledApplications).mockReturnValue([mockApp]);
-      vi.mocked(getPendingCollateralVaults).mockReturnValue([mockPendingVault]);
-
-      const result = getPendingActivities(mockEthAddress);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        type: "Pending Remove Collateral",
-        isPending: true,
-      });
-    });
-  });
-
-  describe("combined activities", () => {
-    it("should combine and sort by date (newest first)", async () => {
-      const { getPendingPegins } = await import("@/storage/peginStorage");
-      const { getPendingCollateralVaults } = await import(
-        "@/storage/pendingCollateralStorage"
-      );
-      const { getEnabledApplications, getApplicationMetadataByController } =
-        await import("@/applications");
-
-      const mockApp = createMockApp("aave", "Aave");
-
-      // Older deposit
       const mockPendingPegin: PendingPeginRequest = {
-        id: "0xold",
-        timestamp: mockTimestamp - 120000, // 2 minutes ago
+        id: "0xabc123",
+        timestamp: mockTimestamp,
         status: LocalStorageStatus.PENDING,
-      };
-
-      // Newer collateral operation (uses Date.now() internally)
-      const mockPendingVault: PendingVaultInfo = {
-        id: "new",
-        operation: "add",
+        applicationController: "0xcontroller",
+        // No amount
       };
 
       vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
-      vi.mocked(getEnabledApplications).mockReturnValue([mockApp]);
-      vi.mocked(getPendingCollateralVaults).mockReturnValue([mockPendingVault]);
+      vi.mocked(getApplicationMetadataByController).mockReturnValue({
+        id: "aave",
+        name: "Aave",
+        type: "Lending",
+        description: "Aave lending protocol",
+        logoUrl: "/images/aave.svg",
+        websiteUrl: "https://aave.com",
+      });
+
+      const result = getPendingActivities(mockEthAddress);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should skip pegins with unknown controller", async () => {
+      const { getPendingPegins } = await import("@/storage/peginStorage");
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
+      );
+
+      const mockPendingPegin: PendingPeginRequest = {
+        id: "0xabc123",
+        timestamp: mockTimestamp,
+        amount: "1.5",
+        status: LocalStorageStatus.PENDING,
+        applicationController: "0xunknown",
+      };
+
+      vi.mocked(getPendingPegins).mockReturnValue([mockPendingPegin]);
+      // Controller can't be resolved to app metadata
       vi.mocked(getApplicationMetadataByController).mockReturnValue(undefined);
+
+      const result = getPendingActivities(mockEthAddress);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it("should sort multiple deposits by date (newest first)", async () => {
+      const { getPendingPegins } = await import("@/storage/peginStorage");
+      const { getApplicationMetadataByController } = await import(
+        "@/applications"
+      );
+
+      const mockPegins: PendingPeginRequest[] = [
+        {
+          id: "0xolder",
+          timestamp: mockTimestamp - 120000, // 2 minutes ago
+          amount: "1.0",
+          status: LocalStorageStatus.PENDING,
+          applicationController: "0xcontroller",
+        },
+        {
+          id: "0xnewer",
+          timestamp: mockTimestamp - 60000, // 1 minute ago
+          amount: "2.0",
+          status: LocalStorageStatus.PENDING,
+          applicationController: "0xcontroller",
+        },
+      ];
+
+      vi.mocked(getPendingPegins).mockReturnValue(mockPegins);
+      vi.mocked(getApplicationMetadataByController).mockReturnValue({
+        id: "aave",
+        name: "Aave",
+        type: "Lending",
+        description: "Aave lending protocol",
+        logoUrl: "/images/aave.svg",
+        websiteUrl: "https://aave.com",
+      });
 
       const result = getPendingActivities(mockEthAddress);
 
       expect(result).toHaveLength(2);
-      // Collateral operation should be first (newer - uses Date.now())
-      expect(result[0].type).toBe("Pending Add Collateral");
-      // Deposit should be second (older)
-      expect(result[1].type).toBe("Pending Deposit");
+      expect(result[0].id).toBe("0xnewer");
+      expect(result[1].id).toBe("0xolder");
     });
+  });
 
+  describe("edge cases", () => {
     it("should return empty array for empty address", async () => {
       const result = getPendingActivities("");
+
+      expect(result).toEqual([]);
+    });
+
+    it("should return empty array when no pending pegins exist", async () => {
+      const { getPendingPegins } = await import("@/storage/peginStorage");
+
+      vi.mocked(getPendingPegins).mockReturnValue([]);
+
+      const result = getPendingActivities(mockEthAddress);
 
       expect(result).toEqual([]);
     });
