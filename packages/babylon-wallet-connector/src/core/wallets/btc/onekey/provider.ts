@@ -1,5 +1,6 @@
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
+import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -117,13 +118,7 @@ export class OneKeyProvider implements IBTCProvider {
     if (options?.signInputs && options.signInputs.length > 0) {
       const oneKeyOptions = {
         autoFinalized: options.autoFinalized ?? false,
-        toSignInputs: options.signInputs.map((input) => ({
-          index: input.index,
-          publicKey: input.publicKey,
-          address: input.address,
-          sighashTypes: input.sighashTypes,
-          disableTweakSigner: input.disableTweakSigner,
-        })),
+        toSignInputs: mapSignInputsToToSignInputs(options.signInputs),
       };
       return await this.provider.signPsbt(psbtHex, oneKeyOptions);
     }
@@ -152,13 +147,7 @@ export class OneKeyProvider implements IBTCProvider {
         if (opt?.signInputs && opt.signInputs.length > 0) {
           return {
             autoFinalized: opt.autoFinalized ?? false,
-            toSignInputs: opt.signInputs.map((input) => ({
-              index: input.index,
-              publicKey: input.publicKey,
-              address: input.address,
-              sighashTypes: input.sighashTypes,
-              disableTweakSigner: input.disableTweakSigner,
-            })),
+            toSignInputs: mapSignInputsToToSignInputs(opt.signInputs),
           };
         }
         return undefined;
