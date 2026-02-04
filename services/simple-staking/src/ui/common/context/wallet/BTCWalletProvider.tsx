@@ -100,13 +100,14 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
 
   const { handleError } = useError();
   const btcConnector = useChainConnector("BTC");
-  const { open = () => {} } = useWalletConnect();
+  const { open = () => {}, disconnect: disconnectAll } = useWalletConnect();
   const logger = useLogger();
   const { updateUser } = useSentryUser();
   const { screenAddress, clearAddressScreeningResult } =
     useAddressScreeningService();
 
-  const btcDisconnect = useCallback(() => {
+  // Internal function to clear BTC state only (used by disconnect events)
+  const clearBtcState = useCallback(() => {
     setBTCWalletProvider(undefined);
     setNetwork(undefined);
     setPublicKeyNoCoord("");
@@ -116,6 +117,13 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     updateUser({ btcAddress: null });
     clearAddressScreeningResult();
   }, [updateUser, clearAddressScreeningResult]);
+
+  // Public disconnect function - also disconnects other wallets
+  const btcDisconnect = useCallback(() => {
+    clearBtcState();
+    // Also disconnect all other wallets (BBN) since we require both to be connected
+    disconnectAll?.();
+  }, [clearBtcState, disconnectAll]);
 
   const connectBTC = useCallback(
     async (walletProvider: IBTCProvider | null) => {
@@ -227,12 +235,14 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     if (!btcConnector) return;
 
+    // When connector fires disconnect, only clear local state (avoid infinite loop)
+    // The global disconnect already handles disconnecting all connectors
     const unsubscribe = btcConnector.on("disconnect", () => {
-      btcDisconnect();
+      clearBtcState();
     });
 
     return unsubscribe;
-  }, [btcConnector, btcDisconnect]);
+  }, [btcConnector, clearBtcState]);
 
   // Listen for BTC account changes
   useEffect(() => {
@@ -243,10 +253,130 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
       connectBTC(btcWalletProvider);
     };
 
-    btcWalletProvider.on("accountChanged", cb);
+    const onDisconnect = () => {
+      btcDisconnect();
+    };
 
-    return () => void btcWalletProvider.off("accountChanged", cb);
-  }, [btcWalletProvider, connectBTC]);
+    // Subscribe to both event names as different wallets use different names
+    if (typeof btcWalletProvider.on === "function") {
+      btcWalletProvider.on("accountChanged", cb);
+      btcWalletProvider.on("accountsChanged", cb);
+      btcWalletProvider.on("disconnect", onDisconnect);
+    }
+
+    return () => {
+      if (typeof btcWalletProvider.off === "function") {
+        btcWalletProvider.off("accountChanged", cb);
+        btcWalletProvider.off("accountsChanged", cb);
+        btcWalletProvider.off("disconnect", onDisconnect);
+      }
+    };
+  }, [btcWalletProvider, connectBTC, btcDisconnect]);
+
+  // Fallback: Listen directly to BTC wallet extensions for disconnect events
+  useEffect(() => {
+    if (!address) return; // Only listen when connected
+    if (typeof window === "undefined") return;
+
+    const win = window as any;
+
+    // Get all possible BTC wallet providers
+    const providers: any[] = [];
+
+    // OKX wallet
+    if (win.okxwallet?.bitcoin) providers.push(win.okxwallet.bitcoin);
+    if (win.okxwallet?.bitcoinTestnet)
+      providers.push(win.okxwallet.bitcoinTestnet);
+    if (win.okxwallet?.bitcoinSignet)
+      providers.push(win.okxwallet.bitcoinSignet);
+
+    // Unisat
+    if (win.unisat) providers.push(win.unisat);
+
+    // OneKey
+    if (win.$onekey?.btc) providers.push(win.$onekey.btc);
+
+    // Generic
+    if (win.btcwallet) providers.push(win.btcwallet);
+
+    if (providers.length === 0) return;
+
+    const handleDisconnect = () => {
+      btcDisconnect();
+    };
+
+    const handleAccountsChanged = async (accounts?: string | string[]) => {
+      const accountsArray = Array.isArray(accounts)
+        ? accounts
+        : accounts
+          ? [accounts]
+          : [];
+      if (accountsArray.length === 0) {
+        btcDisconnect();
+      }
+    };
+
+    // Subscribe to events
+    providers.forEach((provider) => {
+      if (typeof provider.on === "function") {
+        provider.on("disconnect", handleDisconnect);
+        provider.on("accountsChanged", handleAccountsChanged);
+      }
+    });
+
+    return () => {
+      providers.forEach((provider) => {
+        if (typeof provider.removeListener === "function") {
+          provider.removeListener("disconnect", handleDisconnect);
+          provider.removeListener("accountsChanged", handleAccountsChanged);
+        } else if (typeof provider.off === "function") {
+          provider.off("disconnect", handleDisconnect);
+          provider.off("accountsChanged", handleAccountsChanged);
+        }
+      });
+    };
+  }, [address, btcDisconnect]);
+
+  // Check wallet connection when tab becomes visible
+  useEffect(() => {
+    if (!btcWalletProvider || !address) return;
+    if (typeof window === "undefined" || typeof document === "undefined")
+      return;
+
+    const checkConnection = async () => {
+      try {
+        await btcWalletProvider.connectWallet();
+        const currentAddress = await btcWalletProvider.getAddress();
+
+        if (!currentAddress) {
+          btcDisconnect();
+        } else if (currentAddress !== address) {
+          // Account changed while tab was in background - reconnect
+          connectBTC(btcWalletProvider);
+        }
+      } catch (error: any) {
+        // Connection check failed - wallet likely disconnected
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("BTC wallet connection check failed"),
+        );
+        btcDisconnect();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setTimeout(checkConnection, 500);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [btcWalletProvider, address, btcDisconnect, connectBTC, logger]);
 
   useEffect(() => {
     if (!btcConnector) return;

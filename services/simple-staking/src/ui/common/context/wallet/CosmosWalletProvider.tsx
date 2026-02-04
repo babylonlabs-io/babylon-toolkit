@@ -58,17 +58,25 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
 
   const { handleError } = useError();
   const logger = useLogger();
-  const { open = () => {} } = useWalletConnect();
+  const { open = () => {}, disconnect: disconnectAll } = useWalletConnect();
   const bbnConnector = useChainConnector("BBN");
   const { updateUser } = useSentryUser();
 
-  const cosmosDisconnect = useCallback(() => {
+  // Internal function to clear Cosmos state only (used by disconnect events)
+  const clearCosmosState = useCallback(() => {
     setBBNWalletProvider(undefined);
     setCosmosBech32Address("");
     setSigningStargateClient(undefined);
 
     updateUser({ babylonAddress: null });
   }, [updateUser]);
+
+  // Public disconnect function - also disconnects other wallets
+  const cosmosDisconnect = useCallback(() => {
+    clearCosmosState();
+    // Also disconnect all other wallets (BTC) since we require both to be connected
+    disconnectAll?.();
+  }, [clearCosmosState, disconnectAll]);
 
   const connectCosmos = useCallback(
     async (provider: IBBNProvider | null) => {
@@ -157,11 +165,122 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
       connectCosmos(BBNWalletProvider);
     };
 
+    const onDisconnect = () => {
+      cosmosDisconnect();
+    };
+
     BBNWalletProvider.on("accountChanged", cb);
+    BBNWalletProvider.on("disconnect", onDisconnect);
+
     return () => {
       BBNWalletProvider.off("accountChanged", cb);
+      BBNWalletProvider.off("disconnect", onDisconnect);
     };
-  }, [BBNWalletProvider, connectCosmos]);
+  }, [BBNWalletProvider, connectCosmos, cosmosDisconnect]);
+
+  // Fallback: Listen directly to Cosmos wallet extensions for disconnect/account changes
+  useEffect(() => {
+    if (!cosmosBech32Address) return; // Only listen when connected
+    if (typeof window === "undefined") return;
+
+    const win = window as any;
+
+    // Get Cosmos wallet providers
+    const providers: any[] = [];
+
+    // Keplr
+    if (win.keplr) providers.push(win.keplr);
+
+    // Leap
+    if (win.leap) providers.push(win.leap);
+
+    // OKX Cosmos
+    if (win.okxwallet?.keplr) providers.push(win.okxwallet.keplr);
+
+    if (providers.length === 0) return;
+
+    // Keplr uses 'keplr_keystorechange' event on window
+    const handleKeystoreChange = async () => {
+      if (BBNWalletProvider) {
+        try {
+          await BBNWalletProvider.connectWallet();
+          const newAddress = await BBNWalletProvider.getAddress();
+          if (!newAddress) {
+            cosmosDisconnect();
+          } else if (newAddress !== cosmosBech32Address) {
+            connectCosmos(BBNWalletProvider);
+          }
+        } catch (error: any) {
+          logger.error(
+            error instanceof Error
+              ? error
+              : new Error("Error handling Cosmos keystore change"),
+          );
+          cosmosDisconnect();
+        }
+      }
+    };
+
+    // Listen for Keplr keystore change event
+    window.addEventListener("keplr_keystorechange", handleKeystoreChange);
+
+    return () => {
+      window.removeEventListener("keplr_keystorechange", handleKeystoreChange);
+    };
+  }, [
+    cosmosBech32Address,
+    BBNWalletProvider,
+    cosmosDisconnect,
+    connectCosmos,
+    logger,
+  ]);
+
+  // Check wallet connection when tab becomes visible
+  useEffect(() => {
+    if (!BBNWalletProvider || !cosmosBech32Address) return;
+    if (typeof window === "undefined" || typeof document === "undefined")
+      return;
+
+    const checkConnection = async () => {
+      try {
+        await BBNWalletProvider.connectWallet();
+        const currentAddress = await BBNWalletProvider.getAddress();
+
+        if (!currentAddress) {
+          cosmosDisconnect();
+        } else if (currentAddress !== cosmosBech32Address) {
+          // Account changed while tab was in background
+          connectCosmos(BBNWalletProvider);
+        }
+      } catch (error: any) {
+        // Connection check failed - wallet likely disconnected
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("Cosmos wallet connection check failed"),
+        );
+        cosmosDisconnect();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        setTimeout(checkConnection, 500);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    BBNWalletProvider,
+    cosmosBech32Address,
+    cosmosDisconnect,
+    connectCosmos,
+    logger,
+  ]);
 
   const cosmosContextValue = useMemo(
     () => ({
@@ -203,12 +322,14 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
   useEffect(() => {
     if (!bbnConnector) return;
 
+    // When connector fires disconnect, only clear local state (avoid infinite loop)
+    // The global disconnect already handles disconnecting all connectors
     const unsubscribe = bbnConnector.on("disconnect", () => {
-      cosmosDisconnect();
+      clearCosmosState();
     });
 
     return unsubscribe;
-  }, [bbnConnector, cosmosDisconnect]);
+  }, [bbnConnector, clearCosmosState]);
 
   useEffect(() => {
     if (!bbnConnector) return;
