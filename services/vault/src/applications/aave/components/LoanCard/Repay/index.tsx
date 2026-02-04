@@ -55,7 +55,6 @@ export function Repay() {
     currentDebtUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
-    isFullRepayment,
   });
 
   const { isDisabled, buttonText, errorMessage } = validateRepayAction(

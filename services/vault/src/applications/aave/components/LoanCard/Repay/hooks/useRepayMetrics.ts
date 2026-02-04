@@ -22,8 +22,6 @@ export interface UseRepayMetricsProps {
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
   currentHealthFactor: number | null;
-  /** Whether the repay amount represents a full repayment */
-  isFullRepayment: boolean;
 }
 
 export interface UseRepayMetricsResult {
@@ -46,7 +44,6 @@ export function useRepayMetrics({
   currentDebtUsd,
   liquidationThresholdBps,
   currentHealthFactor,
-  isFullRepayment,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
   // When no repay amount entered, show current values (no projection)
   if (repayAmount === 0) {
@@ -62,16 +59,16 @@ export function useRepayMetrics({
 
   // Calculate projected values after repay (debt decreases)
   const totalDebtUsd = Math.max(0, currentDebtUsd - repayAmount);
+  const isFullRepayment = totalDebtUsd === 0;
 
   // If fully repaying, health factor becomes Infinity (no debt, no risk)
-  const healthFactorValue =
-    isFullRepayment || totalDebtUsd === 0
-      ? Infinity
-      : calculateHealthFactor(
-          collateralValueUsd,
-          totalDebtUsd,
-          liquidationThresholdBps,
-        );
+  const healthFactorValue = isFullRepayment
+    ? Infinity
+    : calculateHealthFactor(
+        collateralValueUsd,
+        totalDebtUsd,
+        liquidationThresholdBps,
+      );
 
   const originalHealthValue = currentHealthFactor ?? Infinity;
 
