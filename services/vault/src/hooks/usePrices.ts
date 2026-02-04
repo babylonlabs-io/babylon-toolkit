@@ -5,8 +5,8 @@
  * Prices are cached for 1 minute and automatically refetched when stale.
  */
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import {
   getTokenPrices,
