@@ -1,5 +1,5 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import type { Network } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { PayoutManager, type Network } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
@@ -12,10 +12,6 @@ import type { UniversalChallenger } from "../../types";
 import { processPublicKeyToXOnly, stripHexPrefix } from "../../utils/btc";
 import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
-import {
-  signPayoutOptimisticTransaction,
-  signPayoutTransaction,
-} from "./btcPayoutSigner";
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultById } from "./fetchVaults";
 
@@ -240,16 +236,33 @@ export async function signPayoutOptimistic(
   context: SigningContext,
   transaction: PreparedTransaction,
 ): Promise<string> {
-  return signPayoutOptimisticTransaction(btcWallet, {
-    payoutOptimisticTxHex: transaction.payoutOptimisticTxHex,
-    peginTxHex: context.peginTxHex,
-    claimTxHex: transaction.claimTxHex,
-    vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
-    network: context.network,
-    depositorBtcPubkey: context.depositorBtcPubkey,
-  });
+  try {
+    const payoutManager = new PayoutManager({
+      network: context.network,
+      btcWallet,
+    });
+
+    const result = await payoutManager.signPayoutOptimisticTransaction({
+      payoutOptimisticTxHex: transaction.payoutOptimisticTxHex,
+      peginTxHex: context.peginTxHex,
+      claimTxHex: transaction.claimTxHex,
+      vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+      depositorBtcPubkey: context.depositorBtcPubkey,
+    });
+
+    return result.signature;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to sign PayoutOptimistic transaction: ${error.message}`,
+      );
+    }
+    throw new Error(
+      "Failed to sign PayoutOptimistic transaction: Unknown error",
+    );
+  }
 }
 
 /**
@@ -265,16 +278,29 @@ export async function signPayout(
   context: SigningContext,
   transaction: PreparedTransaction,
 ): Promise<string> {
-  return signPayoutTransaction(btcWallet, {
-    payoutTxHex: transaction.payoutTxHex,
-    peginTxHex: context.peginTxHex,
-    assertTxHex: transaction.assertTxHex,
-    vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
-    network: context.network,
-    depositorBtcPubkey: context.depositorBtcPubkey,
-  });
+  try {
+    const payoutManager = new PayoutManager({
+      network: context.network,
+      btcWallet,
+    });
+
+    const result = await payoutManager.signPayoutTransaction({
+      payoutTxHex: transaction.payoutTxHex,
+      peginTxHex: context.peginTxHex,
+      assertTxHex: transaction.assertTxHex,
+      vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+      depositorBtcPubkey: context.depositorBtcPubkey,
+    });
+
+    return result.signature;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to sign Payout transaction: ${error.message}`);
+    }
+    throw new Error("Failed to sign Payout transaction: Unknown error");
+  }
 }
 
 /** Detailed progress for payout signing (used by UI layer) */
@@ -447,4 +473,81 @@ export async function signAndSubmitPayoutSignatures(
     depositorBtcPubkey,
     signatures,
   );
+}
+
+/**
+ * Check if wallet supports batch signing (signPsbts).
+ * Batch signing allows signing all transactions with a single wallet interaction.
+ */
+export function walletSupportsBatchSigning(btcWallet: BitcoinWallet): boolean {
+  return typeof btcWallet.signPsbts === "function";
+}
+
+/**
+ * Sign all transactions in batch using signPsbts (single wallet popup).
+ *
+ * @param btcWallet - Bitcoin wallet with signPsbts support
+ * @param context - Signing context with vault data
+ * @param transactions - Prepared transactions to sign
+ * @returns Signatures keyed by claimer pubkey
+ */
+export async function signAllTransactionsBatch(
+  btcWallet: BitcoinWallet,
+  context: SigningContext,
+  transactions: PreparedTransaction[],
+): Promise<Record<string, ClaimerSignatures>> {
+  try {
+    const payoutManager = new PayoutManager({
+      network: context.network,
+      btcWallet,
+    });
+
+    if (!payoutManager.supportsBatchSigning()) {
+      throw new Error(
+        "Wallet does not support batch signing (signPsbts method not available)",
+      );
+    }
+
+    // Build batch signing params
+    const results = await payoutManager.signPayoutTransactionsBatch(
+      transactions.map((tx) => ({
+        payoutOptimistic: {
+          payoutOptimisticTxHex: tx.payoutOptimisticTxHex,
+          peginTxHex: context.peginTxHex,
+          claimTxHex: tx.claimTxHex,
+          vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+          depositorBtcPubkey: context.depositorBtcPubkey,
+        },
+        payout: {
+          payoutTxHex: tx.payoutTxHex,
+          peginTxHex: context.peginTxHex,
+          assertTxHex: tx.assertTxHex,
+          vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
+          depositorBtcPubkey: context.depositorBtcPubkey,
+        },
+      })),
+    );
+
+    // Map results to signatures record
+    const signatures: Record<string, ClaimerSignatures> = {};
+    for (let i = 0; i < transactions.length; i++) {
+      signatures[transactions[i].claimerPubkeyXOnly] = {
+        payout_optimistic_signature: results[i].payoutOptimisticSignature,
+        payout_signature: results[i].payoutSignature,
+      };
+    }
+
+    return signatures;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to batch sign payout transactions: ${error.message}`,
+      );
+    }
+    throw new Error("Failed to batch sign payout transactions: Unknown error");
+  }
 }

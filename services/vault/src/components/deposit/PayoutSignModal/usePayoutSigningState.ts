@@ -22,10 +22,12 @@ import {
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
+  signAllTransactionsBatch,
   signPayout,
   signPayoutOptimistic,
   submitSignaturesToVaultProvider,
   validatePayoutSignatureParams,
+  walletSupportsBatchSigning,
   type SigningStepType,
 } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
@@ -176,53 +178,84 @@ export function usePayoutSigningState({
 
       // Prepare transactions for signing
       const preparedTransactions = prepareTransactionsForSigning(transactions);
-      const signatures: Record<
+      let signatures: Record<
         string,
         { payout_optimistic_signature: string; payout_signature: string }
       > = {};
 
-      // Track completed steps across all claimers
-      let completedSteps = 0;
+      // Check if wallet supports batch signing
+      const canBatchSign = walletSupportsBatchSigning(btcWalletProvider);
 
-      // Helper to update progress
-      const updateProgress = (
-        step: SigningStepType | null,
-        claimerIndex: number,
-      ) => {
+      if (canBatchSign) {
+        // BATCH SIGNING: Sign all PSBTs with single wallet popup
         setProgress({
-          completed: completedSteps,
+          completed: 0,
           total: totalSteps,
-          currentStep: step,
-          currentClaimer: claimerIndex,
+          currentStep: "payout_optimistic", // Show as signing in progress
+          currentClaimer: 1,
           totalClaimers,
         });
-      };
 
-      // Sign each claimer's transactions with detailed progress tracking
-      for (let i = 0; i < preparedTransactions.length; i++) {
-        const tx = preparedTransactions[i];
-        const claimerIndex = i + 1; // 1-based for display
-
-        // Sign PayoutOptimistic
-        updateProgress("payout_optimistic", claimerIndex);
-        const payoutOptimisticSig = await signPayoutOptimistic(
+        // Sign all at once
+        signatures = await signAllTransactionsBatch(
           btcWalletProvider,
           context,
-          tx,
+          preparedTransactions,
         );
-        completedSteps++;
 
-        // Sign Payout
-        updateProgress("payout", claimerIndex);
-        const payoutSig = await signPayout(btcWalletProvider, context, tx);
-        completedSteps++;
+        // Update progress to complete
+        setProgress({
+          completed: totalSteps,
+          total: totalSteps,
+          currentStep: null,
+          currentClaimer: totalClaimers,
+          totalClaimers,
+        });
+      } else {
+        // SEQUENTIAL SIGNING: Sign each transaction one by one
+        // Track completed steps across all claimers
+        let completedSteps = 0;
 
-        signatures[tx.claimerPubkeyXOnly] = {
-          payout_optimistic_signature: payoutOptimisticSig,
-          payout_signature: payoutSig,
+        // Helper to update progress
+        const updateProgress = (
+          step: SigningStepType | null,
+          claimerIndex: number,
+        ) => {
+          setProgress({
+            completed: completedSteps,
+            total: totalSteps,
+            currentStep: step,
+            currentClaimer: claimerIndex,
+            totalClaimers,
+          });
         };
 
-        updateProgress(null, claimerIndex);
+        // Sign each claimer's transactions with detailed progress tracking
+        for (let i = 0; i < preparedTransactions.length; i++) {
+          const tx = preparedTransactions[i];
+          const claimerIndex = i + 1; // 1-based for display
+
+          // Sign PayoutOptimistic
+          updateProgress("payout_optimistic", claimerIndex);
+          const payoutOptimisticSig = await signPayoutOptimistic(
+            btcWalletProvider,
+            context,
+            tx,
+          );
+          completedSteps++;
+
+          // Sign Payout
+          updateProgress("payout", claimerIndex);
+          const payoutSig = await signPayout(btcWalletProvider, context, tx);
+          completedSteps++;
+
+          signatures[tx.claimerPubkeyXOnly] = {
+            payout_optimistic_signature: payoutOptimisticSig,
+            payout_signature: payoutSig,
+          };
+
+          updateProgress(null, claimerIndex);
+        }
       }
 
       // Submit signatures to vault provider

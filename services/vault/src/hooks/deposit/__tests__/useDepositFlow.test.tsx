@@ -216,6 +216,11 @@ describe("useDepositFlow - Chain Switching", () => {
     getAddress: vi.fn().mockResolvedValue("bc1qtest123"),
     signPsbt: vi.fn().mockResolvedValue("mocksignedpsbt"),
     getNetwork: vi.fn().mockResolvedValue("signet"),
+    signPsbts: vi
+      .fn()
+      .mockImplementation(async (psbtsHexes) =>
+        psbtsHexes.map(() => "mocksignedpsbt"),
+      ),
   };
 
   const mockParams = {

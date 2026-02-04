@@ -1,5 +1,6 @@
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
+import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -112,13 +113,7 @@ export class OKXProvider implements IBTCProvider {
     if (options?.signInputs && options.signInputs.length > 0) {
       const okxOptions = {
         autoFinalized: options.autoFinalized ?? false,
-        toSignInputs: options.signInputs.map((input) => ({
-          index: input.index,
-          publicKey: input.publicKey,
-          address: input.address,
-          sighashTypes: input.sighashTypes,
-          disableTweakSigner: input.disableTweakSigner,
-        })),
+        toSignInputs: mapSignInputsToToSignInputs(options.signInputs),
       };
       return await this.provider.signPsbt(psbtHex, okxOptions);
     }
@@ -126,13 +121,27 @@ export class OKXProvider implements IBTCProvider {
     return await this.provider.signPsbt(psbtHex);
   };
 
-  signPsbts = async (psbtsHexes: string[]): Promise<string[]> => {
+  signPsbts = async (psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]> => {
     if (!this.walletInfo)
       throw new WalletError({
         code: ERROR_CODES.WALLET_NOT_CONNECTED,
         message: "OKX Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
+
+    // If options provided, map them to OKX format
+    if (options && options.length > 0) {
+      const okxOptions = options.map((opt) => {
+        if (opt?.signInputs && opt.signInputs.length > 0) {
+          return {
+            autoFinalized: opt.autoFinalized ?? false,
+            toSignInputs: mapSignInputsToToSignInputs(opt.signInputs),
+          };
+        }
+        return undefined;
+      });
+      return await this.provider.signPsbts(psbtsHexes, okxOptions);
+    }
 
     return await this.provider.signPsbts(psbtsHexes);
   };
