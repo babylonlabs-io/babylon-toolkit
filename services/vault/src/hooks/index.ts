@@ -10,13 +10,18 @@
 export { useVaultActions } from "./deposit/useVaultActions";
 export { useActivities } from "./useActivities";
 export { useApplications } from "./useApplications";
-export { useBTCBalance, type UseBTCBalanceResult } from "./useBTCBalance";
+export {
+  BTC_BALANCE_QUERY_KEY,
+  useBTCBalance,
+  type UseBTCBalanceResult,
+} from "./useBTCBalance";
 export { useBtcPublicKey } from "./useBtcPublicKey";
 export {
   useLtvCalculations,
   type UseLtvCalculationsResult,
 } from "./useLtvCalculations";
 export { useNetworkFees } from "./useNetworkFees";
+export { useOrdinals } from "./useOrdinals";
 export { usePrice, usePrices, type UsePricesResult } from "./usePrices";
 export {
   useProtocolParams,
@@ -29,6 +34,6 @@ export {
   type UseStatsResult,
 } from "./useStats";
 export { useTokenPair, type UseTokenPairResult } from "./useTokenPair";
-export { useUTXOs } from "./useUTXOs";
+export { UTXOS_QUERY_KEY, useUTXOs } from "./useUTXOs";
 export { useVaultDeposits } from "./useVaultDeposits";
 export { VAULTS_QUERY_KEY, useVaults } from "./useVaults";

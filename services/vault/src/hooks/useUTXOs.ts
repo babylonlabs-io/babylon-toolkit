@@ -1,14 +1,38 @@
 /**
  * Hook for fetching and managing Bitcoin UTXOs
  *
- * Fetches UTXOs from mempool API for the connected BTC wallet address
+ * Fetches UTXOs from mempool API for the connected BTC wallet address.
+ * Supports filtering out inscription UTXOs using the useOrdinals hook.
+ * Returns spendableUTXOs based on user's inscription preference.
  */
 
 import { getAddressUtxos, type MempoolUTXO } from "@babylonlabs-io/ts-sdk";
+import {
+  filterInscriptionUtxos,
+  type UTXO,
+} from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { getMempoolApiUrl } from "../clients/btc/config";
+import { useAppState } from "../state/AppState";
+
+import { useOrdinals } from "./useOrdinals";
+
+/** Query key for UTXO fetching */
+export const UTXOS_QUERY_KEY = "btc-utxos";
+
+/**
+ * Convert MempoolUTXO to wallet-connector UTXO type.
+ */
+function toWalletUtxo(utxo: MempoolUTXO): UTXO {
+  return {
+    txid: utxo.txid,
+    vout: utxo.vout,
+    value: utxo.value,
+    scriptPubKey: utxo.scriptPubKey,
+  };
+}
 
 /**
  * Hook to fetch UTXOs for a Bitcoin address
@@ -21,8 +45,10 @@ export function useUTXOs(
   btcAddress: string | undefined,
   options?: { enabled?: boolean; refetchInterval?: number },
 ) {
+  const { ordinalsExcluded } = useAppState();
+
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["btc-utxos", btcAddress],
+    queryKey: [UTXOS_QUERY_KEY, btcAddress],
     queryFn: () => getAddressUtxos(btcAddress!, getMempoolApiUrl()),
     enabled: !!btcAddress && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval,
@@ -37,15 +63,95 @@ export function useUTXOs(
     return data?.filter((utxo) => utxo.confirmed) || [];
   }, [data]);
 
+  // Convert to wallet-connector UTXO type for ordinals filtering
+  const confirmedUtxosForOrdinals = useMemo(
+    () => confirmedUTXOs.map(toWalletUtxo),
+    [confirmedUTXOs],
+  );
+
+  // Fetch inscriptions for confirmed UTXOs
+  const {
+    inscriptions,
+    isLoading: isLoadingOrdinals,
+    error: ordinalsError,
+  } = useOrdinals(confirmedUtxosForOrdinals, {
+    enabled: !isLoading && confirmedUTXOs.length > 0,
+  });
+
+  // Filter UTXOs by inscriptions
+  const { availableUtxos, inscriptionUtxos } = useMemo(() => {
+    if (
+      isLoading ||
+      isLoadingOrdinals ||
+      confirmedUtxosForOrdinals.length === 0
+    ) {
+      return { availableUtxos: [], inscriptionUtxos: [] };
+    }
+    return filterInscriptionUtxos(confirmedUtxosForOrdinals, inscriptions);
+  }, [confirmedUtxosForOrdinals, inscriptions, isLoading, isLoadingOrdinals]);
+
+  // Determine spendable UTXOs based on preference
+  // When ordinalsExcluded is true (default), use availableUtxos (excludes inscriptions)
+  // When ordinalsExcluded is false, use all confirmed UTXOs
+  const spendableUTXOs = useMemo(() => {
+    if (isLoading || isLoadingOrdinals) {
+      return [];
+    }
+    return ordinalsExcluded ? availableUtxos : confirmedUtxosForOrdinals;
+  }, [
+    ordinalsExcluded,
+    availableUtxos,
+    confirmedUtxosForOrdinals,
+    isLoading,
+    isLoadingOrdinals,
+  ]);
+
+  // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
+  const inscriptionUtxoIds = useMemo(() => {
+    return new Set(inscriptionUtxos.map((u) => `${u.txid}:${u.vout}`));
+  }, [inscriptionUtxos]);
+
+  // Spendable UTXOs in MempoolUTXO format (for SDK functions)
+  const spendableMempoolUTXOs = useMemo(() => {
+    if (isLoading || isLoadingOrdinals) {
+      return [];
+    }
+    if (!ordinalsExcluded) {
+      return confirmedUTXOs;
+    }
+    // Filter out inscription UTXOs from the original MempoolUTXO array
+    return confirmedUTXOs.filter(
+      (utxo) => !inscriptionUtxoIds.has(`${utxo.txid}:${utxo.vout}`),
+    );
+  }, [
+    ordinalsExcluded,
+    confirmedUTXOs,
+    inscriptionUtxoIds,
+    isLoading,
+    isLoadingOrdinals,
+  ]);
+
   return {
     /** All UTXOs (including unconfirmed) */
     allUTXOs: data || [],
-    /** Only confirmed UTXOs */
+    /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
-    /** Loading state */
+    /** Confirmed UTXOs without inscriptions (safe to spend) */
+    availableUTXOs: availableUtxos,
+    /** Confirmed UTXOs that contain inscriptions */
+    inscriptionUTXOs: inscriptionUtxos,
+    /** Spendable UTXOs based on ordinalsExcluded preference (UTXO type) */
+    spendableUTXOs,
+    /** Spendable UTXOs in MempoolUTXO format (for SDK functions) */
+    spendableMempoolUTXOs,
+    /** Loading state (UTXOs) */
     isLoading,
-    /** Error state */
+    /** Loading state (ordinals detection) */
+    isLoadingOrdinals,
+    /** Error state (UTXOs) */
     error: error as Error | null,
+    /** Error state (ordinals - non-blocking) */
+    ordinalsError,
     /** Refetch function */
     refetch,
   };
@@ -56,11 +162,9 @@ export function useUTXOs(
  *
  * Sums up the value of all provided UTXOs to get total balance in satoshis.
  *
- * @param utxos - Array of UTXOs
+ * @param utxos - Array of UTXOs (MempoolUTXO or UTXO)
  * @returns Total balance in satoshis
  */
-export function calculateBalance(utxos: MempoolUTXO[]): number {
-  // TODO: Filter out ordinals/inscriptions in production
-  // For now, we sum all UTXO values without filtering inscriptions
+export function calculateBalance(utxos: Array<{ value: number }>): number {
   return utxos.reduce((total, utxo) => total + utxo.value, 0);
 }

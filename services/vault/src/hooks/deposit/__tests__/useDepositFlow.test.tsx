@@ -52,7 +52,16 @@ vi.mock("@/hooks/useUTXOs", () => ({
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
       { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
     ],
+    availableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
+    spendableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
     isLoading: false,
+    isLoadingOrdinals: false,
     error: null,
   })),
 }));

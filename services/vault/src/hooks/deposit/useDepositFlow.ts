@@ -93,7 +93,7 @@ export function useDepositFlow(
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
   const {
-    confirmedUTXOs,
+    spendableUTXOs,
     isLoading: isUTXOsLoading,
     error: utxoError,
   } = useUTXOs(btcAddress);
@@ -124,7 +124,7 @@ export function useDepositFlow(
           depositorEthAddress,
           amount,
           selectedProviders,
-          confirmedUTXOs,
+          confirmedUTXOs: spendableUTXOs,
           isUTXOsLoading,
           utxoError,
           vaultKeeperBtcPubkeys,
@@ -154,7 +154,7 @@ export function useDepositFlow(
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
-          confirmedUTXOs: confirmedUTXOs!,
+          confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
           onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
         });
@@ -266,7 +266,7 @@ export function useDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       btcAddress,
-      confirmedUTXOs,
+      spendableUTXOs,
       isUTXOsLoading,
       utxoError,
       vaults,
