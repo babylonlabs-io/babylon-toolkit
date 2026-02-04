@@ -479,5 +479,191 @@ describe("PayoutManager", () => {
         ]),
       ).rejects.toThrow();
     });
+
+    it("should throw error when wallet returns fewer PSBTs than expected", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const claimTxHex = createTestClaimTransaction();
+      const assertTxHex = createTestAssertTransaction();
+
+      const getPublicKeyHex = vi
+        .fn<() => Promise<string>>()
+        .mockResolvedValue(TEST_KEYS.DEPOSITOR);
+
+      // Mock wallet to return only 3 PSBTs when 4 are expected (2 transactions × 2)
+      const signPsbts = vi
+        .fn<(psbtsHexes: string[]) => Promise<string[]>>()
+        .mockImplementation(async (psbtsHexes: string[]) => {
+          // Return fewer PSBTs than expected
+          const signedPsbts = psbtsHexes.slice(0, 3).map((psbtHex) => {
+            const psbt = Psbt.fromHex(psbtHex);
+            psbt.data.inputs[0].tapScriptSig = [
+              {
+                pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+                signature: Buffer.from("aa".repeat(64), "hex"),
+                leafHash: Buffer.alloc(32, 0),
+              },
+            ];
+            return psbt.toHex();
+          });
+          return signedPsbts;
+        });
+
+      const wallet: BitcoinWallet = {
+        getPublicKeyHex,
+        signPsbt: vi.fn(),
+        signPsbts,
+        getAddress: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn().mockResolvedValue("signet"),
+      };
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet: wallet,
+      });
+
+      await expect(
+        manager.signPayoutTransactionsBatch([
+          {
+            payoutOptimistic: {
+              payoutOptimisticTxHex: createTestPayoutOptimisticTransaction(
+                peginTxHex,
+                claimTxHex,
+              ),
+              peginTxHex,
+              claimTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+            payout: {
+              payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
+              peginTxHex,
+              assertTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+          },
+          {
+            payoutOptimistic: {
+              payoutOptimisticTxHex: createTestPayoutOptimisticTransaction(
+                peginTxHex,
+                claimTxHex,
+              ),
+              peginTxHex,
+              claimTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+            payout: {
+              payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
+              peginTxHex,
+              assertTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+          },
+        ]),
+      ).rejects.toThrow(
+        "Expected 4 signed PSBTs (2 transactions × 2) but received 3",
+      );
+    });
+
+    it("should throw error when wallet returns more PSBTs than expected", async () => {
+      const peginTxHex = createTestPeginTransaction();
+      const claimTxHex = createTestClaimTransaction();
+      const assertTxHex = createTestAssertTransaction();
+
+      const getPublicKeyHex = vi
+        .fn<() => Promise<string>>()
+        .mockResolvedValue(TEST_KEYS.DEPOSITOR);
+
+      // Mock wallet to return 5 PSBTs when 4 are expected (2 transactions × 2)
+      const signPsbts = vi
+        .fn<(psbtsHexes: string[]) => Promise<string[]>>()
+        .mockImplementation(async (psbtsHexes: string[]) => {
+          // Return more PSBTs than expected by duplicating the first one
+          const signedPsbts = psbtsHexes.map((psbtHex) => {
+            const psbt = Psbt.fromHex(psbtHex);
+            psbt.data.inputs[0].tapScriptSig = [
+              {
+                pubkey: Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+                signature: Buffer.from("aa".repeat(64), "hex"),
+                leafHash: Buffer.alloc(32, 0),
+              },
+            ];
+            return psbt.toHex();
+          });
+          // Add an extra PSBT
+          signedPsbts.push(signedPsbts[0]);
+          return signedPsbts;
+        });
+
+      const wallet: BitcoinWallet = {
+        getPublicKeyHex,
+        signPsbt: vi.fn(),
+        signPsbts,
+        getAddress: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn().mockResolvedValue("signet"),
+      };
+
+      const manager = new PayoutManager({
+        network: "signet",
+        btcWallet: wallet,
+      });
+
+      await expect(
+        manager.signPayoutTransactionsBatch([
+          {
+            payoutOptimistic: {
+              payoutOptimisticTxHex: createTestPayoutOptimisticTransaction(
+                peginTxHex,
+                claimTxHex,
+              ),
+              peginTxHex,
+              claimTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+            payout: {
+              payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
+              peginTxHex,
+              assertTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+          },
+          {
+            payoutOptimistic: {
+              payoutOptimisticTxHex: createTestPayoutOptimisticTransaction(
+                peginTxHex,
+                claimTxHex,
+              ),
+              peginTxHex,
+              claimTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+            payout: {
+              payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
+              peginTxHex,
+              assertTxHex,
+              vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
+              vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
+              universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            },
+          },
+        ]),
+      ).rejects.toThrow(
+        "Expected 4 signed PSBTs (2 transactions × 2) but received 5",
+      );
+    });
   });
 });

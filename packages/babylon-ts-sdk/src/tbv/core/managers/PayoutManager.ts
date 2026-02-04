@@ -431,6 +431,14 @@ export class PayoutManager {
       signOptions,
     );
 
+    // Validate that wallet returned the expected number of signed PSBTs
+    const expectedCount = transactions.length * 2;
+    if (signedPsbts.length !== expectedCount) {
+      throw new Error(
+        `Expected ${expectedCount} signed PSBTs (${transactions.length} transactions × 2) but received ${signedPsbts.length}`,
+      );
+    }
+
     // Extract signatures from signed PSBTs
     const results: Array<{
       payoutOptimisticSignature: string;
