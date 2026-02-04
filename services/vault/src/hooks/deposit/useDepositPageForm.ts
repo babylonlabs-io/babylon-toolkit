@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
-import { usePrice } from "../usePrices";
+import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -31,6 +33,9 @@ export interface UseDepositPageFormResult {
   btcBalance: bigint;
   btcBalanceFormatted: number;
   btcPrice: number;
+  priceMetadata: Record<string, PriceMetadata>;
+  hasStalePrices: boolean;
+  hasPriceFetchError: boolean;
   applications: Array<{
     id: string;
     name: string;
@@ -59,6 +64,7 @@ export function useDepositPageForm(
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
   const btcPriceUSD = usePrice("BTC");
+  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
@@ -247,6 +253,9 @@ export function useDepositPageForm(
     btcBalance,
     btcBalanceFormatted,
     btcPrice: btcPriceUSD,
+    priceMetadata: metadata,
+    hasStalePrices,
+    hasPriceFetchError,
     applications,
     isLoadingApplications,
     providers,

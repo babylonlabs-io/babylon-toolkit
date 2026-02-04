@@ -36,6 +36,9 @@ function DepositContent() {
     btcBalance,
     btcBalanceFormatted,
     btcPrice,
+    priceMetadata,
+    hasStalePrices,
+    hasPriceFetchError,
     applications,
     isLoadingApplications,
     providers,
@@ -98,6 +101,9 @@ function DepositContent() {
               onAmountChange={(value) => setFormData({ amountBtc: value })}
               onAmountBlur={validateAmountOnBlur}
               onMaxClick={handleMaxClick}
+              priceMetadata={priceMetadata}
+              hasStalePrices={hasStalePrices}
+              hasPriceFetchError={hasPriceFetchError}
             />
 
             <SelectApplicationSection

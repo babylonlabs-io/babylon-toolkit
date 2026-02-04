@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import { getNetworkConfigBTC } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { usePrices } from "../../hooks/usePrices";
 import { useStats } from "../../hooks/useStats";
 import { Applications } from "../Applications";
 import { TVLStats } from "../Applications/TVLStats";
@@ -15,6 +16,7 @@ export default function ApplicationsHome() {
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
   const { data: statsData, isLoading: statsLoading } = useStats();
+  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
   const isWalletConnected = btcConnected && ethConnected;
 
@@ -46,7 +48,13 @@ export default function ApplicationsHome() {
         </div>
       </div>
 
-      <TVLStats data={statsData} isLoading={statsLoading} />
+      <TVLStats
+        data={statsData}
+        isLoading={statsLoading}
+        priceMetadata={metadata}
+        hasStalePrices={hasStalePrices}
+        hasPriceFetchError={hasPriceFetchError}
+      />
 
       <Applications />
     </Container>

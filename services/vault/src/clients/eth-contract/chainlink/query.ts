@@ -96,6 +96,30 @@ export interface ChainlinkRoundData {
 }
 
 /**
+ * Metadata about a price feed's freshness and status
+ */
+export interface PriceMetadata {
+  /** Whether the price data is stale (older than 1 hour) */
+  isStale: boolean;
+  /** Age of the price data in seconds */
+  ageSeconds: number;
+  /** Whether fetching the price failed */
+  fetchFailed: boolean;
+  /** Error message if fetch failed */
+  error?: string;
+}
+
+/**
+ * Result of fetching token prices with metadata
+ */
+export interface TokenPricesResult {
+  /** Record mapping token symbols to their USD prices */
+  prices: Record<string, number>;
+  /** Metadata about price freshness and errors per token */
+  metadata: Record<string, PriceMetadata>;
+}
+
+/**
  * Get latest price data from Chainlink price feed
  *
  * @param feedAddress - Address of the Chainlink price feed contract
@@ -197,7 +221,9 @@ export function isPriceFresh(
   return age <= BigInt(maxAgeSeconds);
 }
 
-async function fetchPriceFromFeed(feedAddress: Address): Promise<number> {
+async function fetchPriceFromFeed(
+  feedAddress: Address,
+): Promise<{ price: number; metadata: PriceMetadata }> {
   const roundData = await getLatestRoundData(feedAddress);
 
   if (roundData.answer <= 0n) {
@@ -206,22 +232,32 @@ async function fetchPriceFromFeed(feedAddress: Address): Promise<number> {
     );
   }
 
-  if (!isPriceFresh(roundData)) {
-    const ageSeconds =
-      Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
+  const ageSeconds =
+    Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
+  const isStale = !isPriceFresh(roundData);
+
+  if (isStale) {
     const ageHours = (ageSeconds / 3600).toFixed(1);
     console.warn(
       `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
 
-  return Number(roundData.answer) / 1e8;
+  return {
+    price: Number(roundData.answer) / 1e8,
+    metadata: {
+      isStale,
+      ageSeconds,
+      fetchFailed: false,
+    },
+  };
 }
 
 export async function getTokenPrices(
   symbols: string[],
-): Promise<Record<string, number>> {
+): Promise<TokenPricesResult> {
   const prices: Record<string, number> = {};
+  const metadata: Record<string, PriceMetadata> = {};
 
   const pricePromises = symbols.map(async (symbol) => {
     const normalizedSymbol = symbol.toUpperCase();
@@ -232,22 +268,46 @@ export async function getTokenPrices(
     }
 
     try {
-      const price = await fetchPriceFromFeed(feedAddress);
-      prices[symbol] = price;
+      const result = await fetchPriceFromFeed(feedAddress);
+      prices[symbol] = result.price;
+      metadata[symbol] = result.metadata;
 
+      // Share price and metadata for alias tokens
       if (normalizedSymbol === "ETH") {
-        prices["WETH"] = price;
+        prices["WETH"] = result.price;
+        metadata["WETH"] = result.metadata;
       }
       if (normalizedSymbol === "BTC") {
-        prices["vBTC"] = price;
-        prices["sBTC"] = price;
+        prices["vBTC"] = result.price;
+        prices["sBTC"] = result.price;
+        metadata["vBTC"] = result.metadata;
+        metadata["sBTC"] = result.metadata;
       }
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.warn(`Failed to fetch price for ${symbol}:`, error);
+
+      // Store error metadata for this token
+      metadata[symbol] = {
+        isStale: false,
+        ageSeconds: 0,
+        fetchFailed: true,
+        error: errorMessage,
+      };
+
+      // Also store error for alias tokens
+      if (normalizedSymbol === "ETH") {
+        metadata["WETH"] = metadata[symbol];
+      }
+      if (normalizedSymbol === "BTC") {
+        metadata["vBTC"] = metadata[symbol];
+        metadata["sBTC"] = metadata[symbol];
+      }
     }
   });
 
   await Promise.all(pricePromises);
 
-  return prices;
+  return { prices, metadata };
 }

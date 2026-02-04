@@ -5,9 +5,13 @@
  * Prices are cached for 1 minute and automatically refetched when stale.
  */
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { getTokenPrices } from "@/clients/eth-contract/chainlink";
+import {
+  getTokenPrices,
+  type PriceMetadata,
+} from "@/clients/eth-contract/chainlink";
 
 const PRICES_QUERY_KEY = "prices";
 const ONE_MINUTE = 60 * 1000;
@@ -17,10 +21,16 @@ const SUPPORTED_TOKENS = ["BTC", "ETH", "USDC", "USDT", "DAI"];
 export interface UsePricesResult {
   /** Record mapping token symbols to their USD prices */
   prices: Record<string, number>;
+  /** Metadata about price freshness and errors per token */
+  metadata: Record<string, PriceMetadata>;
   /** Whether prices are currently being fetched */
   isLoading: boolean;
   /** Error if the price fetch failed */
   error: Error | null;
+  /** Whether any price data is stale (older than 1 hour) */
+  hasStalePrices: boolean;
+  /** Whether any price fetch failed */
+  hasPriceFetchError: boolean;
 }
 
 /**
@@ -28,7 +38,7 @@ export interface UsePricesResult {
  *
  * Prices are cached for 1 minute and include BTC, ETH, USDC, USDT, DAI
  *
- * @returns Object containing prices record, loading state, and error
+ * @returns Object containing prices record, loading state, error, and metadata
  */
 export function usePrices(): UsePricesResult {
   const { data, isLoading, error } = useQuery({
@@ -39,10 +49,23 @@ export function usePrices(): UsePricesResult {
     retry: 2,
   });
 
+  const hasStalePrices = useMemo(() => {
+    if (!data?.metadata) return false;
+    return Object.values(data.metadata).some((meta) => meta.isStale);
+  }, [data?.metadata]);
+
+  const hasPriceFetchError = useMemo(() => {
+    if (!data?.metadata) return false;
+    return Object.values(data.metadata).some((meta) => meta.fetchFailed);
+  }, [data?.metadata]);
+
   return {
-    prices: data ?? {},
+    prices: data?.prices ?? {},
+    metadata: data?.metadata ?? {},
     isLoading,
     error: error as Error | null,
+    hasStalePrices,
+    hasPriceFetchError,
   };
 }
 
