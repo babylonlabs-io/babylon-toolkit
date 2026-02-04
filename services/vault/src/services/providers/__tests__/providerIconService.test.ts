@@ -1,27 +1,33 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getProviderIconUrl } from "../providerIconService";
 
+vi.mock("@/config", () => ({
+  ENV: { API_URL: "" },
+}));
+
+import { ENV } from "@/config";
+
 describe("providerIconService", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   describe("getProviderIconUrl", () => {
     it("returns undefined when API URL is not configured", () => {
-      vi.stubEnv("NEXT_PUBLIC_API_URL", "");
+      ENV.API_URL = "";
 
       expect(getProviderIconUrl("0xABC123")).toBeUndefined();
     });
 
     it("returns undefined when providerId is empty", () => {
-      vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com");
+      ENV.API_URL = "https://api.example.com";
 
       expect(getProviderIconUrl("")).toBeUndefined();
     });
 
     it("lowercases the providerId in the URL", () => {
-      vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com");
+      ENV.API_URL = "https://api.example.com";
 
       const result = getProviderIconUrl("0xABC123DEF");
 
@@ -30,22 +36,8 @@ describe("providerIconService", () => {
       );
     });
 
-    it("normalizes trailing slash from API URL", () => {
-      vi.stubEnv("NEXT_PUBLIC_API_URL", "https://api.example.com/");
-
-      const result = getProviderIconUrl("0xabc123");
-
-      expect(result).toBe(
-        "https://api.example.com/v1/icons/providers/0xabc123.png",
-      );
-      expect(result).not.toContain("//v1");
-    });
-
     it("generates correct URL format for real API URL", () => {
-      vi.stubEnv(
-        "NEXT_PUBLIC_API_URL",
-        "https://staking-api.testnet.babylonlabs.io",
-      );
+      ENV.API_URL = "https://staking-api.testnet.babylonlabs.io";
 
       const result = getProviderIconUrl(
         "0xe650c9bd9be8755cf1df382f668741ab3d1ff11c",

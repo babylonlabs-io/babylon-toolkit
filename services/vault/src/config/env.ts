@@ -18,6 +18,7 @@ interface RequiredEnvVars {
 
   // API endpoints
   GRAPHQL_ENDPOINT: string;
+  API_URL: string;
 }
 
 interface EnvValidationResult {
@@ -38,6 +39,7 @@ function validateEnvVars(): EnvValidationResult {
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    API_URL: (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, ""),
   };
 
   // Check for missing required environment variables
@@ -66,6 +68,7 @@ function validateEnvVars(): EnvValidationResult {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
+        API_URL: "",
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };
