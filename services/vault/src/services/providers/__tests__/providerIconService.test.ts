@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ENV } from "@/config";
+
 import { getProviderIconUrl } from "../providerIconService";
 
 vi.mock("@/config", () => ({
   ENV: { API_URL: "" },
 }));
-
-import { ENV } from "@/config";
 
 describe("providerIconService", () => {
   beforeEach(() => {
