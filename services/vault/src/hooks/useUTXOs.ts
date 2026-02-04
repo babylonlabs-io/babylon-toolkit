@@ -92,7 +92,10 @@ export function useUTXOs(
       confirmedUtxosForOrdinals,
       inscriptions,
     );
-    return { availableUTXOs: availableUtxos, inscriptionUTXOs: inscriptionUtxos };
+    return {
+      availableUTXOs: availableUtxos,
+      inscriptionUTXOs: inscriptionUtxos,
+    };
   }, [confirmedUtxosForOrdinals, inscriptions, isLoading, isLoadingOrdinals]);
 
   // Determine spendable UTXOs based on preference
