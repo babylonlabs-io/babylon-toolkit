@@ -24,6 +24,7 @@ export interface CosmosWalletConfig {
 export interface CosmosWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
   onDisconnect?: () => void | Promise<void>;
+  onAddressChange?: (newAddress: string) => void | Promise<void>;
   onError?: (error: Error, context?: { address?: string; walletName?: string }) => void;
 }
 
@@ -161,6 +162,52 @@ export const CosmosWalletProvider = ({
 
     return unsubscribe;
   }, [bbnConnector, disconnect]);
+
+  // Listen for Cosmos account changes
+  useEffect(() => {
+    if (!BBNWalletProvider) return;
+
+    const onAccountChanged = async () => {
+      try {
+        // Re-connect to get new address
+        await BBNWalletProvider.connectWallet();
+        const newAddress = await BBNWalletProvider.getAddress();
+        if (newAddress && newAddress !== cosmosBech32Address) {
+          setCosmosBech32Address(newAddress);
+
+          // Recreate the signing client with new signer
+          const offlineSigner = BBNWalletProvider.getOfflineSignerAuto
+            ? await BBNWalletProvider.getOfflineSignerAuto()
+            : await BBNWalletProvider.getOfflineSigner();
+
+          const clientOptions: any = {};
+          if (config.registry) clientOptions.registry = config.registry;
+          if (config.aminoTypes) clientOptions.aminoTypes = config.aminoTypes;
+
+          const client = await SigningStargateClient.connectWithSigner(
+            config.rpc,
+            offlineSigner as OfflineSigner,
+            clientOptions,
+          );
+          setSigningStargateClient(client);
+
+          await callbacks?.onAddressChange?.(newAddress);
+        }
+      } catch (error: any) {
+        callbacks?.onError?.(error, { address: cosmosBech32Address, walletName });
+      }
+    };
+
+    if (typeof BBNWalletProvider.on === "function") {
+      BBNWalletProvider.on("accountChanged", onAccountChanged);
+    }
+
+    return () => {
+      if (typeof BBNWalletProvider.off === "function") {
+        BBNWalletProvider.off("accountChanged", onAccountChanged);
+      }
+    };
+  }, [BBNWalletProvider, cosmosBech32Address, config, callbacks, walletName]);
 
   const connected = Boolean(BBNWalletProvider && cosmosBech32Address && signingStargateClient);
 

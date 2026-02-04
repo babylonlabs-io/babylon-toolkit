@@ -69,18 +69,25 @@ export function ChainProvider({
   const [connectors, setConnectors] = useState(defaultState);
 
   const init = useCallback(async () => {
-    const connectorPromises = config
-      .filter((c) => metadata[c.chain])
-      .map(({ chain, config }) =>
-        createWalletConnector<string, IProvider, any>({
+    const filteredConfig = config.filter((c) => metadata[c.chain]);
+
+    const connectorPromises = filteredConfig.map(async ({ chain, config }) => {
+      try {
+        const connector = await createWalletConnector<string, IProvider, any>({
           persistent,
           metadata: metadata[chain],
           context,
           config,
           accountStorage: storage,
           disabledWallets,
-        }),
-      );
+        });
+        return connector;
+      } catch (error) {
+        console.error("[ChainProvider] failed to create connector for chain:", chain, error);
+        throw error;
+      }
+    });
+
     const connectorArr = await Promise.all(connectorPromises);
 
     return connectorArr.reduce((acc, connector) => ({ ...acc, [connector.id]: connector }), {} as Connectors);
@@ -91,7 +98,10 @@ export function ChainProvider({
       .then((connectors) => {
         setConnectors(connectors);
       })
-      .catch(onError);
+      .catch((error) => {
+        console.error("[ChainProvider] init failed with error:", error);
+        onError?.(error);
+      });
   }, [setConnectors, init, onError]);
 
   const supportedChains = useMemo(() => Object.values(connectors).filter(Boolean), [connectors]);
