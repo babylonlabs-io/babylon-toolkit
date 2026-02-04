@@ -75,7 +75,7 @@
     "dist"
   ],
   "peerDependencies": {
-    "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-query": "^5.74.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tailwind-merge": "2.5.4",

@@ -112,9 +112,37 @@ export async function fetchOrdinals(
 }
 
 /**
+ * Simple hash function for strings (djb2 algorithm).
+ * Produces a consistent numeric hash for cache key purposes.
+ */
+function hashString(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash >>> 0; // Convert to unsigned 32-bit integer
+}
+
+/**
+ * Create a short, stable hash key from UTXOs.
+ * Uses hash of txid:vout pairs to avoid expensive deep equality comparisons
+ * while keeping the key short regardless of UTXO count.
+ */
+function hashUtxosForKey(utxos: UTXO[]): string {
+  if (utxos.length === 0) return "empty";
+  const serialized = utxos
+    .map((u) => `${u.txid}:${u.vout}`)
+    .sort()
+    .join(",");
+  return `${utxos.length}:${hashString(serialized)}`;
+}
+
+/**
  * Create query key for ordinals query.
  *
  * Use this to create consistent query keys across your application.
+ * Uses a hash of UTXO identifiers instead of full array to avoid
+ * expensive deep equality comparisons in React Query.
  *
  * @param address - Bitcoin address
  * @param utxos - UTXOs (used in key to refetch when UTXOs change)
@@ -123,6 +151,6 @@ export async function fetchOrdinals(
 export function getOrdinalsQueryKey(
   address: string | undefined,
   utxos: UTXO[],
-): readonly [string, string | undefined, UTXO[]] {
-  return [ORDINALS_QUERY_KEY, address, utxos] as const;
+): readonly [string, string | undefined, string] {
+  return [ORDINALS_QUERY_KEY, address, hashUtxosForKey(utxos)] as const;
 }

@@ -79,37 +79,42 @@ export function useUTXOs(
   });
 
   // Filter UTXOs by inscriptions
-  const { availableUtxos, inscriptionUtxos } = useMemo(() => {
+  // Rename to match exported API naming convention (uppercase UTXO)
+  const { availableUTXOs, inscriptionUTXOs } = useMemo(() => {
     if (
       isLoading ||
       isLoadingOrdinals ||
       confirmedUtxosForOrdinals.length === 0
     ) {
-      return { availableUtxos: [], inscriptionUtxos: [] };
+      return { availableUTXOs: [], inscriptionUTXOs: [] };
     }
-    return filterInscriptionUtxos(confirmedUtxosForOrdinals, inscriptions);
+    const { availableUtxos, inscriptionUtxos } = filterInscriptionUtxos(
+      confirmedUtxosForOrdinals,
+      inscriptions,
+    );
+    return { availableUTXOs: availableUtxos, inscriptionUTXOs: inscriptionUtxos };
   }, [confirmedUtxosForOrdinals, inscriptions, isLoading, isLoadingOrdinals]);
 
   // Determine spendable UTXOs based on preference
-  // When ordinalsExcluded is true (default), use availableUtxos (excludes inscriptions)
+  // When ordinalsExcluded is true (default), use availableUTXOs (excludes inscriptions)
   // When ordinalsExcluded is false, use all confirmed UTXOs
   const spendableUTXOs = useMemo(() => {
     if (isLoading || isLoadingOrdinals) {
       return [];
     }
-    return ordinalsExcluded ? availableUtxos : confirmedUtxosForOrdinals;
+    return ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals;
   }, [
     ordinalsExcluded,
-    availableUtxos,
+    availableUTXOs,
     confirmedUtxosForOrdinals,
     isLoading,
     isLoadingOrdinals,
   ]);
 
   // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
-  const inscriptionUtxoIds = useMemo(() => {
-    return new Set(inscriptionUtxos.map((u) => `${u.txid}:${u.vout}`));
-  }, [inscriptionUtxos]);
+  const inscriptionUTXOIds = useMemo(() => {
+    return new Set(inscriptionUTXOs.map((u) => `${u.txid}:${u.vout}`));
+  }, [inscriptionUTXOs]);
 
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
   const spendableMempoolUTXOs = useMemo(() => {
@@ -121,12 +126,12 @@ export function useUTXOs(
     }
     // Filter out inscription UTXOs from the original MempoolUTXO array
     return confirmedUTXOs.filter(
-      (utxo) => !inscriptionUtxoIds.has(`${utxo.txid}:${utxo.vout}`),
+      (utxo) => !inscriptionUTXOIds.has(`${utxo.txid}:${utxo.vout}`),
     );
   }, [
     ordinalsExcluded,
     confirmedUTXOs,
-    inscriptionUtxoIds,
+    inscriptionUTXOIds,
     isLoading,
     isLoadingOrdinals,
   ]);
@@ -137,9 +142,9 @@ export function useUTXOs(
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
     /** Confirmed UTXOs without inscriptions (safe to spend) */
-    availableUTXOs: availableUtxos,
+    availableUTXOs,
     /** Confirmed UTXOs that contain inscriptions */
-    inscriptionUTXOs: inscriptionUtxos,
+    inscriptionUTXOs,
     /** Spendable UTXOs based on ordinalsExcluded preference (UTXO type) */
     spendableUTXOs,
     /** Spendable UTXOs in MempoolUTXO format (for SDK functions) */
