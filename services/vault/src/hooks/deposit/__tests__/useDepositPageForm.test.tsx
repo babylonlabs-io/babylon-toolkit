@@ -151,13 +151,13 @@ vi.mock("../../useApplications", () => ({
       {
         id: "0xControllerAddress1",
         name: "App One",
-        type: "type1",
+        type: "Lending",
         logoUrl: "https://example.com/logo1.png",
       },
       {
         id: "0xControllerAddress2",
-        name: null,
-        type: "type2",
+        name: "App Two",
+        type: "DEX",
         logoUrl: null,
       },
     ],
@@ -270,13 +270,13 @@ describe("useDepositPageForm", () => {
         {
           id: "0xControllerAddress1",
           name: "App One",
-          type: "type1",
+          type: "Lending",
           logoUrl: "https://example.com/logo1.png",
         },
         {
           id: "0xControllerAddress2",
-          name: null,
-          type: "type2",
+          name: "App Two",
+          type: "DEX",
           logoUrl: null,
         },
       ],
@@ -346,7 +346,7 @@ describe("useDepositPageForm", () => {
           {
             id: "0xControllerAddress1",
             name: "App One",
-            type: "type1",
+            type: "Lending",
             logoUrl: "https://example.com/logo1.png",
           },
         ],
@@ -382,13 +382,13 @@ describe("useDepositPageForm", () => {
       expect(result.current.applications[0]).toEqual({
         id: "0xControllerAddress1",
         name: "App One",
-        type: "type1",
+        type: "Lending",
         logoUrl: "https://example.com/logo1.png",
       });
       expect(result.current.applications[1]).toEqual({
         id: "0xControllerAddress2",
-        name: "type2",
-        type: "type2",
+        name: "App Two",
+        type: "DEX",
         logoUrl: null,
       });
     });
