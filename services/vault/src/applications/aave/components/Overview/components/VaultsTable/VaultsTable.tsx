@@ -10,7 +10,10 @@ import { useRef, useState } from "react";
 import { EmptyState, InfoIcon, MenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection } from "@/context/wallet";
-import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
+import {
+  PEGIN_DISPLAY_LABELS,
+  type PeginDisplayLabel,
+} from "@/models/peginStateMachine";
 import { formatBtcValue, formatUsdValue } from "@/utils/formatting";
 
 import type { VaultData } from "../../../../types";
@@ -25,13 +28,19 @@ interface VaultsTableProps {
 
 function ActionMenu({
   vaultId,
+  status,
   onRedeem,
 }: {
   vaultId: string;
+  status: PeginDisplayLabel;
   onRedeem?: (vaultId: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  if (status !== PEGIN_DISPLAY_LABELS.AVAILABLE) {
+    return null;
+  }
 
   const handleRedeem = () => {
     onRedeem?.(vaultId);
@@ -125,7 +134,11 @@ export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
       cellClassName: "w-[10%]",
       render: (_value, row) => (
         <div className="flex justify-end">
-          <ActionMenu vaultId={row.id} onRedeem={onRedeem} />
+          <ActionMenu
+            vaultId={row.id}
+            status={row.status}
+            onRedeem={onRedeem}
+          />
         </div>
       ),
     },
