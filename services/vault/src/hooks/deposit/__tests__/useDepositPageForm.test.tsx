@@ -42,8 +42,8 @@ vi.mock("@/clients/eth-contract", () => ({
   },
 }));
 
-import { useDepositPageForm } from "../useDepositPageForm";
 import { useApplications } from "../../useApplications";
+import { useDepositPageForm } from "../useDepositPageForm";
 
 vi.mock("../../../context/wallet", () => ({
   useBTCWallet: vi.fn(() => ({
@@ -153,12 +153,22 @@ vi.mock("../../useApplications", () => ({
         name: "App One",
         type: "Lending",
         logoUrl: "https://example.com/logo1.png",
+        registeredAt: "2024-01-01T00:00:00Z",
+        blockNumber: "1000000",
+        transactionHash: "0xabc123",
+        description: "Test app one",
+        websiteUrl: "https://appone.com",
       },
       {
         id: "0xControllerAddress2",
         name: "App Two",
         type: "DEX",
         logoUrl: null,
+        registeredAt: "2024-01-02T00:00:00Z",
+        blockNumber: "1000001",
+        transactionHash: "0xdef456",
+        description: null,
+        websiteUrl: null,
       },
     ],
     isLoading: false,
@@ -272,16 +282,49 @@ describe("useDepositPageForm", () => {
           name: "App One",
           type: "Lending",
           logoUrl: "https://example.com/logo1.png",
+          registeredAt: "2024-01-01T00:00:00Z",
+          blockNumber: "1000000",
+          transactionHash: "0xabc123",
+          description: "Test app one",
+          websiteUrl: "https://appone.com",
         },
         {
           id: "0xControllerAddress2",
           name: "App Two",
           type: "DEX",
           logoUrl: null,
+          registeredAt: "2024-01-02T00:00:00Z",
+          blockNumber: "1000001",
+          transactionHash: "0xdef456",
+          description: null,
+          websiteUrl: null,
         },
       ],
       isLoading: false,
-    });
+      error: null,
+      isError: false,
+      isPending: false,
+      isSuccess: true,
+      status: "success",
+      fetchStatus: "idle",
+      isFetching: false,
+      isRefetching: false,
+      isPaused: false,
+      refetch: vi.fn(),
+      isLoadingError: false,
+      isRefetchError: false,
+      dataUpdatedAt: Date.now(),
+      errorUpdatedAt: 0,
+      failureCount: 0,
+      failureReason: null,
+      errorUpdateCount: 0,
+      isFetched: true,
+      isFetchedAfterMount: true,
+      isInitialLoading: false,
+      isPlaceholderData: false,
+      isStale: false,
+      promise: Promise.resolve([]),
+    } as unknown as ReturnType<typeof useApplications>);
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => {
@@ -348,10 +391,38 @@ describe("useDepositPageForm", () => {
             name: "App One",
             type: "Lending",
             logoUrl: "https://example.com/logo1.png",
+            registeredAt: "2024-01-01T00:00:00Z",
+            blockNumber: "1000000",
+            transactionHash: "0xabc123",
+            description: "Test app one",
+            websiteUrl: "https://appone.com",
           },
         ],
         isLoading: false,
-      });
+        error: null,
+        isError: false,
+        isPending: false,
+        isSuccess: true,
+        status: "success",
+        fetchStatus: "idle",
+        isFetching: false,
+        isRefetching: false,
+        isPaused: false,
+        refetch: vi.fn(),
+        isLoadingError: false,
+        isRefetchError: false,
+        dataUpdatedAt: Date.now(),
+        errorUpdatedAt: 0,
+        failureCount: 0,
+        failureReason: null,
+        errorUpdateCount: 0,
+        isFetched: true,
+        isFetchedAfterMount: true,
+        isInitialLoading: false,
+        isPlaceholderData: false,
+        isStale: false,
+        promise: Promise.resolve([]),
+      } as unknown as ReturnType<typeof useApplications>);
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
@@ -379,6 +450,7 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.applications).toHaveLength(2);
+      // Hook only exposes id, name, type, logoUrl from Application
       expect(result.current.applications[0]).toEqual({
         id: "0xControllerAddress1",
         name: "App One",
