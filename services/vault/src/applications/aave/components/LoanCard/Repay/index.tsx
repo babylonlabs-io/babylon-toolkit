@@ -24,7 +24,8 @@ import { validateRepayAction } from "./hooks/validateRepayAction";
 export function Repay() {
   const {
     collateralValueUsd,
-    currentDebtUsd,
+    currentDebtAmount,
+    totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,
@@ -46,13 +47,13 @@ export function Repay() {
     maxRepayAmount,
     isFullRepayment,
   } = useRepayState({
-    currentDebtUsd,
+    currentDebtAmount,
   });
 
   const metrics = useRepayMetrics({
     repayAmount,
     collateralValueUsd,
-    currentDebtUsd,
+    totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
   });
