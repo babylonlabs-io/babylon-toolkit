@@ -31,7 +31,7 @@ import { validateBorrowAction } from "./hooks/validateBorrowAction";
 export function Borrow() {
   const {
     collateralValueUsd,
-    currentDebtUsd,
+    totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,
@@ -45,13 +45,13 @@ export function Borrow() {
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({
       collateralValueUsd,
-      currentDebtUsd,
+      currentDebtUsd: totalDebtValueUsd,
     });
 
   const metrics = useBorrowMetrics({
     borrowAmount,
     collateralValueUsd,
-    currentDebtUsd,
+    currentDebtUsd: totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
   });

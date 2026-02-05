@@ -13,8 +13,10 @@ import type { Asset } from "../../types";
 export interface LoanContextValue {
   /** Collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
-  /** Current debt in USD (from Aave oracle) */
-  currentDebtUsd: number;
+  /** Current debt amount for selected reserve in token units */
+  currentDebtAmount: number;
+  /** Total debt value in USD across all reserves (from Aave oracle) */
+  totalDebtValueUsd: number;
   /** Current health factor (null if no debt) */
   healthFactor: number | null;
   /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
