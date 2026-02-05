@@ -53,7 +53,7 @@
  * - {@link stripHexPrefix} / {@link isValidHex} - Hex validation
  * - {@link toXOnly} - Convert compressed pubkey bytes to x-only
  *
- * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/primitives.md | Primitives Guide}
+ * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/primitives.md | Primitives Quickstart}
  *
  * @module primitives
  */

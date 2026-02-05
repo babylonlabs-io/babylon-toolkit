@@ -69,7 +69,7 @@ Payout (uses assert_tx as input reference) for each claimer.
 
 ## See
 
-[Managers Guide](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/managers.md)
+[Managers Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md)
 
 ## Classes
 
@@ -327,7 +327,7 @@ Submit all signatures to the vault provider before proceeding to step 4.
 
  - [PayoutManager](#payoutmanager) - Required for Step 3 (payout authorization)
  - [buildPeginPsbt](primitives.md#buildpeginpsbt) - Lower-level primitive for custom implementations
- - [Managers Guide](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/managers.md)
+ - [Managers Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md)
 
 #### Constructors
 
