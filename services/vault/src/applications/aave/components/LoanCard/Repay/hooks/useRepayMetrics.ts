@@ -59,7 +59,7 @@ export function useRepayMetrics({
 
   // Calculate projected values after repay (debt decreases)
   const totalDebtUsd = Math.max(0, currentDebtUsd - repayAmount);
-  const isFullRepayment = totalDebtUsd === 0;
+  const isFullRepayment = totalDebtUsd < 0.01;
 
   // If fully repaying, health factor becomes Infinity (no debt, no risk)
   const healthFactorValue = isFullRepayment
