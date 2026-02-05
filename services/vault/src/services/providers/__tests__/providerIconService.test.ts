@@ -81,7 +81,8 @@ describe("providerIconService", () => {
       ENV.SIDECAR_API_URL = "https://sidecar-api.example.com";
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ identity1: "https://s3-bucket/logo1.png" }),
+        json: () =>
+          Promise.resolve({ identity1: "https://s3-bucket/logo1.png" }),
       });
 
       const result = await fetchProviderLogos(["identity1", "identity2"]);

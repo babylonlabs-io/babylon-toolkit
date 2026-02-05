@@ -9,8 +9,8 @@
 import { useMemo } from "react";
 import type { Address } from "viem";
 
-import { usePrice } from "@/hooks/usePrices";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
+import { usePrice } from "@/hooks/usePrices";
 import { useVaults } from "@/hooks/useVaults";
 import {
   ContractStatus,
@@ -93,7 +93,9 @@ export function useAaveVaults(
     if (!vaults) return [];
     return vaults
       .filter((vault) => vault.status === ContractStatus.ACTIVE)
-      .map((vault) => transformVaultToTableData(vault, btcPriceUSD, findProvider));
+      .map((vault) =>
+        transformVaultToTableData(vault, btcPriceUSD, findProvider),
+      );
   }, [vaults, btcPriceUSD, findProvider]);
 
   // Filter to vaults available for collateral:
