@@ -18,7 +18,11 @@ interface VerifyUtxosResponse {
   data: UtxoOrdinalInfo[];
 }
 
-/** Default timeout for API requests (2 seconds) */
+/**
+ * Default timeout per batch request in milliseconds.
+ * Each batch contains up to BATCH_SIZE UTXOs. Batches run in parallel,
+ * so total time is roughly max(batch1, batch2, ...) not sum of all.
+ */
 const DEFAULT_TIMEOUT = 2000;
 
 /** Maximum UTXOs per batch request */

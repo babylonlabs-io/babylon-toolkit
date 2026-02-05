@@ -93,22 +93,18 @@ export async function fetchOrdinals(
     return [];
   }
 
-  try {
-    // Optionally filter dust before API call to reduce payload
-    const utxosToVerify = filterDustBeforeApi ? filterDust(utxos) : utxos;
+  // Optionally filter dust before API call to reduce payload
+  const utxosToVerify = filterDustBeforeApi ? filterDust(utxos) : utxos;
 
-    const verifiedUtxos = await verifyUtxoOrdinals(
-      utxosToVerify,
-      address,
-      ordinalsApiUrl,
-    );
+  // API errors propagate to React Query's `error` field for consumer handling
+  // (e.g., Sentry reporting). The hook should use retry: false to avoid infinite retries.
+  const verifiedUtxos = await verifyUtxoOrdinals(
+    utxosToVerify,
+    address,
+    ordinalsApiUrl,
+  );
 
-    return toInscriptionIdentifiers(verifiedUtxos);
-  } catch (error) {
-    // API failed, return empty (app should work without ordinals)
-    console.error("[useOrdinals] Failed to fetch ordinals from API:", error);
-    return [];
-  }
+  return toInscriptionIdentifiers(verifiedUtxos);
 }
 
 /**
