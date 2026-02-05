@@ -240,6 +240,14 @@ export async function repayFull(
   // The contract will only take what's actually owed, excess stays in user's wallet
   const amountToRepay = currentDebt + currentDebt / FULL_REPAY_BUFFER_BPS;
 
+  // Check user's token balance before proceeding
+  const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
+  if (userBalance < amountToRepay) {
+    throw new Error(
+      "insufficient balance to fully repay: not enough stablecoin to cover the debt plus interest",
+    );
+  }
+
   // Check existing allowance and approve if needed
   const currentAllowance = await ERC20.getERC20Allowance(
     tokenAddress,
