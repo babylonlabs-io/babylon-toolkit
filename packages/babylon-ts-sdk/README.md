@@ -70,13 +70,6 @@ Step-by-step tutorials:
 - **[Managers Quickstart](./docs/quickstart/managers.md)** - Complete peg-in flow with wallet integration
 - **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Low-level implementation guide
 
-### 📖 Guides
-
-Complete flows and tutorials:
-
-- **[Using Managers](./docs/guides/managers.md)** - High-level orchestration for vault operations with wallet integration (recommended for most users)
-- **[Using Primitives](./docs/guides/primitives.md)** - Low-level primitives for advanced use cases and custom implementations
-
 ### 🔍 API Reference
 
 Auto-generated from TSDoc comments using [TypeDoc](https://typedoc.org/):

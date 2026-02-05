@@ -66,7 +66,7 @@
  * You must sign both PayoutOptimistic (uses claim_tx as input reference) and
  * Payout (uses assert_tx as input reference) for each claimer.
  *
- * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/managers.md | Managers Guide}
+ * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  *
  * @module managers
  */

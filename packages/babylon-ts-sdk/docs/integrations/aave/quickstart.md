@@ -29,7 +29,11 @@ import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { sepolia } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: sepolia, transport: http() });
-const walletClient = createWalletClient({ chain: sepolia, transport: http(), account: "0x..." });
+const walletClient = createWalletClient({
+  chain: sepolia,
+  transport: http(),
+  account: "0x...",
+});
 
 // You provide these (from your config/indexer)
 const CONTROLLER: Address = "0x...";
@@ -64,6 +68,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 ```
 
 **What happens on-chain:**
+
 - First time: AAVE deploys your proxy contract
 - Vaults transfer to controller
 - Vault status: `Available` → `InUse`
@@ -80,7 +85,10 @@ const proxyAddress: Address = "0x..."; // From your position data
 const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 
 const healthFactor = Number(accountData.healthFactor) / 1e18;
-const status = getHealthFactorStatus(healthFactor, accountData.borrowedCount > 0n);
+const status = getHealthFactorStatus(
+  healthFactor,
+  accountData.borrowedCount > 0n,
+);
 
 if (status !== "safe" && status !== "no_debt") {
   throw new Error(`Unsafe to borrow: ${status}`);
@@ -97,7 +105,13 @@ if (!account) {
 const receiver: Address =
   typeof account === "string" ? account : account.address;
 
-const tx = buildBorrowTx(CONTROLLER, positionId, USDC_RESERVE_ID, amount, receiver);
+const tx = buildBorrowTx(
+  CONTROLLER,
+  positionId,
+  USDC_RESERVE_ID,
+  amount,
+  receiver,
+);
 
 // 3. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
@@ -117,7 +131,12 @@ await publicClient.waitForTransactionReceipt({ hash });
 ```typescript
 // 1. Get exact current debt
 const proxyAddress: Address = "0x...";
-const totalDebt = await getUserTotalDebt(publicClient, SPOKE, USDC_RESERVE_ID, proxyAddress);
+const totalDebt = await getUserTotalDebt(
+  publicClient,
+  SPOKE,
+  USDC_RESERVE_ID,
+  proxyAddress,
+);
 
 // For full repayment, add buffer for accruing interest
 const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_BPS;
@@ -126,7 +145,17 @@ const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_BPS;
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
 const approveHash = await walletClient.writeContract({
   address: USDC_ADDRESS,
-  abi: [{ name: "approve", type: "function", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] }],
+  abi: [
+    {
+      name: "approve",
+      type: "function",
+      inputs: [
+        { name: "spender", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+      outputs: [{ type: "bool" }],
+    },
+  ],
   functionName: "approve",
   args: [CONTROLLER, repayAmount],
 });
@@ -154,7 +183,12 @@ await publicClient.waitForTransactionReceipt({ hash });
 ```typescript
 // 1. Verify zero debt
 const proxyAddress: Address = "0x...";
-const userHasDebt = await hasDebt(publicClient, SPOKE, USDC_RESERVE_ID, proxyAddress);
+const userHasDebt = await hasDebt(
+  publicClient,
+  SPOKE,
+  USDC_RESERVE_ID,
+  proxyAddress,
+);
 
 if (userHasDebt) {
   throw new Error("Repay all debt before withdrawing");
@@ -186,6 +220,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 ```
 
 **Requirements:**
+
 - Caller must be original depositor
 - Vault must be `Available` (not in use)
 
@@ -209,7 +244,11 @@ if (hf < 1.5) {
 ```typescript
 const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 
-console.log("Collateral:", aaveValueToUsd(accountData.totalCollateralValue), "USD");
+console.log(
+  "Collateral:",
+  aaveValueToUsd(accountData.totalCollateralValue),
+  "USD",
+);
 console.log("Debt:", aaveValueToUsd(accountData.totalDebtValue), "USD");
 console.log("Health Factor:", Number(accountData.healthFactor) / 1e18);
 ```
@@ -217,7 +256,12 @@ console.log("Health Factor:", Number(accountData.healthFactor) / 1e18);
 ### Full Repayment with Buffer
 
 ```typescript
-const debt = await getUserTotalDebt(publicClient, SPOKE, reserveId, proxyAddress);
+const debt = await getUserTotalDebt(
+  publicClient,
+  SPOKE,
+  reserveId,
+  proxyAddress,
+);
 const withBuffer = debt + debt / FULL_REPAY_BUFFER_BPS; // Covers interest accrual
 ```
 
@@ -225,13 +269,13 @@ const withBuffer = debt + debt / FULL_REPAY_BUFFER_BPS; // Covers interest accru
 
 ## Error Reference
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| "Vault already in use" | Vault is collateral elsewhere | Use different vault |
-| "Insufficient collateral" | Not enough for borrow amount | Add more collateral |
-| "Health factor too low" | Would become liquidatable | Reduce borrow amount |
-| "Must have zero debt" | Debt exists when withdrawing | Repay all debt first |
-| "Approval required" | Token not approved | Call ERC20 `approve()` |
+| Error                     | Cause                         | Solution               |
+| ------------------------- | ----------------------------- | ---------------------- |
+| "Vault already in use"    | Vault is collateral elsewhere | Use different vault    |
+| "Insufficient collateral" | Not enough for borrow amount  | Add more collateral    |
+| "Health factor too low"   | Would become liquidatable     | Reduce borrow amount   |
+| "Must have zero debt"     | Debt exists when withdrawing  | Repay all debt first   |
+| "Approval required"       | Token not approved            | Call ERC20 `approve()` |
 
 ---
 
@@ -239,4 +283,4 @@ const withBuffer = debt + debt / FULL_REPAY_BUFFER_BPS; // Covers interest accru
 
 - **[README](./README.md)** - Concepts and function overview
 - **[API Reference](../../api/integrations/aave.md)** - Complete function signatures
-- **[Managers Guide](../../quickstart/managers.md)** - Create BTC vaults first
+- **[Managers Quickstart](../../quickstart/managers.md)** - Create BTC vaults first
