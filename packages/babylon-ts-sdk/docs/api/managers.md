@@ -239,6 +239,55 @@ Gets the configured Bitcoin network.
 
 The Bitcoin network (mainnet, testnet, signet, regtest)
 
+##### supportsBatchSigning()
+
+```ts
+supportsBatchSigning(): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:325](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L325)
+
+Checks if the wallet supports batch signing (signPsbts).
+
+###### Returns
+
+`boolean`
+
+true if batch signing is supported
+
+##### signPayoutTransactionsBatch()
+
+```ts
+signPayoutTransactionsBatch(transactions): Promise<object[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:338](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L338)
+
+Batch signs multiple payout transactions (both PayoutOptimistic and Payout).
+This allows signing all transactions with a single wallet interaction.
+
+###### Parameters
+
+###### transactions
+
+`object`[]
+
+Array of transaction pairs to sign
+
+###### Returns
+
+`Promise`\<`object`[]\>
+
+Array of signature results matching input order
+
+###### Throws
+
+Error if wallet doesn't support batch signing
+
+###### Throws
+
+Error if any signing operation fails
+
 ***
 
 ### PeginManager
@@ -429,7 +478,7 @@ Error if contract simulation fails (e.g., invalid signature, unauthorized)
 getNetwork(): Network;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:639](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L639)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:640](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L640)
 
 Gets the configured Bitcoin network.
 
@@ -445,7 +494,7 @@ The Bitcoin network (mainnet, testnet, signet, regtest)
 getVaultContractAddress(): `0x${string}`;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:648](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L648)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts:649](../../packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts#L649)
 
 Gets the configured BTCVaultsManager contract address.
 
@@ -669,13 +718,46 @@ Optional signing parameters (e.g., autoFinalized, contracts)
 
 If the PSBT is invalid or signing fails
 
+##### signPsbts()
+
+```ts
+signPsbts(psbtsHexes, options?): Promise<string[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:97](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L97)
+
+Signs multiple PSBTs and returns the signed PSBTs as hex.
+This allows batch signing with a single wallet interaction.
+
+###### Parameters
+
+###### psbtsHexes
+
+`string`[]
+
+Array of PSBTs to sign in hex format
+
+###### options?
+
+[`SignPsbtOptions`](#signpsbtoptions)[]
+
+Optional array of signing parameters for each PSBT
+
+###### Returns
+
+`Promise`\<`string`[]\>
+
+###### Throws
+
+If any PSBT is invalid or signing fails
+
 ##### signMessage()
 
 ```ts
 signMessage(message, type): Promise<string>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:96](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L96)
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:109](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L109)
 
 Signs a message for authentication or proof of ownership.
 
@@ -705,7 +787,7 @@ Base64-encoded signature
 getNetwork(): Promise<BitcoinNetwork>;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:106](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L106)
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts:119](../../packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts#L119)
 
 Returns the Bitcoin network the wallet is connected to.
 

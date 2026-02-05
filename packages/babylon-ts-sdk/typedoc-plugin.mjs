@@ -13,8 +13,6 @@ export function load(app) {
 
 | Guide | Description |
 |-------|-------------|
-| **[Primitives Guide](../guides/primitives.md)** | Pure functions for Bitcoin transaction building |
-| **[Managers Guide](../guides/managers.md)** | High-level wallet orchestration |
 | **[Installation](../get-started/installation.md)** | Setup instructions |
 | **[Quickstart: Primitives](../quickstart/primitives.md)** | Complete working example with primitives |
 | **[Quickstart: Managers](../quickstart/managers.md)** | Complete working example with managers |
