@@ -72,8 +72,8 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
-  const { applicationController } = useAaveConfig();
-  const { findProvider } = useVaultProviders(applicationController);
+  const { config } = useAaveConfig();
+  const { findProvider } = useVaultProviders(config?.controllerAddress);
 
   const {
     data: vaults,
