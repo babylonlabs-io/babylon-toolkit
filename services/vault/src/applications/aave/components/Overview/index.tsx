@@ -8,22 +8,18 @@
  */
 
 import { Avatar, Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 
+import { RedeemModals } from "@/components/deposit/RedeemModals";
 import { BackButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { VaultRedeemState } from "@/context/deposit/VaultRedeemState";
 import { useETHWallet } from "@/context/wallet";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
-import { usePendingVaults, useSyncPendingVaults } from "../../context";
-import {
-  useAaveBorrowedAssets,
-  useAaveUserPosition,
-  useAaveVaults,
-} from "../../hooks";
 import type { Asset } from "../../types";
 import { AssetSelectionModal } from "../AssetSelectionModal";
 import { CollateralModal, type CollateralMode } from "../CollateralModal";
@@ -31,10 +27,14 @@ import { CollateralModal, type CollateralMode } from "../CollateralModal";
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
 import { VaultsTable } from "./components/VaultsTable";
+import { useAaveOverviewState } from "./useAaveOverviewState";
 
 const btcConfig = getNetworkConfigBTC();
 
-export function AaveOverview() {
+/**
+ * Inner component that uses redeem state context
+ */
+function AaveOverviewContent() {
   const navigate = useNavigate();
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
@@ -47,49 +47,47 @@ export function AaveOverview() {
   // Wallet connection
   const { address } = useETHWallet();
 
-  // Fetch user's Aave position
+  // All state and data from custom hook
   const {
-    position,
     collateralBtc,
     collateralValueUsd,
-    debtValueUsd,
     healthFactor,
     healthFactorStatus,
-  } = useAaveUserPosition(address);
+    vaults,
+    deposits,
+    activities,
+    hasPendingAdd,
+    hasPendingWithdraw,
+    borrowedAssets,
+    hasLoans,
+    selectableBorrowedAssets,
+    hasCollateral,
+    hasAvailableVaults,
+    triggerRedeem,
+    onRedeemSuccess,
+  } = useAaveOverviewState(address);
 
-  // Fetch user's vaults
-  const { vaults, availableForCollateral } = useAaveVaults(address);
-
-  // Get pending state and sync with indexed vault data
-  const { hasPendingAdd, hasPendingWithdraw } = usePendingVaults();
-  useSyncPendingVaults(vaults);
-
-  // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
-  const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
-    position,
-    debtValueUsd,
-  });
-
-  const selectableBorrowedAssets = useMemo(
-    (): Asset[] =>
-      borrowedAssets.map((asset) => ({
-        symbol: asset.symbol,
-        name: asset.symbol,
-        icon: asset.icon,
-      })),
-    [borrowedAssets],
-  );
-
-  // Derive display values
-  // Use Aave RPC as the single source of truth for collateral.
-  // Pending state handles the loading UI during add/withdraw operations.
-  const hasCollateral = collateralBtc > 0;
-  const hasAvailableVaults = availableForCollateral.length > 0;
+  // Format display values
   const collateralAmountFormatted = formatBtcAmount(collateralBtc);
   const collateralValueFormatted = formatUsdValue(collateralValueUsd);
 
+  // Navigation handlers
   const handleBack = () => navigate("/");
 
+  const handleDeposit = () => {
+    navigate(`/deposit?app=${AAVE_APP_ID}`);
+  };
+
+  const handleSelectAsset = (assetSymbol: string) => {
+    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
+    const path =
+      assetModalMode === LOAN_TAB.REPAY
+        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
+        : basePath;
+    navigate(path);
+  };
+
+  // Modal handlers
   const handleAdd = () => {
     setCollateralModalMode("add");
     setIsCollateralModalOpen(true);
@@ -113,28 +111,8 @@ export function AaveOverview() {
       );
       return;
     }
-
-    // Multiple borrowed assets: show selection modal
     setAssetModalMode(LOAN_TAB.REPAY);
     setIsAssetModalOpen(true);
-  };
-
-  const handleSelectAsset = (assetSymbol: string) => {
-    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
-    const path =
-      assetModalMode === LOAN_TAB.REPAY
-        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
-        : basePath;
-    navigate(path);
-  };
-
-  const handleDeposit = () => {
-    navigate(`/deposit?app=${AAVE_APP_ID}`);
-  };
-
-  const handleRedeem = (vaultId: string) => {
-    // TODO: Navigate to redeem flow
-    void vaultId;
   };
 
   return (
@@ -172,7 +150,7 @@ export function AaveOverview() {
         {/* Section 2: Vaults Table */}
         <VaultsTable
           vaults={vaults}
-          onRedeem={handleRedeem}
+          onRedeem={triggerRedeem}
           onDeposit={handleDeposit}
         />
 
@@ -203,7 +181,7 @@ export function AaveOverview() {
         mode={assetModalMode}
         assets={
           assetModalMode === LOAN_TAB.REPAY
-            ? selectableBorrowedAssets
+            ? (selectableBorrowedAssets as Asset[])
             : undefined
         }
       />
@@ -214,6 +192,24 @@ export function AaveOverview() {
         onClose={() => setIsCollateralModalOpen(false)}
         mode={collateralModalMode}
       />
+
+      {/* Redeem Modals - manages its own state internally */}
+      <RedeemModals
+        deposits={deposits}
+        activities={activities}
+        onSuccess={onRedeemSuccess}
+      />
     </Container>
+  );
+}
+
+/**
+ * Aave Overview page wrapper with redeem state provider
+ */
+export function AaveOverview() {
+  return (
+    <VaultRedeemState>
+      <AaveOverviewContent />
+    </VaultRedeemState>
   );
 }

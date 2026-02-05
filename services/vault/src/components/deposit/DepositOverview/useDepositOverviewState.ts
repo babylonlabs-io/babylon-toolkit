@@ -8,11 +8,11 @@
 import { useMemo } from "react";
 
 import { getApplicationMetadataByController } from "../../../applications";
+import { useVaultRedeemState } from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "../../../hooks/deposit/useBroadcastModal";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
-import { useRedeemModal } from "../../../hooks/deposit/useRedeemModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
@@ -69,18 +69,8 @@ export function useDepositOverviewState() {
     onSuccess: refetchActivities,
   });
 
-  // Redeem modal state
-  const {
-    redeemStep,
-    redeemDepositIds,
-    handleRedeemClick,
-    handleFormNext: handleRedeemFormNext,
-    handleReviewConfirm: handleRedeemReviewConfirm,
-    handleSignSuccess: handleRedeemSignSuccess,
-    handleClose: handleRedeemClose,
-  } = useRedeemModal({
-    onSuccess: refetchActivities,
-  });
+  // Get redeem trigger from context - RedeemModals handles the rest internally
+  const { triggerRedeem } = useVaultRedeemState();
 
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
@@ -129,13 +119,8 @@ export function useDepositOverviewState() {
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
 
-    // Redeem modal
-    redeemStep,
-    redeemDepositIds,
-    handleRedeemClick,
-    handleRedeemFormNext,
-    handleRedeemReviewConfirm,
-    handleRedeemSignSuccess,
-    handleRedeemClose,
+    // Redeem - RedeemModals handles the flow internally
+    triggerRedeem,
+    refetchActivities, // Pass to RedeemModals for onSuccess callback
   };
 }

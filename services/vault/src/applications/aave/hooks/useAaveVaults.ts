@@ -49,6 +49,8 @@ function transformVaultToTableData(
 export interface UseAaveVaultsResult {
   /** All active vaults (for display in table) */
   vaults: VaultData[];
+  /** Raw vault data (for operations like redeem that need applicationController) */
+  rawVaults: Vault[];
   /** Vaults available for use as collateral (not currently in use) */
   availableForCollateral: VaultData[];
   /** Loading state */
@@ -81,14 +83,28 @@ export function useAaveVaults(
 
   const isLoading = vaultsLoading;
 
-  // Transform all active vaults for display
-  // USD value will be 0 if price is not available, which is acceptable
-  const allVaults = useMemo(() => {
+  // Filter to active vaults only
+  const activeVaults = useMemo(() => {
     if (!vaults) return [];
-    return vaults
-      .filter((vault) => vault.status === ContractStatus.ACTIVE)
-      .map((vault) => transformVaultToTableData(vault, btcPriceUSD));
-  }, [vaults, btcPriceUSD]);
+    return vaults.filter((vault) => vault.status === ContractStatus.ACTIVE);
+  }, [vaults]);
+
+  // Transform active vaults for display
+  // USD value will be 0 if price is not available, which is acceptable
+  // Override status for pending redeem vaults to show "Redeem in Progress"
+  const allVaults = useMemo(() => {
+    return activeVaults.map((vault) => {
+      const vaultData = transformVaultToTableData(vault, btcPriceUSD);
+      const pendingOperation = pendingVaults.get(vault.id);
+      if (pendingOperation === "redeem") {
+        return {
+          ...vaultData,
+          status: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+        };
+      }
+      return vaultData;
+    });
+  }, [activeVaults, btcPriceUSD, pendingVaults]);
 
   // Filter to vaults available for collateral:
   // - Not currently in use by an application (from indexer)
@@ -103,6 +119,7 @@ export function useAaveVaults(
 
   return {
     vaults: allVaults,
+    rawVaults: activeVaults,
     availableForCollateral,
     isLoading,
     error: error as Error | null,
