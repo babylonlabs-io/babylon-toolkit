@@ -1,51 +1,92 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ENV } from "@/config";
 
-import { getProviderIconUrl } from "../providerIconService";
+import { fetchProviderLogos } from "../providerIconService";
 
 vi.mock("@/config", () => ({
   ENV: { SIDECAR_API_URL: "" },
 }));
+
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 describe("providerIconService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe("getProviderIconUrl", () => {
-    it("returns undefined when SIDECAR API URL is not configured", () => {
+  afterEach(() => {
+    vi.resetAllMocks();
+  });
+
+  describe("fetchProviderLogos", () => {
+    it("returns empty object when SIDECAR_API_URL is not configured", async () => {
       ENV.SIDECAR_API_URL = "";
 
-      expect(getProviderIconUrl("0xABC123")).toBeUndefined();
+      const result = await fetchProviderLogos(["identity1"]);
+
+      expect(result).toEqual({});
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("returns undefined when providerId is empty", () => {
-      ENV.SIDECAR_API_URL = "https://api.example.com";
+    it("returns empty object when identities array is empty", async () => {
+      ENV.SIDECAR_API_URL = "https://sidecar-api.example.com";
 
-      expect(getProviderIconUrl("")).toBeUndefined();
+      const result = await fetchProviderLogos([]);
+
+      expect(result).toEqual({});
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("lowercases the providerId in the URL", () => {
-      ENV.SIDECAR_API_URL = "https://api.example.com";
+    it("fetches logos from sidecar API with POST request", async () => {
+      ENV.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      const mockResponse = {
+        identity1: "https://s3-bucket/logo1.png",
+        identity2: "https://s3-bucket/logo2.png",
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
 
-      const result = getProviderIconUrl("0xABC123DEF");
+      const result = await fetchProviderLogos(["identity1", "identity2"]);
 
-      expect(result).toBe(
-        "https://api.example.com/v1/icons/providers/0xabc123def.png",
+      expect(mockFetch).toHaveBeenCalledWith(
+        "https://sidecar-api.example.com/logo",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ identities: ["identity1", "identity2"] }),
+        },
       );
+      expect(result).toEqual(mockResponse);
     });
 
-    it("generates correct URL format for real SIDECAR API URL", () => {
-      ENV.SIDECAR_API_URL = "https://staking-api.testnet.babylonlabs.io";
+    it("returns empty object when API returns error", async () => {
+      ENV.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
 
-      const result = getProviderIconUrl(
-        "0xe650c9bd9be8755cf1df382f668741ab3d1ff11c",
-      );
+      const result = await fetchProviderLogos(["identity1"]);
 
-      expect(result).toBe(
-        "https://staking-api.testnet.babylonlabs.io/v1/icons/providers/0xe650c9bd9be8755cf1df382f668741ab3d1ff11c.png",
-      );
+      expect(result).toEqual({});
+    });
+
+    it("handles identities not found in response", async () => {
+      ENV.SIDECAR_API_URL = "https://sidecar-api.example.com";
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ identity1: "https://s3-bucket/logo1.png" }),
+      });
+
+      const result = await fetchProviderLogos(["identity1", "identity2"]);
+
+      expect(result).toEqual({ identity1: "https://s3-bucket/logo1.png" });
     });
   });
 });
