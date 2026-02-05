@@ -75,6 +75,7 @@
     "dist"
   ],
   "peerDependencies": {
+    "@tanstack/react-query": "^5.74.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tailwind-merge": "2.5.4",
@@ -82,6 +83,7 @@
     "wagmi": "2.18.1"
   },
   "devDependencies": {
+    "@tanstack/react-query": "^5.74.4",
     "@changesets/cli": "^2.29.8",
     "@chromatic-com/storybook": "^3.2.2",
     "@commitlint/cli": "^19.8.0",

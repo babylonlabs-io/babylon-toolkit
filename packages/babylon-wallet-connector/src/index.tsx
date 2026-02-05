@@ -40,3 +40,35 @@ export {
     getSharedBtcAppKitConfig,
     hasSharedBtcAppKitConfig,
 } from "@/core/wallets/btc/appkit/sharedConfig";
+
+// Export UTXO filtering utilities
+export {
+    filterDust,
+    filterInscriptionUtxos,
+    getSpendableUtxos,
+    createInscriptionMap,
+    isInscriptionUtxo,
+    LOW_VALUE_UTXO_THRESHOLD,
+    type FilteredUtxos,
+} from "@/utils/utxoFiltering";
+
+// Export ordinals API and hook utilities
+export {
+    verifyUtxoOrdinals,
+    toInscriptionIdentifiers,
+    type UtxoOrdinalInfo,
+} from "@/api/ordinals";
+
+export {
+    fetchOrdinals,
+    getOrdinalsQueryKey,
+    ORDINALS_QUERY_KEY,
+    type FetchOrdinalsOptions,
+} from "@/hooks/useOrdinals";
+
+// Export React hooks for ordinals
+export {
+    useOrdinals,
+    type UseOrdinalsOptions,
+    type UseOrdinalsResult,
+} from "@/hooks/useOrdinalsHook";

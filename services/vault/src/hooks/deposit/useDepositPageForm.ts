@@ -119,10 +119,11 @@ export function useDepositPageForm(
   );
   const validation = useDepositValidation(btcAddress, providerIds);
 
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  // Get UTXOs for balance calculation (already respects inscription preference)
+  const { spendableUTXOs } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(confirmedUTXOs || []));
-  }, [confirmedUTXOs]);
+    return BigInt(calculateBalance(spendableUTXOs || []));
+  }, [spendableUTXOs]);
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
