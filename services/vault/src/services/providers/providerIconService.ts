@@ -17,9 +17,9 @@ import { ENV } from "@/config";
  * // Returns: undefined
  */
 export function getProviderIconUrl(providerId: string): string | undefined {
-  if (!ENV.API_URL || !providerId) {
+  if (!ENV.SIDECAR_API_URL || !providerId) {
     return undefined;
   }
 
-  return `${ENV.API_URL}/v1/icons/providers/${providerId.toLowerCase()}.png`;
+  return `${ENV.SIDECAR_API_URL}/v1/icons/providers/${providerId.toLowerCase()}.png`;
 }
