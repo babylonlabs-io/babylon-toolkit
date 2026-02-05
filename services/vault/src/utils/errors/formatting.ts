@@ -140,9 +140,9 @@ export function formatLendingError(error: unknown): {
     }
     if (msg.includes("cap") || msg.includes("limit reached")) {
       return {
-        title: "Protocol Cap Reached",
+        title: "Collateral Cap Reached",
         message:
-          "The protocol cap for this market has been reached. Please try a smaller amount or wait for capacity.",
+          "The collateral cap for this market has been reached. Please try a smaller amount or wait for capacity.",
       };
     }
     return {
