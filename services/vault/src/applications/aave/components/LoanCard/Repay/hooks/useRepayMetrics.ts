@@ -59,6 +59,13 @@ export function useRepayMetrics({
   }
 
   // Calculate projected values after repay (debt decreases)
+  //
+  // IMPORTANT: Unit approximation for stablecoins only!
+  // - repayAmount is in token units (e.g., 100 USDC tokens)
+  // - totalDebtValueUsd is in USD (e.g., $100.00)
+  // - For stablecoins (USDC, USDT, DAI), 1 token ≈ $1 USD, so direct subtraction is acceptable
+  // - This is ONLY for UI display of projected health factor, NOT for actual transactions
+  // - If integration expands to non-stablecoin borrowing this must be fixed to fetch token price from Aave oracle and properly convert units to USD
   const projectedTotalDebtUsd = Math.max(0, totalDebtValueUsd - repayAmount);
 
   // If fully repaying, health factor becomes null (no debt)
