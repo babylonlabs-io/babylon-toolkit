@@ -9,8 +9,14 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { getNetworkConfigBTC } from "@/config";
+
 import { usePrice } from "../../../hooks/usePrices";
 import type { Deposit } from "../../../types/vault";
+
+import { RedemptionProcessInfo } from "./RedemptionProcessInfo";
+
+const btcConfig = getNetworkConfigBTC();
 
 interface RedeemCollateralReviewModalProps {
   open: boolean;
@@ -57,17 +63,17 @@ export function RedeemCollateralReviewModal({
 
       <DialogBody className="no-scrollbar mb-8 mt-4 flex max-h-[calc(100vh-12rem)] flex-col gap-6 overflow-y-auto text-accent-primary">
         <Text variant="body2" className="text-accent-secondary">
-          Review the details before confirming
+          Review the details before confirming your redemption request.
         </Text>
 
         {/* Redeem Amount - Two Column Layout */}
-        <div className="flex items-start justify-between pb-4">
+        <div className="flex items-start justify-between border-b border-secondary-strokeLight pb-4">
           <Text variant="body1" className="font-medium">
             Redeem Amount
           </Text>
           <div className="flex flex-col items-end">
             <Text variant="body1" className="font-medium">
-              {totalAmount} BTC
+              {totalAmount} {btcConfig.coinSymbol}
             </Text>
             <Text variant="body2" className="text-accent-secondary">
               ($
@@ -79,6 +85,9 @@ export function RedeemCollateralReviewModal({
             </Text>
           </div>
         </div>
+
+        {/* Redemption Process Information */}
+        <RedemptionProcessInfo />
       </DialogBody>
 
       <DialogFooter className="pb-6">

@@ -80,7 +80,7 @@ describe("Deposit Transformers", () => {
         getPeginState(ContractStatus.ACTIVE, { isInUse: true }).displayLabel,
       ).toBe("In Use");
       expect(getPeginState(ContractStatus.REDEEMED).displayLabel).toBe(
-        "Redeemed",
+        "Redeem in Progress",
       );
       expect(getPeginState(ContractStatus.LIQUIDATED).displayLabel).toBe(
         "Liquidated",
@@ -90,7 +90,7 @@ describe("Deposit Transformers", () => {
       );
       expect(
         getPeginState(ContractStatus.DEPOSITOR_WITHDRAWN).displayLabel,
-      ).toBe("Withdrawn");
+      ).toBe("Redeemed");
     });
 
     it("should prioritize local status when present", () => {
