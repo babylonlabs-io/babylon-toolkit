@@ -7,6 +7,10 @@ export const ONE_DAY = 24 * 60 * ONE_MINUTE;
 export const FAST_POLL_INTERVAL = 15 * ONE_SECOND; // 15 seconds for "Processing" status
 export const NORMAL_POLL_INTERVAL = ONE_MINUTE; // 1 minute for other statuses
 
+// ETH transaction confirmation
+export const ETH_CONFIRMATION_TIMEOUT = 2 * ONE_MINUTE; // Max time to wait for confirmation
+export const ETH_CONFIRMATION_RETRY_INTERVAL = 5 * ONE_SECOND; // Interval between retries
+
 // Storage constants
 export const STORAGE_KEY_PREFIX = "vault-pending-pegins";
 export const STORAGE_UPDATE_EVENT = "vault-pending-pegins-updated";
