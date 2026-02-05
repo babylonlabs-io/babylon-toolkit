@@ -1,6 +1,7 @@
 import { ApiError, fetchHealthCheck, isError451 } from "@/api";
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
+import { logger } from "@/infrastructure";
 import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
 import { ErrorCode } from "@/utils/errors/types";
 
@@ -28,7 +29,7 @@ export async function checkGeofencing(): Promise<HealthCheckResult> {
     }
 
     // Non-451 errors don't block the user - GraphQL check handles general availability
-    console.warn("Healthcheck endpoint error:", error);
+    logger.warn("Healthcheck endpoint error", { data: { error } });
     return { healthy: true, isGeoBlocked: false };
   }
 }

@@ -4,24 +4,22 @@ import { envInitError } from "@/config/env";
 import { wagmiInitError } from "@/config/wagmi";
 import { useError } from "@/context/error";
 import {
+  checkGraphQLEndpoint,
   createEnvConfigError,
   createWagmiInitError,
-  runHealthChecks,
 } from "@/services/health";
 
 interface UseHealthCheckResult {
-  isGeoBlocked: boolean;
   isLoading: boolean;
 }
 
 /**
- * Runs health checks on mount (geofencing, GraphQL availability).
+ * Runs health checks on mount (env config, wagmi init, GraphQL availability).
  * Displays blocking error modals if checks fail.
  */
 export function useHealthCheck(): UseHealthCheckResult {
   const { handleError } = useError();
   const hasRunRef = useRef(false);
-  const [isGeoBlocked, setIsGeoBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,15 +45,9 @@ export function useHealthCheck(): UseHealthCheckResult {
         return;
       }
 
-      const result = await runHealthChecks();
+      const result = await checkGraphQLEndpoint();
 
-      if (result.isGeoBlocked && result.error) {
-        setIsGeoBlocked(true);
-        handleError({
-          error: result.error,
-          displayOptions: { blocking: true, noCancel: true },
-        });
-      } else if (!result.healthy && result.error) {
+      if (!result.healthy && result.error) {
         handleError({
           error: result.error,
           displayOptions: { blocking: true },
@@ -68,5 +60,5 @@ export function useHealthCheck(): UseHealthCheckResult {
     check();
   }, [handleError]);
 
-  return { isGeoBlocked, isLoading };
+  return { isLoading };
 }

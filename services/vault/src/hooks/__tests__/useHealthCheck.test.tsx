@@ -11,7 +11,7 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
-const mockRunHealthChecks = vi.fn();
+const mockCheckGraphQLEndpoint = vi.fn();
 const mockEnvInitError: string | null = null;
 const mockWagmiInitError: string | null = null;
 
@@ -28,7 +28,8 @@ vi.mock("@/config/wagmi", () => ({
 }));
 
 vi.mock("@/services/health", () => ({
-  runHealthChecks: (...args: unknown[]) => mockRunHealthChecks(...args),
+  checkGraphQLEndpoint: (...args: unknown[]) =>
+    mockCheckGraphQLEndpoint(...args),
   createEnvConfigError: (details: string) => ({
     title: "Configuration Error",
     message: `Missing configuration (${details})`,
@@ -39,34 +40,21 @@ vi.mock("@/services/health", () => ({
   }),
 }));
 
-function TestComponent({
-  onError,
-  onGeoBlocked,
-}: {
-  onError: (error: unknown) => void;
-  onGeoBlocked?: (isGeoBlocked: boolean) => void;
-}) {
-  const { isGeoBlocked } = useHealthCheck();
+function TestComponent({ onError }: { onError: (error: unknown) => void }) {
+  useHealthCheck();
   const { error, isOpen } = useError();
 
   if (isOpen && error.message) {
     onError(error);
   }
 
-  if (onGeoBlocked) {
-    onGeoBlocked(isGeoBlocked);
-  }
-
   return <div data-testid="test">Test</div>;
 }
 
-function renderWithProviders(
-  onError: (error: unknown) => void,
-  onGeoBlocked?: (isGeoBlocked: boolean) => void,
-) {
+function renderWithProviders(onError: (error: unknown) => void) {
   return render(
     <ErrorProvider>
-      <TestComponent onError={onError} onGeoBlocked={onGeoBlocked} />
+      <TestComponent onError={onError} />
     </ErrorProvider>,
   );
 }
@@ -74,9 +62,8 @@ function renderWithProviders(
 describe("useHealthCheck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRunHealthChecks.mockResolvedValue({
+    mockCheckGraphQLEndpoint.mockResolvedValue({
       healthy: true,
-      isGeoBlocked: false,
     });
   });
 
@@ -90,14 +77,14 @@ describe("useHealthCheck", () => {
     renderWithProviders(onError);
 
     await waitFor(() => {
-      expect(mockRunHealthChecks).toHaveBeenCalled();
+      expect(mockCheckGraphQLEndpoint).toHaveBeenCalled();
     });
 
     expect(onError).not.toHaveBeenCalled();
   });
 
   it("shows error when GraphQL is unreachable", async () => {
-    mockRunHealthChecks.mockResolvedValueOnce({
+    mockCheckGraphQLEndpoint.mockResolvedValueOnce({
       healthy: false,
       error: {
         title: "Service Unavailable",
@@ -118,7 +105,7 @@ describe("useHealthCheck", () => {
   });
 
   it("shows error when application is paused", async () => {
-    mockRunHealthChecks.mockResolvedValueOnce({
+    mockCheckGraphQLEndpoint.mockResolvedValueOnce({
       healthy: false,
       error: {
         title: "Application Paused",
@@ -135,34 +122,6 @@ describe("useHealthCheck", () => {
           title: "Application Paused",
         }),
       );
-    });
-  });
-
-  it("shows blocking error and sets isGeoBlocked when user is geo-blocked", async () => {
-    mockRunHealthChecks.mockResolvedValueOnce({
-      healthy: false,
-      isGeoBlocked: true,
-      error: {
-        title: "Access Restricted",
-        message:
-          "We're sorry, but this page isn't accessible in your location at the moment due to the regional restrictions",
-      },
-    });
-
-    const onError = vi.fn();
-    const onGeoBlocked = vi.fn();
-    renderWithProviders(onError, onGeoBlocked);
-
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Access Restricted",
-        }),
-      );
-    });
-
-    await waitFor(() => {
-      expect(onGeoBlocked).toHaveBeenCalledWith(true);
     });
   });
 });
