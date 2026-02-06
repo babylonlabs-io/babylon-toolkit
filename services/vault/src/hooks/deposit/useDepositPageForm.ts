@@ -121,8 +121,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     () => providers.map((p: { id: string }) => p.id),
     [providers],
   );
-  const { validateAmountWithBalance, validateProviders } =
-    useDepositValidation(btcAddress, providerIds);
+  const { validateAmountWithBalance, validateProviders } = useDepositValidation(
+    btcAddress,
+    providerIds,
+  );
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs } = useUTXOs(btcAddress);

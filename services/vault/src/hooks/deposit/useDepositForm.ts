@@ -64,8 +64,10 @@ export function useDepositForm(): UseDepositFormResult {
 
   // Get validation functions - pass provider IDs
   const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
-  const { validateAmountWithBalance, validateProviders } =
-    useDepositValidation(btcAddress, providerIds);
+  const { validateAmountWithBalance, validateProviders } = useDepositValidation(
+    btcAddress,
+    providerIds,
+  );
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs } = useUTXOs(btcAddress);
