@@ -257,8 +257,15 @@ export class OneKeyProvider implements IBTCProvider {
       });
 
     // subscribe to account change event
-    if (eventName === "accountChanged") {
-      return this.provider.on(eventName, callBack);
+    // Handle both singular and plural event names
+    if (eventName === "accountChanged" || eventName === "accountsChanged") {
+      // OneKey uses "accountsChanged" like most wallets
+      return this.provider.on("accountsChanged", callBack);
+    }
+
+    // subscribe to disconnect event
+    if (eventName === "disconnect") {
+      return this.provider.on("disconnect", callBack);
     }
   };
 
@@ -271,8 +278,13 @@ export class OneKeyProvider implements IBTCProvider {
       });
 
     // unsubscribe from account change event
-    if (eventName === "accountChanged") {
-      return this.provider.off(eventName, callBack);
+    if (eventName === "accountChanged" || eventName === "accountsChanged") {
+      return this.provider.removeListener("accountsChanged", callBack);
+    }
+
+    // unsubscribe from disconnect event
+    if (eventName === "disconnect") {
+      return this.provider.removeListener("disconnect", callBack);
     }
   };
 

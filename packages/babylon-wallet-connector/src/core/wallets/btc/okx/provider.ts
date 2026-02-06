@@ -238,8 +238,14 @@ export class OKXProvider implements IBTCProvider {
       });
 
     // subscribe to account change event
-    if (eventName === "accountChanged") {
-      return this.provider.on(eventName, callBack);
+    // Map "accountChanged" to "accountsChanged" as OKX wallet uses the plural form
+    if (eventName === "accountChanged" || eventName === "accountsChanged") {
+      return this.provider.on("accountsChanged", callBack);
+    }
+
+    // subscribe to disconnect event
+    if (eventName === "disconnect") {
+      return this.provider.on("disconnect", callBack);
     }
   };
 
@@ -252,8 +258,14 @@ export class OKXProvider implements IBTCProvider {
       });
 
     // unsubscribe from account change event
-    if (eventName === "accountChanged") {
-      return this.provider.off(eventName, callBack);
+    // Map "accountChanged" to "accountsChanged" as OKX wallet uses the plural form
+    if (eventName === "accountChanged" || eventName === "accountsChanged") {
+      return this.provider.removeListener("accountsChanged", callBack);
+    }
+
+    // unsubscribe from disconnect event
+    if (eventName === "disconnect") {
+      return this.provider.removeListener("disconnect", callBack);
     }
   };
 
