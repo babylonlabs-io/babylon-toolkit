@@ -110,6 +110,13 @@ export function formatLendingError(error: unknown): {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
 
+    if (msg.includes("insufficient balance to fully repay")) {
+      return {
+        title: "Insufficient Balance",
+        message:
+          "Not enough stablecoin to cover the debt plus interest. Please add more funds to your wallet.",
+      };
+    }
     if (msg.includes("insufficient liquidity") || msg.includes("not enough")) {
       return {
         title: "Insufficient Liquidity",

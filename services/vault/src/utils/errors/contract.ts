@@ -140,6 +140,9 @@ function getEnhancedErrorMessage(
   if (lowerMessage.includes("frozen") || lowerMessage.includes("isfrozen")) {
     return `${operationName} failed: This market is frozen and not accepting operations.`;
   }
+  if (lowerMessage.includes("insufficient balance to fully repay")) {
+    return `${operationName} failed: Not enough stablecoin to cover the debt plus interest. Please add more funds to your wallet.`;
+  }
   if (
     lowerMessage.includes("insufficient liquidity") ||
     lowerMessage.includes("not enough")
