@@ -84,7 +84,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   );
 
   const disabledWallets = useMemo(() => {
-    const disabled: string[] = [];
+    const disabled: string[] = ["ledger_btc_v2"];
 
     const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
 
