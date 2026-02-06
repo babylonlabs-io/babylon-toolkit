@@ -98,7 +98,7 @@ export function DepositAmountSection({
             onMaxClick={onMaxClick}
           />
         </div>
-        {error && <p className="text-sm text-error-main">{error}</p>}
+        {error && <p className="text-right text-sm text-error-main">{error}</p>}
       </SubSection>
     </Card>
   );

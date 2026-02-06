@@ -134,7 +134,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
   }, [btcBalance]);
 
-  const [errors, setErrors] = useState<{
+  const [formErrors, setFormErrors] = useState<{
     amount?: string;
     application?: string;
     provider?: string;
@@ -145,23 +145,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       ...prev,
       ...data,
     }));
-    // Clear errors when user starts typing (they'll be validated on blur)
     if (data.amountBtc !== undefined) {
-      setErrors((prev) => {
+      setFormErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { amount, ...rest } = prev;
         return rest;
       });
     }
     if (data.selectedApplication !== undefined) {
-      setErrors((prev) => {
+      setFormErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { application, ...rest } = prev;
         return rest;
       });
     }
     if (data.selectedProvider !== undefined) {
-      setErrors((prev) => {
+      setFormErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { provider, ...rest } = prev;
         return rest;
@@ -169,24 +168,49 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     }
   }, []);
 
-  // Validate amount on blur
-  const validateAmountOnBlur = useCallback(() => {
-    if (formData.amountBtc === "") return;
-    const amountResult = validation.validateAmount(formData.amountBtc);
-    if (!amountResult.valid) {
-      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
-    }
-  }, [formData.amountBtc, validation]);
-
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
-  const validateForm = useCallback(() => {
-    const newErrors: typeof errors = {};
+  // Live amount error — reacts to amount/balance changes automatically
+  const liveAmountError = useMemo(() => {
+    if (!formData.amountBtc) return undefined;
+    const result = validation.validateAmountWithBalance(
+      formData.amountBtc,
+      btcBalance,
+    );
+    return result.valid ? undefined : result.error;
+  }, [formData.amountBtc, btcBalance, validation]);
 
-    const amountResult = validation.validateAmount(formData.amountBtc);
+  // Merge: manual errors take precedence, live error fills in when no manual error
+  const errors = useMemo(() => {
+    const merged = { ...formErrors };
+    if (!merged.amount && liveAmountError) {
+      merged.amount = liveAmountError;
+    }
+    return merged;
+  }, [formErrors, liveAmountError]);
+
+  // Validate amount on blur (sets manual errors for more specific messages)
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const result = validation.validateAmountWithBalance(
+      formData.amountBtc,
+      btcBalance,
+    );
+    if (!result.valid) {
+      setFormErrors((prev) => ({ ...prev, amount: result.error }));
+    }
+  }, [formData.amountBtc, validation, btcBalance]);
+
+  const validateForm = useCallback(() => {
+    const newErrors: typeof formErrors = {};
+
+    const amountResult = validation.validateAmountWithBalance(
+      formData.amountBtc,
+      btcBalance,
+    );
     if (!amountResult.valid) {
       newErrors.amount = amountResult.error;
     }
@@ -206,9 +230,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       }
     }
 
-    setErrors(newErrors);
+    setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation]);
+  }, [formData, validation, btcBalance]);
 
   const isValid = useMemo(() => {
     const hasAmount = formData.amountBtc !== "";
@@ -216,29 +240,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
 
-    // Delegate amount validation to service layer
-    const isAmountValid = depositService.isDepositAmountValid({
-      amountSats,
-      minDeposit: validation.minDeposit,
-      btcBalance,
-    });
-
     return (
       isWalletConnected &&
       hasAmount &&
       hasApplication &&
       hasProvider &&
-      noErrors &&
-      isAmountValid
+      noErrors
     );
-  }, [
-    isWalletConnected,
-    formData,
-    errors,
-    amountSats,
-    validation.minDeposit,
-    btcBalance,
-  ]);
+  }, [isWalletConnected, formData, errors]);
 
   const resetForm = useCallback(() => {
     setFormDataInternal({
@@ -246,7 +255,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       selectedApplication: "",
       selectedProvider: "",
     });
-    setErrors({});
+    setFormErrors({});
   }, []);
 
   return {

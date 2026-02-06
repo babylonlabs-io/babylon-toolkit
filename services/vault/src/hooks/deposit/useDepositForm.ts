@@ -78,9 +78,10 @@ export function useDepositForm(): UseDepositFormResult {
     selectedProvider: "",
   });
 
-  const [errors, setErrors] = useState<{ amount?: string; provider?: string }>(
-    {},
-  );
+  const [formErrors, setFormErrors] = useState<{
+    amount?: string;
+    provider?: string;
+  }>({});
 
   // Update form data
   const setFormData = useCallback((data: Partial<DepositFormData>) => {
@@ -88,16 +89,15 @@ export function useDepositForm(): UseDepositFormResult {
       ...prev,
       ...data,
     }));
-    // Clear errors when user types
     if (data.amountBtc !== undefined) {
-      setErrors((prev) => {
+      setFormErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { amount, ...rest } = prev;
         return rest;
       });
     }
     if (data.selectedProvider !== undefined) {
-      setErrors((prev) => {
+      setFormErrors((prev) => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { provider, ...rest } = prev;
         return rest;
@@ -111,12 +111,33 @@ export function useDepositForm(): UseDepositFormResult {
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
 
+  // Live amount error — reacts to amount/balance changes automatically
+  const liveAmountError = useMemo(() => {
+    if (!formData.amountBtc) return undefined;
+    const result = validation.validateAmountWithBalance(
+      formData.amountBtc,
+      btcBalance,
+    );
+    return result.valid ? undefined : result.error;
+  }, [formData.amountBtc, btcBalance, validation]);
+
+  // Merge: manual errors take precedence, live error fills in when no manual error
+  const errors = useMemo(() => {
+    const merged = { ...formErrors };
+    if (!merged.amount && liveAmountError) {
+      merged.amount = liveAmountError;
+    }
+    return merged;
+  }, [formErrors, liveAmountError]);
+
   // Validate form
   const validateForm = useCallback(() => {
-    const newErrors: typeof errors = {};
+    const newErrors: typeof formErrors = {};
 
-    // Validate amount
-    const amountResult = validation.validateAmount(formData.amountBtc);
+    const amountResult = validation.validateAmountWithBalance(
+      formData.amountBtc,
+      btcBalance,
+    );
     if (!amountResult.valid) {
       newErrors.amount = amountResult.error;
     }
@@ -133,25 +154,18 @@ export function useDepositForm(): UseDepositFormResult {
       }
     }
 
-    setErrors(newErrors);
+    setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation]);
+  }, [formData, validation, btcBalance]);
 
-  // Check if form is valid - delegate amount validation to service layer
+  // Check if form is valid
   const isValid = useMemo(() => {
     const hasAmount = formData.amountBtc !== "";
     const hasProvider = formData.selectedProvider !== "";
     const noErrors = Object.keys(errors).length === 0;
 
-    // Delegate amount validation to service layer
-    const isAmountValid = depositService.isDepositAmountValid({
-      amountSats,
-      minDeposit: validation.minDeposit,
-      btcBalance,
-    });
-
-    return hasAmount && hasProvider && noErrors && isAmountValid;
-  }, [formData, errors, amountSats, validation.minDeposit, btcBalance]);
+    return hasAmount && hasProvider && noErrors;
+  }, [formData, errors]);
 
   // Reset form
   const resetForm = useCallback(() => {
@@ -159,7 +173,7 @@ export function useDepositForm(): UseDepositFormResult {
       amountBtc: "",
       selectedProvider: "",
     });
-    setErrors({});
+    setFormErrors({});
   }, []);
 
   return {

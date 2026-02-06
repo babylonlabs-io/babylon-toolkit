@@ -16,6 +16,10 @@ import { useUTXOs } from "../useUTXOs";
 export interface UseDepositValidationResult {
   // Validation functions
   validateAmount: (amount: string) => ValidationResult;
+  validateAmountWithBalance: (
+    amount: string,
+    balance: bigint,
+  ) => ValidationResult;
   validateProviders: (providers: string[]) => ValidationResult;
   validateDeposit: (data: DepositFormData) => Promise<ValidationResult>;
 
@@ -55,6 +59,26 @@ export function useDepositValidation(
       }
     },
     [minDeposit],
+  );
+
+  // Validate amount including balance check
+  const validateAmountWithBalance = useCallback(
+    (amount: string, balance: bigint): ValidationResult => {
+      const basicResult = validateAmount(amount);
+      if (!basicResult.valid) return basicResult;
+
+      try {
+        const satoshis = depositService.parseBtcToSatoshis(amount);
+        if (balance > 0n && satoshis > balance) {
+          return { valid: false, error: "Insufficient funds" };
+        }
+      } catch {
+        return { valid: false, error: "Invalid amount format" };
+      }
+
+      return { valid: true };
+    },
+    [validateAmount],
   );
 
   // Validate provider selection
@@ -137,6 +161,7 @@ export function useDepositValidation(
 
   return {
     validateAmount,
+    validateAmountWithBalance,
     validateProviders,
     validateDeposit,
     availableProviders: providers,
