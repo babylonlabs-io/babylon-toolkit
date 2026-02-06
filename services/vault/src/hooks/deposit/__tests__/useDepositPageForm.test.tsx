@@ -175,17 +175,6 @@ vi.mock("../../useApplications", () => ({
   })),
 }));
 
-// Mock getAppIdByController - maps controller addresses to app IDs
-vi.mock("../../../applications", () => ({
-  getAppIdByController: vi.fn((controllerAddress: string) => {
-    const mapping: Record<string, string> = {
-      "0xControllerAddress1": "aave",
-      "0xControllerAddress2": "compound",
-    };
-    return mapping[controllerAddress];
-  }),
-}));
-
 vi.mock("../useVaultProviders", () => ({
   useVaultProviders: vi.fn(() => ({
     vaultProviders: [
@@ -344,42 +333,6 @@ describe("useDepositPageForm", () => {
       });
       expect(result.current.errors).toEqual({});
       expect(result.current.isValid).toBe(false);
-    });
-
-    it("should initialize with initial application ID when provided as controller address", () => {
-      const { result } = renderHook(
-        () =>
-          useDepositPageForm({ initialApplicationId: "0xControllerAddress1" }),
-        { wrapper },
-      );
-
-      expect(result.current.formData.selectedApplication).toBe(
-        "0xControllerAddress1",
-      );
-    });
-
-    it("should resolve app ID to controller address when provided as app ID", async () => {
-      const { result } = renderHook(
-        () => useDepositPageForm({ initialApplicationId: "aave" }),
-        { wrapper },
-      );
-
-      // After effect runs, should resolve "aave" to "0xControllerAddress1"
-      await waitFor(() => {
-        expect(result.current.formData.selectedApplication).toBe(
-          "0xControllerAddress1",
-        );
-      });
-    });
-
-    it("should not resolve if initialApplicationId does not match any app", () => {
-      const { result } = renderHook(
-        () => useDepositPageForm({ initialApplicationId: "unknown-app" }),
-        { wrapper },
-      );
-
-      // Should remain empty since no match found
-      expect(result.current.formData.selectedApplication).toBe("");
     });
 
     it("should auto-select application when only one is available", async () => {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 
-import { getAppIdByController } from "../../applications";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
@@ -54,14 +53,7 @@ export interface UseDepositPageFormResult {
   resetForm: () => void;
 }
 
-export interface UseDepositPageFormOptions {
-  initialApplicationId?: string;
-}
-
-export function useDepositPageForm(
-  options: UseDepositPageFormOptions = {},
-): UseDepositPageFormResult {
-  const { initialApplicationId } = options;
+export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
   const btcPriceUSD = usePrice("BTC");
@@ -88,56 +80,15 @@ export function useDepositPageForm(
     }));
   }, [applicationsData]);
 
-  const resolvedAppIdRef = useRef<string | null>(null);
+  // Auto-select if only one application available
   useEffect(() => {
-    if (
-      isLoadingApplications ||
-      !applicationsData?.length ||
-      resolvedAppIdRef.current !== null
-    ) {
-      return;
-    }
-
-    // If there's only one application, auto-select it
-    if (!initialApplicationId && applicationsData.length === 1) {
-      resolvedAppIdRef.current = "auto-selected";
+    if (!isLoadingApplications && applicationsData?.length === 1) {
       setFormDataInternal((prev) => ({
         ...prev,
         selectedApplication: applicationsData[0].id,
       }));
-      return;
     }
-
-    // If initialApplicationId was provided, resolve it
-    if (initialApplicationId) {
-      const normalizedInitialId = initialApplicationId.toLowerCase();
-
-      // Check if initialApplicationId is already a valid controller address (case-insensitive)
-      const directMatch = applicationsData.find(
-        (app) => app.id.toLowerCase() === normalizedInitialId,
-      );
-      if (directMatch) {
-        resolvedAppIdRef.current = initialApplicationId;
-        setFormDataInternal((prev) => ({
-          ...prev,
-          selectedApplication: directMatch.id,
-        }));
-        return;
-      }
-
-      // Resolve app ID to controller address
-      const matchingApp = applicationsData.find(
-        (app) => getAppIdByController(app.id) === initialApplicationId,
-      );
-      if (matchingApp) {
-        resolvedAppIdRef.current = initialApplicationId;
-        setFormDataInternal((prev) => ({
-          ...prev,
-          selectedApplication: matchingApp.id,
-        }));
-      }
-    }
-  }, [initialApplicationId, applicationsData, isLoadingApplications]);
+  }, [isLoadingApplications, applicationsData]);
 
   // Fetch providers based on selected application
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
