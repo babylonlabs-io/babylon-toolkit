@@ -1,10 +1,178 @@
 [
   {
     "type": "function",
-    "name": "getUserAccountData",
+    "name": "DOMAIN_SEPARATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "ORACLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SET_USER_POSITION_MANAGER_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "addDynamicReserveConfig",
     "inputs": [
       {
-        "name": "user",
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "dynamicConfig",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.DynamicReserveConfig",
+        "components": [
+          {
+            "name": "collateralFactor",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxLiquidationBonus",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "liquidationFee",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "dynamicConfigKey",
+        "type": "uint24",
+        "internalType": "uint24"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "addReserve",
+    "inputs": [
+      {
+        "name": "hub",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "assetId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceSource",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "config",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.ReserveConfig",
+        "components": [
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "frozen",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "borrowable",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          }
+        ]
+      },
+      {
+        "name": "dynamicConfig",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.DynamicReserveConfig",
+        "components": [
+          {
+            "name": "collateralFactor",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxLiquidationBonus",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "liquidationFee",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "borrow",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "onBehalfOf",
         "type": "address",
         "internalType": "address"
       }
@@ -12,48 +180,129 @@
     "outputs": [
       {
         "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getDynamicReserveConfig",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "dynamicConfigKey",
+        "type": "uint24",
+        "internalType": "uint24"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
         "type": "tuple",
-        "internalType": "struct ISpoke.UserAccountData",
+        "internalType": "struct ITBVAaveSpoke.DynamicReserveConfig",
         "components": [
           {
-            "name": "riskPremium",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "collateralFactor",
+            "type": "uint16",
+            "internalType": "uint16"
           },
           {
-            "name": "avgCollateralFactor",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "maxLiquidationBonus",
+            "type": "uint32",
+            "internalType": "uint32"
           },
           {
-            "name": "healthFactor",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "totalCollateralValue",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "totalDebtValue",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "activeCollateralCount",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "borrowedCount",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "liquidationFee",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLiquidationBonus",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "healthFactor",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLiquidationConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.LiquidationConfig",
+        "components": [
+          {
+            "name": "targetHealthFactor",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "healthFactorForMaxBonus",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "liquidationBonusFactor",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLiquidationLogic",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "pure"
   },
   {
     "type": "function",
@@ -69,7 +318,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct ISpoke.Reserve",
+        "internalType": "struct ITBVAaveSpoke.Reserve",
         "components": [
           {
             "name": "underlying",
@@ -79,7 +328,7 @@
           {
             "name": "hub",
             "type": "address",
-            "internalType": "contract IHubBase"
+            "internalType": "address"
           },
           {
             "name": "assetId",
@@ -123,6 +372,226 @@
   },
   {
     "type": "function",
+    "name": "getReserveConfig",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.ReserveConfig",
+        "components": [
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "frozen",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "borrowable",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveDebt",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveSuppliedAssets",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveSuppliedShares",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getReserveTotalDebt",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserAccountData",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.UserAccountData",
+        "components": [
+          {
+            "name": "riskPremium",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "avgCollateralFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "healthFactor",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalCollateralValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalDebtValue",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "activeCollateralCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "borrowedCount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserDebt",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getUserPosition",
     "inputs": [
       {
@@ -140,7 +609,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct ISpoke.UserPosition",
+        "internalType": "struct ITBVAaveSpoke.UserPosition",
         "components": [
           {
             "name": "drawnShares",
@@ -179,8 +648,96 @@
   },
   {
     "type": "function",
-    "name": "getReserveCount",
-    "inputs": [],
+    "name": "getUserPremiumDebtRay",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserReserveStatus",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserSuppliedAssets",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserSuppliedShares",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -213,5 +770,490 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isPositionManager",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "positionManager",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isPositionManagerActive",
+    "inputs": [
+      {
+        "name": "positionManager",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "liquidationCall",
+    "inputs": [
+      {
+        "name": "collateralReserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "debtReserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "debtToCover",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "receiveShares",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "permitReserve",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "permitV",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "permitR",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "permitS",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renouncePositionManagerRole",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "repay",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setUserPositionManager",
+    "inputs": [
+      {
+        "name": "positionManager",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "approve",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setUserPositionManagerWithSig",
+    "inputs": [
+      {
+        "name": "positionManager",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "approve",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setUsingAsCollateral",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "usingAsCollateral",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "supply",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateDynamicReserveConfig",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "dynamicConfigKey",
+        "type": "uint24",
+        "internalType": "uint24"
+      },
+      {
+        "name": "dynamicConfig",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.DynamicReserveConfig",
+        "components": [
+          {
+            "name": "collateralFactor",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "maxLiquidationBonus",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "liquidationFee",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateLiquidationConfig",
+    "inputs": [
+      {
+        "name": "config",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.LiquidationConfig",
+        "components": [
+          {
+            "name": "targetHealthFactor",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "healthFactorForMaxBonus",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "liquidationBonusFactor",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updatePositionManager",
+    "inputs": [
+      {
+        "name": "positionManager",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "active",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateReserveConfig",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct ITBVAaveSpoke.ReserveConfig",
+        "components": [
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "frozen",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "borrowable",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "collateralRisk",
+            "type": "uint24",
+            "internalType": "uint24"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateReservePriceSource",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "priceSource",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateUserDynamicConfig",
+    "inputs": [
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "updateUserRiskPremium",
+    "inputs": [
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      {
+        "name": "reserveId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "onBehalfOf",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   }
 ]

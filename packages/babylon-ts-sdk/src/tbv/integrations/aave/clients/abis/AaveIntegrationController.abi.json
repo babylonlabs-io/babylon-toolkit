@@ -87,7 +87,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract ISpoke"
+        "internalType": "contract ITBVAaveSpoke"
       }
     ],
     "stateMutability": "view"
@@ -274,6 +274,37 @@
   },
   {
     "type": "function",
+    "name": "calculateLiquidationPayment",
+    "inputs": [
+      {
+        "name": "borrowerProxy",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "payments",
+        "type": "tuple[]",
+        "internalType": "struct AaveBTCVaultCoreSpokeLiquidationLogic.TokenAmount[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "depositorRedeem",
     "inputs": [
       {
@@ -283,30 +314,6 @@
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "emergencyRepayVault",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "wbtcRepaid",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -995,6 +1002,37 @@
   },
   {
     "type": "event",
+    "name": "FairnessPaymentFailed",
+    "inputs": [
+      {
+        "name": "proxy",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "liquidator",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "FairnessPaymentPaid",
     "inputs": [
       {
@@ -1203,6 +1241,37 @@
   },
   {
     "type": "event",
+    "name": "VaultLiquidated",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "borrowerProxy",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "liquidator",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "VaultOwnershipTransferred",
     "inputs": [
       {
@@ -1387,11 +1456,6 @@
   {
     "type": "error",
     "name": "VaultNotEscrowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "VaultSwapNotSet",
     "inputs": []
   },
   {
