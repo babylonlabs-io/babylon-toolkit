@@ -53,14 +53,7 @@ export interface UseDepositPageFormResult {
   resetForm: () => void;
 }
 
-export interface UseDepositPageFormOptions {
-  initialApplicationId?: string;
-}
-
-export function useDepositPageForm(
-  options: UseDepositPageFormOptions = {},
-): UseDepositPageFormResult {
-  const { initialApplicationId } = options;
+export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
   const btcPriceUSD = usePrice("BTC");
@@ -68,7 +61,8 @@ export function useDepositPageForm(
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
-    selectedApplication: initialApplicationId || "",
+    // Keep empty initially to avoid calling useVaultProviders with invalid value
+    selectedApplication: "",
     selectedProvider: "",
   });
 
@@ -85,6 +79,16 @@ export function useDepositPageForm(
       logoUrl: app.logoUrl,
     }));
   }, [applicationsData]);
+
+  // Auto-select if only one application available
+  useEffect(() => {
+    if (!isLoadingApplications && applicationsData?.length === 1) {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        selectedApplication: applicationsData[0].id,
+      }));
+    }
+  }, [isLoadingApplications, applicationsData]);
 
   // Fetch providers based on selected application
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
