@@ -7,12 +7,14 @@ import { Card, Container, Loader } from "@babylonlabs-io/core-ui";
 import type { Hex } from "viem";
 
 import { useETHWallet } from "../../context/wallet";
-import { useActivities } from "../../hooks/useActivities";
+import { useActivitiesWithPending } from "../../hooks/useActivitiesWithPending";
 import { ActivityEmptyState, ActivityTable } from "../Activity";
 
 export default function Activity() {
   const { address, connected } = useETHWallet();
-  const { data: activities, isLoading } = useActivities(address as Hex);
+  const { data: activities, isLoading } = useActivitiesWithPending(
+    address as Hex,
+  );
 
   const hasActivities = activities && activities.length > 0;
 

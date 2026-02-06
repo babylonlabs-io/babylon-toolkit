@@ -76,14 +76,19 @@ const GET_VAULTS_BY_IDS = gql`
   }
 `;
 
-function mapActivityType(type: GraphQLActivityType): ActivityType | null {
-  const typeMap: Partial<Record<GraphQLActivityType, ActivityType>> = {
+function mapActivityType(type: GraphQLActivityType): ActivityType {
+  const typeMap: Record<GraphQLActivityType, ActivityType> = {
     deposit: "Deposit",
     withdrawal: "Withdraw",
-    add_collateral: "Deposit",
-    remove_collateral: "Withdraw",
+    add_collateral: "Add Collateral",
+    remove_collateral: "Remove Collateral",
+    liquidation: "Liquidation",
   };
-  return typeMap[type] ?? null;
+  const mapped = typeMap[type];
+  if (!mapped) {
+    throw new Error(`Unknown activity type from GraphQL API: ${type}`);
+  }
+  return mapped;
 }
 
 function formatAmount(amount: string): string {
@@ -117,32 +122,27 @@ export async function fetchUserActivities(
     vaultsData.vaults.items.map((v) => [v.id, v.applicationController]),
   );
 
-  return activities
-    .map((item) => {
-      const activityType = mapActivityType(item.type);
-      if (!activityType) return null;
+  return activities.map((item) => {
+    const applicationController = vaultMap.get(item.vaultId);
+    const appMetadata = applicationController
+      ? getApplicationMetadataByController(applicationController)
+      : undefined;
 
-      const applicationController = vaultMap.get(item.vaultId);
-      const appMetadata = applicationController
-        ? getApplicationMetadataByController(applicationController)
-        : undefined;
-
-      return {
-        id: item.id,
-        date: new Date(parseInt(item.timestamp, 10) * 1000),
-        application: {
-          id: appMetadata?.id ?? "unknown",
-          name: appMetadata?.name ?? "Unknown App",
-          logoUrl: appMetadata?.logoUrl ?? "/images/unknown-app.svg",
-        },
-        type: activityType,
-        amount: {
-          value: formatAmount(item.amount),
-          symbol: btcConfig.coinSymbol,
-          icon: btcConfig.icon,
-        },
-        transactionHash: item.transactionHash,
-      };
-    })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    return {
+      id: item.id,
+      date: new Date(parseInt(item.timestamp, 10) * 1000),
+      application: {
+        id: appMetadata?.id ?? "unknown",
+        name: appMetadata?.name ?? "Unknown App",
+        logoUrl: appMetadata?.logoUrl ?? "/images/unknown-app.svg",
+      },
+      type: mapActivityType(item.type),
+      amount: {
+        value: formatAmount(item.amount),
+        symbol: btcConfig.coinSymbol,
+        icon: btcConfig.icon,
+      },
+      transactionHash: item.transactionHash,
+    };
+  });
 }
