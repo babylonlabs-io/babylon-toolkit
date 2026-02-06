@@ -7,6 +7,8 @@ import type {
   VaultProvider,
 } from "../../types/vaultProvider";
 
+import { fetchProviderLogos } from "./providerIconService";
+
 /** GraphQL response for app-specific providers and keepers */
 interface GraphQLAppProvidersResponse {
   vaultProviders: {
@@ -119,6 +121,10 @@ export async function fetchVaultKeepersByVersion(
  * @param applicationController - The application controller address to filter by.
  * @returns Object containing vaultProviders and vaultKeepers arrays
  */
+function toIdentity(btcPubKey: string): string {
+  return btcPubKey.startsWith("0x") ? btcPubKey.slice(2) : btcPubKey;
+}
+
 export async function fetchAppProviders(
   applicationController: string,
 ): Promise<AppProvidersResponse> {
@@ -127,18 +133,24 @@ export async function fetchAppProviders(
     { appController: applicationController.toLowerCase() },
   );
 
-  const vaultProviders: VaultProvider[] = response.vaultProviders.items
-    .filter(
-      (provider): provider is typeof provider & { rpcUrl: string } =>
-        provider.rpcUrl !== null,
-    )
-    .map((provider) => ({
+  const providersWithRpc = response.vaultProviders.items.filter(
+    (provider): provider is typeof provider & { rpcUrl: string } =>
+      provider.rpcUrl !== null,
+  );
+
+  const identities = providersWithRpc.map((p) => toIdentity(p.btcPubKey));
+  const logos = await fetchProviderLogos(identities);
+
+  const vaultProviders: VaultProvider[] = providersWithRpc.map((provider) => {
+    const identity = toIdentity(provider.btcPubKey);
+    return {
       id: provider.id,
       btcPubKey: provider.btcPubKey,
       url: provider.rpcUrl,
-    }));
+      iconUrl: logos[identity],
+    };
+  });
 
-  // Extract vault keepers with btcPubKey from nested relation
   const vaultKeepers: VaultKeeper[] =
     response.vaultKeeperApplications.items.map((item) => ({
       id: item.vaultKeeper,

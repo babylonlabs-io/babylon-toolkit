@@ -20,6 +20,7 @@ export interface Provider {
   id: string;
   name: string;
   status?: string;
+  iconUrl?: string;
 }
 
 interface SelectVaultProviderModalProps {
@@ -59,6 +60,8 @@ export function SelectVaultProviderModal({
       apr: "",
       votingPower: "",
       commission: "",
+      iconUrl: p.iconUrl,
+      status: p.status,
     }));
   }, [providers, filterValue]);
 
@@ -71,7 +74,11 @@ export function SelectVaultProviderModal({
         cellClassName: "text-primary-dark max-w-[240px]",
         render: (_, row) => (
           <div className="flex min-w-0 items-center gap-2">
-            <ProviderAvatar name={row.name} size="medium" />
+            <ProviderAvatar
+              name={row.name}
+              url={(row as ValidatorRow & { iconUrl?: string }).iconUrl}
+              size="medium"
+            />
             <span className="truncate">{row.name}</span>
           </div>
         ),
@@ -110,8 +117,7 @@ export function SelectVaultProviderModal({
         headerClassName: "max-w-[100px]",
         cellClassName: "max-w-[100px]",
         render: (_, row) => {
-          const provider = providers.find((p) => p.id === row.id);
-          const status = provider?.status;
+          const status = (row as ValidatorRow & { status?: string }).status;
           if (!status) {
             return <span className="text-accent-secondary">—</span>;
           }
@@ -139,7 +145,7 @@ export function SelectVaultProviderModal({
         ),
       },
     ],
-    [providers, copyToClipboard, isCopied],
+    [copyToClipboard, isCopied],
   );
 
   const handleSelect = (row: ValidatorRow) => {

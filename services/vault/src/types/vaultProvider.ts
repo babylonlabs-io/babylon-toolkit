@@ -36,6 +36,8 @@ export interface VaultProvider {
   btcPubKey: string;
   /** Provider's RPC URL (from registry) */
   url: string;
+  /** Provider's icon URL (from icon service, optional) */
+  iconUrl?: string;
 }
 
 /**

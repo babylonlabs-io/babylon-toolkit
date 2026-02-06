@@ -18,6 +18,7 @@ interface RequiredEnvVars {
 
   // API endpoints
   GRAPHQL_ENDPOINT: string;
+  SIDECAR_API_URL: string;
 }
 
 interface EnvValidationResult {
@@ -38,6 +39,9 @@ function validateEnvVars(): EnvValidationResult {
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    SIDECAR_API_URL: (
+      process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
+    ).replace(/\/$/, ""),
   };
 
   // Check for missing required environment variables
@@ -45,6 +49,7 @@ function validateEnvVars(): EnvValidationResult {
     "BTC_VAULTS_MANAGER",
     "AAVE_CONTROLLER",
     "GRAPHQL_ENDPOINT",
+    "SIDECAR_API_URL",
   ] as const;
 
   const missingVars = requiredVars.filter(
@@ -57,6 +62,7 @@ function validateEnvVars(): EnvValidationResult {
       BTC_VAULTS_MANAGER: "NEXT_PUBLIC_TBV_BTC_VAULTS_MANAGER",
       AAVE_CONTROLLER: "NEXT_PUBLIC_TBV_AAVE_CONTROLLER",
       GRAPHQL_ENDPOINT: "NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT",
+      SIDECAR_API_URL: "NEXT_PUBLIC_TBV_SIDECAR_API_URL",
     };
 
     const missingVarNames = missingVars.map((key) => envVarMap[key] || key);
@@ -66,6 +72,7 @@ function validateEnvVars(): EnvValidationResult {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
+        SIDECAR_API_URL: "",
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };

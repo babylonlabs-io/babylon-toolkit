@@ -9,6 +9,7 @@
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { usePrice } from "@/hooks/usePrices";
 import { useVaults } from "@/hooks/useVaults";
 import {
@@ -16,11 +17,12 @@ import {
   getPeginState,
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
-import type { Vault } from "@/types/vault";
+import type { Vault, VaultProvider } from "@/types";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import type { VaultData } from "../components/Overview/components/VaultsTable";
 import { usePendingVaults } from "../context";
+import { useAaveConfig } from "../context/AaveConfigContext";
 
 /**
  * Transform a Vault to VaultData for display
@@ -28,19 +30,21 @@ import { usePendingVaults } from "../context";
 function transformVaultToTableData(
   vault: Vault,
   btcPriceUsd: number,
+  findProvider: (address: string) => VaultProvider | undefined,
 ): VaultData {
   const btcAmount = satoshiToBtcNumber(vault.amount);
   const usdValue = btcAmount * btcPriceUsd;
 
   const peginState = getPeginState(vault.status, { isInUse: vault.isInUse });
+  const provider = findProvider(vault.vaultProvider);
 
   return {
     id: vault.id,
     amount: btcAmount,
     usdValue,
     provider: {
-      // Use truncated address as name, icon is undefined to use Avatar fallback
       name: `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`,
+      icon: provider?.iconUrl,
     },
     status: peginState.displayLabel,
   };
@@ -68,6 +72,8 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
+  const { config } = useAaveConfig();
+  const { findProvider } = useVaultProviders(config?.controllerAddress);
 
   const {
     data: vaults,
@@ -87,8 +93,10 @@ export function useAaveVaults(
     if (!vaults) return [];
     return vaults
       .filter((vault) => vault.status === ContractStatus.ACTIVE)
-      .map((vault) => transformVaultToTableData(vault, btcPriceUSD));
-  }, [vaults, btcPriceUSD]);
+      .map((vault) =>
+        transformVaultToTableData(vault, btcPriceUSD, findProvider),
+      );
+  }, [vaults, btcPriceUSD, findProvider]);
 
   // Filter to vaults available for collateral:
   // - Not currently in use by an application (from indexer)

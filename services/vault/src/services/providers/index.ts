@@ -6,3 +6,4 @@ export {
   fetchAllUniversalChallengers,
   type UniversalChallengersData,
 } from "./fetchUniversalChallengers";
+export { fetchProviderLogos } from "./providerIconService";
