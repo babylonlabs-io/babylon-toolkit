@@ -115,9 +115,9 @@ export const PEGIN_DISPLAY_LABELS = {
   PENDING_BITCOIN_CONFIRMATIONS: "Pending Confirmations",
   AVAILABLE: "Available",
   IN_USE: "In Use",
+  REDEEM_IN_PROGRESS: "Redeem in Progress",
   REDEEMED: "Redeemed",
   LIQUIDATED: "Liquidated",
-  WITHDRAWN: "Withdrawn",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
@@ -176,6 +176,8 @@ export interface GetPeginStateOptions {
   transactionsReady?: boolean;
   /** Whether vault is in use by an application (from ApplicationVaultTracker) */
   isInUse?: boolean;
+  /** Whether the UTXO for this deposit is no longer available (spent) */
+  utxoUnavailable?: boolean;
 }
 
 /**
@@ -189,7 +191,22 @@ export function getPeginState(
   contractStatus: ContractStatus,
   options: GetPeginStateOptions = {},
 ): PeginState {
-  const { localStatus, transactionsReady, isInUse } = options;
+  const { localStatus, transactionsReady, isInUse, utxoUnavailable } = options;
+
+  // Early check: If UTXO is unavailable (spent), show Invalid state
+  // This provides immediate feedback before the backend updates the status
+  if (utxoUnavailable) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: PEGIN_DISPLAY_LABELS.INVALID,
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault is invalid. The BTC UTXOs were spent in a different transaction.",
+    };
+  }
+
   // Contract Status 0: Pending (Request submitted, waiting for ACKs)
   if (contractStatus === ContractStatus.PENDING) {
     // Sub-state: Depositor already signed (waiting for on-chain ACK)
@@ -280,15 +297,17 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 3: Redeemed (vault has been redeemed, BTC is claimable)
+  // Contract Status 3: Redeemed (redemption initiated, BTC is being processed by vault provider)
+  // Note: This is an intermediate state - BTC has NOT been returned to user yet
   if (contractStatus === ContractStatus.REDEEMED) {
     return {
       contractStatus,
       localStatus,
-      displayLabel: PEGIN_DISPLAY_LABELS.REDEEMED,
-      displayVariant: "inactive",
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+      displayVariant: "pending",
       availableActions: [PeginAction.NONE],
-      message: "Vault has been redeemed, BTC is claimable",
+      message:
+        "Your redemption is being processed. The vault provider is preparing your BTC withdrawal. This typically takes up to 3 days.",
     };
   }
 
@@ -318,15 +337,16 @@ export function getPeginState(
     };
   }
 
-  // Contract Status 6: Depositor Withdrawn (redemption complete, BTC withdrawn)
+  // Contract Status 6: Depositor Withdrawn (redemption complete, BTC returned to user)
   if (contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN) {
     return {
       contractStatus,
       localStatus,
-      displayLabel: PEGIN_DISPLAY_LABELS.WITHDRAWN,
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEMED,
       displayVariant: "inactive",
       availableActions: [PeginAction.NONE],
-      message: "Withdrawal complete. Your BTC has been returned.",
+      message:
+        "Redemption complete. Your BTC has been returned to your wallet.",
     };
   }
 

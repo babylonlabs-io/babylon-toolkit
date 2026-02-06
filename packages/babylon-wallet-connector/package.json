@@ -62,7 +62,7 @@
     "@scure/bip32": "1.4.0",
     "@scure/btc-signer": "1.8.1",
     "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
-    "@tomo-inc/wallet-connect-sdk": "1.0.1-beta.1",
+    "@tomo-inc/wallet-connect-sdk": "1.0.0",
     "bip174": "2.1.1",
     "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3",
@@ -75,6 +75,7 @@
     "dist"
   ],
   "peerDependencies": {
+    "@tanstack/react-query": "^5.74.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tailwind-merge": "2.5.4",
@@ -82,6 +83,7 @@
     "wagmi": "2.18.1"
   },
   "devDependencies": {
+    "@tanstack/react-query": "^5.74.4",
     "@changesets/cli": "^2.29.8",
     "@chromatic-com/storybook": "^3.2.2",
     "@commitlint/cli": "^19.8.0",

@@ -19,6 +19,7 @@ export const ERROR_CODES = {
   WALLET_NOT_CONNECTED: "WALLET_NOT_CONNECTED", // Not connected
   INCOMPATIBLE_WALLET_VERSION: "INCOMPATIBLE_WALLET_VERSION", // Version mismatch
   NETWORK_NOT_ENABLED_IN_WALLET: "NETWORK_NOT_ENABLED_IN_WALLET", // Network not enabled
+  WALLET_CONFIG_REQUIRED: "WALLET_CONFIG_REQUIRED", // Wallet configuration required
 
   // ===== Bitcoin/PSBT/Address =====
   INVALID_PUBLIC_KEY: "INVALID_PUBLIC_KEY", // Invalid public key

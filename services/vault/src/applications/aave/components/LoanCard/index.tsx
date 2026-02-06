@@ -19,9 +19,9 @@ export interface LoanCardProps {
 }
 
 export function LoanCard({ defaultTab = LOAN_TAB.BORROW }: LoanCardProps) {
-  const { collateralValueUsd, currentDebtUsd } = useLoanContext();
+  const { collateralValueUsd, totalDebtValueUsd } = useLoanContext();
 
-  const hasPosition = currentDebtUsd > 0 || collateralValueUsd > 0;
+  const hasPosition = totalDebtValueUsd > 0 || collateralValueUsd > 0;
 
   const [activeTab, setActiveTab] = useState<LoanTab>(defaultTab);
 

@@ -8,7 +8,16 @@
 /**
  * Types of activities that can be recorded
  */
-export type ActivityType = "Deposit" | "Borrow" | "Repay" | "Withdraw";
+export type ActivityType =
+  | "Deposit"
+  | "Withdraw"
+  | "Add Collateral"
+  | "Remove Collateral"
+  | "Liquidation"
+  | "Borrow"
+  | "Repay"
+  // Pending activity types (not yet confirmed on-chain)
+  | "Pending Deposit";
 
 /**
  * Application information for an activity
@@ -47,6 +56,8 @@ export interface ActivityLog {
   type: ActivityType;
   /** Amount involved in the activity */
   amount: ActivityAmount;
-  /** Transaction hash on the blockchain */
+  /** Transaction hash on the blockchain (empty string for pending activities) */
   transactionHash: string;
+  /** Whether this is a pending transaction (not yet confirmed on-chain) */
+  isPending?: boolean;
 }

@@ -48,12 +48,68 @@ vi.mock("wagmi/actions", () => ({
 
 vi.mock("@/hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
+    allUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
     confirmedUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
+    availableUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
       { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
     ],
+    inscriptionUTXOs: [],
+    spendableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
+    spendableMempoolUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
     isLoading: false,
+    isLoadingOrdinals: false,
     error: null,
+    ordinalsError: null,
+    refetch: vi.fn(),
   })),
 }));
 
@@ -216,6 +272,11 @@ describe("useDepositFlow - Chain Switching", () => {
     getAddress: vi.fn().mockResolvedValue("bc1qtest123"),
     signPsbt: vi.fn().mockResolvedValue("mocksignedpsbt"),
     getNetwork: vi.fn().mockResolvedValue("signet"),
+    signPsbts: vi
+      .fn()
+      .mockImplementation(async (psbtsHexes) =>
+        psbtsHexes.map(() => "mocksignedpsbt"),
+      ),
   };
 
   const mockParams = {

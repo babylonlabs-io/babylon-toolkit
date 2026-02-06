@@ -8,6 +8,7 @@
  */
 
 import { useMemo } from "react";
+import { formatUnits } from "viem";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
@@ -40,8 +41,10 @@ export interface UseAaveReserveDetailResult {
   proxyContract: string | undefined;
   /** Collateral value in USD */
   collateralValueUsd: number;
-  /** Current debt in USD */
-  debtValueUsd: number;
+  /** Current debt amount for selected reserve in token units */
+  currentDebtAmount: number;
+  /** Total debt value in USD across all reserves */
+  totalDebtValueUsd: number;
   /** Health factor (null if no debt) */
   healthFactor: number | null;
 }
@@ -87,6 +90,23 @@ export function useAaveReserveDetail({
     isLoading: positionLoading,
   } = useAaveUserPosition(address);
 
+  // Calculate debt amount for selected reserve in token units
+  const currentDebtAmount = useMemo(() => {
+    if (!selectedReserve || !position?.debtPositions) {
+      return 0;
+    }
+
+    const debtPosition = position.debtPositions.get(selectedReserve.reserveId);
+    if (!debtPosition) {
+      return 0;
+    }
+
+    // Convert from bigint to number using token decimals
+    return Number(
+      formatUnits(debtPosition.totalDebt, selectedReserve.token.decimals),
+    );
+  }, [selectedReserve, position]);
+
   // Get liquidation threshold from vBTC reserve
   const liquidationThresholdBps = vbtcReserve?.reserve.collateralFactor ?? 0;
 
@@ -99,7 +119,8 @@ export function useAaveReserveDetail({
     positionId: position?.id,
     proxyContract: position?.proxyContract,
     collateralValueUsd,
-    debtValueUsd,
+    currentDebtAmount,
+    totalDebtValueUsd: debtValueUsd,
     healthFactor,
   };
 }

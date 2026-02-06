@@ -5,6 +5,8 @@
 
 import { useMemo } from "react";
 
+import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+
 import { useBTCWallet } from "../../../context/wallet";
 import { useEstimatedBtcFee } from "../../../hooks/deposit/useEstimatedBtcFee";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
@@ -30,6 +32,11 @@ export interface DepositReviewData {
     icon: string | null;
   }>;
 
+  // Price metadata
+  priceMetadata: Record<string, PriceMetadata>;
+  hasStalePrices: boolean;
+  hasPriceFetchError: boolean;
+
   // Loading states
   isLoading: {
     price: boolean;
@@ -51,23 +58,30 @@ export function useDepositReviewData(
   enabled: boolean,
 ): DepositReviewData {
   // Fetch wallet and UTXO data
+  // Use spendableMempoolUTXOs which respects user's inscription preference
   const { address: btcAddress } = useBTCWallet();
-  const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled });
+  const { spendableMempoolUTXOs } = useUTXOs(btcAddress, { enabled });
 
   // Fetch price data
-  const { prices, isLoading: priceLoading } = usePrices();
+  const {
+    prices,
+    metadata,
+    hasStalePrices,
+    hasPriceFetchError,
+    isLoading: priceLoading,
+  } = usePrices();
   const btcPriceUSD = prices.BTC ?? 0;
 
   // Fetch provider data
   const { findProviders, loading: providersLoading } = useVaultProviders();
 
-  // Fetch fee data
+  // Fetch fee data using spendable UTXOs for accurate calculation
   const {
     fee: feeSats,
     feeRate,
     isLoading: feeLoading,
     error: feeError,
-  } = useEstimatedBtcFee(amount, confirmedUTXOs);
+  } = useEstimatedBtcFee(amount, spendableMempoolUTXOs);
 
   // Compute derived values
   const computedData = useMemo(() => {
@@ -93,6 +107,9 @@ export function useDepositReviewData(
     ...computedData,
     feeRate,
     feeError,
+    priceMetadata: metadata,
+    hasStalePrices,
+    hasPriceFetchError,
     isLoading: {
       price: priceLoading,
       providers: providersLoading,

@@ -39,6 +39,8 @@ interface PendingVaultsContextValue {
   hasPendingAdd: boolean;
   /** Whether there are pending withdraw operations */
   hasPendingWithdraw: boolean;
+  /** Whether there are pending redeem operations */
+  hasPendingRedeem: boolean;
   /** Mark vault IDs as pending after successful transaction */
   markVaultsAsPending: (
     vaultIds: string[],
@@ -131,6 +133,7 @@ export function PendingVaultsProvider({
       hasPendingOperation: pendingVaults.size > 0,
       hasPendingAdd: operations.includes("add"),
       hasPendingWithdraw: operations.includes("withdraw"),
+      hasPendingRedeem: operations.includes("redeem"),
       markVaultsAsPending,
       clearPendingVaults,
       clearAllPendingVaults,
@@ -173,9 +176,15 @@ function isOperationConfirmed(
   if (operation === "add") {
     // Add is confirmed when vault becomes "In Use"
     return vault.status === PEGIN_DISPLAY_LABELS.IN_USE;
-  } else {
+  } else if (operation === "withdraw") {
     // Withdraw is confirmed when vault becomes "Available"
     return vault.status === PEGIN_DISPLAY_LABELS.AVAILABLE;
+  } else {
+    // Redeem is confirmed when vault becomes "Redeem in Progress" or "Redeemed"
+    return (
+      vault.status === PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS ||
+      vault.status === PEGIN_DISPLAY_LABELS.REDEEMED
+    );
   }
 }
 

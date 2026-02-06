@@ -27,7 +27,7 @@
   "searchInComments": true,
   "searchInDocuments": true,
   "navigationLinks": {
-    "Guides": "../guides/",
+    "Quickstart": "../quickstart/",
     "GitHub": "https://github.com/babylonlabs-io/babylon-toolkit"
   },
   "includeVersion": true,

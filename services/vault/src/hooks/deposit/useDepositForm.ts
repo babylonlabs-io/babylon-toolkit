@@ -66,11 +66,11 @@ export function useDepositForm(): UseDepositFormResult {
   const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
   const validation = useDepositValidation(btcAddress, providerIds);
 
-  // Get UTXOs for balance calculation
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  // Get UTXOs for balance calculation (already respects inscription preference)
+  const { spendableUTXOs } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(confirmedUTXOs || []));
-  }, [confirmedUTXOs]);
+    return BigInt(calculateBalance(spendableUTXOs || []));
+  }, [spendableUTXOs]);
 
   // Form state
   const [formData, setFormDataInternal] = useState<DepositFormData>({

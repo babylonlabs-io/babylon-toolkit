@@ -1,82 +1,80 @@
 /**
  * Hook for fetching user's BTC balance
- * This would integrate with the user's BTC wallet to get their actual balance
+ *
+ * Respects user's inscription preference from the wallet connect modal.
+ * When ordinalsExcluded is true (default), shows only spendable balance.
+ * When ordinalsExcluded is false, shows total balance including inscriptions.
  */
 
 import { useBTCWallet } from "@babylonlabs-io/wallet-connector";
-import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { calculateBalance, useUTXOs } from "./useUTXOs";
+
+/** Query key for BTC balance */
+export const BTC_BALANCE_QUERY_KEY = "btcBalance";
 
 /**
  * Result interface for useBTCBalance hook
  */
 export interface UseBTCBalanceResult {
-  /** BTC balance in satoshis */
-  btcBalance: bigint;
-  /** BTC balance formatted as BTC (8 decimals) */
-  btcBalanceFormatted: number;
+  /** Spendable BTC balance in satoshis (respects ordinalsExcluded preference) */
+  balance: bigint;
+  /** Spendable BTC balance formatted as BTC (8 decimals) */
+  balanceFormatted: number;
+  /** BTC balance locked in inscriptions (in satoshis) */
+  inscriptionBalance: bigint;
   /** Loading state - true while fetching data */
   loading: boolean;
   /** Error state - contains error if fetch failed */
   error: Error | null;
   /** Function to manually refetch data */
-  refetch: () => Promise<void>;
+  refetch: () => Promise<unknown>;
 }
 
 /**
  * Custom hook to fetch user's BTC balance
  *
- * Note: This is a placeholder implementation. In a real application,
- * this would integrate with the user's BTC wallet (e.g., via Bitcoin RPC)
- * to fetch their actual BTC balance.
+ * Respects user's inscription preference:
+ * - ordinalsExcluded=true (default): Returns spendable balance (excludes inscriptions)
+ * - ordinalsExcluded=false: Returns total balance (includes inscriptions)
  *
  * @returns Object containing BTC balance, loading state, error state, and refetch function
  */
 export function useBTCBalance(): UseBTCBalanceResult {
   const { address: btcAddress } = useBTCWallet();
   const {
-    confirmedUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxosError,
+    spendableUTXOs,
+    inscriptionUTXOs,
+    isLoading,
+    isLoadingOrdinals,
+    error,
+    refetch,
   } = useUTXOs(btcAddress);
 
-  // Calculate real BTC balance from UTXOs
-  const btcBalance = useMemo(() => {
-    if (!confirmedUTXOs) return 0n;
-    return BigInt(calculateBalance(confirmedUTXOs));
-  }, [confirmedUTXOs]);
+  // spendableUTXOs already respects the ordinalsExcluded preference
+  const balance = useMemo(() => {
+    if (!spendableUTXOs) return 0n;
+    return BigInt(calculateBalance(spendableUTXOs));
+  }, [spendableUTXOs]);
 
-  // Use a simple query wrapper for consistency with other hooks
-  const {
-    isLoading: isQueryLoading,
-    error: queryError,
-    refetch,
-  } = useQuery<bigint>({
-    queryKey: ["btcBalance", btcAddress],
-    queryFn: async () => btcBalance,
-    enabled: !!btcAddress,
-    retry: 2,
-    staleTime: 60000, // 1 minute
-  });
+  const inscriptionBalance = useMemo(() => {
+    if (!inscriptionUTXOs) return 0n;
+    return BigInt(calculateBalance(inscriptionUTXOs));
+  }, [inscriptionUTXOs]);
 
   // Format BTC balance for display
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(btcBalance) / 1e8; // Convert satoshis to BTC
-  }, [btcBalance]);
-
-  // Wrap refetch to return Promise<void>
-  const wrappedRefetch = async () => {
-    await refetch();
-  };
+  const balanceFormatted = useMemo(() => {
+    if (!balance) return 0;
+    return Number(balance) / 1e8; // Convert satoshis to BTC
+  }, [balance]);
 
   return {
-    btcBalance: btcBalance || 0n,
-    btcBalanceFormatted,
-    loading: isUTXOsLoading || isQueryLoading,
-    error: (utxosError || queryError) as Error | null,
-    refetch: wrappedRefetch,
+    balance: balance || 0n,
+    balanceFormatted,
+    inscriptionBalance: inscriptionBalance || 0n,
+    loading: isLoading || isLoadingOrdinals,
+    error,
+    refetch,
   };
 }

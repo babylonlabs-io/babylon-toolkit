@@ -54,6 +54,15 @@ export class MockBitcoinWallet implements BitcoinWallet {
     return psbtHex + "deadbeef";
   }
 
+  async signPsbts(psbtsHexes: string[]): Promise<string[]> {
+    const signedPsbts: string[] = [];
+    for (const psbtHex of psbtsHexes) {
+      const signedPsbt = await this.signPsbt(psbtHex);
+      signedPsbts.push(signedPsbt);
+    }
+    return signedPsbts;
+  }
+
   async signMessage(
     message: string,
     type: "bip322-simple" | "ecdsa",

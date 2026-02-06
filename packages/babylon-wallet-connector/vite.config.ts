@@ -43,6 +43,8 @@ export default defineConfig({
         "@reown/appkit-adapter-wagmi",
         "@reown/appkit-adapter-bitcoin",
         /^@reown\//, // Match all @reown/* packages
+        // React Query must be external to share context with consuming app
+        "@tanstack/react-query",
       ],
       output: {
         sourcemapExcludeSources: false,

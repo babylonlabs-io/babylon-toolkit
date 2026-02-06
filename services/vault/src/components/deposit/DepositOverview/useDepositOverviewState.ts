@@ -5,13 +5,14 @@
  * Extracts business logic from the UI component for better separation of concerns.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { getApplicationMetadataByController } from "../../../applications";
+import { useVaultRedeemState } from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
+import { useBroadcastModal } from "../../../hooks/deposit/useBroadcastModal";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
-import { useRedeemModal } from "../../../hooks/deposit/useRedeemModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
 import { usePeginStorage } from "../../../storage/usePeginStorage";
@@ -20,7 +21,7 @@ import type { Deposit } from "../../../types/vault";
 
 export function useDepositOverviewState() {
   // Wallet connections
-  const { connected: btcConnected } = useBTCWallet();
+  const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { connected: ethConnected, address: ethAddress } = useETHWallet();
   const isConnected = btcConnected && ethConnected;
 
@@ -55,49 +56,21 @@ export function useDepositOverviewState() {
   });
 
   // Broadcast modal state
-  const [broadcastingActivity, setBroadcastingActivity] =
-    useState<VaultActivity | null>(null);
-  const [broadcastSuccessOpen, setBroadcastSuccessOpen] = useState(false);
-  const [broadcastSuccessAmount, setBroadcastSuccessAmount] = useState("");
-
-  // Broadcast handlers
-  const handleBroadcastClick = useCallback(
-    (depositId: string) => {
-      const activity = allActivities.find((a) => a.id === depositId);
-      if (activity) {
-        setBroadcastingActivity(activity);
-      }
-    },
-    [allActivities],
-  );
-
-  const handleBroadcastClose = useCallback(() => {
-    setBroadcastingActivity(null);
-  }, []);
-
-  const handleBroadcastSuccess = useCallback(() => {
-    setBroadcastSuccessAmount(broadcastingActivity?.collateral.amount || "");
-    setBroadcastingActivity(null);
-    setBroadcastSuccessOpen(true);
-    refetchActivities();
-  }, [broadcastingActivity, refetchActivities]);
-
-  const handleBroadcastSuccessClose = useCallback(() => {
-    setBroadcastSuccessOpen(false);
-  }, []);
-
-  // Redeem modal state
   const {
-    redeemStep,
-    redeemDepositIds,
-    handleRedeemClick,
-    handleFormNext: handleRedeemFormNext,
-    handleReviewConfirm: handleRedeemReviewConfirm,
-    handleSignSuccess: handleRedeemSignSuccess,
-    handleClose: handleRedeemClose,
-  } = useRedeemModal({
+    broadcastingActivity,
+    successOpen: broadcastSuccessOpen,
+    successAmount: broadcastSuccessAmount,
+    handleBroadcastClick,
+    handleClose: handleBroadcastClose,
+    handleSuccess: handleBroadcastSuccess,
+    handleSuccessClose: handleBroadcastSuccessClose,
+  } = useBroadcastModal({
+    allActivities,
     onSuccess: refetchActivities,
   });
+
+  // Get redeem trigger from context - RedeemModals handles the rest internally
+  const { triggerRedeem } = useVaultRedeemState();
 
   // Transform VaultActivity to Deposit format for table
   const deposits: Deposit[] = useMemo(() => {
@@ -121,6 +94,7 @@ export function useDepositOverviewState() {
     isConnected,
     ethAddress,
     btcPublicKey,
+    btcAddress,
 
     // Data
     allActivities,
@@ -145,13 +119,8 @@ export function useDepositOverviewState() {
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
 
-    // Redeem modal
-    redeemStep,
-    redeemDepositIds,
-    handleRedeemClick,
-    handleRedeemFormNext,
-    handleRedeemReviewConfirm,
-    handleRedeemSignSuccess,
-    handleRedeemClose,
+    // Redeem - RedeemModals handles the flow internally
+    triggerRedeem,
+    refetchActivities, // Pass to RedeemModals for onSuccess callback
   };
 }

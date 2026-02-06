@@ -16,8 +16,8 @@ import {
   PENDING_COLLATERAL_KEY_PREFIX,
 } from "../constants";
 
-/** Type of pending collateral operation */
-export type PendingOperation = "add" | "withdraw";
+/** Type of pending vault operation */
+export type PendingOperation = "add" | "withdraw" | "redeem";
 
 interface PendingVaultEntry {
   id: string;

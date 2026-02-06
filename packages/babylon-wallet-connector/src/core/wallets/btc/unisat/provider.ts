@@ -3,6 +3,7 @@ import { Psbt, address as btcAddress, networks } from "bitcoinjs-lib";
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
+import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { ERROR_CODES, WalletError } from "@/error";
 
 import logo from "./logo.svg";
@@ -126,12 +127,7 @@ export class UnisatProvider implements IBTCProvider {
       if (options?.signInputs && options.signInputs.length > 0) {
         signOptions = {
           autoFinalized: options.autoFinalized ?? false,
-          toSignInputs: options.signInputs.map((input) => ({
-            index: input.index,
-            publicKey: input.publicKey,
-            address: input.address,
-            sighashTypes: input.sighashTypes,
-            disableTweakSigner: input.disableTweakSigner,
+          toSignInputs: mapSignInputsToToSignInputs(options.signInputs, (input) => ({
             useTweakedSigner: input.useTweakedSigner,
           })),
         };
@@ -172,11 +168,23 @@ export class UnisatProvider implements IBTCProvider {
 
     const network = await this.getNetwork();
     try {
-      const defaultOptions = psbtsHexes.map((psbtHex) => this.getSignPsbtDefaultOptions(psbtHex, network));
-      const signOptions = options?.map((option, index) => ({
-        ...defaultOptions[index],
-        ...option,
-      }));
+      const signOptions = psbtsHexes.map((psbtHex, index) => {
+        const option = options?.[index];
+
+        // If signInputs is provided, convert to toSignInputs format (like signPsbt does)
+        if (option?.signInputs && option.signInputs.length > 0) {
+          return {
+            autoFinalized: option.autoFinalized ?? false,
+            toSignInputs: mapSignInputsToToSignInputs(option.signInputs, (input) => ({
+              useTweakedSigner: input.useTweakedSigner,
+            })),
+          };
+        }
+
+        // Otherwise use default options
+        return this.getSignPsbtDefaultOptions(psbtHex, network);
+      });
+
       return await this.provider.signPsbts(psbtsHexes, signOptions);
     } catch (error: Error | any) {
       throw new WalletError({

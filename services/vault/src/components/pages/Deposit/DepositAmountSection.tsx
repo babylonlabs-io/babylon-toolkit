@@ -6,9 +6,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { getNetworkConfigBTC } from "@/config";
 
 import { depositService } from "../../../services/deposit";
+import { PriceWarningBanner } from "../../shared";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -21,6 +23,9 @@ interface DepositAmountSectionProps {
   onAmountChange: (value: string) => void;
   onAmountBlur?: () => void;
   onMaxClick: () => void;
+  priceMetadata?: Record<string, PriceMetadata>;
+  hasStalePrices?: boolean;
+  hasPriceFetchError?: boolean;
 }
 
 export function DepositAmountSection({
@@ -32,6 +37,9 @@ export function DepositAmountSection({
   onAmountChange,
   onAmountBlur,
   onMaxClick,
+  priceMetadata = {},
+  hasStalePrices = false,
+  hasPriceFetchError = false,
 }: DepositAmountSectionProps) {
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -39,6 +47,8 @@ export function DepositAmountSection({
   }, [btcBalance]);
 
   const amountUsd = useMemo(() => {
+    // Don't show USD if price fetch failed
+    if (hasPriceFetchError) return "";
     if (!btcPrice || !amount || amount === "0") return "";
     const btcNum = parseFloat(amount);
     if (isNaN(btcNum)) return "";
@@ -47,7 +57,9 @@ export function DepositAmountSection({
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
-  }, [amount, btcPrice]);
+  }, [amount, btcPrice, hasPriceFetchError]);
+
+  const showPriceWarning = hasStalePrices || hasPriceFetchError;
 
   return (
     <Card>
@@ -56,6 +68,13 @@ export function DepositAmountSection({
         {completed && <CheckIcon size={26} variant="success" />}
       </h3>
       <SubSection className="flex w-full flex-col gap-2">
+        {showPriceWarning && (
+          <PriceWarningBanner
+            metadata={priceMetadata}
+            hasPriceFetchError={hasPriceFetchError}
+            hasStalePrices={hasStalePrices}
+          />
+        )}
         {/* Wrapper div captures blur from AmountItem's internal input */}
         <div onBlur={onAmountBlur}>
           <AmountItem
@@ -69,7 +88,7 @@ export function DepositAmountSection({
               balance: btcBalanceFormatted,
               symbol: btcConfig.coinSymbol,
               price: btcPrice,
-              displayUSD: btcConfig.displayUSD,
+              displayUSD: btcConfig.displayUSD && !hasPriceFetchError,
               decimals: 4,
             }}
             min="0"

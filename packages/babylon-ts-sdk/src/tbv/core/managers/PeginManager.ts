@@ -272,7 +272,7 @@ export interface RegisterPeginResult {
  *
  * @see {@link PayoutManager} - Required for Step 3 (payout authorization)
  * @see {@link buildPeginPsbt} - Lower-level primitive for custom implementations
- * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/managers.md | Managers Guide}
+ * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  */
 export class PeginManager {
   private readonly config: PeginManagerConfig;

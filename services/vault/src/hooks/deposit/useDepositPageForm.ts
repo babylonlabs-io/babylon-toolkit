@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
-import { usePrice } from "../usePrices";
+import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositValidation } from "./useDepositValidation";
@@ -31,6 +33,9 @@ export interface UseDepositPageFormResult {
   btcBalance: bigint;
   btcBalanceFormatted: number;
   btcPrice: number;
+  priceMetadata: Record<string, PriceMetadata>;
+  hasStalePrices: boolean;
+  hasPriceFetchError: boolean;
   applications: Array<{
     id: string;
     name: string;
@@ -48,21 +53,16 @@ export interface UseDepositPageFormResult {
   resetForm: () => void;
 }
 
-export interface UseDepositPageFormOptions {
-  initialApplicationId?: string;
-}
-
-export function useDepositPageForm(
-  options: UseDepositPageFormOptions = {},
-): UseDepositPageFormResult {
-  const { initialApplicationId } = options;
+export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
   const btcPriceUSD = usePrice("BTC");
+  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
   const [formData, setFormDataInternal] = useState<DepositPageFormData>({
     amountBtc: "",
-    selectedApplication: initialApplicationId || "",
+    // Keep empty initially to avoid calling useVaultProviders with invalid value
+    selectedApplication: "",
     selectedProvider: "",
   });
 
@@ -79,6 +79,16 @@ export function useDepositPageForm(
       logoUrl: app.logoUrl,
     }));
   }, [applicationsData]);
+
+  // Auto-select if only one application available
+  useEffect(() => {
+    if (!isLoadingApplications && applicationsData?.length === 1) {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        selectedApplication: applicationsData[0].id,
+      }));
+    }
+  }, [isLoadingApplications, applicationsData]);
 
   // Fetch providers based on selected application
   const { vaultProviders: rawProviders, loading: isLoadingProviders } =
@@ -113,10 +123,11 @@ export function useDepositPageForm(
   );
   const validation = useDepositValidation(btcAddress, providerIds);
 
-  const { confirmedUTXOs } = useUTXOs(btcAddress);
+  // Get UTXOs for balance calculation (already respects inscription preference)
+  const { spendableUTXOs } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
-    return BigInt(calculateBalance(confirmedUTXOs || []));
-  }, [confirmedUTXOs]);
+    return BigInt(calculateBalance(spendableUTXOs || []));
+  }, [spendableUTXOs]);
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -247,6 +258,9 @@ export function useDepositPageForm(
     btcBalance,
     btcBalanceFormatted,
     btcPrice: btcPriceUSD,
+    priceMetadata: metadata,
+    hasStalePrices,
+    hasPriceFetchError,
     applications,
     isLoadingApplications,
     providers,

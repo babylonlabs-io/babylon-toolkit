@@ -44,9 +44,17 @@ export function RedeemCollateralSuccessModal({
           variant="body1"
           className="mb-2 text-sm text-accent-secondary sm:text-base"
         >
-          Your {btcConfig.coinSymbol} redemption is being processed. It may take
-          up to 3 days to complete and will appear as "Redeem in progress" on
-          your dashboard.
+          Your {btcConfig.coinSymbol} redemption request has been submitted. The
+          vault provider will process your request and return your{" "}
+          {btcConfig.coinSymbol} to your wallet.
+        </Text>
+
+        <Text
+          variant="body2"
+          className="text-sm text-accent-secondary sm:text-base"
+        >
+          This typically takes <strong>up to 3 days</strong>. Your vault will
+          show as &quot;Redeem in Progress&quot; until complete.
         </Text>
 
         <div className="bg-surface-container mt-4 rounded-lg p-4">

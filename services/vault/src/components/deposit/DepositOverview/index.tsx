@@ -18,17 +18,13 @@ import type { Hex } from "viem";
 import { getNetworkConfigBTC } from "@/config";
 
 import { PeginPollingProvider } from "../../../context/deposit/PeginPollingContext";
-import { VaultRedeemStep } from "../../../context/deposit/VaultRedeemState";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
-import { isVaultOwnedByWallet } from "../../../utils/walletOwnership";
+import { isVaultOwnedByWallet } from "../../../utils/vaultWarnings";
 import { BroadcastSignModal } from "../BroadcastSignModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { PayoutSignModal } from "../PayoutSignModal";
-import { RedeemCollateralModal } from "../RedeemFormModal";
-import { RedeemCollateralReviewModal } from "../RedeemReviewModal";
-import { RedeemCollateralSignModal } from "../RedeemSignModal";
-import { RedeemCollateralSuccessModal } from "../RedeemSuccessModal";
+import { RedeemModals } from "../RedeemModals";
 
 import { ActionCell } from "./ActionCell";
 import { DepositMobileCard } from "./DepositMobileCard";
@@ -46,6 +42,7 @@ export function DepositOverview() {
     isConnected,
     ethAddress,
     btcPublicKey,
+    btcAddress,
     allActivities,
     pendingPegins,
     vaultProviders,
@@ -63,20 +60,9 @@ export function DepositOverview() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
-    redeemStep,
-    redeemDepositIds,
-    handleRedeemClick,
-    handleRedeemFormNext,
-    handleRedeemReviewConfirm,
-    handleRedeemSignSuccess,
-    handleRedeemClose,
+    triggerRedeem,
+    refetchActivities,
   } = state;
-
-  const redeemTotalAmount = useMemo(() => {
-    return deposits
-      .filter((d) => redeemDepositIds.includes(d.id))
-      .reduce((sum, d) => sum + d.amount, 0);
-  }, [deposits, redeemDepositIds]);
 
   // Memoized map for O(1) activity lookups by id
   const activityById = useMemo(() => {
@@ -158,7 +144,7 @@ export function DepositOverview() {
           depositId={row.id}
           onSignClick={handleSignClick}
           onBroadcastClick={handleBroadcastClick}
-          onRedeemClick={handleRedeemClick}
+          onRedeemClick={triggerRedeem}
         />
       ),
     },
@@ -169,6 +155,7 @@ export function DepositOverview() {
       activities={allActivities}
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
+      btcAddress={btcAddress}
       vaultProviders={vaultProviders}
     >
       <div className="relative">
@@ -181,7 +168,7 @@ export function DepositOverview() {
                 deposit={deposit}
                 onSignClick={handleSignClick}
                 onBroadcastClick={handleBroadcastClick}
-                onRedeemClick={handleRedeemClick}
+                onRedeemClick={triggerRedeem}
               />
             ))}
           </div>
@@ -228,38 +215,11 @@ export function DepositOverview() {
           amount={broadcastSuccessAmount}
         />
 
-        {/* Redeem Form Modal */}
-        <RedeemCollateralModal
-          open={redeemStep === VaultRedeemStep.FORM}
-          onClose={handleRedeemClose}
-          onNext={handleRedeemFormNext}
+        {/* Redeem Modals - manages its own state internally */}
+        <RedeemModals
           deposits={deposits}
-        />
-
-        {/* Redeem Review Modal */}
-        <RedeemCollateralReviewModal
-          open={redeemStep === VaultRedeemStep.REVIEW}
-          onClose={handleRedeemClose}
-          onConfirm={handleRedeemReviewConfirm}
-          depositIds={redeemDepositIds}
-          deposits={deposits}
-        />
-
-        {/* Redeem Sign Modal */}
-        <RedeemCollateralSignModal
-          open={redeemStep === VaultRedeemStep.SIGN}
-          onClose={handleRedeemClose}
-          onSuccess={handleRedeemSignSuccess}
           activities={allActivities}
-          depositIds={redeemDepositIds}
-        />
-
-        {/* Redeem Success Modal */}
-        <RedeemCollateralSuccessModal
-          open={redeemStep === VaultRedeemStep.SUCCESS}
-          onClose={handleRedeemClose}
-          totalAmount={redeemTotalAmount}
-          depositCount={redeemDepositIds.length}
+          onSuccess={refetchActivities}
         />
       </div>
     </PeginPollingProvider>

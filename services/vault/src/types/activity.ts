@@ -97,6 +97,9 @@ export interface VaultActivity {
 
   /** Depositor's BTC public key (x-only, 32 bytes) */
   depositorBtcPubkey?: string;
+
+  /** Unsigned BTC transaction hex (for UTXO validation) */
+  unsignedBtcTx?: string;
 }
 
 /**

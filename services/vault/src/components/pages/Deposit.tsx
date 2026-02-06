@@ -1,5 +1,5 @@
 import { Button, Card, Container, Text } from "@babylonlabs-io/core-ui";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { FeatureFlags } from "@/config";
@@ -19,9 +19,6 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 
 function DepositContent() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  const initialAppId = searchParams.get("app") || undefined;
 
   const handleBack = () => {
     navigate(-1);
@@ -36,6 +33,9 @@ function DepositContent() {
     btcBalance,
     btcBalanceFormatted,
     btcPrice,
+    priceMetadata,
+    hasStalePrices,
+    hasPriceFetchError,
     applications,
     isLoadingApplications,
     providers,
@@ -43,7 +43,7 @@ function DepositContent() {
     amountSats,
     validateForm,
     validateAmountOnBlur,
-  } = useDepositPageForm({ initialApplicationId: initialAppId });
+  } = useDepositPageForm();
 
   // Deposit flow (modals, wallet, provider data)
   const {
@@ -98,6 +98,9 @@ function DepositContent() {
               onAmountChange={(value) => setFormData({ amountBtc: value })}
               onAmountBlur={validateAmountOnBlur}
               onMaxClick={handleMaxClick}
+              priceMetadata={priceMetadata}
+              hasStalePrices={hasStalePrices}
+              hasPriceFetchError={hasPriceFetchError}
             />
 
             <SelectApplicationSection
