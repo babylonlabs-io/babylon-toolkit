@@ -194,6 +194,80 @@ describe("useDepositValidation", () => {
     });
   });
 
+  describe("validateAmountWithBalance", () => {
+    it("should pass when amount is within balance", () => {
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmountWithBalance(
+        "0.001",
+        200000n,
+      );
+
+      expect(validationResult.valid).toBe(true);
+    });
+
+    it("should fail when amount exceeds balance", () => {
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmountWithBalance(
+        "0.01",
+        800000n,
+      );
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toContain("Insufficient funds");
+    });
+
+    it("should fail when balance is zero", () => {
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmountWithBalance(
+        "0.001",
+        0n,
+      );
+
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toContain("Insufficient funds");
+    });
+
+    it("should pass when amount equals balance exactly", () => {
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmountWithBalance(
+        "0.001",
+        100000n,
+      );
+
+      expect(validationResult.valid).toBe(true);
+    });
+
+    it("should fail basic validation before checking balance", () => {
+      const { result } = renderHook(
+        () => useDepositValidation("bc1qaddress", mockProviders),
+        { wrapper },
+      );
+
+      const validationResult = result.current.validateAmountWithBalance(
+        "invalid",
+        1000000n,
+      );
+
+      expect(validationResult.valid).toBe(false);
+    });
+  });
+
   describe("validateProviders", () => {
     it.skip("should validate single provider selection", async () => {
       // TODO: Requires proper provider API mocking

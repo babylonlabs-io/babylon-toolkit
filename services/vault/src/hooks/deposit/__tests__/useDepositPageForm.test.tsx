@@ -231,6 +231,18 @@ const mockValidateAmount = vi.fn((amount: string) => {
   return { valid: true };
 });
 
+const mockValidateAmountWithBalance = vi.fn(
+  (amount: string, balance: bigint) => {
+    const basicResult = mockValidateAmount(amount);
+    if (!basicResult.valid) return basicResult;
+    const satoshis = BigInt(Math.round(parseFloat(amount) * 1e8));
+    if (satoshis > balance) {
+      return { valid: false, error: "Insufficient funds" };
+    }
+    return { valid: true };
+  },
+);
+
 const mockValidateProviders = vi.fn((providers: string[]) => {
   if (providers.length === 0) {
     return {
@@ -244,6 +256,7 @@ const mockValidateProviders = vi.fn((providers: string[]) => {
 vi.mock("../useDepositValidation", () => ({
   useDepositValidation: vi.fn(() => ({
     validateAmount: mockValidateAmount,
+    validateAmountWithBalance: mockValidateAmountWithBalance,
     validateProviders: mockValidateProviders,
     minDeposit: 10000n,
     availableProviders: [

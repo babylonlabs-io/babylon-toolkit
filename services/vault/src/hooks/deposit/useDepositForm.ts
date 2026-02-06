@@ -64,7 +64,8 @@ export function useDepositForm(): UseDepositFormResult {
 
   // Get validation functions - pass provider IDs
   const providerIds = useMemo(() => providers.map((p) => p.id), [providers]);
-  const validation = useDepositValidation(btcAddress, providerIds);
+  const { validateAmountWithBalance, validateProviders } =
+    useDepositValidation(btcAddress, providerIds);
 
   // Get UTXOs for balance calculation (already respects inscription preference)
   const { spendableUTXOs } = useUTXOs(btcAddress);
@@ -114,12 +115,9 @@ export function useDepositForm(): UseDepositFormResult {
   // Live amount error — reacts to amount/balance changes automatically
   const liveAmountError = useMemo(() => {
     if (!formData.amountBtc) return undefined;
-    const result = validation.validateAmountWithBalance(
-      formData.amountBtc,
-      btcBalance,
-    );
+    const result = validateAmountWithBalance(formData.amountBtc, btcBalance);
     return result.valid ? undefined : result.error;
-  }, [formData.amountBtc, btcBalance, validation]);
+  }, [formData.amountBtc, btcBalance, validateAmountWithBalance]);
 
   // Merge: manual errors take precedence, live error fills in when no manual error
   const errors = useMemo(() => {
@@ -134,7 +132,7 @@ export function useDepositForm(): UseDepositFormResult {
   const validateForm = useCallback(() => {
     const newErrors: typeof formErrors = {};
 
-    const amountResult = validation.validateAmountWithBalance(
+    const amountResult = validateAmountWithBalance(
       formData.amountBtc,
       btcBalance,
     );
@@ -146,9 +144,7 @@ export function useDepositForm(): UseDepositFormResult {
     if (!formData.selectedProvider) {
       newErrors.provider = "Please select a vault provider";
     } else {
-      const providerResult = validation.validateProviders([
-        formData.selectedProvider,
-      ]);
+      const providerResult = validateProviders([formData.selectedProvider]);
       if (!providerResult.valid) {
         newErrors.provider = providerResult.error;
       }
@@ -156,7 +152,7 @@ export function useDepositForm(): UseDepositFormResult {
 
     setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation, btcBalance]);
+  }, [formData, validateAmountWithBalance, validateProviders, btcBalance]);
 
   // Check if form is valid
   const isValid = useMemo(() => {

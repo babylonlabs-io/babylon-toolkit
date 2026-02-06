@@ -69,7 +69,7 @@ export function useDepositValidation(
 
       try {
         const satoshis = depositService.parseBtcToSatoshis(amount);
-        if (balance > 0n && satoshis > balance) {
+        if (satoshis > balance) {
           return { valid: false, error: "Insufficient funds" };
         }
       } catch {
