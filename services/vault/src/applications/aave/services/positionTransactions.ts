@@ -168,7 +168,13 @@ export async function repayPartial(
     throw new Error("Wallet address not available");
   }
 
-  // Check existing allowance and approve if needed
+  const userBalance = await ERC20.getERC20Balance(tokenAddress, userAddress);
+  if (userBalance < amount) {
+    throw new Error(
+      "insufficient balance to repay: not enough token balance for the requested amount",
+    );
+  }
+
   const currentAllowance = await ERC20.getERC20Allowance(
     tokenAddress,
     userAddress,
