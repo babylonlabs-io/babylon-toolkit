@@ -28,7 +28,7 @@ export function useRepayState({
   const [repayAmount, setRepayAmount] = useState(0);
 
   const maxRepayAmount = useMemo(() => {
-    return Math.floor(Math.max(0, currentDebtAmount) * 100) / 100;
+    return Math.max(0, currentDebtAmount);
   }, [currentDebtAmount]);
 
   // Determine if this is a full repayment (within tolerance for floating point)
