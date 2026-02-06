@@ -15,6 +15,8 @@ interface VaultRedeemState {
   redeemDepositIds: string[];
   btcTxid: string;
   ethTxHash: string;
+  /** Trigger redeem flow for a specific deposit */
+  triggerRedeem: (depositId: string) => void;
   goToStep: (step: VaultRedeemStep) => void;
   setRedeemData: (depositIds: string[]) => void;
   setTransactionHashes: (btcTxid: string, ethTxHash: string) => void;
@@ -27,6 +29,7 @@ const { StateProvider, useState: useVaultRedeemState } =
     redeemDepositIds: [],
     btcTxid: "",
     ethTxHash: "",
+    triggerRedeem: () => {},
     goToStep: () => {},
     setRedeemData: () => {},
     setTransactionHashes: () => {},
@@ -41,6 +44,11 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
 
   const goToStep = useCallback((newStep: VaultRedeemStep) => {
     setStep(newStep);
+  }, []);
+
+  const triggerRedeem = useCallback((depositId: string) => {
+    setRedeemDepositIds([depositId]);
+    setStep(VaultRedeemStep.FORM);
   }, []);
 
   const setRedeemData = useCallback((depositIds: string[]) => {
@@ -65,6 +73,7 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
       redeemDepositIds,
       btcTxid,
       ethTxHash,
+      triggerRedeem,
       goToStep,
       setRedeemData,
       setTransactionHashes,
@@ -75,6 +84,7 @@ export function VaultRedeemState({ children }: PropsWithChildren) {
       redeemDepositIds,
       btcTxid,
       ethTxHash,
+      triggerRedeem,
       goToStep,
       setRedeemData,
       setTransactionHashes,

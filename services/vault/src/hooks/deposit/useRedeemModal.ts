@@ -6,10 +6,13 @@ import {
 } from "../../context/deposit/VaultRedeemState";
 
 /**
- * Hook to manage redeem modal state and actions
+ * Hook to manage redeem modal internal state and actions
  *
  * Provides state and callbacks for the multi-step redeem flow:
  * Form → Review → Sign → Success
+ *
+ * Note: To trigger the redeem flow, use `triggerRedeem` from useVaultRedeemState
+ * instead of this hook. This hook is for internal modal state management.
  */
 export function useRedeemModal(options: { onSuccess: () => void }) {
   const { onSuccess } = options;
@@ -21,15 +24,6 @@ export function useRedeemModal(options: { onSuccess: () => void }) {
     setRedeemData,
     reset: resetRedeem,
   } = useVaultRedeemState();
-
-  // Handle clicking "Redeem" button from table row
-  const handleRedeemClick = useCallback(
-    (depositId: string) => {
-      setRedeemData([depositId]);
-      goToRedeemStep(VaultRedeemStep.FORM);
-    },
-    [setRedeemData, goToRedeemStep],
-  );
 
   // Handle form next (after selecting deposits to redeem)
   const handleFormNext = useCallback(
@@ -59,7 +53,6 @@ export function useRedeemModal(options: { onSuccess: () => void }) {
   return {
     redeemStep,
     redeemDepositIds,
-    handleRedeemClick,
     handleFormNext,
     handleReviewConfirm,
     handleSignSuccess,
