@@ -10,6 +10,7 @@ import { NotificationContainer } from "@/components/shared/NotificationContainer
 import { createQueryClient } from "@/config/queryClient";
 import { vaultWagmiConfig } from "@/config/wagmi";
 import { ErrorProvider } from "@/context/error";
+import { GeoFencingProvider } from "@/context/geofencing";
 import { WalletConnectionProvider } from "@/context/wallet";
 import { AppState } from "@/state/AppState";
 
@@ -34,13 +35,15 @@ function Providers({ children }: React.PropsWithChildren) {
             <div ref={appRootRef} className="min-h-screen">
               <QueryClientProvider client={client}>
                 <ErrorProvider>
-                  <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
-                    <WalletConnectionProvider>
-                      <HealthCheckWrapper>
-                        <AppState>{children}</AppState>
-                      </HealthCheckWrapper>
-                    </WalletConnectionProvider>
-                  </WagmiProvider>
+                  <GeoFencingProvider>
+                    <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
+                      <WalletConnectionProvider>
+                        <HealthCheckWrapper>
+                          <AppState>{children}</AppState>
+                        </HealthCheckWrapper>
+                      </WalletConnectionProvider>
+                    </WagmiProvider>
+                  </GeoFencingProvider>
                 </ErrorProvider>
                 <ReactQueryDevtools
                   buttonPosition="bottom-left"

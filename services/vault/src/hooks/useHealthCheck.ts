@@ -1,17 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { envInitError } from "@/config/env";
 import { wagmiInitError } from "@/config/wagmi";
 import { useError } from "@/context/error";
 import {
+  checkGraphQLEndpoint,
   createEnvConfigError,
   createWagmiInitError,
-  runHealthChecks,
 } from "@/services/health";
 
-export function useHealthCheck() {
+interface UseHealthCheckResult {
+  isLoading: boolean;
+}
+
+/**
+ * Runs health checks on mount (env config, wagmi init, GraphQL availability).
+ * Displays blocking error modals if checks fail.
+ */
+export function useHealthCheck(): UseHealthCheckResult {
   const { handleError } = useError();
   const hasRunRef = useRef(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (hasRunRef.current) return;
@@ -23,6 +32,7 @@ export function useHealthCheck() {
           error: createEnvConfigError(envInitError),
           displayOptions: { blocking: true },
         });
+        setIsLoading(false);
         return;
       }
 
@@ -31,10 +41,11 @@ export function useHealthCheck() {
           error: createWagmiInitError(),
           displayOptions: { blocking: true },
         });
+        setIsLoading(false);
         return;
       }
 
-      const result = await runHealthChecks();
+      const result = await checkGraphQLEndpoint();
 
       if (!result.healthy && result.error) {
         handleError({
@@ -42,8 +53,12 @@ export function useHealthCheck() {
           displayOptions: { blocking: true },
         });
       }
+
+      setIsLoading(false);
     }
 
     check();
   }, [handleError]);
+
+  return { isLoading };
 }

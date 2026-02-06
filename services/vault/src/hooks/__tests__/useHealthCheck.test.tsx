@@ -11,7 +11,7 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
-const mockRunHealthChecks = vi.fn();
+const mockCheckGraphQLEndpoint = vi.fn();
 const mockEnvInitError: string | null = null;
 const mockWagmiInitError: string | null = null;
 
@@ -28,7 +28,8 @@ vi.mock("@/config/wagmi", () => ({
 }));
 
 vi.mock("@/services/health", () => ({
-  runHealthChecks: (...args: unknown[]) => mockRunHealthChecks(...args),
+  checkGraphQLEndpoint: (...args: unknown[]) =>
+    mockCheckGraphQLEndpoint(...args),
   createEnvConfigError: (details: string) => ({
     title: "Configuration Error",
     message: `Missing configuration (${details})`,
@@ -61,7 +62,9 @@ function renderWithProviders(onError: (error: unknown) => void) {
 describe("useHealthCheck", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRunHealthChecks.mockResolvedValue({ healthy: true });
+    mockCheckGraphQLEndpoint.mockResolvedValue({
+      healthy: true,
+    });
   });
 
   afterEach(() => {
@@ -74,14 +77,14 @@ describe("useHealthCheck", () => {
     renderWithProviders(onError);
 
     await waitFor(() => {
-      expect(mockRunHealthChecks).toHaveBeenCalled();
+      expect(mockCheckGraphQLEndpoint).toHaveBeenCalled();
     });
 
     expect(onError).not.toHaveBeenCalled();
   });
 
   it("shows error when GraphQL is unreachable", async () => {
-    mockRunHealthChecks.mockResolvedValueOnce({
+    mockCheckGraphQLEndpoint.mockResolvedValueOnce({
       healthy: false,
       error: {
         title: "Service Unavailable",
@@ -102,7 +105,7 @@ describe("useHealthCheck", () => {
   });
 
   it("shows error when application is paused", async () => {
-    mockRunHealthChecks.mockResolvedValueOnce({
+    mockCheckGraphQLEndpoint.mockResolvedValueOnce({
       healthy: false,
       error: {
         title: "Application Paused",
