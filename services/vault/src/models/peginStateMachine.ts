@@ -61,17 +61,15 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
  * State flow:
- * PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
+ * PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  */
 export enum DaemonStatus {
-  PENDING_GC_DATA = "PendingGCData",
+  PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
-  CLAIM_POSTED = "ClaimPosted",
-  PEGGED_OUT = "PeggedOut",
 }
 
 /**
@@ -79,7 +77,7 @@ export enum DaemonStatus {
  * When vault provider returns these states, frontend should wait/poll.
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
-  DaemonStatus.PENDING_GC_DATA,
+  DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
 
@@ -195,6 +193,9 @@ export function getPeginState(
 
   // Early check: If UTXO is unavailable (spent), show Invalid state
   // This provides immediate feedback before the backend updates the status
+  // Note: Deposits whose txid is detected in broadcastedTxIds are treated as not-unavailable
+  // (spending UTXO is expected after broadcast). If broadcastedTxIds is unavailable or
+  // doesn't contain the txid, the deposit may still be marked unavailable.
   if (utxoUnavailable) {
     return {
       contractStatus,

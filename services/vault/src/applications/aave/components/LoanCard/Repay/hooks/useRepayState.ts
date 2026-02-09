@@ -1,7 +1,7 @@
 /**
  * Repay state management hook
  *
- * Manages repay amount and calculates max repay based on current debt.
+ * Manages repay amount and calculates max repay based on current debt in token units.
  */
 
 import { useMemo, useState } from "react";
@@ -9,7 +9,8 @@ import { useMemo, useState } from "react";
 import { FULL_REPAY_TOLERANCE } from "../../../../constants";
 
 export interface UseRepayStateProps {
-  currentDebtUsd: number;
+  /** Current debt amount for selected reserve in token units */
+  currentDebtAmount: number;
 }
 
 export interface UseRepayStateResult {
@@ -22,13 +23,13 @@ export interface UseRepayStateResult {
 }
 
 export function useRepayState({
-  currentDebtUsd,
+  currentDebtAmount,
 }: UseRepayStateProps): UseRepayStateResult {
   const [repayAmount, setRepayAmount] = useState(0);
 
   const maxRepayAmount = useMemo(() => {
-    return Math.floor(Math.max(0, currentDebtUsd) * 100) / 100;
-  }, [currentDebtUsd]);
+    return Math.max(0, currentDebtAmount);
+  }, [currentDebtAmount]);
 
   // Determine if this is a full repayment (within tolerance for floating point)
   const isFullRepayment = useMemo(() => {

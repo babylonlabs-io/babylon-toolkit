@@ -45,7 +45,8 @@ export function AaveReserveDetail() {
     positionId,
     proxyContract,
     collateralValueUsd,
-    debtValueUsd,
+    currentDebtAmount,
+    totalDebtValueUsd,
     healthFactor,
   } = useAaveReserveDetail({ reserveId, address });
 
@@ -123,7 +124,8 @@ export function AaveReserveDetail() {
   // Build loan context with all data needed by Borrow/Repay components
   const loanContextValue = {
     collateralValueUsd,
-    currentDebtUsd: debtValueUsd,
+    currentDebtAmount,
+    totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,

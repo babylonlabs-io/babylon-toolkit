@@ -5,16 +5,20 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
 
 import { useChainConnector } from "@/hooks/useChainConnector";
+import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
+import type { IETHProvider } from "@/core/types";
 
 export interface ETHWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
   onDisconnect?: () => void | Promise<void>;
+  onAddressChange?: (newAddress: string) => void | Promise<void>;
   onError?: (error: Error, context?: { address?: string }) => void;
 }
 
@@ -41,12 +45,14 @@ export interface ETHWalletProviderProps extends PropsWithChildren {
 export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [address, setAddress] = useState<string>();
+  const [provider, setProvider] = useState<IETHProvider | null>(null);
 
   const { open } = useWalletConnect();
   const ethConnector = useChainConnector("ETH");
 
   const disconnect = useCallback(async () => {
     setAddress(undefined);
+    setProvider(null);
     ethConnector?.disconnect();
 
     try {
@@ -80,8 +86,10 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
       try {
         // First check if connector already has a connected wallet
         if (ethConnector.connectedWallet?.provider && !address) {
-          const addr = await ethConnector.connectedWallet.provider.getAddress();
+          const walletProvider = ethConnector.connectedWallet.provider;
+          const addr = await walletProvider.getAddress();
           if (addr) {
+            setProvider(walletProvider);
             connectETH(addr);
           }
           return;
@@ -116,6 +124,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         try {
           const addr = await wallet.provider.getAddress();
           if (addr) {
+            setProvider(wallet.provider);
             connectETH(addr);
           }
         } catch (error) {
@@ -136,6 +145,134 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 
     return unsubscribe;
   }, [ethConnector, disconnect]);
+
+  // Track previous address to detect changes
+  const prevAddressRef = useRef<string | undefined>(undefined);
+  // Guard against duplicate event processing from provider and window.ethereum
+  const isProcessingChangeRef = useRef(false);
+
+  // Keep the ref in sync with React state
+  useEffect(() => {
+    prevAddressRef.current = address;
+  }, [address]);
+
+  // Listen for ETH account changes on the provider
+  // Using provider state ensures React properly tracks when provider becomes available
+  useEffect(() => {
+    if (!provider) return;
+
+    const onAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
+      const newAddress = accounts[0];
+      const previousAddress = prevAddressRef.current;
+
+      if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Account changed - set guard before async operations
+        isProcessingChangeRef.current = true;
+        prevAddressRef.current = newAddress;
+        setAddress(newAddress);
+        try {
+          await callbacks?.onAddressChange?.(newAddress);
+        } catch (error: any) {
+          callbacks?.onError?.(error, { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
+        }
+      } else if (!newAddress && previousAddress) {
+        // Account disconnected
+        disconnect();
+      }
+    };
+
+    // Subscribe to account changes on the provider
+    if (typeof provider.on === "function") {
+      provider.on("accountsChanged", onAccountsChanged);
+    }
+
+    return () => {
+      if (typeof provider.off === "function") {
+        provider.off("accountsChanged", onAccountsChanged);
+      }
+    };
+  }, [provider, callbacks, disconnect]);
+
+  // Also listen directly to injected provider (window.ethereum) for account changes
+  // This is a fallback for when MetaMask is connected via injected provider
+  // and the AppKit provider events don't propagate correctly
+  useEffect(() => {
+    if (!address) return; // Only listen when connected
+    if (typeof window === "undefined") return;
+
+    const ethereum = (window as any).ethereum;
+    if (!ethereum || typeof ethereum.on !== "function") return;
+
+    const onInjectedAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
+      const newAddress = accounts[0];
+      const previousAddress = prevAddressRef.current;
+
+      // Handle disconnect/lock (empty accounts array)
+      if (!newAddress && previousAddress) {
+        disconnect();
+        return;
+      }
+
+      // Only handle if we're connected and address actually changed
+      if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Set guard before async operations
+        isProcessingChangeRef.current = true;
+        prevAddressRef.current = newAddress;
+        setAddress(newAddress);
+        try {
+          await callbacks?.onAddressChange?.(newAddress);
+        } catch (error: any) {
+          callbacks?.onError?.(error, { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
+        }
+      }
+    };
+
+    ethereum.on("accountsChanged", onInjectedAccountsChanged);
+
+    return () => {
+      if (typeof ethereum.removeListener === "function") {
+        ethereum.removeListener("accountsChanged", onInjectedAccountsChanged);
+      }
+    };
+  }, [address, callbacks]);
+
+  // Check wallet connection when tab becomes visible
+  // This handles the case where user disconnects from extension while tab is in background
+  const checkETHConnection = useCallback(async () => {
+    if (!provider) return;
+
+    try {
+      const currentAddress = await provider.getAddress();
+
+      if (!currentAddress) {
+        // Wallet is disconnected
+        disconnect();
+      } else if (currentAddress.toLowerCase() !== address?.toLowerCase()) {
+        // Account changed while tab was in background
+        prevAddressRef.current = currentAddress;
+        setAddress(currentAddress);
+        await callbacks?.onAddressChange?.(currentAddress);
+      }
+    } catch (error) {
+      // Connection check failed - wallet likely disconnected
+      console.error("ETH wallet connection check failed:", error);
+      disconnect();
+    }
+  }, [provider, address, callbacks, disconnect]);
+
+  useVisibilityCheck(checkETHConnection, {
+    enabled: Boolean(provider && address),
+  });
 
   const connected = useMemo(
     () => Boolean(address),

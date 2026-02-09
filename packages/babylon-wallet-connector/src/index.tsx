@@ -8,6 +8,7 @@ export type { WalletConfigOptions } from "@/utils/configBuilder";
 export * from "@/providers";
 
 export { useChainConnector } from "@/hooks/useChainConnector";
+export { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
 export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";
@@ -40,3 +41,38 @@ export {
     getSharedBtcAppKitConfig,
     hasSharedBtcAppKitConfig,
 } from "@/core/wallets/btc/appkit/sharedConfig";
+
+// Export UTXO filtering utilities
+export {
+    filterDust,
+    filterInscriptionUtxos,
+    getSpendableUtxos,
+    createInscriptionMap,
+    isInscriptionUtxo,
+    LOW_VALUE_UTXO_THRESHOLD,
+    type FilteredUtxos,
+} from "@/utils/utxoFiltering";
+
+// Export ordinals API and hook utilities
+export {
+    verifyUtxoOrdinals,
+    toInscriptionIdentifiers,
+    type UtxoOrdinalInfo,
+} from "@/api/ordinals";
+
+export {
+    fetchOrdinals,
+    getOrdinalsQueryKey,
+    ORDINALS_QUERY_KEY,
+    type FetchOrdinalsOptions,
+} from "@/hooks/useOrdinals";
+
+// Export React hooks for ordinals
+export {
+    useOrdinals,
+    type UseOrdinalsOptions,
+    type UseOrdinalsResult,
+} from "@/hooks/useOrdinalsHook";
+
+// Export wallet event constants
+export { COSMOS_KEYSTORE_CHANGE_EVENTS } from "@/constants/walletEvents";

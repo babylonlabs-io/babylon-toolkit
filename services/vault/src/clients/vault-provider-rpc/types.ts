@@ -105,16 +105,53 @@ export interface RequestDepositorPresignTransactionsResponse {
 }
 
 /**
+ * Progress tracking for challenger-based operations
+ * Used across multiple pegin states (GC data, presigning, ACK collection)
+ */
+export interface ChallengerProgress {
+  /** Total number of challengers */
+  total_challengers: number;
+  /** Number of challengers that have completed */
+  completed_challengers: number;
+  /** Public keys of completed challengers */
+  completed_challenger_pubkeys: string[];
+  /** Public keys of pending challengers */
+  pending_challenger_pubkeys: string[];
+}
+
+/** GC data progress (PendingBabeSetup state) */
+export type GcDataProgress = ChallengerProgress;
+/** Presigning progress (PendingChallengerPresigning state) */
+export type PresigningProgress = ChallengerProgress;
+/** ACK collection progress (PendingACKs state) */
+export type AckCollectionProgress = ChallengerProgress;
+
+/**
+ * Detailed progress information for a PegIn
+ * Contains state-specific progress details
+ */
+export interface PeginProgressDetails {
+  /** GC data progress (only present in PendingBabeSetup state) */
+  gc_data?: GcDataProgress;
+  /** Presigning progress (only present in PendingChallengerPresigning state) */
+  presigning?: PresigningProgress;
+  /** ACK collection progress (present in PendingACKs state) */
+  ack_collection?: AckCollectionProgress;
+}
+
+/**
  * Response for getting PegIn status
  * Corresponds to: GetPeginStatusResponse
  */
 export interface GetPeginStatusResponse {
   /**
    * The current status of the PegIn in vault provider's database
-   * State flow: PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures
-   *             -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
+   * State flow: PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures
+   *             -> PendingACKs -> PendingActivation -> Activated
    */
   status: string;
+  /** Detailed progress information for the current state (may be absent in some states) */
+  progress?: PeginProgressDetails;
 }
 
 // ============================================================================

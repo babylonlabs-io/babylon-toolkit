@@ -6,11 +6,7 @@ import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  ContractStatus,
-  LocalStorageStatus,
-} from "../../../models/peginStateMachine";
-import type { PendingPeginRequest } from "../../../storage/peginStorage";
+import { ContractStatus } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import { useUtxoValidation } from "../useUtxoValidation";
 
@@ -61,18 +57,6 @@ function createActivity(
   } as VaultActivity;
 }
 
-// Helper to create a mock pending pegin
-function createPendingPegin(
-  id: string,
-  status?: LocalStorageStatus,
-): PendingPeginRequest {
-  return {
-    id,
-    timestamp: Date.now(),
-    status,
-  } as PendingPeginRequest;
-}
-
 // Helper to create mock UTXOs
 function createUtxo(txid: string, vout: number): MempoolUTXO {
   return {
@@ -101,7 +85,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: undefined, // Loading state
         }),
@@ -123,7 +106,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: undefined,
           availableUtxos: [],
         }),
@@ -145,7 +127,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // Empty but loaded - should validate
         }),
@@ -188,7 +169,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // No UTXOs available
         }),
@@ -201,38 +181,39 @@ describe("useUtxoValidation", () => {
       expect(result.current.unavailableUtxos.has("redeemed")).toBe(false);
     });
 
-    it("should skip VERIFIED deposits that are already CONFIRMING", () => {
+    it("should not mark as unavailable if tx is in broadcastedTxIds", () => {
       const activities = [
         createActivity(
-          "confirming",
+          "0xbroadcasted123",
           ContractStatus.VERIFIED,
           TEST_BTC_PUBKEY,
           VALID_TX_HEX,
         ),
         createActivity(
-          "not-confirming",
+          "0xnotbroadcasted",
           ContractStatus.VERIFIED,
           TEST_BTC_PUBKEY,
           VALID_TX_HEX,
         ),
-      ];
-
-      const pendingPegins = [
-        createPendingPegin("confirming", LocalStorageStatus.CONFIRMING),
       ];
 
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins,
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // No UTXOs available
+          broadcastedTxIds: new Set(["broadcasted123"]), // Without 0x prefix
         }),
       );
 
-      // CONFIRMING should be skipped, only not-confirming should be checked
-      expect(result.current.unavailableUtxos.has("confirming")).toBe(false);
-      expect(result.current.unavailableUtxos.has("not-confirming")).toBe(true);
+      // Broadcasted tx should NOT be marked unavailable (it's confirming)
+      expect(result.current.unavailableUtxos.has("0xbroadcasted123")).toBe(
+        false,
+      );
+      // Non-broadcasted should be marked unavailable (truly invalid)
+      expect(result.current.unavailableUtxos.has("0xnotbroadcasted")).toBe(
+        true,
+      );
     });
 
     it("should only check deposits owned by current wallet", () => {
@@ -254,7 +235,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // No UTXOs available
         }),
@@ -284,7 +264,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // No UTXOs available
         }),
@@ -318,7 +297,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos,
         }),
@@ -343,7 +321,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos,
         }),
@@ -373,7 +350,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos,
         }),
@@ -403,7 +379,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [], // No UTXOs
         }),
@@ -428,7 +403,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities: [],
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [],
         }),
@@ -450,7 +424,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos: [],
         }),
@@ -480,7 +453,6 @@ describe("useUtxoValidation", () => {
       const { result } = renderHook(() =>
         useUtxoValidation({
           activities,
-          pendingPegins: [],
           btcPublicKey: TEST_BTC_PUBKEY,
           availableUtxos,
         }),

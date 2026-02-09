@@ -56,7 +56,7 @@ the managers module instead (PeginManager and PayoutManager).
 
 ## See
 
-[Primitives Guide](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/primitives.md)
+[Primitives Quickstart](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/primitives.md)
 
 ## Interfaces
 

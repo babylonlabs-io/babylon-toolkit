@@ -43,17 +43,95 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("wagmi/actions", () => ({
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
-  waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
 }));
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: vi.fn(() => ({
+      getTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
+    })),
+  },
+}));
+
+vi.mock("@/utils/errors", () => ({
+  mapViemErrorToContractError: vi.fn(),
+  ContractError: class ContractError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "ContractError";
+    }
+  },
+}));
+
+vi.mock(
+  "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json",
+  () => ({ default: [] }),
+);
 
 vi.mock("@/hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
+    allUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
     confirmedUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
+    availableUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
       { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
     ],
+    inscriptionUTXOs: [],
+    spendableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
+    spendableMempoolUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
     isLoading: false,
+    isLoadingOrdinals: false,
     error: null,
+    ordinalsError: null,
+    refetch: vi.fn(),
   })),
 }));
 
@@ -439,16 +517,12 @@ describe("useDepositFlow - Chain Switching", () => {
 
   describe("Integration with deposit flow", () => {
     it("should complete full deposit flow after successful chain switch", async () => {
-      const { getWalletClient, switchChain, waitForTransactionReceipt } =
-        await import("wagmi/actions");
+      const { getWalletClient, switchChain } = await import("wagmi/actions");
 
       vi.mocked(switchChain).mockResolvedValue({ id: 11155111 } as any);
       vi.mocked(getWalletClient).mockResolvedValue({
         account: { address: "0xEthAddress123" },
         chain: { id: 11155111 },
-      } as any);
-      vi.mocked(waitForTransactionReceipt).mockResolvedValue({
-        status: "success",
       } as any);
 
       const { result } = renderHook(() => useDepositFlow(mockParams));

@@ -61,13 +61,13 @@ export async function checkPeginStatus(
   });
 
   // Parse the status string into DaemonStatus enum
-  // State flow: PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
+  // State flow: PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
   const rawStatus = response.status;
   let status: DaemonStatus;
 
   switch (rawStatus) {
-    case "PendingGCData":
-      status = DaemonStatus.PENDING_GC_DATA;
+    case "PendingBabeSetup":
+      status = DaemonStatus.PENDING_BABE_SETUP;
       break;
     case "PendingChallengerPresigning":
       status = DaemonStatus.PENDING_CHALLENGER_PRESIGNING;
@@ -83,12 +83,6 @@ export async function checkPeginStatus(
       break;
     case "Activated":
       status = DaemonStatus.ACTIVATED;
-      break;
-    case "ClaimPosted":
-      status = DaemonStatus.CLAIM_POSTED;
-      break;
-    case "PeggedOut":
-      status = DaemonStatus.PEGGED_OUT;
       break;
     default:
       throw new Error(`Unknown daemon status: ${rawStatus}`);

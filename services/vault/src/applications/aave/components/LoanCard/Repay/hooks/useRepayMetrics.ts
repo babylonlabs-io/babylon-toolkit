@@ -13,11 +13,12 @@ import {
 } from "../../../../utils";
 
 export interface UseRepayMetricsProps {
+  /** Amount to repay in token units */
   repayAmount: number;
   /** Collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
-  /** Current debt in USD (from Aave oracle) */
-  currentDebtUsd: number;
+  /** Total debt value in USD across all reserves (from Aave oracle) */
+  totalDebtValueUsd: number;
   /** vBTC liquidation threshold in BPS (e.g., 8000 = 80%) */
   liquidationThresholdBps: number;
   /** Current health factor (null if no debt) */
@@ -41,7 +42,7 @@ export interface UseRepayMetricsResult {
 export function useRepayMetrics({
   repayAmount,
   collateralValueUsd,
-  currentDebtUsd,
+  totalDebtValueUsd,
   liquidationThresholdBps,
   currentHealthFactor,
 }: UseRepayMetricsProps): UseRepayMetricsResult {
@@ -49,7 +50,7 @@ export function useRepayMetrics({
   if (repayAmount === 0) {
     const healthValue = currentHealthFactor ?? Infinity;
     return {
-      borrowRatio: calculateBorrowRatio(currentDebtUsd, collateralValueUsd),
+      borrowRatio: calculateBorrowRatio(totalDebtValueUsd, collateralValueUsd),
       borrowRatioOriginal: undefined,
       healthFactor: formatHealthFactor(currentHealthFactor),
       healthFactorValue: healthValue,
@@ -57,15 +58,14 @@ export function useRepayMetrics({
     };
   }
 
-  // Calculate projected values after repay (debt decreases)
-  const totalDebtUsd = Math.max(0, currentDebtUsd - repayAmount);
+  const projectedTotalDebtUsd = Math.max(0, totalDebtValueUsd - repayAmount);
+  const isFullRepayment = projectedTotalDebtUsd < 0.01;
 
-  // If fully repaying, health factor becomes null (no debt)
   const healthFactorValue =
-    totalDebtUsd > 0
+    projectedTotalDebtUsd > 0
       ? calculateHealthFactor(
           collateralValueUsd,
-          totalDebtUsd,
+          projectedTotalDebtUsd,
           liquidationThresholdBps,
         )
       : Infinity;
@@ -73,9 +73,12 @@ export function useRepayMetrics({
   const originalHealthValue = currentHealthFactor ?? Infinity;
 
   return {
-    borrowRatio: calculateBorrowRatio(totalDebtUsd, collateralValueUsd),
+    borrowRatio: calculateBorrowRatio(
+      projectedTotalDebtUsd,
+      collateralValueUsd,
+    ),
     borrowRatioOriginal: calculateBorrowRatio(
-      currentDebtUsd,
+      totalDebtValueUsd,
       collateralValueUsd,
     ),
     healthFactor:
@@ -83,7 +86,11 @@ export function useRepayMetrics({
         ? "-"
         : formatHealthFactor(healthFactorValue),
     healthFactorValue,
-    healthFactorOriginal: formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: originalHealthValue,
+    healthFactorOriginal: isFullRepayment
+      ? undefined
+      : formatHealthFactor(currentHealthFactor),
+    healthFactorOriginalValue: isFullRepayment
+      ? undefined
+      : originalHealthValue,
   };
 }

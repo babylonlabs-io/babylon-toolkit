@@ -38,21 +38,14 @@ export function useDepositValidation(
 
   const { minDeposit } = useProtocolParamsContext();
 
-  // Get UTXOs for validation
-  const { confirmedUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
+  // Get UTXOs for validation (already filtered based on inscription preference)
+  const { spendableUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
 
   // Validate amount using on-chain minDeposit
   const validateAmount = useCallback(
     (amount: string): ValidationResult => {
-      try {
-        const satoshis = depositService.parseBtcToSatoshis(amount);
-        return depositService.validateDepositAmount(satoshis, minDeposit);
-      } catch {
-        return {
-          valid: false,
-          error: "Invalid amount format",
-        };
-      }
+      const satoshis = depositService.parseBtcToSatoshis(amount);
+      return depositService.validateDepositAmount(satoshis, minDeposit);
     },
     [minDeposit],
   );
@@ -83,17 +76,17 @@ export function useDepositValidation(
         const providerValidation = validateProviders(data.selectedProviders);
         if (!providerValidation.valid) return providerValidation;
 
-        // Validate UTXOs if available
-        if (confirmedUTXOs && confirmedUTXOs.length > 0) {
+        // Validate UTXOs if available (already respects inscription preference)
+        if (spendableUTXOs && spendableUTXOs.length > 0) {
           const utxoValidation = depositService.validateUTXOs(
-            confirmedUTXOs,
+            spendableUTXOs,
             amount,
           );
 
           if (!utxoValidation.valid) return utxoValidation;
 
           // Check balance (exact fee validation happens in review modal via SDK)
-          const totalBalance = confirmedUTXOs.reduce(
+          const totalBalance = spendableUTXOs.reduce(
             (sum, utxo) => sum + BigInt(utxo.value),
             0n,
           );
@@ -132,7 +125,7 @@ export function useDepositValidation(
         };
       }
     },
-    [validateAmount, validateProviders, confirmedUTXOs],
+    [validateAmount, validateProviders, spendableUTXOs],
   );
 
   return {
