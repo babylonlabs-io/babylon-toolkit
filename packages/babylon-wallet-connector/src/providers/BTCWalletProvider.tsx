@@ -9,7 +9,9 @@ import {
 } from "react";
 import type { networks } from "bitcoinjs-lib";
 
+import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
 import { useChainConnector } from "@/hooks/useChainConnector";
+import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
 
@@ -208,66 +210,56 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     // Add listeners if provider supports events
     // Different wallets use different event names
     if (typeof btcWalletProvider.on === "function") {
-      btcWalletProvider.on("accountsChanged", onAccountsChanged);
-      btcWalletProvider.on("accountChanged", onAccountsChanged);
-      btcWalletProvider.on("disconnect", onDisconnect);
+      ACCOUNT_CHANGE_EVENTS.forEach((event) => {
+        btcWalletProvider.on(event, onAccountsChanged);
+      });
+      btcWalletProvider.on(DISCONNECT_EVENT, onDisconnect);
     }
 
     return () => {
       if (typeof btcWalletProvider.off === "function") {
-        btcWalletProvider.off("accountsChanged", onAccountsChanged);
-        btcWalletProvider.off("accountChanged", onAccountsChanged);
-        btcWalletProvider.off("disconnect", onDisconnect);
+        ACCOUNT_CHANGE_EVENTS.forEach((event) => {
+          btcWalletProvider.off(event, onAccountsChanged);
+        });
+        btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
       }
     };
   }, [btcWalletProvider, address, callbacks, disconnect]);
 
   // Check wallet connection when tab becomes visible
   // This handles the case where user disconnects from extension while tab is in background
-  useEffect(() => {
-    if (!btcWalletProvider || !address) return;
-    if (typeof window === "undefined" || typeof document === "undefined") return;
+  const checkBTCConnection = useCallback(async () => {
+    if (!btcWalletProvider) return;
 
-    const checkConnection = async () => {
-      try {
-        // Try to get the current accounts from the wallet
-        // If disconnected, this will fail or return empty
-        await btcWalletProvider.connectWallet();
-        const currentAddress = await btcWalletProvider.getAddress();
+    try {
+      // Try to get the current accounts from the wallet
+      // If disconnected, this will fail or return empty
+      await btcWalletProvider.connectWallet();
+      const currentAddress = await btcWalletProvider.getAddress();
 
-        if (!currentAddress) {
-          // Wallet is disconnected
-          disconnect();
-        } else if (currentAddress !== address) {
-          // Account changed while tab was in background
-          const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
-          if (pubKeyHex) {
-            const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
-            setAddress(currentAddress);
-            setPublicKeyNoCoord(pubKeyNoCoord);
-            await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
-          }
-        }
-      } catch (error) {
-        // Connection check failed - wallet likely disconnected
-        console.error("BTC wallet connection check failed:", error);
+      if (!currentAddress) {
+        // Wallet is disconnected
         disconnect();
+      } else if (currentAddress !== address) {
+        // Account changed while tab was in background
+        const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
+        if (pubKeyHex) {
+          const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
+          setAddress(currentAddress);
+          setPublicKeyNoCoord(pubKeyNoCoord);
+          await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
+        }
       }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Small delay to let the wallet extension initialize
-        setTimeout(checkConnection, 500);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    } catch (error) {
+      // Connection check failed - wallet likely disconnected
+      console.error("BTC wallet connection check failed:", error);
+      disconnect();
+    }
   }, [btcWalletProvider, address, callbacks, disconnect]);
+
+  useVisibilityCheck(checkBTCConnection, {
+    enabled: Boolean(btcWalletProvider && address),
+  });
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),

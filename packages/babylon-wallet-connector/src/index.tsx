@@ -8,6 +8,7 @@ export type { WalletConfigOptions } from "@/utils/configBuilder";
 export * from "@/providers";
 
 export { useChainConnector } from "@/hooks/useChainConnector";
+export { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
 export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";

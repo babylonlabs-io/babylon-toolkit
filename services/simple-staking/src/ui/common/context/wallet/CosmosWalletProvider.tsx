@@ -1,6 +1,7 @@
 import {
   IBBNProvider,
   useChainConnector,
+  useVisibilityCheck,
   useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 import { OfflineSigner } from "@cosmjs/proto-signing";
@@ -236,44 +237,28 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
   ]);
 
   // Check wallet connection when tab becomes visible
-  useEffect(() => {
-    if (!BBNWalletProvider || !cosmosBech32Address) return;
-    if (typeof window === "undefined" || typeof document === "undefined")
-      return;
+  const checkCosmosConnection = useCallback(async () => {
+    if (!BBNWalletProvider) return;
 
-    const checkConnection = async () => {
-      try {
-        await BBNWalletProvider.connectWallet();
-        const currentAddress = await BBNWalletProvider.getAddress();
+    try {
+      await BBNWalletProvider.connectWallet();
+      const currentAddress = await BBNWalletProvider.getAddress();
 
-        if (!currentAddress) {
-          cosmosDisconnect();
-        } else if (currentAddress !== cosmosBech32Address) {
-          // Account changed while tab was in background
-          connectCosmos(BBNWalletProvider);
-        }
-      } catch (error: any) {
-        // Connection check failed - wallet likely disconnected
-        logger.error(
-          error instanceof Error
-            ? error
-            : new Error("Cosmos wallet connection check failed"),
-        );
+      if (!currentAddress) {
         cosmosDisconnect();
+      } else if (currentAddress !== cosmosBech32Address) {
+        // Account changed while tab was in background
+        connectCosmos(BBNWalletProvider);
       }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        setTimeout(checkConnection, 500);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    } catch (error: unknown) {
+      // Connection check failed - wallet likely disconnected
+      logger.error(
+        error instanceof Error
+          ? error
+          : new Error("Cosmos wallet connection check failed"),
+      );
+      cosmosDisconnect();
+    }
   }, [
     BBNWalletProvider,
     cosmosBech32Address,
@@ -281,6 +266,10 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
     connectCosmos,
     logger,
   ]);
+
+  useVisibilityCheck(checkCosmosConnection, {
+    enabled: Boolean(BBNWalletProvider && cosmosBech32Address),
+  });
 
   const cosmosContextValue = useMemo(
     () => ({

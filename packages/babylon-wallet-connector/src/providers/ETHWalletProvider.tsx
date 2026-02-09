@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { useChainConnector } from "@/hooks/useChainConnector";
+import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import type { IETHProvider } from "@/core/types";
 
@@ -226,43 +227,31 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 
   // Check wallet connection when tab becomes visible
   // This handles the case where user disconnects from extension while tab is in background
-  useEffect(() => {
-    if (!provider || !address) return;
-    if (typeof window === "undefined" || typeof document === "undefined") return;
+  const checkETHConnection = useCallback(async () => {
+    if (!provider) return;
 
-    const checkConnection = async () => {
-      try {
-        const currentAddress = await provider.getAddress();
+    try {
+      const currentAddress = await provider.getAddress();
 
-        if (!currentAddress) {
-          // Wallet is disconnected
-          disconnect();
-        } else if (currentAddress.toLowerCase() !== address.toLowerCase()) {
-          // Account changed while tab was in background
-          prevAddressRef.current = currentAddress;
-          setAddress(currentAddress);
-          await callbacks?.onAddressChange?.(currentAddress);
-        }
-      } catch (error) {
-        // Connection check failed - wallet likely disconnected
-        console.error("ETH wallet connection check failed:", error);
+      if (!currentAddress) {
+        // Wallet is disconnected
         disconnect();
+      } else if (currentAddress.toLowerCase() !== address?.toLowerCase()) {
+        // Account changed while tab was in background
+        prevAddressRef.current = currentAddress;
+        setAddress(currentAddress);
+        await callbacks?.onAddressChange?.(currentAddress);
       }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Small delay to let the wallet extension initialize
-        setTimeout(checkConnection, 500);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    } catch (error) {
+      // Connection check failed - wallet likely disconnected
+      console.error("ETH wallet connection check failed:", error);
+      disconnect();
+    }
   }, [provider, address, callbacks, disconnect]);
+
+  useVisibilityCheck(checkETHConnection, {
+    enabled: Boolean(provider && address),
+  });
 
   const connected = useMemo(
     () => Boolean(address),

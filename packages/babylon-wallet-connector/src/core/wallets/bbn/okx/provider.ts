@@ -1,6 +1,7 @@
 import { OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types/src/cosmjs";
 import { Buffer } from "buffer";
 
+import { isAccountChangeEvent } from "@/constants/walletEvents";
 import { BBNConfig, IBBNProvider, WalletInfo } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -198,8 +199,8 @@ export class OKXBabylonProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    if (eventName === "accountChanged") {
-      // currently the event is not implemented
+    // OKX uses window event "okx_keystorechange" for account changes (currently not implemented by OKX)
+    if (isAccountChangeEvent(eventName)) {
       window.addEventListener("okx_keystorechange", callBack);
     }
   };
@@ -211,8 +212,8 @@ export class OKXBabylonProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    if (eventName === "accountChanged") {
-      // currently the event is not implemented
+    // OKX uses window event "okx_keystorechange" for account changes (currently not implemented by OKX)
+    if (isAccountChangeEvent(eventName)) {
       window.removeEventListener("okx_keystorechange", callBack);
     }
   };

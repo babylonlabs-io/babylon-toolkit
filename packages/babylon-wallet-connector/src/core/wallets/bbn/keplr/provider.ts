@@ -2,6 +2,7 @@ import { Window as KeplrWindow } from "@keplr-wallet/types";
 import { OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types/src/cosmjs";
 import { Buffer } from "buffer";
 
+import { isAccountChangeEvent } from "@/constants/walletEvents";
 import { BBNConfig, IBBNProvider, WalletInfo } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -180,7 +181,8 @@ export class KeplrProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    if (eventName === "accountChanged") {
+    // Keplr uses window event "keplr_keystorechange" for account changes
+    if (isAccountChangeEvent(eventName)) {
       window.addEventListener("keplr_keystorechange", callBack);
     }
   };
@@ -192,7 +194,8 @@ export class KeplrProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    if (eventName === "accountChanged") {
+    // Keplr uses window event "keplr_keystorechange" for account changes
+    if (isAccountChangeEvent(eventName)) {
       window.removeEventListener("keplr_keystorechange", callBack);
     }
   };
