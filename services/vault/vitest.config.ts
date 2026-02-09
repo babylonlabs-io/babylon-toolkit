@@ -22,7 +22,12 @@ export default defineConfig({
       NEXT_PUBLIC_BTC_NETWORK: "signet",
       NEXT_PUBLIC_ETH_CHAINID: "11155111", // Sepolia
     },
-    exclude: ["**/node_modules/**", "**/dist/**", "**/integration.test.tsx", "**/e2e/**"],
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/integration.test.tsx",
+      "**/e2e/**",
+    ],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

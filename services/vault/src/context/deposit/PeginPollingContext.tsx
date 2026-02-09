@@ -66,18 +66,22 @@ export function PeginPollingProvider({
     vaultProviders,
   });
 
-  // Fetch UTXOs using React Query (cached with 30s staleTime)
-  const { allUTXOs, isLoading: isLoadingUtxos } = useUTXOs(btcAddress);
+  // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)
+  const {
+    allUTXOs,
+    broadcastedTxIds,
+    isLoading: isLoadingUtxos,
+  } = useUTXOs(btcAddress);
 
   // Validate UTXOs for pending broadcast deposits
-  // Pass undefined while loading or when btcAddress is missing to avoid false positives
-  // (empty array would incorrectly mark all deposits as unavailable)
+  // Pass undefined while loading to avoid false positives
+  // broadcastedTxIds is used to detect if UTXOs were spent by vault's own tx (confirming vs invalid)
   const hasUtxoData = !!btcAddress && !isLoadingUtxos;
   const { unavailableUtxos } = useUtxoValidation({
     activities,
-    pendingPegins,
     btcPublicKey,
     availableUtxos: hasUtxoData ? allUTXOs : undefined,
+    broadcastedTxIds: hasUtxoData ? broadcastedTxIds : undefined,
   });
 
   // Optimistic status handlers
@@ -111,9 +115,26 @@ export function PeginPollingProvider({
 
       // Use optimistic status if available, otherwise use localStorage status
       const optimisticStatus = optimisticStatuses.get(depositId);
-      const localStatus = (optimisticStatus ?? pendingPegin?.status) as
+      let localStatus = (optimisticStatus ?? pendingPegin?.status) as
         | LocalStorageStatus
         | undefined;
+
+      // Auto-detect CONFIRMING state from blockchain data
+      // If contract is VERIFIED and the tx is already broadcast to Bitcoin,
+      // treat as CONFIRMING even if localStorage doesn't have this status.
+      // This handles cases where localStorage was lost or tx was broadcast externally.
+      if (
+        hasUtxoData &&
+        contractStatus === ContractStatus.VERIFIED &&
+        localStatus !== LocalStorageStatus.CONFIRMING
+      ) {
+        const txid = depositId.startsWith("0x")
+          ? depositId.slice(2)
+          : depositId;
+        if (broadcastedTxIds.has(txid)) {
+          localStatus = LocalStorageStatus.CONFIRMING;
+        }
+      }
 
       const transactions = data?.get(depositId) ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
@@ -156,6 +177,8 @@ export function PeginPollingProvider({
       optimisticStatuses,
       btcPublicKey,
       unavailableUtxos,
+      hasUtxoData,
+      broadcastedTxIds,
     ],
   );
 
