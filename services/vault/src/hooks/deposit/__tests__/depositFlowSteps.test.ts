@@ -17,8 +17,30 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("wagmi/actions", () => ({
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
-  waitForTransactionReceipt: vi.fn(),
 }));
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: vi.fn(() => ({
+      getTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
+    })),
+  },
+}));
+
+vi.mock("@/utils/errors", () => ({
+  mapViemErrorToContractError: vi.fn(),
+  ContractError: class ContractError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "ContractError";
+    }
+  },
+}));
+
+vi.mock(
+  "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json",
+  () => ({ default: [] }),
+);
 
 vi.mock("@/services/deposit", () => ({
   depositService: {

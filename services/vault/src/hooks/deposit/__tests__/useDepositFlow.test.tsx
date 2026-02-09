@@ -43,8 +43,30 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("wagmi/actions", () => ({
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
-  waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
 }));
+
+vi.mock("@/clients/eth-contract/client", () => ({
+  ethClient: {
+    getPublicClient: vi.fn(() => ({
+      getTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
+    })),
+  },
+}));
+
+vi.mock("@/utils/errors", () => ({
+  mapViemErrorToContractError: vi.fn(),
+  ContractError: class ContractError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "ContractError";
+    }
+  },
+}));
+
+vi.mock(
+  "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json",
+  () => ({ default: [] }),
+);
 
 vi.mock("@/hooks/useUTXOs", () => ({
   useUTXOs: vi.fn(() => ({
@@ -495,16 +517,12 @@ describe("useDepositFlow - Chain Switching", () => {
 
   describe("Integration with deposit flow", () => {
     it("should complete full deposit flow after successful chain switch", async () => {
-      const { getWalletClient, switchChain, waitForTransactionReceipt } =
-        await import("wagmi/actions");
+      const { getWalletClient, switchChain } = await import("wagmi/actions");
 
       vi.mocked(switchChain).mockResolvedValue({ id: 11155111 } as any);
       vi.mocked(getWalletClient).mockResolvedValue({
         account: { address: "0xEthAddress123" },
         chain: { id: 11155111 },
-      } as any);
-      vi.mocked(waitForTransactionReceipt).mockResolvedValue({
-        status: "success",
       } as any);
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
