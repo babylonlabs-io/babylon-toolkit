@@ -105,10 +105,10 @@ export interface RequestDepositorPresignTransactionsResponse {
 }
 
 /**
- * GC data progress tracking
- * Present only in PendingBabeSetup state
+ * Progress tracking for challenger-based operations
+ * Used across multiple pegin states (GC data, presigning, ACK collection)
  */
-export interface GcDataProgress {
+export interface ChallengerProgress {
   /** Total number of challengers */
   total_challengers: number;
   /** Number of challengers that have completed */
@@ -119,35 +119,12 @@ export interface GcDataProgress {
   pending_challenger_pubkeys: string[];
 }
 
-/**
- * Presigning progress tracking
- * Present only in PendingChallengerPresigning state
- */
-export interface PresigningProgress {
-  /** Total number of challengers */
-  total_challengers: number;
-  /** Number of challengers that have completed */
-  completed_challengers: number;
-  /** Public keys of completed challengers */
-  completed_challenger_pubkeys: string[];
-  /** Public keys of pending challengers */
-  pending_challenger_pubkeys: string[];
-}
-
-/**
- * ACK collection progress tracking
- * Present in PendingACKs state
- */
-export interface AckCollectionProgress {
-  /** Total number of challengers */
-  total_challengers: number;
-  /** Number of challengers that have completed */
-  completed_challengers: number;
-  /** Public keys of completed challengers */
-  completed_challenger_pubkeys: string[];
-  /** Public keys of pending challengers */
-  pending_challenger_pubkeys: string[];
-}
+/** GC data progress (PendingBabeSetup state) */
+export type GcDataProgress = ChallengerProgress;
+/** Presigning progress (PendingChallengerPresigning state) */
+export type PresigningProgress = ChallengerProgress;
+/** ACK collection progress (PendingACKs state) */
+export type AckCollectionProgress = ChallengerProgress;
 
 /**
  * Detailed progress information for a PegIn
@@ -173,8 +150,8 @@ export interface GetPeginStatusResponse {
    *             -> PendingACKs -> PendingActivation -> Activated
    */
   status: string;
-  /** Detailed progress information for the current state */
-  progress: PeginProgressDetails;
+  /** Detailed progress information for the current state (may be absent in some states) */
+  progress?: PeginProgressDetails;
 }
 
 // ============================================================================
