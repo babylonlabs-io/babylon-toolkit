@@ -12,6 +12,7 @@ const FULL_REPAY_BUFFER_BPS = 10000n;
 const {
   mockApproveERC20,
   mockGetERC20Allowance,
+  mockGetERC20Balance,
   mockGetReserveById,
   mockGetVbtcReserveId,
   mockGetUserTotalDebt,
@@ -25,6 +26,7 @@ const {
 } = vi.hoisted(() => ({
   mockApproveERC20: vi.fn(),
   mockGetERC20Allowance: vi.fn(),
+  mockGetERC20Balance: vi.fn(),
   mockGetReserveById: vi.fn(),
   mockGetVbtcReserveId: vi.fn(),
   mockGetUserTotalDebt: vi.fn(),
@@ -42,6 +44,7 @@ vi.mock("../../../../clients/eth-contract", () => ({
   ERC20: {
     approveERC20: mockApproveERC20,
     getERC20Allowance: mockGetERC20Allowance,
+    getERC20Balance: mockGetERC20Balance,
   },
 }));
 
@@ -323,9 +326,13 @@ describe("positionTransactions", () => {
   // repayFull - Token Approval Security
   // ============================================================================
   describe("repayFull", () => {
+    const defaultDebt = 1000000n;
+    const amountToRepay = defaultDebt + defaultDebt / FULL_REPAY_BUFFER_BPS;
+
     beforeEach(() => {
-      mockGetUserTotalDebt.mockResolvedValue(1000000n);
+      mockGetUserTotalDebt.mockResolvedValue(defaultDebt);
       mockGetERC20Allowance.mockResolvedValue(0n);
+      mockGetERC20Balance.mockResolvedValue(amountToRepay + 1000n);
     });
 
     it("should approve exact debt amount plus buffer (not MAX_UINT256)", async () => {
@@ -407,6 +414,25 @@ describe("positionTransactions", () => {
           "0xproxy" as any,
         ),
       ).rejects.toThrow("No debt to repay");
+    });
+
+    it("should throw error when user balance is insufficient to cover debt plus buffer", async () => {
+      mockGetERC20Balance.mockResolvedValue(amountToRepay - 1n);
+
+      await expect(
+        repayFull(
+          mockWalletClient,
+          mockChain,
+          "0xcontroller" as any,
+          "0xposition" as any,
+          1n,
+          "0xtoken" as any,
+          "0xspoke" as any,
+          "0xproxy" as any,
+        ),
+      ).rejects.toThrow(
+        "insufficient balance to fully repay: not enough stablecoin to cover the debt plus interest",
+      );
     });
 
     it("should throw error when wallet has no account", async () => {
