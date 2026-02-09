@@ -108,7 +108,7 @@ describe("GeoFencingProvider", () => {
     expect(onGeoBlocked).toHaveBeenCalledWith(false);
   });
 
-  it("shows blocking error and sets isGeoBlocked when user is geo-blocked", async () => {
+  it("sets isGeoBlocked when user is geo-blocked without showing error modal", async () => {
     mockCheckGeofencing.mockResolvedValueOnce({
       healthy: false,
       isGeoBlocked: true,
@@ -124,16 +124,10 @@ describe("GeoFencingProvider", () => {
     renderWithProviders(onError, onGeoBlocked);
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Access Restricted",
-        }),
-      );
-    });
-
-    await waitFor(() => {
       expect(onGeoBlocked).toHaveBeenCalledWith(true);
     });
+
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("shows error when GraphQL is unreachable", async () => {

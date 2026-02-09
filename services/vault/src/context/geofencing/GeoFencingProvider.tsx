@@ -55,12 +55,8 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
       }
 
       const geoResult = await checkGeofencing();
-      if (geoResult.isGeoBlocked && geoResult.error) {
+      if (geoResult.isGeoBlocked) {
         setIsGeoBlocked(true);
-        handleError({
-          error: geoResult.error,
-          displayOptions: { blocking: true },
-        });
         setIsLoading(false);
         return;
       }

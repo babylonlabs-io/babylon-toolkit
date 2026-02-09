@@ -1,6 +1,8 @@
 import { Button, Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
+import { useGeoFencing } from "@/context/geofencing";
+
 import { getNetworkConfigBTC } from "../../config";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { usePrices } from "../../hooks/usePrices";
@@ -17,6 +19,7 @@ export default function ApplicationsHome() {
   const { connected: ethConnected } = useETHWallet();
   const { data: statsData, isLoading: statsLoading } = useStats();
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
+  const { isGeoBlocked } = useGeoFencing();
 
   const isWalletConnected = btcConnected && ethConnected;
 
@@ -34,7 +37,7 @@ export default function ApplicationsHome() {
           vault provider and begin.
         </h2>
         <div className="mt-4 self-center">
-          {isWalletConnected ? (
+          {isWalletConnected && !isGeoBlocked ? (
             <Button
               color="secondary"
               rounded
