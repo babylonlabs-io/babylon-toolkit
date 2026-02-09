@@ -1,63 +1,8 @@
-# Installation & Setup Guide
+# Troubleshooting & Advanced Setup
 
-A quick guide to installing and verifying the Babylon TypeScript SDK.
+Common issues and solutions when integrating the Babylon TypeScript SDK.
 
-## System Requirements
-
-- **Node.js** >= 24.0.0
-- **Package Manager**: `npm`, `yarn`, or `pnpm`
-
-## Installation
-
-Install the SDK using your preferred package manager:
-
-```bash
-# npm
-npm install @babylonlabs-io/ts-sdk viem
-
-# yarn
-yarn add @babylonlabs-io/ts-sdk viem
-
-# pnpm
-pnpm add @babylonlabs-io/ts-sdk viem
-```
-
-## Dependencies
-
-The SDK includes these dependencies automatically:
-
-- `@babylonlabs-io/babylon-tbv-rust-wasm` - Core WASM library for Bitcoin vault operations
-- `bitcoinjs-lib` - Bitcoin transaction construction
-- `@bitcoin-js/tiny-secp256k1-asmjs` - Cryptographic operations
-- `buffer` - Node.js Buffer polyfill for browser compatibility
-- `viem` - _Peer_ dependency for Ethereum operations
-
-## Verification
-
-Verify the installation works:
-
-```typescript
-// verify-install.ts
-import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
-
-console.log("✅ SDK installed successfully!");
-console.log("buildPeginPsbt type:", typeof buildPeginPsbt);
-```
-
-Run the verification:
-
-```bash
-npx tsx verify-install.ts
-```
-
-Expected output:
-
-```
-✅ SDK installed successfully!
-buildPeginPsbt type: function
-```
-
-## Troubleshooting
+## Common Issues
 
 ### "Cannot find module" errors
 
