@@ -61,17 +61,15 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
  * State flow:
- * PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
+ * PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  */
 export enum DaemonStatus {
-  PENDING_GC_DATA = "PendingGCData",
+  PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
-  CLAIM_POSTED = "ClaimPosted",
-  PEGGED_OUT = "PeggedOut",
 }
 
 /**
@@ -79,7 +77,7 @@ export enum DaemonStatus {
  * When vault provider returns these states, frontend should wait/poll.
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
-  DaemonStatus.PENDING_GC_DATA,
+  DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
 
