@@ -80,13 +80,25 @@ export function useUTXOs(
 
   // Filter UTXOs by inscriptions
   // Rename to match exported API naming convention (uppercase UTXO)
+  // If ordinals API fails or is still loading, treat all UTXOs as available (non-blocking)
+  // UI should use isLoading/isLoadingOrdinals flags to show loading states
   const { availableUTXOs, inscriptionUTXOs } = useMemo(() => {
-    if (
-      isLoading ||
-      isLoadingOrdinals ||
-      confirmedUtxosForOrdinals.length === 0
-    ) {
+    if (confirmedUtxosForOrdinals.length === 0) {
       return { availableUTXOs: [], inscriptionUTXOs: [] };
+    }
+    // If ordinals API failed or still loading, treat all UTXOs as available
+    // Ordinals check is optional - we don't block on it
+    if (ordinalsError || isLoadingOrdinals) {
+      if (ordinalsError) {
+        console.warn(
+          "Ordinals API failed, treating all UTXOs as available:",
+          ordinalsError,
+        );
+      }
+      return {
+        availableUTXOs: confirmedUtxosForOrdinals,
+        inscriptionUTXOs: [],
+      };
     }
     const { availableUtxos, inscriptionUtxos } = filterInscriptionUtxos(
       confirmedUtxosForOrdinals,
@@ -96,23 +108,21 @@ export function useUTXOs(
       availableUTXOs: availableUtxos,
       inscriptionUTXOs: inscriptionUtxos,
     };
-  }, [confirmedUtxosForOrdinals, inscriptions, isLoading, isLoadingOrdinals]);
+  }, [
+    confirmedUtxosForOrdinals,
+    inscriptions,
+    isLoadingOrdinals,
+    ordinalsError,
+  ]);
 
   // Determine spendable UTXOs based on preference
   // When ordinalsExcluded is true (default), use availableUTXOs (excludes inscriptions)
   // When ordinalsExcluded is false, use all confirmed UTXOs
-  const spendableUTXOs = useMemo(() => {
-    if (isLoading || isLoadingOrdinals) {
-      return [];
-    }
-    return ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals;
-  }, [
-    ordinalsExcluded,
-    availableUTXOs,
-    confirmedUtxosForOrdinals,
-    isLoading,
-    isLoadingOrdinals,
-  ]);
+  // If ordinals API failed/loading, availableUTXOs already contains all confirmed UTXOs
+  const spendableUTXOs = useMemo(
+    () => (ordinalsExcluded ? availableUTXOs : confirmedUtxosForOrdinals),
+    [ordinalsExcluded, availableUTXOs, confirmedUtxosForOrdinals],
+  );
 
   // Create a set of inscription UTXO identifiers for filtering MempoolUTXOs
   const inscriptionUTXOIds = useMemo(() => {
@@ -120,10 +130,8 @@ export function useUTXOs(
   }, [inscriptionUTXOs]);
 
   // Spendable UTXOs in MempoolUTXO format (for SDK functions)
+  // If ordinals API failed/loading, inscriptionUTXOIds will be empty, so all UTXOs pass filter
   const spendableMempoolUTXOs = useMemo(() => {
-    if (isLoading || isLoadingOrdinals) {
-      return [];
-    }
     if (!ordinalsExcluded) {
       return confirmedUTXOs;
     }
@@ -131,13 +139,7 @@ export function useUTXOs(
     return confirmedUTXOs.filter(
       (utxo) => !inscriptionUTXOIds.has(`${utxo.txid}:${utxo.vout}`),
     );
-  }, [
-    ordinalsExcluded,
-    confirmedUTXOs,
-    inscriptionUTXOIds,
-    isLoading,
-    isLoadingOrdinals,
-  ]);
+  }, [ordinalsExcluded, confirmedUTXOs, inscriptionUTXOIds]);
 
   return {
     /** All UTXOs (including unconfirmed) */

@@ -105,16 +105,76 @@ export interface RequestDepositorPresignTransactionsResponse {
 }
 
 /**
+ * GC data progress tracking
+ * Present only in PendingBabeSetup state
+ */
+export interface GcDataProgress {
+  /** Total number of challengers */
+  total_challengers: number;
+  /** Number of challengers that have completed */
+  completed_challengers: number;
+  /** Public keys of completed challengers */
+  completed_challenger_pubkeys: string[];
+  /** Public keys of pending challengers */
+  pending_challenger_pubkeys: string[];
+}
+
+/**
+ * Presigning progress tracking
+ * Present only in PendingChallengerPresigning state
+ */
+export interface PresigningProgress {
+  /** Total number of challengers */
+  total_challengers: number;
+  /** Number of challengers that have completed */
+  completed_challengers: number;
+  /** Public keys of completed challengers */
+  completed_challenger_pubkeys: string[];
+  /** Public keys of pending challengers */
+  pending_challenger_pubkeys: string[];
+}
+
+/**
+ * ACK collection progress tracking
+ * Present in PendingACKs state
+ */
+export interface AckCollectionProgress {
+  /** Total number of challengers */
+  total_challengers: number;
+  /** Number of challengers that have completed */
+  completed_challengers: number;
+  /** Public keys of completed challengers */
+  completed_challenger_pubkeys: string[];
+  /** Public keys of pending challengers */
+  pending_challenger_pubkeys: string[];
+}
+
+/**
+ * Detailed progress information for a PegIn
+ * Contains state-specific progress details
+ */
+export interface PeginProgressDetails {
+  /** GC data progress (only present in PendingBabeSetup state) */
+  gc_data?: GcDataProgress;
+  /** Presigning progress (only present in PendingChallengerPresigning state) */
+  presigning?: PresigningProgress;
+  /** ACK collection progress (present in PendingACKs state) */
+  ack_collection?: AckCollectionProgress;
+}
+
+/**
  * Response for getting PegIn status
  * Corresponds to: GetPeginStatusResponse
  */
 export interface GetPeginStatusResponse {
   /**
    * The current status of the PegIn in vault provider's database
-   * State flow: PendingGCData -> PendingChallengerPresigning -> PendingDepositorSignatures
-   *             -> PendingACKs -> PendingActivation -> Activated -> ClaimPosted -> PeggedOut
+   * State flow: PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures
+   *             -> PendingACKs -> PendingActivation -> Activated
    */
   status: string;
+  /** Detailed progress information for the current state */
+  progress: PeginProgressDetails;
 }
 
 // ============================================================================
