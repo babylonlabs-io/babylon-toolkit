@@ -4,25 +4,28 @@
 
 import { getETHChain } from "@babylonlabs-io/config";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
-import type { Address, WalletClient } from "viem";
-import {
-  getWalletClient,
-  switchChain,
-  waitForTransactionReceipt,
-} from "wagmi/actions";
+import type { Abi, Address, Hash, WalletClient } from "viem";
+import { getWalletClient, switchChain } from "wagmi/actions";
 
+import BTCVaultsManagerABI from "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json";
+import { ethClient } from "@/clients/eth-contract/client";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
 import { selectUtxosForDeposit } from "@/services/vault";
 import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
+import { pollUntil } from "@/utils/async";
 import { processPublicKeyToXOnly } from "@/utils/btc";
+import { ContractError, mapViemErrorToContractError } from "@/utils/errors";
 
 import type {
   PeginSubmitParams,
   PeginSubmitResult,
   SavePendingPeginParams,
 } from "./types";
+
+const ETH_CONFIRMATION_POLL_INTERVAL = 5_000; // 5s between polls
+const ETH_CONFIRMATION_TIMEOUT = 120_000; // 2 minute timeout
 
 // ============================================================================
 // Step 1: Get ETH Wallet Client
@@ -112,19 +115,8 @@ export async function submitPeginAndWait(
   const btcTxid = result.btcTxHash;
   const ethTxHash = result.transactionHash;
 
-  // Wait for ETH transaction confirmation
-  const wagmiConfig = getSharedWagmiConfig();
-  try {
-    await waitForTransactionReceipt(wagmiConfig, {
-      hash: ethTxHash,
-      confirmations: 1,
-    });
-  } catch {
-    throw new Error(
-      `ETH transaction not confirmed. It may have been dropped or replaced. ` +
-        `Please check your wallet and retry. Hash: ${ethTxHash}`,
-    );
-  }
+  // Wait for ETH transaction confirmation with retry on RPC hiccups.
+  await waitForEthConfirmation(ethTxHash);
 
   return {
     btcTxid,
@@ -134,6 +126,59 @@ export async function submitPeginAndWait(
     selectedUTXOs: result.selectedUTXOs,
     fee: result.fee,
   };
+}
+
+// ============================================================================
+// ETH Confirmation Polling
+// ============================================================================
+
+/**
+ * Poll for ETH transaction receipt, retrying on transient RPC errors.
+ *
+ * This polls with retries so a submitted transaction isn't lost
+ * due to a momentary network hiccup.
+ */
+async function waitForEthConfirmation(ethTxHash: Hash): Promise<void> {
+  const publicClient = ethClient.getPublicClient();
+
+  try {
+    await pollUntil(
+      async () => {
+        try {
+          const receipt = await publicClient.getTransactionReceipt({
+            hash: ethTxHash,
+          });
+
+          if (receipt.status === "reverted") {
+            throw mapViemErrorToContractError(
+              new Error(
+                `Transaction reverted. Hash: ${ethTxHash}. Check the transaction on block explorer for details.`,
+              ),
+              "pegin confirmation",
+              [BTCVaultsManagerABI as Abi],
+            );
+          }
+
+          return receipt;
+        } catch (error) {
+          if (error instanceof ContractError) throw error;
+          return null;
+        }
+      },
+      {
+        intervalMs: ETH_CONFIRMATION_POLL_INTERVAL,
+        timeoutMs: ETH_CONFIRMATION_TIMEOUT,
+      },
+    );
+  } catch (error) {
+    if (error instanceof ContractError) throw error;
+
+    throw new Error(
+      `ETH transaction not confirmed within ${ETH_CONFIRMATION_TIMEOUT / 1000}s. ` +
+        `It may still be pending. Please check the transaction on a block explorer. ` +
+        `Hash: ${ethTxHash}`,
+    );
+  }
 }
 
 // ============================================================================
