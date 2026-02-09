@@ -8,6 +8,7 @@ export type { WalletConfigOptions } from "@/utils/configBuilder";
 export * from "@/providers";
 
 export { useChainConnector } from "@/hooks/useChainConnector";
+export { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 export { useWalletConnect } from "@/hooks/useWalletConnect";
 export { useWidgetState } from "@/hooks/useWidgetState";
 export { useAppKitBtcBridge } from "@/hooks/appkit/btc/useAppKitBtcBridge";
@@ -72,3 +73,6 @@ export {
     type UseOrdinalsOptions,
     type UseOrdinalsResult,
 } from "@/hooks/useOrdinalsHook";
+
+// Export wallet event constants
+export { COSMOS_KEYSTORE_CHANGE_EVENTS } from "@/constants/walletEvents";

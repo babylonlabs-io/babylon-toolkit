@@ -9,14 +9,16 @@ import {
 } from "react";
 import type { networks } from "bitcoinjs-lib";
 
+import { ACCOUNT_CHANGE_EVENTS, DISCONNECT_EVENT } from "@/constants/walletEvents";
 import { useChainConnector } from "@/hooks/useChainConnector";
+import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import type { IBTCProvider, InscriptionIdentifier, Network, SignPsbtOptions } from "@/core/types";
 
 export interface BTCWalletLifecycleCallbacks {
   onConnect?: (address: string, publicKeyNoCoord: string) => void | Promise<void>;
   onDisconnect?: () => void | Promise<void>;
-  onAddressChange?: (newAddress: string) => void | Promise<void>;
+  onAddressChange?: (newAddress: string, newPublicKeyNoCoord: string) => void | Promise<void>;
   onError?: (error: Error, context?: { address?: string; publicKeyNoCoord?: string }) => void;
 }
 
@@ -158,29 +160,113 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
   useEffect(() => {
     if (!btcWalletProvider) return;
 
-    const onAccountsChanged = async () => {
+    const onAccountsChanged = async (accounts?: string[]) => {
       try {
+        // If accounts array is provided and empty, treat as disconnect
+        if (Array.isArray(accounts) && accounts.length === 0) {
+          disconnect();
+          return;
+        }
+
+        // Re-connect to refresh the provider's internal cache
+        // This is necessary because providers cache walletInfo on connect
+        await btcWalletProvider.connectWallet();
+
         const newAddress = await btcWalletProvider.getAddress();
-        if (newAddress && newAddress !== address) {
+
+        // If no address returned, treat as disconnect
+        if (!newAddress) {
+          disconnect();
+          return;
+        }
+
+        if (newAddress !== address) {
+          // Also fetch the new public key (different accounts have different keys)
+          const newPublicKeyHex = await btcWalletProvider.getPublicKeyHex();
+          if (!newPublicKeyHex) {
+            throw new Error("BTC wallet provider returned an empty public key after account change");
+          }
+
+          // Get public key without coordinates (remove first byte which indicates compression)
+          const newPublicKeyNoCoord = newPublicKeyHex.length === 66
+            ? newPublicKeyHex.slice(2)
+            : newPublicKeyHex;
+
           setAddress(newAddress);
-          await callbacks?.onAddressChange?.(newAddress);
+          setPublicKeyNoCoord(newPublicKeyNoCoord);
+          await callbacks?.onAddressChange?.(newAddress, newPublicKeyNoCoord);
         }
       } catch (error: any) {
+        // Connection failure during account change likely means wallet disconnected
+        console.error("Error handling BTC account change:", error);
         callbacks?.onError?.(error);
+        disconnect();
       }
     };
 
-    // Add listener if provider supports it
+    const onDisconnect = () => {
+      disconnect();
+    };
+
+    // Add listeners if provider supports events
+    // Different wallets use different event names
     if (typeof btcWalletProvider.on === "function") {
-      btcWalletProvider.on("accountsChanged", onAccountsChanged);
+      ACCOUNT_CHANGE_EVENTS.forEach((event) => {
+        btcWalletProvider.on(event, onAccountsChanged);
+      });
+      btcWalletProvider.on(DISCONNECT_EVENT, onDisconnect);
     }
 
     return () => {
       if (typeof btcWalletProvider.off === "function") {
-        btcWalletProvider.off("accountsChanged", onAccountsChanged);
+        ACCOUNT_CHANGE_EVENTS.forEach((event) => {
+          btcWalletProvider.off(event, onAccountsChanged);
+        });
+        btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
       }
     };
-  }, [btcWalletProvider, address, callbacks]);
+  }, [btcWalletProvider, address, callbacks, disconnect]);
+
+  // Check wallet connection when tab becomes visible
+  // This handles the case where user disconnects from extension while tab is in background
+  const checkBTCConnection = useCallback(async () => {
+    if (!btcWalletProvider) return;
+
+    try {
+      // Try to get the current accounts from the wallet
+      // If disconnected, this will fail or return empty
+      await btcWalletProvider.connectWallet();
+      const currentAddress = await btcWalletProvider.getAddress();
+
+      if (!currentAddress) {
+        // Wallet is disconnected
+        disconnect();
+      } else if (currentAddress !== address) {
+        // Account changed while tab was in background
+        const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
+        if (!pubKeyHex) {
+          // Missing public key is an error - disconnect to avoid inconsistent state
+          const error = new Error("BTC wallet returned empty public key after account change");
+          console.error(error.message);
+          callbacks?.onError?.(error);
+          disconnect();
+          return;
+        }
+        const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
+        setAddress(currentAddress);
+        setPublicKeyNoCoord(pubKeyNoCoord);
+        await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
+      }
+    } catch (error) {
+      // Connection check failed - wallet likely disconnected
+      console.error("BTC wallet connection check failed:", error);
+      disconnect();
+    }
+  }, [btcWalletProvider, address, callbacks, disconnect]);
+
+  useVisibilityCheck(checkBTCConnection, {
+    enabled: Boolean(btcWalletProvider && address),
+  });
 
   const connected = useMemo(
     () => Boolean(btcWalletProvider && address && publicKeyNoCoord),

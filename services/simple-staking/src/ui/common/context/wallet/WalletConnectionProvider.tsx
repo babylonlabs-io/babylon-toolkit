@@ -58,17 +58,17 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [location.pathname],
   );
 
-  const config = useMemo(
-    () =>
-      createWalletConfig({
-        chains: requiredChains,
-        networkConfigs: {
-          BTC: getNetworkConfigBTC(),
-          BBN: getNetworkConfigBBN(),
-        },
-      }),
-    [requiredChains],
-  );
+  const config = useMemo(() => {
+    const btcConfig = getNetworkConfigBTC();
+    const bbnConfig = getNetworkConfigBBN();
+    return createWalletConfig({
+      chains: requiredChains,
+      networkConfigs: {
+        BTC: btcConfig,
+        BBN: bbnConfig,
+      },
+    });
+  }, [requiredChains]);
 
   const disabledWallets = useMemo(() => {
     const disabled: string[] = [];

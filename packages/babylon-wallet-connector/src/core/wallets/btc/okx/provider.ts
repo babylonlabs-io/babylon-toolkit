@@ -1,3 +1,4 @@
+import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
@@ -237,9 +238,13 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // subscribe to account change event
-    if (eventName === "accountChanged") {
-      return this.provider.on(eventName, callBack);
+    // OKX uses "accountsChanged" for account change events
+    if (isAccountChangeEvent(eventName)) {
+      return this.provider.on("accountsChanged", callBack);
+    }
+
+    if (eventName === DISCONNECT_EVENT) {
+      return this.provider.on(DISCONNECT_EVENT, callBack);
     }
   };
 
@@ -251,9 +256,13 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // unsubscribe from account change event
-    if (eventName === "accountChanged") {
-      return this.provider.off(eventName, callBack);
+    // OKX uses "accountsChanged" for account change events
+    if (isAccountChangeEvent(eventName)) {
+      return removeProviderListener(this.provider, "accountsChanged", callBack);
+    }
+
+    if (eventName === DISCONNECT_EVENT) {
+      return removeProviderListener(this.provider, DISCONNECT_EVENT, callBack);
     }
   };
 

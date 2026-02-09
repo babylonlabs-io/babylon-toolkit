@@ -8,11 +8,59 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
+  useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
-import { useCallback, useMemo, type PropsWithChildren } from "react";
+import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
 const context = typeof window !== "undefined" ? window : {};
+
+/**
+ * Component that provides wallet-specific providers with cross-disconnect logic
+ */
+function WalletProviders({ children }: PropsWithChildren) {
+  const { disconnect: disconnectAll } = useWalletConnect();
+  // Guard against re-entrancy when disconnectAll triggers disconnect events
+  const isDisconnectingRef = useRef(false);
+
+  // When BTC wallet disconnects, disconnect all wallets
+  const btcCallbacks = useMemo(
+    () => ({
+      onDisconnect: () => {
+        if (isDisconnectingRef.current) return;
+        isDisconnectingRef.current = true;
+        try {
+          disconnectAll?.();
+        } finally {
+          isDisconnectingRef.current = false;
+        }
+      },
+    }),
+    [disconnectAll],
+  );
+
+  // When ETH wallet disconnects, disconnect all wallets
+  const ethCallbacks = useMemo(
+    () => ({
+      onDisconnect: () => {
+        if (isDisconnectingRef.current) return;
+        isDisconnectingRef.current = true;
+        try {
+          disconnectAll?.();
+        } finally {
+          isDisconnectingRef.current = false;
+        }
+      },
+    }),
+    [disconnectAll],
+  );
+
+  return (
+    <BTCWalletProvider callbacks={btcCallbacks}>
+      <ETHWalletProvider callbacks={ethCallbacks}>{children}</ETHWalletProvider>
+    </BTCWalletProvider>
+  );
+}
 
 /**
  * WalletConnectionProvider
@@ -54,9 +102,11 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const onError = useCallback((error: Error) => {
+    // User rejections are expected, don't log them
     if (error?.message?.includes("rejected")) {
       return;
     }
+    // Log non-rejection errors for debugging
     console.error("Wallet connection error:", error);
   }, []);
 
@@ -70,9 +120,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
     >
-      <BTCWalletProvider>
-        <ETHWalletProvider>{children}</ETHWalletProvider>
-      </BTCWalletProvider>
+      <WalletProviders>{children}</WalletProviders>
     </WalletProvider>
   );
 };
