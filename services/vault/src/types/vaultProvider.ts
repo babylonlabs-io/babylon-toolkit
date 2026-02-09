@@ -15,6 +15,19 @@ export interface VaultKeeper {
 }
 
 /**
+ * Raw vault keeper item from GraphQL, includes version info.
+ * Callers decide how to filter by version.
+ */
+export interface VaultKeeperItem {
+  /** Vault keeper's Ethereum address */
+  id: string;
+  /** Vault keeper's BTC public key (x-only, 32 bytes hex with 0x prefix) */
+  btcPubKey: string;
+  /** Keeper application version */
+  version: number;
+}
+
+/**
  * Universal challenger information (system-wide)
  */
 export interface UniversalChallenger {
@@ -39,11 +52,15 @@ export interface VaultProvider {
 }
 
 /**
- * Response from fetchAppProviders containing per-application data only
+ * Response from fetchAppProviders containing per-application data only.
+ * Includes pre-computed latest-version keepers for the common case,
+ * plus raw items with version info for callers that need historical data.
  */
 export interface AppProvidersResponse {
   /** Vault providers for the application */
   vaultProviders: VaultProvider[];
-  /** Vault keepers for the application (per-application) */
+  /** Vault keepers filtered to the latest version (most common use case) */
   vaultKeepers: VaultKeeper[];
+  /** Raw vault keeper items with version info, if needed */
+  vaultKeeperItems?: VaultKeeperItem[];
 }

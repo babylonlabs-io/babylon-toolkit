@@ -113,7 +113,7 @@ export function useVaultProviders(
 
   return {
     vaultProviders: data?.vaultProviders || [],
-    vaultKeepers: data?.vaultKeepers || [],
+    vaultKeepers: data?.vaultKeepers ?? [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,
