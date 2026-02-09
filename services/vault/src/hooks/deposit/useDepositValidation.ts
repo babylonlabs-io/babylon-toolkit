@@ -44,15 +44,8 @@ export function useDepositValidation(
   // Validate amount using on-chain minDeposit
   const validateAmount = useCallback(
     (amount: string): ValidationResult => {
-      try {
-        const satoshis = depositService.parseBtcToSatoshis(amount);
-        return depositService.validateDepositAmount(satoshis, minDeposit);
-      } catch {
-        return {
-          valid: false,
-          error: "Invalid amount format",
-        };
-      }
+      const satoshis = depositService.parseBtcToSatoshis(amount);
+      return depositService.validateDepositAmount(satoshis, minDeposit);
     },
     [minDeposit],
   );

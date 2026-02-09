@@ -9,6 +9,7 @@ import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
+import { useDepositFormErrors } from "./useDepositFormErrors";
 import { useDepositValidation } from "./useDepositValidation";
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -134,40 +135,23 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
   }, [btcBalance]);
 
-  const [errors, setErrors] = useState<{
-    amount?: string;
-    application?: string;
-    provider?: string;
-  }>({});
+  const { errors, setErrors, clearFieldError, resetErrors } =
+    useDepositFormErrors();
 
-  const setFormData = useCallback((data: Partial<DepositPageFormData>) => {
-    setFormDataInternal((prev) => ({
-      ...prev,
-      ...data,
-    }));
-    // Clear errors when user starts typing (they'll be validated on blur)
-    if (data.amountBtc !== undefined) {
-      setErrors((prev) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { amount, ...rest } = prev;
-        return rest;
-      });
-    }
-    if (data.selectedApplication !== undefined) {
-      setErrors((prev) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { application, ...rest } = prev;
-        return rest;
-      });
-    }
-    if (data.selectedProvider !== undefined) {
-      setErrors((prev) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { provider, ...rest } = prev;
-        return rest;
-      });
-    }
-  }, []);
+  const setFormData = useCallback(
+    (data: Partial<DepositPageFormData>) => {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        ...data,
+      }));
+      // Clear errors when user starts typing (they'll be validated on blur)
+      if (data.amountBtc !== undefined) clearFieldError("amount");
+      if (data.selectedApplication !== undefined)
+        clearFieldError("application");
+      if (data.selectedProvider !== undefined) clearFieldError("provider");
+    },
+    [clearFieldError],
+  );
 
   // Validate amount on blur
   const validateAmountOnBlur = useCallback(() => {
@@ -176,7 +160,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     if (!amountResult.valid) {
       setErrors((prev) => ({ ...prev, amount: amountResult.error }));
     }
-  }, [formData.amountBtc, validation]);
+  }, [formData.amountBtc, validation, setErrors]);
 
   const amountSats = useMemo(() => {
     if (!formData.amountBtc) return 0n;
@@ -208,7 +192,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [formData, validation]);
+  }, [formData, validation, setErrors]);
 
   const isValid = useMemo(() => {
     const hasAmount = formData.amountBtc !== "";
@@ -246,8 +230,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       selectedApplication: "",
       selectedProvider: "",
     });
-    setErrors({});
-  }, []);
+    resetErrors();
+  }, [resetErrors]);
 
   return {
     formData,
