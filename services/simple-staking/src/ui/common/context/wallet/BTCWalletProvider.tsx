@@ -4,6 +4,7 @@ import {
   Network,
   SignPsbtOptions,
   useChainConnector,
+  useVisibilityCheck,
   useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 import type { networks } from "bitcoinjs-lib";
@@ -249,8 +250,18 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
     if (!btcWalletProvider) return;
 
     const cb = async () => {
-      await btcWalletProvider.connectWallet();
-      connectBTC(btcWalletProvider);
+      try {
+        await btcWalletProvider.connectWallet();
+        connectBTC(btcWalletProvider);
+      } catch (error) {
+        // Connection failed during account change - likely disconnected
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("Error handling BTC account change"),
+        );
+        btcDisconnect();
+      }
     };
 
     const onDisconnect = () => {
@@ -271,7 +282,7 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
         btcWalletProvider.off("disconnect", onDisconnect);
       }
     };
-  }, [btcWalletProvider, connectBTC, btcDisconnect]);
+  }, [btcWalletProvider, connectBTC, btcDisconnect, logger]);
 
   // Fallback: Listen directly to BTC wallet extensions for disconnect events
   useEffect(() => {
@@ -338,45 +349,33 @@ export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
   }, [address, btcDisconnect]);
 
   // Check wallet connection when tab becomes visible
-  useEffect(() => {
-    if (!btcWalletProvider || !address) return;
-    if (typeof window === "undefined" || typeof document === "undefined")
-      return;
+  const checkBTCConnection = useCallback(async () => {
+    if (!btcWalletProvider) return;
 
-    const checkConnection = async () => {
-      try {
-        await btcWalletProvider.connectWallet();
-        const currentAddress = await btcWalletProvider.getAddress();
+    try {
+      await btcWalletProvider.connectWallet();
+      const currentAddress = await btcWalletProvider.getAddress();
 
-        if (!currentAddress) {
-          btcDisconnect();
-        } else if (currentAddress !== address) {
-          // Account changed while tab was in background - reconnect
-          connectBTC(btcWalletProvider);
-        }
-      } catch (error: any) {
-        // Connection check failed - wallet likely disconnected
-        logger.error(
-          error instanceof Error
-            ? error
-            : new Error("BTC wallet connection check failed"),
-        );
+      if (!currentAddress) {
         btcDisconnect();
+      } else if (currentAddress !== address) {
+        // Account changed while tab was in background - reconnect
+        connectBTC(btcWalletProvider);
       }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        setTimeout(checkConnection, 500);
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    } catch (error: unknown) {
+      // Connection check failed - wallet likely disconnected
+      logger.error(
+        error instanceof Error
+          ? error
+          : new Error("BTC wallet connection check failed"),
+      );
+      btcDisconnect();
+    }
   }, [btcWalletProvider, address, btcDisconnect, connectBTC, logger]);
+
+  useVisibilityCheck(checkBTCConnection, {
+    enabled: Boolean(btcWalletProvider && address),
+  });
 
   useEffect(() => {
     if (!btcConnector) return;

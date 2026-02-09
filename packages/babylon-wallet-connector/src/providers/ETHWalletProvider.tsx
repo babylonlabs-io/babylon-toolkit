@@ -148,6 +148,8 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 
   // Track previous address to detect changes
   const prevAddressRef = useRef<string | undefined>(undefined);
+  // Guard against duplicate event processing from provider and window.ethereum
+  const isProcessingChangeRef = useRef(false);
 
   // Keep the ref in sync with React state
   useEffect(() => {
@@ -160,17 +162,23 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     if (!provider) return;
 
     const onAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
       const newAddress = accounts[0];
       const previousAddress = prevAddressRef.current;
 
-      if (newAddress && newAddress !== previousAddress) {
-        // Account changed
+      if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Account changed - set guard before async operations
+        isProcessingChangeRef.current = true;
         prevAddressRef.current = newAddress;
         setAddress(newAddress);
         try {
           await callbacks?.onAddressChange?.(newAddress);
         } catch (error: any) {
           callbacks?.onError?.(error, { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
         }
       } else if (!newAddress && previousAddress) {
         // Account disconnected
@@ -201,17 +209,30 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     if (!ethereum || typeof ethereum.on !== "function") return;
 
     const onInjectedAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
       const newAddress = accounts[0];
       const previousAddress = prevAddressRef.current;
 
+      // Handle disconnect/lock (empty accounts array)
+      if (!newAddress && previousAddress) {
+        disconnect();
+        return;
+      }
+
       // Only handle if we're connected and address actually changed
       if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Set guard before async operations
+        isProcessingChangeRef.current = true;
         prevAddressRef.current = newAddress;
         setAddress(newAddress);
         try {
           await callbacks?.onAddressChange?.(newAddress);
         } catch (error: any) {
           callbacks?.onError?.(error, { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
         }
       }
     };

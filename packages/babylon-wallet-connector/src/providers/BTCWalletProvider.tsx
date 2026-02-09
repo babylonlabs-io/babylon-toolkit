@@ -200,6 +200,7 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
         // Connection failure during account change likely means wallet disconnected
         console.error("Error handling BTC account change:", error);
         callbacks?.onError?.(error);
+        disconnect();
       }
     };
 
@@ -243,12 +244,18 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       } else if (currentAddress !== address) {
         // Account changed while tab was in background
         const pubKeyHex = await btcWalletProvider.getPublicKeyHex();
-        if (pubKeyHex) {
-          const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
-          setAddress(currentAddress);
-          setPublicKeyNoCoord(pubKeyNoCoord);
-          await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
+        if (!pubKeyHex) {
+          // Missing public key is an error - disconnect to avoid inconsistent state
+          const error = new Error("BTC wallet returned empty public key after account change");
+          console.error(error.message);
+          callbacks?.onError?.(error);
+          disconnect();
+          return;
         }
+        const pubKeyNoCoord = pubKeyHex.length === 66 ? pubKeyHex.slice(2) : pubKeyHex;
+        setAddress(currentAddress);
+        setPublicKeyNoCoord(pubKeyNoCoord);
+        await callbacks?.onAddressChange?.(currentAddress, pubKeyNoCoord);
       }
     } catch (error) {
       // Connection check failed - wallet likely disconnected

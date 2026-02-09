@@ -1,4 +1,4 @@
-import { isAccountChangeEvent, DISCONNECT_EVENT } from "@/constants/walletEvents";
+import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
@@ -277,11 +277,11 @@ export class OneKeyProvider implements IBTCProvider {
 
     // OneKey uses "accountsChanged" for account change events
     if (isAccountChangeEvent(eventName)) {
-      return this.provider.removeListener("accountsChanged", callBack);
+      return removeProviderListener(this.provider, "accountsChanged", callBack);
     }
 
     if (eventName === DISCONNECT_EVENT) {
-      return this.provider.removeListener(DISCONNECT_EVENT, callBack);
+      return removeProviderListener(this.provider, DISCONNECT_EVENT, callBack);
     }
   };
 

@@ -73,3 +73,6 @@ export {
     type UseOrdinalsOptions,
     type UseOrdinalsResult,
 } from "@/hooks/useOrdinalsHook";
+
+// Export wallet event constants
+export { COSMOS_KEYSTORE_CHANGE_EVENTS } from "@/constants/walletEvents";

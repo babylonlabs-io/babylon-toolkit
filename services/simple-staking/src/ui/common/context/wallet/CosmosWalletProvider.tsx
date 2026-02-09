@@ -1,4 +1,5 @@
 import {
+  COSMOS_KEYSTORE_CHANGE_EVENTS,
   IBBNProvider,
   useChainConnector,
   useVisibilityCheck,
@@ -162,8 +163,25 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
       return;
 
     const cb = async () => {
-      await BBNWalletProvider.connectWallet();
-      connectCosmos(BBNWalletProvider);
+      try {
+        await BBNWalletProvider.connectWallet();
+        const newAddress = await BBNWalletProvider.getAddress();
+        if (!newAddress) {
+          // Wallet disconnected during account change
+          cosmosDisconnect();
+        } else if (newAddress !== cosmosBech32Address) {
+          // Account actually changed, reconnect
+          connectCosmos(BBNWalletProvider);
+        }
+      } catch (error) {
+        // Connection failed, wallet likely disconnected
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("Error handling Cosmos account change"),
+        );
+        cosmosDisconnect();
+      }
     };
 
     const onDisconnect = () => {
@@ -177,30 +195,19 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
       BBNWalletProvider.off("accountChanged", cb);
       BBNWalletProvider.off("disconnect", onDisconnect);
     };
-  }, [BBNWalletProvider, connectCosmos, cosmosDisconnect]);
+  }, [
+    BBNWalletProvider,
+    connectCosmos,
+    cosmosDisconnect,
+    cosmosBech32Address,
+    logger,
+  ]);
 
   // Fallback: Listen directly to Cosmos wallet extensions for disconnect/account changes
   useEffect(() => {
     if (!cosmosBech32Address) return; // Only listen when connected
     if (typeof window === "undefined") return;
 
-    const win = window as any;
-
-    // Get Cosmos wallet providers
-    const providers: any[] = [];
-
-    // Keplr
-    if (win.keplr) providers.push(win.keplr);
-
-    // Leap
-    if (win.leap) providers.push(win.leap);
-
-    // OKX Cosmos
-    if (win.okxwallet?.keplr) providers.push(win.okxwallet.keplr);
-
-    if (providers.length === 0) return;
-
-    // Keplr uses 'keplr_keystorechange' event on window
     const handleKeystoreChange = async () => {
       if (BBNWalletProvider) {
         try {
@@ -211,7 +218,7 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
           } else if (newAddress !== cosmosBech32Address) {
             connectCosmos(BBNWalletProvider);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           logger.error(
             error instanceof Error
               ? error
@@ -222,11 +229,14 @@ export const CosmosWalletProvider = ({ children }: PropsWithChildren) => {
       }
     };
 
-    // Listen for Keplr keystore change event
-    window.addEventListener("keplr_keystorechange", handleKeystoreChange);
+    COSMOS_KEYSTORE_CHANGE_EVENTS.forEach((event) => {
+      window.addEventListener(event, handleKeystoreChange);
+    });
 
     return () => {
-      window.removeEventListener("keplr_keystorechange", handleKeystoreChange);
+      COSMOS_KEYSTORE_CHANGE_EVENTS.forEach((event) => {
+        window.removeEventListener(event, handleKeystoreChange);
+      });
     };
   }, [
     cosmosBech32Address,
