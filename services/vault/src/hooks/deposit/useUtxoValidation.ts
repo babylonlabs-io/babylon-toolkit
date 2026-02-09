@@ -14,6 +14,7 @@ import { useMemo } from "react";
 import { ContractStatus } from "../../models/peginStateMachine";
 import { extractInputsFromTransaction } from "../../services/vault/vaultUtxoValidationService";
 import type { VaultActivity } from "../../types/activity";
+import { stripHexPrefix } from "../../utils/btc";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 export interface UseUtxoValidationProps {
@@ -54,13 +55,6 @@ function getPendingBroadcastDeposits(
     // Must have unsigned tx for validation
     return !!activity.unsignedBtcTx;
   });
-}
-
-/**
- * Get the txid from a deposit ID (strip 0x prefix if present).
- */
-function depositIdToTxid(depositId: string): string {
-  return depositId.startsWith("0x") ? depositId.slice(2) : depositId;
 }
 
 export function useUtxoValidation({
@@ -107,7 +101,7 @@ export function useUtxoValidation({
         if (hasUnavailableInput) {
           // Check if the deposit's transaction has been broadcast
           // If so, the UTXO was spent by the vault's own tx (confirming, not invalid)
-          const txid = depositIdToTxid(deposit.id);
+          const txid = stripHexPrefix(deposit.id).toLowerCase();
           const isBroadcasted = broadcastedTxIds?.has(txid) ?? false;
 
           if (!isBroadcasted) {

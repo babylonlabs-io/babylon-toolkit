@@ -193,8 +193,9 @@ export function getPeginState(
 
   // Early check: If UTXO is unavailable (spent), show Invalid state
   // This provides immediate feedback before the backend updates the status
-  // Note: CONFIRMING deposits are excluded from UTXO validation in useUtxoValidation,
-  // so utxoUnavailable will be false for them (spending UTXO is expected after broadcast)
+  // Note: Deposits whose txid is detected in broadcastedTxIds are treated as not-unavailable
+  // (spending UTXO is expected after broadcast). If broadcastedTxIds is unavailable or
+  // doesn't contain the txid, the deposit may still be marked unavailable.
   if (utxoUnavailable) {
     return {
       contractStatus,

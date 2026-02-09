@@ -56,9 +56,17 @@ export function useUTXOs(
     queryKey: [UTXOS_QUERY_KEY, btcAddress],
     queryFn: async () => {
       const apiUrl = getMempoolApiUrl();
+      // UTXOs are critical, but txs fetch is best-effort (used for broadcastedTxIds detection)
+      // If txs endpoint fails (rate limit/outage), we still return UTXOs with empty txs
       const [utxos, txs] = await Promise.all([
         getAddressUtxos(btcAddress!, apiUrl),
-        getAddressTxs(btcAddress!, apiUrl),
+        getAddressTxs(btcAddress!, apiUrl).catch((err) => {
+          console.warn(
+            "[useUTXOs] Failed to fetch address txs, continuing without broadcast detection:",
+            err,
+          );
+          return [];
+        }),
       ]);
       return { utxos, txs };
     },

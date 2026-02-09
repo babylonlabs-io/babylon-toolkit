@@ -32,6 +32,7 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
+import { stripHexPrefix } from "../../utils/btc";
 import { areTransactionsReady } from "../../utils/peginPolling";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
@@ -71,12 +72,14 @@ export function PeginPollingProvider({
     allUTXOs,
     broadcastedTxIds,
     isLoading: isLoadingUtxos,
+    error: utxoError,
   } = useUTXOs(btcAddress);
 
   // Validate UTXOs for pending broadcast deposits
-  // Pass undefined while loading to avoid false positives
+  // Pass undefined while loading or on error to avoid false positives
+  // (error state would have empty arrays, falsely marking deposits as invalid)
   // broadcastedTxIds is used to detect if UTXOs were spent by vault's own tx (confirming vs invalid)
-  const hasUtxoData = !!btcAddress && !isLoadingUtxos;
+  const hasUtxoData = !!btcAddress && !isLoadingUtxos && !utxoError;
   const { unavailableUtxos } = useUtxoValidation({
     activities,
     btcPublicKey,
@@ -128,9 +131,7 @@ export function PeginPollingProvider({
         contractStatus === ContractStatus.VERIFIED &&
         localStatus !== LocalStorageStatus.CONFIRMING
       ) {
-        const txid = depositId.startsWith("0x")
-          ? depositId.slice(2)
-          : depositId;
+        const txid = stripHexPrefix(depositId).toLowerCase();
         if (broadcastedTxIds.has(txid)) {
           localStatus = LocalStorageStatus.CONFIRMING;
         }
