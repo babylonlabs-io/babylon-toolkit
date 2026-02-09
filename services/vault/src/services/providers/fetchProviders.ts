@@ -4,6 +4,7 @@ import { graphqlClient } from "../../clients/graphql";
 import type {
   AppProvidersResponse,
   VaultKeeper,
+  VaultKeeperItem,
   VaultProvider,
 } from "../../types/vaultProvider";
 
@@ -84,6 +85,28 @@ const GET_KEEPERS_BY_VERSION = gql`
 `;
 
 /**
+ * Filters keeper items to the latest version and deduplicates.
+ */
+export function getLatestVersionKeepers(
+  items: VaultKeeperItem[],
+): VaultKeeper[] {
+  if (items.length === 0) return [];
+
+  const latestVersion = Math.max(...items.map((i) => i.version));
+  const seen = new Set<string>();
+  const result: VaultKeeper[] = [];
+
+  for (const item of items) {
+    if (item.version === latestVersion && !seen.has(item.id)) {
+      seen.add(item.id);
+      result.push({ id: item.id, btcPubKey: item.btcPubKey });
+    }
+  }
+
+  return result;
+}
+
+/**
  * Fetches vault keepers by version for a specific application.
  * Used for payout signing where we need the keepers that were locked
  * when the vault was created.
@@ -138,15 +161,16 @@ export async function fetchAppProviders(
       url: provider.rpcUrl,
     }));
 
-  // Extract vault keepers with btcPubKey from nested relation
-  const vaultKeepers: VaultKeeper[] =
+  // Return raw keeper items with version info — caller decides how to filter
+  const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items.map((item) => ({
       id: item.vaultKeeper,
       btcPubKey: item.vaultKeeperInfo.btcPubKey,
+      version: item.version,
     }));
 
   return {
     vaultProviders,
-    vaultKeepers,
+    vaultKeeperItems,
   };
 }
