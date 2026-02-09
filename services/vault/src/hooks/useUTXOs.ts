@@ -6,7 +6,11 @@
  * Returns spendableUTXOs based on user's inscription preference.
  */
 
-import { getAddressUtxos, type MempoolUTXO } from "@babylonlabs-io/ts-sdk";
+import {
+  getAddressTxs,
+  getAddressUtxos,
+  type MempoolUTXO,
+} from "@babylonlabs-io/ts-sdk";
 import {
   filterInscriptionUtxos,
   type UTXO,
@@ -19,7 +23,7 @@ import { useAppState } from "../state/AppState";
 
 import { useOrdinals } from "./useOrdinals";
 
-/** Query key for UTXO fetching */
+/** Query key for UTXO and address transactions fetching */
 export const UTXOS_QUERY_KEY = "btc-utxos";
 
 /**
@@ -47,21 +51,41 @@ export function useUTXOs(
 ) {
   const { ordinalsExcluded } = useAppState();
 
+  // Fetch UTXOs and recent transactions together to keep them in sync
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: [UTXOS_QUERY_KEY, btcAddress],
-    queryFn: () => getAddressUtxos(btcAddress!, getMempoolApiUrl()),
+    queryFn: async () => {
+      const apiUrl = getMempoolApiUrl();
+      // UTXOs are critical, but txs fetch is best-effort (used for broadcastedTxIds detection)
+      // If txs endpoint fails (rate limit/outage), we still return UTXOs with empty txs
+      const [utxos, txs] = await Promise.all([
+        getAddressUtxos(btcAddress!, apiUrl),
+        getAddressTxs(btcAddress!, apiUrl).catch((err) => {
+          console.warn(
+            "[useUTXOs] Failed to fetch address txs, continuing without broadcast detection:",
+            err,
+          );
+          return [];
+        }),
+      ]);
+      return { utxos, txs };
+    },
     enabled: !!btcAddress && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval,
-    // Refetch when wallet connects to ensure fresh data
     refetchOnMount: true,
-    // Keep data fresh but don't spam the API
     staleTime: 30_000, // 30 seconds
   });
 
+  // Build a set of broadcasted transaction IDs for quick lookup
+  const broadcastedTxIds = useMemo(() => {
+    if (!data?.txs) return new Set<string>();
+    return new Set(data.txs.map((tx) => tx.txid));
+  }, [data?.txs]);
+
   // Get confirmed UTXOs only
   const confirmedUTXOs = useMemo(() => {
-    return data?.filter((utxo) => utxo.confirmed) || [];
-  }, [data]);
+    return data?.utxos?.filter((utxo) => utxo.confirmed) || [];
+  }, [data?.utxos]);
 
   // Convert to wallet-connector UTXO type for ordinals filtering
   const confirmedUtxosForOrdinals = useMemo(
@@ -143,7 +167,7 @@ export function useUTXOs(
 
   return {
     /** All UTXOs (including unconfirmed) */
-    allUTXOs: data || [],
+    allUTXOs: data?.utxos || [],
     /** Only confirmed UTXOs (may include inscriptions) */
     confirmedUTXOs,
     /** Confirmed UTXOs without inscriptions (safe to spend) */
@@ -154,11 +178,13 @@ export function useUTXOs(
     spendableUTXOs,
     /** Spendable UTXOs in MempoolUTXO format (for SDK functions) */
     spendableMempoolUTXOs,
-    /** Loading state (UTXOs) */
+    /** Set of transaction IDs that have been broadcast (mempool + recent confirmed) */
+    broadcastedTxIds,
+    /** Loading state */
     isLoading,
     /** Loading state (ordinals detection) */
     isLoadingOrdinals,
-    /** Error state (UTXOs) */
+    /** Error state */
     error: error as Error | null,
     /** Error state (ordinals - non-blocking) */
     ordinalsError,

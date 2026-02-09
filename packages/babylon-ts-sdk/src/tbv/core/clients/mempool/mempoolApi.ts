@@ -238,6 +238,34 @@ export function getMempoolApiUrl(
 }
 
 /**
+ * Transaction summary from address transactions endpoint.
+ */
+export interface AddressTx {
+  txid: string;
+  status: {
+    confirmed: boolean;
+    block_height?: number;
+  };
+}
+
+/**
+ * Get recent transactions for a Bitcoin address.
+ *
+ * Returns the last 25 confirmed transactions plus any unconfirmed (mempool) transactions.
+ * This is useful for checking if a specific transaction has been broadcast.
+ *
+ * @param address - The Bitcoin address
+ * @param apiUrl - Mempool API base URL
+ * @returns Array of recent transactions
+ */
+export async function getAddressTxs(
+  address: string,
+  apiUrl: string,
+): Promise<AddressTx[]> {
+  return fetchApi<AddressTx[]>(`${apiUrl}/address/${address}/txs`);
+}
+
+/**
  * Fetches Bitcoin network fee recommendations from mempool.space API.
  *
  * @param apiUrl - Mempool API base URL

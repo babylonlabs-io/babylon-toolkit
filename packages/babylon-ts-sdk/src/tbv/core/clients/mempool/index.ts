@@ -7,6 +7,7 @@
  */
 
 export {
+  getAddressTxs,
   getAddressUtxos,
   getMempoolApiUrl,
   getNetworkFees,
@@ -16,6 +17,8 @@ export {
   MEMPOOL_API_URLS,
   pushTx,
 } from "./mempoolApi";
+
+export type { AddressTx } from "./mempoolApi";
 
 export type {
   MempoolUTXO,

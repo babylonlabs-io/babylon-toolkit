@@ -64,14 +64,11 @@ const GET_APP_PROVIDERS = gql`
   }
 `;
 
-/** GraphQL query to fetch vault keepers by version */
+/** GraphQL query to fetch vault keepers by exact version */
 const GET_KEEPERS_BY_VERSION = gql`
   query GetKeepersByVersion($appController: String!, $keepersVersion: Int!) {
     vaultKeeperApplications(
-      where: {
-        applicationController: $appController
-        version_lte: $keepersVersion
-      }
+      where: { applicationController: $appController, version: $keepersVersion }
     ) {
       items {
         vaultKeeper
