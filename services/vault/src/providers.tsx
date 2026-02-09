@@ -5,7 +5,6 @@ import { ThemeProvider } from "next-themes";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { WagmiProvider } from "wagmi";
 
-import { HealthCheckWrapper } from "@/components/HealthCheckWrapper";
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
 import { vaultWagmiConfig } from "@/config/wagmi";
@@ -38,9 +37,7 @@ function Providers({ children }: React.PropsWithChildren) {
                   <GeoFencingProvider>
                     <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
                       <WalletConnectionProvider>
-                        <HealthCheckWrapper>
-                          <AppState>{children}</AppState>
-                        </HealthCheckWrapper>
+                        <AppState>{children}</AppState>
                       </WalletConnectionProvider>
                     </WagmiProvider>
                   </GeoFencingProvider>

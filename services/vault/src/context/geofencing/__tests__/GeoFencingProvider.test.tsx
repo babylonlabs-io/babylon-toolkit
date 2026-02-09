@@ -12,9 +12,35 @@ vi.mock("@/config/contracts", () => ({
 }));
 
 const mockCheckGeofencing = vi.fn();
+const mockCheckGraphQLEndpoint = vi.fn();
+
+let mockEnvInitError: string | null = null;
+let mockWagmiInitError: string | null = null;
+
+vi.mock("@/config/env", () => ({
+  get envInitError() {
+    return mockEnvInitError;
+  },
+}));
+
+vi.mock("@/config/wagmi", () => ({
+  get wagmiInitError() {
+    return mockWagmiInitError;
+  },
+}));
 
 vi.mock("@/services/health", () => ({
   checkGeofencing: (...args: unknown[]) => mockCheckGeofencing(...args),
+  checkGraphQLEndpoint: (...args: unknown[]) =>
+    mockCheckGraphQLEndpoint(...args),
+  createEnvConfigError: (details: string) => ({
+    title: "Configuration Error",
+    message: `Missing configuration (${details})`,
+  }),
+  createWagmiInitError: () => ({
+    title: "Wallet Error",
+    message: "Wallet init failed",
+  }),
 }));
 
 function TestComponent({
@@ -52,9 +78,14 @@ function renderWithProviders(
 describe("GeoFencingProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEnvInitError = null;
+    mockWagmiInitError = null;
     mockCheckGeofencing.mockResolvedValue({
       healthy: true,
       isGeoBlocked: false,
+    });
+    mockCheckGraphQLEndpoint.mockResolvedValue({
+      healthy: true,
     });
   });
 
@@ -62,7 +93,7 @@ describe("GeoFencingProvider", () => {
     vi.resetModules();
   });
 
-  it("does not show error when user is not geo-blocked", async () => {
+  it("does not show error when all checks pass", async () => {
     const onError = vi.fn();
     const onGeoBlocked = vi.fn();
 
@@ -70,6 +101,7 @@ describe("GeoFencingProvider", () => {
 
     await waitFor(() => {
       expect(mockCheckGeofencing).toHaveBeenCalled();
+      expect(mockCheckGraphQLEndpoint).toHaveBeenCalled();
     });
 
     expect(onError).not.toHaveBeenCalled();
@@ -102,5 +134,29 @@ describe("GeoFencingProvider", () => {
     await waitFor(() => {
       expect(onGeoBlocked).toHaveBeenCalledWith(true);
     });
+  });
+
+  it("shows error when GraphQL is unreachable", async () => {
+    mockCheckGraphQLEndpoint.mockResolvedValueOnce({
+      healthy: false,
+      error: {
+        title: "Service Unavailable",
+        message: "Cannot connect to backend",
+      },
+    });
+
+    const onError = vi.fn();
+    const onGeoBlocked = vi.fn();
+    renderWithProviders(onError, onGeoBlocked);
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Service Unavailable",
+        }),
+      );
+    });
+
+    expect(onGeoBlocked).toHaveBeenCalledWith(false);
   });
 });

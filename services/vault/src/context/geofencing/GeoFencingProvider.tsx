@@ -8,8 +8,15 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import { envInitError } from "@/config/env";
+import { wagmiInitError } from "@/config/wagmi";
 import { useError } from "@/context/error";
-import { checkGeofencing } from "@/services/health";
+import {
+  checkGeofencing,
+  checkGraphQLEndpoint,
+  createEnvConfigError,
+  createWagmiInitError,
+} from "@/services/health";
 
 import type { GeoFencingContextType } from "./types";
 
@@ -29,12 +36,39 @@ export function GeoFencingProvider({ children }: PropsWithChildren) {
     hasRunRef.current = true;
 
     async function check() {
-      const result = await checkGeofencing();
+      if (envInitError) {
+        handleError({
+          error: createEnvConfigError(envInitError),
+          displayOptions: { blocking: true },
+        });
+        setIsLoading(false);
+        return;
+      }
 
-      if (result.isGeoBlocked && result.error) {
+      if (wagmiInitError) {
+        handleError({
+          error: createWagmiInitError(),
+          displayOptions: { blocking: true },
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const geoResult = await checkGeofencing();
+      if (geoResult.isGeoBlocked && geoResult.error) {
         setIsGeoBlocked(true);
         handleError({
-          error: result.error,
+          error: geoResult.error,
+          displayOptions: { blocking: true },
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      const graphqlResult = await checkGraphQLEndpoint();
+      if (!graphqlResult.healthy && graphqlResult.error) {
+        handleError({
+          error: graphqlResult.error,
           displayOptions: { blocking: true },
         });
       }

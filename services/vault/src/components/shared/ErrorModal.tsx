@@ -103,7 +103,7 @@ export function ErrorModal() {
           {error.message}
         </Text>
 
-        {blocking && (
+        {blocking && error.code !== ErrorCode.GEO_BLOCK && (
           <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
             <Text
               variant="body2"
