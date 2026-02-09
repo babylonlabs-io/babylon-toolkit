@@ -161,7 +161,6 @@ export async function fetchAppProviders(
       url: provider.rpcUrl,
     }));
 
-  // Return raw keeper items with version info — caller decides how to filter
   const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items.map((item) => ({
       id: item.vaultKeeper,
@@ -171,6 +170,7 @@ export async function fetchAppProviders(
 
   return {
     vaultProviders,
+    vaultKeepers: getLatestVersionKeepers(vaultKeeperItems),
     vaultKeeperItems,
   };
 }

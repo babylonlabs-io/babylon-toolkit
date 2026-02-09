@@ -53,12 +53,14 @@ export interface VaultProvider {
 
 /**
  * Response from fetchAppProviders containing per-application data only.
- * Keepers are returned as raw items with version info — callers decide
- * how to filter by version.
+ * Includes pre-computed latest-version keepers for the common case,
+ * plus raw items with version info for callers that need historical data.
  */
 export interface AppProvidersResponse {
   /** Vault providers for the application */
   vaultProviders: VaultProvider[];
-  /** Raw vault keeper items with version info (caller filters by version) */
-  vaultKeeperItems: VaultKeeperItem[];
+  /** Vault keepers filtered to the latest version (most common use case) */
+  vaultKeepers: VaultKeeper[];
+  /** Raw vault keeper items with version info, if needed */
+  vaultKeeperItems?: VaultKeeperItem[];
 }

@@ -16,10 +16,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
-import {
-  fetchAppProviders,
-  getLatestVersionKeepers,
-} from "../../services/providers";
+import { fetchAppProviders } from "../../services/providers";
 import type {
   AppProvidersResponse,
   VaultKeeper,
@@ -116,7 +113,7 @@ export function useVaultProviders(
 
   return {
     vaultProviders: data?.vaultProviders || [],
-    vaultKeepers: data ? getLatestVersionKeepers(data.vaultKeeperItems) : [],
+    vaultKeepers: data?.vaultKeepers ?? [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,

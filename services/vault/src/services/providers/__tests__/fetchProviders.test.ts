@@ -17,7 +17,7 @@ const mockRequest = vi.mocked(graphqlClient.request);
 
 describe("fetchProviders", () => {
   describe("fetchAppProviders", () => {
-    it("should return raw keeper items with version info", async () => {
+    it("should return raw keeper items and pre-computed latest keepers", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
         vaultKeeperApplications: {
@@ -43,11 +43,16 @@ describe("fetchProviders", () => {
 
       const result = await fetchAppProviders("0xAppController");
 
-      // All items returned with version info — no filtering
+      // Raw items with version info
       expect(result.vaultKeeperItems).toEqual([
         { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 1 },
         { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 3 },
         { id: "0xkeeper2", btcPubKey: "0xpubkey2", version: 2 },
+      ]);
+
+      // Pre-computed latest version keepers (version 3 only)
+      expect(result.vaultKeepers).toEqual([
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1" },
       ]);
     });
 
@@ -60,6 +65,7 @@ describe("fetchProviders", () => {
       const result = await fetchAppProviders("0xAppController");
 
       expect(result.vaultKeeperItems).toEqual([]);
+      expect(result.vaultKeepers).toEqual([]);
     });
 
     it("should filter providers without rpcUrl", async () => {

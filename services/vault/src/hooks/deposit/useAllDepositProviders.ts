@@ -16,10 +16,7 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import {
-  fetchAppProviders,
-  getLatestVersionKeepers,
-} from "../../services/providers";
+import { fetchAppProviders } from "../../services/providers";
 import type { VaultKeeper, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 
@@ -94,8 +91,7 @@ export function useAllDepositProviders(
             allProviders.push(provider);
           }
         }
-        const keepers = getLatestVersionKeepers(query.data.vaultKeeperItems);
-        for (const vaultKeeper of keepers) {
+        for (const vaultKeeper of query.data.vaultKeepers) {
           if (!allVaultKeepers.some((vk) => vk.id === vaultKeeper.id)) {
             allVaultKeepers.push(vaultKeeper);
           }
