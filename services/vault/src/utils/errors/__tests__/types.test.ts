@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { isError451 } from "../error";
-import { ApiError } from "../types";
+import { ApiError, isError451 } from "../types";
 
 describe("isError451", () => {
   describe("returns true for 451 status", () => {
     it("detects 451 status on ApiError", () => {
-      const error = new ApiError("Geo blocked", 451, "Unavailable");
+      const error = new ApiError("Geo blocked", 451);
       expect(isError451(error)).toBe(true);
     });
 

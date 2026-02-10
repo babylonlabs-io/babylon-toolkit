@@ -10,54 +10,147 @@ vi.mock("@/clients/eth-contract/client", () => ({
 
 vi.mock("@/config/env", () => ({
   ENV: {
-    GRAPHQL_ENDPOINT: "https://test.graphql.endpoint",
+    GRAPHQL_ENDPOINT: "https://indexer.example.com/graphql",
   },
 }));
 
-const mockFetchHealthCheck = vi.fn();
-
-vi.mock("@/api", async () => {
-  class MockApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-      super(message);
-      this.name = "ApiError";
-      this.status = status;
-    }
-  }
-
-  return {
-    fetchHealthCheck: () => mockFetchHealthCheck(),
-    isError451: (error: unknown) => {
-      if (typeof error === "object" && error !== null && "status" in error) {
-        return (error as { status: number }).status === 451;
-      }
-      return false;
-    },
-    ApiError: MockApiError,
-  };
-});
-
-import { ApiError } from "@/api";
+import { ApiError } from "@/utils/errors/types";
 
 import {
   checkGeofencing,
   checkGraphQLEndpoint,
   createEnvConfigError,
   createWagmiInitError,
+  fetchHealthCheck,
   runHealthChecks,
 } from "../healthCheckService";
 
 describe("healthCheckService", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe("fetchHealthCheck", () => {
+    it("derives health URL from GRAPHQL_ENDPOINT origin", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: "ok" }),
+      } as Response);
+
+      await fetchHealthCheck();
+
+      expect(fetch).toHaveBeenCalledWith("https://indexer.example.com/health");
+    });
+
+    it("returns data on success", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: "healthy" }),
+      } as Response);
+
+      const result = await fetchHealthCheck();
+
+      expect(result).toEqual({ data: "healthy" });
+    });
+
+    it("throws ApiError with status 451 for geo-blocked response", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 451,
+        text: () => Promise.resolve("Unavailable For Legal Reasons"),
+      } as Response);
+
+      try {
+        await fetchHealthCheck();
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(451);
+        expect((error as ApiError).message).toBe("Health check failed");
+      }
+    });
+
+    it("throws ApiError with status for non-ok response", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Internal Server Error"),
+      } as Response);
+
+      try {
+        await fetchHealthCheck();
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(500);
+        expect((error as ApiError).response).toBe("Internal Server Error");
+      }
+    });
+
+    it("throws ApiError for TypeError (network error)", async () => {
+      vi.mocked(fetch).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+      try {
+        await fetchHealthCheck();
+        expect.fail("Should have thrown an error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(0);
+        expect((error as ApiError).message).toBe("Network error occurred");
+      }
+    });
+  });
+
+  describe("checkGeofencing", () => {
+    it("returns healthy when healthcheck endpoint succeeds", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: "ok" }),
+      } as Response);
+
+      const result = await checkGeofencing();
+
+      expect(result.healthy).toBe(true);
+      expect(result.isGeoBlocked).toBe(false);
+      expect(result.error).toBeUndefined();
+    });
+
+    it("returns geo-blocked when healthcheck returns 451", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 451,
+        text: () => Promise.resolve("Unavailable For Legal Reasons"),
+      } as Response);
+
+      const result = await checkGeofencing();
+
+      expect(result.healthy).toBe(false);
+      expect(result.isGeoBlocked).toBe(true);
+      expect(result.error).toBeDefined();
+      expect(result.error?.title).toBe("Access Restricted");
+    });
+
+    it("returns healthy when healthcheck fails with non-451 error", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve("Server Error"),
+      } as Response);
+
+      const result = await checkGeofencing();
+
+      // Non-451 errors don't block the user
+      expect(result.healthy).toBe(true);
+      expect(result.isGeoBlocked).toBe(false);
+      expect(result.error).toBeUndefined();
+    });
+  });
+
   describe("checkGraphQLEndpoint", () => {
-    beforeEach(() => {
-      vi.stubGlobal("fetch", vi.fn());
-    });
-
-    afterEach(() => {
-      vi.unstubAllGlobals();
-    });
-
     it("returns healthy when GraphQL endpoint responds with 200", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
@@ -93,6 +186,60 @@ describe("healthCheckService", () => {
     });
   });
 
+  describe("runHealthChecks", () => {
+    it("returns healthy when all checks pass", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: "ok" }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: true,
+        } as Response);
+
+      const result = await runHealthChecks();
+
+      expect(result.healthy).toBe(true);
+      expect(result.isGeoBlocked).toBe(false);
+      expect(result.error).toBeUndefined();
+    });
+
+    it("returns geo-blocked immediately when geofencing check fails with 451", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 451,
+        text: () => Promise.resolve("Unavailable For Legal Reasons"),
+      } as Response);
+
+      const result = await runHealthChecks();
+
+      expect(result.healthy).toBe(false);
+      expect(result.isGeoBlocked).toBe(true);
+      expect(result.error).toBeDefined();
+      expect(result.error?.title).toBe("Access Restricted");
+      // GraphQL check should not be called (only 1 fetch call)
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("checks GraphQL endpoint after geofencing passes", async () => {
+      vi.mocked(fetch)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ data: "ok" }),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+        } as Response);
+
+      const result = await runHealthChecks();
+
+      expect(result.healthy).toBe(false);
+      expect(result.isGeoBlocked).toBeUndefined();
+      expect(result.error?.title).toBe("Service Unavailable");
+    });
+  });
+
   describe("createEnvConfigError", () => {
     it("creates an error with the correct title and message", () => {
       const error = createEnvConfigError("MISSING_VAR_1, MISSING_VAR_2");
@@ -108,132 +255,6 @@ describe("healthCheckService", () => {
 
       expect(error.title).toBe("Wallet Configuration Error");
       expect(error.message).toContain("wallet connections");
-    });
-  });
-
-  describe("checkGeofencing", () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it("returns healthy when healthcheck endpoint succeeds", async () => {
-      mockFetchHealthCheck.mockResolvedValueOnce({ data: "ok" });
-
-      const result = await checkGeofencing();
-
-      expect(result.healthy).toBe(true);
-      expect(result.isGeoBlocked).toBe(false);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("returns geo-blocked when healthcheck returns 451", async () => {
-      const error = new ApiError("Geo blocked", 451);
-      mockFetchHealthCheck.mockRejectedValueOnce(error);
-
-      const result = await checkGeofencing();
-
-      expect(result.healthy).toBe(false);
-      expect(result.isGeoBlocked).toBe(true);
-      expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Access Restricted");
-    });
-
-    it("returns healthy when healthcheck fails with non-451 error", async () => {
-      mockFetchHealthCheck.mockRejectedValueOnce(new Error("Network error"));
-
-      const result = await checkGeofencing();
-
-      // Non-451 errors don't block the user
-      expect(result.healthy).toBe(true);
-      expect(result.isGeoBlocked).toBe(false);
-      expect(result.error).toBeUndefined();
-    });
-  });
-
-  describe("runHealthChecks", () => {
-    beforeEach(() => {
-      vi.stubGlobal("fetch", vi.fn());
-      vi.clearAllMocks();
-    });
-
-    afterEach(() => {
-      vi.unstubAllGlobals();
-    });
-
-    it("returns healthy when all checks pass", async () => {
-      mockFetchHealthCheck.mockResolvedValueOnce({ data: "ok" });
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-      } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(true);
-      expect(result.isGeoBlocked).toBe(false);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("returns geo-blocked immediately when geofencing check fails with 451", async () => {
-      const error = new ApiError("Geo blocked", 451);
-      mockFetchHealthCheck.mockRejectedValueOnce(error);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(false);
-      expect(result.isGeoBlocked).toBe(true);
-      expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Access Restricted");
-      // GraphQL check should not be called
-      expect(fetch).not.toHaveBeenCalled();
-    });
-
-    it("checks GraphQL endpoint after geofencing passes", async () => {
-      mockFetchHealthCheck.mockResolvedValueOnce({ data: "ok" });
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-      } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.healthy).toBe(false);
-      expect(result.isGeoBlocked).toBeUndefined();
-      expect(result.error?.title).toBe("Service Unavailable");
-    });
-
-    it("runs checks in correct order: geofencing first, then GraphQL", async () => {
-      mockFetchHealthCheck.mockResolvedValueOnce({ data: "ok" });
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-      } as Response);
-
-      await runHealthChecks();
-
-      // Verify geofencing (mockFetchHealthCheck) was called
-      expect(mockFetchHealthCheck).toHaveBeenCalledTimes(1);
-      // Verify GraphQL (fetch) was called after
-      expect(fetch).toHaveBeenCalledTimes(1);
-    });
-
-    it("does not run GraphQL check when geo-blocked", async () => {
-      const error = new ApiError("Geo blocked", 451);
-      mockFetchHealthCheck.mockRejectedValueOnce(error);
-
-      await runHealthChecks();
-
-      expect(mockFetchHealthCheck).toHaveBeenCalledTimes(1);
-      expect(fetch).not.toHaveBeenCalled();
-    });
-
-    it("sets isGeoBlocked to false when healthy", async () => {
-      mockFetchHealthCheck.mockResolvedValueOnce({ data: "ok" });
-      vi.mocked(fetch).mockResolvedValueOnce({
-        ok: true,
-      } as Response);
-
-      const result = await runHealthChecks();
-
-      expect(result.isGeoBlocked).toBe(false);
     });
   });
 });

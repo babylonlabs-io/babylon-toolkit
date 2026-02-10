@@ -1,14 +1,64 @@
-import { ApiError, fetchHealthCheck, isError451 } from "@/api";
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
 import { logger } from "@/infrastructure";
 import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
-import { ErrorCode } from "@/utils/errors/types";
+import { ApiError, ErrorCode, isError451 } from "@/utils/errors/types";
 
 export interface HealthCheckResult {
   healthy: boolean;
   isGeoBlocked?: boolean;
   error?: AppError;
+}
+
+export interface HealthCheckResponse {
+  data: string;
+}
+
+function getHealthCheckUrl(): string {
+  const url = new URL(ENV.GRAPHQL_ENDPOINT);
+  return `${url.origin}/health`;
+}
+
+export async function fetchHealthCheck(): Promise<HealthCheckResponse> {
+  const url = getHealthCheckUrl();
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const responseText = await response
+        .text()
+        .catch(() => "Health check failed");
+
+      throw new ApiError(
+        "Health check failed",
+        response.status,
+        undefined,
+        responseText,
+      );
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof TypeError) {
+      throw new ApiError(
+        "Network error occurred",
+        0,
+        undefined,
+        error.message || "Health check failed",
+      );
+    }
+
+    throw new ApiError(
+      error instanceof Error ? error.message : "Health check failed",
+      0,
+    );
+  }
 }
 
 export async function checkGeofencing(): Promise<HealthCheckResult> {
