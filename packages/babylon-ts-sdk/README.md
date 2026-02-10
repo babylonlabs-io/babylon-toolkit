@@ -86,8 +86,13 @@ import { BitcoinWallet, UTXO } from "@babylonlabs-io/ts-sdk/shared";
 // Contract ABIs
 import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-// Protocol integrations
-import { AaveClient } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+// Protocol integrations (Aave)
+import {
+  buildAddCollateralTx,
+  buildBorrowTx,
+  getUserAccountData,
+  calculateHealthFactor,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 ```
 
 ## Choose Your API Level
