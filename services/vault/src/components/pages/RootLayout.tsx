@@ -18,7 +18,7 @@ import { useGeoFencing } from "@/context/geofencing";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
-import { GeoBlockBanner } from "../shared/GeoBlockAlert";
+import { GeoBlockBanner } from "../shared/GeoBlockBanner";
 import { Connect } from "../Wallet";
 
 const btcConfig = getNetworkConfigBTC();

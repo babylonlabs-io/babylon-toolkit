@@ -38,7 +38,6 @@ describe("healthCheckService", () => {
     it("derives health URL from GRAPHQL_ENDPOINT origin", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: "ok" }),
       } as Response);
 
       await fetchHealthCheck();
@@ -46,22 +45,18 @@ describe("healthCheckService", () => {
       expect(fetch).toHaveBeenCalledWith("https://indexer.example.com/health");
     });
 
-    it("returns data on success", async () => {
+    it("resolves on success", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: "healthy" }),
       } as Response);
 
-      const result = await fetchHealthCheck();
-
-      expect(result).toEqual({ data: "healthy" });
+      await expect(fetchHealthCheck()).resolves.toBeUndefined();
     });
 
     it("throws ApiError with status 451 for geo-blocked response", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 451,
-        text: () => Promise.resolve("Unavailable For Legal Reasons"),
       } as Response);
 
       try {
@@ -78,7 +73,6 @@ describe("healthCheckService", () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 500,
-        text: () => Promise.resolve("Internal Server Error"),
       } as Response);
 
       try {
@@ -87,7 +81,6 @@ describe("healthCheckService", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(500);
-        expect((error as ApiError).response).toBe("Internal Server Error");
       }
     });
 
@@ -109,7 +102,6 @@ describe("healthCheckService", () => {
     it("returns healthy when healthcheck endpoint succeeds", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: "ok" }),
       } as Response);
 
       const result = await checkGeofencing();
@@ -123,22 +115,18 @@ describe("healthCheckService", () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 451,
-        text: () => Promise.resolve("Unavailable For Legal Reasons"),
       } as Response);
 
       const result = await checkGeofencing();
 
       expect(result.healthy).toBe(false);
       expect(result.isGeoBlocked).toBe(true);
-      expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Access Restricted");
     });
 
     it("returns healthy when healthcheck fails with non-451 error", async () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 500,
-        text: () => Promise.resolve("Server Error"),
       } as Response);
 
       const result = await checkGeofencing();
@@ -191,7 +179,6 @@ describe("healthCheckService", () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ data: "ok" }),
         } as Response)
         .mockResolvedValueOnce({
           ok: true,
@@ -208,15 +195,12 @@ describe("healthCheckService", () => {
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: false,
         status: 451,
-        text: () => Promise.resolve("Unavailable For Legal Reasons"),
       } as Response);
 
       const result = await runHealthChecks();
 
       expect(result.healthy).toBe(false);
       expect(result.isGeoBlocked).toBe(true);
-      expect(result.error).toBeDefined();
-      expect(result.error?.title).toBe("Access Restricted");
       // GraphQL check should not be called (only 1 fetch call)
       expect(fetch).toHaveBeenCalledTimes(1);
     });
@@ -225,7 +209,6 @@ describe("healthCheckService", () => {
       vi.mocked(fetch)
         .mockResolvedValueOnce({
           ok: true,
-          json: () => Promise.resolve({ data: "ok" }),
         } as Response)
         .mockResolvedValueOnce({
           ok: false,

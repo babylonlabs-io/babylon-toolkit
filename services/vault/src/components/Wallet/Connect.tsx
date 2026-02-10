@@ -3,6 +3,7 @@ import {
   AvatarGroup,
   BtcEthWalletMenu,
   ConnectButton,
+  Hint,
 } from "@babylonlabs-io/core-ui";
 import {
   useWalletConnect,
@@ -33,11 +34,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   const { selectedWallets } = useWidgetState();
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
-  const { isGeoBlocked } = useGeoFencing();
+  const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
 
   const isConnected = useMemo(
-    () => btcConnected && ethConnected && !isGeoBlocked,
-    [btcConnected, ethConnected, isGeoBlocked],
+    () => btcConnected && ethConnected && !isGeoBlocked && !isGeoLoading,
+    [btcConnected, ethConnected, isGeoBlocked, isGeoLoading],
   );
 
   const transformedWallets = useMemo(() => {
@@ -105,11 +106,22 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
     );
   }
 
-  return (
+  const connectButton = (
     <ConnectButton
       connected={isConnected}
-      loading={loading || isGeoBlocked}
+      loading={loading || isGeoLoading}
+      disabled={isGeoBlocked}
       onClick={open}
     />
   );
+
+  if (isGeoBlocked) {
+    return (
+      <Hint tooltip="Not available in your region" attachToChildren>
+        <span>{connectButton}</span>
+      </Hint>
+    );
+  }
+
+  return connectButton;
 };

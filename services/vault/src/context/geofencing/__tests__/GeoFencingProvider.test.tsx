@@ -112,11 +112,6 @@ describe("GeoFencingProvider", () => {
     mockCheckGeofencing.mockResolvedValueOnce({
       healthy: false,
       isGeoBlocked: true,
-      error: {
-        title: "Access Restricted",
-        message:
-          "We're sorry, but this page isn't accessible in your location at the moment due to regional restrictions",
-      },
     });
 
     const onError = vi.fn();

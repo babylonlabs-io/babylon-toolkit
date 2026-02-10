@@ -1,8 +1,6 @@
 import { Text } from "@babylonlabs-io/core-ui";
 import { PiWarningOctagonFill } from "react-icons/pi";
 
-import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
-
 interface GeoBlockBannerProps {
   visible: boolean;
 }
@@ -19,7 +17,8 @@ export function GeoBlockBanner({ visible }: GeoBlockBannerProps) {
         <Text variant="body1">
           <strong>Unavailable In Your Region</strong>
           <br />
-          {GEO_BLOCK_MESSAGE}
+          We're sorry, but this page isn't accessible in your location at the
+          moment due to regional restrictions
         </Text>
       </div>
     </div>

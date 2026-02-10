@@ -1,7 +1,6 @@
 export * from "./activity";
 export * from "./activityLog";
 export * from "./application";
-export * from "./healthCheck";
 export * from "./market";
 export * from "./position";
 export * from "./rpc";

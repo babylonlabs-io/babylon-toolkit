@@ -21,7 +21,7 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 
 function DepositContent() {
   const navigate = useNavigate();
-  const { isGeoBlocked } = useGeoFencing();
+  const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isSupportedAddress } = useAddressType();
 
   const handleBack = () => {
@@ -161,7 +161,10 @@ function DepositContent() {
                 color="secondary"
                 size="large"
                 disabled={
-                  !isValid || !FeatureFlags.isDepositEnabled || isGeoBlocked
+                  !isValid ||
+                  !FeatureFlags.isDepositEnabled ||
+                  isGeoBlocked ||
+                  isGeoLoading
                 }
                 onClick={handleDeposit}
                 className="w-full"
