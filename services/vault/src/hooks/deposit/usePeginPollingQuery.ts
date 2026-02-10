@@ -33,6 +33,33 @@ const POLLING_RETRY_COUNT = 3;
 /** Delay between retry attempts (5 seconds) */
 const POLLING_RETRY_DELAY_MS = 5 * 1000;
 
+/**
+ * Transient error patterns that indicate vault provider is still processing.
+ * These are expected during the early stages of a deposit and should not
+ * be shown to users as errors.
+ */
+const TRANSIENT_ERROR_PATTERNS = [
+  "PegIn not found",
+  "No transaction graphs found",
+] as const;
+
+/**
+ * Check if an error is transient (vault provider still processing).
+ */
+function isTransientError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  // Check for pre-depositor-signatures states
+  if (isPreDepositorSignaturesError(error)) {
+    return true;
+  }
+
+  // Check for other transient patterns
+  return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
+    error.message.includes(pattern),
+  );
+}
+
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
   pendingPegins: PendingPeginRequest[];
@@ -86,8 +113,9 @@ async function fetchFromProvider(
       // Clear any previous error for this deposit on success
       errors.delete(deposit.activity.id);
     } catch (error) {
-      // Expected error: Daemon is still processing (before PendingDepositorSignatures)
-      if (isPreDepositorSignaturesError(error)) {
+      // Expected transient errors: Vault provider is still processing
+      // (e.g., PegIn not found, before PendingDepositorSignatures state)
+      if (isTransientError(error)) {
         // Transactions not ready yet - continue polling
         // Clear any previous error since provider is reachable
         errors.delete(deposit.activity.id);

@@ -84,8 +84,11 @@ export function getStepDescription(
 export function canCloseModal(
   currentStep: DepositStep,
   error: string | null,
+  isWaiting: boolean = false,
 ): boolean {
   if (error) return true;
   if (currentStep === DepositStep.COMPLETED) return true;
+  // Allow closing during waiting states (vault provider prep or verification)
+  if (isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS) return true;
   return false;
 }

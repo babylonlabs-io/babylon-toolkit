@@ -85,8 +85,10 @@ export function CollateralDepositSignModal({
   useOnModalOpen(open, handleExecuteFlow);
 
   const isComplete = currentStep === DepositStep.COMPLETED;
-  const canClose = canCloseModal(currentStep, error);
+  const canClose = canCloseModal(currentStep, error, isWaiting);
   const isProcessing = (processing || isWaiting) && !error && !isComplete;
+  const canContinueInBackground =
+    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
 
   return (
     <ResponsiveDialog open={open} onClose={canClose ? onClose : undefined}>
@@ -125,17 +127,19 @@ export function CollateralDepositSignModal({
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={isProcessing}
+          disabled={!canClose}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={canClose ? onClose : undefined}
+          onClick={onClose}
         >
-          {isProcessing ? (
-            <Loader size={16} className="text-accent-contrast" />
+          {canContinueInBackground ? (
+            "Continue in Background"
           ) : error ? (
             "Close"
           ) : isComplete ? (
             "Done"
+          ) : isProcessing ? (
+            <Loader size={16} className="text-accent-contrast" />
           ) : (
             "Processing..."
           )}
