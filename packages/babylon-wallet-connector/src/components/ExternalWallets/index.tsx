@@ -5,11 +5,16 @@ import { twJoin } from "tailwind-merge";
 interface TomoWidgetProps {
   chainName: "bitcoin" | "cosmos";
   onError?: (e: Error) => void;
+  supportedWallets?: string[];
 }
 
-export const ExternalWallets = ({ chainName, onError }: TomoWidgetProps) => {
+export const ExternalWallets = ({ chainName, onError, supportedWallets }: TomoWidgetProps) => {
   const selectWallet = useClickWallet();
   const wallets = useWalletListWithIsInstall(chainName);
+
+  const filteredWallets = supportedWallets
+    ? (wallets || []).filter((wallet: any) => supportedWallets.includes(wallet.id))
+    : wallets || [];
 
   const handleClick = async (wallet: any) => {
     try {
@@ -19,12 +24,16 @@ export const ExternalWallets = ({ chainName, onError }: TomoWidgetProps) => {
     }
   };
 
+  if (filteredWallets.length === 0) {
+    return null;
+  }
+
   return (
     <div className="pt-10 text-accent-primary">
       <Text className="mb-4">More wallets with Tomo Connect</Text>
 
       <div className="grid grid-cols-3 items-center justify-between gap-6 rounded border border-secondary-strokeLight p-6 md:grid-cols-7">
-        {(wallets || []).map((wallet: any) => (
+        {filteredWallets.map((wallet: any) => (
           <button
             disabled={!wallet.isInstall}
             className={twJoin("flex flex-col items-center gap-2.5", wallet.isInstall ? "opacity-100" : "opacity-50")}

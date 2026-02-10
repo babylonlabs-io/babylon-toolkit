@@ -15,6 +15,15 @@ import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
 const context = typeof window !== "undefined" ? window : {};
 
+const SUPPORTED_EXTERNAL_WALLETS = [
+  "bitcoin_okx",
+  "bitcoin_unisat",
+  "bitcoin_keplr",
+  "cosmos_okx",
+  "cosmos_unisat",
+  "cosmos_keplr",
+];
+
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
  */
@@ -71,27 +80,10 @@ function WalletProviders({ children }: PropsWithChildren) {
 export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const { theme } = useTheme();
 
-  const config = useMemo(
-    () =>
-      createWalletConfig({
-        chains: ["BTC", "ETH"],
-        networkConfigs: {
-          BTC: getNetworkConfigBTC(),
-          ETH: getNetworkConfigETH(),
-        },
-      }),
-    [],
-  );
-
   const disabledWallets = useMemo(() => {
-    const disabled: string[] = ["ledger_btc_v2"];
+    const disabled: string[] = ["ledger_btc", "ledger_btc_v2"];
 
     const isMainnet = process.env.NEXT_PUBLIC_BTC_NETWORK === "mainnet";
-
-    // Disable Ledger BTC on mainnet
-    if (isMainnet) {
-      disabled.push("ledger_btc");
-    }
 
     // Disable AppKit BTC on mainnet
     if (isMainnet) {
@@ -100,6 +92,19 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
     return disabled;
   }, []);
+
+  const config = useMemo(
+    () =>
+      createWalletConfig({
+        chains: ["BTC", "ETH"],
+        networkConfigs: {
+          BTC: getNetworkConfigBTC(),
+          ETH: getNetworkConfigETH(),
+        },
+        supportedWallets: SUPPORTED_EXTERNAL_WALLETS,
+      }),
+    [],
+  );
 
   const onError = useCallback((error: Error) => {
     // User rejections are expected, don't log them
