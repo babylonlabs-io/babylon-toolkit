@@ -6,6 +6,8 @@ export enum ErrorCode {
   API_SERVER_ERROR = "API_SERVER_ERROR",
   API_CLIENT_ERROR = "API_CLIENT_ERROR",
 
+  GEO_BLOCK = "GEO_BLOCK",
+
   CONTRACT_ERROR = "CONTRACT_ERROR",
   CONTRACT_REVERT = "CONTRACT_REVERT",
   CONTRACT_EXECUTION_FAILED = "CONTRACT_EXECUTION_FAILED",
@@ -130,3 +132,13 @@ export class ValidationError extends Error {
     }
   }
 }
+
+export const isError451 = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const maybeWithStatus = error as { status?: unknown };
+  return (
+    typeof maybeWithStatus.status === "number" && maybeWithStatus.status === 451
+  );
+};

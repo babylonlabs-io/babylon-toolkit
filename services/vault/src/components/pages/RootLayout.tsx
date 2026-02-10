@@ -13,8 +13,10 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+import { useGeoFencing } from "@/context/geofencing";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { GeoBlockBanner } from "../shared/GeoBlockAlert";
 import { Connect } from "../Wallet";
 
 const btcConfig = getNetworkConfigBTC();
@@ -73,6 +75,7 @@ export default function RootLayout() {
   const { theme, setTheme } = useTheme();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
+  const { isGeoBlocked } = useGeoFencing();
 
   const isWalletConnected = btcConnected && ethConnected;
   const isDepositPage = location.pathname === "/deposit";
@@ -87,13 +90,14 @@ export default function RootLayout() {
     >
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
+        <GeoBlockBanner visible={isGeoBlocked} />
         <Header
           size="sm"
           navigation={<DesktopNavigation />}
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
-              {isWalletConnected && !isDepositPage && (
+              {isWalletConnected && !isDepositPage && !isGeoBlocked && (
                 <Button
                   variant="outlined"
                   rounded

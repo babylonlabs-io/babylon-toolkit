@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { FeatureFlags } from "@/config";
+import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 
 import { DepositState } from "../../context/deposit/DepositState";
@@ -19,6 +20,7 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 
 function DepositContent() {
   const navigate = useNavigate();
+  const { isGeoBlocked } = useGeoFencing();
 
   const handleBack = () => {
     navigate(-1);
@@ -136,7 +138,9 @@ function DepositContent() {
               variant="contained"
               color="secondary"
               size="large"
-              disabled={!isValid || !FeatureFlags.isDepositEnabled}
+              disabled={
+                !isValid || !FeatureFlags.isDepositEnabled || isGeoBlocked
+              }
               onClick={handleDeposit}
               className="w-full"
             >

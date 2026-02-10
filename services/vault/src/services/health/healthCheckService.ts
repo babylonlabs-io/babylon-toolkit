@@ -1,9 +1,87 @@
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
+import { logger } from "@/infrastructure";
+import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
+import { ApiError, ErrorCode, isError451 } from "@/utils/errors/types";
 
 export interface HealthCheckResult {
   healthy: boolean;
+  isGeoBlocked?: boolean;
   error?: AppError;
+}
+
+export interface HealthCheckResponse {
+  data: string;
+}
+
+function getHealthCheckUrl(): string {
+  const url = new URL(ENV.GRAPHQL_ENDPOINT);
+  return `${url.origin}/health`;
+}
+
+export async function fetchHealthCheck(): Promise<HealthCheckResponse> {
+  const url = getHealthCheckUrl();
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      const responseText = await response
+        .text()
+        .catch(() => "Health check failed");
+
+      throw new ApiError(
+        "Health check failed",
+        response.status,
+        undefined,
+        responseText,
+      );
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error instanceof TypeError) {
+      throw new ApiError(
+        "Network error occurred",
+        0,
+        undefined,
+        error.message || "Health check failed",
+      );
+    }
+
+    throw new ApiError(
+      error instanceof Error ? error.message : "Health check failed",
+      0,
+    );
+  }
+}
+
+export async function checkGeofencing(): Promise<HealthCheckResult> {
+  try {
+    await fetchHealthCheck();
+    return { healthy: true, isGeoBlocked: false };
+  } catch (error) {
+    if (error instanceof ApiError && isError451(error)) {
+      return {
+        healthy: false,
+        isGeoBlocked: true,
+        error: {
+          code: ErrorCode.GEO_BLOCK,
+          title: "Access Restricted",
+          message: GEO_BLOCK_MESSAGE,
+        },
+      };
+    }
+
+    // Non-451 errors don't block the user - GraphQL check handles general availability
+    logger.warn("Healthcheck endpoint error", { data: { error } });
+    return { healthy: true, isGeoBlocked: false };
+  }
 }
 
 export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
@@ -39,12 +117,17 @@ export async function checkGraphQLEndpoint(): Promise<HealthCheckResult> {
 }
 
 export async function runHealthChecks(): Promise<HealthCheckResult> {
+  const geoResult = await checkGeofencing();
+  if (geoResult.isGeoBlocked) {
+    return geoResult;
+  }
+
   const graphqlResult = await checkGraphQLEndpoint();
   if (!graphqlResult.healthy) {
     return graphqlResult;
   }
 
-  return { healthy: true };
+  return { healthy: true, isGeoBlocked: false };
 }
 
 export function createWagmiInitError(): AppError {

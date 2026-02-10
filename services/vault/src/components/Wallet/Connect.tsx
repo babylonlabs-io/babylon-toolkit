@@ -11,6 +11,8 @@ import {
 import { useMemo, useState } from "react";
 import { twMerge } from "tailwind-merge";
 
+import { useGeoFencing } from "@/context/geofencing";
+
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
 
@@ -31,9 +33,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   const { selectedWallets } = useWidgetState();
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
+  const { isGeoBlocked } = useGeoFencing();
+
   const isConnected = useMemo(
-    () => btcConnected && ethConnected,
-    [btcConnected, ethConnected],
+    () => btcConnected && ethConnected && !isGeoBlocked,
+    [btcConnected, ethConnected, isGeoBlocked],
   );
 
   const transformedWallets = useMemo(() => {
@@ -102,6 +106,10 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false }) => {
   }
 
   return (
-    <ConnectButton connected={isConnected} loading={loading} onClick={open} />
+    <ConnectButton
+      connected={isConnected}
+      loading={loading || isGeoBlocked}
+      onClick={open}
+    />
   );
 };
