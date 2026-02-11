@@ -83,8 +83,8 @@ export function SigningProgress({
           </Text>
         </div>
         <Text variant="body2" className="mt-2 text-sm text-accent-secondary">
-          This may take a moment. The provider is generating Claim and Assert
-          transactions for your deposit.
+          This may take 15-20 minutes. You can close this modal and sign later
+          from your deposits.
         </Text>
       </div>
     );

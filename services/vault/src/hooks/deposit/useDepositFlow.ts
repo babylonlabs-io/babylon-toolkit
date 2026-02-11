@@ -13,7 +13,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
@@ -57,6 +57,8 @@ export interface UseDepositFlowParams {
 export interface UseDepositFlowReturn {
   /** Execute the deposit flow. Returns result on success, null on error. */
   executeDepositFlow: () => Promise<DepositFlowResult | null>;
+  /** Abort the currently running deposit flow */
+  abort: () => void;
   currentStep: DepositStep;
   processing: boolean;
   error: string | null;
@@ -89,6 +91,14 @@ export function useDepositFlow(
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
 
+  // Abort controller for cancelling the flow
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const abort = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
   // Hooks
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -114,6 +124,10 @@ export function useDepositFlow(
 
   const executeDepositFlow =
     useCallback(async (): Promise<DepositFlowResult | null> => {
+      // Create a new AbortController for this flow execution
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       try {
         setProcessing(true);
         setError(null);
@@ -193,6 +207,7 @@ export function useDepositFlow(
             universalChallengers: latestUniversalChallengers.map((uc) => ({
               btcPubKey: uc.btcPubKey,
             })),
+            signal,
           });
 
         setIsWaiting(false);
@@ -218,7 +233,10 @@ export function useDepositFlow(
         // Step 4a: Wait for verification
         setCurrentStep(DepositStep.BROADCAST_BTC);
         setIsWaiting(true);
-        await waitForContractVerification({ btcTxid: peginResult.btcTxid });
+        await waitForContractVerification({
+          btcTxid: peginResult.btcTxid,
+          signal,
+        });
         setIsWaiting(false);
 
         // Step 4b: Broadcast BTC transaction
@@ -245,15 +263,21 @@ export function useDepositFlow(
           },
         };
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Unknown error";
-        setError(errorMessage);
-        console.error("Deposit flow error:", err);
-        // Keep currentStep where error occurred - UI can show error at that step
+        // Don't show error if flow was aborted (user intentionally closed modal)
+        const isAbortError =
+          err instanceof Error && err.message.includes("aborted");
+
+        if (!isAbortError) {
+          const errorMessage =
+            err instanceof Error ? err.message : "Unknown error";
+          setError(errorMessage);
+          console.error("Deposit flow error:", err);
+        }
         return null;
       } finally {
         setProcessing(false);
         setIsWaiting(false);
+        abortControllerRef.current = null;
       }
     }, [
       amount,
@@ -278,6 +302,7 @@ export function useDepositFlow(
 
   return {
     executeDepositFlow,
+    abort,
     currentStep,
     processing,
     error,

@@ -101,6 +101,8 @@ export interface PayoutSigningParams {
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
+  /** Optional AbortSignal for cancellation */
+  signal?: AbortSignal;
 }
 
 export interface PayoutSigningContext {

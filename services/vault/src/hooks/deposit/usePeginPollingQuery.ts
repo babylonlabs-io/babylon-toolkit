@@ -9,7 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -22,6 +21,7 @@ import {
   areTransactionsReady,
   getDepositsNeedingPolling,
   groupDepositsByProvider,
+  isTransientPollingError,
 } from "../../utils/peginPolling";
 
 /** Timeout for RPC requests to vault provider (60 seconds) */
@@ -86,8 +86,9 @@ async function fetchFromProvider(
       // Clear any previous error for this deposit on success
       errors.delete(deposit.activity.id);
     } catch (error) {
-      // Expected error: Daemon is still processing (before PendingDepositorSignatures)
-      if (isPreDepositorSignaturesError(error)) {
+      // Expected transient errors: Vault provider is still processing
+      // (e.g., PegIn not found, before PendingDepositorSignatures state)
+      if (isTransientPollingError(error)) {
         // Transactions not ready yet - continue polling
         // Clear any previous error since provider is reachable
         errors.delete(deposit.activity.id);

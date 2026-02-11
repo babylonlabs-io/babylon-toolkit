@@ -9,10 +9,10 @@ import type { Hex } from "viem";
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type { ClaimerTransactions } from "@/clients/vault-provider-rpc/types";
-import { isPreDepositorSignaturesError } from "@/models/peginStateMachine";
 import { fetchVaultById } from "@/services/vault";
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
+import { isTransientPollingError } from "@/utils/peginPolling";
 
 /** Timeout for RPC requests (60 seconds) */
 const RPC_TIMEOUT_MS = 60 * 1000;
@@ -31,31 +31,6 @@ const POLLING_INTERVAL_MS = 10 * 1000;
  * If exceeded, user can continue from the deposits table.
  */
 const MAX_POLLING_TIMEOUT_MS = 2 * 60 * 1000;
-
-/**
- * Transient error patterns that indicate polling should continue.
- */
-const TRANSIENT_ERROR_PATTERNS = [
-  "PegIn not found",
-  "No transaction graphs found",
-] as const;
-
-/**
- * Check if an error is transient and polling should continue.
- */
-function isTransientError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  // Check for pre-depositor-signatures states (vault provider still processing)
-  if (isPreDepositorSignaturesError(error)) {
-    return true;
-  }
-
-  // Check for other transient patterns
-  return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
-    error.message.includes(pattern),
-  );
-}
 
 export interface PollForPayoutTransactionsParams {
   /** BTC transaction ID (with 0x prefix) */
@@ -99,7 +74,7 @@ export async function pollForPayoutTransactions(
     {
       intervalMs: POLLING_INTERVAL_MS,
       timeoutMs: MAX_POLLING_TIMEOUT_MS,
-      isTransient: isTransientError,
+      isTransient: isTransientPollingError,
       signal,
     },
   );

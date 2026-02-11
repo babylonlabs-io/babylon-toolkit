@@ -55,6 +55,7 @@ export function CollateralDepositSignModal({
 }: CollateralDepositSignModalProps) {
   const {
     executeDepositFlow,
+    abort,
     currentStep,
     processing,
     error,
@@ -81,18 +82,26 @@ export function CollateralDepositSignModal({
     }
   }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
+  // Handle close - abort the flow if still running
+  const handleClose = useCallback(() => {
+    abort();
+    onClose();
+  }, [abort, onClose]);
+
   // Execute flow once when modal opens
   useOnModalOpen(open, handleExecuteFlow);
 
   const isComplete = currentStep === DepositStep.COMPLETED;
-  const canClose = canCloseModal(currentStep, error);
+  const canClose = canCloseModal(currentStep, error, isWaiting);
   const isProcessing = (processing || isWaiting) && !error && !isComplete;
+  const canContinueInBackground =
+    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
 
   return (
-    <ResponsiveDialog open={open} onClose={canClose ? onClose : undefined}>
+    <ResponsiveDialog open={open} onClose={canClose ? handleClose : undefined}>
       <DialogHeader
         title="Deposit in Progress"
-        onClose={canClose ? onClose : undefined}
+        onClose={canClose ? handleClose : undefined}
         className="text-accent-primary"
       />
 
@@ -125,19 +134,21 @@ export function CollateralDepositSignModal({
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={isProcessing}
+          disabled={!canClose}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={canClose ? onClose : undefined}
+          onClick={handleClose}
         >
-          {isProcessing ? (
-            <Loader size={16} className="text-accent-contrast" />
+          {canContinueInBackground ? (
+            "Continue in Background"
           ) : error ? (
             "Close"
           ) : isComplete ? (
             "Done"
+          ) : isProcessing ? (
+            <Loader size={16} className="text-accent-contrast" />
           ) : (
-            "Processing..."
+            "Close"
           )}
         </Button>
       </DialogFooter>
