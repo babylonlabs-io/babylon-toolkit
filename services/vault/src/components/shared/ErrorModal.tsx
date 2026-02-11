@@ -18,8 +18,6 @@ const ERROR_TITLES: Record<ErrorCode, string> = {
   [ErrorCode.API_SERVER_ERROR]: "Server Error",
   [ErrorCode.API_CLIENT_ERROR]: "Request Error",
 
-  [ErrorCode.GEO_BLOCK]: "Access Restricted",
-
   [ErrorCode.CONTRACT_ERROR]: "Contract Error",
   [ErrorCode.CONTRACT_REVERT]: "Transaction Reverted",
   [ErrorCode.CONTRACT_EXECUTION_FAILED]: "Execution Failed",
@@ -103,7 +101,7 @@ export function ErrorModal() {
           {error.message}
         </Text>
 
-        {blocking && error.code !== ErrorCode.GEO_BLOCK && (
+        {blocking && (
           <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20">
             <Text
               variant="body2"

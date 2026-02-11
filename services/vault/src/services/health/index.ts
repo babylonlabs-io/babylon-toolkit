@@ -5,6 +5,5 @@ export {
   createWagmiInitError,
   fetchHealthCheck,
   runHealthChecks,
-  type HealthCheckResponse,
   type HealthCheckResult,
 } from "./healthCheckService";

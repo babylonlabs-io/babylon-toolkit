@@ -1,8 +1,7 @@
 import { ENV } from "@/config/env";
 import type { AppError } from "@/context/error";
 import { logger } from "@/infrastructure";
-import { GEO_BLOCK_MESSAGE } from "@/types/healthCheck";
-import { ApiError, ErrorCode, isError451 } from "@/utils/errors/types";
+import { ApiError, isError451 } from "@/utils/errors/types";
 
 export interface HealthCheckResult {
   healthy: boolean;
@@ -10,48 +9,31 @@ export interface HealthCheckResult {
   error?: AppError;
 }
 
-export interface HealthCheckResponse {
-  data: string;
-}
-
 function getHealthCheckUrl(): string {
   const url = new URL(ENV.GRAPHQL_ENDPOINT);
   return `${url.origin}/health`;
 }
 
-export async function fetchHealthCheck(): Promise<HealthCheckResponse> {
+/**
+ * Fetches the health endpoint to check for geo-blocking (451 status).
+ * Only the HTTP status code matters - response body is not used.
+ */
+export async function fetchHealthCheck(): Promise<void> {
   const url = getHealthCheckUrl();
 
   try {
     const response = await fetch(url);
 
     if (!response.ok) {
-      const responseText = await response
-        .text()
-        .catch(() => "Health check failed");
-
-      throw new ApiError(
-        "Health check failed",
-        response.status,
-        undefined,
-        responseText,
-      );
+      throw new ApiError("Health check failed", response.status);
     }
-
-    const data = await response.json();
-    return data;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
 
     if (error instanceof TypeError) {
-      throw new ApiError(
-        "Network error occurred",
-        0,
-        undefined,
-        error.message || "Health check failed",
-      );
+      throw new ApiError("Network error occurred", 0);
     }
 
     throw new ApiError(
@@ -67,15 +49,7 @@ export async function checkGeofencing(): Promise<HealthCheckResult> {
     return { healthy: true, isGeoBlocked: false };
   } catch (error) {
     if (error instanceof ApiError && isError451(error)) {
-      return {
-        healthy: false,
-        isGeoBlocked: true,
-        error: {
-          code: ErrorCode.GEO_BLOCK,
-          title: "Access Restricted",
-          message: GEO_BLOCK_MESSAGE,
-        },
-      };
+      return { healthy: false, isGeoBlocked: true };
     }
 
     // Non-451 errors don't block the user - GraphQL check handles general availability

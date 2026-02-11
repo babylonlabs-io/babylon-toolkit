@@ -1,7 +1,7 @@
-import { Button, Container } from "@babylonlabs-io/core-ui";
+import { Container } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
-import { useAddressType } from "@/context/addressType";
+import { DepositButton } from "@/components/shared";
 import { useGeoFencing } from "@/context/geofencing";
 
 import { getNetworkConfigBTC } from "../../config";
@@ -21,7 +21,6 @@ export default function ApplicationsHome() {
   const { data: statsData, isLoading: statsLoading } = useStats();
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
   const { isGeoBlocked } = useGeoFencing();
-  const { isSupportedAddress } = useAddressType();
 
   const isWalletConnected = btcConnected && ethConnected;
 
@@ -39,16 +38,18 @@ export default function ApplicationsHome() {
           vault provider and begin.
         </h2>
         <div className="mt-4 self-center">
-          {isWalletConnected && !isGeoBlocked && isSupportedAddress ? (
-            <Button
-              color="secondary"
-              rounded
-              onClick={() => navigate("/deposit")}
-            >
-              Deposit {btcConfig.coinSymbol}
-            </Button>
-          ) : (
+          {!isWalletConnected ? (
             <Connect />
+          ) : (
+            !isGeoBlocked && (
+              <DepositButton
+                color="secondary"
+                rounded
+                onClick={() => navigate("/deposit")}
+              >
+                Deposit {btcConfig.coinSymbol}
+              </DepositButton>
+            )
           )}
         </div>
       </div>
