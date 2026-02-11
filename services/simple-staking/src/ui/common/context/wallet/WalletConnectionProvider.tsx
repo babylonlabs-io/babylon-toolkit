@@ -58,18 +58,6 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     [location.pathname],
   );
 
-  const config = useMemo(() => {
-    const btcConfig = getNetworkConfigBTC();
-    const bbnConfig = getNetworkConfigBBN();
-    return createWalletConfig({
-      chains: requiredChains,
-      networkConfigs: {
-        BTC: btcConfig,
-        BBN: bbnConfig,
-      },
-    });
-  }, [requiredChains]);
-
   const disabledWallets = useMemo(() => {
     const disabled: string[] = [];
 
@@ -97,6 +85,18 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
     return disabled;
   }, []);
+
+  const config = useMemo(
+    () =>
+      createWalletConfig({
+        chains: requiredChains,
+        networkConfigs: {
+          BTC: getNetworkConfigBTC(),
+          BBN: getNetworkConfigBBN(),
+        },
+      }),
+    [requiredChains],
+  );
 
   const appKitConfig: AppKitModalConfig | undefined = useMemo(() => {
     const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;

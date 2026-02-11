@@ -9,11 +9,12 @@ export interface WalletConfigOptions {
     BBN?: BBNConfig;
     ETH?: ETHConfig;
   };
+  supportedWallets?: string[];
 }
 
-export function createWalletConfig({ chains, networkConfigs }: WalletConfigOptions): ChainConfigArr {
+export function createWalletConfig({ chains, networkConfigs, supportedWallets }: WalletConfigOptions): ChainConfigArr {
   const config: ChainConfigArr = [];
-  
+
   if (chains.includes('BTC') && networkConfigs.BTC) {
     config.push({
       chain: "BTC",
@@ -21,14 +22,14 @@ export function createWalletConfig({ chains, networkConfigs }: WalletConfigOptio
         {
           id: "tomo-btc-connector",
           widget: ({ onError }: { onError?: (e: Error) => void }) => (
-            <ExternalWallets chainName="bitcoin" onError={onError} />
+            <ExternalWallets chainName="bitcoin" onError={onError} supportedWallets={supportedWallets} />
           ),
         },
       ],
       config: networkConfigs.BTC,
     });
   }
-  
+
   if (chains.includes('BBN') && networkConfigs.BBN) {
     config.push({
       chain: "BBN",
@@ -36,7 +37,7 @@ export function createWalletConfig({ chains, networkConfigs }: WalletConfigOptio
         {
           id: "tomo-bbn-connector",
           widget: ({ onError }: { onError?: (e: Error) => void }) => (
-            <ExternalWallets chainName="cosmos" onError={onError} />
+            <ExternalWallets chainName="cosmos" onError={onError} supportedWallets={supportedWallets} />
           ),
         },
       ],
