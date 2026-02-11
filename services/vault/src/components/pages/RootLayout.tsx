@@ -1,5 +1,4 @@
 import {
-  Button,
   DEFAULT_SOCIAL_LINKS,
   Footer,
   Header,
@@ -12,6 +11,7 @@ import { useTheme } from "next-themes";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
@@ -102,18 +102,15 @@ export default function RootLayout() {
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
-              {isWalletConnected &&
-                !isDepositPage &&
-                !isGeoBlocked &&
-                isSupportedAddress && (
-                  <Button
-                    variant="outlined"
-                    rounded
-                    onClick={() => navigate("/deposit")}
-                  >
-                    Deposit {btcConfig.coinSymbol}
-                  </Button>
-                )}
+              {isWalletConnected && !isDepositPage && !isGeoBlocked && (
+                <DepositButton
+                  variant="outlined"
+                  rounded
+                  onClick={() => navigate("/deposit")}
+                >
+                  Deposit {btcConfig.coinSymbol}
+                </DepositButton>
+              )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>
