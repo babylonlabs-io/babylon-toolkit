@@ -45,6 +45,7 @@ export interface AmountSliderProps {
   disabled?: boolean;
   readOnly?: boolean;
   className?: string;
+  inputClassName?: string;
 }
 
 export function AmountSlider({
@@ -68,6 +69,7 @@ export function AmountSlider({
   disabled = false,
   readOnly = false,
   className,
+  inputClassName,
 }: AmountSliderProps) {
   // Prevent arrow key increments
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -102,7 +104,7 @@ export function AmountSlider({
           disabled={disabled}
           readOnly={readOnly || !onAmountChange}
           placeholder="0"
-          className="w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary"
+          className={twJoin("w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary", inputClassName)}
         />
       </div>
 

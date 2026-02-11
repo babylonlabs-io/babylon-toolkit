@@ -137,6 +137,7 @@ export function CollateralModal({
                   }
             }
             sliderActiveColor="#F7931A"
+            inputClassName="!w-auto min-w-32 rounded-md border border-gray-300 px-2 py-1 dark:border-[#3a3a3a]"
           />
         </SubSection>
 
