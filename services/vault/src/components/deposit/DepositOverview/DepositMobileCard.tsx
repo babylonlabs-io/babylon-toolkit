@@ -67,6 +67,24 @@ export function DepositMobileCard({
             </span>
           ),
         },
+        // Add Batch/Split info if available
+        ...(deposit.splitTxId
+          ? [
+              {
+                label: "Batch/Split",
+                value: (
+                  <div className="flex flex-col gap-1">
+                    <CopyableAddressCell address={deposit.splitTxId} />
+                    {deposit.batchIndex && deposit.batchTotal && (
+                      <span className="text-xs text-accent-secondary">
+                        Vault {deposit.batchIndex}/{deposit.batchTotal}
+                      </span>
+                    )}
+                  </div>
+                ),
+              },
+            ]
+          : []),
         {
           label: "Time",
           value: (

@@ -168,11 +168,17 @@ export function selectUtxosForDeposit<
 
   // Edge case: no UTXOs available
   if (!availableUtxos || availableUtxos.length === 0) {
+    console.log(
+      "[selectUtxosForDeposit] No UTXOs available - returning empty array",
+    );
     return [];
   }
 
   // Edge case: no reservations, return all
   if (reservedUtxoRefs.length === 0) {
+    console.log(
+      "[selectUtxosForDeposit] No reservations - returning all available UTXOs",
+    );
     return availableUtxos;
   }
 
@@ -183,6 +189,9 @@ export function selectUtxosForDeposit<
 
   // Fallback condition 1: No unreserved UTXOs
   if (unreserved.length === 0) {
+    console.log(
+      "[selectUtxosForDeposit] FALLBACK: All UTXOs are reserved - returning all anyway",
+    );
     return availableUtxos;
   }
 
@@ -193,10 +202,13 @@ export function selectUtxosForDeposit<
     (sum, u) => sum + BigInt(u.value),
     0n,
   );
+
   if (unreservedTotal < totalRequired) {
+    console.log(
+      "[selectUtxosForDeposit] FALLBACK: Unreserved UTXOs insufficient - returning all",
+    );
     return availableUtxos;
   }
 
-  // Success: Use unreserved UTXOs
   return unreserved;
 }

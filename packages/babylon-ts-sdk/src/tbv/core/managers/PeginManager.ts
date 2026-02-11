@@ -303,58 +303,66 @@ export class PeginManager {
    * @throws Error if wallet operations fail or insufficient funds
    */
   async preparePegin(params: CreatePeginParams): Promise<PeginResult> {
-    // Step 1: Get depositor BTC public key from wallet
-    const depositorBtcPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
-    // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
-    const depositorBtcPubkey =
-      depositorBtcPubkeyRaw.length === 66
-        ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
-        : depositorBtcPubkeyRaw; // Already x-only
+    try {
+      // Step 1: Get depositor BTC public key from wallet
+      const depositorBtcPubkeyRaw =
+        await this.config.btcWallet.getPublicKeyHex();
+      // Convert 33-byte compressed (66 chars) to 32-byte x-only (64 chars) if needed
+      const depositorBtcPubkey =
+        depositorBtcPubkeyRaw.length === 66
+          ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
+          : depositorBtcPubkeyRaw; // Already x-only
 
-    // Strip "0x" prefix from BTC public keys if present
-    const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
-    const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
-    const universalChallengerBtcPubkeys =
-      params.universalChallengerBtcPubkeys.map(stripHexPrefix);
+      // Strip "0x" prefix from BTC public keys if present
+      const vaultProviderBtcPubkey = stripHexPrefix(
+        params.vaultProviderBtcPubkey,
+      );
+      const vaultKeeperBtcPubkeys =
+        params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
+      const universalChallengerBtcPubkeys =
+        params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
-    // Step 2: Build unfunded PSBT using primitives
-    // This creates a transaction with 0 inputs and 1 output (the vault output)
-    const peginPsbt = await buildPeginPsbt({
-      depositorPubkey: depositorBtcPubkey,
-      vaultProviderPubkey: vaultProviderBtcPubkey,
-      vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
-      universalChallengerPubkeys: universalChallengerBtcPubkeys,
-      pegInAmount: params.amount,
-      network: this.config.btcNetwork,
-    });
+      // Step 2: Build unfunded PSBT using primitives
+      // This creates a transaction with 0 inputs and 1 output (the vault output)
+      const peginPsbt = await buildPeginPsbt({
+        depositorPubkey: depositorBtcPubkey,
+        vaultProviderPubkey: vaultProviderBtcPubkey,
+        vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
+        universalChallengerPubkeys: universalChallengerBtcPubkeys,
+        pegInAmount: params.amount,
+        network: this.config.btcNetwork,
+      });
 
-    // Step 3: Select UTXOs using iterative fee calculation
-    // This handles the complexity of fee estimation based on input count
-    const utxoSelection = selectUtxosForPegin(
-      params.availableUTXOs,
-      params.amount,
-      params.feeRate,
-    );
+      // Step 3: Select UTXOs using iterative fee calculation
+      // This handles the complexity of fee estimation based on input count
+      const utxoSelection = selectUtxosForPegin(
+        params.availableUTXOs,
+        params.amount,
+        params.feeRate,
+      );
 
-    // Step 4: Fund the transaction by adding inputs and change output
-    const network = getNetwork(this.config.btcNetwork);
-    const fundedTxHex = fundPeginTransaction({
-      unfundedTxHex: peginPsbt.psbtHex,
-      selectedUTXOs: utxoSelection.selectedUTXOs,
-      changeAddress: params.changeAddress,
-      changeAmount: utxoSelection.changeAmount,
-      network,
-    });
+      // Step 4: Fund the transaction by adding inputs and change output
+      const network = getNetwork(this.config.btcNetwork);
+      const fundedTxHex = fundPeginTransaction({
+        unfundedTxHex: peginPsbt.psbtHex,
+        selectedUTXOs: utxoSelection.selectedUTXOs,
+        changeAddress: params.changeAddress,
+        changeAmount: utxoSelection.changeAmount,
+        network,
+      });
 
-    return {
-      btcTxHash: peginPsbt.txid,
-      fundedTxHex,
-      vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
-      selectedUTXOs: utxoSelection.selectedUTXOs,
-      fee: utxoSelection.fee,
-      changeAmount: utxoSelection.changeAmount,
-      ethTxHash: null,
-    };
+      return {
+        btcTxHash: peginPsbt.txid,
+        fundedTxHex,
+        vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
+        selectedUTXOs: utxoSelection.selectedUTXOs,
+        fee: utxoSelection.fee,
+        changeAmount: utxoSelection.changeAmount,
+        ethTxHash: null,
+      };
+    } catch (error) {
+      throw error;
+    }
   }
 
   /**
@@ -489,117 +497,123 @@ export class PeginManager {
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
-    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider, onPopSigned } =
-      params;
+    try {
+      const { depositorBtcPubkey, unsignedBtcTx, vaultProvider, onPopSigned } =
+        params;
 
-    // Step 1: Get depositor ETH address (from wallet account)
-    if (!this.config.ethWallet.account) {
-      throw new Error("Ethereum wallet account not found");
-    }
-    const depositorEthAddress = this.config.ethWallet.account.address;
+      // Step 1: Get depositor ETH address (from wallet account)
+      if (!this.config.ethWallet.account) {
+        throw new Error("Ethereum wallet account not found");
+      }
+      const depositorEthAddress = this.config.ethWallet.account.address;
 
-    // Step 2: Create proof of possession
-    // The depositor signs a message with their BTC key using BIP-322 simple
-    // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
-    // This matches BTCProofOfPossession.sol buildMessage() format
-    // Addresses already include 0x prefix and must be lowercase
-    // Action is "pegin" for peg-in operations
-    const verifyingContract = this.config.vaultContracts.btcVaultsManager;
-    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
-      popMessage,
-      "bip322-simple",
-    );
+      // Step 2: Create proof of possession
+      // The depositor signs a message with their BTC key using BIP-322 simple
+      // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
+      // This matches BTCProofOfPossession.sol buildMessage() format
+      // Addresses already include 0x prefix and must be lowercase
+      // Action is "pegin" for peg-in operations
+      const verifyingContract = this.config.vaultContracts.btcVaultsManager;
+      const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
 
-    if (onPopSigned) {
-      await onPopSigned();
-    }
-
-    // Convert PoP signature to hex format
-    // BTC wallets return base64, Ethereum contracts expect hex
-    let btcPopSignature: Hex;
-    if (btcPopSignatureRaw.startsWith("0x")) {
-      btcPopSignature = btcPopSignatureRaw as Hex;
-    } else {
-      const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
-      btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
-    }
-
-    // Step 3: Format parameters for contract call
-    // Ensure depositor BTC pubkey is 32 bytes (bytes32)
-    const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
-      ? (depositorBtcPubkey as Hex)
-      : (`0x${depositorBtcPubkey}` as Hex);
-
-    // Ensure unsigned tx has 0x prefix
-    const unsignedPegInTx = unsignedBtcTx.startsWith("0x")
-      ? (unsignedBtcTx as Hex)
-      : (`0x${unsignedBtcTx}` as Hex);
-
-    // Step 4: Calculate vault ID and check if it already exists (pre-flight check)
-    const vaultId = calculateBtcTxHash(unsignedPegInTx);
-    const exists = await this.checkVaultExists(vaultId);
-
-    if (exists) {
-      throw new Error(
-        `Vault already exists for this transaction (ID: ${vaultId}). ` +
-          `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
-          `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
+      const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
+        popMessage,
+        "bip322-simple",
       );
-    }
 
-    // Step 5: Encode the contract call data
-    const callData = encodeFunctionData({
-      abi: BTCVaultsManagerABI,
-      functionName: "submitPeginRequest",
-      args: [
-        depositorEthAddress,
-        depositorBtcPubkeyHex,
-        btcPopSignature,
-        unsignedPegInTx,
-        vaultProvider,
-      ],
-    });
+      if (onPopSigned) {
+        await onPopSigned();
+      }
 
-    // Step 6: Estimate gas first to catch contract errors before showing wallet popup
-    // This ensures users see actual contract revert reasons instead of gas errors
-    // The gas estimate is then passed to sendTransaction to avoid double estimation
-    const publicClient = createPublicClient({
-      chain: this.config.ethChain,
-      transport: http(),
-    });
+      // Convert PoP signature to hex format
+      // BTC wallets return base64, Ethereum contracts expect hex
+      let btcPopSignature: Hex;
+      if (btcPopSignatureRaw.startsWith("0x")) {
+        btcPopSignature = btcPopSignatureRaw as Hex;
+      } else {
+        const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
+        btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
+      }
 
-    let gasEstimate: bigint;
-    try {
-      gasEstimate = await publicClient.estimateGas({
-        to: this.config.vaultContracts.btcVaultsManager,
-        data: callData,
-        account: this.config.ethWallet.account.address,
+      // Step 3: Format parameters for contract call
+      // Ensure depositor BTC pubkey is 32 bytes (bytes32)
+      const depositorBtcPubkeyHex = depositorBtcPubkey.startsWith("0x")
+        ? (depositorBtcPubkey as Hex)
+        : (`0x${depositorBtcPubkey}` as Hex);
+
+      // Ensure unsigned tx has 0x prefix
+      const unsignedPegInTx = unsignedBtcTx.startsWith("0x")
+        ? (unsignedBtcTx as Hex)
+        : (`0x${unsignedBtcTx}` as Hex);
+
+      // Step 4: Calculate vault ID and check if it already exists (pre-flight check)
+      const vaultId = calculateBtcTxHash(unsignedPegInTx);
+
+      const exists = await this.checkVaultExists(vaultId);
+
+      if (exists) {
+        throw new Error(
+          `Vault already exists for this transaction (ID: ${vaultId}). ` +
+            `Vault IDs are deterministically derived from the unsigned Bitcoin transaction, so using the same UTXOs and amount will always produce the same vault. ` +
+            `To create a new vault, please use different UTXOs or a different amount to generate a unique transaction.`,
+        );
+      }
+
+      // Step 5: Encode the contract call data
+      const callData = encodeFunctionData({
+        abi: BTCVaultsManagerABI,
+        functionName: "submitPeginRequest",
+        args: [
+          depositorEthAddress,
+          depositorBtcPubkeyHex,
+          btcPopSignature,
+          unsignedPegInTx,
+          vaultProvider,
+        ],
       });
-    } catch (error) {
-      // Estimation failed - handle contract error with actual revert reason
-      handleContractError(error);
-    }
 
-    // Step 7: Submit peg-in request to contract (estimation passed)
-    try {
-      // Send transaction with pre-estimated gas to skip internal estimation
-      // Note: viem's sendTransaction uses `gas`, not `gasLimit`
-      const ethTxHash = await this.config.ethWallet.sendTransaction({
-        to: this.config.vaultContracts.btcVaultsManager,
-        data: callData,
-        account: this.config.ethWallet.account,
+      // Step 6: Estimate gas first to catch contract errors before showing wallet popup
+      // This ensures users see actual contract revert reasons instead of gas errors
+      // The gas estimate is then passed to sendTransaction to avoid double estimation
+      const publicClient = createPublicClient({
         chain: this.config.ethChain,
-        gas: gasEstimate,
+        transport: http(),
       });
 
-      return {
-        ethTxHash,
-        vaultId,
-      };
+      let gasEstimate: bigint;
+      try {
+        gasEstimate = await publicClient.estimateGas({
+          to: this.config.vaultContracts.btcVaultsManager,
+          data: callData,
+          account: this.config.ethWallet.account.address,
+        });
+      } catch (error) {
+        // Estimation failed - handle contract error with actual revert reason
+        handleContractError(error);
+      }
+
+      // Step 7: Submit peg-in request to contract (estimation passed)
+      try {
+        // Send transaction with pre-estimated gas to skip internal estimation
+        // Note: viem's sendTransaction uses `gas`, not `gasLimit`
+        const ethTxHash = await this.config.ethWallet.sendTransaction({
+          to: this.config.vaultContracts.btcVaultsManager,
+          data: callData,
+          account: this.config.ethWallet.account,
+          chain: this.config.ethChain,
+          gas: gasEstimate,
+        });
+
+        return {
+          ethTxHash,
+          vaultId,
+        };
+      } catch (error) {
+        // Use proper error handler for better error messages
+        handleContractError(error);
+      }
     } catch (error) {
-      // Use proper error handler for better error messages
-      handleContractError(error);
+      throw error;
     }
   }
 

@@ -120,6 +120,27 @@ export function DepositOverview() {
       ),
     },
     {
+      key: "splitTxId",
+      header: "Batch/Split",
+      render: (_value: unknown, row: Deposit) => {
+        if (!row.splitTxId) {
+          return <span className="text-sm text-accent-secondary">-</span>;
+        }
+        const batchLabel =
+          row.batchIndex && row.batchTotal
+            ? ` (${row.batchIndex}/${row.batchTotal})`
+            : "";
+        return (
+          <div className="flex flex-col gap-1">
+            <CopyableAddressCell address={row.splitTxId} />
+            {batchLabel && (
+              <span className="text-xs text-accent-secondary">{batchLabel}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       key: "timestamp",
       header: "Time",
       render: (_value: unknown, row: Deposit) => (

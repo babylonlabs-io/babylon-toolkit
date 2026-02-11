@@ -78,6 +78,23 @@ export function useDepositOverviewState() {
       const appMetadata = activity.applicationController
         ? getApplicationMetadataByController(activity.applicationController)
         : undefined;
+
+      // Find matching pegin in pendingPegins to get batch/split info
+      const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
+
+      // Calculate batch position if part of batch
+      let batchIndex: number | undefined;
+      let batchTotal: number | undefined;
+
+      if (pendingPegin?.batchId) {
+        const batchPegins = pendingPegins
+          .filter((p) => p.batchId === pendingPegin.batchId)
+          .sort((a, b) => a.timestamp - b.timestamp);
+
+        batchIndex = batchPegins.findIndex((p) => p.id === activity.id) + 1;
+        batchTotal = batchPegins.length;
+      }
+
       return {
         id: activity.id,
         amount: parseFloat(activity.collateral.amount),
@@ -85,9 +102,14 @@ export function useDepositOverviewState() {
         status: activity.displayLabel,
         appName: appMetadata?.name,
         timestamp: activity.timestamp,
+        // Multi-vault / split fields - get directly from pegin record
+        batchId: pendingPegin?.batchId,
+        splitTxId: pendingPegin?.splitTxId, // From pegin record, not batch lookup!
+        batchIndex,
+        batchTotal,
       };
     });
-  }, [allActivities]);
+  }, [allActivities, pendingPegins]);
 
   return {
     // Connection state
