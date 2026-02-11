@@ -90,4 +90,13 @@ export interface Deposit {
   appName?: string;
   /** Timestamp in milliseconds since epoch */
   timestamp?: number;
+  // Multi-vault / UTXO split fields
+  /** Batch ID if this vault is part of a multi-vault batch */
+  batchId?: string;
+  /** Split transaction ID if this vault was created from a split UTXO */
+  splitTxId?: string;
+  /** Position in batch (1-based, e.g., 1 for first vault in batch of 2) */
+  batchIndex?: number;
+  /** Total number of vaults in this batch */
+  batchTotal?: number;
 }

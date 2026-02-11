@@ -1,16 +1,24 @@
 import { Card, Container, Text } from "@babylonlabs-io/core-ui";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { BackButton, DepositButton } from "@/components/shared";
 import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import { useBTCWallet } from "@/context/wallet";
+import { depositService } from "@/services/deposit";
+import { planUtxoAllocation } from "@/services/vault/utxoAllocationService";
+import type { VaultConfig } from "@/types/multiVault";
 
 import { DepositState } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
+import { useUTXOs } from "../../hooks/useUTXOs";
 import { DepositOverview } from "../deposit/DepositOverview";
+import { MultiVaultSignModal } from "../deposit/MultiVaultSignModal";
+import { VaultAllocationDebugger } from "../deposit/VaultAllocationDebugger";
 
 import { DepositAmountSection } from "./Deposit/DepositAmountSection";
 import { DepositFAQ } from "./Deposit/DepositFAQ";
@@ -66,19 +74,135 @@ function DepositContent() {
     refetchActivities,
   } = useDepositPageFlow();
 
+  // Multi-vault modal state
+  const [isMultiVaultModalOpen, setIsMultiVaultModalOpen] = useState(false);
+
+  // Multi-vault amounts calculation
+  const vaultAmounts = useMemo(() => {
+    if (formData.numVaults === 1) return [];
+    return formData.vaultAmounts.map((amt) =>
+      depositService.parseBtcToSatoshis(amt || "0"),
+    );
+  }, [formData.numVaults, formData.vaultAmounts]);
+
   const handleMaxClick = () => {
     if (btcBalanceFormatted > 0) {
       setFormData({ amountBtc: btcBalanceFormatted.toString() });
     }
   };
 
+  // Multi-vault POC: Handle vault configuration changes
+  const handleNumVaultsChange = (num: number) => {
+    const newVaultAmounts: string[] = [];
+
+    if (formData.autoSplit && formData.amountBtc) {
+      // Auto-split equally
+      const totalBtc = parseFloat(formData.amountBtc);
+      if (!isNaN(totalBtc)) {
+        const perVault = totalBtc / num;
+        for (let i = 0; i < num; i++) {
+          newVaultAmounts.push(perVault.toFixed(8));
+        }
+      }
+    }
+
+    setFormData({ numVaults: num, vaultAmounts: newVaultAmounts });
+  };
+
+  const handleAutoSplitChange = (auto: boolean) => {
+    if (auto && formData.amountBtc) {
+      // Recalculate equal split
+      const totalBtc = parseFloat(formData.amountBtc);
+      if (!isNaN(totalBtc)) {
+        const newVaultAmounts: string[] = [];
+        const perVault = totalBtc / formData.numVaults;
+        for (let i = 0; i < formData.numVaults; i++) {
+          newVaultAmounts.push(perVault.toFixed(8));
+        }
+        setFormData({ autoSplit: auto, vaultAmounts: newVaultAmounts });
+        return;
+      }
+    }
+    setFormData({ autoSplit: auto });
+  };
+
+  const handleVaultAmountChange = (index: number, amount: string) => {
+    const newVaultAmounts = [...formData.vaultAmounts];
+    newVaultAmounts[index] = amount;
+    setFormData({ vaultAmounts: newVaultAmounts });
+  };
+
   const handleDeposit = () => {
-    if (validateForm()) {
+    if (!validateForm()) return;
+
+    // Route to appropriate flow based on numVaults
+    if (formData.numVaults > 1) {
+      // Multi-vault flow: Populate deposit context to load provider data
+      // This triggers Review modal in background, but multi-vault modal appears on top
+      // (POC tolerance - Review modal is briefly visible behind multi-vault modal)
       startDeposit(amountSats, formData.selectedApplication, [
         formData.selectedProvider,
       ]);
+
+      // Open modal to start multi-vault flow
+      setIsMultiVaultModalOpen(true);
+      return;
     }
+
+    // Single-vault flow (existing)
+    startDeposit(amountSats, formData.selectedApplication, [
+      formData.selectedProvider,
+    ]);
   };
+
+  // Multi-vault POC: Calculate allocation plan
+  const { address: btcAddress } = useBTCWallet();
+  const { spendableUTXOs } = useUTXOs(btcAddress);
+
+  const vaultConfigs: VaultConfig[] = useMemo(() => {
+    if (formData.numVaults === 1 || !formData.amountBtc) {
+      return [];
+    }
+
+    const configs: VaultConfig[] = [];
+    for (let i = 0; i < formData.numVaults; i++) {
+      const amountBtc = formData.vaultAmounts[i] || "0";
+      const amountSats = depositService.parseBtcToSatoshis(amountBtc);
+
+      configs.push({
+        index: i,
+        amountBtc,
+        amountSats,
+      });
+    }
+
+    return configs;
+  }, [formData.numVaults, formData.amountBtc, formData.vaultAmounts]);
+
+  const allocationPlan = useMemo(() => {
+    if (
+      formData.numVaults <= 1 ||
+      !spendableUTXOs ||
+      vaultConfigs.length === 0 ||
+      !btcAddress
+    ) {
+      return null;
+    }
+
+    try {
+      const vaultAmounts = vaultConfigs.map((v) => v.amountSats);
+      const plan = planUtxoAllocation(
+        spendableUTXOs,
+        vaultAmounts,
+        feeRate || 10, // Default fee rate
+        btcAddress,
+      );
+      return plan;
+    } catch (error) {
+      console.error("[Deposit] Failed to plan allocation:", error);
+      return null;
+    }
+  }, [formData.numVaults, spendableUTXOs, vaultConfigs, btcAddress, feeRate]);
 
   return (
     <Container
@@ -103,6 +227,13 @@ function DepositContent() {
               priceMetadata={priceMetadata}
               hasStalePrices={hasStalePrices}
               hasPriceFetchError={hasPriceFetchError}
+              // Multi-vault POC props
+              numVaults={formData.numVaults}
+              autoSplit={formData.autoSplit}
+              vaultAmounts={formData.vaultAmounts}
+              onNumVaultsChange={handleNumVaultsChange}
+              onAutoSplitChange={handleAutoSplitChange}
+              onVaultAmountChange={handleVaultAmountChange}
             />
 
             <SelectApplicationSection
@@ -127,6 +258,18 @@ function DepositContent() {
                 setFormData({ selectedProvider: providerId })
               }
             />
+
+            {/* Multi-vault POC: Show allocation debugger */}
+            {formData.numVaults > 1 &&
+              spendableUTXOs &&
+              vaultConfigs.length > 0 && (
+                <VaultAllocationDebugger
+                  availableUtxos={spendableUTXOs}
+                  vaultConfigs={vaultConfigs}
+                  allocationPlan={allocationPlan}
+                  defaultCollapsed={false}
+                />
+              )}
 
             {!FeatureFlags.isDepositEnabled && (
               <Text variant="body2" className="text-center text-warning-main">
@@ -180,6 +323,32 @@ function DepositContent() {
         onSignSuccess={onSignSuccess}
         onRefetchActivities={refetchActivities}
       />
+
+      {/* Multi-vault modal */}
+      {isMultiVaultModalOpen && formData.numVaults > 1 && (
+        <MultiVaultSignModal
+          open={isMultiVaultModalOpen}
+          onClose={() => {
+            setIsMultiVaultModalOpen(false);
+            resetDeposit(); // Close Review modal if open
+          }}
+          onSuccess={async () => {
+            await refetchActivities();
+            setIsMultiVaultModalOpen(false);
+            resetDeposit(); // Close Review modal if open
+          }}
+          vaultAmounts={vaultAmounts}
+          feeRate={feeRate || 10}
+          btcWalletProvider={btcWalletProvider}
+          depositorEthAddress={ethAddress}
+          selectedApplication={formData.selectedApplication}
+          selectedProviders={[formData.selectedProvider]}
+          vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+          vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+          universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+          onRefetchActivities={refetchActivities}
+        />
+      )}
     </Container>
   );
 }

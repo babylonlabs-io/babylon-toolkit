@@ -52,6 +52,22 @@ export interface PendingPeginRequest {
     value: string; // Store as string for JSON serialization
     scriptPubKey: string;
   }>;
+  // Multi-vault POC fields
+  batchId?: string; // Batch ID if this vault is part of a multi-vault batch
+  splitTxId?: string; // Split transaction ID (if vault was created from split UTXO)
+}
+
+/**
+ * Pending peg-in batch metadata (POC)
+ * Groups multiple related vaults created together
+ */
+export interface PendingPeginBatch {
+  batchId: string; // Unique batch identifier
+  vaultIds: string[]; // Array of vault IDs (ETH tx hashes = pegin IDs)
+  splitTxId?: string; // Split transaction ID (broadcast to Bitcoin immediately)
+  totalAmount: string; // Total amount across all vaults (BTC)
+  numVaults: number; // Number of vaults in batch
+  createdAt: number; // Timestamp when batch was created
 }
 
 /**
@@ -283,4 +299,97 @@ export function clearPendingPegins(ethAddress: string): void {
   } catch (error) {
     console.error("[peginStorage] Failed to clear pending pegins:", error);
   }
+}
+
+// ============================================================================
+// Multi-Vault POC: Batch Management
+// ============================================================================
+
+/**
+ * Get storage key for batch metadata
+ */
+function getBatchStorageKey(ethAddress: string): string {
+  return `${STORAGE_KEY_PREFIX}-batches-${ethAddress}`;
+}
+
+/**
+ * Get all pending peg-in batches for an address
+ */
+export function getPendingBatches(ethAddress: string): PendingPeginBatch[] {
+  if (!ethAddress) return [];
+
+  try {
+    const key = getBatchStorageKey(ethAddress);
+    const data = localStorage.getItem(key);
+    if (!data) return [];
+
+    const batches = JSON.parse(data) as PendingPeginBatch[];
+    return batches;
+  } catch (error) {
+    console.error("[peginStorage] Failed to read pending batches:", error);
+    return [];
+  }
+}
+
+/**
+ * Save pending batches to localStorage
+ */
+function savePendingBatches(
+  ethAddress: string,
+  batches: PendingPeginBatch[],
+): void {
+  if (!ethAddress) return;
+
+  try {
+    const key = getBatchStorageKey(ethAddress);
+    localStorage.setItem(key, JSON.stringify(batches));
+    dispatchStorageUpdateEvent(ethAddress);
+  } catch (error) {
+    console.error("[peginStorage] Failed to save pending batches:", error);
+  }
+}
+
+/**
+ * Add a new pending batch
+ */
+export function addPendingBatch(
+  ethAddress: string,
+  batch: PendingPeginBatch,
+): void {
+  const existingBatches = getPendingBatches(ethAddress);
+
+  // Remove any existing batch with the same ID
+  const filteredBatches = existingBatches.filter(
+    (b) => b.batchId !== batch.batchId,
+  );
+
+  // Add new batch
+  const updatedBatches = [...filteredBatches, batch];
+
+  savePendingBatches(ethAddress, updatedBatches);
+  console.log(
+    `[peginStorage] Added batch ${batch.batchId} with ${batch.numVaults} vaults`,
+  );
+}
+
+/**
+ * Remove a pending batch
+ */
+export function removePendingBatch(ethAddress: string, batchId: string): void {
+  const existingBatches = getPendingBatches(ethAddress);
+  const updatedBatches = existingBatches.filter((b) => b.batchId !== batchId);
+  savePendingBatches(ethAddress, updatedBatches);
+}
+
+/**
+ * Get batch for a specific vault ID
+ */
+export function getBatchForVault(
+  ethAddress: string,
+  vaultId: string,
+): PendingPeginBatch | null {
+  const batches = getPendingBatches(ethAddress);
+  const normalizedId = normalizeTransactionId(vaultId);
+
+  return batches.find((b) => b.vaultIds.includes(normalizedId)) || null;
 }

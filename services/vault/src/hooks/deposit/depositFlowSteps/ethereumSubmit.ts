@@ -72,60 +72,72 @@ export async function getEthWalletClient(
 export async function submitPeginAndWait(
   params: PeginSubmitParams,
 ): Promise<PeginSubmitResult> {
-  const {
-    btcWalletProvider,
-    walletClient,
-    amount,
-    feeRate,
-    btcAddress,
-    selectedProviders,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    confirmedUTXOs,
-    reservedUtxoRefs,
-    onPopSigned,
-  } = params;
+  try {
+    const {
+      btcWalletProvider,
+      walletClient,
+      amount,
+      feeRate,
+      btcAddress,
+      selectedProviders,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      confirmedUTXOs,
+      reservedUtxoRefs,
+      onPopSigned,
+    } = params;
 
-  const utxosToUse = selectUtxosForDeposit({
-    availableUtxos: confirmedUTXOs,
-    reservedUtxoRefs,
-    requiredAmount: amount,
-    feeRate,
-  });
+    const utxosToUse = selectUtxosForDeposit({
+      availableUtxos: confirmedUTXOs,
+      reservedUtxoRefs,
+      requiredAmount: amount,
+      feeRate,
+    });
 
-  // Submit pegin request
-  const result = await submitPeginRequest(btcWalletProvider, walletClient, {
-    pegInAmount: amount,
-    feeRate,
-    changeAddress: btcAddress,
-    // TODO: support multiple vault providers
-    vaultProviderAddress: selectedProviders[0] as Address,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    availableUTXOs: utxosToUse,
-    onPopSigned,
-  });
+    if (utxosToUse.length === 0) {
+      throw new Error(
+        "No UTXOs selected for deposit - UTXO selection returned empty array",
+      );
+    }
 
-  // Get depositor's BTC public key
-  const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-  const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
+    // Submit pegin request
+    const result = await submitPeginRequest(btcWalletProvider, walletClient, {
+      pegInAmount: amount,
+      feeRate,
+      changeAddress: btcAddress,
+      // TODO: support multiple vault providers
+      vaultProviderAddress: selectedProviders[0] as Address,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      availableUTXOs: utxosToUse,
+      onPopSigned,
+    });
 
-  const btcTxid = result.btcTxHash;
-  const ethTxHash = result.transactionHash;
+    // Get depositor's BTC public key
+    const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
+    const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
-  // Wait for ETH transaction confirmation with retry on RPC hiccups.
-  await waitForEthConfirmation(ethTxHash);
+    const btcTxid = result.btcTxHash;
+    const ethTxHash = result.transactionHash;
 
-  return {
-    btcTxid,
-    ethTxHash,
-    depositorBtcPubkey,
-    btcTxHex: result.btcTxHex,
-    selectedUTXOs: result.selectedUTXOs,
-    fee: result.fee,
-  };
+    // Wait for ETH transaction confirmation with retry on RPC hiccups.
+    await waitForEthConfirmation(ethTxHash);
+
+    return {
+      btcTxid,
+      ethTxHash,
+      depositorBtcPubkey,
+      btcTxHex: result.btcTxHex,
+      selectedUTXOs: result.selectedUTXOs,
+      fee: result.fee,
+    };
+  } catch (error) {
+    console.error("[submitPeginAndWait] === FAILED ===");
+    console.error("[submitPeginAndWait] Error:", error);
+    throw error; // Re-throw to propagate to caller
+  }
 }
 
 // ============================================================================
@@ -138,7 +150,7 @@ export async function submitPeginAndWait(
  * This polls with retries so a submitted transaction isn't lost
  * due to a momentary network hiccup.
  */
-async function waitForEthConfirmation(ethTxHash: Hash): Promise<void> {
+export async function waitForEthConfirmation(ethTxHash: Hash): Promise<void> {
   const publicClient = ethClient.getPublicClient();
 
   try {

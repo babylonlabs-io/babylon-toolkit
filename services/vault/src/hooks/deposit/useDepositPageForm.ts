@@ -17,6 +17,10 @@ export interface DepositPageFormData {
   amountBtc: string;
   selectedApplication: string;
   selectedProvider: string;
+  // Multi-vault POC fields
+  numVaults: number; // Number of vaults to create (default: 1)
+  autoSplit: boolean; // Auto-equal split vs manual
+  vaultAmounts: string[]; // Amount per vault in BTC (strings for form inputs)
 }
 
 export interface UseDepositPageFormResult {
@@ -65,6 +69,10 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     // Keep empty initially to avoid calling useVaultProviders with invalid value
     selectedApplication: "",
     selectedProvider: "",
+    // Multi-vault POC defaults
+    numVaults: 1,
+    autoSplit: true,
+    vaultAmounts: [],
   });
 
   // Track previous application to detect changes
@@ -229,6 +237,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       amountBtc: "",
       selectedApplication: "",
       selectedProvider: "",
+      numVaults: 1,
+      autoSplit: true,
+      vaultAmounts: [],
     });
     resetErrors();
   }, [resetErrors]);
