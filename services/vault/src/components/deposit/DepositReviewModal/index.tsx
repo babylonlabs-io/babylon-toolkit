@@ -95,7 +95,11 @@ export function CollateralDepositReviewModal({
             ) : (
               selectedProviders.map((provider) => (
                 <div key={provider.id} className="flex items-center gap-3">
-                  <ProviderAvatar name={provider.name} size="small" />
+                  <ProviderAvatar
+                    name={provider.name}
+                    url={provider.icon ?? undefined}
+                    size="small"
+                  />
                   <Text variant="body1">
                     {provider.name.startsWith("0x")
                       ? truncateAddress(provider.name)

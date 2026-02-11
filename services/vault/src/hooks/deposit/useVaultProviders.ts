@@ -99,7 +99,11 @@ export function useVaultProviders(
       return addresses.map((address) => {
         const provider = findProvider(address);
         return provider
-          ? { id: provider.id, name: provider.id, icon: null }
+          ? {
+              id: provider.id,
+              name: provider.id,
+              icon: provider.iconUrl ?? null,
+            }
           : { id: address, name: address, icon: null };
       });
     },
