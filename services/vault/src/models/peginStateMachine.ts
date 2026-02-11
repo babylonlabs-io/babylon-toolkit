@@ -48,8 +48,6 @@ export enum ContractStatus {
 export enum LocalStorageStatus {
   /** Initial state: Peg-in request submitted to contract */
   PENDING = "pending",
-  /** Waiting for vault provider to prepare payout transactions (user closed modal during wait) */
-  WAITING_FOR_PROVIDER = "waiting_for_provider",
   /** Depositor submitted payout signatures, waiting for on-chain ACK */
   PAYOUT_SIGNED = "payout_signed",
   /** BTC transaction broadcasted, waiting for confirmations */

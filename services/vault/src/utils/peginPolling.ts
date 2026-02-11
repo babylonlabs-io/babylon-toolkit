@@ -6,12 +6,52 @@ import type { Hex } from "viem";
 
 import {
   ContractStatus,
+  isPreDepositorSignaturesError,
   LocalStorageStatus,
 } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../types";
 import type { VaultActivity } from "../types/activity";
 import type { DepositsByProvider, DepositToPoll } from "../types/peginPolling";
+
+// ============================================================================
+// Transient Error Detection
+// ============================================================================
+
+/**
+ * Transient error patterns that indicate vault provider is still processing.
+ * These are expected during the early stages of a deposit and should not
+ * be shown to users as errors. Polling should continue when these occur.
+ */
+export const TRANSIENT_ERROR_PATTERNS = [
+  "PegIn not found",
+  "No transaction graphs found",
+  "Vault or pegin transaction not found",
+] as const;
+
+/**
+ * Check if an error is transient (vault provider still processing).
+ *
+ * Transient errors occur when:
+ * - Vault provider hasn't indexed the pegin yet
+ * - Vault provider is in a pre-depositor-signatures state
+ * - Transaction graphs haven't been generated yet
+ *
+ * When a transient error is detected, polling should continue.
+ */
+export function isTransientPollingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  // Check for pre-depositor-signatures states (vault provider still processing)
+  if (isPreDepositorSignaturesError(error)) {
+    return true;
+  }
+
+  // Check for other transient patterns
+  return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
+    error.message.includes(pattern),
+  );
+}
 
 /**
  * Check if transactions response has all required data for signing

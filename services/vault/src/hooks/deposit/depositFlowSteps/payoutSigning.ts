@@ -6,10 +6,7 @@ import type { Address } from "viem";
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import {
-  isPreDepositorSignaturesError,
-  LocalStorageStatus,
-} from "@/models/peginStateMachine";
+import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
@@ -20,6 +17,7 @@ import {
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
 import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
+import { isTransientPollingError } from "@/utils/peginPolling";
 
 import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 
@@ -33,39 +31,8 @@ const RPC_TIMEOUT_MS = 60 * 1000;
 /** Polling interval (10 seconds) */
 const POLLING_INTERVAL_MS = 10 * 1000;
 
-/** Maximum polling timeout (2 minutes) */
-const MAX_POLLING_TIMEOUT_MS = 2 * 60 * 1000;
-
-/**
- * Transient error patterns that indicate polling should continue.
- * These errors occur when vault provider or indexer hasn't processed the pegin yet.
- */
-const TRANSIENT_ERROR_PATTERNS = [
-  "PegIn not found",
-  "No transaction graphs found",
-  "Vault or pegin transaction not found",
-] as const;
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Check if an error is transient and polling should continue.
- */
-function isTransientError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-
-  // Check for pre-depositor-signatures states (vault provider still processing)
-  if (isPreDepositorSignaturesError(error)) {
-    return true;
-  }
-
-  // Check for other transient patterns
-  return TRANSIENT_ERROR_PATTERNS.some((pattern) =>
-    error.message.includes(pattern),
-  );
-}
+/** Maximum polling timeout (20 minutes) - vault provider may take 15-20 minutes to prepare */
+const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
 
 // ============================================================================
 // Main Functions
@@ -89,6 +56,7 @@ export async function pollAndPreparePayoutSigning(
     providerBtcPubKey,
     vaultKeepers,
     universalChallengers,
+    signal,
   } = params;
 
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
@@ -135,7 +103,8 @@ export async function pollAndPreparePayoutSigning(
     {
       intervalMs: POLLING_INTERVAL_MS,
       timeoutMs: MAX_POLLING_TIMEOUT_MS,
-      isTransient: isTransientError,
+      isTransient: isTransientPollingError,
+      signal,
     },
   );
 }
