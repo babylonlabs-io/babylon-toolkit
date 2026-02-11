@@ -13,9 +13,11 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { twJoin } from "tailwind-merge";
 
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
+import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { GeoBlockBanner } from "../shared/GeoBlockAlert";
 import { Connect } from "../Wallet";
 
@@ -76,8 +78,10 @@ export default function RootLayout() {
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
   const { isGeoBlocked } = useGeoFencing();
+  const { isSupportedAddress } = useAddressType();
 
   const isWalletConnected = btcConnected && ethConnected;
+  const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   const isDepositPage = location.pathname === "/deposit";
 
   return (
@@ -91,21 +95,25 @@ export default function RootLayout() {
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <GeoBlockBanner visible={isGeoBlocked} />
+        <AddressTypeBanner visible={showAddressTypeBanner} />
         <Header
           size="sm"
           navigation={<DesktopNavigation />}
           mobileNavigation={<MobileNavigation />}
           rightActions={
             <div className="flex items-center gap-4">
-              {isWalletConnected && !isDepositPage && !isGeoBlocked && (
-                <Button
-                  variant="outlined"
-                  rounded
-                  onClick={() => navigate("/deposit")}
-                >
-                  Deposit {btcConfig.coinSymbol}
-                </Button>
-              )}
+              {isWalletConnected &&
+                !isDepositPage &&
+                !isGeoBlocked &&
+                isSupportedAddress && (
+                  <Button
+                    variant="outlined"
+                    rounded
+                    onClick={() => navigate("/deposit")}
+                  >
+                    Deposit {btcConfig.coinSymbol}
+                  </Button>
+                )}
               <Connect />
               <StandardSettingsMenu theme={theme} setTheme={setTheme} />
             </div>

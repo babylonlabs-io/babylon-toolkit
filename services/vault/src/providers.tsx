@@ -8,6 +8,7 @@ import { WagmiProvider } from "wagmi";
 import { NotificationContainer } from "@/components/shared/NotificationContainer";
 import { createQueryClient } from "@/config/queryClient";
 import { vaultWagmiConfig } from "@/config/wagmi";
+import { AddressTypeProvider } from "@/context/addressType";
 import { ErrorProvider } from "@/context/error";
 import { GeoFencingProvider } from "@/context/geofencing";
 import { WalletConnectionProvider } from "@/context/wallet";
@@ -37,7 +38,9 @@ function Providers({ children }: React.PropsWithChildren) {
                   <GeoFencingProvider>
                     <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
                       <WalletConnectionProvider>
-                        <AppState>{children}</AppState>
+                        <AddressTypeProvider>
+                          <AppState>{children}</AppState>
+                        </AddressTypeProvider>
                       </WalletConnectionProvider>
                     </WagmiProvider>
                   </GeoFencingProvider>

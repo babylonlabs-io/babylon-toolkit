@@ -1,8 +1,9 @@
-import { Button, Card, Container, Text } from "@babylonlabs-io/core-ui";
+import { Button, Card, Container, Hint, Text } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
 import { BackButton } from "@/components/shared";
 import { FeatureFlags } from "@/config";
+import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 
@@ -21,6 +22,7 @@ import { SelectVaultProviderSection } from "./Deposit/SelectVaultProviderSection
 function DepositContent() {
   const navigate = useNavigate();
   const { isGeoBlocked } = useGeoFencing();
+  const { isSupportedAddress } = useAddressType();
 
   const handleBack = () => {
     navigate(-1);
@@ -134,20 +136,41 @@ function DepositContent() {
               </Text>
             )}
 
-            <Button
-              variant="contained"
-              color="secondary"
-              size="large"
-              disabled={
-                !isValid || !FeatureFlags.isDepositEnabled || isGeoBlocked
-              }
-              onClick={handleDeposit}
-              className="w-full"
-            >
-              {FeatureFlags.isDepositEnabled
-                ? "Deposit"
-                : "Depositing Unavailable"}
-            </Button>
+            {!isSupportedAddress ? (
+              <Hint
+                tooltip="Taproot address required. Please switch your wallet to use a Taproot address."
+                attachToChildren
+              >
+                <span className="w-full">
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    size="large"
+                    disabled
+                    className="w-full"
+                  >
+                    {FeatureFlags.isDepositEnabled
+                      ? "Deposit"
+                      : "Depositing Unavailable"}
+                  </Button>
+                </span>
+              </Hint>
+            ) : (
+              <Button
+                variant="contained"
+                color="secondary"
+                size="large"
+                disabled={
+                  !isValid || !FeatureFlags.isDepositEnabled || isGeoBlocked
+                }
+                onClick={handleDeposit}
+                className="w-full"
+              >
+                {FeatureFlags.isDepositEnabled
+                  ? "Deposit"
+                  : "Depositing Unavailable"}
+              </Button>
+            )}
           </div>
 
           <DepositFAQ />
