@@ -1,5 +1,5 @@
 import type React from "react";
-import { twJoin } from "tailwind-merge";
+import { twJoin, twMerge } from "tailwind-merge";
 import { Slider, type SliderStep } from "../../../components/Slider";
 
 interface BalanceDetails {
@@ -104,7 +104,7 @@ export function AmountSlider({
           disabled={disabled}
           readOnly={readOnly || !onAmountChange}
           placeholder="0"
-          className={twJoin("w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary", inputClassName)}
+          className={twMerge("w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary", inputClassName)}
         />
       </div>
 

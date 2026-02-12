@@ -65,3 +65,9 @@ export const LOAN_TAB = {
 } as const;
 
 export type LoanTab = (typeof LOAN_TAB)[keyof typeof LOAN_TAB];
+
+/**
+ * Shared input className for AmountSlider across Aave components
+ */
+export const AMOUNT_INPUT_CLASS_NAME =
+  "w-auto min-w-32 rounded-md border border-gray-300 px-2 py-1 dark:border-[#3a3a3a]";

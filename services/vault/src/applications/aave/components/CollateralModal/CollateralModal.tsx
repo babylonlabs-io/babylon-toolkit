@@ -22,7 +22,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { getCurrencyIconWithFallback } from "@/services/token";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
-import { BTC_TOKEN, MIN_SLIDER_MAX } from "../../constants";
+import { AMOUNT_INPUT_CLASS_NAME, BTC_TOKEN, MIN_SLIDER_MAX } from "../../constants";
 
 import { useAddCollateralModal, useWithdrawCollateralModal } from "./hooks";
 
@@ -137,7 +137,7 @@ export function CollateralModal({
                   }
             }
             sliderActiveColor="#F7931A"
-            inputClassName="!w-auto min-w-32 rounded-md border border-gray-300 px-2 py-1 dark:border-[#3a3a3a]"
+            inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />
         </SubSection>
 
