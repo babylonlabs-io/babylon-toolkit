@@ -1,7 +1,7 @@
 /**
  * Deposit modal flow component
  *
- * Renders the deposit modals (Review, Sign, Success) based on the current step.
+ * Renders the deposit modals (Review, Mnemonic, Sign, Success) based on the current step.
  */
 
 import type { Address } from "viem";
@@ -10,6 +10,7 @@ import { DepositStep } from "../../../context/deposit/DepositState";
 import { CollateralDepositReviewModal } from "../../deposit/DepositReviewModal";
 import { CollateralDepositSignModal } from "../../deposit/DepositSignModal";
 import { CollateralDepositSuccessModal } from "../../deposit/DepositSuccessModal";
+import { MnemonicModal } from "../../deposit/MnemonicModal";
 
 interface DepositModalsProps {
   depositStep: DepositStep | undefined;
@@ -24,6 +25,7 @@ interface DepositModalsProps {
   universalChallengerBtcPubkeys: string[];
   onClose: () => void;
   onConfirmReview: (feeRate: number) => void;
+  onConfirmMnemonic: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   onRefetchActivities: () => Promise<void>;
 }
@@ -41,6 +43,7 @@ export function DepositModals({
   universalChallengerBtcPubkeys,
   onClose,
   onConfirmReview,
+  onConfirmMnemonic,
   onSignSuccess,
   onRefetchActivities,
 }: DepositModalsProps) {
@@ -54,6 +57,9 @@ export function DepositModals({
           amount={depositAmount}
           providers={selectedProviders}
         />
+      )}
+      {depositStep === DepositStep.MNEMONIC && (
+        <MnemonicModal open onClose={onClose} onComplete={onConfirmMnemonic} />
       )}
       {depositStep === DepositStep.SIGN && (
         <CollateralDepositSignModal

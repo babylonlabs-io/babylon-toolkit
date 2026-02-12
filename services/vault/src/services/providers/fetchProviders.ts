@@ -140,8 +140,22 @@ export async function fetchVaultKeepersByVersion(
  * @returns Object containing vaultProviders and vaultKeepers arrays
  */
 export async function fetchAppProviders(
-  applicationController: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _applicationController: string,
 ): Promise<AppProvidersResponse> {
+  // TODO: REMOVE - temporary hardcoded data for testing mnemonic flow
+  return {
+    vaultProviders: [
+      {
+        id: "0x0000000000000000000000000000000000000002",
+        btcPubKey:
+          "0x0000000000000000000000000000000000000000000000000000000000000001",
+        url: "http://localhost:8080",
+      },
+    ],
+    vaultKeepers: [],
+  };
+
   const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
     GET_APP_PROVIDERS,
     { appController: applicationController.toLowerCase() },

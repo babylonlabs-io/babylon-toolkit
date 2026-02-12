@@ -44,6 +44,7 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
+  confirmMnemonic: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -123,6 +124,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
+    goToStep(DepositStep.MNEMONIC);
+  };
+
+  const confirmMnemonic = () => {
     goToStep(DepositStep.SIGN);
   };
 
@@ -144,6 +149,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     universalChallengerBtcPubkeys,
     startDeposit,
     confirmReview,
+    confirmMnemonic,
     onSignSuccess,
     resetDeposit,
     refetchActivities,
