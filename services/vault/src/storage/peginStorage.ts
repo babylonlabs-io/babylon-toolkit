@@ -36,13 +36,22 @@ export interface StoredProvider {
 }
 
 export interface PendingPeginRequest {
-  id: string; // Peg-in ID (pegin tx hash)
+  /**
+   * Vault ID (BTC transaction hash with 0x prefix) - PRIMARY IDENTIFIER
+   * This is the vaultId from the contract, used to query vault provider.
+   * For compatibility: btcTxHash field should match this value.
+   * DO NOT use ethTxHash as the id - that's only for reference.
+   */
+  id: string;
   timestamp: number; // When the peg-in was initiated
   amount?: string; // Amount in BTC (formatted for display)
   providerIds?: string[]; // Vault provider's Ethereum addresses
   applicationController?: string; // Application controller address (for identifying the app)
   status: LocalStorageStatus; // Track user actions (required, defaults to PENDING)
-  btcTxHash?: string; // BTC transaction hash (set when broadcasting to Bitcoin)
+  /** Bitcoin transaction hash - should match id for vault queries */
+  btcTxHash?: string;
+  /** Ethereum transaction hash - for reference only, NOT used as primary ID */
+  ethTxHash?: string;
   // Fields for cross-device broadcasting support
   unsignedTxHex?: string; // Unsigned BTC transaction hex (for broadcasting later)
   selectedUTXOs?: Array<{

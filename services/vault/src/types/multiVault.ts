@@ -59,10 +59,12 @@ export interface AllocationPlan {
 export interface PeginCreationResult {
   /** Vault index in the batch */
   vaultIndex: number;
-  /** Bitcoin transaction hash (vault ID) */
+  /** Bitcoin transaction hash (unsigned tx hash from prepare step) */
   btcTxHash: Hex;
-  /** Ethereum transaction hash */
+  /** Ethereum transaction hash (from submitPeginRequest) */
   ethTxHash: Hex;
+  /** Vault ID from contract (BTC tx hash with 0x - PRIMARY IDENTIFIER for vault provider queries) */
+  vaultId: Hex;
   /** Unsigned BTC transaction hex */
   btcTxHex: string;
   /** Selected UTXOs for this peg-in */

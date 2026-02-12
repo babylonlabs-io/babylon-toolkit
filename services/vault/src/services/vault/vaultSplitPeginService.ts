@@ -73,7 +73,9 @@ export interface RegisterSplitPeginParams {
  * Result of registering a split pegin
  */
 export interface RegisterSplitPeginResult {
+  /** Ethereum transaction hash */
   ethTxHash: Hex;
+  /** Vault ID from contract (BTC tx hash with 0x) - PRIMARY IDENTIFIER for vault provider queries */
   vaultId: Hex;
 }
 

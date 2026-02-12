@@ -282,6 +282,7 @@ export function useMultiVaultDepositFlow(
             let peginResult: {
               btcTxid: string;
               ethTxHash: Hex;
+              vaultId: Hex;
               btcTxHex: string;
               selectedUTXOs: UTXO[];
               fee: bigint;
@@ -323,6 +324,21 @@ export function useMultiVaultDepositFlow(
                 },
               });
 
+              // ADD COMPREHENSIVE LOGGING
+              console.log(`[Multi-Vault] Vault ${i}: Registration complete`);
+              console.log(
+                `[Multi-Vault] Vault ${i}:   vaultId (PRIMARY ID) = ${registrationResult.vaultId}`,
+              );
+              console.log(
+                `[Multi-Vault] Vault ${i}:   ethTxHash (reference) = ${registrationResult.ethTxHash}`,
+              );
+              console.log(
+                `[Multi-Vault] Vault ${i}:   btcTxHash (unsigned)  = ${prepareResult.btcTxHash}`,
+              );
+              console.log(
+                `[Multi-Vault] Vault ${i}: Using vaultId as primary identifier (matches single pegin flow)`,
+              );
+
               // Step 3: Wait for ETH confirmation
               console.log(
                 `[Multi-Vault] Vault ${i}: Waiting for ETH confirmation...`,
@@ -335,6 +351,7 @@ export function useMultiVaultDepositFlow(
               peginResult = {
                 btcTxid: prepareResult.btcTxHash,
                 ethTxHash: registrationResult.ethTxHash,
+                vaultId: registrationResult.vaultId, // ADD THIS (PRIMARY ID)
                 btcTxHex: prepareResult.fundedTxHex,
                 selectedUTXOs: prepareResult.selectedUTXOs,
                 fee: prepareResult.fee,
@@ -364,10 +381,23 @@ export function useMultiVaultDepositFlow(
                 },
               });
 
+              // ADD COMPREHENSIVE LOGGING
+              console.log(`[Multi-Vault] Vault ${i}: Standard pegin complete`);
+              console.log(
+                `[Multi-Vault] Vault ${i}:   btcTxid (PRIMARY ID) = ${result.btcTxid}`,
+              );
+              console.log(
+                `[Multi-Vault] Vault ${i}:   ethTxHash (reference) = ${result.ethTxHash}`,
+              );
+              console.log(
+                `[Multi-Vault] Vault ${i}: NOTE: In single pegin, btcTxid = vaultId from contract`,
+              );
+
               depositorBtcPubkey = result.depositorBtcPubkey;
               peginResult = {
-                btcTxid: result.btcTxid,
+                btcTxid: result.btcTxid, // This is already vaultId from submitPeginRequest
                 ethTxHash: result.ethTxHash,
+                vaultId: result.btcTxid as Hex, // ADD THIS (same as btcTxid in standard path)
                 btcTxHex: result.btcTxHex,
                 selectedUTXOs: result.selectedUTXOs,
                 fee: result.fee,
@@ -378,6 +408,7 @@ export function useMultiVaultDepositFlow(
               vaultIndex: i,
               btcTxHash: peginResult.btcTxid as Hex,
               ethTxHash: peginResult.ethTxHash,
+              vaultId: peginResult.vaultId as Hex, // ADD THIS
               btcTxHex: peginResult.btcTxHex,
               selectedUTXOs: peginResult.selectedUTXOs,
               fee: peginResult.fee,
@@ -387,10 +418,15 @@ export function useMultiVaultDepositFlow(
             console.log(`[Multi-Vault] === Vault ${i} succeeded ===`);
             console.log(
               `[Multi-Vault] Vault ${i}: Peg-in created successfully`,
-              {
-                btcTxHash: peginResult.btcTxid,
-                ethTxHash: peginResult.ethTxHash,
-              },
+            );
+            console.log(
+              `[Multi-Vault] Vault ${i}:   vaultId   = ${peginResult.vaultId}`,
+            );
+            console.log(
+              `[Multi-Vault] Vault ${i}:   btcTxHash = ${peginResult.btcTxid}`,
+            );
+            console.log(
+              `[Multi-Vault] Vault ${i}:   ethTxHash = ${peginResult.ethTxHash}`,
             );
           } catch (err: unknown) {
             // Log raw error first to see actual type and structure
@@ -451,6 +487,7 @@ export function useMultiVaultDepositFlow(
               vaultIndex: i,
               btcTxHash: "0x" as Hex,
               ethTxHash: "0x" as Hex,
+              vaultId: "0x" as Hex,
               btcTxHex: "",
               selectedUTXOs: [],
               fee: 0n,
@@ -478,12 +515,37 @@ export function useMultiVaultDepositFlow(
 
         // Save pegins to storage IMMEDIATELY so they appear in table with batch info
         if (successfulPegins.length > 0 && depositorEthAddress) {
+          console.log(
+            `[Multi-Vault] Saving ${successfulPegins.length} pegins to localStorage...`,
+          );
+
           // Save pegins to storage (with batchId and splitTxId)
           for (const peginResult of successfulPegins) {
             const vaultAmount = vaultAmounts[peginResult.vaultIndex];
+
+            console.log(
+              `[Multi-Vault] Saving vault ${peginResult.vaultIndex} to localStorage:`,
+            );
+            console.log(
+              `[Multi-Vault]   id (PRIMARY)  = ${peginResult.vaultId} (vaultId from contract)`,
+            );
+            console.log(
+              `[Multi-Vault]   btcTxHash     = ${peginResult.btcTxHash}`,
+            );
+            console.log(
+              `[Multi-Vault]   ethTxHash     = ${peginResult.ethTxHash} (ETH tx for reference)`,
+            );
+            console.log(
+              `[Multi-Vault]   amount        = ${(Number(vaultAmount) / 100000000).toFixed(8)} BTC`,
+            );
+            console.log(
+              `[Multi-Vault]   This matches single pegin flow: id = vaultId (not ethTxHash)`,
+            );
+
             addPendingPegin(depositorEthAddress, {
-              id: peginResult.ethTxHash,
-              btcTxHash: peginResult.btcTxHash,
+              id: peginResult.vaultId, // CHANGED: was ethTxHash, now vaultId
+              btcTxHash: peginResult.btcTxHash, // Keep for compatibility
+              ethTxHash: peginResult.ethTxHash, // ADD: Store separately for reference
               amount: (Number(vaultAmount) / 100000000).toFixed(8), // Fix decimal conversion
               providerIds: [selectedProviders[0]],
               applicationController: selectedApplication,
@@ -491,8 +553,12 @@ export function useMultiVaultDepositFlow(
               splitTxId: splitTxResult?.txid, // Add split TX ID directly
             });
           }
+
           console.log(
-            `[Multi-Vault] Saved ${successfulPegins.length} pegins to storage`,
+            `[Multi-Vault] ✓ Saved ${successfulPegins.length} pegins to storage`,
+          );
+          console.log(
+            `[Multi-Vault] All vaults now use vaultId as primary ID (consistent with single pegin)`,
           );
         }
 
@@ -520,6 +586,9 @@ export function useMultiVaultDepositFlow(
 
           console.log(
             `[Multi-Vault] Background: Signing payouts for vault ${i}...`,
+          );
+          console.log(
+            `[Multi-Vault] Background: Vault ${i} using vaultId for payout: ${result.btcTxHash}`,
           );
 
           try {
@@ -598,7 +667,12 @@ export function useMultiVaultDepositFlow(
         await Promise.all(
           peginResults
             .filter((r) => !r.error)
-            .map((r) => waitForContractVerification({ btcTxid: r.btcTxHash })),
+            .map((r) => {
+              console.log(
+                `[Multi-Vault] Background: Verifying vaultId: ${r.btcTxHash}`,
+              );
+              return waitForContractVerification({ btcTxid: r.btcTxHash });
+            }),
         );
 
         // ========================================================================
