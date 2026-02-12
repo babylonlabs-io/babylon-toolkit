@@ -19,7 +19,7 @@ import {
   getTokenBrandColor,
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
-import { MIN_SLIDER_MAX } from "../../../constants";
+import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
 import { useBorrowTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -116,6 +116,7 @@ export function Borrow() {
               value: formatUsdValue(borrowAmount),
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
+            inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />
         </SubSection>
 

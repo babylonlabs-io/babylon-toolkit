@@ -12,7 +12,7 @@ import {
   getTokenBrandColor,
 } from "../../../../../services/token";
 import { formatUsdValue } from "../../../../../utils/formatting";
-import { MIN_SLIDER_MAX } from "../../../constants";
+import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
 import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
 import { BorrowDetailsCard } from "../Borrow/BorrowDetailsCard";
@@ -116,6 +116,7 @@ export function Repay() {
               value: formatUsdValue(repayAmount),
             }}
             sliderActiveColor={getTokenBrandColor(assetConfig.symbol)}
+            inputClassName={AMOUNT_INPUT_CLASS_NAME}
           />
         </SubSection>
 
