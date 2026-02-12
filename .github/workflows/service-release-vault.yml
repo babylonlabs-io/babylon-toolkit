@@ -46,16 +46,8 @@ jobs:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
-          - environment: canon-devnet
-            aws_account: 537927626649
-          - environment: btc-mainnet-devnet
-            aws_account: 537927626649
-          - environment: edge-devnet
-            aws_account: 537927626649
           - environment: testnet
             aws_account: 615368094160
-          - environment: mainnet
-            aws_account: 490721144737
 
     environment: ${{ matrix.environment }}
     steps:
