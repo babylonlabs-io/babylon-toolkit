@@ -46,7 +46,7 @@ jobs:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
-          - environment: testnet
+          - environment: vault-testnet
             aws_account: 615368094160
 
     environment: ${{ matrix.environment }}
