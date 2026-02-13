@@ -73,7 +73,7 @@ export function useDepositReviewData(
   const btcPriceUSD = prices.BTC ?? 0;
 
   // Fetch provider data
-  const { findProviders, loading: providersLoading } = useVaultProviders();
+  const { findProvider, loading: providersLoading } = useVaultProviders();
 
   // Fetch fee data using spendable UTXOs for accurate calculation
   const {
@@ -92,7 +92,12 @@ export function useDepositReviewData(
     const btcFeeUsd =
       btcFee !== null && btcPriceUSD > 0 ? btcFee * btcPriceUSD : null;
 
-    const selectedProviders = findProviders(providerIds);
+    const selectedProviders = providerIds.map((id) => {
+      const provider = findProvider(id);
+      return provider
+        ? { id: provider.id, name: provider.id, icon: provider.iconUrl ?? null }
+        : { id, name: id, icon: null };
+    });
 
     return {
       amountBtc,
@@ -101,7 +106,7 @@ export function useDepositReviewData(
       btcFeeUsd,
       selectedProviders,
     };
-  }, [amount, btcPriceUSD, feeSats, findProviders, providerIds]);
+  }, [amount, btcPriceUSD, feeSats, findProvider, providerIds]);
 
   return {
     ...computedData,

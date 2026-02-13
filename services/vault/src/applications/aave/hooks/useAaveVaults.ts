@@ -30,13 +30,12 @@ import { useAaveConfig } from "../context/AaveConfigContext";
 function transformVaultToTableData(
   vault: Vault,
   btcPriceUsd: number,
-  findProvider: (address: string) => VaultProvider | undefined,
+  provider: VaultProvider | undefined,
 ): VaultData {
   const btcAmount = satoshiToBtcNumber(vault.amount);
   const usdValue = btcAmount * btcPriceUsd;
 
   const peginState = getPeginState(vault.status, { isInUse: vault.isInUse });
-  const provider = findProvider(vault.vaultProvider);
 
   return {
     id: vault.id,
@@ -97,11 +96,8 @@ export function useAaveVaults(
 
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {
-      const vaultData = transformVaultToTableData(
-        vault,
-        btcPriceUSD,
-        findProvider,
-      );
+      const provider = findProvider(vault.vaultProvider);
+      const vaultData = transformVaultToTableData(vault, btcPriceUSD, provider);
       const pendingOperation = pendingVaults.get(vault.id);
       if (pendingOperation === "redeem") {
         return {

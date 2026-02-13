@@ -1,7 +1,6 @@
 import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
-import { fetchLogos } from "../../clients/logo";
 import type {
   AppProvidersResponse,
   VaultKeeper,
@@ -132,21 +131,13 @@ export async function fetchVaultKeepersByVersion(
 }
 
 /**
- * Normalizes a BTC public key to the identity format expected by the sidecar logo API.
- * Strips the "0x" prefix when present so the key matches the format used by the /logo endpoint.
- *
- * @param btcPubKey - BTC public key, possibly with a "0x" prefix (e.g. from GraphQL).
- * @returns Identity string without "0x" prefix.
- */
-function toIdentity(btcPubKey: string): string {
-  return btcPubKey.startsWith("0x") ? btcPubKey.slice(2) : btcPubKey;
-}
-
-/**
  * Fetches vault providers and vault keepers for a specific application.
  *
  * Note: Universal challengers are system-wide and should be fetched from
  * ProtocolParamsContext instead of per-application.
+ *
+ * Note: Logos are fetched separately via useLogos hook to avoid blocking
+ * provider data on the logo API.
  *
  * @param applicationController - The application controller address to filter by.
  * @returns Object containing vaultProviders and vaultKeepers arrays
@@ -159,27 +150,16 @@ export async function fetchAppProviders(
     { appController: applicationController.toLowerCase() },
   );
 
-  const providersWithRpc = response.vaultProviders.items.filter(
-    (provider): provider is typeof provider & { rpcUrl: string } =>
-      provider.rpcUrl !== null,
-  );
-
-  const providersWithIdentity = providersWithRpc.map((provider) => ({
-    provider,
-    identity: toIdentity(provider.btcPubKey),
-  }));
-  const logos = await fetchLogos(
-    providersWithIdentity.map(({ identity }) => identity),
-  );
-
-  const vaultProviders: VaultProvider[] = providersWithIdentity.map(
-    ({ provider, identity }) => ({
+  const vaultProviders: VaultProvider[] = response.vaultProviders.items
+    .filter(
+      (provider): provider is typeof provider & { rpcUrl: string } =>
+        provider.rpcUrl !== null,
+    )
+    .map((provider) => ({
       id: provider.id,
       btcPubKey: provider.btcPubKey,
       url: provider.rpcUrl,
-      iconUrl: logos[identity],
-    }),
-  );
+    }));
 
   const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items.map((item) => ({
