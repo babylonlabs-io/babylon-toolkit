@@ -18,7 +18,10 @@ import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
 } from "../../../../../services/token";
-import { formatUsdValue } from "../../../../../utils/formatting";
+import {
+  formatTokenAmount,
+  formatUsdValue,
+} from "../../../../../utils/formatting";
 import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
 import { useBorrowTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
@@ -96,7 +99,7 @@ export function Borrow() {
               setBorrowAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: sliderMaxBorrow.toLocaleString(),
+              balance: formatTokenAmount(sliderMaxBorrow),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
@@ -109,7 +112,7 @@ export function Borrow() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${sliderMaxBorrow.toLocaleString()} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(sliderMaxBorrow)} ${assetConfig.symbol}`,
             }}
             onMaxClick={() => setBorrowAmount(sliderMaxBorrow)}
             rightField={{
