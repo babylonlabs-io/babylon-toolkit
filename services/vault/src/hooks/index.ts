@@ -17,6 +17,11 @@ export {
   type UseBTCBalanceResult,
 } from "./useBTCBalance";
 export { useBtcPublicKey } from "./useBtcPublicKey";
+export {
+  ERC20_BALANCE_QUERY_KEY,
+  useERC20Balance,
+  type UseERC20BalanceResult,
+} from "./useERC20Balance";
 export { toIdentity, useLogos, type UseLogosResult } from "./useLogos";
 export {
   useLtvCalculations,

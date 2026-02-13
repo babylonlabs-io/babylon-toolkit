@@ -7,11 +7,17 @@
 
 import { AmountSlider, Button, SubSection } from "@babylonlabs-io/core-ui";
 
+import { useETHWallet } from "@/context/wallet";
+import { useERC20Balance } from "@/hooks";
+
 import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
 } from "../../../../../services/token";
-import { formatUsdValue } from "../../../../../utils/formatting";
+import {
+  formatTokenAmount,
+  formatUsdValue,
+} from "../../../../../utils/formatting";
 import { AMOUNT_INPUT_CLASS_NAME, MIN_SLIDER_MAX } from "../../../constants";
 import { useRepayTransaction } from "../../../hooks";
 import { useLoanContext } from "../../context/LoanContext";
@@ -35,6 +41,15 @@ export function Repay() {
     onRepaySuccess,
   } = useLoanContext();
 
+  const { address } = useETHWallet();
+
+  // Fetch user's token balance for repayment
+  const { balance: userTokenBalance } = useERC20Balance(
+    selectedReserve.token.address,
+    address,
+    selectedReserve.token.decimals,
+  );
+
   const { executeRepay, isProcessing } = useRepayTransaction({
     positionId,
     proxyContract,
@@ -48,6 +63,7 @@ export function Repay() {
     isFullRepayment,
   } = useRepayState({
     currentDebtAmount,
+    userTokenBalance,
   });
 
   const metrics = useRepayMetrics({
@@ -61,6 +77,8 @@ export function Repay() {
   const { isDisabled, buttonText, errorMessage } = validateRepayAction(
     repayAmount,
     maxRepayAmount,
+    currentDebtAmount,
+    userTokenBalance,
   );
 
   const sliderMaxRepay = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
@@ -96,7 +114,7 @@ export function Repay() {
               setRepayAmount(parseFloat(e.target.value) || 0)
             }
             balanceDetails={{
-              balance: sliderMaxRepay.toLocaleString(),
+              balance: formatTokenAmount(sliderMaxRepay),
               symbol: assetConfig.symbol,
               displayUSD: false,
             }}
@@ -109,7 +127,7 @@ export function Repay() {
             sliderVariant="rainbow"
             leftField={{
               label: "Max",
-              value: `${sliderMaxRepay.toLocaleString()} ${assetConfig.symbol}`,
+              value: `${formatTokenAmount(sliderMaxRepay)} ${assetConfig.symbol}`,
             }}
             onMaxClick={() => setRepayAmount(sliderMaxRepay)}
             rightField={{
