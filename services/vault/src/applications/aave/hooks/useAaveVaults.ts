@@ -37,12 +37,17 @@ function transformVaultToTableData(
 
   const peginState = getPeginState(vault.status, { isInUse: vault.isInUse });
 
+  // Use provider name if available, otherwise truncate the address
+  const providerName =
+    provider?.name ??
+    `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`;
+
   return {
     id: vault.id,
     amount: btcAmount,
     usdValue,
     provider: {
-      name: `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`,
+      name: providerName,
       icon: provider?.iconUrl,
     },
     status: peginState.displayLabel,

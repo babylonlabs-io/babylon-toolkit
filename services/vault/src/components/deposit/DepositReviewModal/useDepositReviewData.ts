@@ -95,7 +95,11 @@ export function useDepositReviewData(
     const selectedProviders = providerIds.map((id) => {
       const provider = findProvider(id);
       return provider
-        ? { id: provider.id, name: provider.id, icon: provider.iconUrl ?? null }
+        ? {
+            id: provider.id,
+            name: provider.name ?? provider.id,
+            icon: provider.iconUrl ?? null,
+          }
         : { id, name: id, icon: null };
     });
 
