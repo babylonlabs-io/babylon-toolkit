@@ -95,6 +95,7 @@ describe("fetchProviders", () => {
         {
           id: "0xprovider1",
           btcPubKey: "0xpk1",
+          name: "provider-1",
           url: "https://rpc.example.com",
         },
       ]);

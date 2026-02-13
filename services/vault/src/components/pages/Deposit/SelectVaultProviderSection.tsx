@@ -80,6 +80,7 @@ export function SelectVaultProviderSection({
               {selectedProviderData && (
                 <ProviderAvatar
                   name={selectedProviderData.name}
+                  url={selectedProviderData.iconUrl}
                   size="medium"
                 />
               )}

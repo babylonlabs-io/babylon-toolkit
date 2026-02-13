@@ -11,17 +11,15 @@ import type { Address } from "viem";
 /**
  * Required environment variables for the vault application
  */
-interface RequiredEnvVars {
-  // Contract addresses
+interface EnvVars {
   BTC_VAULTS_MANAGER: Address;
   AAVE_CONTROLLER: Address;
-
-  // API endpoints
   GRAPHQL_ENDPOINT: string;
+  SIDECAR_API_URL: string;
 }
 
 interface EnvValidationResult {
-  env: RequiredEnvVars;
+  env: EnvVars;
   error: string | null;
 }
 
@@ -38,9 +36,11 @@ function validateEnvVars(): EnvValidationResult {
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    SIDECAR_API_URL: (
+      process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
+    ).replace(/\/$/, ""),
   };
 
-  // Check for missing required environment variables
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
     "AAVE_CONTROLLER",
@@ -66,13 +66,14 @@ function validateEnvVars(): EnvValidationResult {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
+        SIDECAR_API_URL: "",
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };
   }
 
   return {
-    env: envVars as RequiredEnvVars,
+    env: envVars as EnvVars,
     error: null,
   };
 }

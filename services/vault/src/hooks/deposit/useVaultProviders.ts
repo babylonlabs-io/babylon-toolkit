@@ -4,6 +4,10 @@
  * This hook fetches vault providers and vault keepers from the GraphQL indexer.
  * The data is cached per application controller using React Query.
  *
+ * Logos are fetched separately via useLogos hook to avoid blocking provider
+ * data on the logo API. Providers are available immediately; logos are merged
+ * when they arrive.
+ *
  * Note: Universal challengers are system-wide and should be accessed via
  * useProtocolParamsContext() instead.
  *
@@ -22,6 +26,8 @@ import type {
   VaultKeeper,
   VaultProvider,
 } from "../../types";
+import { toIdentity } from "../useLogos";
+import { useWithLogos } from "../useWithLogos";
 
 export interface UseVaultProvidersResult {
   /** Array of vault providers */
@@ -36,12 +42,6 @@ export interface UseVaultProvidersResult {
   refetch: () => Promise<void>;
   /** Find provider by Ethereum address */
   findProvider: (address: string) => VaultProvider | undefined;
-  /** Find multiple providers by array of Ethereum addresses */
-  findProviders: (addresses: string[]) => Array<{
-    id: string;
-    name: string;
-    icon: string | null;
-  }>;
 }
 
 /**
@@ -78,32 +78,21 @@ export function useVaultProviders(
     retry: 1,
   });
 
+  // Fetch logos separately and merge with providers (non-blocking)
+  const vaultProvidersWithLogos = useWithLogos(
+    data?.vaultProviders ?? [],
+    (p) => toIdentity(p.btcPubKey),
+  );
+
   // Helper function to find provider by address
   // Memoized to prevent unnecessary re-renders in consuming components
   const findProvider = useCallback(
     (address: string): VaultProvider | undefined => {
-      if (!data) return undefined;
-      return data.vaultProviders.find(
+      return vaultProvidersWithLogos.find(
         (p) => p.id.toLowerCase() === address.toLowerCase(),
       );
     },
-    [data],
-  );
-
-  // Helper function to find multiple providers by addresses
-  // Returns formatted provider objects with fallback for unknown providers
-  const findProviders = useCallback(
-    (
-      addresses: string[],
-    ): Array<{ id: string; name: string; icon: string | null }> => {
-      return addresses.map((address) => {
-        const provider = findProvider(address);
-        return provider
-          ? { id: provider.id, name: provider.id, icon: null }
-          : { id: address, name: address, icon: null };
-      });
-    },
-    [findProvider],
+    [vaultProvidersWithLogos],
   );
 
   // Wrap refetch to return Promise<void>
@@ -112,12 +101,11 @@ export function useVaultProviders(
   };
 
   return {
-    vaultProviders: data?.vaultProviders || [],
+    vaultProviders: vaultProvidersWithLogos,
     vaultKeepers: data?.vaultKeepers ?? [],
     loading: isLoading,
     error: error as Error | null,
     refetch: wrappedRefetch,
     findProvider,
-    findProviders,
   };
 }

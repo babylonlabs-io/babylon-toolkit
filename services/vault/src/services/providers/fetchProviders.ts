@@ -136,6 +136,9 @@ export async function fetchVaultKeepersByVersion(
  * Note: Universal challengers are system-wide and should be fetched from
  * ProtocolParamsContext instead of per-application.
  *
+ * Note: Logos are fetched separately via useLogos hook to avoid blocking
+ * provider data on the logo API.
+ *
  * @param applicationController - The application controller address to filter by.
  * @returns Object containing vaultProviders and vaultKeepers arrays
  */
@@ -155,6 +158,7 @@ export async function fetchAppProviders(
     .map((provider) => ({
       id: provider.id,
       btcPubKey: provider.btcPubKey,
+      name: provider.name ?? undefined,
       url: provider.rpcUrl,
     }));
 
