@@ -1,47 +1,46 @@
-# AAVE v4 Integration
+# Babylon AAVE v4 Integration
 
-Use BTC vaults as collateral in AAVE v4 to borrow stablecoins.
+Use BTC vaults as collateral in AAVE v4 to borrow other assets.
+
+## About AAVE v4
+
+AAVE is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in AAVE v4.
 
 ## What This Provides
 
-The SDK provides pure functions for AAVE operations:
+The SDK provides pure functions for Babylon's custom AAVE integration:
 
 - **Transaction Builders** - Build unsigned transactions (you execute with your wallet)
-- **Query Functions** - Read live on-chain data (health factor, debt, positions)
+- **Query Functions** - Read on-chain data (health factor, debt, positions)
 - **Utilities** - Calculate health factor, select vaults, format values
+
+> **Note:** This integration uses custom Babylon contracts, not standard AAVE contracts.
+
+## Prerequisites
+
+1. **Active BTC Vaults** - Created via `PeginManager` (see [managers quickstart](../../quickstart/managers.md))
+2. **Contract Addresses** - AAVE controller, spoke, reserve IDs (from your config/indexer)
+3. **Ethereum Wallet** - viem `WalletClient` for signing transactions
 
 ## Key Concepts
 
-### Health Factor
+This integration uses AAVE v4's lending mechanics, see the [AAVE Documentation](https://docs.aave.com/) for protocol overview and guides.
 
-Measures how safe your position is from liquidation.
+### SDK-Specific Behavior
 
-```
-Health Factor = (Collateral Value × Liquidation Threshold) / Total Debt
-```
+When using BTC vaults as collateral in this integration:
 
-| Health Factor | Status  | Meaning                    |
+- **Vault Status** - Vaults change from `Available` → `InUse` when deposited as collateral
+- **Proxy Contract** - AAVE deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations)
+- **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
+
+**Health Factor Quick Reference:**
+
+| Health Factor | Status  | Action                     |
 | ------------- | ------- | -------------------------- |
-| ∞ (no debt)   | Safe    | No borrowed assets         |
 | ≥ 1.5         | Safe    | Healthy position           |
-| 1.0 - 1.5     | Warning | At risk, consider repaying |
-| < 1.0         | Danger  | Can be liquidated          |
-
-### Collateral
-
-BTC vaults can be deposited as collateral. When you add collateral:
-
-- Vault status changes: `Available` → `InUse`
-- A proxy contract is deployed for your position (first time only)
-- You can borrow against the collateral value
-
-### Position
-
-Your AAVE lending position contains:
-
-- **Proxy Contract** - User-specific contract holding your collateral/debt
-- **Collateral** - List of vault IDs deposited
-- **Debt** - Borrowed amounts per reserve
+| 1.0 - 1.5     | Warning | Consider repaying debt     |
+| < 1.0         | Danger  | Position can be liquidated |
 
 ---
 
@@ -100,20 +99,6 @@ Pure calculations and helpers.
 | Redeem vault for BTC       | `buildDepositorRedeemTx()`                   |
 
 ---
-
-## Prerequisites
-
-1. **Active BTC Vaults** - Created via `PeginManager` (see [managers quickstart](../../quickstart/managers.md))
-2. **Contract Addresses** - AAVE controller, spoke, reserve IDs (from your config/indexer)
-3. **Ethereum Wallet** - viem `WalletClient` for signing transactions
-
----
-
-## Installation
-
-```bash
-npm install @babylonlabs-io/ts-sdk viem
-```
 
 ## Quick Example
 

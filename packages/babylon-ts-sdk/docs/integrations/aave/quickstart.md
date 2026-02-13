@@ -46,6 +46,8 @@ const USDC_RESERVE_ID = 2n;
 
 ## Operation 1: Add Collateral
 
+> **Requirements:** Vaults must be in `Available` status
+
 **Sequence:** Select vaults → Build transaction → Execute
 
 ```typescript
@@ -71,6 +73,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 - First time: AAVE deploys your proxy contract
 - Vaults transfer to controller
+- Collateral added to your AAVE position
 - Vault status: `Available` → `InUse`
 
 ---
@@ -117,6 +120,12 @@ const tx = buildBorrowTx(
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
+
+**What happens on-chain:**
+
+- Borrowed amount transferred to receiver address
+- Debt recorded in your AAVE position
+- Health factor recalculated
 
 **Important:** Always check health factor before borrowing.
 
@@ -170,6 +179,12 @@ const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
 
+**What happens on-chain:**
+
+- Repayment tokens transferred from your wallet to controller
+- Debt reduced in your AAVE position
+- Health factor improves
+
 **Partial repayment:** Pass specific amount instead of `totalDebt`.
 
 ---
@@ -202,7 +217,11 @@ const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
 
-**What happens:** Vaults return to `Available` status.
+**What happens on-chain:**
+
+- Collateral removed from your AAVE position
+- Vaults transfer back to your wallet
+- Vault status: `InUse` → `Available`
 
 ---
 
@@ -218,6 +237,11 @@ const tx = buildDepositorRedeemTx(CONTROLLER, vaultId);
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
+
+**What happens on-chain:**
+
+- Vault redeemed to provider
+- BTC payout initiated
 
 **Requirements:**
 
