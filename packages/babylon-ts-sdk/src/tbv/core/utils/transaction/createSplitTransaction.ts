@@ -181,7 +181,9 @@ export function createSplitTransaction(
  * @param inputs - Input UTXOs with full data for PSBT
  * @param publicKeyNoCoord - Depositor's public key (x-only, 32 bytes) for P2TR signing
  * @returns PSBT hex ready for wallet signing
- * @throws Error if UTXO data is missing for any input
+ * @throws Error if publicKeyNoCoord is not a 32-byte Buffer
+ * @throws Error if UTXO count doesn't match transaction inputs
+ * @throws Error if any input is not P2TR format
  *
  * @example
  * ```typescript
@@ -204,6 +206,17 @@ export function createSplitTransactionPsbt(
 
   psbt.setVersion(tx.version);
   psbt.setLocktime(tx.locktime);
+
+  // Validate tapInternalKey is a 32-byte x-only public key
+  if (!Buffer.isBuffer(publicKeyNoCoord) || publicKeyNoCoord.length !== 32) {
+    throw new Error(
+      `Invalid publicKeyNoCoord: expected 32-byte Buffer (x-only pubkey), got ${
+        Buffer.isBuffer(publicKeyNoCoord)
+          ? `${publicKeyNoCoord.length}-byte Buffer`
+          : typeof publicKeyNoCoord
+      }`,
+    );
+  }
 
   // Validate UTXO array length matches transaction inputs
   if (inputs.length !== tx.ins.length) {

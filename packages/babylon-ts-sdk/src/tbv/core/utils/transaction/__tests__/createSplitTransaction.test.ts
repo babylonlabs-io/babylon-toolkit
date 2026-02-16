@@ -730,6 +730,39 @@ describe("createSplitTransactionPsbt", () => {
         ),
       ).toThrow(/UTXO count mismatch.*1 input.*2 UTXOs/);
     });
+
+    it("should throw error for invalid publicKeyNoCoord length", () => {
+      // Create valid transaction
+      const outputs: SplitOutput[] = [
+        { amount: 50000n, address: testnetAddress },
+      ];
+
+      const splitResult = createSplitTransaction(
+        [mockUTXO],
+        outputs,
+        "testnet",
+      );
+
+      // Test with 31-byte key (too short)
+      const invalidKey31 = Buffer.alloc(31, 0xaa);
+      expect(() =>
+        createSplitTransactionPsbt(
+          splitResult.txHex,
+          [mockUTXO],
+          invalidKey31,
+        ),
+      ).toThrow(/Invalid publicKeyNoCoord.*expected 32-byte/);
+
+      // Test with 33-byte key (too long)
+      const invalidKey33 = Buffer.alloc(33, 0xaa);
+      expect(() =>
+        createSplitTransactionPsbt(
+          splitResult.txHex,
+          [mockUTXO],
+          invalidKey33,
+        ),
+      ).toThrow(/Invalid publicKeyNoCoord.*expected 32-byte/);
+    });
   });
 
   describe("Integration", () => {
