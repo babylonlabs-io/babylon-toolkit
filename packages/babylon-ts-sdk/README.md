@@ -9,7 +9,7 @@ TypeScript SDK for Trustless Bitcoin Vaults
 
 ## Overview
 
-The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and DeFi integrations.
+The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and supported application integrations.
 
 ## What Are Trustless Bitcoin Vaults?
 
