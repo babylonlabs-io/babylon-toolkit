@@ -13,7 +13,7 @@ The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustle
 
 ## What Are Trustless Bitcoin Vaults?
 
-Trustless Bitcoin Vaults (TBV) let you lock Bitcoin and use it in Ethereum applications (like DeFi lending) without giving up custody. The vault protocol enables:
+Trustless Bitcoin Vaults (TBV) let you lock Bitcoin and use it in applications on supported chains (like lending protocols) without giving up custody. The vault protocol enables:
 
 - **Peg-in**: Lock BTC in a vault to use as collateral
 - **Peg-out**: Unlock BTC from the vault back to your wallet
