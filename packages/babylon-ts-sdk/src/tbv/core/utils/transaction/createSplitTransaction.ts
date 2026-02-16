@@ -235,6 +235,19 @@ export function createSplitTransactionPsbt(
       throw new Error(`Missing UTXO data for input ${i}`);
     }
 
+    // Validate UTXO outpoint matches transaction input
+    const expectedTxid = Buffer.from(input.hash).reverse().toString("hex");
+    const expectedVout = input.index;
+
+    if (utxo.txid !== expectedTxid || utxo.vout !== expectedVout) {
+      throw new Error(
+        `Input ${i} outpoint mismatch: ` +
+          `transaction expects ${expectedTxid}:${expectedVout}, ` +
+          `but UTXO ${utxo.txid}:${utxo.vout} was provided. ` +
+          `Ensure inputs array matches the order used in createSplitTransaction().`,
+      );
+    }
+
     // Validate input is P2TR (required for tapInternalKey)
     const inputScript = Buffer.from(utxo.scriptPubKey, "hex");
     const isP2TR =

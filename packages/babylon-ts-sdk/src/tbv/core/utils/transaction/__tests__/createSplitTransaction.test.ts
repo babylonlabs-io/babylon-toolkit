@@ -763,6 +763,23 @@ describe("createSplitTransactionPsbt", () => {
         ),
       ).toThrow(/Invalid publicKeyNoCoord.*expected 32-byte/);
     });
+
+    it("should throw error for UTXO outpoint mismatch", () => {
+      const outputs: SplitOutput[] = [{ amount: 50000n, address: testnetAddress }];
+      const splitResult = createSplitTransaction([mockUTXO], outputs, "testnet");
+
+      // Create a UTXO with different outpoint
+      const wrongUTXO: UTXO = {
+        txid: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        vout: 99,
+        value: mockUTXO.value,
+        scriptPubKey: mockUTXO.scriptPubKey,
+      };
+
+      expect(() =>
+        createSplitTransactionPsbt(splitResult.txHex, [wrongUTXO], mockPubkey),
+      ).toThrow(/Input 0 outpoint mismatch.*transaction expects.*but UTXO.*was provided/);
+    });
   });
 
   describe("Integration", () => {
