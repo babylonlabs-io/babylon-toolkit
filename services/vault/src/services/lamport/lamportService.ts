@@ -66,7 +66,10 @@ export function verifyMnemonicWords(
 }
 
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  const hash = await crypto.subtle.digest("SHA-256", data);
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    data.buffer as ArrayBuffer,
+  );
   return new Uint8Array(hash);
 }
 
