@@ -30,7 +30,7 @@ This integration uses AAVE v4's lending mechanics, see the [AAVE Documentation](
 
 When using BTC vaults as collateral in this integration:
 
-- **Vault Status** - Vaults change from `Available` → `InUse` when deposited as collateral
+- **Vault Status** - When you create a vault (becomes Active), it automatically goes into the position. When you withdraw, it triggers redemption.
 - **Proxy Contract** - AAVE deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations)
 - **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
 
