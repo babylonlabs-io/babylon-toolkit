@@ -46,7 +46,7 @@ const USDC_RESERVE_ID = 2n;
 
 ## Operation 1: Add Collateral
 
-> **Requirements:** Vaults must be in `Available` status
+> **Note:** In the latest deployment, vaults are automatically added to your position when created (Active state). This operation allows adding additional vaults to an existing position.
 
 **Sequence:** Select vaults → Build transaction → Execute
 
@@ -74,7 +74,6 @@ await publicClient.waitForTransactionReceipt({ hash });
 - First time: AAVE deploys your proxy contract
 - Vaults transfer to controller
 - Collateral added to your AAVE position
-- Vault status: `Available` → `InUse`
 
 ---
 
@@ -220,8 +219,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **What happens on-chain:**
 
 - Collateral removed from your AAVE position
-- Vaults transfer back to your wallet
-- Vault status: `InUse` → `Available`
+- Vaults are automatically redeemed (triggers BTC payout)
 
 ---
 
@@ -246,7 +244,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **Requirements:**
 
 - Caller must be original depositor
-- Vault must be `Available` (not in use)
+- Vault must be withdrawn from the position first (see Operation 4)
 
 ---
 
