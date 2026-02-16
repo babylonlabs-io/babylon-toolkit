@@ -1,14 +1,14 @@
-# Babylon AAVE v4 Integration
+# Babylon Aave v4 Integration
 
-Use BTC vaults as collateral in AAVE v4 to borrow other assets.
+Use BTC vaults as collateral in Aave v4 to borrow other assets.
 
-## About AAVE v4
+## About Aave v4
 
-AAVE is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in Aave v4 Babylon Core Spoke.
+Aave is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in Aave v4 Babylon Core Spoke.
 
 ## What This Provides
 
-The SDK provides pure functions for Babylon's custom AAVE integration:
+The SDK provides pure functions for Babylon's custom Aave integration:
 
 - **Transaction Builders** - Build unsigned transactions (you execute with your wallet)
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
@@ -19,19 +19,19 @@ The SDK provides pure functions for Babylon's custom AAVE integration:
 ## Prerequisites
 
 1. **Active BTC Vaults** - Created via `PeginManager` (see [managers quickstart](../../quickstart/managers.md))
-2. **Contract Addresses** - AAVE controller, spoke, reserve IDs (from your config/indexer)
+2. **Contract Addresses** - Aave controller, spoke, reserve IDs (from your config/indexer)
 3. **Ethereum Wallet** - viem `WalletClient` for signing transactions
 
 ## Key Concepts
 
-This integration uses AAVE v4's lending mechanics, see the [AAVE Documentation](https://docs.aave.com/) for protocol overview and guides.
+This integration uses Aave v4's lending mechanics, see the [Aave Documentation](https://docs.aave.com/) for protocol overview and guides.
 
 ### SDK-Specific Behavior
 
 When using BTC vaults as collateral in this integration:
 
 - **Vault Status** - When you create a vault (becomes Active), it automatically goes into the position. When you withdraw, it triggers redemption.
-- **Proxy Contract** - AAVE deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations). See public docs for details.
+- **Proxy Contract** - Aave deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations). See public docs for details.
 - **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
 
 **Health Factor Quick Reference:**
@@ -80,7 +80,7 @@ Pure calculations and helpers.
 | `calculateHealthFactor()` | Calculate HF from values                |
 | `formatHealthFactor()`    | Format HF for display                   |
 | `getHealthFactorStatus()` | Get status (safe/warning/danger)        |
-| `aaveValueToUsd()`        | Convert AAVE base currency to USD       |
+| `aaveValueToUsd()`        | Convert Aave base currency to USD       |
 
 ---
 
