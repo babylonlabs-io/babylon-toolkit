@@ -31,7 +31,9 @@ describe("createSplitTransaction", () => {
       "5120fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
   };
 
-  // Testnet P2TR addresses (valid for testnet network)
+  // Testnet addresses for testing (P2WPKH format for bitcoinjs-lib compatibility)
+  // Note: In production, vault system requires P2TR addresses, but these tests
+  // focus on transaction construction mechanics, not address type validation.
   const testnetAddress1 = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
   const testnetAddress2 = "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
 
@@ -669,6 +671,33 @@ describe("createSplitTransactionPsbt", () => {
       expect(() =>
         createSplitTransactionPsbt(splitResult.txHex, [mockUTXO], mockPubkey),
       ).toThrow("Missing UTXO data for input 1");
+    });
+
+    it("should throw error for non-P2TR input in PSBT", () => {
+      // Create transaction with P2TR output
+      const outputs: SplitOutput[] = [
+        { amount: 50000n, address: testnetAddress },
+      ];
+
+      const splitResult = createSplitTransaction(
+        [mockUTXO],
+        outputs,
+        "testnet",
+      );
+
+      // Try to create PSBT with P2WPKH input (wrong type)
+      const p2wpkhUTXO: UTXO = {
+        ...mockUTXO,
+        scriptPubKey: "0014751e76e8199196d454941c45d1b3a323f1433bd6", // P2WPKH
+      };
+
+      expect(() =>
+        createSplitTransactionPsbt(
+          splitResult.txHex,
+          [p2wpkhUTXO],
+          mockPubkey,
+        ),
+      ).toThrow(/must be P2TR/);
     });
   });
 

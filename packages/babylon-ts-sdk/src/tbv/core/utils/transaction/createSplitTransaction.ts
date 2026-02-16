@@ -160,14 +160,18 @@ export function createSplitTransaction(
 }
 
 /**
- * Sign a split transaction using a PSBT.
+ * Sign a split transaction using a PSBT for Taproot inputs.
+ *
+ * IMPORTANT: This function assumes ALL inputs are P2TR (Taproot) addresses.
+ * It unconditionally adds tapInternalKey for Taproot signing. Using non-P2TR
+ * inputs will cause wallet signing failures.
  *
  * This function takes an unsigned split transaction and creates a PSBT
  * that can be signed by a Bitcoin wallet.
  *
  * The PSBT includes:
- * - witnessUtxo: Script and value for each input (required for P2TR)
- * - tapInternalKey: Depositor's x-only pubkey for Taproot signing
+ * - witnessUtxo: Script and value for each input (required for segwit)
+ * - tapInternalKey: Depositor's x-only pubkey (required for P2TR signing)
  *
  * Technical Note:
  * For P2TR (Taproot) inputs, we need the witnessUtxo and tapInternalKey.
@@ -210,7 +214,24 @@ export function createSplitTransactionPsbt(
       throw new Error(`Missing UTXO data for input ${i}`);
     }
 
-    // For P2TR inputs, we need witnessUtxo and tapInternalKey
+    // Validate input is P2TR (required for tapInternalKey)
+    const inputScript = Buffer.from(utxo.scriptPubKey, "hex");
+    const isP2TR =
+      inputScript.length === 34 &&
+      inputScript[0] === 0x51 && // OP_1 (witness version 1)
+      inputScript[1] === 0x20; // push 32 bytes
+
+    if (!isP2TR) {
+      throw new Error(
+        `Input ${i} must be P2TR (Taproot). ` +
+          `createSplitTransactionPsbt() requires P2TR inputs because it uses ` +
+          `tapInternalKey for Taproot signing. ` +
+          `ScriptPubKey: ${utxo.scriptPubKey.substring(0, 20)}...`,
+      );
+    }
+
+    // IMPORTANT: Assumes P2TR inputs. tapInternalKey is only valid for Taproot.
+    // Using this function with non-P2TR inputs will cause wallet signing to fail.
     const witnessUtxo = {
       script: Buffer.from(utxo.scriptPubKey, "hex"),
       value: utxo.value,
