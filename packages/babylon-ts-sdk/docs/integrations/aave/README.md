@@ -36,11 +36,11 @@ When using BTC vaults as collateral in this integration:
 
 **Health Factor Quick Reference:**
 
-| Health Factor | Status  | Action                     |
-| ------------- | ------- | -------------------------- |
-| ≥ 1.5         | Safe    | Healthy position           |
-| 1.0 - 1.5     | Warning | Consider repaying debt     |
-| < 1.0         | Danger  | Position can be liquidated |
+| Health Factor | Status  | Action                      |
+| ------------- | ------- | --------------------------- |
+| ≥ 1.5         | Safe    | Healthy position            |
+| 1.0 - 1.5     | Warning | Consider repaying debt      |
+| < 1.0         | Danger  | Position will be liquidated |
 
 ---
 
