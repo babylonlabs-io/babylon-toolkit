@@ -42,21 +42,6 @@ const GET_APPLICATIONS = gql`
  * @returns Array of application items with enriched metadata
  */
 export async function fetchApplications(): Promise<Application[]> {
-  // TODO: REMOVE - temporary hardcoded data for testing mnemonic flow
-  return [
-    {
-      id: "0x0000000000000000000000000000000000000001",
-      name: "Test Lending App",
-      registeredAt: "1700000000",
-      blockNumber: "1",
-      transactionHash: "0x01",
-      type: "Lending",
-      description: null,
-      logoUrl: null,
-      websiteUrl: null,
-    },
-  ];
-
   const data =
     await graphqlClient.request<GraphQLApplicationsResponse>(GET_APPLICATIONS);
 

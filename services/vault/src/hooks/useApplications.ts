@@ -1,8 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-// TODO: REMOVE - unused import while testing mnemonic flow
-// import { getAppIdByController, getEnabledAppIds } from "../applications";
-import { getEnabledAppIds } from "../applications";
+import { getAppIdByController, getEnabledAppIds } from "../applications";
 import { fetchApplications } from "../services/applications";
 
 export const APPLICATIONS_KEY = "applications";
@@ -15,8 +13,10 @@ export const useApplications = () => {
     queryFn: async () => {
       const allApps = await fetchApplications();
 
-      // TODO: REMOVE - bypass filter for testing mnemonic flow
-      return allApps;
+      return allApps.filter((app) => {
+        const appId = getAppIdByController(app.id);
+        return appId && enabledAppIds.includes(appId);
+      });
     },
   });
 };
