@@ -3,13 +3,13 @@
 [![Build Status](https://github.com/babylonlabs-io/babylon-toolkit/workflows/Verify%20PR/badge.svg)](https://github.com/babylonlabs-io/babylon-toolkit/actions/workflows/verify.yml)
 [![npm version](https://badge.fury.io/js/@babylonlabs-io%2Fts-sdk.svg)](https://www.npmjs.com/package/@babylonlabs-io/ts-sdk)
 
-TypeScript SDK for Babylon protocol integrations
+TypeScript SDK for Trustless Bitcoin Vaults
 
 > **⚠️ Status**: Currently under active development.
 
 ## Overview
 
-The Babylon TypeScript SDK is a production-ready toolkit for integrating Babylon protocols into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and DeFi integrations.
+The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and DeFi integrations.
 
 ## What Are Trustless Bitcoin Vaults?
 
