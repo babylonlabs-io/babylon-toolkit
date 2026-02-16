@@ -6,3 +6,4 @@
 
 export * from "./fundPeginTransaction";
 export * from "./btcTxHash";
+export * from "./createSplitTransaction";
