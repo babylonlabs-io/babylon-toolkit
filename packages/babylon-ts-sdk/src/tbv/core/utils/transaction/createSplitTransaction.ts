@@ -13,12 +13,7 @@
  * @module utils/transaction/createSplitTransaction
  */
 
-import {
-  address as bitcoinAddress,
-  networks,
-  Psbt,
-  Transaction,
-} from "bitcoinjs-lib";
+import { address as bitcoinAddress, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import type { Network } from "../../primitives";
