@@ -24,7 +24,7 @@ This SDK handles the complex Bitcoin and Ethereum interactions needed to create 
 ### Key Features
 
 - **🔐 Vault Management** - Vault creation (Pegin), vault redemption (Pegout), and vault lifecycle operations
-- **🔌 Protocol Integrations** - Pre-built integrations starting with Aave (DeFi lending)
+- **🔌 Application Integrations** - Pre-built integrations starting with Aave (DeFi lending)
 - **📦 Framework Agnostic** - Works with React, Vue, Angular, Node.js, or vanilla JavaScript
 - **🎯 Type-Safe** - Comprehensive TypeScript types with full IDE support
 - **🧩 Modular Design** - Use only what you need via subpath exports
