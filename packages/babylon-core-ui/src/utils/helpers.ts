@@ -152,3 +152,25 @@ export function formatAmount(value: number, decimals: number = 8): string {
 export function parseAmount(value: string): number {
   return parseFloat(value.replace(/,/g, '')) || 0;
 }
+
+/**
+ * Sanitizes a raw input string for numeric decimal fields.
+ * Replaces commas with dots (for locales that use comma as decimal separator)
+ * and rejects any characters that are not digits or a single dot.
+ *
+ * @param value The raw input string to sanitize
+ * @returns The sanitized string with dots as decimal separator, or undefined if the input is invalid
+ *
+ * @example
+ * sanitizeNumericInput("0,5")    // "0.5"
+ * sanitizeNumericInput("12.34")  // "12.34"
+ * sanitizeNumericInput("abc")    // undefined
+ * sanitizeNumericInput("")       // ""
+ */
+export function sanitizeNumericInput(value: string): string | undefined {
+  const sanitized = value.replace(/,/g, ".");
+  if (sanitized !== "" && !/^\d*\.?\d*$/.test(sanitized)) {
+    return undefined;
+  }
+  return sanitized;
+}
