@@ -4,7 +4,7 @@ Use BTC vaults as collateral in AAVE v4 to borrow other assets.
 
 ## About AAVE v4
 
-AAVE is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in AAVE v4.
+AAVE is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in Aave v4 Babylon Core Spoke.
 
 ## What This Provides
 
