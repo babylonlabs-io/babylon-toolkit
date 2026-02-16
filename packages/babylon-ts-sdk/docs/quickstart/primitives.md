@@ -195,5 +195,5 @@ import {
 ## Next Steps
 
 - **[Managers](./managers.md)** - High-level orchestration (easier)
-- **[AAVE Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
 - **[API Reference](../api/primitives.md)** - Complete function signatures

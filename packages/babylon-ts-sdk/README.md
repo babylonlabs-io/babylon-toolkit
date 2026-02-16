@@ -3,19 +3,19 @@
 [![Build Status](https://github.com/babylonlabs-io/babylon-toolkit/workflows/Verify%20PR/badge.svg)](https://github.com/babylonlabs-io/babylon-toolkit/actions/workflows/verify.yml)
 [![npm version](https://badge.fury.io/js/@babylonlabs-io%2Fts-sdk.svg)](https://www.npmjs.com/package/@babylonlabs-io/ts-sdk)
 
-TypeScript SDK for Babylon protocol integrations
+TypeScript SDK for Trustless Bitcoin Vaults
 
 > **⚠️ Status**: Currently under active development.
 
 ## Overview
 
-The Babylon TypeScript SDK is a production-ready toolkit for integrating Babylon protocols into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and DeFi integrations.
+The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustless Bitcoin Vaults into your applications. Currently provides comprehensive support for Trustless Bitcoin Vaults (TBV) including vault management and supported application integrations.
 
 ## What Are Trustless Bitcoin Vaults?
 
-Trustless Bitcoin Vaults (TBV) let you lock Bitcoin and use it in Ethereum applications (like DeFi lending) without giving up custody. The vault protocol enables:
+Trustless Bitcoin Vaults (TBV) let you lock Bitcoin and use it in applications on supported chains (like lending protocols) without giving up custody. The vault protocol enables:
 
-- **Peg-in**: Lock BTC in a vault to use as collateral
+- **Peg-in**: Lock BTC in a vault on Bitcoin to use as collateral
 - **Peg-out**: Unlock BTC from the vault back to your wallet
 - **DeFi Integration**: Use vaulted BTC in protocols like Aave
 
@@ -23,8 +23,8 @@ This SDK handles the complex Bitcoin and Ethereum interactions needed to create 
 
 ### Key Features
 
-- **🔐 Vault Management** - Pegin, pegout, and vault lifecycle operations
-- **🔌 Protocol Integrations** - Pre-built integrations starting with Aave (DeFi lending)
+- **🔐 Vault Management** - Vault creation (Pegin), vault redemption (Pegout), and vault lifecycle operations
+- **🔌 Application Integrations** - Pre-built integrations starting with Aave (DeFi lending)
 - **📦 Framework Agnostic** - Works with React, Vue, Angular, Node.js, or vanilla JavaScript
 - **🎯 Type-Safe** - Comprehensive TypeScript types with full IDE support
 - **🧩 Modular Design** - Use only what you need via subpath exports
@@ -122,7 +122,7 @@ Step-by-step tutorials:
 - **[Managers Quickstart](./docs/quickstart/managers.md)** - Create a Bitcoin vault with wallet integration (step-by-step)
 - **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Build vault PSBTs with custom signing logic (advanced)
 
-### 🔌 Protocol Integrations
+### 🔌 Application Integrations
 
 Use BTC vaults in DeFi protocols and applications:
 

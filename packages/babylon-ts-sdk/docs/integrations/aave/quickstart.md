@@ -1,6 +1,6 @@
-# AAVE Quickstart
+# Aave Quickstart
 
-Operation sequences and examples for each AAVE function.
+Operation sequences and examples for each Aave function.
 
 > For concepts and function overview, see [README](./README.md).
 > For complete function signatures, see [API Reference](../../api/integrations/aave.md).
@@ -46,7 +46,7 @@ const USDC_RESERVE_ID = 2n;
 
 ## Operation 1: Add Collateral
 
-> **Requirements:** Vaults must be in `Available` status
+> Vaults are automatically added to your position when created (`Active` state). This operation allows adding additional vaults to an existing position.
 
 **Sequence:** Select vaults → Build transaction → Execute
 
@@ -71,10 +71,9 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 **What happens on-chain:**
 
-- First time: AAVE deploys your proxy contract
+- First time: Aave deploys your proxy contract
 - Vaults transfer to controller
-- Collateral added to your AAVE position
-- Vault status: `Available` → `InUse`
+- Collateral added to your Aave position
 
 ---
 
@@ -124,7 +123,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **What happens on-chain:**
 
 - Borrowed amount transferred to receiver address
-- Debt recorded in your AAVE position
+- Debt recorded in your Aave position
 - Health factor recalculated
 
 **Important:** Always check health factor before borrowing.
@@ -182,7 +181,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **What happens on-chain:**
 
 - Repayment tokens transferred from your wallet to controller
-- Debt reduced in your AAVE position
+- Debt reduced in your Aave position
 - Health factor improves
 
 **Partial repayment:** Pass specific amount instead of `totalDebt`.
@@ -219,9 +218,8 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 **What happens on-chain:**
 
-- Collateral removed from your AAVE position
-- Vaults transfer back to your wallet
-- Vault status: `InUse` → `Available`
+- Collateral removed from your Aave position
+- Vaults are automatically redeemed (triggers BTC payout)
 
 ---
 
@@ -246,7 +244,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **Requirements:**
 
 - Caller must be original depositor
-- Vault must be `Available` (not in use)
+- Vault must be withdrawn from the position first (see Operation 4)
 
 ---
 
