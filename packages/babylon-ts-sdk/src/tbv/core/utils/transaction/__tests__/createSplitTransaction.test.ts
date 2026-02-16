@@ -644,7 +644,7 @@ describe("createSplitTransactionPsbt", () => {
       // Pass empty UTXO array (missing data)
       expect(() =>
         createSplitTransactionPsbt(splitResult.txHex, [], mockPubkey),
-      ).toThrow("Missing UTXO data for input 0");
+      ).toThrow(/UTXO count mismatch.*1 input.*0 UTXOs/);
     });
 
     it("should throw error for mismatched input counts", () => {
@@ -670,7 +670,7 @@ describe("createSplitTransactionPsbt", () => {
       // But only provide 1 UTXO
       expect(() =>
         createSplitTransactionPsbt(splitResult.txHex, [mockUTXO], mockPubkey),
-      ).toThrow("Missing UTXO data for input 1");
+      ).toThrow(/UTXO count mismatch.*2 inputs.*1 UTXO/);
     });
 
     it("should throw error for non-P2TR input in PSBT", () => {
@@ -698,6 +698,37 @@ describe("createSplitTransactionPsbt", () => {
           mockPubkey,
         ),
       ).toThrow(/must be P2TR/);
+    });
+
+    it("should throw error for too many UTXOs", () => {
+      // Create transaction with 1 input
+      const outputs: SplitOutput[] = [
+        { amount: 50000n, address: testnetAddress },
+      ];
+
+      const splitResult = createSplitTransaction(
+        [mockUTXO],
+        outputs,
+        "testnet",
+      );
+
+      // Create a second mock UTXO for testing
+      const mockUTXO2: UTXO = {
+        txid: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        vout: 1,
+        value: 70000,
+        scriptPubKey:
+          "5120fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
+      };
+
+      // Try to create PSBT with 2 UTXOs (too many)
+      expect(() =>
+        createSplitTransactionPsbt(
+          splitResult.txHex,
+          [mockUTXO, mockUTXO2],
+          mockPubkey,
+        ),
+      ).toThrow(/UTXO count mismatch.*1 input.*2 UTXOs/);
     });
   });
 

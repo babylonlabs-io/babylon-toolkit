@@ -205,6 +205,14 @@ export function createSplitTransactionPsbt(
   psbt.setVersion(tx.version);
   psbt.setLocktime(tx.locktime);
 
+  // Validate UTXO array length matches transaction inputs
+  if (inputs.length !== tx.ins.length) {
+    throw new Error(
+      `UTXO count mismatch: transaction has ${tx.ins.length} input${tx.ins.length !== 1 ? "s" : ""}, ` +
+        `but ${inputs.length} UTXO${inputs.length !== 1 ? "s were" : " was"} provided`,
+    );
+  }
+
   // Add inputs with UTXO data for P2TR signing
   for (let i = 0; i < tx.ins.length; i++) {
     const input = tx.ins[i];
