@@ -99,6 +99,16 @@ export function createSplitTransaction(
     throw new Error("No outputs specified for split transaction");
   }
 
+  // Validate all output amounts are positive
+  for (const output of outputs) {
+    if (output.amount <= 0n) {
+      throw new Error(
+        `Invalid output amount for ${output.address}: ${output.amount} satoshis. ` +
+          `Amount must be greater than zero.`,
+      );
+    }
+  }
+
   // Get bitcoinjs-lib network
   const btcNetwork = getNetwork(network);
 

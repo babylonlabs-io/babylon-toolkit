@@ -231,6 +231,26 @@ describe("createSplitTransaction", () => {
       );
     });
 
+    it("should throw error for zero output amount", () => {
+      const outputs: SplitOutput[] = [
+        { amount: 0n, address: testnetAddress1 },
+      ];
+
+      expect(() =>
+        createSplitTransaction([mockUTXO1], outputs, "testnet"),
+      ).toThrow(/Invalid output amount.*0 satoshis.*must be greater than zero/);
+    });
+
+    it("should throw error for negative output amount", () => {
+      const outputs: SplitOutput[] = [
+        { amount: -1000n, address: testnetAddress1 },
+      ];
+
+      expect(() =>
+        createSplitTransaction([mockUTXO1], outputs, "testnet"),
+      ).toThrow(/Invalid output amount.*-1000 satoshis.*must be greater than zero/);
+    });
+
     it("should throw error for invalid address", () => {
       const outputs: SplitOutput[] = [
         { amount: 50000n, address: "invalid_address" },
