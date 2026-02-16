@@ -122,7 +122,7 @@ Step-by-step tutorials:
 - **[Managers Quickstart](./docs/quickstart/managers.md)** - Create a Bitcoin vault with wallet integration (step-by-step)
 - **[Primitives Quickstart](./docs/quickstart/primitives.md)** - Build vault PSBTs with custom signing logic (advanced)
 
-### 🔌 Protocol Integrations
+### 🔌 Application Integrations
 
 Use BTC vaults in DeFi protocols and applications:
 
