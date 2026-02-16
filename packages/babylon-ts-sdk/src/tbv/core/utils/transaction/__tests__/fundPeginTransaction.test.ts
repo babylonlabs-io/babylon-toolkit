@@ -199,11 +199,6 @@ describe("fundPeginTransaction", () => {
 });
 
 describe("getNetwork", () => {
-  it("should return mainnet for 'mainnet'", () => {
-    const network = getNetwork("mainnet");
-    expect(network).toBe(bitcoin.networks.bitcoin);
-  });
-
   it("should return mainnet for 'bitcoin'", () => {
     const network = getNetwork("bitcoin");
     expect(network).toBe(bitcoin.networks.bitcoin);
@@ -222,14 +217,5 @@ describe("getNetwork", () => {
   it("should return testnet for 'regtest'", () => {
     const network = getNetwork("regtest");
     expect(network).toBe(bitcoin.networks.testnet);
-  });
-
-  it("should handle case-insensitive network names", () => {
-    expect(getNetwork("MAINNET")).toBe(bitcoin.networks.bitcoin);
-    expect(getNetwork("TeStNeT")).toBe(bitcoin.networks.testnet);
-  });
-
-  it("should throw error for unknown network", () => {
-    expect(() => getNetwork("unknown")).toThrow("Unknown network");
   });
 });

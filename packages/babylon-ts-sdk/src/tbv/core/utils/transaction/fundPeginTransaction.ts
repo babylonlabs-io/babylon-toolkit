@@ -17,6 +17,7 @@
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import type { Network } from "../../primitives";
 import { DUST_THRESHOLD } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
@@ -155,14 +156,13 @@ export function fundPeginTransaction(
 }
 
 /**
- * Gets the network object from network string.
+ * Gets the network object from SDK network type.
  *
- * @param networkStr - Network string ("mainnet", "testnet", "signet", "regtest")
+ * @param network - Network type ("bitcoin", "testnet", "signet", "regtest")
  * @returns bitcoinjs-lib Network object
  */
-export function getNetwork(networkStr: string): bitcoin.Network {
-  switch (networkStr.toLowerCase()) {
-    case "mainnet":
+export function getNetwork(network: Network): bitcoin.Network {
+  switch (network) {
     case "bitcoin":
       return bitcoin.networks.bitcoin;
     case "testnet":
@@ -172,6 +172,6 @@ export function getNetwork(networkStr: string): bitcoin.Network {
       // bitcoinjs-lib doesn't have built-in signet/regtest, use testnet params
       return bitcoin.networks.testnet;
     default:
-      throw new Error(`Unknown network: ${networkStr}`);
+      throw new Error(`Unknown network: ${network}`);
   }
 }

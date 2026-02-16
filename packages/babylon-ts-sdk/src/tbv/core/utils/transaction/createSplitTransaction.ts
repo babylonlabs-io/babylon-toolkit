@@ -24,6 +24,8 @@ import { Buffer } from "buffer";
 import type { Network } from "../../primitives";
 import type { UTXO } from "../utxo/selectUtxos";
 
+import { getNetwork } from "./fundPeginTransaction";
+
 /**
  * Output specification for split transaction.
  */
@@ -237,30 +239,4 @@ export function createSplitTransactionPsbt(
   }
 
   return psbt.toHex();
-}
-
-/**
- * Get bitcoinjs-lib network from SDK network enum.
- *
- * Maps the SDK's Network type to bitcoinjs-lib's network objects.
- * Note: bitcoinjs-lib doesn't have built-in signet support, so we use testnet params.
- *
- * @param network - SDK network enum
- * @returns bitcoinjs-lib Network object
- * @throws Error if network is unknown
- */
-function getNetwork(network: Network): typeof networks.bitcoin {
-  switch (network) {
-    case "bitcoin":
-      return networks.bitcoin;
-    case "testnet":
-      return networks.testnet;
-    case "signet":
-      // bitcoinjs-lib doesn't have signet, use testnet
-      return networks.testnet;
-    case "regtest":
-      return networks.regtest;
-    default:
-      throw new Error(`Unknown network: ${network}`);
-  }
 }
