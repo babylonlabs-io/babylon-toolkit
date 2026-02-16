@@ -46,7 +46,7 @@ const USDC_RESERVE_ID = 2n;
 
 ## Operation 1: Add Collateral
 
-> **Note:** In the latest deployment, vaults are automatically added to your position when created (Active state). This operation allows adding additional vaults to an existing position.
+> Vaults are automatically added to your position when created (`Active` state). This operation allows adding additional vaults to an existing position.
 
 **Sequence:** Select vaults → Build transaction → Execute
 
