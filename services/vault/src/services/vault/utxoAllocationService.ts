@@ -15,24 +15,30 @@
  * are recalculated by the SDK during pegin creation.
  *
  * Pegin tx size estimate (155 vBytes):
- *   1 × P2TR input  =  58 vBytes
- *   1 × vault output = 43 vBytes
- *   1 × change output= 43 vBytes
- *   overhead         = 11 vBytes
+ *   1 × P2TR input  = P2TR_INPUT_SIZE (58) vBytes
+ *   1 × vault output= MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes
+ *   1 × change out  = MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes
+ *   overhead        = TX_BUFFER_SIZE_OVERHEAD (11) vBytes
  *
- * Split tx size estimate (58 + N×43 + 11 vBytes):
- *   1 × P2TR input  = 58 vBytes
- *   N outputs       = N × 43 vBytes  (2 vault + 1 optional change)
- *   overhead        = 11 vBytes
+ * Split tx size estimate (P2TR_INPUT_SIZE + N×43 + 11 vBytes):
+ *   N inputs        = N × P2TR_INPUT_SIZE vBytes
+ *   M outputs       = M × MAX_NON_LEGACY_OUTPUT_SIZE vBytes  (2 vault + 1 optional change)
+ *   overhead        = TX_BUFFER_SIZE_OVERHEAD vBytes
  *
  * We pre-budget for a change output in the split fee even if the final change
- * ends up below the 546-sat dust threshold (in which case it goes to the miner).
+ * ends up below the DUST_THRESHOLD (546 sats) it goes to the miner instead.
  *
  * @module services/vault/utxoAllocationService
  */
 
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { createSplitTransaction } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  createSplitTransaction,
+  DUST_THRESHOLD,
+  MAX_NON_LEGACY_OUTPUT_SIZE,
+  P2TR_INPUT_SIZE,
+  TX_BUFFER_SIZE_OVERHEAD,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type {
@@ -47,38 +53,20 @@ import type {
 // ============================================================================
 
 /**
- * Dust threshold in satoshis.
- * Change outputs below this value are not relayed by Bitcoin nodes.
- */
-const DUST_THRESHOLD = 546n;
-
-/**
- * Size of one P2TR (Taproot) input in vBytes.
- * 42 vBytes non-witness + 16 vBytes witness = 58 vBytes.
- */
-const P2TR_INPUT_VBYTES = 58;
-
-/** Size of one P2TR output in vBytes. */
-const P2TR_OUTPUT_VBYTES = 43;
-
-/** Base transaction overhead in vBytes (version, counts, locktime, segwit marker). */
-const TX_OVERHEAD_VBYTES = 11;
-
-/**
  * Estimated size of a single P2TR pegin transaction in vBytes.
  *
  * Breakdown:
- *   1 × P2TR input   = 58 vBytes
- *   1 × vault output = 43 vBytes
- *   1 × change output= 43 vBytes
- *   overhead         = 11 vBytes
+ *   1 × P2TR input   = P2TR_INPUT_SIZE (58) vBytes
+ *   1 × vault output = MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes
+ *   1 × change output= MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes
+ *   overhead         = TX_BUFFER_SIZE_OVERHEAD (11) vBytes
  *   total            = 155 vBytes
  */
 const PEGIN_TX_VBYTES =
-  P2TR_INPUT_VBYTES +
-  P2TR_OUTPUT_VBYTES +
-  P2TR_OUTPUT_VBYTES +
-  TX_OVERHEAD_VBYTES;
+  P2TR_INPUT_SIZE +
+  MAX_NON_LEGACY_OUTPUT_SIZE +
+  MAX_NON_LEGACY_OUTPUT_SIZE +
+  TX_BUFFER_SIZE_OVERHEAD;
 
 // ============================================================================
 // Fee helpers
@@ -104,9 +92,9 @@ function estimatePeginTxFee(feeRate: number): bigint {
  * consume multiple UTXOs when no single UTXO is large enough.
  *
  * Size breakdown:
- *   numInputs × 58 vBytes  (P2TR input)
- *   numOutputs × 43 vBytes (P2TR output)
- *   11 vBytes overhead
+ *   numInputs × P2TR_INPUT_SIZE (58) vBytes
+ *   numOutputs × MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes
+ *   TX_BUFFER_SIZE_OVERHEAD (11) vBytes
  *
  * @param numInputs  - Number of inputs in the split transaction
  * @param numOutputs - Number of outputs (2 vault outputs + optional change)
@@ -119,9 +107,9 @@ export function estimateSplitTxFee(
   feeRate: number,
 ): bigint {
   const txSize =
-    numInputs * P2TR_INPUT_VBYTES +
-    numOutputs * P2TR_OUTPUT_VBYTES +
-    TX_OVERHEAD_VBYTES;
+    numInputs * P2TR_INPUT_SIZE +
+    numOutputs * MAX_NON_LEGACY_OUTPUT_SIZE +
+    TX_BUFFER_SIZE_OVERHEAD;
   return BigInt(Math.ceil(txSize * feeRate));
 }
 
