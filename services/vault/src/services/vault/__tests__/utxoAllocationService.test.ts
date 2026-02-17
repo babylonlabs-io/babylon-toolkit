@@ -23,6 +23,12 @@ const mockGetBTCNetworkForWASM = vi.hoisted(() => vi.fn(() => "testnet"));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   createSplitTransaction: mockCreateSplitTransaction,
+  // Fee constants from SDK's fee/constants.ts — stable Bitcoin protocol values
+  P2TR_INPUT_SIZE: 58,
+  MAX_NON_LEGACY_OUTPUT_SIZE: 43,
+  TX_BUFFER_SIZE_OVERHEAD: 11,
+  BTC_DUST_SAT: 546,
+  DUST_THRESHOLD: 546n,
 }));
 
 vi.mock("../../../config/pegin", () => ({
