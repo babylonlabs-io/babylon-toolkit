@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
 import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
@@ -22,9 +22,11 @@ interface SimpleDepositProps {
   onClose: () => void;
 }
 
+// Fallback fee rate in sats/vByte used until dynamic estimation is available.
+const DEFAULT_FEE_RATE_SATS_PER_VBYTE = 10;
+
 function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const [defaultFeeRate] = useState(10); // TODO: real fee estimation
 
   const {
     formData,
@@ -78,15 +80,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
     }
   };
 
-  const handleContinueSplit = useCallback(() => {
-    setFeeRate(defaultFeeRate);
+  const proceedToSign = useCallback(() => {
+    setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
     goToStep(DepositStep.SIGN);
-  }, [setFeeRate, defaultFeeRate, goToStep]);
-
-  const handleDoNotSplit = useCallback(() => {
-    setFeeRate(defaultFeeRate);
-    goToStep(DepositStep.SIGN);
-  }, [setFeeRate, defaultFeeRate, goToStep]);
+  }, [setFeeRate, goToStep]);
 
   const handleSignSuccess = useCallback(
     (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
@@ -137,8 +134,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
         {renderedStep === DepositStep.SPLIT_CONFIRM && (
           <div className="mx-auto w-full max-w-[520px]">
             <SplitVaultsContent
-              onContinueSplit={handleContinueSplit}
-              onDoNotSplit={handleDoNotSplit}
+              onContinueSplit={proceedToSign}
+              onDoNotSplit={proceedToSign}
             />
           </div>
         )}

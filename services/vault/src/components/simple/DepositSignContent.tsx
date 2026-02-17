@@ -1,4 +1,11 @@
-import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Heading,
+  Loader,
+  Stepper,
+  type StepperItem,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { Address } from "viem";
 
@@ -9,11 +16,6 @@ import {
 } from "@/components/deposit/DepositSignModal/constants";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
-
-import {
-  DepositProgressStepper,
-  type ProgressStepItem,
-} from "./DepositProgressStepper";
 
 interface DepositSignContentProps {
   amount: bigint;
@@ -38,7 +40,7 @@ interface DepositSignContentProps {
  * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-7).
  *
  * Visual steps (from Figma):
- * 1. Split UTXO's
+ * 1. Split UTXOs
  * 2. Sign proof of possession
  * 3. Submit peg-in requests
  * 4. Wait (~ 15 min)
@@ -63,14 +65,12 @@ function getVisualStep(currentStep: DepositStep, isWaiting: boolean): number {
   }
 }
 
-function buildStepItems(
-  progress: PayoutSigningProgress | null,
-): ProgressStepItem[] {
+function buildStepItems(progress: PayoutSigningProgress | null): StepperItem[] {
   const payoutTotal = progress?.total ?? 0;
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Split UTXO's" },
+    { label: "Split UTXOs" },
     { label: "Sign proof of possession" },
     { label: "Submit peg-in requests" },
     { label: "Wait", description: "(~ 15 min)" },
@@ -140,7 +140,7 @@ export function DepositSignContent({
       </Heading>
 
       <div className="mt-6 flex flex-col gap-6">
-        <DepositProgressStepper steps={steps} currentStep={visualStep} />
+        <Stepper steps={steps} currentStep={visualStep} />
 
         {error && <StatusBanner variant="error">{error}</StatusBanner>}
 

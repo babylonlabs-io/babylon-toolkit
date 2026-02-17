@@ -9,5 +9,5 @@ interface CardProps extends PropsWithChildren {
 }
 
 export function Card({ as = "div", variant = "default", className, children }: CardProps) {
-  return createElement(as, { className: twJoin(`bbn-card-${variant}`, className) }, children);
+  return createElement(as, { className: twJoin("bbn-card", `bbn-card-${variant}`, className) }, children);
 }

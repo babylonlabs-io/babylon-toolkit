@@ -172,7 +172,7 @@ export function DepositForm({
             <span className="text-accent-primary">{fee.label}</span>
             <span>
               <span className="text-accent-primary">{fee.amount}</span>{" "}
-              <span className="text-[#B0B0B0]">{fee.price}</span>
+              <span className="text-accent-secondary">{fee.price}</span>
             </span>
           </div>
         ))}
