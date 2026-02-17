@@ -6,7 +6,6 @@ import {
   DialogHeader,
   Loader,
   ResponsiveDialog,
-  Step,
   Text,
 } from "@babylonlabs-io/core-ui";
 import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
@@ -33,14 +32,12 @@ export function RedeemCollateralSignModal({
   activities,
   depositIds,
 }: RedeemCollateralSignModalProps) {
-  const [currentStep, setCurrentStep] = useState(1);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      setCurrentStep(1);
       setProcessing(false);
       setError(null);
     }
@@ -48,7 +45,7 @@ export function RedeemCollateralSignModal({
 
   // Execute collateral redeem flow when modal opens
   useEffect(() => {
-    if (open && currentStep === 1 && !processing && !error) {
+    if (open && !processing && !error) {
       executeRedeemFlow();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,8 +56,6 @@ export function RedeemCollateralSignModal({
     setError(null);
 
     try {
-      // Step 1: Get wallet client
-      setCurrentStep(1);
       const ethChain = getETHChain();
       const ethWalletClient = await getWalletClient(getSharedWagmiConfig(), {
         chainId: ethChain.id,
@@ -70,8 +65,6 @@ export function RedeemCollateralSignModal({
         throw new Error("Ethereum wallet not connected");
       }
 
-      // Step 2: Get peg-in transaction hashes and application controller from activities
-      setCurrentStep(2);
       const selectedActivities = activities.filter((a) =>
         depositIds.includes(a.id),
       );
@@ -117,8 +110,6 @@ export function RedeemCollateralSignModal({
 
       const { abi: contractABI, functionNames } = app.contracts;
 
-      // Step 3: Execute redemption transactions
-      setCurrentStep(3);
       const results = await redeemVaults(
         ethWalletClient as WalletClient,
         ethChain,
@@ -128,8 +119,6 @@ export function RedeemCollateralSignModal({
         functionNames.redeem,
       );
 
-      // Step 4: Complete
-      setCurrentStep(4);
       setProcessing(false);
 
       // Get the first transaction hash for success callback
@@ -150,32 +139,21 @@ export function RedeemCollateralSignModal({
         className="text-accent-primary"
       />
 
-      <DialogBody className="flex flex-col gap-4 px-4 pb-8 pt-4 text-accent-primary sm:px-6">
-        <Text
-          variant="body2"
-          className="text-sm text-accent-secondary sm:text-base"
-        >
-          Please wait while we process your redemption
-        </Text>
+      <DialogBody className="flex flex-col items-center gap-4 px-4 pb-8 pt-4 text-accent-primary sm:px-6">
+        {!error && (
+          <>
+            <Text
+              variant="body2"
+              className="text-sm text-accent-secondary sm:text-base"
+            >
+              Please sign the transaction in your wallet
+            </Text>
+            <Loader size={48} className="text-accent-primary" />
+          </>
+        )}
 
-        <div className="flex flex-col items-start gap-4 py-4">
-          <Step step={1} currentStep={currentStep}>
-            Connecting wallet
-          </Step>
-          <Step step={2} currentStep={currentStep}>
-            Preparing transactions ({depositIds.length} deposits)
-          </Step>
-          <Step step={3} currentStep={currentStep}>
-            Executing redemptions
-          </Step>
-          <Step step={4} currentStep={currentStep}>
-            Complete
-          </Step>
-        </div>
-
-        {/* Error Display */}
         {error && (
-          <div className="bg-error/10 rounded-lg p-4">
+          <div className="bg-error/10 w-full rounded-lg p-4">
             <Text variant="body2" className="text-error text-sm">
               {error}
             </Text>
@@ -185,17 +163,15 @@ export function RedeemCollateralSignModal({
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={processing && !error}
+          disabled={!error}
           variant="contained"
           className="w-full text-xs sm:text-base"
           onClick={error ? onClose : () => {}}
         >
-          {processing && !error ? (
-            <Loader size={16} className="text-accent-contrast" />
-          ) : error ? (
+          {error ? (
             "Close"
           ) : (
-            "Done"
+            <Loader size={16} className="text-accent-contrast" />
           )}
         </Button>
       </DialogFooter>
