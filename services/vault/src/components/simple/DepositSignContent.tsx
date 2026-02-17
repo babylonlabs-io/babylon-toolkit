@@ -37,29 +37,28 @@ interface DepositSignContentProps {
 }
 
 /**
- * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-7).
+ * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-6).
  *
- * Visual steps (from Figma):
- * 1. Split UTXOs
- * 2. Sign proof of possession
- * 3. Submit peg-in requests
- * 4. Wait (~ 15 min)
- * 5. Sign payout transactions
- * 6. Wait (~ 12 mins)
- * 7. Submit peg-in transactions
+ * Visual steps:
+ * 1. Sign proof of possession
+ * 2. Submit peg-in requests
+ * 3. Wait (~ 15 min)
+ * 4. Sign payout transactions
+ * 5. Wait (~ 12 mins)
+ * 6. Submit peg-in transactions
  */
 function getVisualStep(currentStep: DepositStep, isWaiting: boolean): number {
   switch (currentStep) {
     case DepositStep.SIGN_POP:
-      return 2;
+      return 1;
     case DepositStep.SUBMIT_PEGIN:
-      return 3;
+      return 2;
     case DepositStep.SIGN_PAYOUTS:
-      return isWaiting ? 4 : 5;
+      return isWaiting ? 3 : 4;
     case DepositStep.BROADCAST_BTC:
-      return isWaiting ? 6 : 7;
+      return isWaiting ? 5 : 6;
     case DepositStep.COMPLETED:
-      return 8; // All 7 steps completed
+      return 7; // All 6 steps completed
     default:
       return 1;
   }
@@ -70,7 +69,6 @@ function buildStepItems(progress: PayoutSigningProgress | null): StepperItem[] {
   const payoutCompleted = progress?.completed ?? 0;
 
   return [
-    { label: "Split UTXOs" },
     { label: "Sign proof of possession" },
     { label: "Submit peg-in requests" },
     { label: "Wait", description: "(~ 15 min)" },

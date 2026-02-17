@@ -15,7 +15,6 @@ import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
-import { SplitVaultsContent } from "./SplitVaultsContent";
 
 interface SimpleDepositProps {
   open: boolean;
@@ -76,14 +75,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
       setDepositData(amountSats, formData.selectedApplication, [
         formData.selectedProvider,
       ]);
-      goToStep(DepositStep.SPLIT_CONFIRM);
+      setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
+      goToStep(DepositStep.SIGN);
     }
   };
-
-  const proceedToSign = useCallback(() => {
-    setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
-    goToStep(DepositStep.SIGN);
-  }, [setFeeRate, goToStep]);
 
   const handleSignSuccess = useCallback(
     (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
@@ -128,15 +123,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
                 onDeposit={handleDeposit}
               />
             </div>
-          </div>
-        )}
-
-        {renderedStep === DepositStep.SPLIT_CONFIRM && (
-          <div className="mx-auto w-full max-w-[520px]">
-            <SplitVaultsContent
-              onContinueSplit={proceedToSign}
-              onDoNotSplit={proceedToSign}
-            />
           </div>
         )}
 
