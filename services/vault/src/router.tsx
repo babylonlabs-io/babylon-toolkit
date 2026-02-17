@@ -1,6 +1,6 @@
 import { Route, Routes } from "react-router";
 
-import { getEnabledApplications } from "./applications";
+import { getAllApplications } from "./applications";
 import Activity from "./components/pages/Activity";
 import ApplicationsHome from "./components/pages/ApplicationsHome";
 import Deposit from "./components/pages/Deposit";
@@ -8,7 +8,7 @@ import RootLayout from "./components/pages/RootLayout";
 import NotFound from "./components/pages/not-found";
 
 export const Router = () => {
-  const enabledApps = getEnabledApplications();
+  const apps = getAllApplications();
 
   return (
     <Routes>
@@ -17,7 +17,7 @@ export const Router = () => {
         <Route path="activity" element={<Activity />} />
         <Route path="deposit" element={<Deposit />} />
 
-        {enabledApps.map((app) => (
+        {apps.map((app) => (
           <Route
             key={app.metadata.id}
             path={`app/${app.metadata.id}/*`}

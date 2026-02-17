@@ -11,9 +11,6 @@ export {
   getApplication,
   getApplicationByController,
   getApplicationMetadataByController,
-  getEnabledAppIds,
-  getEnabledApplications,
-  isApplicationEnabled,
   registerApplication,
 } from "./registry";
 
