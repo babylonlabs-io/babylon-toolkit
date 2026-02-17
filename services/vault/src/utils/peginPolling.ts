@@ -14,6 +14,8 @@ import type { ClaimerTransactions, VaultProvider } from "../types";
 import type { VaultActivity } from "../types/activity";
 import type { DepositsByProvider, DepositToPoll } from "../types/peginPolling";
 
+import { isVaultOwnedByWallet } from "./vaultWarnings";
+
 // ============================================================================
 // Transient Error Detection
 // ============================================================================
@@ -28,6 +30,32 @@ export const TRANSIENT_ERROR_PATTERNS = [
   "No transaction graphs found",
   "Vault or pegin transaction not found",
 ] as const;
+
+// ============================================================================
+// Terminal Error Detection
+// ============================================================================
+
+/**
+ * Terminal error patterns that indicate a permanent failure.
+ * These errors will never resolve on their own (e.g., wallet mismatch),
+ * so polling should stop immediately to avoid wasting requests.
+ */
+export const TERMINAL_ERROR_PATTERNS = ["Unauthorized depositor"] as const;
+
+/**
+ * Check if an error is terminal (will never resolve, polling should stop).
+ *
+ * Terminal errors occur when there is a fundamental mismatch that cannot
+ * be fixed by retrying, such as using different BTC and ETH wallets
+ * for vaults.
+ */
+export function isTerminalPollingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  return TERMINAL_ERROR_PATTERNS.some((pattern) =>
+    error.message.includes(pattern),
+  );
+}
 
 /**
  * Check if an error is transient (vault provider still processing).
@@ -94,7 +122,8 @@ export function getDepositsNeedingPolling(
         !!btcPublicKey &&
         !!vaultProviderAddress &&
         !!activity.txHash &&
-        !!activity.applicationController;
+        !!activity.applicationController &&
+        isVaultOwnedByWallet(activity.depositorBtcPubkey, btcPublicKey);
 
       return {
         activity,

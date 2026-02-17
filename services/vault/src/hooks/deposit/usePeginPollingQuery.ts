@@ -21,6 +21,7 @@ import {
   areTransactionsReady,
   getDepositsNeedingPolling,
   groupDepositsByProvider,
+  isTerminalPollingError,
   isTransientPollingError,
 } from "../../utils/peginPolling";
 
@@ -185,6 +186,14 @@ export function usePeginPollingQuery({
     enabled: isEnabled,
     staleTime: 0,
     refetchInterval: (query) => {
+      // Stop polling if any deposit has a terminal error (e.g., wallet mismatch)
+      const errorMap = query.state.data?.errors;
+      if (errorMap && errorMap.size > 0) {
+        for (const error of errorMap.values()) {
+          if (isTerminalPollingError(error)) return false;
+        }
+      }
+
       // Stop polling if all deposits have ready transactions
       const currentDeposits = depositsRef.current;
       const txMap = query.state.data?.transactions;
