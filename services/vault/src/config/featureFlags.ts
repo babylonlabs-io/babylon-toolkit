@@ -14,6 +14,17 @@
 
 export default {
   /**
+   * SIMPLE_UI feature flag
+   *
+   * Purpose: Switches to the simplified UI for deposit, borrow, etc.
+   * Why needed: Allows gradual rollout of the new simplified UI
+   * Default: false (simple UI is disabled unless explicitly set to "true")
+   */
+  get isSimpleUI() {
+    return process.env.NEXT_PUBLIC_FF_SIMPLE_UI === "true";
+  },
+
+  /**
    * ENABLE_DEPOSIT feature flag
    *
    * Purpose: Controls whether deposit functionality is available

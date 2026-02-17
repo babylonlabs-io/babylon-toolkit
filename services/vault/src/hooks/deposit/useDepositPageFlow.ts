@@ -47,6 +47,20 @@ export interface UseDepositPageFlowResult {
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
+
+  // Primitives (for custom flows like SimpleDeposit)
+  goToStep: (step: DepositStep) => void;
+  setDepositData: (
+    amount: bigint,
+    application: string,
+    providers: string[],
+  ) => void;
+  setFeeRate: (feeRate: number) => void;
+  setTransactionHashes: (
+    btcTxid: string,
+    ethTxHash: string,
+    depositorBtcPubkey?: string,
+  ) => void;
 }
 
 export function useDepositPageFlow(): UseDepositPageFlowResult {
@@ -147,5 +161,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     onSignSuccess,
     resetDeposit,
     refetchActivities,
+    goToStep,
+    setDepositData,
+    setFeeRate,
+    setTransactionHashes,
   };
 }
