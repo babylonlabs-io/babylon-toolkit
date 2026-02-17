@@ -168,9 +168,11 @@ export function getNetwork(network: Network): bitcoin.Network {
     case "testnet":
       return bitcoin.networks.testnet;
     case "signet":
-    case "regtest":
-      // bitcoinjs-lib doesn't have built-in signet/regtest, use testnet params
+      // bitcoinjs-lib doesn't have a built-in signet network, use testnet params (tb1... addresses)
       return bitcoin.networks.testnet;
+    case "regtest":
+      // bitcoinjs-lib has a built-in regtest network with bcrt1... addresses
+      return bitcoin.networks.regtest;
     default:
       throw new Error(`Unknown network: ${network}`);
   }

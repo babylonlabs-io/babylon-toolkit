@@ -214,8 +214,8 @@ describe("getNetwork", () => {
     expect(network).toBe(bitcoin.networks.testnet);
   });
 
-  it("should return testnet for 'regtest'", () => {
+  it("should return regtest for 'regtest'", () => {
     const network = getNetwork("regtest");
-    expect(network).toBe(bitcoin.networks.testnet);
+    expect(network).toBe(bitcoin.networks.regtest);
   });
 });

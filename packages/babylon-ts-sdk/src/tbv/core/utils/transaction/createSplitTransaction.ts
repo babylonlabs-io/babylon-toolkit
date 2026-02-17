@@ -170,14 +170,15 @@ export function createSplitTransaction(
 }
 
 /**
- * Sign a split transaction using a PSBT for Taproot inputs.
+ * Create a PSBT for signing a split transaction with Taproot inputs.
  *
  * IMPORTANT: This function assumes ALL inputs are P2TR (Taproot) addresses.
  * It unconditionally adds tapInternalKey for Taproot signing. Using non-P2TR
  * inputs will cause wallet signing failures.
  *
  * This function takes an unsigned split transaction and creates a PSBT
- * that can be signed by a Bitcoin wallet.
+ * that is intended to be signed by a Bitcoin wallet; this function does not
+ * perform any signing itself.
  *
  * The PSBT includes:
  * - witnessUtxo: Script and value for each input (required for segwit)

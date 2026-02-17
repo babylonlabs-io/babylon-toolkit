@@ -2,6 +2,7 @@
  * Tests for UTXO split transaction builder
  */
 
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import * as bitcoin from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
@@ -12,6 +13,9 @@ import {
   createSplitTransactionPsbt,
   type SplitOutput,
 } from "../createSplitTransaction";
+
+// Initialize ECC library for P2TR (Taproot) address support
+bitcoin.initEccLib(ecc);
 
 describe("createSplitTransaction", () => {
   // Mock UTXOs for testing
@@ -31,11 +35,9 @@ describe("createSplitTransaction", () => {
       "5120fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321",
   };
 
-  // Testnet addresses for testing (P2WPKH format for bitcoinjs-lib compatibility)
-  // Note: In production, vault system requires P2TR addresses, but these tests
-  // focus on transaction construction mechanics, not address type validation.
-  const testnetAddress1 = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
-  const testnetAddress2 = "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
+  // P2TR (Taproot) testnet addresses, matching the vault system's address type
+  const testnetAddress1 = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+  const testnetAddress2 = "tb1pccz8l9zpa47k6vz9gphftsrumpw80rjt3nhnefat4symjhrsnmjs903hkq";
 
   describe("Basic Functionality", () => {
     it("should create split transaction with 2 outputs", () => {
@@ -195,7 +197,7 @@ describe("createSplitTransaction", () => {
     });
 
     it("should work with bitcoin (mainnet) network", () => {
-      const mainnetAddress = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+      const mainnetAddress = "bc1plycg5qvjtrp3qjf5f7zl382j9x6nrjz9sdhenvyxq8c3808qxmusegupjc";
       const outputs: SplitOutput[] = [
         { amount: 50000n, address: mainnetAddress },
       ];
@@ -422,7 +424,7 @@ describe("createSplitTransactionPsbt", () => {
       "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
   };
 
-  const testnetAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+  const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
 
   // Mock x-only public key (32 bytes)
   const mockPubkey = Buffer.from(
@@ -874,7 +876,7 @@ describe("Integration Tests", () => {
         "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     };
 
-    const testnetAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+    const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
     const outputs: SplitOutput[] = [
       { amount: 50000n, address: testnetAddress },
       { amount: 45000n, address: testnetAddress },
@@ -903,7 +905,7 @@ describe("Integration Tests", () => {
         "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     };
 
-    const testnetAddress = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+    const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
     const outputs: SplitOutput[] = [
       { amount: 50000n, address: testnetAddress },
       { amount: 45000n, address: testnetAddress },
