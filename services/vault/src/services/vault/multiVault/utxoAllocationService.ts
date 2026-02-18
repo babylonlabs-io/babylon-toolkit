@@ -46,6 +46,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { getBTCNetworkForWASM } from "../../../config/pegin";
+
 import type {
   AllocationPlan,
   SplitTransaction,
@@ -80,7 +81,10 @@ import type {
  * @param feeRate   - Fee rate in sat/vByte
  * @returns Conservative fee estimate in satoshis (for allocation planning only)
  */
-function estimatePeginFeeForAllocation(numInputs: number, feeRate: number): bigint {
+function estimatePeginFeeForAllocation(
+  numInputs: number,
+  feeRate: number,
+): bigint {
   const txSize =
     numInputs * P2TR_INPUT_SIZE +
     MAX_NON_LEGACY_OUTPUT_SIZE + // vault output
