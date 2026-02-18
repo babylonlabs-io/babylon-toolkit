@@ -57,13 +57,19 @@ import type {
 // ============================================================================
 
 /**
- * Estimate the fee for a pegin transaction.
+ * Estimate the pegin transaction fee for UTXO allocation planning purposes only.
  *
- * The pegin fee scales with the number of inputs because MULTI_INPUT pegins
- * may use several UTXOs. Each additional P2TR input adds P2TR_INPUT_SIZE (58)
- * vBytes. We pre-budget for a change output on every estimate.
+ * **This function must not be used for actual pegin fee calculation.** It is an
+ * internal allocation helper used to:
+ *   1. Determine whether a growing set of UTXOs is sufficient to fund a vault's
+ *      pegin in the MULTI_INPUT strategy (`selectUtxosForVault`).
+ *   2. Size each split transaction output to carry a 1-input pegin fee buffer
+ *      in the SPLIT strategy (`planSplitAllocation`).
  *
- * Size breakdown:
+ * The actual pegin fee is recomputed precisely by the SDK during pegin creation.
+ * Any over-estimation here becomes additional miner fee, which is safe.
+ *
+ * Size breakdown (conservative, pre-budgets for change output):
  *   numInputs × P2TR_INPUT_SIZE (58) vBytes
  *   1 × MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes  (vault output)
  *   1 × MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes  (change output, pre-budgeted)
@@ -72,9 +78,9 @@ import type {
  *
  * @param numInputs - Number of P2TR inputs in the pegin transaction
  * @param feeRate   - Fee rate in sat/vByte
- * @returns Estimated fee in satoshis
+ * @returns Conservative fee estimate in satoshis (for allocation planning only)
  */
-function estimatePeginTxFee(numInputs: number, feeRate: number): bigint {
+function estimatePeginFeeForAllocation(numInputs: number, feeRate: number): bigint {
   const txSize =
     numInputs * P2TR_INPUT_SIZE +
     MAX_NON_LEGACY_OUTPUT_SIZE + // vault output
@@ -149,7 +155,7 @@ function selectUtxosForVault(
     selected.push(utxo);
     accumulated += BigInt(utxo.value);
 
-    const peginFee = estimatePeginTxFee(selected.length, feeRate);
+    const peginFee = estimatePeginFeeForAllocation(selected.length, feeRate);
     if (accumulated >= vaultAmount + peginFee) {
       // Remove selected UTXOs from pool (in-place splice)
       pool.splice(0, selected.length);
@@ -352,8 +358,8 @@ function planSplitAllocation(
 ): AllocationPlan {
   // 1. Compute pegin fee buffer per vault output.
   //    Each split output funds a pegin tx that uses exactly 1 input (the split output itself),
-  //    so we use estimatePeginTxFee(1, feeRate) — not the variable-input version.
-  const peginFeePerVault = estimatePeginTxFee(1, feeRate);
+  //    so we use estimatePeginFeeForAllocation(1, feeRate) — not the variable-input version.
+  const peginFeePerVault = estimatePeginFeeForAllocation(1, feeRate);
 
   // 2. Build the fixed vault outputs (amounts are constant regardless of input count).
   const splitOutputs: Array<{ amount: bigint; address: string; vout: number }> =

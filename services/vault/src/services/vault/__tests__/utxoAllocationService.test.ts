@@ -5,9 +5,9 @@
  * so this module has no external dependencies and runs in isolation.
  *
  * Fee constants at feeRate=5 sat/vByte:
- *   estimatePeginTxFee(1, 5)  = ceil((58+43+43+11)×5)  = ceil(155×5)  = 775 sats
- *   estimatePeginTxFee(2, 5)  = ceil((116+43+43+11)×5) = ceil(213×5)  = 1065 sats
- *   estimatePeginTxFee(5, 5)  = ceil((290+43+43+11)×5) = ceil(387×5)  = 1935 sats
+ *   estimatePeginFeeForAllocation(1, 5)  = ceil((58+43+43+11)×5)  = ceil(155×5)  = 775 sats
+ *   estimatePeginFeeForAllocation(2, 5)  = ceil((116+43+43+11)×5) = ceil(213×5)  = 1065 sats
+ *   estimatePeginFeeForAllocation(5, 5)  = ceil((290+43+43+11)×5) = ceil(387×5)  = 1935 sats
  *   estimateSplitTxFee(1,3,5) = ceil(198×5)  = 990 sats   (1 input, 3 outputs)
  *   estimateSplitTxFee(2,3,5) = ceil(256×5)  = 1280 sats  (2 inputs, 3 outputs)
  */
