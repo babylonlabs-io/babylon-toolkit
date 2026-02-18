@@ -5,10 +5,11 @@
  * so this module has no external dependencies and runs in isolation.
  *
  * Fee constants at feeRate=5 sat/vByte:
- *   estimatePeginTxFee(5)        = ceil(155 × 5)  = 775 sats
- *   estimateSplitTxFee(1, 3, 5)  = ceil(198 × 5)  = 990 sats   (1 input, 3 outputs)
- *   estimateSplitTxFee(2, 3, 5)  = ceil(256 × 5)  = 1280 sats  (2 inputs, 3 outputs)
- *   estimateSplitTxFee(10, 3, 5) = ceil(720 × 5)  = 3600 sats  (10 inputs, 3 outputs)
+ *   estimatePeginTxFee(1, 5)  = ceil((58+43+43+11)×5)  = ceil(155×5)  = 775 sats
+ *   estimatePeginTxFee(2, 5)  = ceil((116+43+43+11)×5) = ceil(213×5)  = 1065 sats
+ *   estimatePeginTxFee(5, 5)  = ceil((290+43+43+11)×5) = ceil(387×5)  = 1935 sats
+ *   estimateSplitTxFee(1,3,5) = ceil(198×5)  = 990 sats   (1 input, 3 outputs)
+ *   estimateSplitTxFee(2,3,5) = ceil(256×5)  = 1280 sats  (2 inputs, 3 outputs)
  */
 
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -59,10 +60,11 @@ const FEE_RATE = 5; // sat/vByte
 
 // ─── Constants (must mirror utxoAllocationService.ts) ────────────────────────
 
-const PEGIN_FEE_5 = 775n; // ceil(155 × 5)
+const PEGIN_FEE_1_INPUT_5 = 775n; // ceil(155 × 5)  — 1 input
+const PEGIN_FEE_2_INPUTS_5 = 1065n; // ceil(213 × 5)  — 2 inputs
+const PEGIN_FEE_5_INPUTS_5 = 1935n; // ceil(387 × 5)  — 5 inputs
 const SPLIT_FEE_1_INPUT_5 = 990n; // ceil(198 × 5)
 const SPLIT_FEE_2_INPUTS_5 = 1280n; // ceil(256 × 5)
-const SPLIT_FEE_10_INPUTS_5 = 3600n; // ceil(720 × 5)
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
@@ -123,7 +125,7 @@ describe("planUtxoAllocation", () => {
       expect(plan.vaultAllocations).toHaveLength(1);
     });
 
-    it("sets correct amount and null UTXO in the single allocation", () => {
+    it("sets correct amount and empty utxos in the single allocation", () => {
       const plan = planUtxoAllocation(
         [makeUtxo(10_000_000)],
         [7_500_000n],
@@ -134,7 +136,7 @@ describe("planUtxoAllocation", () => {
       const alloc = plan.vaultAllocations[0];
       expect(alloc?.vaultIndex).toBe(0);
       expect(alloc?.amount).toBe(7_500_000n);
-      expect(alloc?.utxo).toBeNull();
+      expect(alloc?.utxos).toEqual([]);
       expect(alloc?.fromSplit).toBe(false);
     });
 
@@ -150,13 +152,12 @@ describe("planUtxoAllocation", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // MULTI_UTXO strategy
+  // MULTI_INPUT strategy
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("MULTI_UTXO strategy (2 vaults, 2+ sufficient UTXOs)", () => {
-    it("returns MULTI_UTXO when both top UTXOs individually cover their vault + pegin fee", () => {
-      // UTXO 0: 80M, UTXO 1: 60M; vaults: 70M + 50M
-      // sorted: 80M→70M ✓ (80M ≥ 70M+775), 60M→50M ✓ (60M ≥ 50M+775)
+  describe("MULTI_INPUT strategy (2 vaults, UTXOs partitioned directly)", () => {
+    it("returns MULTI_INPUT when top 2 UTXOs each individually cover their vault + 1-input pegin fee", () => {
+      // 80M→70M ✓ (80M ≥ 70M+775), 60M→50M ✓ (60M ≥ 50M+775)
       const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
       const plan = planUtxoAllocation(
         utxos,
@@ -165,7 +166,7 @@ describe("planUtxoAllocation", () => {
         CHANGE_ADDRESS,
       );
 
-      expect(plan.strategy).toBe("MULTI_UTXO");
+      expect(plan.strategy).toBe("MULTI_INPUT");
       expect(plan.needsSplit).toBe(false);
       expect(plan.splitTransaction).toBeUndefined();
       expect(mockCreateSplitTransaction).not.toHaveBeenCalled();
@@ -181,15 +182,13 @@ describe("planUtxoAllocation", () => {
         CHANGE_ADDRESS,
       );
 
-      expect(plan.strategy).toBe("MULTI_UTXO");
-      // Allocation sorted by vaultIndex: vault 0 → 50M, vault 1 → 70M
+      expect(plan.strategy).toBe("MULTI_INPUT");
       const alloc0 = plan.vaultAllocations.find((a) => a.vaultIndex === 0);
       const alloc1 = plan.vaultAllocations.find((a) => a.vaultIndex === 1);
       expect(alloc0?.amount).toBe(50_000_000n);
-      expect(alloc0?.utxo?.value).toBe(60_000_000);
+      expect(alloc0?.utxos[0]?.value).toBe(60_000_000); // 60M UTXO assigned to 50M vault
       expect(alloc1?.amount).toBe(70_000_000n);
-      // 80M UTXO assigned to the larger vault (vault 1)
-      expect(alloc1?.utxo?.value).toBe(80_000_000);
+      expect(alloc1?.utxos[0]?.value).toBe(80_000_000); // 80M UTXO assigned to 70M vault
     });
 
     it("allocations are sorted by vaultIndex ascending", () => {
@@ -205,7 +204,7 @@ describe("planUtxoAllocation", () => {
       expect(plan.vaultAllocations[1]?.vaultIndex).toBe(1);
     });
 
-    it("sets fromSplit=false for all MULTI_UTXO allocations", () => {
+    it("sets fromSplit=false and no splitTxOutputIndex for all MULTI_INPUT allocations", () => {
       const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
       const plan = planUtxoAllocation(
         utxos,
@@ -220,8 +219,122 @@ describe("planUtxoAllocation", () => {
       }
     });
 
-    it("falls through to SPLIT when the second UTXO is too small for its vault", () => {
-      // 0.8 BTC and 0.6 BTC UTXOs; vaults 0.65+0.65: 0.6 BTC UTXO < 0.65+775 → SPLIT
+    it("scenario 3: 10×0.1 BTC UTXOs → 0.9 BTC pegin uses MULTI_INPUT (5 UTXOs per vault)", () => {
+      // Each vault needs 45M + peginFee(5 inputs, 5) = 45M + 1935 = 45_001_935
+      // After 5 UTXOs (50M): 50M ≥ 45_001_935 ✓ → vault 0 gets UTXOs 0-4
+      // Remaining 5 UTXOs (50M) → vault 1: same check ✓
+      const utxos = Array.from({ length: 10 }, (_, i) =>
+        makeUtxo(10_000_000, i),
+      );
+      const plan = planUtxoAllocation(
+        utxos,
+        [45_000_000n, 45_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.strategy).toBe("MULTI_INPUT");
+      expect(plan.needsSplit).toBe(false);
+      expect(mockCreateSplitTransaction).not.toHaveBeenCalled();
+    });
+
+    it("scenario 3: each vault gets exactly 5 UTXOs", () => {
+      const utxos = Array.from({ length: 10 }, (_, i) =>
+        makeUtxo(10_000_000, i),
+      );
+      const plan = planUtxoAllocation(
+        utxos,
+        [45_000_000n, 45_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.vaultAllocations[0]?.utxos).toHaveLength(5);
+      expect(plan.vaultAllocations[1]?.utxos).toHaveLength(5);
+    });
+
+    it("scenario 3: the two UTXO sets are disjoint (no UTXO used twice)", () => {
+      const utxos = Array.from({ length: 10 }, (_, i) =>
+        makeUtxo(10_000_000, i),
+      );
+      const plan = planUtxoAllocation(
+        utxos,
+        [45_000_000n, 45_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      const txids0 = new Set(
+        plan.vaultAllocations[0]?.utxos.map((u) => u.txid),
+      );
+      const txids1 = new Set(
+        plan.vaultAllocations[1]?.utxos.map((u) => u.txid),
+      );
+      for (const txid of txids1) {
+        expect(txids0.has(txid)).toBe(false);
+      }
+    });
+
+    it("MULTI_INPUT with 2 UTXOs: each vault gets 1 UTXO when individually sufficient", () => {
+      const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
+      const plan = planUtxoAllocation(
+        utxos,
+        [70_000_000n, 50_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.strategy).toBe("MULTI_INPUT");
+      expect(plan.vaultAllocations[0]?.utxos).toHaveLength(1);
+      expect(plan.vaultAllocations[1]?.utxos).toHaveLength(1);
+    });
+
+    it("MULTI_INPUT: pegin fee scales with number of inputs (2-input allocation per vault)", () => {
+      // 4×30M UTXOs; vaults 50M+50M
+      // Vault 0: 30M < 50M+775. Add 2nd 30M: 60M ≥ 50M + peginFee(2,5)=1065 ✓ → 2 UTXOs
+      // Vault 1: same → 2 UTXOs from remaining
+      const utxos = Array.from({ length: 4 }, (_, i) =>
+        makeUtxo(30_000_000, i),
+      );
+      const plan = planUtxoAllocation(
+        utxos,
+        [50_000_000n, 50_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.strategy).toBe("MULTI_INPUT");
+      expect(plan.vaultAllocations[0]?.utxos).toHaveLength(2);
+      expect(plan.vaultAllocations[1]?.utxos).toHaveLength(2);
+    });
+
+    it("MULTI_INPUT with 5 UTXOs: uses only as many as needed per vault", () => {
+      // 5 UTXOs: [80M, 70M, 10M, 10M, 10M]; vaults: 70M+60M
+      // Vault 0 (70M): 80M ≥ 70M+775 → 1 UTXO. Vault 1 (60M): 70M ≥ 60M+775 → 1 UTXO
+      const utxos = [
+        makeUtxo(80_000_000, 0),
+        makeUtxo(70_000_000, 1),
+        makeUtxo(10_000_000, 2),
+        makeUtxo(10_000_000, 3),
+        makeUtxo(10_000_000, 4),
+      ];
+      const plan = planUtxoAllocation(
+        utxos,
+        [70_000_000n, 60_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.strategy).toBe("MULTI_INPUT");
+      expect(mockCreateSplitTransaction).not.toHaveBeenCalled();
+      expect(plan.vaultAllocations[0]?.utxos.length).toBeGreaterThan(0);
+      expect(plan.vaultAllocations[1]?.utxos.length).toBeGreaterThan(0);
+    });
+
+    it("falls through to SPLIT when UTXOs cannot fund vault 1 after vault 0 is allocated", () => {
+      // 0.8+0.6 BTC UTXOs; vaults 0.65+0.65
+      // Vault 0 (65M): 80M ≥ 65M+775 → allocated [80M]
+      // Vault 1 (65M): remaining [60M]. 60M < 65M+775 → pool exhausted → SPLIT
       const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
       const plan = planUtxoAllocation(
         utxos,
@@ -233,25 +346,8 @@ describe("planUtxoAllocation", () => {
       expect(plan.strategy).toBe("SPLIT");
     });
 
-    it("falls through to SPLIT when UTXOs fail MULTI_UTXO sufficiency but combined total is sufficient for SPLIT", () => {
-      // vaults: 35M + 10M. Sorted vaults: [35M, 10M]. UTXOs: 2×30M.
-      // MULTI_UTXO check: UTXO #0 (30M) vs vault 35M + 775 = 35_000_775 → 30M < 35_000_775 → FAILS
-      // SPLIT: vaultOutputsTotal = (35M+775)+(10M+775) = 45_001_550
-      //   after 1st UTXO (30M): splitFee(1,3,5)=990; totalNeeded=45_002_540 > 30M → add 2nd
-      //   after 2nd UTXO (60M): splitFee(2,3,5)=1280; totalNeeded=45_002_830 ≤ 60M ✓
-      const utxos = [makeUtxo(30_000_000, 0), makeUtxo(30_000_000, 1)];
-      const plan = planUtxoAllocation(
-        utxos,
-        [35_000_000n, 10_000_000n],
-        FEE_RATE,
-        CHANGE_ADDRESS,
-      );
-
-      expect(plan.strategy).toBe("SPLIT");
-    });
-
-    it("throws insufficient funds when both UTXOs are too small even for SPLIT", () => {
-      // 2×10M = 20M total; vaults 45M+45M requires ~90M → always fails
+    it("throws insufficient funds when total is too small even for SPLIT", () => {
+      // 2×10M = 20M total; vaults 45M+45M requires ~90M
       const utxos = [makeUtxo(10_000_000, 0), makeUtxo(10_000_000, 1)];
       expect(() =>
         planUtxoAllocation(
@@ -265,10 +361,10 @@ describe("planUtxoAllocation", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // SPLIT strategy — single input (normal case)
+  // SPLIT strategy — triggered when UTXOs cannot be partitioned between vaults
   // ═══════════════════════════════════════════════════════════════════════════
 
-  describe("SPLIT strategy — single input", () => {
+  describe("SPLIT strategy (UTXOs cannot be partitioned between vaults)", () => {
     it("returns SPLIT plan when only 1 UTXO is available", () => {
       // 1 BTC UTXO, 0.475+0.475 BTC vaults
       const utxos = [makeUtxo(100_000_000)];
@@ -297,6 +393,19 @@ describe("planUtxoAllocation", () => {
       expect(plan.vaultAllocations[1]?.amount).toBe(47_500_000n);
     });
 
+    it("SPLIT: allocations have utxos=[] (pegin uses split tx output, not wallet UTXOs)", () => {
+      const plan = planUtxoAllocation(
+        [makeUtxo(100_000_000)],
+        [45_000_000n, 45_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      for (const alloc of plan.vaultAllocations) {
+        expect(alloc.utxos).toEqual([]);
+      }
+    });
+
     it("sets fromSplit=true and correct splitTxOutputIndex for each allocation", () => {
       const plan = planUtxoAllocation(
         [makeUtxo(100_000_000)],
@@ -311,8 +420,8 @@ describe("planUtxoAllocation", () => {
       expect(plan.vaultAllocations[1]?.splitTxOutputIndex).toBe(1);
     });
 
-    it("split outputs include pegin fee buffer: output.amount = vaultAmount + peginFee", () => {
-      // peginFee = 775 sats at feeRate=5
+    it("split outputs include 1-input pegin fee buffer: output.amount = vaultAmount + peginFee(1)", () => {
+      // peginFee(1 input, feeRate=5) = 775 sats (not 5-input fee)
       const plan = planUtxoAllocation(
         [makeUtxo(100_000_000)],
         [47_500_000n, 47_500_000n],
@@ -321,10 +430,10 @@ describe("planUtxoAllocation", () => {
       );
 
       expect(plan.splitTransaction?.outputs[0]?.amount).toBe(
-        47_500_000n + PEGIN_FEE_5,
+        47_500_000n + PEGIN_FEE_1_INPUT_5,
       );
       expect(plan.splitTransaction?.outputs[1]?.amount).toBe(
-        47_500_000n + PEGIN_FEE_5,
+        47_500_000n + PEGIN_FEE_1_INPUT_5,
       );
     });
 
@@ -339,8 +448,7 @@ describe("planUtxoAllocation", () => {
 
       const outputs = plan.splitTransaction?.outputs ?? [];
       expect(outputs).toHaveLength(3);
-      // vault output[0] + vault output[1] + change output[2]
-      const vaultOutputTotal = (47_500_000n + PEGIN_FEE_5) * 2n;
+      const vaultOutputTotal = (47_500_000n + PEGIN_FEE_1_INPUT_5) * 2n;
       const expectedChange =
         100_000_000n - vaultOutputTotal - SPLIT_FEE_1_INPUT_5;
       expect(outputs[2]?.amount).toBe(expectedChange);
@@ -348,10 +456,8 @@ describe("planUtxoAllocation", () => {
     });
 
     it("omits change output when change is at or below dust threshold (546 sats)", () => {
-      // Craft input so change = exactly DUST (546) → must NOT create output
       // vaultOutputsTotal = (45M+775)*2 = 90_001_550; splitFee=990
-      // totalNeeded = 90_001_550 + 990 = 90_002_540
-      // For change=546: input = totalNeeded + 546 = 90_003_086
+      // totalNeeded = 90_002_540; for change=546: input = 90_003_086
       const dustyValue = 90_003_086;
       const plan = planUtxoAllocation(
         [makeUtxo(dustyValue)],
@@ -428,18 +534,13 @@ describe("planUtxoAllocation", () => {
         ),
       ).not.toThrow();
     });
-  });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // SPLIT strategy — multi-input (the bug-fix scenario)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe("SPLIT strategy — multi-input (fee scales with input count)", () => {
-    it("scenario 2: 0.8+0.6 BTC UTXOs → 1.3 BTC pegin uses SPLIT with 2 inputs", () => {
-      // MULTI_UTXO fails: 0.6 BTC UTXO < 0.65 BTC vault + 775 fee
-      // SPLIT: vaultOutputsTotal = (65M+775)*2 = 130_001_550
-      //   after 1st UTXO (80M): splitFee(1,3,5)=990; totalNeeded=130_002_540 > 80M → add 2nd
-      //   after 2nd UTXO (140M): splitFee(2,3,5)=1280; totalNeeded=130_002_830 ≤ 140M ✓
+    it("scenario 2: 0.8+0.6 BTC UTXOs → 1.3 BTC pegin uses SPLIT (vault 1 underfunded)", () => {
+      // Vault 0 (65M): 80M ≥ 65M+775 → allocated [80M]
+      // Vault 1 (65M): remaining [60M]. 60M < 65M+775 → MULTI_INPUT fails → SPLIT
+      // SPLIT: vaultOutputsTotal=(65M+775)*2=130_001_550
+      //   after 1st UTXO (80M): splitFee(1,3,5)=990; needed=130_002_540 > 80M → add 2nd
+      //   after 2nd UTXO (140M): splitFee(2,3,5)=1280; needed=130_002_830 ≤ 140M ✓
       const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
       const plan = planUtxoAllocation(
         utxos,
@@ -452,7 +553,7 @@ describe("planUtxoAllocation", () => {
       expect(plan.splitTransaction?.inputs).toHaveLength(2);
     });
 
-    it("scenario 2: split tx is called with both input UTXOs", () => {
+    it("scenario 2: split tx called with both UTXOs as inputs", () => {
       const utxo0 = makeUtxo(80_000_000, 0);
       const utxo1 = makeUtxo(60_000_000, 1);
       planUtxoAllocation(
@@ -466,7 +567,7 @@ describe("planUtxoAllocation", () => {
       expect(calledInputs).toHaveLength(2);
     });
 
-    it("scenario 2: change is calculated using the 2-input split fee, not the 1-input fee", () => {
+    it("scenario 2: change uses 2-input split fee (1280), not 1-input fee (990)", () => {
       const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
       const plan = planUtxoAllocation(
         utxos,
@@ -475,112 +576,15 @@ describe("planUtxoAllocation", () => {
         CHANGE_ADDRESS,
       );
 
-      const vaultOutputsTotal = (65_000_000n + PEGIN_FEE_5) * 2n; // 130_001_550
+      const vaultOutputsTotal = (65_000_000n + PEGIN_FEE_1_INPUT_5) * 2n; // 130_001_550
       const expectedChange =
         140_000_000n - vaultOutputsTotal - SPLIT_FEE_2_INPUTS_5;
-      // expectedChange = 140M - 130_001_550 - 1280 = 8_997_170
+      // 140M - 130_001_550 - 1280 = 8_997_170
       const changeOutput = plan.splitTransaction?.outputs[2];
       expect(changeOutput?.amount).toBe(expectedChange);
     });
 
-    it("scenario 3: 10×0.1 BTC UTXOs → 0.9 BTC pegin selects all 10 UTXOs", () => {
-      // Each UTXO = 10M. vaultOutputsTotal = (45M+775)*2 = 90_001_550
-      // After 9 UTXOs (90M): splitFee(9,3,5)=ceil((522+129+11)*5)=3310; totalNeeded=90_004_860 > 90M → add 10th
-      // After 10 UTXOs (100M): splitFee(10,3,5)=3600; totalNeeded=90_005_150 ≤ 100M ✓
-      const utxos = Array.from({ length: 10 }, (_, i) =>
-        makeUtxo(10_000_000, i),
-      );
-      const plan = planUtxoAllocation(
-        utxos,
-        [45_000_000n, 45_000_000n],
-        FEE_RATE,
-        CHANGE_ADDRESS,
-      );
-
-      expect(plan.strategy).toBe("SPLIT");
-      expect(plan.splitTransaction?.inputs).toHaveLength(10);
-    });
-
-    it("scenario 3: change uses the 10-input split fee (3600 sats), not the 1-input fee (990 sats)", () => {
-      const utxos = Array.from({ length: 10 }, (_, i) =>
-        makeUtxo(10_000_000, i),
-      );
-      const plan = planUtxoAllocation(
-        utxos,
-        [45_000_000n, 45_000_000n],
-        FEE_RATE,
-        CHANGE_ADDRESS,
-      );
-
-      const vaultOutputsTotal = (45_000_000n + PEGIN_FEE_5) * 2n; // 90_001_550
-      const expectedChange =
-        100_000_000n - vaultOutputsTotal - SPLIT_FEE_10_INPUTS_5;
-      // expectedChange = 100M - 90_001_550 - 3600 = 9_994_850
-
-      const changeOutput = plan.splitTransaction?.outputs[2];
-      expect(changeOutput?.amount).toBe(expectedChange);
-    });
-
-    it("scenario 3: 9 UTXOs of 0.1 BTC are insufficient for a 0.9 BTC pegin due to higher multi-input fee", () => {
-      // 9 × 10M = 90M; vaultOutputsTotal=90_001_550; splitFee(9,3,5)=3310
-      // totalNeeded=90_004_860 > 90_000_000 → insufficient
-      const utxos = Array.from({ length: 9 }, (_, i) =>
-        makeUtxo(10_000_000, i),
-      );
-      expect(() =>
-        planUtxoAllocation(
-          utxos,
-          [45_000_000n, 45_000_000n],
-          FEE_RATE,
-          CHANGE_ADDRESS,
-        ),
-      ).toThrow(/Insufficient funds/);
-    });
-
-    it("split tx inputs are ordered largest-first", () => {
-      // 3 UTXOs out of order: 30M, 50M, 40M → sorted: 50M, 40M, 30M
-      // vaultOutputsTotal = (45M+775)*2 = 90_001_550
-      // After 50M: splitFee(1,3,5)=990; totalNeeded=90_002_540 > 50M
-      // After 90M: splitFee(2,3,5)=1280; totalNeeded=90_002_830 > 90M (barely)
-      // After 120M: splitFee(3,3,5)=ceil((174+129+11)*5)=1570; totalNeeded=90_003_120 ≤ 120M ✓
-      const utxos = [
-        makeUtxo(30_000_000, 0),
-        makeUtxo(50_000_000, 1),
-        makeUtxo(40_000_000, 2),
-      ];
-      planUtxoAllocation(
-        utxos,
-        [45_000_000n, 45_000_000n],
-        FEE_RATE,
-        CHANGE_ADDRESS,
-      );
-
-      const [calledInputs] = mockCreateSplitTransaction.mock.calls[0] ?? [];
-      const values = (calledInputs as UTXO[]).map((u) => u.value);
-      // Should be [50M, 40M, 30M] — descending
-      expect(values).toEqual([50_000_000, 40_000_000, 30_000_000]);
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Edge cases
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe("edge cases", () => {
-    it("SPLIT: allocations have utxo=null (UTXOs come from split tx outputs)", () => {
-      const plan = planUtxoAllocation(
-        [makeUtxo(100_000_000)],
-        [45_000_000n, 45_000_000n],
-        FEE_RATE,
-        CHANGE_ADDRESS,
-      );
-
-      for (const alloc of plan.vaultAllocations) {
-        expect(alloc.utxo).toBeNull();
-      }
-    });
-
-    it("SPLIT inputs list is stored in the split transaction", () => {
+    it("SPLIT: inputs list is stored in the split transaction", () => {
       const utxo = makeUtxo(100_000_000);
       const plan = planUtxoAllocation(
         [utxo],
@@ -630,37 +634,73 @@ describe("planUtxoAllocation", () => {
       expect(plan.strategy).toBe("SPLIT");
       expect(plan.vaultAllocations[0]?.amount).toBe(30_000_000n);
       expect(plan.vaultAllocations[1]?.amount).toBe(60_000_000n);
-      // Output[0] funds vault 0, output[1] funds vault 1
       expect(plan.splitTransaction?.outputs[0]?.amount).toBe(
-        30_000_000n + PEGIN_FEE_5,
+        30_000_000n + PEGIN_FEE_1_INPUT_5,
       );
       expect(plan.splitTransaction?.outputs[1]?.amount).toBe(
-        60_000_000n + PEGIN_FEE_5,
+        60_000_000n + PEGIN_FEE_1_INPUT_5,
       );
     });
 
-    it("MULTI_UTXO: uses only the 2 largest UTXOs even when more are available", () => {
-      // 5 UTXOs; only top 2 should be used
-      const utxos = [
-        makeUtxo(80_000_000, 0),
-        makeUtxo(70_000_000, 1),
-        makeUtxo(10_000_000, 2),
-        makeUtxo(10_000_000, 3),
-        makeUtxo(10_000_000, 4),
-      ];
-      const plan = planUtxoAllocation(
+    it("SPLIT: split tx inputs are ordered largest-first", () => {
+      // 2 UTXOs: [41M, 50M] (unsorted); vaults: 45M+45M
+      // MULTI_INPUT: vault 0 takes [50M] (50M ≥ 45M+775 ✓). Vault 1: only [41M] left.
+      //   41M < 45M+775=45,000,775 → MULTI_INPUT fails → falls through to SPLIT.
+      // SPLIT: selects [50M, 41M] (sorted largest-first). Total=91M ≥ totalNeeded ✓.
+      //   Inputs passed to createSplitTransaction = [50M, 41M].
+      const utxos = [makeUtxo(41_000_000, 0), makeUtxo(50_000_000, 1)];
+      planUtxoAllocation(
         utxos,
-        [70_000_000n, 60_000_000n],
+        [45_000_000n, 45_000_000n],
         FEE_RATE,
         CHANGE_ADDRESS,
       );
 
-      expect(plan.strategy).toBe("MULTI_UTXO");
-      // No split tx created
-      expect(mockCreateSplitTransaction).not.toHaveBeenCalled();
-      // Only 2 allocations, each with a UTXO
-      expect(plan.vaultAllocations[0]?.utxo).not.toBeNull();
-      expect(plan.vaultAllocations[1]?.utxo).not.toBeNull();
+      const [calledInputs] = mockCreateSplitTransaction.mock.calls[0] ?? [];
+      const values = (calledInputs as UTXO[]).map((u) => u.value);
+      expect(values).toEqual([50_000_000, 41_000_000]);
+    });
+
+    it("9×0.1 BTC UTXOs are insufficient for a 0.9 BTC pegin (both MULTI_INPUT and SPLIT fail)", () => {
+      // MULTI_INPUT: vault 0 needs 5 UTXOs (50M ≥ 45M+1935). Vault 1: only 4 left (40M < 45M+...) → fails
+      // SPLIT: 9×10M=90M; vaultOutputsTotal=90_001_550; splitFee(9,3,5)=3310; totalNeeded=90_004_860 > 90M → fails
+      const utxos = Array.from({ length: 9 }, (_, i) =>
+        makeUtxo(10_000_000, i),
+      );
+      expect(() =>
+        planUtxoAllocation(
+          utxos,
+          [45_000_000n, 45_000_000n],
+          FEE_RATE,
+          CHANGE_ADDRESS,
+        ),
+      ).toThrow(/Insufficient funds/);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Edge cases
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("edge cases", () => {
+    it("MULTI_INPUT pegin fee for 5 inputs is larger than for 1 input", () => {
+      expect(PEGIN_FEE_5_INPUTS_5).toBeGreaterThan(PEGIN_FEE_1_INPUT_5);
+      expect(PEGIN_FEE_2_INPUTS_5).toBeGreaterThan(PEGIN_FEE_1_INPUT_5);
+    });
+
+    it("SPLIT: vault output uses 1-input pegin fee buffer (not multi-input)", () => {
+      // With 1 UTXO → SPLIT. The vault output buffer must use 1-input peginFee (775),
+      // not the multi-input peginFee (1935), because split outputs are 1-input pegins.
+      const plan = planUtxoAllocation(
+        [makeUtxo(100_000_000)],
+        [47_500_000n, 47_500_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+      );
+
+      expect(plan.splitTransaction?.outputs[0]?.amount).toBe(
+        47_500_000n + PEGIN_FEE_1_INPUT_5,
+      );
     });
   });
 });

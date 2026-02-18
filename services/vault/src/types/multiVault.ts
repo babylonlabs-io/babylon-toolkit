@@ -10,11 +10,16 @@ import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 /**
  * Allocation strategy chosen by the UTXO allocation service.
  *
- * - SINGLE:     Single-vault deposit; standard flow handles UTXO selection.
- * - MULTI_UTXO: Two vaults, each funded by a separate existing UTXO (no split needed).
- * - SPLIT:      Two vaults, funded by splitting one UTXO into two outputs.
+ * - SINGLE:      Single-vault deposit; standard flow handles UTXO selection.
+ * - MULTI_INPUT: Two vaults, each funded by one or more existing UTXOs assigned
+ *                directly (no split transaction needed). Preferred over SPLIT because
+ *                it avoids the extra sign-and-broadcast step and associated fees.
+ * - SPLIT:       Two vaults, funded by first creating a Bitcoin split transaction
+ *                because the available UTXOs cannot be partitioned to independently
+ *                fund each vault (e.g. only 1 UTXO available, or combined UTXOs only
+ *                cover one vault at a time).
  */
-export type AllocationStrategy = "SINGLE" | "MULTI_UTXO" | "SPLIT";
+export type AllocationStrategy = "SINGLE" | "MULTI_INPUT" | "SPLIT";
 
 /**
  * Allocation plan for a single vault within a multi-vault deposit.
@@ -33,13 +38,14 @@ export interface VaultAllocation {
   amount: bigint;
 
   /**
-   * UTXO to use for this vault's pegin transaction.
+   * UTXOs assigned to this vault's pegin transaction.
    *
-   * - SINGLE strategy: `null` (standard flow selects its own UTXOs).
-   * - MULTI_UTXO strategy: the specific UTXO assigned to this vault.
-   * - SPLIT strategy: `null` (the pegin uses the split transaction output instead).
+   * - SINGLE strategy:      empty `[]` (standard flow selects its own UTXOs).
+   * - MULTI_INPUT strategy: one or more UTXOs whose combined value covers this
+   *                         vault's amount plus the estimated pegin fee.
+   * - SPLIT strategy:       empty `[]` (the pegin uses the split tx output instead).
    */
-  utxo: UTXO | null;
+  utxos: UTXO[];
 
   /** Whether this vault's pegin is funded from a split transaction output. */
   fromSplit: boolean;
@@ -54,10 +60,10 @@ export interface VaultAllocation {
 /**
  * Details of the Bitcoin split transaction used in the SPLIT strategy.
  *
- * The split transaction takes one (or more) input UTXOs and creates two outputs —
+ * The split transaction takes one or more input UTXOs and creates two outputs —
  * one for each vault — plus an optional change output. Each vault output carries
- * the vault amount plus a fee buffer so the subsequent pegin transaction can pay
- * its own fee.
+ * the vault amount plus a 1-input pegin fee buffer, because each split output is
+ * sized to be used as a single input in its subsequent pegin transaction.
  */
 export interface SplitTransaction {
   /** Input UTXOs consumed by the split transaction. */
