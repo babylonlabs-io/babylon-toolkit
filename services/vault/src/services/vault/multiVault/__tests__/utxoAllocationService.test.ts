@@ -32,7 +32,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   DUST_THRESHOLD: 546n,
 }));
 
-vi.mock("../../../config/pegin", () => ({
+vi.mock("../../../../config/pegin", () => ({
   getBTCNetworkForWASM: mockGetBTCNetworkForWASM,
 }));
 

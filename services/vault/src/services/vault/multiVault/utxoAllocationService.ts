@@ -45,12 +45,12 @@ import {
   TX_BUFFER_SIZE_OVERHEAD,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 
-import { getBTCNetworkForWASM } from "../../config/pegin";
+import { getBTCNetworkForWASM } from "../../../config/pegin";
 import type {
   AllocationPlan,
   SplitTransaction,
   VaultAllocation,
-} from "../../types/multiVault";
+} from "./types";
 
 // ============================================================================
 // Fee helpers

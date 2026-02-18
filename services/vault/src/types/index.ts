@@ -2,7 +2,6 @@ export * from "./activity";
 export * from "./activityLog";
 export * from "./application";
 export * from "./market";
-export * from "./multiVault";
 export * from "./position";
 export * from "./rpc";
 export * from "./vault";
