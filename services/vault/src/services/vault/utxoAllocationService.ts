@@ -43,7 +43,6 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type {
   AllocationPlan,
-  AllocationStrategy,
   SplitTransaction,
   VaultAllocation,
 } from "../../types/multiVault";
@@ -191,7 +190,7 @@ function selectUtxosForSplit(
 function planSingleAllocation(vaultAmount: bigint): AllocationPlan {
   return {
     needsSplit: false,
-    strategy: "SINGLE" as AllocationStrategy,
+    strategy: "SINGLE",
     vaultAllocations: [
       {
         vaultIndex: 0,
@@ -260,7 +259,7 @@ function tryPlanMultiUtxoAllocation(
 
   return {
     needsSplit: false,
-    strategy: "MULTI_UTXO" as AllocationStrategy,
+    strategy: "MULTI_UTXO",
     vaultAllocations: allocations,
   };
 }
@@ -353,7 +352,7 @@ function planSplitAllocation(
 
   return {
     needsSplit: true,
-    strategy: "SPLIT" as AllocationStrategy,
+    strategy: "SPLIT",
     splitTransaction,
     vaultAllocations,
   };
