@@ -52,6 +52,9 @@ export interface PendingPeginRequest {
     value: string; // Store as string for JSON serialization
     scriptPubKey: string;
   }>;
+  // Multi-vault tracking fields
+  batchId?: string; // UUID linking vaults created together (for MULTI_INPUT + SPLIT strategies)
+  splitTxId?: string; // Bitcoin split transaction hash (only for SPLIT strategy)
 }
 
 /**

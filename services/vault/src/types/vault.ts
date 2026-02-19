@@ -90,4 +90,13 @@ export interface Deposit {
   appName?: string;
   /** Timestamp in milliseconds since epoch */
   timestamp?: number;
+  // Multi-vault tracking fields
+  /** UUID for grouping related deposits (multi-vault deposits) */
+  batchId?: string;
+  /** Split transaction hash reference (only for SPLIT strategy) */
+  splitTxId?: string;
+  /** Position in batch (0 or 1 for 2-vault deposits) */
+  batchIndex?: number;
+  /** Total vaults in batch (2 for multi-vault deposits) */
+  batchTotal?: number;
 }
