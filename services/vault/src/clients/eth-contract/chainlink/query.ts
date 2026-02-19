@@ -11,6 +11,8 @@ import { getBTCNetwork } from "@babylonlabs-io/config";
 import { Network } from "@babylonlabs-io/wallet-connector";
 import type { Address } from "viem";
 
+import { ENV } from "@/config/env";
+
 import { ethClient } from "../client";
 
 type TokenSymbol = "BTC" | "ETH" | "USDC" | "USDT" | "DAI";
@@ -45,12 +47,16 @@ function getChainlinkFeedAddress(symbol: string): Address | null {
   const network = getBTCNetwork();
   const normalizedSymbol = symbol.toUpperCase();
 
-  if (normalizedSymbol === "WETH") {
-    return CHAINLINK_PRICE_FEEDS[network].ETH;
+  if (
+    normalizedSymbol === "BTC" ||
+    normalizedSymbol === "VBTC" ||
+    normalizedSymbol === "SBTC"
+  ) {
+    return ENV.BTC_PRICE_FEED ?? CHAINLINK_PRICE_FEEDS[network].BTC;
   }
 
-  if (normalizedSymbol === "VBTC" || normalizedSymbol === "SBTC") {
-    return CHAINLINK_PRICE_FEEDS[network].BTC;
+  if (normalizedSymbol === "WETH" || normalizedSymbol === "ETH") {
+    return CHAINLINK_PRICE_FEEDS[network].ETH;
   }
 
   const feeds = CHAINLINK_PRICE_FEEDS[network];

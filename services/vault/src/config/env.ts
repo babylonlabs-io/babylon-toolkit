@@ -16,6 +16,7 @@ interface EnvVars {
   AAVE_CONTROLLER: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string;
+  BTC_PRICE_FEED: Address | undefined;
 }
 
 interface EnvValidationResult {
@@ -39,6 +40,11 @@ function validateEnvVars(): EnvValidationResult {
     SIDECAR_API_URL: (
       process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
     ).replace(/\/$/, ""),
+
+    // Price feed oracle override (optional)
+    BTC_PRICE_FEED: process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED as
+      | Address
+      | undefined,
   };
 
   const requiredVars = [
@@ -67,6 +73,7 @@ function validateEnvVars(): EnvValidationResult {
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
         SIDECAR_API_URL: "",
+        BTC_PRICE_FEED: undefined,
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };
