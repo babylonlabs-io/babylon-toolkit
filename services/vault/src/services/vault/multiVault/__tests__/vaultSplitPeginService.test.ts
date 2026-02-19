@@ -167,12 +167,6 @@ function makeUtxo(txid: string, vout: number, value = 10_000_000): UTXO {
 /** 32 bytes = 64 hex chars — x-only pubkey (Taproot/Schnorr format) */
 const X_ONLY_PUBKEY = "aa".repeat(32);
 
-/** 33 bytes = 66 hex chars — compressed pubkey with even-y prefix (02) */
-const COMPRESSED_PUBKEY_02 = "02" + X_ONLY_PUBKEY;
-
-/** 33 bytes = 66 hex chars — compressed pubkey with odd-y prefix (03) */
-const COMPRESSED_PUBKEY_03 = "03" + X_ONLY_PUBKEY;
-
 const SPLIT_OUTPUT = makeUtxo("a".repeat(64), 0, 5_001_000);
 
 const CHANGE_ADDRESS = "tb1p" + "a".repeat(58);
@@ -206,26 +200,21 @@ const MOCK_FUNDED_TX_HEX = "funded-tx-hex";
 // ─── preparePeginFromSplitOutput ─────────────────────────────────────────────
 
 describe("preparePeginFromSplitOutput", () => {
-  let btcWallet: { getPublicKeyHex: Mock };
   let baseParams: PrepareSplitPeginParams;
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    btcWallet = {
-      getPublicKeyHex: vi.fn().mockResolvedValue(COMPRESSED_PUBKEY_02),
-    };
 
     baseParams = {
       pegInAmount: 5_000_000n,
       feeRate: 5,
       changeAddress: CHANGE_ADDRESS,
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
+      depositorBtcPubkey: X_ONLY_PUBKEY,
       vaultProviderBtcPubkey: VAULT_PROVIDER_BTC_PUBKEY,
       vaultKeeperBtcPubkeys: [...VAULT_KEEPER_PUBKEYS],
       universalChallengerBtcPubkeys: [...UNIVERSAL_CHALLENGER_PUBKEYS],
       splitOutput: SPLIT_OUTPUT,
-      btcWallet: btcWallet as any,
     };
 
     mockBuildPeginPsbt.mockResolvedValue(MOCK_PEGIN_PSBT);
@@ -234,25 +223,26 @@ describe("preparePeginFromSplitOutput", () => {
     mockGetNetwork.mockReturnValue({ network: "testnet" });
   });
 
-  // ── pubkey normalisation ──────────────────────────────────────────────────
+  // ── pubkey validation ──────────────────────────────────────────────────
 
-  describe("pubkey normalisation", () => {
-    it("strips leading byte from 66-char compressed pubkey (02 prefix)", async () => {
-      btcWallet.getPublicKeyHex.mockResolvedValue(COMPRESSED_PUBKEY_02);
+  describe("pubkey validation", () => {
+    it("accepts valid 64-char x-only pubkey", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
       expect(result.depositorBtcPubkey).toBe(X_ONLY_PUBKEY);
     });
 
-    it("strips leading byte from 66-char compressed pubkey (03 prefix)", async () => {
-      btcWallet.getPublicKeyHex.mockResolvedValue(COMPRESSED_PUBKEY_03);
-      const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.depositorBtcPubkey).toBe(X_ONLY_PUBKEY);
+    it("rejects pubkey with invalid length", async () => {
+      baseParams.depositorBtcPubkey = "aa".repeat(33); // 66 chars
+      await expect(preparePeginFromSplitOutput(baseParams)).rejects.toThrow(
+        "must be 64 hex characters",
+      );
     });
 
-    it("leaves 64-char x-only pubkey unchanged", async () => {
-      btcWallet.getPublicKeyHex.mockResolvedValue(X_ONLY_PUBKEY);
-      const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.depositorBtcPubkey).toBe(X_ONLY_PUBKEY);
+    it("rejects pubkey with invalid characters", async () => {
+      baseParams.depositorBtcPubkey = "zz".repeat(32); // invalid hex
+      await expect(preparePeginFromSplitOutput(baseParams)).rejects.toThrow(
+        "must be 64 hex characters",
+      );
     });
 
     it("strips 0x prefix from vaultProviderBtcPubkey", async () => {
@@ -405,8 +395,6 @@ describe("registerSplitPeginOnChain", () => {
       depositorBtcPubkey: X_ONLY_PUBKEY,
       unsignedBtcTx: "unsigned-tx-hex",
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
-      btcWallet: mockBtcWallet as any,
-      ethWallet: mockEthWallet as any,
       onPopSigned: undefined,
     };
 
@@ -420,14 +408,22 @@ describe("registerSplitPeginOnChain", () => {
 
   describe("PeginManager construction", () => {
     it("constructs PeginManager with correct config values", async () => {
-      await registerSplitPeginOnChain(baseParams);
+      await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
 
       // Verify PeginManager was instantiated once
       expect(mockRegisterPeginOnChain).toHaveBeenCalledTimes(1);
     });
 
     it("calls registerPeginOnChain on the PeginManager instance", async () => {
-      await registerSplitPeginOnChain(baseParams);
+      await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
       expect(mockRegisterPeginOnChain).toHaveBeenCalledTimes(1);
     });
   });
@@ -436,7 +432,11 @@ describe("registerSplitPeginOnChain", () => {
 
   describe("registerPeginOnChain delegation", () => {
     it("passes depositorBtcPubkey, unsignedBtcTx, and vaultProvider correctly", async () => {
-      await registerSplitPeginOnChain(baseParams);
+      await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
 
       expect(mockRegisterPeginOnChain).toHaveBeenCalledWith({
         depositorBtcPubkey: X_ONLY_PUBKEY,
@@ -450,7 +450,11 @@ describe("registerSplitPeginOnChain", () => {
       const onPopSigned = vi.fn();
       baseParams.onPopSigned = onPopSigned;
 
-      await registerSplitPeginOnChain(baseParams);
+      await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
 
       const callArg = mockRegisterPeginOnChain.mock.calls[0][0];
       expect(callArg.onPopSigned).toBe(onPopSigned);
@@ -461,12 +465,20 @@ describe("registerSplitPeginOnChain", () => {
 
   describe("return value", () => {
     it("returns ethTxHash unchanged from registerPeginOnChain result", async () => {
-      const result = await registerSplitPeginOnChain(baseParams);
+      const result = await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
       expect(result.ethTxHash).toBe("0xethtxhash");
     });
 
     it("returns vaultId unchanged from registerPeginOnChain result", async () => {
-      const result = await registerSplitPeginOnChain(baseParams);
+      const result = await registerSplitPeginOnChain(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
       expect(result.vaultId).toBe("0xvaultid");
     });
   });
@@ -479,7 +491,13 @@ describe("registerSplitPeginOnChain", () => {
         new Error("ETH transaction reverted"),
       );
 
-      await expect(registerSplitPeginOnChain(baseParams)).rejects.toThrow(
+      await expect(
+        registerSplitPeginOnChain(
+          mockBtcWallet as any,
+          mockEthWallet as any,
+          baseParams,
+        ),
+      ).rejects.toThrow(
         "Failed to register split pegin on-chain: ETH transaction reverted",
       );
     });
@@ -531,21 +549,19 @@ describe("broadcastPeginWithLocalUtxo", () => {
     tapInternalKey: Buffer.from(X_ONLY_PUBKEY, "hex"),
   };
 
-  let btcWallet: { signPsbt: Mock };
+  let mockSignPsbt: Mock;
   let baseParams: BroadcastSplitPeginParams;
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    btcWallet = {
-      signPsbt: vi.fn().mockResolvedValue("signed-psbt-hex"),
-    };
+    mockSignPsbt = vi.fn().mockResolvedValue("signed-psbt-hex");
 
     baseParams = {
       fundedTxHex: "funded-tx-hex",
       depositorBtcPubkey: X_ONLY_PUBKEY,
       splitOutputs: [SPLIT_OUTPUT],
-      btcWallet: btcWallet as any,
+      signPsbt: mockSignPsbt,
     };
 
     mockFromHex.mockReturnValue(makeFakeTx());
@@ -575,28 +591,28 @@ describe("broadcastPeginWithLocalUtxo", () => {
       );
     });
 
-    it("throws 'Invalid depositorBtcPubkey' for a pubkey shorter than 64 chars", async () => {
+    it("throws 'Invalid pubkey format' for a pubkey shorter than 64 chars", async () => {
       baseParams.depositorBtcPubkey = "aa".repeat(31); // 62 chars
 
       await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
-        "Invalid depositorBtcPubkey",
+        "Invalid pubkey format",
       );
     });
 
-    it("throws 'Invalid depositorBtcPubkey' for a pubkey longer than 64 chars", async () => {
+    it("throws 'Invalid pubkey format' for a pubkey longer than 64 chars", async () => {
       baseParams.depositorBtcPubkey = "aa".repeat(33); // 66 chars
 
       await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
-        "Invalid depositorBtcPubkey",
+        "Invalid pubkey format",
       );
     });
 
-    it("throws 'Invalid depositorBtcPubkey' for non-hex characters", async () => {
+    it("throws 'Invalid pubkey format' for non-hex characters", async () => {
       // 64 chars but contains "zz"
       baseParams.depositorBtcPubkey = "zz".repeat(1) + "aa".repeat(31);
 
       await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
-        "Invalid depositorBtcPubkey",
+        "Invalid pubkey format",
       );
     });
   });
@@ -768,9 +784,9 @@ describe("broadcastPeginWithLocalUtxo", () => {
   // ── signing and broadcast ─────────────────────────────────────────────────
 
   describe("signing and broadcast", () => {
-    it("calls btcWallet.signPsbt with the PSBT hex", async () => {
+    it("calls signPsbt with the PSBT hex", async () => {
       await broadcastPeginWithLocalUtxo(baseParams);
-      expect(btcWallet.signPsbt).toHaveBeenCalledWith("psbt-hex");
+      expect(mockSignPsbt).toHaveBeenCalledWith("psbt-hex");
     });
 
     it("calls pushTx with signed tx hex and mempool API URL", async () => {
@@ -800,7 +816,7 @@ describe("broadcastPeginWithLocalUtxo", () => {
     });
 
     it("wraps signing errors with 'Failed to broadcast split pegin transaction:'", async () => {
-      btcWallet.signPsbt.mockRejectedValue(new Error("user rejected signing"));
+      mockSignPsbt.mockRejectedValue(new Error("user rejected signing"));
 
       await expect(broadcastPeginWithLocalUtxo(baseParams)).rejects.toThrow(
         "Failed to broadcast split pegin transaction: user rejected signing",

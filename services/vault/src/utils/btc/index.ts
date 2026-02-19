@@ -5,7 +5,12 @@
  */
 
 export { BitcoinScriptType, getScriptType } from "./btcScriptType";
-export { processPublicKeyToXOnly, stripHexPrefix, toXOnly } from "./btcUtils";
+export {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+  toXOnly,
+  validateXOnlyPubkey,
+} from "./btcUtils";
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
 export {
   getPsbtInputFields,

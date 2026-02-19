@@ -38,7 +38,7 @@ import type { Address, Hex, WalletClient } from "viem";
 import { getMempoolApiUrl } from "../../../clients/btc/config";
 import { CONTRACTS } from "../../../config/contracts";
 import { getBTCNetworkForWASM } from "../../../config/pegin";
-import { processPublicKeyToXOnly, stripHexPrefix } from "../../../utils/btc";
+import { stripHexPrefix, validateXOnlyPubkey } from "../../../utils/btc";
 
 // ============================================================================
 // Types
@@ -53,6 +53,8 @@ export interface PrepareSplitPeginParams {
   changeAddress: string;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
+  /** Depositor's x-only BTC pubkey (64 hex chars, no "0x" prefix) */
+  depositorBtcPubkey: string;
   /** Vault provider BTC pubkey (x-only, 64 hex chars; "0x" prefix stripped automatically) */
   vaultProviderBtcPubkey: string;
   /** Vault keeper BTC public keys */
@@ -64,7 +66,6 @@ export interface PrepareSplitPeginParams {
    * Must include `txid`, `vout`, `value`, and `scriptPubKey`.
    */
   splitOutput: UTXO;
-  btcWallet: BitcoinWallet;
 }
 
 export interface PrepareSplitPeginResult {
@@ -91,8 +92,6 @@ export interface RegisterSplitPeginParams {
   unsignedBtcTx: string;
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
-  btcWallet: BitcoinWallet;
-  ethWallet: WalletClient;
   /**
    * Optional callback invoked after BIP-322 PoP signing but before the
    * Ethereum transaction. Useful for updating UI between signing steps.
@@ -118,7 +117,11 @@ export interface BroadcastSplitPeginParams {
    * No mempool lookup is performed — all UTXO data comes from here.
    */
   splitOutputs: UTXO[];
-  btcWallet: BitcoinWallet;
+  /**
+   * Function to sign a PSBT and return the signed PSBT hex.
+   * Should be bound to the wallet's signPsbt method.
+   */
+  signPsbt: (psbtHex: string) => Promise<string>;
 }
 
 // ============================================================================
@@ -133,13 +136,13 @@ export interface BroadcastSplitPeginParams {
  * it suitable for spending outputs from unconfirmed split transactions.
  *
  * Steps:
- *  1. Derive depositor's x-only BTC pubkey via `processPublicKeyToXOnly()`.
+ *  1. Validate depositor's x-only BTC pubkey format.
  *  2. Normalise all BTC pubkeys (strip "0x") via `stripHexPrefix()`.
  *  3. Build an unfunded PSBT with the vault output via `buildPeginPsbt()`.
  *  4. Select UTXOs (just the single split output) via `selectUtxosForPegin()`.
  *  5. Fund the transaction (add input + change) via `fundPeginTransaction()`.
  *
- * @param params - Pegin parameters including the local split output
+ * @param params - Pegin parameters including the local split output and depositor pubkey
  * @returns Unsigned funded transaction and associated metadata
  */
 export async function preparePeginFromSplitOutput(
@@ -149,9 +152,8 @@ export async function preparePeginFromSplitOutput(
     const network = getBTCNetworkForWASM();
     const btcNetwork = getNetwork(network);
 
-    // Step 1: Get depositor BTC public key, normalised to x-only (32 bytes, 64 hex chars)
-    const depositorBtcPubkeyRaw = await params.btcWallet.getPublicKeyHex();
-    const depositorBtcPubkey = processPublicKeyToXOnly(depositorBtcPubkeyRaw);
+    // Step 1: Validate depositor BTC public key (must be x-only: 32 bytes, 64 hex chars)
+    validateXOnlyPubkey(params.depositorBtcPubkey);
 
     // Step 2: Strip "0x" prefix from BTC public keys if present
     const vaultProviderBtcPubkey = stripHexPrefix(
@@ -164,7 +166,7 @@ export async function preparePeginFromSplitOutput(
 
     // Step 3: Build unfunded PSBT (creates vault output, no inputs yet)
     const peginPsbt = await buildPeginPsbt({
-      depositorPubkey: depositorBtcPubkey,
+      depositorPubkey: params.depositorBtcPubkey,
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
@@ -195,7 +197,7 @@ export async function preparePeginFromSplitOutput(
       selectedUTXOs: utxoSelection.selectedUTXOs,
       fee: utxoSelection.fee,
       changeAmount: utxoSelection.changeAmount,
-      depositorBtcPubkey,
+      depositorBtcPubkey: params.depositorBtcPubkey,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -216,17 +218,21 @@ export async function preparePeginFromSplitOutput(
  *
  * This step does **not** interact with the Bitcoin mempool.
  *
- * @param params - Registration parameters including wallets and unsigned BTC tx
+ * @param btcWallet - Bitcoin wallet for signing BIP-322 PoP
+ * @param ethWallet - Ethereum wallet client for submitting transaction
+ * @param params - Registration parameters including depositor pubkey and unsigned BTC tx
  * @returns Ethereum transaction hash and vault ID (primary identifier)
  */
 export async function registerSplitPeginOnChain(
+  btcWallet: BitcoinWallet,
+  ethWallet: WalletClient,
   params: RegisterSplitPeginParams,
 ): Promise<RegisterSplitPeginResult> {
   try {
     const peginManager = new PeginManager({
       btcNetwork: getBTCNetworkForWASM(),
-      btcWallet: params.btcWallet,
-      ethWallet: params.ethWallet,
+      btcWallet,
+      ethWallet,
       ethChain: getETHChain(),
       vaultContracts: {
         btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
@@ -265,17 +271,17 @@ export async function registerSplitPeginOnChain(
  *  2. Create a PSBT with version and locktime from the original transaction.
  *  3. For each input, look up the corresponding split output to get its
  *     `value` and `scriptPubKey` without any mempool fetch.
- *  4. Sign the PSBT via the BTC wallet.
+ *  4. Sign the PSBT via the wallet's signPsbt function.
  *  5. Finalize and broadcast to the Bitcoin network.
  *
- * @param params - Broadcast parameters including local split output data
+ * @param params - Broadcast parameters including local split output data and signPsbt function
  * @returns The broadcasted Bitcoin transaction ID
  * @throws Error if a matching split output cannot be found for any input
  */
 export async function broadcastPeginWithLocalUtxo(
   params: BroadcastSplitPeginParams,
 ): Promise<string> {
-  const { fundedTxHex, depositorBtcPubkey, splitOutputs, btcWallet } = params;
+  const { fundedTxHex, depositorBtcPubkey, splitOutputs, signPsbt } = params;
 
   try {
     // Number of hex chars to show per txid in error messages (4 bytes = readable, unambiguous enough)
@@ -295,12 +301,7 @@ export async function broadcastPeginWithLocalUtxo(
 
     // Step 3: Validate and prepare x-only public key for Taproot signing
     const xOnlyPubkey = stripHexPrefix(depositorBtcPubkey);
-
-    if (!/^[0-9a-fA-F]{64}$/.test(xOnlyPubkey)) {
-      throw new Error(
-        "Invalid depositorBtcPubkey: expected 64 hex characters (x-only pubkey)",
-      );
-    }
+    validateXOnlyPubkey(xOnlyPubkey);
     const publicKeyNoCoord = Buffer.from(xOnlyPubkey, "hex");
 
     // Step 4: Add inputs using LOCAL UTXO data — no mempool fetch
@@ -351,8 +352,8 @@ export async function broadcastPeginWithLocalUtxo(
       });
     }
 
-    // Step 6: Sign PSBT via wallet
-    const signedPsbtHex = await btcWallet.signPsbt(psbt.toHex());
+    // Step 6: Sign PSBT via wallet's signPsbt function
+    const signedPsbtHex = await signPsbt(psbt.toHex());
     const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
     // Step 7: Finalize inputs (some wallets finalize automatically)
