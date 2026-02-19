@@ -55,6 +55,8 @@ export interface PendingPeginRequest {
   // Multi-vault tracking fields
   batchId?: string; // UUID linking vaults created together (for MULTI_INPUT + SPLIT strategies)
   splitTxId?: string; // Bitcoin split transaction hash (only for SPLIT strategy)
+  batchIndex?: number; // Position in batch (1-based: 1 or 2)
+  batchTotal?: number; // Total vaults in batch (1 or 2)
 }
 
 /**

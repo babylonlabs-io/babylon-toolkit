@@ -494,6 +494,8 @@ export function useMultiVaultDepositFlow(
               applicationController: selectedApplication,
               batchId, // Links to batch
               splitTxId: splitTxResult?.txid, // Split TX ID (if used)
+              batchIndex: peginResult.vaultIndex + 1, // 1-based position for UI display
+              batchTotal: vaultAmounts.length, // Total vaults in this batch
             });
           }
         }

@@ -447,6 +447,8 @@ describe("useMultiVaultDepositFlow", () => {
           expect.objectContaining({
             batchId: "mock-batch-id-uuid",
             splitTxId: undefined, // No split TX
+            batchIndex: 1, // First vault
+            batchTotal: 1, // Single vault
           }),
         );
       });
@@ -587,11 +589,24 @@ describe("useMultiVaultDepositFlow", () => {
       });
 
       // Both should have same batchId, no splitTxId
-      expect(addPendingPegin).toHaveBeenCalledWith(
+      expect(addPendingPegin).toHaveBeenNthCalledWith(
+        1,
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
           splitTxId: undefined,
+          batchIndex: 1, // First vault
+          batchTotal: 2, // Two vaults
+        }),
+      );
+      expect(addPendingPegin).toHaveBeenNthCalledWith(
+        2,
+        "0xEthAddress123",
+        expect.objectContaining({
+          batchId: "mock-batch-id-uuid",
+          splitTxId: undefined,
+          batchIndex: 2, // Second vault
+          batchTotal: 2, // Two vaults
         }),
       );
     });
@@ -716,11 +731,24 @@ describe("useMultiVaultDepositFlow", () => {
       });
 
       // Both should have batchId AND splitTxId
-      expect(addPendingPegin).toHaveBeenCalledWith(
+      expect(addPendingPegin).toHaveBeenNthCalledWith(
+        1,
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
           splitTxId: "splitTxId" + "0".repeat(56),
+          batchIndex: 1, // First vault
+          batchTotal: 2, // Two vaults
+        }),
+      );
+      expect(addPendingPegin).toHaveBeenNthCalledWith(
+        2,
+        "0xEthAddress123",
+        expect.objectContaining({
+          batchId: "mock-batch-id-uuid",
+          splitTxId: "splitTxId" + "0".repeat(56),
+          batchIndex: 2, // Second vault
+          batchTotal: 2, // Two vaults
         }),
       );
     });
