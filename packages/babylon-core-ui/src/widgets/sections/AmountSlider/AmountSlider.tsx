@@ -94,7 +94,7 @@ export function AmountSlider({
       <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-2">
           <img src={currencyIcon} alt={currencyName} className="h-10 w-10" />
-          <span className="text-lg text-accent-primary">{currencyName}</span>
+          <span className="whitespace-nowrap text-lg text-accent-primary">{currencyName}</span>
         </div>
         <input
           type="number"

@@ -19,6 +19,7 @@ import { useGeoFencing } from "@/context/geofencing";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { GeoBlockBanner } from "../shared/GeoBlockBanner";
+import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
 const btcConfig = getNetworkConfigBTC();
@@ -117,6 +118,7 @@ export default function RootLayout() {
           }
         />
         <Outlet />
+        <SimpleDeposit open={isDepositPage} onClose={() => navigate(-1)} />
         <div className="mt-auto">
           <Footer
             socialLinks={DEFAULT_SOCIAL_LINKS}

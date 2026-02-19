@@ -13,7 +13,7 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
@@ -98,6 +98,11 @@ export function useDepositFlow(
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
   }, []);
+
+  // Abort any running flow on unmount so async work doesn't leak
+  useEffect(() => {
+    return () => abort();
+  }, [abort]);
 
   // Hooks
   const btcConnector = useChainConnector("BTC");
