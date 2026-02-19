@@ -9,3 +9,9 @@ export {
   verifyMnemonicWords,
 } from "./lamportService";
 export type { LamportKeypair, VerificationChallenge } from "./lamportService";
+export {
+  clearStoredMnemonic,
+  hasStoredMnemonic,
+  storeMnemonic,
+  unlockMnemonic,
+} from "./mnemonicVaultService";

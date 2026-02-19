@@ -1,16 +1,22 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   createVerificationChallenge,
   generateLamportMnemonic,
   getMnemonicWords,
+  hasStoredMnemonic,
   isValidMnemonic,
+  storeMnemonic,
+  unlockMnemonic,
   verifyMnemonicWords,
   type VerificationChallenge,
 } from "@/services/lamport";
 
 export enum MnemonicStep {
+  LOADING = "loading",
+  UNLOCK = "unlock",
   GENERATE = "generate",
+  SET_PASSWORD = "set_password",
   VERIFY = "verify",
   IMPORT = "import",
   COMPLETE = "complete",
@@ -22,42 +28,52 @@ interface MnemonicFlowState {
   words: string[];
   challenge: VerificationChallenge | null;
   error: string | null;
-  isNewMnemonic: boolean;
+  hasStored: boolean;
 }
 
 export function useMnemonicFlow() {
   const [state, setState] = useState<MnemonicFlowState>({
-    step: MnemonicStep.GENERATE,
+    step: MnemonicStep.LOADING,
     mnemonic: "",
     words: [],
     challenge: null,
     error: null,
-    isNewMnemonic: true,
+    hasStored: false,
   });
+
+  useEffect(() => {
+    hasStoredMnemonic().then((stored) => {
+      setState((prev) => ({
+        ...prev,
+        hasStored: stored,
+        step: stored ? MnemonicStep.UNLOCK : MnemonicStep.GENERATE,
+      }));
+    });
+  }, []);
 
   const startNewMnemonic = useCallback(() => {
     const mnemonic = generateLamportMnemonic();
     const words = getMnemonicWords(mnemonic);
 
-    setState({
+    setState((prev) => ({
+      ...prev,
       step: MnemonicStep.GENERATE,
       mnemonic,
       words,
       challenge: null,
       error: null,
-      isNewMnemonic: true,
-    });
+    }));
   }, []);
 
   const startImportMnemonic = useCallback(() => {
-    setState({
+    setState((prev) => ({
+      ...prev,
       step: MnemonicStep.IMPORT,
       mnemonic: "",
       words: [],
       challenge: null,
       error: null,
-      isNewMnemonic: false,
-    });
+    }));
   }, []);
 
   const proceedToVerification = useCallback(() => {
@@ -78,7 +94,7 @@ export function useMnemonicFlow() {
       if (isValid) {
         setState((prev) => ({
           ...prev,
-          step: MnemonicStep.COMPLETE,
+          step: MnemonicStep.SET_PASSWORD,
           error: null,
         }));
       } else {
@@ -90,6 +106,45 @@ export function useMnemonicFlow() {
     },
     [state.challenge],
   );
+
+  const submitPassword = useCallback(
+    async (password: string) => {
+      try {
+        await storeMnemonic(state.mnemonic, password);
+        setState((prev) => ({
+          ...prev,
+          step: MnemonicStep.COMPLETE,
+          hasStored: true,
+          error: null,
+        }));
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          error: "Failed to encrypt and store mnemonic.",
+        }));
+      }
+    },
+    [state.mnemonic],
+  );
+
+  const submitUnlock = useCallback(async (password: string) => {
+    try {
+      const mnemonic = await unlockMnemonic(password);
+      const words = getMnemonicWords(mnemonic);
+      setState((prev) => ({
+        ...prev,
+        step: MnemonicStep.COMPLETE,
+        mnemonic,
+        words,
+        error: null,
+      }));
+    } catch {
+      setState((prev) => ({
+        ...prev,
+        error: "Incorrect password. Please try again.",
+      }));
+    }
+  }, []);
 
   const submitImportedMnemonic = useCallback((mnemonic: string) => {
     const trimmed = mnemonic.trim().toLowerCase();
@@ -103,14 +158,14 @@ export function useMnemonicFlow() {
     }
 
     const words = getMnemonicWords(trimmed);
-    setState({
-      step: MnemonicStep.COMPLETE,
+    setState((prev) => ({
+      ...prev,
+      step: MnemonicStep.SET_PASSWORD,
       mnemonic: trimmed,
       words,
       challenge: null,
       error: null,
-      isNewMnemonic: false,
-    });
+    }));
   }, []);
 
   const reset = useCallback(() => {
@@ -120,7 +175,7 @@ export function useMnemonicFlow() {
       words: [],
       challenge: null,
       error: null,
-      isNewMnemonic: true,
+      hasStored: false,
     });
   }, []);
 
@@ -130,6 +185,8 @@ export function useMnemonicFlow() {
     startImportMnemonic,
     proceedToVerification,
     submitVerification,
+    submitPassword,
+    submitUnlock,
     submitImportedMnemonic,
     reset,
   };

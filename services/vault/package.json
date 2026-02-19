@@ -29,6 +29,7 @@
     "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@metamask/browser-passworder": "^6.0.0",
     "@noble/hashes": "^2.0.1",
     "@scure/bip32": "1.4.0",
     "@scure/bip39": "^2.0.1",

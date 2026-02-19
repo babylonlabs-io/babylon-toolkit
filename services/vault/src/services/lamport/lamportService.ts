@@ -1,5 +1,4 @@
 import { ripemd160 } from "@noble/hashes/legacy.js";
-import { HDKey } from "@scure/bip32";
 import {
   generateMnemonic,
   mnemonicToSeedSync,
@@ -7,7 +6,6 @@ import {
 } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 
-const LAMPORT_PURPOSE = 13973;
 const LAMPORT_KEY_SLOTS = 512;
 const GC_LABEL_SIZE = 16;
 
@@ -65,6 +63,36 @@ export function verifyMnemonicWords(
   );
 }
 
+function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+
+function stringToBytes(str: string): Uint8Array {
+  return new TextEncoder().encode(str);
+}
+
+async function hmacSha512(
+  key: Uint8Array,
+  data: Uint8Array,
+): Promise<Uint8Array> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    key,
+    { name: "HMAC", hash: "SHA-512" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, data);
+  return new Uint8Array(signature);
+}
+
 async function sha256(data: Uint8Array): Promise<Uint8Array> {
   const hash = await crypto.subtle.digest(
     "SHA-256",
@@ -78,14 +106,6 @@ async function hash160(data: Uint8Array): Promise<Uint8Array> {
   return ripemd160(sha);
 }
 
-function peginIdToIndex(peginId: string): number {
-  let hash = 0;
-  for (let i = 0; i < peginId.length; i++) {
-    hash = (hash * 31 + peginId.charCodeAt(i)) >>> 0;
-  }
-  return hash % 2147483647;
-}
-
 export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
   const seed = mnemonicToSeedSync(mnemonic);
   return new Uint8Array(seed);
@@ -93,27 +113,33 @@ export function mnemonicToLamportSeed(mnemonic: string): Uint8Array {
 
 export async function deriveLamportKeypair(
   seed: Uint8Array,
-  peginId: string,
+  vaultId: string,
   depositorPk: string,
-  appContractAddress: string,
 ): Promise<LamportKeypair> {
-  const master = HDKey.fromMasterSeed(seed);
+  const chainCode = seed.slice(32, 64);
+  const parentKey = seed.slice(0, 32);
 
-  const peginIndex = peginIdToIndex(peginId);
-  const depositorIndex = peginIdToIndex(depositorPk);
-  const appIndex = peginIdToIndex(appContractAddress);
+  const vaultData = concatBytes(
+    stringToBytes(vaultId),
+    stringToBytes(depositorPk),
+  );
+
+  const hmac = await hmacSha512(chainCode, concatBytes(parentKey, vaultData));
+  const derivedKey = hmac.slice(0, 32);
+  const derivedChainCode = hmac.slice(32, 64);
 
   const privateKey: Uint8Array[] = [];
   const publicKey: Uint8Array[] = [];
 
   for (let i = 0; i < LAMPORT_KEY_SLOTS; i++) {
-    const child = master.derive(
-      `m/${LAMPORT_PURPOSE}'/${appIndex}'/${depositorIndex}'/${peginIndex}'/${i}`,
+    const indexBytes = new Uint8Array(4);
+    new DataView(indexBytes.buffer).setUint32(0, i, false);
+
+    const slotHmac = await hmacSha512(
+      derivedChainCode,
+      concatBytes(derivedKey, indexBytes),
     );
-    if (!child.privateKey) {
-      throw new Error(`Failed to derive key at index ${i}`);
-    }
-    const privateValue = child.privateKey.slice(0, GC_LABEL_SIZE);
+    const privateValue = slotHmac.slice(0, GC_LABEL_SIZE);
     const publicValue = await hash160(privateValue);
     privateKey.push(privateValue);
     publicKey.push(publicValue);

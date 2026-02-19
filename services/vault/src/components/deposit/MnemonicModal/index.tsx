@@ -3,6 +3,7 @@ import {
   DialogBody,
   DialogFooter,
   DialogHeader,
+  Loader,
   ResponsiveDialog,
   Text,
   Warning,
@@ -12,6 +13,8 @@ import { useEffect } from "react";
 import { MnemonicStep, useMnemonicFlow } from "@/hooks/deposit/useMnemonicFlow";
 
 import { ImportForm } from "./ImportForm";
+import { PasswordForm } from "./PasswordForm";
+import { UnlockForm } from "./UnlockForm";
 import { VerificationForm } from "./VerificationForm";
 import { WordGrid } from "./WordGrid";
 
@@ -28,23 +31,31 @@ export function MnemonicModal({
 }: MnemonicModalProps) {
   const {
     step,
-    mnemonic,
     words,
     challenge,
     error,
+    hasStored,
     startNewMnemonic,
     startImportMnemonic,
     proceedToVerification,
     submitVerification,
+    submitPassword,
+    submitUnlock,
     submitImportedMnemonic,
     reset,
   } = useMnemonicFlow();
 
   useEffect(() => {
-    if (open && !mnemonic) {
+    if (open && step === MnemonicStep.LOADING) return;
+    if (
+      open &&
+      !hasStored &&
+      step === MnemonicStep.GENERATE &&
+      words.length === 0
+    ) {
       startNewMnemonic();
     }
-  }, [open, mnemonic, startNewMnemonic]);
+  }, [open, step, hasStored, words.length, startNewMnemonic]);
 
   useEffect(() => {
     if (step === MnemonicStep.COMPLETE) {
@@ -57,22 +68,39 @@ export function MnemonicModal({
     onClose();
   };
 
-  const title =
-    step === MnemonicStep.IMPORT
-      ? "Import Recovery Phrase"
-      : step === MnemonicStep.VERIFY
-        ? "Verify Recovery Phrase"
-        : "Save Your Recovery Phrase";
+  const titleMap: Record<string, string> = {
+    [MnemonicStep.LOADING]: "Recovery Phrase",
+    [MnemonicStep.UNLOCK]: "Unlock Recovery Phrase",
+    [MnemonicStep.GENERATE]: "Save Your Recovery Phrase",
+    [MnemonicStep.SET_PASSWORD]: "Set Password",
+    [MnemonicStep.VERIFY]: "Verify Recovery Phrase",
+    [MnemonicStep.IMPORT]: "Import Recovery Phrase",
+    [MnemonicStep.COMPLETE]: "Recovery Phrase",
+  };
 
   return (
     <ResponsiveDialog open={open} onClose={handleClose}>
       <DialogHeader
-        title={title}
+        title={titleMap[step] ?? "Recovery Phrase"}
         onClose={handleClose}
         className="text-accent-primary"
       />
 
       <DialogBody className="flex flex-col gap-4 px-4 pb-4 pt-4 text-accent-primary sm:px-6">
+        {step === MnemonicStep.LOADING && (
+          <div className="flex items-center justify-center py-8">
+            <Loader size={24} />
+          </div>
+        )}
+
+        {step === MnemonicStep.UNLOCK && (
+          <UnlockForm
+            error={error}
+            onSubmit={submitUnlock}
+            onForgot={startImportMnemonic}
+          />
+        )}
+
         {step === MnemonicStep.GENERATE && (
           <>
             <Text variant="body2" className="text-accent-secondary">
@@ -100,11 +128,15 @@ export function MnemonicModal({
           />
         )}
 
+        {step === MnemonicStep.SET_PASSWORD && (
+          <PasswordForm error={error} onSubmit={submitPassword} />
+        )}
+
         {step === MnemonicStep.IMPORT && (
           <ImportForm
             error={error}
             onSubmit={submitImportedMnemonic}
-            onBack={startNewMnemonic}
+            onBack={hasStored ? () => reset() : startNewMnemonic}
           />
         )}
       </DialogBody>

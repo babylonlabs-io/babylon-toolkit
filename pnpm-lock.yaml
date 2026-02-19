@@ -913,6 +913,9 @@ importers:
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
+      '@metamask/browser-passworder':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@noble/hashes':
         specifier: ^2.0.1
         version: 2.0.1
@@ -2843,6 +2846,10 @@ packages:
     peerDependencies:
       '@types/react': '>=16'
       react: '>=16'
+
+  '@metamask/browser-passworder@6.0.0':
+    resolution: {integrity: sha512-/LhNSOu8ThLtIOLKrHhXS4D0SuseK731tWH+1GxI6FO9j0XQtJvPdMw89EEXwCd8mA5iFUK/cU6kxsszfH7GaQ==}
+    engines: {node: ^18.18 || ^20.14 || >=22}
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     resolution: {integrity: sha512-whiUMPlAOrVGmX8aKYVPvlKyG4CpQXiNNyt74vE1xb5sPvmx5oA7B/kOi/JdBvhGQq97U1/AVdXEdk2zkP8qyA==}
@@ -12977,6 +12984,12 @@ snapshots:
       '@types/mdx': 2.0.13
       '@types/react': 18.3.23
       react: 18.3.1
+
+  '@metamask/browser-passworder@6.0.0':
+    dependencies:
+      '@metamask/utils': 11.8.1
+    transitivePeerDependencies:
+      - supports-color
 
   '@metamask/eth-json-rpc-provider@1.0.1':
     dependencies:
