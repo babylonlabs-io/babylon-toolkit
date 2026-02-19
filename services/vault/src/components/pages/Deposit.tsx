@@ -59,6 +59,8 @@ function DepositContent() {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     startDeposit,
+    confirmSplitUtxo,
+    skipSplitUtxo,
     confirmReview,
     onSignSuccess,
     resetDeposit,
@@ -175,6 +177,8 @@ function DepositContent() {
         vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
         universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
         onClose={resetDeposit}
+        onConfirmSplitUtxo={confirmSplitUtxo}
+        onSkipSplitUtxo={skipSplitUtxo}
         onConfirmReview={confirmReview}
         onSignSuccess={onSignSuccess}
         onRefetchActivities={refetchActivities}

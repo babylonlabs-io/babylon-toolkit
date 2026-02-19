@@ -10,6 +10,7 @@ import { DepositStep } from "../../../context/deposit/DepositState";
 import { CollateralDepositReviewModal } from "../../deposit/DepositReviewModal";
 import { CollateralDepositSignModal } from "../../deposit/DepositSignModal";
 import { CollateralDepositSuccessModal } from "../../deposit/DepositSuccessModal";
+import { SplitUtxoModal } from "../../deposit/SplitUtxoModal";
 
 interface DepositModalsProps {
   depositStep: DepositStep | undefined;
@@ -23,6 +24,8 @@ interface DepositModalsProps {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   onClose: () => void;
+  onConfirmSplitUtxo: () => void;
+  onSkipSplitUtxo: () => void;
   onConfirmReview: (feeRate: number) => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   onRefetchActivities: () => Promise<void>;
@@ -40,12 +43,22 @@ export function DepositModals({
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   onClose,
+  onConfirmSplitUtxo,
+  onSkipSplitUtxo,
   onConfirmReview,
   onSignSuccess,
   onRefetchActivities,
 }: DepositModalsProps) {
   return (
     <>
+      {depositStep === DepositStep.SPLIT_UTXO && (
+        <SplitUtxoModal
+          open
+          onClose={onClose}
+          onContinueToSplit={onConfirmSplitUtxo}
+          onDoNotSplit={onSkipSplitUtxo}
+        />
+      )}
       {depositStep === DepositStep.REVIEW && (
         <CollateralDepositReviewModal
           open
