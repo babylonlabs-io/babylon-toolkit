@@ -8,13 +8,11 @@ import { useMemo } from "react";
 
 import { getNetworkConfigBTC } from "@/config";
 
-import { depositService } from "../../../services/deposit";
-
 const btcConfig = getNetworkConfigBTC();
 
 interface DepositAmountSectionProps {
   amount: string;
-  btcBalance: bigint;
+  btcBalanceFormatted: number;
   btcPrice: number;
   error?: string;
   completed?: boolean;
@@ -25,7 +23,7 @@ interface DepositAmountSectionProps {
 
 export function DepositAmountSection({
   amount,
-  btcBalance,
+  btcBalanceFormatted,
   btcPrice,
   error,
   completed,
@@ -33,11 +31,6 @@ export function DepositAmountSection({
   onAmountBlur,
   onMaxClick,
 }: DepositAmountSectionProps) {
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
-  }, [btcBalance]);
-
   const amountUsd = useMemo(() => {
     if (!btcPrice || !amount || amount === "0") return "";
     const btcNum = parseFloat(amount);

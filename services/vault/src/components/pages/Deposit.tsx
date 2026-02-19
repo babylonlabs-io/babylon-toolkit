@@ -33,7 +33,6 @@ function DepositContent() {
     errors,
     isValid,
     isWalletConnected,
-    btcBalance,
     btcBalanceFormatted,
     btcPrice,
     applications,
@@ -91,7 +90,7 @@ function DepositContent() {
           <div className="flex flex-col gap-6">
             <DepositAmountSection
               amount={formData.amountBtc}
-              btcBalance={btcBalance}
+              btcBalanceFormatted={btcBalanceFormatted}
               btcPrice={btcPrice}
               error={errors.amount}
               completed={formData.amountBtc !== "" && !errors.amount}
