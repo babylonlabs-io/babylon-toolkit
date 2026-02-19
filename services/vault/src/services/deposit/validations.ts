@@ -273,3 +273,146 @@ export function validateDepositInputs(params: DepositFlowInputs): void {
     throw new Error("No confirmed UTXOs available");
   }
 }
+
+// ============================================================================
+// Multi-Vault Deposit Validations
+// ============================================================================
+
+/**
+ * Parameters for validating multi-vault deposit flow inputs
+ */
+export interface MultiVaultDepositFlowInputs {
+  btcAddress: string | undefined;
+  depositorEthAddress: Address | undefined;
+  vaultAmounts: bigint[];
+  selectedProviders: string[];
+  confirmedUTXOs: UTXO[] | null;
+  isUTXOsLoading: boolean;
+  utxoError: Error | null;
+  vaultProviderBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
+}
+
+/**
+ * Validate vault amounts array for multi-vault deposits
+ * @param amounts - Array of vault amounts in satoshis
+ * @returns Validation result
+ */
+export function validateVaultAmounts(amounts: bigint[]): ValidationResult {
+  if (!amounts || amounts.length === 0) {
+    return {
+      valid: false,
+      error: "At least one vault amount required",
+    };
+  }
+
+  if (amounts.length > 2) {
+    return {
+      valid: false,
+      error: "Maximum 2 vaults supported",
+    };
+  }
+
+  if (amounts.some((amount) => amount <= 0n)) {
+    return {
+      valid: false,
+      error: "All vault amounts must be positive",
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate vault provider BTC public key format
+ * @param pubkey - Vault provider BTC public key (with or without 0x prefix)
+ * @returns Validation result
+ */
+export function validateVaultProviderPubkey(pubkey: string): ValidationResult {
+  // Strip 0x prefix if present
+  const stripped = pubkey.startsWith("0x") ? pubkey.slice(2) : pubkey;
+
+  if (!stripped || stripped.length !== 64) {
+    return {
+      valid: false,
+      error: "Invalid vault provider BTC pubkey: expected 64-char hex string",
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Validate all multi-vault deposit inputs before starting the flow.
+ * Throws an error if any validation fails.
+ */
+export function validateMultiVaultDepositInputs(
+  params: MultiVaultDepositFlowInputs,
+): void {
+  const {
+    btcAddress,
+    depositorEthAddress,
+    vaultAmounts,
+    selectedProviders,
+    confirmedUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+  } = params;
+
+  // 1. Wallet connection
+  if (!btcAddress) {
+    throw new Error("BTC wallet not connected");
+  }
+  if (!depositorEthAddress) {
+    throw new Error("ETH wallet not connected");
+  }
+
+  // 2. Vault amounts (multi-vault specific)
+  const amountsValidation = validateVaultAmounts(vaultAmounts);
+  if (!amountsValidation.valid) {
+    throw new Error(amountsValidation.error);
+  }
+
+  // 3. Selected providers
+  if (!selectedProviders || selectedProviders.length === 0) {
+    throw new Error("At least one vault provider required");
+  }
+
+  // 4. Vault provider pubkey (multi-vault specific)
+  const pubkeyValidation = validateVaultProviderPubkey(vaultProviderBtcPubkey);
+  if (!pubkeyValidation.valid) {
+    throw new Error(pubkeyValidation.error);
+  }
+
+  // 5. Vault keepers
+  if (!vaultKeeperBtcPubkeys || vaultKeeperBtcPubkeys.length === 0) {
+    throw new Error(
+      "No vault keepers available. The system requires at least one vault keeper to create a deposit.",
+    );
+  }
+
+  // 6. Universal challengers
+  if (
+    !universalChallengerBtcPubkeys ||
+    universalChallengerBtcPubkeys.length === 0
+  ) {
+    throw new Error(
+      "No universal challengers available. The system requires at least one universal challenger to create a deposit.",
+    );
+  }
+
+  // 7. UTXOs
+  if (isUTXOsLoading) {
+    throw new Error("Loading UTXOs...");
+  }
+  if (utxoError) {
+    throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
+  }
+  if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+    throw new Error("No spendable UTXOs available");
+  }
+}

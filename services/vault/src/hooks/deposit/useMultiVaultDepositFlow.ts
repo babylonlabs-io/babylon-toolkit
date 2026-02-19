@@ -35,6 +35,7 @@ import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
+import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
   broadcastPeginWithLocalUtxo,
   planUtxoAllocation,
@@ -236,7 +237,11 @@ export function useMultiVaultDepositFlow(
   // Hooks
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const { spendableUTXOs } = useUTXOs(btcAddress);
+  const {
+    spendableUTXOs,
+    isLoading: isUTXOsLoading,
+    error: utxoError,
+  } = useUTXOs(btcAddress);
   const { latestUniversalChallengers } = useProtocolParamsContext();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
 
@@ -255,47 +260,22 @@ export function useMultiVaultDepositFlow(
         // Step 0: Validation
         // ========================================================================
 
-        if (!btcAddress || !depositorEthAddress) {
-          throw new Error("Wallet not connected");
-        }
+        validateMultiVaultDepositInputs({
+          btcAddress,
+          depositorEthAddress,
+          vaultAmounts,
+          selectedProviders,
+          confirmedUTXOs: spendableUTXOs,
+          isUTXOsLoading,
+          utxoError,
+          vaultProviderBtcPubkey,
+          vaultKeeperBtcPubkeys,
+          universalChallengerBtcPubkeys,
+        });
 
-        if (!spendableUTXOs || spendableUTXOs.length === 0) {
-          throw new Error("No spendable UTXOs available");
-        }
-
-        // Validate vault amounts
-        if (!vaultAmounts || vaultAmounts.length === 0) {
-          throw new Error("At least one vault amount required");
-        }
-
-        if (vaultAmounts.length > 2) {
-          throw new Error("Maximum 2 vaults supported");
-        }
-
-        if (vaultAmounts.some((amount) => amount <= 0n)) {
-          throw new Error("All vault amounts must be positive");
-        }
-
-        // Validate selected providers
-        if (!selectedProviders || selectedProviders.length === 0) {
-          throw new Error("At least one vault provider required");
-        }
-
-        // Validate vault provider pubkey
-        const vaultProviderPubkeyStripped = vaultProviderBtcPubkey.startsWith(
-          "0x",
-        )
-          ? vaultProviderBtcPubkey.slice(2)
-          : vaultProviderBtcPubkey;
-
-        if (
-          !vaultProviderPubkeyStripped ||
-          vaultProviderPubkeyStripped.length !== 64
-        ) {
-          throw new Error(
-            "Invalid vault provider BTC pubkey: expected 64-char hex string",
-          );
-        }
+        // After validation, these values are guaranteed to be defined
+        const confirmedBtcAddress = btcAddress!;
+        const confirmedEthAddress = depositorEthAddress!;
 
         // Generate batch ID for tracking
         const batchId = uuidv4();
@@ -308,7 +288,7 @@ export function useMultiVaultDepositFlow(
           spendableUTXOs,
           vaultAmounts,
           feeRate,
-          btcAddress,
+          confirmedBtcAddress,
         );
 
         setAllocationPlan(plan);
@@ -371,7 +351,7 @@ export function useMultiVaultDepositFlow(
               throw new Error(`No UTXO available for vault ${i}`);
             }
 
-            const walletClient = await getEthWalletClient(depositorEthAddress);
+            const walletClient = await getEthWalletClient(confirmedEthAddress);
             const peginAmount = vaultAmounts[i];
 
             // CRITICAL: Use different path for split outputs vs existing UTXOs
@@ -400,7 +380,7 @@ export function useMultiVaultDepositFlow(
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
                 feeRate,
-                changeAddress: btcAddress,
+                changeAddress: confirmedBtcAddress,
                 vaultProviderAddress: selectedProviders[0] as Address,
                 depositorBtcPubkey,
                 vaultProviderBtcPubkey,
@@ -437,7 +417,7 @@ export function useMultiVaultDepositFlow(
                 walletClient,
                 amount: peginAmount,
                 feeRate,
-                btcAddress,
+                btcAddress: confirmedBtcAddress,
                 selectedProviders,
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
@@ -495,7 +475,7 @@ export function useMultiVaultDepositFlow(
         // Step 4: Save Pegins to Storage
         // ========================================================================
 
-        if (successfulPegins.length > 0 && depositorEthAddress) {
+        if (successfulPegins.length > 0) {
           for (const peginResult of successfulPegins) {
             const vaultAmount = vaultAmounts[peginResult.vaultIndex];
 
@@ -510,7 +490,7 @@ export function useMultiVaultDepositFlow(
               continue;
             }
 
-            addPendingPegin(depositorEthAddress, {
+            addPendingPegin(confirmedEthAddress, {
               id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
               btcTxHash: peginResult.btcTxHash, // For compatibility
               amount: (Number(vaultAmount) / 100000000).toFixed(8), // BTC format
@@ -581,7 +561,7 @@ export function useMultiVaultDepositFlow(
               result.vaultId,
               result.depositorBtcPubkey,
               signatures,
-              depositorEthAddress,
+              confirmedEthAddress,
             );
           } catch (error) {
             console.error(
@@ -633,7 +613,7 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: result.depositorBtcPubkey,
                   btcWalletProvider,
                 },
-                depositorEthAddress,
+                confirmedEthAddress,
               );
             }
           } catch (error) {
@@ -678,6 +658,8 @@ export function useMultiVaultDepositFlow(
       universalChallengerBtcPubkeys,
       btcAddress,
       spendableUTXOs,
+      isUTXOsLoading,
+      utxoError,
       latestUniversalChallengers,
       vaultKeepers,
       findProvider,

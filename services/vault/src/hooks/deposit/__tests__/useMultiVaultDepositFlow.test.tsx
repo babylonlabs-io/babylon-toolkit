@@ -814,7 +814,7 @@ describe("useMultiVaultDepositFlow", () => {
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("Wallet not connected");
+        expect(result.current.error).toBe("BTC wallet not connected");
       });
     });
 
