@@ -414,11 +414,6 @@ export function useMultiVaultDepositFlow(
                 },
               );
 
-              // Wait for ETH confirmation
-              await waitForContractVerification({
-                btcTxid: registrationResult.vaultId,
-              });
-
               peginResult = {
                 btcTxid: prepareResult.btcTxHash,
                 ethTxHash: registrationResult.ethTxHash,
