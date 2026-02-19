@@ -856,6 +856,78 @@ describe("useMultiVaultDepositFlow", () => {
         );
       });
     });
+
+    it("should throw if no vault amounts provided", async () => {
+      const invalidParams = {
+        ...MOCK_PARAMS,
+        vaultAmounts: [],
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(invalidParams),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe("At least one vault amount required");
+      });
+    });
+
+    it("should throw if more than 2 vaults specified", async () => {
+      const invalidParams = {
+        ...MOCK_PARAMS,
+        vaultAmounts: [100000n, 100000n, 100000n], // 3 vaults
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(invalidParams),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe("Maximum 2 vaults supported");
+      });
+    });
+
+    it("should throw if vault amount is zero", async () => {
+      const invalidParams = {
+        ...MOCK_PARAMS,
+        vaultAmounts: [0n],
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(invalidParams),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe("All vault amounts must be positive");
+      });
+    });
+
+    it("should throw if vault amount is negative", async () => {
+      const invalidParams = {
+        ...MOCK_PARAMS,
+        vaultAmounts: [-100000n],
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(invalidParams),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe("All vault amounts must be positive");
+      });
+    });
   });
 
   describe("Partial Success", () => {

@@ -263,6 +263,19 @@ export function useMultiVaultDepositFlow(
           throw new Error("No spendable UTXOs available");
         }
 
+        // Validate vault amounts
+        if (!vaultAmounts || vaultAmounts.length === 0) {
+          throw new Error("At least one vault amount required");
+        }
+
+        if (vaultAmounts.length > 2) {
+          throw new Error("Maximum 2 vaults supported");
+        }
+
+        if (vaultAmounts.some((amount) => amount <= 0n)) {
+          throw new Error("All vault amounts must be positive");
+        }
+
         // Validate vault provider pubkey
         const vaultProviderPubkeyStripped = vaultProviderBtcPubkey.startsWith(
           "0x",
