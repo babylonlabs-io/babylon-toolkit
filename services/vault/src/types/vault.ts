@@ -95,7 +95,7 @@ export interface Deposit {
   batchId?: string;
   /** Split transaction hash reference (only for SPLIT strategy) */
   splitTxId?: string;
-  /** Position in batch (0 or 1 for 2-vault deposits) */
+  /** Position in batch (1 or 2 for 2-vault deposits, 1-indexed for display) */
   batchIndex?: number;
   /** Total vaults in batch (2 for multi-vault deposits) */
   batchTotal?: number;
