@@ -851,9 +851,7 @@ describe("useMultiVaultDepositFlow", () => {
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
-        expect(result.current.error).toContain(
-          "Invalid vault provider BTC pubkey",
-        );
+        expect(result.current.error).toContain("Invalid pubkey format");
       });
     });
 
