@@ -5,6 +5,7 @@
 
 import type { Address } from "viem";
 
+import { stripHexPrefix, validateXOnlyPubkey } from "@/utils/btc";
 import { formatSatoshisToBtc } from "@/utils/btcConversion";
 
 import type { UTXO } from "../vault/vaultTransactionService";
@@ -330,17 +331,16 @@ export function validateVaultAmounts(amounts: bigint[]): ValidationResult {
  * @returns Validation result
  */
 export function validateVaultProviderPubkey(pubkey: string): ValidationResult {
-  // Strip 0x prefix if present
-  const stripped = pubkey.startsWith("0x") ? pubkey.slice(2) : pubkey;
-
-  if (!stripped || stripped.length !== 64) {
+  try {
+    const stripped = stripHexPrefix(pubkey);
+    validateXOnlyPubkey(stripped);
+    return { valid: true };
+  } catch (err) {
     return {
       valid: false,
-      error: "Invalid vault provider BTC pubkey: expected 64-char hex string",
+      error: err instanceof Error ? err.message : String(err),
     };
   }
-
-  return { valid: true };
 }
 
 /**
