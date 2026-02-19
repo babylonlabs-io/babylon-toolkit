@@ -34,6 +34,32 @@ export const toXOnly = (pubKey: Buffer): Buffer =>
   pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
 
 /**
+ * Validate that a public key is in x-only format (32 bytes = 64 hex chars)
+ * Used for Taproot/Schnorr signatures which require x-only pubkeys
+ *
+ * @param pubkey - Public key to validate (should be 64 hex chars, no 0x prefix)
+ * @throws Error if pubkey is not valid x-only format
+ *
+ * @example
+ * ```ts
+ * validateXOnlyPubkey('aa'.repeat(32)) // OK
+ * validateXOnlyPubkey('0x' + 'aa'.repeat(32)) // throws
+ * validateXOnlyPubkey('aa'.repeat(33)) // throws (66 chars)
+ * ```
+ */
+export function validateXOnlyPubkey(pubkey: string): void {
+  if (!pubkey || typeof pubkey !== "string") {
+    throw new Error("Invalid pubkey: must be a non-empty string");
+  }
+
+  if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
+    throw new Error(
+      "Invalid pubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)",
+    );
+  }
+}
+
+/**
  * Process and convert a public key to x-only format (32 bytes hex)
  * Handles 0x prefix removal, validation, and conversion to x-only format
  *

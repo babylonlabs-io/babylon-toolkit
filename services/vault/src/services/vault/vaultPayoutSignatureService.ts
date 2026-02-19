@@ -9,7 +9,11 @@ import type {
 } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type { UniversalChallenger } from "../../types";
-import { processPublicKeyToXOnly, stripHexPrefix } from "../../utils/btc";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+  validateXOnlyPubkey,
+} from "../../utils/btc";
 import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 
 import { fetchVaultProviderById } from "./fetchVaultProviders";
@@ -94,15 +98,7 @@ export function validatePayoutSignatureParams(params: {
     throw new Error("Invalid peginTxId: must be a non-empty string");
   }
 
-  if (!depositorBtcPubkey || typeof depositorBtcPubkey !== "string") {
-    throw new Error("Invalid depositorBtcPubkey: must be a non-empty string");
-  }
-
-  if (!/^[0-9a-fA-F]{64}$/.test(depositorBtcPubkey)) {
-    throw new Error(
-      "Invalid depositorBtcPubkey format: must be 64 hex characters (32-byte x-only public key, no 0x prefix)",
-    );
-  }
+  validateXOnlyPubkey(depositorBtcPubkey);
 
   if (!claimerTransactions || claimerTransactions.length === 0) {
     throw new Error("Invalid claimerTransactions: must be a non-empty array");
