@@ -276,6 +276,11 @@ export function useMultiVaultDepositFlow(
           throw new Error("All vault amounts must be positive");
         }
 
+        // Validate selected providers
+        if (!selectedProviders || selectedProviders.length === 0) {
+          throw new Error("At least one vault provider required");
+        }
+
         // Validate vault provider pubkey
         const vaultProviderPubkeyStripped = vaultProviderBtcPubkey.startsWith(
           "0x",
@@ -493,6 +498,17 @@ export function useMultiVaultDepositFlow(
         if (successfulPegins.length > 0 && depositorEthAddress) {
           for (const peginResult of successfulPegins) {
             const vaultAmount = vaultAmounts[peginResult.vaultIndex];
+
+            // Defensive check: should never happen given loop structure
+            if (vaultAmount === undefined) {
+              console.error(
+                "[Multi-Vault] Invalid vault index",
+                peginResult.vaultIndex,
+                "for vault",
+                peginResult.vaultId,
+              );
+              continue;
+            }
 
             addPendingPegin(depositorEthAddress, {
               id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)

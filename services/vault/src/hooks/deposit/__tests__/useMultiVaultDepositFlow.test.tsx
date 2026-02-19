@@ -928,6 +928,26 @@ describe("useMultiVaultDepositFlow", () => {
         expect(result.current.error).toBe("All vault amounts must be positive");
       });
     });
+
+    it("should throw if no vault providers specified", async () => {
+      const invalidParams = {
+        ...MOCK_PARAMS,
+        selectedProviders: [],
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(invalidParams),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe(
+          "At least one vault provider required",
+        );
+      });
+    });
   });
 
   describe("Partial Success", () => {
