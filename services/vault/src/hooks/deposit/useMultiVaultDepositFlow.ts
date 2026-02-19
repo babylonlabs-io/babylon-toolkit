@@ -559,7 +559,15 @@ export function useMultiVaultDepositFlow(
               signatures,
               depositorEthAddress,
             );
-          } catch {
+          } catch (error) {
+            console.error(
+              "[Multi-Vault] Failed to sign or submit payouts for vault",
+              result.vaultId,
+              "with provider",
+              provider.url,
+              ":",
+              error,
+            );
             // Continue with other vaults
           }
         }
@@ -604,7 +612,15 @@ export function useMultiVaultDepositFlow(
                 depositorEthAddress,
               );
             }
-          } catch {
+          } catch (error) {
+            console.error(
+              "[Multi-Vault] Failed to broadcast vault pegin",
+              {
+                vaultIndex: result.vaultIndex,
+                btcTxHash: result.btcTxHash,
+              },
+              error,
+            );
             // Continue with other vaults
           }
         }
