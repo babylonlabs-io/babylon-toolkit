@@ -133,6 +133,8 @@ export interface MultiVaultDepositResult {
   splitTxId?: string;
   /** Allocation strategy used */
   strategy: string;
+  /** Warning messages for background operation failures (payout signing, broadcast) */
+  warnings?: string[];
 }
 
 interface SplitTxSignResult {
@@ -254,6 +256,9 @@ export function useMultiVaultDepositFlow(
       setProcessing(true);
       setError(null);
       setCurrentStep(DepositStep.SIGN_POP);
+
+      // Track background operation failures
+      const warnings: string[] = [];
 
       try {
         // ========================================================================
@@ -560,6 +565,9 @@ export function useMultiVaultDepositFlow(
               confirmedEthAddress,
             );
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;
+            warnings.push(warning);
             console.error(
               "[Multi-Vault] Failed to sign or submit payouts for vault",
               result.vaultId,
@@ -613,6 +621,9 @@ export function useMultiVaultDepositFlow(
               );
             }
           } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const warning = `Vault ${result.vaultIndex}: BTC broadcast failed - ${errorMsg}`;
+            warnings.push(warning);
             console.error(
               "[Multi-Vault] Failed to broadcast vault pegin",
               {
@@ -633,6 +644,7 @@ export function useMultiVaultDepositFlow(
           batchId,
           splitTxId: splitTxResult?.txid,
           strategy: plan.strategy,
+          warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : String(err);
