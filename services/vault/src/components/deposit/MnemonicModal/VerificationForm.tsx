@@ -59,6 +59,7 @@ export function VerificationForm({
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}
+              aria-label={`Word #${wordIndex + 1}`}
             />
           </div>
         ))}

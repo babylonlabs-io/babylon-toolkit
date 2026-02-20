@@ -42,13 +42,18 @@ export function useMnemonicFlow() {
   });
 
   useEffect(() => {
+    let isMounted = true;
     hasStoredMnemonic().then((stored) => {
+      if (!isMounted) return;
       setState((prev) => ({
         ...prev,
         hasStored: stored,
         step: stored ? MnemonicStep.UNLOCK : MnemonicStep.GENERATE,
       }));
     });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const startNewMnemonic = useCallback(() => {

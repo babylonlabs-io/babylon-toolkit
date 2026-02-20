@@ -40,6 +40,7 @@ export function UnlockForm({ error, onSubmit, onForgot }: UnlockFormProps) {
         className="rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
         autoComplete="current-password"
         autoFocus
+        aria-label="Password"
       />
 
       {error && (

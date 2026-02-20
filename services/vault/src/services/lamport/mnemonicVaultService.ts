@@ -26,7 +26,13 @@ export async function unlockMnemonic(password: string): Promise<string> {
     throw new Error("No stored mnemonic found");
   }
 
-  const vault: StoredVault = JSON.parse(raw);
+  let vault: StoredVault;
+  try {
+    vault = JSON.parse(raw);
+  } catch {
+    throw new Error("Stored mnemonic data is corrupted");
+  }
+
   const decrypted = (await decrypt(password, vault.encrypted)) as {
     mnemonic: string;
   };

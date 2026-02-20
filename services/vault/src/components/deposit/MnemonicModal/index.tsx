@@ -60,8 +60,9 @@ export function MnemonicModal({
   useEffect(() => {
     if (step === MnemonicStep.COMPLETE) {
       onComplete();
+      reset();
     }
-  }, [step, onComplete]);
+  }, [step, onComplete, reset]);
 
   const handleClose = () => {
     reset();

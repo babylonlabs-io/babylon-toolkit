@@ -33,6 +33,7 @@ export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
+          aria-label="24-word recovery phrase"
         />
         {hasContent && (
           <Text variant="body2" className="text-xs text-accent-secondary">
