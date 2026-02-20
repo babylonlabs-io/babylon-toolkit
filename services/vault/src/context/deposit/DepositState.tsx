@@ -4,6 +4,7 @@ import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
   FORM = "form",
+  SPLIT_UTXO = "split_utxo",
   REVIEW = "review",
   SIGN = "sign",
   SUCCESS = "success",

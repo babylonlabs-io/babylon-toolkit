@@ -43,6 +43,8 @@ export interface UseDepositPageFlowResult {
     application: string,
     providers: string[],
   ) => void;
+  confirmSplitUtxo: () => void;
+  skipSplitUtxo: () => void;
   confirmReview: (feeRate: number) => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
@@ -132,6 +134,14 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     providers: string[],
   ) => {
     setDepositData(amountSats, application, providers);
+    goToStep(DepositStep.SPLIT_UTXO);
+  };
+
+  const confirmSplitUtxo = () => {
+    goToStep(DepositStep.REVIEW);
+  };
+
+  const skipSplitUtxo = () => {
     goToStep(DepositStep.REVIEW);
   };
 
@@ -157,6 +167,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     startDeposit,
+    confirmSplitUtxo,
+    skipSplitUtxo,
     confirmReview,
     onSignSuccess,
     resetDeposit,
