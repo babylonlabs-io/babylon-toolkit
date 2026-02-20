@@ -10,6 +10,7 @@ export interface Props {
   config?: BTCConfig;
   onClose?: () => void;
   onSubmit?: () => void;
+  simplifiedTerms?: boolean;
 }
 
 const defaultState = {
@@ -18,9 +19,12 @@ const defaultState = {
   staking: false,
 } as const;
 
-export function TermsOfService({ className, onClose, onSubmit }: Props) {
+export function TermsOfService({ className, onClose, onSubmit, simplifiedTerms = false }: Props) {
   const [state, setState] = useState(defaultState);
-  const valid = useMemo(() => Object.values(state).every((val) => val), [state]);
+  const valid = useMemo(
+    () => (simplifiedTerms ? state.termsOfUse : Object.values(state).every((val) => val)),
+    [state, simplifiedTerms],
+  );
 
   const handleChange = useCallback(
     (key: keyof typeof defaultState) =>
@@ -66,16 +70,20 @@ export function TermsOfService({ className, onClose, onSubmit }: Props) {
           <Checkbox checked={state["termsOfUse"]} onChange={handleChange("termsOfUse")} />
         </FieldControl>
 
-        <FieldControl
-          label="I certify that I wish to stake bitcoin and agree that doing so may cause some or all of the bitcoin ordinals, NFTs, Runes, and other inscriptions in the connected bitcoin wallet to be lost. I acknowledge that this interface will not detect all Inscriptions."
-          className="mb-4"
-        >
-          <Checkbox checked={state["inscriptions"]} onChange={handleChange("inscriptions")} />
-        </FieldControl>
+        {!simplifiedTerms && (
+          <>
+            <FieldControl
+              label="I certify that I wish to stake bitcoin and agree that doing so may cause some or all of the bitcoin ordinals, NFTs, Runes, and other inscriptions in the connected bitcoin wallet to be lost. I acknowledge that this interface will not detect all Inscriptions."
+              className="mb-4"
+            >
+              <Checkbox checked={state["inscriptions"]} onChange={handleChange("inscriptions")} />
+            </FieldControl>
 
-        <FieldControl label="I acknowledge that the following are the only hardware wallets supporting Bitcoin Staking: (1) Keystone -- via QR code and (2) OneKey -- via the OneKey Chrome extension and the hardware devices (a) OneKey Pro and (b) OneKey Classic 1s (experimental, 3.10.1 firmware or higher) using Taproot only. Using any other hardware wallet through any means (such as connection to a software/extension/mobile wallet) can lead to permanent inability to withdraw the stake.">
-          <Checkbox checked={state["staking"]} onChange={handleChange("staking")} />
-        </FieldControl>
+            <FieldControl label="I acknowledge that the following are the only hardware wallets supporting Bitcoin Staking: (1) Keystone -- via QR code and (2) OneKey -- via the OneKey Chrome extension and the hardware devices (a) OneKey Pro and (b) OneKey Classic 1s (experimental, 3.10.1 firmware or higher) using Taproot only. Using any other hardware wallet through any means (such as connection to a software/extension/mobile wallet) can lead to permanent inability to withdraw the stake.">
+              <Checkbox checked={state["staking"]} onChange={handleChange("staking")} />
+            </FieldControl>
+          </>
+        )}
       </DialogBody>
 
       <DialogFooter className="mt-auto pt-6">

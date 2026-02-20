@@ -83,6 +83,10 @@ Create a `.env` file with the following variables:
   - Set to `"false"` to disable borrowing functionality during maintenance or incidents
   - When disabled, users will see "Borrowing Unavailable" and the borrow button will be disabled
 
+- `NEXT_PUBLIC_FF_SIMPLIFIED_TERMS` - Controls whether the wallet connection dialog shows simplified terms
+  - Default: `false` (all three checkboxes shown unless explicitly set to `"true"`)
+  - Set to `"true"` to show only the Terms of Use & Privacy Policy checkbox, hiding the inscriptions and hardware wallet warnings
+
 ## Available Scripts
 
 ### Development

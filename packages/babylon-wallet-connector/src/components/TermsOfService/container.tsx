@@ -6,6 +6,7 @@ export interface TermsOfServiceContainerProps {
   className?: string;
   onClose?: () => void;
   onSubmit?: () => void;
+  simplifiedTerms?: boolean;
 }
 
 export function TermsOfServiceContainer(props: TermsOfServiceContainerProps) {
