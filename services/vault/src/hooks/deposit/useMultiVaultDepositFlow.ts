@@ -282,6 +282,9 @@ export function useMultiVaultDepositFlow(
         const confirmedBtcAddress = btcAddress!;
         const confirmedEthAddress = depositorEthAddress!;
 
+        // Extract primary provider (current implementation supports single provider only)
+        const primaryProvider = selectedProviders[0] as Address;
+
         // Generate batch ID for tracking
         const batchId = uuidv4();
 
@@ -377,7 +380,7 @@ export function useMultiVaultDepositFlow(
                 pegInAmount: peginAmount,
                 feeRate,
                 changeAddress: confirmedBtcAddress,
-                vaultProviderAddress: selectedProviders[0] as Address,
+                vaultProviderAddress: primaryProvider,
                 depositorBtcPubkey,
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
@@ -391,7 +394,7 @@ export function useMultiVaultDepositFlow(
                 {
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
-                  vaultProviderAddress: selectedProviders[0] as Address,
+                  vaultProviderAddress: primaryProvider,
                 },
               );
 
@@ -495,7 +498,7 @@ export function useMultiVaultDepositFlow(
               id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
               btcTxHash: peginResult.btcTxHash, // For compatibility
               amount: (Number(vaultAmount) / 100000000).toFixed(8), // BTC format
-              providerIds: [selectedProviders[0]],
+              providerIds: [primaryProvider],
               applicationController: selectedApplication,
               batchId, // Links to batch
               splitTxId: splitTxResult?.txid, // Split TX ID (if used)
@@ -511,7 +514,7 @@ export function useMultiVaultDepositFlow(
 
         setCurrentStep(DepositStep.SIGN_PAYOUTS);
 
-        const provider = findProvider(selectedProviders[0] as Hex);
+        const provider = findProvider(primaryProvider as Hex);
         if (!provider?.url) {
           throw new Error("Vault provider has no RPC URL");
         }
