@@ -6,16 +6,17 @@
  * via a blocking modal instead of crashing the application.
  */
 
-import type { Address } from "viem";
+import { isAddress, type Address } from "viem";
 
 /**
- * Required environment variables for the vault application
+ * Environment variables for the vault application
  */
 interface EnvVars {
   BTC_VAULTS_MANAGER: Address;
   AAVE_CONTROLLER: Address;
   GRAPHQL_ENDPOINT: string;
   SIDECAR_API_URL: string;
+  BTC_PRICE_FEED: Address | undefined;
 }
 
 interface EnvValidationResult {
@@ -24,6 +25,16 @@ interface EnvValidationResult {
 }
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+
+function parseOptionalAddress(value: string | undefined): Address | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (!isAddress(trimmed)) {
+    console.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
+    return undefined;
+  }
+  return trimmed as Address;
+}
 
 /**
  * Validate and extract all required environment variables
@@ -39,6 +50,11 @@ function validateEnvVars(): EnvValidationResult {
     SIDECAR_API_URL: (
       process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
     ).replace(/\/$/, ""),
+
+    // Price feed oracle override (optional)
+    BTC_PRICE_FEED: parseOptionalAddress(
+      process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
+    ),
   };
 
   const requiredVars = [
@@ -67,6 +83,7 @@ function validateEnvVars(): EnvValidationResult {
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
         SIDECAR_API_URL: "",
+        BTC_PRICE_FEED: undefined,
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };
