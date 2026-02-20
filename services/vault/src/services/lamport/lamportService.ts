@@ -115,6 +115,7 @@ export async function deriveLamportKeypair(
   seed: Uint8Array,
   vaultId: string,
   depositorPk: string,
+  appContractAddress: string,
 ): Promise<LamportKeypair> {
   const chainCode = seed.slice(32, 64);
   const parentKey = seed.slice(0, 32);
@@ -122,6 +123,7 @@ export async function deriveLamportKeypair(
   const vaultData = concatBytes(
     stringToBytes(vaultId),
     stringToBytes(depositorPk),
+    stringToBytes(appContractAddress),
   );
 
   const hmac = await hmacSha512(chainCode, concatBytes(parentKey, vaultData));
