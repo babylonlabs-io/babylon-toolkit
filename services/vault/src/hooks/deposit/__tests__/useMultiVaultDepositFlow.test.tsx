@@ -269,10 +269,8 @@ async function setupDefaultMocks() {
     error: null,
   } as any);
 
-  // Protocol params
-  vi.mocked(useProtocolParamsContext).mockReturnValue({
-    latestUniversalChallengers: [{ btcPubKey: "uc1pubkey" }],
-  } as any);
+  // Protocol params (currently unused but kept for future compatibility)
+  vi.mocked(useProtocolParamsContext).mockReturnValue({} as any);
 
   // Vault providers
   vi.mocked(useVaultProviders).mockReturnValue({
@@ -482,6 +480,7 @@ describe("useMultiVaultDepositFlow", () => {
         batchId: "mock-batch-id-uuid",
         splitTxId: undefined,
         strategy: "SINGLE",
+        warnings: undefined,
       });
     });
   });
@@ -632,6 +631,7 @@ describe("useMultiVaultDepositFlow", () => {
         batchId: "mock-batch-id-uuid",
         splitTxId: undefined,
         strategy: "MULTI_INPUT",
+        warnings: undefined,
       });
     });
   });
@@ -792,6 +792,7 @@ describe("useMultiVaultDepositFlow", () => {
         batchId: "mock-batch-id-uuid",
         splitTxId: "splitTxId" + "0".repeat(56),
         strategy: "SPLIT",
+        warnings: undefined,
       });
     });
   });
@@ -1115,6 +1116,126 @@ describe("useMultiVaultDepositFlow", () => {
           "Failed to broadcast split transaction",
         );
       });
+    });
+  });
+
+  describe("Background Operation Warnings", () => {
+    it("should include warnings when payout signing fails", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { pollAndPreparePayoutSigning } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
+      vi.mocked(pollAndPreparePayoutSigning).mockRejectedValue(
+        new Error("Vault provider unavailable"),
+      );
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [100000n, 100000n],
+        }),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult!.warnings).toBeDefined();
+      expect(depositResult!.warnings).toHaveLength(2); // Both vaults failed payout signing
+      expect(depositResult!.warnings![0]).toContain(
+        "Vault 0: Payout signing failed",
+      );
+      expect(depositResult!.warnings![1]).toContain(
+        "Vault 1: Payout signing failed",
+      );
+    });
+
+    it("should include warnings when BTC broadcast fails", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { broadcastBtcTransaction } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
+      vi.mocked(broadcastBtcTransaction).mockRejectedValue(
+        new Error("Network timeout"),
+      );
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult!.warnings).toBeDefined();
+      expect(depositResult!.warnings![0]).toContain(
+        "Vault 0: BTC broadcast failed",
+      );
+    });
+
+    it("should not include warnings field when all operations succeed", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(MOCK_PARAMS),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult!.warnings).toBeUndefined(); // No warnings when everything succeeds
+    });
+
+    it("should accumulate warnings from both payout and broadcast failures", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { pollAndPreparePayoutSigning, broadcastBtcTransaction } =
+        vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
+      vi.mocked(pollAndPreparePayoutSigning)
+        .mockRejectedValueOnce(new Error("Payout fail vault 0"))
+        .mockResolvedValueOnce({
+          context: {} as any,
+          vaultProviderUrl: "https://provider.test",
+          preparedTransactions: [
+            {
+              claimerPubkeyXOnly: "claimerpubkey",
+              payoutOptimisticTxHex: "payoutOptHex",
+              payoutTxHex: "payoutHex",
+              claimTxHex: "claimHex",
+              assertTxHex: "assertHex",
+            },
+          ],
+        });
+      vi.mocked(broadcastBtcTransaction).mockRejectedValue(
+        new Error("Broadcast fail"),
+      );
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [100000n, 100000n],
+        }),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      expect(depositResult).not.toBeNull();
+      expect(depositResult!.warnings).toBeDefined();
+      expect(depositResult!.warnings!.length).toBeGreaterThanOrEqual(2);
+      // At least one payout warning and one or more broadcast warnings
     });
   });
 });
