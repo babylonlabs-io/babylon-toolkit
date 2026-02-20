@@ -11,6 +11,14 @@ export type {
   UseDepositFlowReturn,
 } from "./useDepositFlow";
 
+export { useMultiVaultDepositFlow } from "./useMultiVaultDepositFlow";
+export type {
+  MultiVaultDepositResult,
+  PeginCreationResult,
+  UseMultiVaultDepositFlowParams,
+  UseMultiVaultDepositFlowReturn,
+} from "./useMultiVaultDepositFlow";
+
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";
 
