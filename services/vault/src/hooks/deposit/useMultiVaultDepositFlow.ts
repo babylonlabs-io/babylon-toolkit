@@ -244,7 +244,6 @@ export function useMultiVaultDepositFlow(
     isLoading: isUTXOsLoading,
     error: utxoError,
   } = useUTXOs(btcAddress);
-  const { latestUniversalChallengers } = useProtocolParamsContext();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
 
   // ============================================================================
@@ -529,7 +528,9 @@ export function useMultiVaultDepositFlow(
                 providerUrl: provider.url,
                 providerBtcPubKey: provider.btcPubKey,
                 vaultKeepers,
-                universalChallengers: latestUniversalChallengers,
+                universalChallengers: universalChallengerBtcPubkeys.map((btcPubKey) => ({
+                  btcPubKey,
+                })),
               });
 
             // Sign payouts
@@ -672,7 +673,6 @@ export function useMultiVaultDepositFlow(
       spendableUTXOs,
       isUTXOsLoading,
       utxoError,
-      latestUniversalChallengers,
       vaultKeepers,
       findProvider,
     ]);
