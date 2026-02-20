@@ -5,6 +5,7 @@
 
 import type { Address } from "viem";
 
+import { stripHexPrefix, validateXOnlyPubkey } from "@/utils/btc";
 import { formatSatoshisToBtc } from "@/utils/btcConversion";
 
 import type { UTXO } from "../vault/vaultTransactionService";
@@ -214,6 +215,89 @@ export function validateProviderSelection(
   return { valid: true };
 }
 
+// ============================================================================
+// Shared Validation Helpers
+// ============================================================================
+
+/**
+ * Validate wallet connections (both BTC and ETH)
+ * @throws Error if either wallet is not connected
+ */
+function validateWalletConnections(
+  btcAddress: string | undefined,
+  depositorEthAddress: Address | undefined,
+): void {
+  if (!btcAddress) {
+    throw new Error("BTC wallet not connected");
+  }
+  if (!depositorEthAddress) {
+    throw new Error("ETH wallet not connected");
+  }
+}
+
+/**
+ * Validate vault keepers availability
+ * @throws Error if no vault keepers are available
+ */
+function validateVaultKeepers(vaultKeeperBtcPubkeys: string[]): void {
+  if (!vaultKeeperBtcPubkeys || vaultKeeperBtcPubkeys.length === 0) {
+    throw new Error(
+      "No vault keepers available. The system requires at least one vault keeper to create a deposit.",
+    );
+  }
+}
+
+/**
+ * Validate universal challengers availability
+ * @throws Error if no universal challengers are available
+ */
+function validateUniversalChallengers(
+  universalChallengerBtcPubkeys: string[],
+): void {
+  if (
+    !universalChallengerBtcPubkeys ||
+    universalChallengerBtcPubkeys.length === 0
+  ) {
+    throw new Error(
+      "No universal challengers available. The system requires at least one universal challenger to create a deposit.",
+    );
+  }
+}
+
+/**
+ * Validate UTXO state and availability
+ * @throws Error if UTXOs are loading, have errors, or are unavailable
+ */
+function validateUTXOState(
+  confirmedUTXOs: UTXO[] | null,
+  isUTXOsLoading: boolean,
+  utxoError: Error | null,
+): void {
+  if (isUTXOsLoading) {
+    throw new Error("Loading UTXOs...");
+  }
+  if (utxoError) {
+    throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
+  }
+  if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
+    throw new Error("No spendable UTXOs available");
+  }
+}
+
+/**
+ * Validate provider selection (basic check)
+ * @throws Error if no providers are selected
+ */
+function validateProviders(selectedProviders: string[]): void {
+  if (!selectedProviders || selectedProviders.length === 0) {
+    throw new Error("At least one vault provider required");
+  }
+}
+
+// ============================================================================
+// Single-Vault Deposit Validation
+// ============================================================================
+
 /**
  * Validate all deposit inputs before starting the flow.
  * Throws an error if any validation fails.
@@ -232,44 +316,124 @@ export function validateDepositInputs(params: DepositFlowInputs): void {
     minDeposit,
   } = params;
 
-  if (!btcAddress) {
-    throw new Error("BTC wallet not connected");
-  }
-  if (!depositorEthAddress) {
-    throw new Error("ETH wallet not connected");
-  }
+  validateWalletConnections(btcAddress, depositorEthAddress);
 
   const amountValidation = validateDepositAmount(amount, minDeposit);
   if (!amountValidation.valid) {
     throw new Error(amountValidation.error);
   }
 
-  if (selectedProviders.length === 0) {
-    throw new Error("No providers selected");
+  validateProviders(selectedProviders);
+  validateVaultKeepers(vaultKeeperBtcPubkeys);
+  validateUniversalChallengers(universalChallengerBtcPubkeys);
+  validateUTXOState(confirmedUTXOs, isUTXOsLoading, utxoError);
+}
+
+// ============================================================================
+// Multi-Vault Deposit Validations
+// ============================================================================
+
+/**
+ * Parameters for validating multi-vault deposit flow inputs
+ */
+export interface MultiVaultDepositFlowInputs {
+  btcAddress: string | undefined;
+  depositorEthAddress: Address | undefined;
+  vaultAmounts: bigint[];
+  selectedProviders: string[];
+  confirmedUTXOs: UTXO[] | null;
+  isUTXOsLoading: boolean;
+  utxoError: Error | null;
+  vaultProviderBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
+}
+
+/**
+ * Validate vault amounts array for multi-vault deposits
+ * @param amounts - Array of vault amounts in satoshis
+ * @returns Validation result
+ */
+export function validateVaultAmounts(amounts: bigint[]): ValidationResult {
+  if (!amounts || amounts.length === 0) {
+    return {
+      valid: false,
+      error: "At least one vault amount required",
+    };
   }
 
-  if (!vaultKeeperBtcPubkeys || vaultKeeperBtcPubkeys.length === 0) {
-    throw new Error(
-      "No vault keepers available. The system requires at least one vault keeper to create a deposit.",
-    );
+  if (amounts.length > 2) {
+    return {
+      valid: false,
+      error: "Maximum 2 vaults supported",
+    };
   }
 
-  if (
-    !universalChallengerBtcPubkeys ||
-    universalChallengerBtcPubkeys.length === 0
-  ) {
-    throw new Error(
-      "No universal challengers available. The system requires at least one universal challenger to create a deposit.",
-    );
+  if (amounts.some((amount) => amount <= 0n)) {
+    return {
+      valid: false,
+      error: "All vault amounts must be positive",
+    };
   }
 
-  if (isUTXOsLoading) {
-    throw new Error("Loading UTXOs...");
+  return { valid: true };
+}
+
+/**
+ * Validate vault provider BTC public key format
+ * @param pubkey - Vault provider BTC public key (with or without 0x prefix)
+ * @returns Validation result
+ */
+export function validateVaultProviderPubkey(pubkey: string): ValidationResult {
+  try {
+    const stripped = stripHexPrefix(pubkey);
+    validateXOnlyPubkey(stripped);
+    return { valid: true };
+  } catch (err) {
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
-  if (utxoError) {
-    throw new Error(`Failed to load UTXOs: ${utxoError.message}`);
+}
+
+/**
+ * Validate all multi-vault deposit inputs before starting the flow.
+ * Throws an error if any validation fails.
+ */
+export function validateMultiVaultDepositInputs(
+  params: MultiVaultDepositFlowInputs,
+): void {
+  const {
+    btcAddress,
+    depositorEthAddress,
+    vaultAmounts,
+    selectedProviders,
+    confirmedUTXOs,
+    isUTXOsLoading,
+    utxoError,
+    vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+  } = params;
+
+  validateWalletConnections(btcAddress, depositorEthAddress);
+
+  // Vault amounts (multi-vault specific)
+  const amountsValidation = validateVaultAmounts(vaultAmounts);
+  if (!amountsValidation.valid) {
+    throw new Error(amountsValidation.error);
   }
-  if (!confirmedUTXOs || confirmedUTXOs.length === 0) {
-    throw new Error("No confirmed UTXOs available");
+
+  validateProviders(selectedProviders);
+
+  // Vault provider pubkey (multi-vault specific)
+  const pubkeyValidation = validateVaultProviderPubkey(vaultProviderBtcPubkey);
+  if (!pubkeyValidation.valid) {
+    throw new Error(pubkeyValidation.error);
   }
+
+  validateVaultKeepers(vaultKeeperBtcPubkeys);
+  validateUniversalChallengers(universalChallengerBtcPubkeys);
+  validateUTXOState(confirmedUTXOs, isUTXOsLoading, utxoError);
 }

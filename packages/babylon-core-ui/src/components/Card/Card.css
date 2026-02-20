@@ -1,3 +1,11 @@
 .bbn-card {
-  @apply bg-transparent border-secondary-strokeLight rounded-2xl border p-6;
+  @apply border-secondary-strokeLight rounded-2xl border p-6;
+}
+
+.bbn-card-default {
+  @apply bg-transparent;
+}
+
+.bbn-card-filled {
+  @apply bg-secondary-highlight;
 }

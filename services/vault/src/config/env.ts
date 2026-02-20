@@ -6,26 +6,35 @@
  * via a blocking modal instead of crashing the application.
  */
 
-import type { Address } from "viem";
+import { isAddress, type Address } from "viem";
 
 /**
- * Required environment variables for the vault application
+ * Environment variables for the vault application
  */
-interface RequiredEnvVars {
-  // Contract addresses
+interface EnvVars {
   BTC_VAULTS_MANAGER: Address;
   AAVE_CONTROLLER: Address;
-
-  // API endpoints
   GRAPHQL_ENDPOINT: string;
+  SIDECAR_API_URL: string;
+  BTC_PRICE_FEED: Address | undefined;
 }
 
 interface EnvValidationResult {
-  env: RequiredEnvVars;
+  env: EnvVars;
   error: string | null;
 }
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
+
+function parseOptionalAddress(value: string | undefined): Address | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (!isAddress(trimmed)) {
+    console.warn(`Invalid address in env config: "${trimmed}", ignoring.`);
+    return undefined;
+  }
+  return trimmed as Address;
+}
 
 /**
  * Validate and extract all required environment variables
@@ -38,9 +47,16 @@ function validateEnvVars(): EnvValidationResult {
 
     // API endpoints (required)
     GRAPHQL_ENDPOINT: process.env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
+    SIDECAR_API_URL: (
+      process.env.NEXT_PUBLIC_TBV_SIDECAR_API_URL ?? ""
+    ).replace(/\/$/, ""),
+
+    // Price feed oracle override (optional)
+    BTC_PRICE_FEED: parseOptionalAddress(
+      process.env.NEXT_PUBLIC_TBV_BTC_PRICE_FEED,
+    ),
   };
 
-  // Check for missing required environment variables
   const requiredVars = [
     "BTC_VAULTS_MANAGER",
     "AAVE_CONTROLLER",
@@ -66,13 +82,15 @@ function validateEnvVars(): EnvValidationResult {
         BTC_VAULTS_MANAGER: ZERO_ADDRESS,
         AAVE_CONTROLLER: ZERO_ADDRESS,
         GRAPHQL_ENDPOINT: "",
+        SIDECAR_API_URL: "",
+        BTC_PRICE_FEED: undefined,
       },
       error: `Missing: ${missingVarNames.join(", ")}`,
     };
   }
 
   return {
-    env: envVars as RequiredEnvVars,
+    env: envVars as EnvVars,
     error: null,
   };
 }

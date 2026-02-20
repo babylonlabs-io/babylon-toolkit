@@ -46,16 +46,8 @@ jobs:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
-          - environment: canon-devnet
-            aws_account: 537927626649
-          - environment: btc-mainnet-devnet
-            aws_account: 537927626649
-          - environment: edge-devnet
-            aws_account: 537927626649
-          - environment: testnet
+          - environment: vault-testnet
             aws_account: 615368094160
-          - environment: mainnet
-            aws_account: 490721144737
 
     environment: ${{ matrix.environment }}
     steps:
@@ -117,10 +109,11 @@ jobs:
           # Analytics
           GA4_MEASUREMENT_ID: ${{ vars.GA4_MEASUREMENT_ID }}
 
-      - name: Copy all index.html to fix path for deposit, app/aave
+      - name: Copy all index.html to fix path for deposit, activity, app/aave
         run: |
           cd services/vault/dist
           cp index.html deposit
+          cp index.html activity
           mkdir -p app
           cp index.html app/aave
 

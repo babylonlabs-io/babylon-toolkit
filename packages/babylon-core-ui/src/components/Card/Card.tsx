@@ -4,9 +4,10 @@ import "./Card.css";
 
 interface CardProps extends PropsWithChildren {
   as?: string;
+  variant?: "default" | "filled";
   className?: string;
 }
 
-export function Card({ as = "div", className, children }: CardProps) {
-  return createElement(as, { className: twJoin("bbn-card", className) }, children);
+export function Card({ as = "div", variant = "default", className, children }: CardProps) {
+  return createElement(as, { className: twJoin("bbn-card", `bbn-card-${variant}`, className) }, children);
 }

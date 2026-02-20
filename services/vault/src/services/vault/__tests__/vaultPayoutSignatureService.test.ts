@@ -86,7 +86,7 @@ describe("vaultPayoutSignatureService", () => {
           ...validParams,
           depositorBtcPubkey: "invalid",
         }),
-      ).toThrow("Invalid depositorBtcPubkey format");
+      ).toThrow("Invalid pubkey format");
     });
 
     it("should throw for depositorBtcPubkey with wrong length", () => {
@@ -95,7 +95,7 @@ describe("vaultPayoutSignatureService", () => {
           ...validParams,
           depositorBtcPubkey: "1234", // too short
         }),
-      ).toThrow("Invalid depositorBtcPubkey format");
+      ).toThrow("Invalid pubkey format");
     });
 
     it("should throw for empty claimerTransactions", () => {

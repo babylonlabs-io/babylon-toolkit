@@ -165,3 +165,30 @@ export function formatTimeAgo(timestamp: number): string {
   }
   return "just now";
 }
+
+/**
+ * Format token amount for display with appropriate precision.
+ * Shows minimum 2 decimals, up to maxDecimals, trimming trailing zeros.
+ *
+ * @param amount - Token amount to format
+ * @param maxDecimals - Maximum decimal places (default: 6 for stablecoins)
+ * @returns Formatted string (e.g., "4.75" or "4.748593")
+ */
+export function formatTokenAmount(amount: number, maxDecimals = 6): string {
+  if (amount === 0) return "0";
+
+  // Format with max decimals, then trim trailing zeros
+  const formatted = amount.toFixed(maxDecimals);
+  // Remove trailing zeros but keep at least 2 decimal places
+  const trimmed = formatted.replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1");
+
+  // Ensure at least 2 decimal places for consistency
+  const parts = trimmed.split(".");
+  if (parts.length === 1) {
+    return `${parts[0]}.00`;
+  }
+  if (parts[1].length === 1) {
+    return `${parts[0]}.${parts[1]}0`;
+  }
+  return trimmed;
+}

@@ -20,11 +20,12 @@ interface ScreenProps {
   onToggleInscriptions?: (value: boolean, showAgain: boolean) => void;
   onClose?: () => void;
   onConfirm?: () => void;
+  simplifiedTerms?: boolean;
 }
 
 const SCREENS = {
-  TERMS_OF_SERVICE: ({ className, onClose, onAccepTermsOfService }: ScreenProps) => (
-    <TermsOfService className={className} onClose={onClose} onSubmit={onAccepTermsOfService} />
+  TERMS_OF_SERVICE: ({ className, onClose, onAccepTermsOfService, simplifiedTerms }: ScreenProps) => (
+    <TermsOfService className={className} onClose={onClose} onSubmit={onAccepTermsOfService} simplifiedTerms={simplifiedTerms} />
   ),
   CHAINS: ({ className, onClose, onConfirm, onDisconnectWallet }: ScreenProps) => (
     <Chains className={className} onClose={onClose} onConfirm={onConfirm} onDisconnectWallet={onDisconnectWallet} />

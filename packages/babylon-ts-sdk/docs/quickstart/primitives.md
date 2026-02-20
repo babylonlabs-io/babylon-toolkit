@@ -1,6 +1,6 @@
 # Primitives
 
-Pure functions for Bitcoin PSBT building. No wallet, no network, no side effects.
+Pure functions for Bitcoin PSBT building. No wallet access, no network calls, just data transformation.
 
 > For complete function signatures, see [API Reference](../api/primitives.md).
 
@@ -9,25 +9,26 @@ Pure functions for Bitcoin PSBT building. No wallet, no network, no side effects
 Primitives are the lowest-level SDK functions. They:
 
 - Build Bitcoin PSBTs (Partially Signed Bitcoin Transactions)
-- Are pure functions: input → output, no side effects
+- Are pure functions: given inputs → return outputs, no external calls
 - Have zero dependencies on wallets or network
 - Work in Node.js, browsers, serverless, anywhere
 
 ## When to Use Primitives
 
-| Use Case | Use |
-|----------|-----|
+| Use Case                                       | Use            |
+| ---------------------------------------------- | -------------- |
 | Backend services with custom signing (KMS/HSM) | **Primitives** |
-| Need full control over every step | **Primitives** |
-| Custom wallet integrations | **Primitives** |
-| Browser app with standard wallet | Managers |
-| Quick integration, less code | Managers |
+| Need full control over every step              | **Primitives** |
+| Custom wallet integrations                     | **Primitives** |
+| Browser app with standard wallet               | Managers       |
+| Quick integration, less code                   | Managers       |
 
 **Using primitives means YOU implement:**
-- Wallet signing
+
+- Bitcoin wallet signing
 - Ethereum contract calls
 - Vault provider RPC communication
-- Transaction broadcasting
+- Bitcoin transaction broadcasting
 
 ---
 
@@ -41,11 +42,11 @@ Builds an **unfunded** peg-in transaction hex (0 inputs, 1 vault output).
 import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 const result = await buildPeginPsbt({
-  depositorPubkey: "abc123...",           // x-only, 64 hex chars, no 0x
+  depositorPubkey: "abc123...", // x-only, 64 hex chars, no 0x
   vaultProviderPubkey: "def456...",
   vaultKeeperPubkeys: ["ghi789..."],
   universalChallengerPubkeys: ["jkl012..."],
-  pegInAmount: 100000n,                   // satoshis
+  pegInAmount: 100000n, // satoshis
   network: "signet",
 });
 
@@ -134,10 +135,10 @@ The SDK also provides utility functions you'll need when using primitives:
 
 ```typescript
 import {
-  selectUtxosForPegin,    // UTXO selection with fee calculation
-  calculateBtcTxHash,     // Get tx hash from hex
-  fundPeginTransaction,   // Add inputs/change to unfunded tx hex
-  P2TR_INPUT_SIZE,        // Fee calculation constants
+  selectUtxosForPegin, // UTXO selection with fee calculation
+  calculateBtcTxHash, // Get tx hash from hex
+  fundPeginTransaction, // Add inputs/change to unfunded tx hex
+  P2TR_INPUT_SIZE, // Fee calculation constants
   BTC_DUST_SAT,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 ```
@@ -146,16 +147,16 @@ import {
 
 ```typescript
 const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
-  availableUTXOs,  // Your UTXOs
-  amount,          // Target amount (satoshis)
-  feeRate,         // sat/vB
+  availableUTXOs, // Your UTXOs
+  amount, // Target amount (satoshis)
+  feeRate, // sat/vB
 );
 ```
 
 ### Calculate Transaction Hash
 
 ```typescript
-const txHash = calculateBtcTxHash(txHex);  // Returns "0x..." format
+const txHash = calculateBtcTxHash(txHex); // Returns "0x..." format
 ```
 
 ---
@@ -166,10 +167,10 @@ Helper functions for pubkey/hex handling:
 
 ```typescript
 import {
-  toXOnly,              // Convert 33-byte to 32-byte pubkey
-  stripHexPrefix,       // Remove "0x" prefix
-  hexToUint8Array,      // Convert hex string to bytes
-  uint8ArrayToHex,      // Convert bytes to hex string
+  toXOnly, // Convert 33-byte to 32-byte pubkey
+  stripHexPrefix, // Remove "0x" prefix
+  hexToUint8Array, // Convert hex string to bytes
+  uint8ArrayToHex, // Convert bytes to hex string
   validateWalletPubkey, // Validate pubkey format
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 ```
@@ -178,21 +179,21 @@ import {
 
 ## Comparison: Primitives vs Managers
 
-| Aspect | Primitives | Managers |
-|--------|------------|----------|
-| **PSBT Building** | You use primitives | Uses primitives internally |
-| **Wallet Integration** | You implement | Built-in (accepts interface) |
-| **UTXO Selection** | You call utility | Built-in |
-| **Fee Calculation** | You call utility | Built-in |
-| **PoP Generation** | You implement | Built-in |
-| **Ethereum Submission** | You implement | Built-in |
-| **Broadcasting** | You implement | Built-in |
-| **Use Case** | Custom backends, KMS/HSM | Browser apps, quick integration |
+| Aspect                  | Primitives               | Managers                        |
+| ----------------------- | ------------------------ | ------------------------------- |
+| **PSBT Building**       | You use primitives       | Uses primitives internally      |
+| **Wallet Integration**  | You implement            | Built-in (accepts interface)    |
+| **UTXO Selection**      | You call utility         | Built-in                        |
+| **Fee Calculation**     | You call utility         | Built-in                        |
+| **PoP Generation**      | You implement            | Built-in                        |
+| **Ethereum Submission** | You implement            | Built-in                        |
+| **Broadcasting**        | You implement            | Built-in                        |
+| **Use Case**            | Custom backends, KMS/HSM | Browser apps, quick integration |
 
 ---
 
 ## Next Steps
 
 - **[Managers](./managers.md)** - High-level orchestration (easier)
-- **[AAVE Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
 - **[API Reference](../api/primitives.md)** - Complete function signatures

@@ -4,7 +4,7 @@
 
 | Guide | Description |
 |-------|-------------|
-| **[Installation](../get-started/installation.md)** | Setup instructions |
+| **[Troubleshooting](../get-started/troubleshooting.md)** | Common issues and solutions |
 | **[Quickstart: Primitives](../quickstart/primitives.md)** | Complete working example with primitives |
 | **[Quickstart: Managers](../quickstart/managers.md)** | Complete working example with managers |
 

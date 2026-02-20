@@ -11,6 +11,8 @@ import { FULL_REPAY_TOLERANCE } from "../../../../constants";
 export interface UseRepayStateProps {
   /** Current debt amount for selected reserve in token units */
   currentDebtAmount: number;
+  /** User's token balance for the selected reserve */
+  userTokenBalance: number;
 }
 
 export interface UseRepayStateResult {
@@ -24,12 +26,14 @@ export interface UseRepayStateResult {
 
 export function useRepayState({
   currentDebtAmount,
+  userTokenBalance,
 }: UseRepayStateProps): UseRepayStateResult {
   const [repayAmount, setRepayAmount] = useState(0);
 
+  // Max repay is the minimum of debt and available balance
   const maxRepayAmount = useMemo(() => {
-    return Math.max(0, currentDebtAmount);
-  }, [currentDebtAmount]);
+    return Math.max(0, Math.min(currentDebtAmount, userTokenBalance));
+  }, [currentDebtAmount, userTokenBalance]);
 
   // Determine if this is a full repayment (within tolerance for floating point)
   const isFullRepayment = useMemo(() => {

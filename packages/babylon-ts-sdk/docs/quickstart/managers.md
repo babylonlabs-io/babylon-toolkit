@@ -183,7 +183,10 @@ interface BitcoinWallet {
   getAddress(): Promise<string>; // Bitcoin address
   getNetwork(): Promise<string>; // Bitcoin network (mainnet, testnet, signet)
   signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
-  signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string>;
+  signMessage(
+    message: string,
+    type: "bip322-simple" | "ecdsa",
+  ): Promise<string>;
 }
 ```
 
@@ -207,5 +210,5 @@ const ethWallet = createWalletClient({
 ## Next Steps
 
 - **[Primitives](./primitives.md)** - Low-level functions for custom implementations
-- **[AAVE Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
 - **[API Reference](../api/managers.md)** - Complete function signatures

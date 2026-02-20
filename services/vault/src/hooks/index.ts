@@ -18,6 +18,12 @@ export {
 } from "./useBTCBalance";
 export { useBtcPublicKey } from "./useBtcPublicKey";
 export {
+  ERC20_BALANCE_QUERY_KEY,
+  useERC20Balance,
+  type UseERC20BalanceResult,
+} from "./useERC20Balance";
+export { toIdentity, useLogos, type UseLogosResult } from "./useLogos";
+export {
   useLtvCalculations,
   type UseLtvCalculationsResult,
 } from "./useLtvCalculations";
@@ -38,3 +44,4 @@ export { useTokenPair, type UseTokenPairResult } from "./useTokenPair";
 export { UTXOS_QUERY_KEY, useUTXOs } from "./useUTXOs";
 export { useVaultDeposits } from "./useVaultDeposits";
 export { VAULTS_QUERY_KEY, useVaults } from "./useVaults";
+export { useWithLogos } from "./useWithLogos";

@@ -38,4 +38,8 @@
   &-mobile {
     @apply bg-surface border-secondary-strokeLight fixed inset-x-0 bottom-0 z-50 flex max-h-full flex-col rounded-t-3xl border px-4 pb-4 pt-12;
   }
+
+  &-fullscreen {
+    @apply fixed inset-0 z-50 flex flex-col bg-surface overflow-y-auto;
+  }
 }

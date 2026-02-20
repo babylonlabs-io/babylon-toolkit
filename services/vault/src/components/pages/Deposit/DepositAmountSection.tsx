@@ -9,14 +9,13 @@ import { useMemo } from "react";
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { getNetworkConfigBTC } from "@/config";
 
-import { depositService } from "../../../services/deposit";
 import { PriceWarningBanner } from "../../shared";
 
 const btcConfig = getNetworkConfigBTC();
 
 interface DepositAmountSectionProps {
   amount: string;
-  btcBalance: bigint;
+  btcBalanceFormatted: number;
   btcPrice: number;
   error?: string;
   completed?: boolean;
@@ -30,7 +29,7 @@ interface DepositAmountSectionProps {
 
 export function DepositAmountSection({
   amount,
-  btcBalance,
+  btcBalanceFormatted,
   btcPrice,
   error,
   completed,
@@ -41,11 +40,6 @@ export function DepositAmountSection({
   hasStalePrices = false,
   hasPriceFetchError = false,
 }: DepositAmountSectionProps) {
-  const btcBalanceFormatted = useMemo(() => {
-    if (!btcBalance) return 0;
-    return Number(depositService.formatSatoshisToBtc(btcBalance, 8));
-  }, [btcBalance]);
-
   const amountUsd = useMemo(() => {
     // Don't show USD if price fetch failed
     if (hasPriceFetchError) return "";
@@ -91,8 +85,6 @@ export function DepositAmountSection({
               displayUSD: btcConfig.displayUSD && !hasPriceFetchError,
               decimals: 4,
             }}
-            min="0"
-            step="any"
             autoFocus={false}
             onChange={(e) => onAmountChange(e.target.value)}
             onMaxClick={onMaxClick}

@@ -16,7 +16,7 @@ import {
   type UTXO,
 } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { getMempoolApiUrl } from "../clients/btc/config";
 import { useAppState } from "../state/AppState";
@@ -102,6 +102,16 @@ export function useUTXOs(
     enabled: !isLoading && confirmedUTXOs.length > 0,
   });
 
+  // Log ordinals API errors once when the error changes (not on every render)
+  useEffect(() => {
+    if (ordinalsError) {
+      console.warn(
+        "Ordinals API failed, treating all UTXOs as available:",
+        ordinalsError,
+      );
+    }
+  }, [ordinalsError]);
+
   // Filter UTXOs by inscriptions
   // Rename to match exported API naming convention (uppercase UTXO)
   // If ordinals API fails or is still loading, treat all UTXOs as available (non-blocking)
@@ -113,12 +123,6 @@ export function useUTXOs(
     // If ordinals API failed or still loading, treat all UTXOs as available
     // Ordinals check is optional - we don't block on it
     if (ordinalsError || isLoadingOrdinals) {
-      if (ordinalsError) {
-        console.warn(
-          "Ordinals API failed, treating all UTXOs as available:",
-          ordinalsError,
-        );
-      }
       return {
         availableUTXOs: confirmedUtxosForOrdinals,
         inscriptionUTXOs: [],

@@ -45,4 +45,15 @@ export default {
   get isDepositorAsClaimerEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_DEPOSITOR_AS_CLAIMER === "true";
   },
+
+  /**
+   * SIMPLIFIED_TERMS feature flag
+   *
+   * Purpose: Controls whether the wallet connection dialog shows simplified terms
+   * Why needed: When enabled, only the T&C checkbox is shown instead of all three
+   * Default: false (all three checkboxes are shown unless explicitly set to "true")
+   */
+  get isSimplifiedTermsEnabled() {
+    return process.env.NEXT_PUBLIC_FF_SIMPLIFIED_TERMS === "true";
+  },
 };

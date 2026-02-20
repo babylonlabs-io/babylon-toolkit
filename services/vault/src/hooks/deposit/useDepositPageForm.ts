@@ -44,7 +44,12 @@ export interface UseDepositPageFormResult {
     logoUrl: string | null;
   }>;
   isLoadingApplications: boolean;
-  providers: Array<{ id: string; name: string; btcPubkey: string }>;
+  providers: Array<{
+    id: string;
+    name: string;
+    btcPubkey: string;
+    iconUrl?: string;
+  }>;
   isLoadingProviders: boolean;
 
   amountSats: bigint;
@@ -97,8 +102,9 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
-      name: formatProviderName(p.id),
+      name: p.name ?? formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
+      iconUrl: p.iconUrl,
     }));
   }, [rawProviders]);
 
