@@ -1,5 +1,7 @@
 import React from "react";
 
+import { sanitizeNumericInput } from "../../utils/helpers";
+
 export interface BalanceDetails {
   balance: number | string;
   symbol: string;
@@ -15,8 +17,6 @@ export interface AmountItemProps {
   placeholder?: string;
   displayBalance?: boolean;
   balanceDetails?: BalanceDetails;
-  min: string;
-  step: string;
   autoFocus: boolean;
   amountUsd: string;
   subtitle?: string;
@@ -35,8 +35,6 @@ export const AmountItem = ({
   placeholder = "Enter Amount",
   displayBalance,
   balanceDetails,
-  min,
-  step,
   autoFocus,
   onChange,
   onKeyDown,
@@ -47,21 +45,22 @@ export const AmountItem = ({
   onMaxClick,
 }: AmountItemProps) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let value = e.target.value;
+    let value = sanitizeNumericInput(e.target.value);
+
+    if (value === undefined) {
+      e.target.value = String(amount ?? "");
+      return;
+    }
 
     if (maxDecimals !== undefined && maxDecimals >= 0) {
       const [integer, decimal] = value.split(".", 2);
 
       if (decimal !== undefined && decimal.length > maxDecimals) {
         value = integer + "." + decimal.slice(0, maxDecimals);
-        e.target.value = value;
-      } else if (decimal !== undefined) {
-        value = integer + "." + decimal;
-      } else if (value.includes(".")) {
-        value = integer;
       }
     }
 
+    e.target.value = value;
     onChange(e);
   };
 
@@ -83,17 +82,16 @@ export const AmountItem = ({
           <div className="text-lg">{currencyName}</div>
         </div>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={amount ?? ""}
-          min={min}
-          step={step}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           readOnly={readOnly}
           placeholder={placeholder}
           autoFocus={autoFocus}
-          className="w-2/3 appearance-none bg-transparent text-right text-lg outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className="w-2/3 appearance-none bg-transparent text-right text-lg outline-none"
         />
       </div>
 

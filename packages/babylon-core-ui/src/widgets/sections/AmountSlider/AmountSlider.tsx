@@ -1,6 +1,7 @@
 import type React from "react";
 import { twJoin, twMerge } from "tailwind-merge";
 import { Slider, type SliderStep } from "../../../components/Slider";
+import { sanitizeNumericInput } from "../../../utils/helpers";
 
 interface BalanceDetails {
   balance: number | string;
@@ -71,11 +72,20 @@ export function AmountSlider({
   className,
   inputClassName,
 }: AmountSliderProps) {
-  // Prevent arrow key increments
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
     }
+  };
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = sanitizeNumericInput(e.target.value);
+    if (value === undefined) {
+      e.target.value = String(amount);
+      return;
+    }
+    e.target.value = value;
+    onAmountChange?.(e);
   };
 
   // Determine the background color
@@ -97,14 +107,15 @@ export function AmountSlider({
           <span className="whitespace-nowrap text-lg text-accent-primary">{currencyName}</span>
         </div>
         <input
-          type="number"
+          type="text"
+          inputMode="decimal"
           value={amount}
-          onChange={onAmountChange}
+          onChange={handleAmountChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           readOnly={readOnly || !onAmountChange}
           placeholder="0"
-          className={twMerge("w-2/3 bg-transparent text-right text-lg outline-none appearance-none [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-accent-primary", inputClassName)}
+          className={twMerge("w-2/3 bg-transparent text-right text-lg outline-none text-accent-primary", inputClassName)}
         />
       </div>
 

@@ -85,8 +85,6 @@ export function DepositAmountSection({
               displayUSD: btcConfig.displayUSD && !hasPriceFetchError,
               decimals: 4,
             }}
-            min="0"
-            step="any"
             autoFocus={false}
             onChange={(e) => onAmountChange(e.target.value)}
             onMaxClick={onMaxClick}
