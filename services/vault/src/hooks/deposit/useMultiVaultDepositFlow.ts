@@ -332,25 +332,6 @@ export function useMultiVaultDepositFlow(
           try {
             const allocation = plan.vaultAllocations[i];
 
-            // Get UTXO for this vault
-            let utxoToUse: UTXO;
-            if (allocation.fromSplit && splitTxResult) {
-              // Use output from split transaction (now on-chain)
-              const splitOutput =
-                splitTxResult.outputs[allocation.splitTxOutputIndex!];
-              utxoToUse = {
-                txid: splitOutput.txid,
-                vout: splitOutput.vout,
-                value: splitOutput.value,
-                scriptPubKey: splitOutput.scriptPubKey,
-              };
-            } else if (allocation.utxos.length > 0) {
-              // Use existing UTXOs (MULTI_INPUT: may be multiple UTXOs per vault)
-              utxoToUse = allocation.utxos[0]!; // primary UTXO (for type compat; full array used below)
-            } else {
-              throw new Error(`No UTXO available for vault ${i}`);
-            }
-
             const walletClient = await getEthWalletClient(confirmedEthAddress);
             const peginAmount = vaultAmounts[i];
 
@@ -365,10 +346,20 @@ export function useMultiVaultDepositFlow(
             };
             let depositorBtcPubkey: string;
 
-            if (allocation.fromSplit) {
+            if (allocation.fromSplit && splitTxResult) {
               // ================================================================
               // SPLIT OUTPUT PATH: Use custom pegin builder (no mempool fetch)
               // ================================================================
+
+              // Use output from split transaction (now on-chain)
+              const splitOutput =
+                splitTxResult.outputs[allocation.splitTxOutputIndex!];
+              const utxoToUse: UTXO = {
+                txid: splitOutput.txid,
+                vout: splitOutput.vout,
+                value: splitOutput.value,
+                scriptPubKey: splitOutput.scriptPubKey,
+              };
 
               // Extract depositor pubkey
               const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
@@ -411,6 +402,11 @@ export function useMultiVaultDepositFlow(
               // ================================================================
               // STANDARD PATH: Use existing submitPeginAndWait (mempool OK)
               // ================================================================
+
+              // Validate UTXOs are available
+              if (allocation.utxos.length === 0) {
+                throw new Error(`No UTXO available for vault ${i}`);
+              }
 
               const result = await submitPeginAndWait({
                 btcWalletProvider,
