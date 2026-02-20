@@ -645,6 +645,7 @@ export function useMultiVaultDepositFlow(
       } finally {
         setProcessing(false);
         setIsWaiting(false);
+        setCurrentVaultIndex(null);
       }
     }, [
       vaultAmounts,
