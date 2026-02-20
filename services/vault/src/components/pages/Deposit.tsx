@@ -60,6 +60,7 @@ function DepositContent() {
     universalChallengerBtcPubkeys,
     startDeposit,
     confirmReview,
+    confirmMnemonic,
     onSignSuccess,
     resetDeposit,
     refetchActivities,
@@ -176,6 +177,7 @@ function DepositContent() {
         universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
         onClose={resetDeposit}
         onConfirmReview={confirmReview}
+        onConfirmMnemonic={confirmMnemonic}
         onSignSuccess={onSignSuccess}
         onRefetchActivities={refetchActivities}
       />

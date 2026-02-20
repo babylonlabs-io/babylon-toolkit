@@ -1,0 +1,44 @@
+import { decrypt, encrypt } from "@metamask/browser-passworder";
+
+const STORAGE_KEY = "babylon-lamport-vault";
+
+interface StoredVault {
+  encrypted: string;
+}
+
+export async function hasStoredMnemonic(): Promise<boolean> {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw !== null;
+}
+
+export async function storeMnemonic(
+  mnemonic: string,
+  password: string,
+): Promise<void> {
+  const encrypted = await encrypt(password, { mnemonic });
+  const vault: StoredVault = { encrypted };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(vault));
+}
+
+export async function unlockMnemonic(password: string): Promise<string> {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    throw new Error("No stored mnemonic found");
+  }
+
+  let vault: StoredVault;
+  try {
+    vault = JSON.parse(raw);
+  } catch {
+    throw new Error("Stored mnemonic data is corrupted");
+  }
+
+  const decrypted = (await decrypt(password, vault.encrypted)) as {
+    mnemonic: string;
+  };
+  return decrypted.mnemonic;
+}
+
+export function clearStoredMnemonic(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}

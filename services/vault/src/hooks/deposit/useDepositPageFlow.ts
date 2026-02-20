@@ -9,6 +9,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import { FeatureFlags } from "../../config";
 import {
   DepositStep,
   useDepositState,
@@ -44,6 +45,7 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
+  confirmMnemonic: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -137,6 +139,14 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
+    if (FeatureFlags.isDepositorAsClaimerEnabled) {
+      goToStep(DepositStep.MNEMONIC);
+    } else {
+      goToStep(DepositStep.SIGN);
+    }
+  };
+
+  const confirmMnemonic = () => {
     goToStep(DepositStep.SIGN);
   };
 
@@ -158,6 +168,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     universalChallengerBtcPubkeys,
     startDeposit,
     confirmReview,
+    confirmMnemonic,
     onSignSuccess,
     resetDeposit,
     refetchActivities,
