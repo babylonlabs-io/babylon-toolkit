@@ -27,10 +27,9 @@ export async function unlockMnemonic(password: string): Promise<string> {
   }
 
   const vault: StoredVault = JSON.parse(raw);
-  const decrypted = await decrypt<{ mnemonic: string }>(
-    password,
-    vault.encrypted,
-  );
+  const decrypted = (await decrypt(password, vault.encrypted)) as {
+    mnemonic: string;
+  };
   return decrypted.mnemonic;
 }
 
