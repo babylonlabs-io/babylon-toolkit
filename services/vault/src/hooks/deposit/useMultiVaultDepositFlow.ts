@@ -33,7 +33,6 @@ import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
@@ -528,9 +527,11 @@ export function useMultiVaultDepositFlow(
                 providerUrl: provider.url,
                 providerBtcPubKey: provider.btcPubKey,
                 vaultKeepers,
-                universalChallengers: universalChallengerBtcPubkeys.map((btcPubKey) => ({
-                  btcPubKey,
-                })),
+                universalChallengers: universalChallengerBtcPubkeys.map(
+                  (btcPubKey) => ({
+                    btcPubKey,
+                  }),
+                ),
               });
 
             // Sign payouts
@@ -569,7 +570,8 @@ export function useMultiVaultDepositFlow(
               confirmedEthAddress,
             );
           } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorMsg =
+              error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;
             warnings.push(warning);
             console.error(
@@ -625,7 +627,8 @@ export function useMultiVaultDepositFlow(
               );
             }
           } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorMsg =
+              error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: BTC broadcast failed - ${errorMsg}`;
             warnings.push(warning);
             console.error(
