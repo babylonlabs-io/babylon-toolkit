@@ -190,7 +190,7 @@ async function createAndSignSplitTransaction(
 
   // Extract signed transaction
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
-  signedPsbt.setMaximumFeeRate(100000); // Safety check
+  signedPsbt.setMaximumFeeRate(100000); // Allow high fee rates for split transactions
   const signedTx = signedPsbt.extractTransaction();
   const signedHex = signedTx.toHex();
 
