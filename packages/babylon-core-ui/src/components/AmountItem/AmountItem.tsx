@@ -17,8 +17,6 @@ export interface AmountItemProps {
   placeholder?: string;
   displayBalance?: boolean;
   balanceDetails?: BalanceDetails;
-  min: string;
-  step: string;
   autoFocus: boolean;
   amountUsd: string;
   subtitle?: string;
@@ -50,6 +48,7 @@ export const AmountItem = ({
     let value = sanitizeNumericInput(e.target.value);
 
     if (value === undefined) {
+      e.target.value = String(amount ?? "");
       return;
     }
 
@@ -58,10 +57,6 @@ export const AmountItem = ({
 
       if (decimal !== undefined && decimal.length > maxDecimals) {
         value = integer + "." + decimal.slice(0, maxDecimals);
-      } else if (decimal !== undefined) {
-        value = integer + "." + decimal;
-      } else if (value.includes(".")) {
-        value = integer;
       }
     }
 

@@ -26,8 +26,6 @@ export const Default: Story = {
             displayUSD: true,
             decimals: 8,
         },
-        min: "0",
-        step: "0.00000001",
         autoFocus: false,
         onChange: console.log,
         onKeyDown: console.log,

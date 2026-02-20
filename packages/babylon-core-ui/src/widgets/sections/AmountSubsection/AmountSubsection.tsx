@@ -22,8 +22,6 @@ interface Props {
   displayBalance?: boolean;
   balanceDetails?: BalanceDetails;
   prefix?: string;
-  min?: string;
-  step?: string;
   autoFocus?: boolean;
   decimals?: number; // Enforce decimals
   enableMaxButton?: boolean; // Enable Max button to fill max balance
@@ -37,8 +35,6 @@ export const AmountSubsection = ({
   placeholder = "Enter Amount",
   balanceDetails,
   prefix,
-  min = "0",
-  step = "any",
   autoFocus = true,
   decimals,
   enableMaxButton,
@@ -95,8 +91,6 @@ export const AmountSubsection = ({
           placeholder={placeholder}
           displayBalance={displayBalance}
           balanceDetails={balanceDetails}
-          min={min}
-          step={step}
           autoFocus={autoFocus}
           onChange={handleInputChange}
           amountUsd={amountUsd}

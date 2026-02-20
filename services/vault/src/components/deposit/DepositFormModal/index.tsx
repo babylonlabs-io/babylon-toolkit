@@ -141,8 +141,6 @@ export function CollateralDepositModal({
                 displayUSD: btcConfig.displayUSD,
                 decimals: 4,
               }}
-              min="0"
-              step="any"
               autoFocus
               onChange={handleAmountChange}
               onMaxClick={handleBalanceClick}

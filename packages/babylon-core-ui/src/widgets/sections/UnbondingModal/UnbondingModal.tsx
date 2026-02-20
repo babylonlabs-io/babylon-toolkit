@@ -24,8 +24,6 @@ interface RewardData {
     placeholder?: string;
     displayBalance?: boolean;
     balanceDetails?: BalanceDetails;
-    min?: string;
-    step?: string;
     chainName?: string;
     subtitle?: string;
     /** Amount currently staked */
@@ -108,8 +106,6 @@ export const UnbondingModal = ({
                         placeholder={reward.placeholder ?? "Enter Amount"}
                         displayBalance={reward.displayBalance}
                         balanceDetails={reward.balanceDetails}
-                        min={reward.min ?? "0"}
-                        step={reward.step ?? "any"}
                         autoFocus={false}
                         onChange={onChange}
                         onKeyDown={onKeyDown}

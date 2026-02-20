@@ -222,8 +222,6 @@ export const CustomMinStep: Story = {
     placeholder: "Minimum 0.001 BTC",
     prefix: "Withdrawable",
     displayBalance: true,
-    min: "0.001",
-    step: "0.001",
     balanceDetails: {
       balance: 2.5,
       symbol: "BTC",

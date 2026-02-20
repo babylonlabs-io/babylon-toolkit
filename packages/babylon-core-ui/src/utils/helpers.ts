@@ -169,8 +169,18 @@ export function parseAmount(value: string): number {
  */
 export function sanitizeNumericInput(value: string): string | undefined {
   const sanitized = value.replace(/,/g, ".");
-  if (sanitized !== "" && !/^\d*\.?\d*$/.test(sanitized)) {
-    return undefined;
+  if (sanitized === "") return sanitized;
+
+  let dotCount = 0;
+  for (let i = 0; i < sanitized.length; i++) {
+    const char = sanitized[i];
+    if (char === ".") {
+      dotCount++;
+      if (dotCount > 1) return undefined;
+    } else if (char < "0" || char > "9") {
+      return undefined;
+    }
   }
+
   return sanitized;
 }

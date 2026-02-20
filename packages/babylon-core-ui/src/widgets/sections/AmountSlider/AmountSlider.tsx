@@ -81,6 +81,7 @@ export function AmountSlider({
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = sanitizeNumericInput(e.target.value);
     if (value === undefined) {
+      e.target.value = String(amount);
       return;
     }
     e.target.value = value;

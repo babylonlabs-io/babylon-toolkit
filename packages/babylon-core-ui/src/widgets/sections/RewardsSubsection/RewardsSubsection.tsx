@@ -19,8 +19,6 @@ interface Reward {
     placeholder?: string;
     displayBalance?: boolean;
     balanceDetails?: BalanceDetails;
-    min?: string;
-    step?: string;
 }
 
 interface Props {
@@ -49,8 +47,6 @@ export const RewardsSubsection = ({ rewards, onClick, disabled }: Props) => {
                         placeholder={reward.placeholder ?? "Enter Amount"}
                         displayBalance={reward.displayBalance}
                         balanceDetails={reward.balanceDetails}
-                        min={reward.min ?? "0"}
-                        step={reward.step ?? "any"}
                         autoFocus={false}
                         onChange={() => { }}
                         onKeyDown={() => { }}
