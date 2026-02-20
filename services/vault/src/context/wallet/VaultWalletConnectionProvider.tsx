@@ -13,6 +13,8 @@ import {
 import { useTheme } from "next-themes";
 import { useCallback, useMemo, useRef, type PropsWithChildren } from "react";
 
+import featureFlags from "@/config/featureFlags";
+
 const context = typeof window !== "undefined" ? window : {};
 
 const SUPPORTED_EXTERNAL_WALLETS = [
@@ -124,6 +126,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       onError={onError}
       disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
+      simplifiedTerms={featureFlags.isSimplifiedTermsEnabled}
     >
       <WalletProviders>{children}</WalletProviders>
     </WalletProvider>
