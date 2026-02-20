@@ -1,21 +1,13 @@
-import {
-  Button,
-  Heading,
-  Loader,
-  Stepper,
-  type StepperItem,
-  Text,
-} from "@babylonlabs-io/core-ui";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import {
   canCloseModal,
   DepositStep,
 } from "@/components/deposit/DepositSignModal/constants";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
-import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
+
+import { DepositProgressView } from "./DepositProgressView";
 
 interface DepositSignContentProps {
   amount: bigint;
@@ -34,52 +26,6 @@ interface DepositSignContentProps {
   ) => void;
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
-}
-
-/**
- * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-6).
- *
- * Visual steps:
- * 1. Sign proof of possession
- * 2. Submit peg-in requests
- * 3. Wait (~ 15 min)
- * 4. Sign payout transactions
- * 5. Wait (~ 12 mins)
- * 6. Submit peg-in transactions
- */
-function getVisualStep(currentStep: DepositStep, isWaiting: boolean): number {
-  switch (currentStep) {
-    case DepositStep.SIGN_POP:
-      return 1;
-    case DepositStep.SUBMIT_PEGIN:
-      return 2;
-    case DepositStep.SIGN_PAYOUTS:
-      return isWaiting ? 3 : 4;
-    case DepositStep.BROADCAST_BTC:
-      return isWaiting ? 5 : 6;
-    case DepositStep.COMPLETED:
-      return 7; // All 6 steps completed
-    default:
-      return 1;
-  }
-}
-
-function buildStepItems(progress: PayoutSigningProgress | null): StepperItem[] {
-  const payoutTotal = progress?.total ?? 0;
-  const payoutCompleted = progress?.completed ?? 0;
-
-  return [
-    { label: "Sign proof of possession" },
-    { label: "Submit peg-in requests" },
-    { label: "Wait", description: "(~ 15 min)" },
-    {
-      label: "Sign payout transactions",
-      description:
-        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
-    },
-    { label: "Wait", description: "(~ 12 mins)" },
-    { label: "Submit peg-in transactions" },
-  ];
 }
 
 export function DepositSignContent({
@@ -120,61 +66,23 @@ export function DepositSignContent({
   const canContinueInBackground =
     isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
 
-  const visualStep = getVisualStep(currentStep, isWaiting);
-  const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress),
-    [payoutSigningProgress],
-  );
-
   const handleClose = useCallback(() => {
     abort();
     onClose();
   }, [abort, onClose]);
 
   return (
-    <div className="w-full max-w-[520px]">
-      <Heading variant="h5" className="text-accent-primary">
-        Deposit Progress
-      </Heading>
-
-      <div className="mt-6 flex flex-col gap-6">
-        <Stepper steps={steps} currentStep={visualStep} />
-
-        {error && <StatusBanner variant="error">{error}</StatusBanner>}
-
-        {isComplete && (
-          <StatusBanner variant="success">
-            Your Bitcoin transaction has been broadcast to the network. It will
-            be confirmed after receiving the required number of Bitcoin
-            confirmations.
-          </StatusBanner>
-        )}
-
-        <Button
-          disabled={!canClose}
-          variant="contained"
-          color="secondary"
-          className="w-full"
-          onClick={handleClose}
-        >
-          {canContinueInBackground ? (
-            "You can close and come back later"
-          ) : error ? (
-            "Close"
-          ) : isComplete ? (
-            "Complete"
-          ) : isProcessing ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader size={16} className="text-accent-contrast" />
-              <Text as="span" variant="body2" className="text-accent-contrast">
-                Sign
-              </Text>
-            </span>
-          ) : (
-            "Sign"
-          )}
-        </Button>
-      </div>
-    </div>
+    <DepositProgressView
+      currentStep={currentStep}
+      isWaiting={isWaiting}
+      error={error}
+      isComplete={isComplete}
+      isProcessing={isProcessing}
+      canClose={canClose}
+      canContinueInBackground={canContinueInBackground}
+      payoutSigningProgress={payoutSigningProgress}
+      onClose={handleClose}
+      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
+    />
   );
 }

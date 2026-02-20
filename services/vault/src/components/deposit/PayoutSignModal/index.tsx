@@ -1,10 +1,11 @@
 /**
  * PayoutSignModal
  *
- * Standalone modal for signing payout transactions.
- * Opens when user clicks "Sign" button from deposits table.
+ * Modal for resuming the deposit flow at the payout signing step.
+ * Shows the same stepper UI as the initial deposit modal, with
+ * steps 1-2 already completed and step 3 (Sign Payouts) active.
  *
- * This is Step 3 isolated - assumes Steps 1 & 2 already completed.
+ * Auto-triggers wallet signing when the modal opens.
  */
 
 import {
@@ -18,6 +19,11 @@ import {
 } from "@babylonlabs-io/core-ui";
 import type { Hex } from "viem";
 
+import { useOnModalOpen } from "@/hooks/useOnModalOpen";
+
+import { DepositStep } from "../DepositSignModal/constants";
+import { DepositSteps } from "../DepositSignModal/DepositSteps";
+import { StatusBanner } from "../DepositSignModal/StatusBanner";
 import type { VaultActivity } from "../../../types/activity";
 
 import { SigningProgress } from "./SigningProgress";
@@ -41,11 +47,26 @@ interface PayoutSignModalProps {
 }
 
 /**
- * Modal for signing payout transactions (Step 3 only)
- *
- * Assumes proof of possession and ETH submission already complete.
- * Only handles payout signature signing and submission.
+ * Get the step description text for the payout signing flow
  */
+function getPayoutStepDescription(
+  signing: boolean,
+  isComplete: boolean,
+  error: { title: string; message: string } | null,
+  transactionCount: number,
+): string {
+  if (isComplete) {
+    return "Payout transactions signed successfully!";
+  }
+  if (error) {
+    return error.message;
+  }
+  if (signing) {
+    return "Please sign the payout transaction(s) in your BTC wallet.";
+  }
+  return `Your vault provider has prepared ${transactionCount} payout transaction(s). Signing will begin automatically.`;
+}
+
 export function PayoutSignModal({
   open,
   onClose,
@@ -55,20 +76,27 @@ export function PayoutSignModal({
   depositorEthAddress,
   onSuccess,
 }: PayoutSignModalProps) {
-  const { signing, progress, error, handleSign } = usePayoutSigningState({
-    activity,
-    transactions,
-    btcPublicKey,
-    depositorEthAddress,
-    onSuccess,
-    onClose,
-  });
+  const { signing, progress, error, isComplete, handleSign } =
+    usePayoutSigningState({
+      activity,
+      transactions,
+      btcPublicKey,
+      depositorEthAddress,
+      onSuccess,
+      onClose,
+    });
+
+  // Auto-trigger signing when modal opens
+  useOnModalOpen(open, handleSign);
+
+  const isProcessing = signing && !error && !isComplete;
+  const canClose = !!error || isComplete || !signing;
 
   return (
-    <ResponsiveDialog open={open} onClose={onClose}>
+    <ResponsiveDialog open={open} onClose={canClose ? onClose : undefined}>
       <DialogHeader
-        title="Sign Payout Transactions"
-        onClose={onClose}
+        title="Deposit Progress"
+        onClose={canClose ? onClose : undefined}
         className="text-accent-primary"
       />
 
@@ -77,38 +105,53 @@ export function PayoutSignModal({
           variant="body2"
           className="text-sm text-accent-secondary sm:text-base"
         >
-          Your vault provider has prepared {transactions?.length ?? 0} payout{" "}
-          {transactions?.length === 1 ? "transaction" : "transactions"}. Please
-          sign to complete your deposit.
+          {getPayoutStepDescription(
+            signing,
+            isComplete,
+            error,
+            transactions?.length ?? 0,
+          )}
         </Text>
 
-        {signing && <SigningProgress {...progress} />}
+        {/* Stepper: steps 1-2 completed, currently on step 3 */}
+        <DepositSteps
+          currentStep={isComplete ? DepositStep.COMPLETED : DepositStep.SIGN_PAYOUTS}
+        />
 
-        {error && (
-          <div className="bg-error/10 rounded-lg p-4">
-            <Text variant="body1" className="text-error mb-1 font-medium">
-              {error.title}
-            </Text>
-            <Text variant="body2" className="text-error text-sm">
-              {error.message}
-            </Text>
-          </div>
+        {/* Signing progress bar */}
+        {signing && (
+          <SigningProgress
+            step={DepositStep.SIGN_PAYOUTS}
+            isWaiting={false}
+            {...progress}
+          />
+        )}
+
+        {error && <StatusBanner variant="error">{error.message}</StatusBanner>}
+
+        {isComplete && (
+          <StatusBanner variant="success">
+            Your payout transactions have been signed and submitted
+            successfully. Your deposit is now being processed.
+          </StatusBanner>
         )}
       </DialogBody>
 
       <DialogFooter className="px-4 pb-6 sm:px-6">
         <Button
-          disabled={signing}
+          disabled={!canClose}
           variant="contained"
           className="w-full text-xs sm:text-base"
-          onClick={signing ? undefined : handleSign}
+          onClick={error ? handleSign : onClose}
         >
-          {signing ? (
-            <Loader size={16} className="text-accent-contrast" />
-          ) : error ? (
+          {error ? (
             "Retry"
+          ) : isComplete ? (
+            "Done"
+          ) : isProcessing ? (
+            <Loader size={16} className="text-accent-contrast" />
           ) : (
-            "Sign Payout Transactions"
+            "Close"
           )}
         </Button>
       </DialogFooter>

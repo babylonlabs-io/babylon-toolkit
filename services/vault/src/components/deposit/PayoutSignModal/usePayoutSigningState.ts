@@ -57,6 +57,8 @@ export interface UsePayoutSigningStateResult {
   progress: SigningProgressProps;
   /** Error state if signing failed */
   error: SigningError | null;
+  /** Whether signing completed successfully */
+  isComplete: boolean;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
 }
@@ -70,9 +72,9 @@ export function usePayoutSigningState({
   btcPublicKey,
   depositorEthAddress,
   onSuccess,
-  onClose,
 }: UsePayoutSigningStateProps): UsePayoutSigningStateResult {
   const [signing, setSigning] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
   const [progress, setProgress] = useState<SigningProgressProps>({
     completed: 0,
     total: 0,
@@ -281,10 +283,10 @@ export function usePayoutSigningState({
         setOptimisticStatus(activity.id, LocalStorageStatus.PAYOUT_SIGNED);
       }
 
-      // Success - notify parent and close
+      // Success - show completion state and notify parent
       setSigning(false);
+      setIsComplete(true);
       onSuccess();
-      onClose();
     } catch (err) {
       setError(formatPayoutSignatureError(err));
       setSigning(false);
@@ -303,13 +305,13 @@ export function usePayoutSigningState({
     depositorEthAddress,
     setOptimisticStatus,
     onSuccess,
-    onClose,
   ]);
 
   return {
     signing,
     progress,
     error,
+    isComplete,
     handleSign,
   };
 }

@@ -2,20 +2,15 @@
  * PendingDepositModals Component
  *
  * Renders the sign / broadcast / success modals used by the pending deposit
- * section.  Kept as a separate component so the card list and modals are
- * independently testable and the section orchestrator stays thin.
- *
- * PayoutSignModal requires ProtocolParamsProvider (via usePayoutSigningState),
- * so we wrap it lazily – the provider only mounts when the modal opens.
+ * section. Uses SimpleDeposit in resume mode for both sign and broadcast actions.
  */
 
 import type { Hex } from "viem";
 
-import { BroadcastSignModal } from "@/components/deposit/BroadcastSignModal";
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
-import { PayoutSignModal } from "@/components/deposit/PayoutSignModal";
-import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import type { VaultActivity } from "@/types/activity";
+
+import SimpleDeposit from "./SimpleDeposit";
 
 interface SignModalState {
   isOpen: boolean;
@@ -49,32 +44,30 @@ export function PendingDepositModals({
 }: PendingDepositModalsProps) {
   return (
     <>
-      {/* Payout Sign Modal – lazily wrapped in ProtocolParamsProvider */}
+      {/* Payout Sign Modal – full-screen with stepper */}
       {signModal.isOpen && signModal.signingTransactions && btcPublicKey && (
-        <ProtocolParamsProvider>
-          <PayoutSignModal
-            open={signModal.isOpen}
-            onClose={signModal.handleClose}
-            activity={signModal.signingActivity!}
-            transactions={signModal.signingTransactions}
-            btcPublicKey={btcPublicKey}
-            depositorEthAddress={ethAddress as Hex}
-            onSuccess={signModal.handleSuccess}
-          />
-        </ProtocolParamsProvider>
+        <SimpleDeposit
+          open={signModal.isOpen}
+          resumeMode="sign_payouts"
+          onClose={signModal.handleClose}
+          onResumeSuccess={signModal.handleSuccess}
+          activity={signModal.signingActivity!}
+          transactions={signModal.signingTransactions as any[]}
+          btcPublicKey={btcPublicKey}
+          depositorEthAddress={ethAddress as Hex}
+        />
       )}
 
-      {/* Broadcast Sign Modal – also needs ProtocolParamsProvider (via useVaultActions → useSignPeginTransactions) */}
+      {/* Broadcast Modal – full-screen with stepper */}
       {broadcastModal.broadcastingActivity && ethAddress && (
-        <ProtocolParamsProvider>
-          <BroadcastSignModal
-            open={!!broadcastModal.broadcastingActivity}
-            onClose={broadcastModal.handleClose}
-            activity={broadcastModal.broadcastingActivity}
-            depositorEthAddress={ethAddress}
-            onSuccess={broadcastModal.handleSuccess}
-          />
-        </ProtocolParamsProvider>
+        <SimpleDeposit
+          open={!!broadcastModal.broadcastingActivity}
+          resumeMode="broadcast_btc"
+          onClose={broadcastModal.handleClose}
+          onResumeSuccess={broadcastModal.handleSuccess}
+          activity={broadcastModal.broadcastingActivity}
+          depositorEthAddress={ethAddress}
+        />
       )}
 
       {/* Broadcast Success Modal */}
