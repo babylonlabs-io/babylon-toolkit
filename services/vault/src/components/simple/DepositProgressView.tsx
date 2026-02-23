@@ -66,9 +66,7 @@ export function buildStepItems(
     {
       label: "Sign payout transactions",
       description:
-        payoutTotal > 0
-          ? `(${payoutCompleted} of ${payoutTotal})`
-          : undefined,
+        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
     { label: "Wait", description: "(~ 12 mins)" },
     { label: "Submit peg-in transactions" },
@@ -135,7 +133,11 @@ export function DepositProgressView({
           {canContinueInBackground ? (
             "You can close and come back later"
           ) : error ? (
-            onRetry ? "Retry" : "Close"
+            onRetry ? (
+              "Retry"
+            ) : (
+              "Close"
+            )
           ) : isComplete ? (
             "Done"
           ) : isProcessing ? (

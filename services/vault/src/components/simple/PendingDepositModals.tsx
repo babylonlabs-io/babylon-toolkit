@@ -9,13 +9,14 @@ import type { Hex } from "viem";
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
 import type { VaultActivity } from "@/types/activity";
+import type { ClaimerTransactions } from "@/types/rpc";
 
 import SimpleDeposit from "./SimpleDeposit";
 
 interface SignModalState {
   isOpen: boolean;
   signingActivity: VaultActivity | null;
-  signingTransactions: unknown[] | null;
+  signingTransactions: ClaimerTransactions[] | null;
   handleClose: () => void;
   handleSuccess: () => void;
 }
@@ -52,7 +53,7 @@ export function PendingDepositModals({
           onClose={signModal.handleClose}
           onResumeSuccess={signModal.handleSuccess}
           activity={signModal.signingActivity!}
-          transactions={signModal.signingTransactions as any[]}
+          transactions={signModal.signingTransactions}
           btcPublicKey={btcPublicKey}
           depositorEthAddress={ethAddress as Hex}
         />

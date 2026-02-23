@@ -32,6 +32,7 @@ import {
 } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
+import type { ClaimerTransactions } from "../../../types/rpc";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 
 import type { SigningProgressProps } from "./SigningProgress";
@@ -43,11 +44,10 @@ export interface SigningError {
 
 export interface UsePayoutSigningStateProps {
   activity: VaultActivity;
-  transactions: any[] | null;
+  transactions: ClaimerTransactions[] | null;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onSuccess: () => void;
-  onClose: () => void;
 }
 
 export interface UsePayoutSigningStateResult {

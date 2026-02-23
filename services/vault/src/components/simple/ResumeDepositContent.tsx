@@ -8,16 +8,14 @@
  * Used by SimpleDeposit when opened in resume mode.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
-import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
-import { useVaultActions } from "@/hooks/deposit/useVaultActions";
-import { LocalStorageStatus } from "@/models/peginStateMachine";
-import { usePeginStorage } from "@/storage/usePeginStorage";
+import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
+import { useRunOnce } from "@/hooks/useRunOnce";
 import type { VaultActivity } from "@/types/activity";
+import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -27,7 +25,7 @@ import { DepositProgressView } from "./DepositProgressView";
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  transactions: any[] | null;
+  transactions: ClaimerTransactions[] | null;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onClose: () => void;
@@ -49,16 +47,9 @@ export function ResumeSignContent({
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
-      onClose,
     });
 
-  // Auto-trigger signing on mount
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    handleSign();
-  }, [handleSign]);
+  useRunOnce(handleSign);
 
   const isProcessing = signing && !error && !isComplete;
   const canClose = !!error || isComplete || !signing;
@@ -99,78 +90,29 @@ export function ResumeBroadcastContent({
   onClose,
   onSuccess,
 }: ResumeBroadcastContentProps) {
-  const { broadcasting, broadcastError, handleBroadcast } = useVaultActions();
-  const [localBroadcasting, setLocalBroadcasting] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
-
-  const { setOptimisticStatus } = usePeginPolling();
-  const { pendingPegins, updatePendingPeginStatus, addPendingPegin } =
-    usePeginStorage({
-      ethAddress: depositorEthAddress,
-      confirmedPegins: [],
-    });
-
-  const pendingPegin = pendingPegins.find((p) => p.id === activity.id);
-
-  const handleSign = useCallback(async () => {
-    setLocalBroadcasting(true);
-    try {
-      await handleBroadcast({
-        activityId: activity.id,
-        activityAmount: activity.collateral.amount,
-        activityProviders: activity.providers,
-        activityApplicationController: activity.applicationController,
-        pendingPegin,
-        updatePendingPeginStatus,
-        addPendingPegin,
-        onRefetchActivities: () => {},
-        onShowSuccessModal: () => {
-          setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMING);
-          setLocalBroadcasting(false);
-          setIsComplete(true);
-          onSuccess();
-        },
-      });
-    } catch {
-      setLocalBroadcasting(false);
-    }
-  }, [
+  const { broadcasting, error, handleBroadcast } = useBroadcastState({
     activity,
-    pendingPegin,
-    updatePendingPeginStatus,
-    addPendingPegin,
-    handleBroadcast,
-    setOptimisticStatus,
+    depositorEthAddress,
     onSuccess,
-  ]);
+  });
 
-  // Auto-trigger broadcast on mount
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    handleSign();
-  }, [handleSign]);
+  useRunOnce(handleBroadcast);
 
-  const isBroadcasting =
-    (broadcasting || localBroadcasting) && !broadcastError;
-  const canClose = !!broadcastError || isComplete || !isBroadcasting;
+  const canClose = !!error || !broadcasting;
 
   return (
     <DepositProgressView
-      currentStep={
-        isComplete ? DepositStep.COMPLETED : DepositStep.BROADCAST_BTC
-      }
+      currentStep={DepositStep.BROADCAST_BTC}
       isWaiting={false}
-      error={broadcastError}
-      isComplete={isComplete}
-      isProcessing={isBroadcasting}
+      error={error}
+      isComplete={false}
+      isProcessing={broadcasting}
       canClose={canClose}
       canContinueInBackground={false}
       payoutSigningProgress={null}
       onClose={onClose}
       successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
-      onRetry={broadcastError ? handleSign : undefined}
+      onRetry={error ? handleBroadcast : undefined}
     />
   );
 }

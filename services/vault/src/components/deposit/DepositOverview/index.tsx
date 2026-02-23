@@ -21,9 +21,9 @@ import { PeginPollingProvider } from "../../../context/deposit/PeginPollingConte
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 import { isVaultOwnedByWallet } from "../../../utils/vaultWarnings";
+import SimpleDeposit from "../../simple/SimpleDeposit";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { RedeemModals } from "../RedeemModals";
-import SimpleDeposit from "../../simple/SimpleDeposit";
 
 import { ActionCell } from "./ActionCell";
 import { DepositMobileCard } from "./DepositMobileCard";

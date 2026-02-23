@@ -7,6 +7,7 @@ import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import type { VaultActivity } from "@/types/activity";
+import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -38,7 +39,7 @@ type NewDepositProps = SimpleDepositBaseProps & {
 type ResumeSignProps = SimpleDepositBaseProps & {
   resumeMode: "sign_payouts";
   activity: VaultActivity;
-  transactions: any[] | null;
+  transactions: ClaimerTransactions[] | null;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onResumeSuccess: () => void;

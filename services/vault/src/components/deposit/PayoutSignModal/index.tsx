@@ -20,11 +20,12 @@ import {
 import type { Hex } from "viem";
 
 import { useOnModalOpen } from "@/hooks/useOnModalOpen";
+import type { VaultActivity } from "@/types/activity";
+import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositStep } from "../DepositSignModal/constants";
 import { DepositSteps } from "../DepositSignModal/DepositSteps";
 import { StatusBanner } from "../DepositSignModal/StatusBanner";
-import type { VaultActivity } from "../../../types/activity";
 
 import { SigningProgress } from "./SigningProgress";
 import { usePayoutSigningState } from "./usePayoutSigningState";
@@ -37,7 +38,7 @@ interface PayoutSignModalProps {
   /** The deposit/activity to sign payouts for */
   activity: VaultActivity;
   /** Claim and payout transactions from polling */
-  transactions: any[] | null;
+  transactions: ClaimerTransactions[] | null;
   /** Depositor's BTC public key (x-only, 32 bytes without 0x prefix) */
   btcPublicKey: string;
   /** Depositor's ETH address */
@@ -83,7 +84,6 @@ export function PayoutSignModal({
       btcPublicKey,
       depositorEthAddress,
       onSuccess,
-      onClose,
     });
 
   // Auto-trigger signing when modal opens
@@ -115,7 +115,9 @@ export function PayoutSignModal({
 
         {/* Stepper: steps 1-2 completed, currently on step 3 */}
         <DepositSteps
-          currentStep={isComplete ? DepositStep.COMPLETED : DepositStep.SIGN_PAYOUTS}
+          currentStep={
+            isComplete ? DepositStep.COMPLETED : DepositStep.SIGN_PAYOUTS
+          }
         />
 
         {/* Signing progress bar */}
