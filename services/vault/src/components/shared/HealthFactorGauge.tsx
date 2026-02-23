@@ -1,3 +1,10 @@
+/**
+ * HealthFactorGauge Component
+ * Displays a read-only rainbow gauge visualizing health factor status
+ * with a gradient track (red → amber → green), a ring indicator at the
+ * current value, and a liquidation threshold marker at HF=1.0.
+ */
+
 import {
   HEALTH_FACTOR_COLORS,
   type HealthFactorStatus,
@@ -15,11 +22,20 @@ const MAX_DISPLAY_HF = 3;
 /** Half-width of the indicator circle in px, used to clamp within the track. */
 const INDICATOR_RADIUS_PX = 8;
 
-// Gradient color stops: red (0%) → amber (50%) → green (100%)
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+// Gradient color stops derived from HEALTH_FACTOR_COLORS: red (0%) → amber (50%) → green (100%)
 const GRADIENT_STOPS: [number, number, number][] = [
-  [0xff, 0x17, 0x44], // RED   #FF1744 at 0%
-  [0xff, 0xc4, 0x00], // AMBER #FFC400 at 50%
-  [0x00, 0xe6, 0x76], // GREEN #00E676 at 100%
+  hexToRgb(HEALTH_FACTOR_COLORS.RED),
+  hexToRgb(HEALTH_FACTOR_COLORS.AMBER),
+  hexToRgb(HEALTH_FACTOR_COLORS.GREEN),
 ];
 
 /**
@@ -28,6 +44,7 @@ const GRADIENT_STOPS: [number, number, number][] = [
  */
 function getGradientColorAt(percent: number): string {
   const t = Math.min(1, Math.max(0, percent / 100));
+  // Two segments: 0→0.5 = red→amber, 0.5→1.0 = amber→green
   let segmentT: number;
   let from: [number, number, number];
   let to: [number, number, number];
@@ -54,6 +71,7 @@ function healthFactorToPercent(value: number): number {
   return Math.min(100, Math.max(0, (value / MAX_DISPLAY_HF) * 100));
 }
 
+/** Aave liquidation threshold: HF = 1.0. Positions below this are liquidatable. */
 const LIQUIDATION_PERCENT = healthFactorToPercent(1.0);
 
 interface HealthFactorGaugeProps {
