@@ -2,6 +2,7 @@ export { BackButton } from "./BackButton";
 export { DepositButton } from "./DepositButton";
 export { DetailsCard, type DetailRow } from "./DetailsCard";
 export { EmptyState } from "./EmptyState";
+export { HealthFactorGauge } from "./HealthFactorGauge";
 export { ErrorModal } from "./ErrorModal";
 export { HeartIcon, InfoIcon } from "./icons";
 export { MenuButton } from "./MenuButton";

@@ -10,7 +10,7 @@ import {
   getHealthFactorColor,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
-import { HeartIcon } from "@/components/shared";
+import { HealthFactorGauge, HeartIcon } from "@/components/shared";
 
 interface OverviewSectionProps {
   healthFactor: number | null;
@@ -64,6 +64,14 @@ export function OverviewSection({
               )}
             </span>
           </div>
+
+          {/* Health Factor Gauge — TODO: remove hardcoded preview */}
+          <HealthFactorGauge value={1.8} status={"safe"} />
+
+          {/* Health Factor Gauge (real — currently hidden for preview) */}
+          {false && showHealthFactor && (
+            <HealthFactorGauge value={healthFactor} status={healthFactorStatus} />
+          )}
 
           {/* Total Collateral Value Row */}
           <div className="flex items-center justify-between">
