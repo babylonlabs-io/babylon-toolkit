@@ -65,12 +65,12 @@ export function OverviewSection({
             </span>
           </div>
 
-          {/* Health Factor Gauge — TODO: remove hardcoded preview */}
-          <HealthFactorGauge value={1.8} status={"safe"} />
-
-          {/* Health Factor Gauge (real — currently hidden for preview) */}
-          {false && showHealthFactor && (
-            <HealthFactorGauge value={healthFactor} status={healthFactorStatus} />
+          {/* Health Factor Gauge */}
+          {showHealthFactor && (
+            <HealthFactorGauge
+              value={healthFactor}
+              status={healthFactorStatus}
+            />
           )}
 
           {/* Total Collateral Value Row */}

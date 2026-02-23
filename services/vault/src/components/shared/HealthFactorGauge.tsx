@@ -82,9 +82,12 @@ export function HealthFactorGauge({
       aria-valuemax={MAX_DISPLAY_HF}
     >
       {/* Gauge track */}
-      <div className="relative h-1 w-full rounded-full" style={{
-        background: `linear-gradient(to right, ${HEALTH_FACTOR_COLORS.RED}, ${HEALTH_FACTOR_COLORS.AMBER}, ${HEALTH_FACTOR_COLORS.GREEN})`,
-      }}>
+      <div
+        className="relative h-1 w-full rounded-full"
+        style={{
+          background: `linear-gradient(to right, ${HEALTH_FACTOR_COLORS.RED}, ${HEALTH_FACTOR_COLORS.AMBER}, ${HEALTH_FACTOR_COLORS.GREEN})`,
+        }}
+      >
         {/* Liquidation threshold marker at HF=1.0 */}
         <div
           className="absolute top-1/2 h-4 w-px -translate-y-1/2 border-l border-dashed border-white"
@@ -101,10 +104,16 @@ export function HealthFactorGauge({
       </div>
       {/* Labels */}
       <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs tracking-wide" style={{ color: HEALTH_FACTOR_COLORS.RED }}>
+        <span
+          className="tracking-wide text-xs"
+          style={{ color: HEALTH_FACTOR_COLORS.RED }}
+        >
           Liquidation Risk
         </span>
-        <span className="text-xs font-normal tracking-wide" style={{ color: gradientColor }}>
+        <span
+          className="tracking-wide text-xs font-normal"
+          style={{ color: gradientColor }}
+        >
           {STATUS_LABELS[status]}
         </span>
       </div>
