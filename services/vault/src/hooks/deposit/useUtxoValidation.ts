@@ -34,9 +34,12 @@ export interface UseUtxoValidationResult {
 }
 
 /**
- * Filter activities to those pending broadcast and owned by current wallet.
+ * Filter activities to those with UTXOs that need validation.
+ * Includes both PENDING and VERIFIED deposits — a PENDING deposit's
+ * UTXO can already be spent by another transaction before it reaches
+ * VERIFIED, so we detect the conflict early.
  */
-function getPendingBroadcastDeposits(
+function getDepositsForUtxoValidation(
   activities: VaultActivity[],
   btcPublicKey: string,
 ): VaultActivity[] {
@@ -46,9 +49,12 @@ function getPendingBroadcastDeposits(
       return false;
     }
 
-    // Must be in VERIFIED state (pending broadcast)
+    // Must be in PENDING or VERIFIED state (pre-activation)
     const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
-    if (contractStatus !== ContractStatus.VERIFIED) {
+    if (
+      contractStatus !== ContractStatus.PENDING &&
+      contractStatus !== ContractStatus.VERIFIED
+    ) {
       return false;
     }
 
@@ -72,12 +78,12 @@ export function useUtxoValidation({
       return new Set<string>();
     }
 
-    const pendingBroadcasts = getPendingBroadcastDeposits(
+    const depositsToValidate = getDepositsForUtxoValidation(
       activities,
       btcPublicKey,
     );
 
-    if (pendingBroadcasts.length === 0) {
+    if (depositsToValidate.length === 0) {
       return new Set<string>();
     }
 
@@ -89,7 +95,7 @@ export function useUtxoValidation({
     // Check each deposit's inputs against available UTXOs
     const unavailable = new Set<string>();
 
-    for (const deposit of pendingBroadcasts) {
+    for (const deposit of depositsToValidate) {
       try {
         const inputs = extractInputsFromTransaction(deposit.unsignedBtcTx!);
 
