@@ -1,7 +1,6 @@
 /**
  * CollateralSection Component
  * Displays collateral with an expandable view showing individual peg-in vaults.
- * Users can select vaults and trigger withdrawal.
  */
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
@@ -36,27 +35,12 @@ export function CollateralSection({
   onWithdraw,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [selectedVaultIds, setSelectedVaultIds] = useState<Set<string>>(
-    new Set(),
-  );
-
-  const handleToggleVault = useCallback((vaultId: string) => {
-    setSelectedVaultIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(vaultId)) {
-        next.delete(vaultId);
-      } else {
-        next.add(vaultId);
-      }
-      return next;
-    });
-  }, []);
 
   const handleWithdraw = useCallback(() => {
     onWithdraw();
   }, [onWithdraw]);
 
-  const canWithdraw = !hasDebt && selectedVaultIds.size > 0;
+  const canWithdraw = !hasDebt;
 
   return (
     <div className="w-full space-y-6">
@@ -101,8 +85,6 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              selectedVaultIds={selectedVaultIds}
-              onToggleVault={handleToggleVault}
               onWithdraw={handleWithdraw}
               canWithdraw={canWithdraw}
             />

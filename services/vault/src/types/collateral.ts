@@ -5,7 +5,7 @@
 export interface CollateralVaultEntry {
   /** Composite ID for React keys */
   id: string;
-  /** Peg-in tx hash (for display and operations) */
+  /** Peg-in transaction hash (pegInTxHash) used as vault ID (for display and operations) */
   vaultId: string;
   /** Vault amount in BTC (converted from satoshis) */
   amountBtc: number;

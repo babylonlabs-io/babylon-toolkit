@@ -11,16 +11,12 @@ import { CollateralVaultItem } from "./CollateralVaultItem";
 
 interface CollateralExpandedContentProps {
   vaults: CollateralVaultEntry[];
-  selectedVaultIds: Set<string>;
-  onToggleVault: (vaultId: string) => void;
   onWithdraw: () => void;
   canWithdraw: boolean;
 }
 
 export function CollateralExpandedContent({
   vaults,
-  selectedVaultIds,
-  onToggleVault,
   onWithdraw,
   canWithdraw,
 }: CollateralExpandedContentProps) {
@@ -34,13 +30,11 @@ export function CollateralExpandedContent({
             vaultId={vault.vaultId}
             amountBtc={vault.amountBtc}
             addedAt={vault.addedAt}
-            selected={selectedVaultIds.has(vault.vaultId)}
-            onToggle={onToggleVault}
           />
         ))}
       </div>
 
-      {/* Withdraw button */}
+      {/* Withdraw button — withdraws ALL collateral (Aave constraint) */}
       <Button
         variant="outlined"
         color="primary"
