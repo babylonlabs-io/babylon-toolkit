@@ -9,16 +9,12 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
+import { CollateralModal } from "@/applications/aave/components/CollateralModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import type { Asset } from "@/applications/aave/types";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
-import {
-  formatBtcAmount,
-  formatUsdValue,
-  getBtcIcon,
-  getBtcSymbol,
-} from "@/utils/formatting";
+import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
@@ -33,6 +29,7 @@ export function DashboardPage() {
 
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
@@ -46,25 +43,22 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
+    hasDebt,
+    collateralVaults,
     selectableBorrowedAssets,
   } = useDashboardState(address);
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const amountToRepay = formatUsdValue(debtValueUsd);
-
-  // Build collateral asset for the collateral section
-  const collateralAsset = hasCollateral
-    ? {
-        symbol: getBtcSymbol(),
-        icon: getBtcIcon(),
-        amount: formatBtcAmount(collateralBtc),
-        usdValue: formatUsdValue(collateralValueUsd),
-      }
-    : undefined;
+  const totalAmountBtc = formatBtcAmount(collateralBtc);
 
   const handleDeposit = () => {
     setIsDepositOpen(true);
+  };
+
+  const handleWithdraw = () => {
+    setIsWithdrawModalOpen(true);
   };
 
   const handleBorrow = () => {
@@ -107,10 +101,13 @@ export function DashboardPage() {
         <PendingDepositSection />
 
         <CollateralSection
+          totalAmountBtc={totalAmountBtc}
+          collateralVaults={collateralVaults}
           hasCollateral={hasCollateral}
           isConnected={isConnected}
-          collateralAsset={collateralAsset}
+          hasDebt={hasDebt}
           onDeposit={handleDeposit}
+          onWithdraw={handleWithdraw}
         />
 
         <LoansSection
@@ -130,6 +127,13 @@ export function DashboardPage() {
       <SimpleDeposit
         open={isDepositOpen}
         onClose={() => setIsDepositOpen(false)}
+      />
+
+      {/* Collateral Withdraw Modal */}
+      <CollateralModal
+        isOpen={isWithdrawModalOpen}
+        onClose={() => setIsWithdrawModalOpen(false)}
+        mode="withdraw"
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}
