@@ -21,9 +21,8 @@ import { PeginPollingProvider } from "../../../context/deposit/PeginPollingConte
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 import { isVaultOwnedByWallet } from "../../../utils/vaultWarnings";
-import { BroadcastSignModal } from "../BroadcastSignModal";
+import SimpleDeposit from "../../simple/SimpleDeposit";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
-import { PayoutSignModal } from "../PayoutSignModal";
 import { RedeemModals } from "../RedeemModals";
 
 import { ActionCell } from "./ActionCell";
@@ -186,25 +185,27 @@ export function DepositOverview() {
 
         {/* Payout Sign Modal */}
         {isPayoutSignModalOpen && signingTransactions && btcPublicKey && (
-          <PayoutSignModal
+          <SimpleDeposit
             open={isPayoutSignModalOpen}
+            resumeMode="sign_payouts"
             onClose={handlePayoutSignClose}
+            onResumeSuccess={handlePayoutSignSuccess}
             activity={signingActivity!}
             transactions={signingTransactions}
             btcPublicKey={btcPublicKey}
             depositorEthAddress={ethAddress as Hex}
-            onSuccess={handlePayoutSignSuccess}
           />
         )}
 
         {/* Broadcast Sign Modal */}
         {broadcastingActivity && ethAddress && (
-          <BroadcastSignModal
+          <SimpleDeposit
             open={!!broadcastingActivity}
+            resumeMode="broadcast_btc"
             onClose={handleBroadcastClose}
+            onResumeSuccess={handleBroadcastSuccess}
             activity={broadcastingActivity}
             depositorEthAddress={ethAddress}
-            onSuccess={handleBroadcastSuccess}
           />
         )}
 
