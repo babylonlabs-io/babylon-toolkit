@@ -5,7 +5,7 @@
  * transactions from all vault providers in parallel.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
@@ -209,6 +209,7 @@ export function usePeginPollingQuery({
     },
     retry: POLLING_RETRY_COUNT,
     retryDelay: POLLING_RETRY_DELAY_MS,
+    placeholderData: keepPreviousData,
   });
 
   // Trigger immediate fetch when query becomes enabled
