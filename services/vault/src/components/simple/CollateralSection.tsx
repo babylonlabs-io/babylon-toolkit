@@ -1,37 +1,66 @@
 /**
  * CollateralSection Component
- * Displays collateral information with deposit button and empty/active states
+ * Displays collateral with an expandable view showing individual peg-in vaults.
+ * Users can select vaults and trigger withdrawal.
  */
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { useCallback, useState } from "react";
 
+import { MenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
+import type { CollateralVaultEntry } from "@/types/collateral";
+
+import { CollateralExpandedContent } from "./CollateralExpandedContent";
 
 const btcConfig = getNetworkConfigBTC();
 
-interface CollateralAsset {
-  symbol: string;
-  icon: string;
-  amount: string;
-  usdValue: string;
-}
-
 interface CollateralSectionProps {
+  totalAmountBtc: string;
+  collateralVaults: CollateralVaultEntry[];
   hasCollateral: boolean;
   isConnected: boolean;
-  collateralAsset?: CollateralAsset;
+  hasDebt: boolean;
   onDeposit: () => void;
+  onWithdraw: () => void;
 }
 
 export function CollateralSection({
+  totalAmountBtc,
+  collateralVaults,
   hasCollateral,
   isConnected,
-  collateralAsset,
+  hasDebt,
   onDeposit,
+  onWithdraw,
 }: CollateralSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [selectedVaultIds, setSelectedVaultIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const handleToggleVault = useCallback((vaultId: string) => {
+    setSelectedVaultIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(vaultId)) {
+        next.delete(vaultId);
+      } else {
+        next.add(vaultId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleWithdraw = useCallback(() => {
+    onWithdraw();
+  }, [onWithdraw]);
+
+  const canWithdraw = !hasDebt && selectedVaultIds.size > 0;
+
   return (
     <div className="w-full space-y-6">
+      {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-[24px] font-normal text-accent-primary">
           Collateral
@@ -48,33 +77,39 @@ export function CollateralSection({
         </Button>
       </div>
 
-      <Card variant="filled" className="w-full">
-        {hasCollateral && collateralAsset ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-accent-secondary">Asset</span>
-              <div className="flex items-center gap-2">
-                <Avatar
-                  url={collateralAsset.icon}
-                  alt={collateralAsset.symbol}
-                  size="small"
-                />
-                <span className="text-base text-accent-primary">
-                  {collateralAsset.symbol}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-accent-secondary">Deposited</span>
+      {hasCollateral ? (
+        <Card variant="filled" className="w-full">
+          {/* Summary row: BTC icon + total amount + three-dots toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Avatar
+                url={btcConfig.icon}
+                alt={btcConfig.coinSymbol}
+                size="small"
+              />
               <span className="text-base text-accent-primary">
-                {collateralAsset.amount}{" "}
-                <span className="text-accent-secondary">
-                  {collateralAsset.usdValue}
-                </span>
+                {totalAmountBtc}
               </span>
             </div>
+            <MenuButton
+              onClick={() => setIsExpanded((prev) => !prev)}
+              aria-label="Toggle vault details"
+            />
           </div>
-        ) : (
+
+          {/* Expanded vault list */}
+          {isExpanded && (
+            <CollateralExpandedContent
+              vaults={collateralVaults}
+              selectedVaultIds={selectedVaultIds}
+              onToggleVault={handleToggleVault}
+              onWithdraw={handleWithdraw}
+              canWithdraw={canWithdraw}
+            />
+          )}
+        </Card>
+      ) : (
+        <Card variant="filled" className="w-full">
           <div className="flex flex-col items-center justify-center gap-2 py-20">
             <Avatar
               url={btcConfig.icon}
@@ -105,8 +140,8 @@ export function CollateralSection({
               )}
             </div>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }
