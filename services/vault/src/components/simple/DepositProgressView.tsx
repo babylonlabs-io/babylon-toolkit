@@ -79,9 +79,9 @@ export function buildStepItems(
   ];
 }
 
-const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map(
-  (label) => ({ label }),
-);
+const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map((label) => ({
+  label,
+}));
 
 // ---------------------------------------------------------------------------
 // Props — discriminated union on `variant`
@@ -129,16 +129,15 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   const isMulti = props.variant === "multi";
+  const payoutSigningProgress = isMulti ? null : props.payoutSigningProgress;
 
   const visualStep = isMulti
     ? getMultiVaultVisualStep(currentStep, props.currentVaultIndex)
     : getVisualStep(currentStep, props.isWaiting);
 
   const steps = useMemo(
-    () =>
-      isMulti ? multiVaultSteps : buildStepItems(props.payoutSigningProgress),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isMulti, isMulti ? null : (props as SingleVaultProps).payoutSigningProgress],
+    () => (isMulti ? multiVaultSteps : buildStepItems(payoutSigningProgress)),
+    [isMulti, payoutSigningProgress],
   );
 
   const onRetry = !isMulti ? props.onRetry : undefined;
