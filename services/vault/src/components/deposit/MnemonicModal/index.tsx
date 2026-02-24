@@ -105,7 +105,7 @@ export function MnemonicModal({
         {step === MnemonicStep.GENERATE && (
           <>
             <Text variant="body2" className="text-accent-secondary">
-              Write down these 24 words and store them safely. You will need
+              Write down these 12 words and store them safely. You will need
               them to independently claim your funds if the vault provider is
               unavailable.
             </Text>

@@ -20,7 +20,7 @@ export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
   return (
     <div className="flex flex-col gap-4">
       <Text variant="body2" className="text-accent-secondary">
-        Enter your existing 24-word recovery phrase to derive your Lamport key
+        Enter your existing 12-word recovery phrase to derive your Lamport key
         for this vault.
       </Text>
 
@@ -28,16 +28,16 @@ export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
         <textarea
           value={mnemonic}
           onChange={(e) => setMnemonic(e.target.value)}
-          placeholder="Enter your 24-word recovery phrase, separated by spaces..."
+          placeholder="Enter your 12-word recovery phrase, separated by spaces..."
           className="h-32 w-full resize-none rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
-          aria-label="24-word recovery phrase"
+          aria-label="12-word recovery phrase"
         />
         {hasContent && (
           <Text variant="body2" className="text-xs text-accent-secondary">
-            {wordCount} / 24 words
+            {wordCount} / 12 words
           </Text>
         )}
       </div>
@@ -56,7 +56,7 @@ export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
           variant="contained"
           className="flex-1"
           onClick={handleSubmit}
-          disabled={wordCount !== 24}
+          disabled={wordCount !== 12}
         >
           Continue
         </Button>

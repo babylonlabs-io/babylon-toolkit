@@ -12,14 +12,14 @@ import {
 } from "../lamportService";
 
 const KNOWN_MNEMONIC =
-  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
+  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 describe("lamportService", () => {
   describe("generateLamportMnemonic", () => {
-    it("generates a valid 24-word mnemonic", () => {
+    it("generates a valid 12-word mnemonic", () => {
       const mnemonic = generateLamportMnemonic();
       const words = mnemonic.split(" ");
-      expect(words).toHaveLength(24);
+      expect(words).toHaveLength(12);
       expect(isValidMnemonic(mnemonic)).toBe(true);
     });
 

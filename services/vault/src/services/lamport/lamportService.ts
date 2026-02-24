@@ -20,7 +20,7 @@ export interface VerificationChallenge {
 }
 
 export function generateLamportMnemonic(): string {
-  return generateMnemonic(wordlist, 256);
+  return generateMnemonic(wordlist, 128);
 }
 
 export function isValidMnemonic(mnemonic: string): boolean {
