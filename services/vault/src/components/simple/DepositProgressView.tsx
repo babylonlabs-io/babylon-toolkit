@@ -2,8 +2,10 @@
  * DepositProgressView
  *
  * Pure view component for the deposit progress stepper UI.
- * Used by both the initial deposit flow (DepositSignContent) and
- * the resume flows (payout signing / broadcast from the deposits table).
+ * Supports both single-vault and multi-vault flows via a `variant` prop.
+ *
+ * Used by DepositSignContent (single), ResumeDepositContent (single),
+ * and MultiVaultDepositSignContent (multi).
  *
  * Renders: Heading, 6-step Stepper, status banners, action button.
  */
@@ -19,7 +21,11 @@ import {
 import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
+import {
+  getMultiVaultVisualStep,
+  MULTI_VAULT_STEP_LABELS,
+} from "@/components/deposit/MultiVaultDepositSignModal/constants";
+import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
@@ -73,40 +79,70 @@ export function buildStepItems(
   ];
 }
 
-export interface DepositProgressViewProps {
+const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map(
+  (label) => ({ label }),
+);
+
+// ---------------------------------------------------------------------------
+// Props — discriminated union on `variant`
+// ---------------------------------------------------------------------------
+
+type SharedProps = {
   currentStep: DepositStep;
-  isWaiting: boolean;
   error: string | null;
   isComplete: boolean;
   isProcessing: boolean;
   canClose: boolean;
   canContinueInBackground: boolean;
-  payoutSigningProgress: PayoutSigningProgress | null;
   onClose: () => void;
-  /** Override the default success message */
   successMessage?: string;
-  /** Override the default error retry handler (defaults to onClose) */
-  onRetry?: () => void;
-}
+};
 
-export function DepositProgressView({
-  currentStep,
-  isWaiting,
-  error,
-  isComplete,
-  isProcessing,
-  canClose,
-  canContinueInBackground,
-  payoutSigningProgress,
-  onClose,
-  successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
-  onRetry,
-}: DepositProgressViewProps) {
-  const visualStep = getVisualStep(currentStep, isWaiting);
+type SingleVaultProps = SharedProps & {
+  variant?: "single";
+  isWaiting: boolean;
+  payoutSigningProgress: PayoutSigningProgress | null;
+  onRetry?: () => void;
+};
+
+type MultiVaultProps = SharedProps & {
+  variant: "multi";
+  currentVaultIndex: number | null;
+};
+
+export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function DepositProgressView(props: DepositProgressViewProps) {
+  const {
+    currentStep,
+    error,
+    isComplete,
+    isProcessing,
+    canClose,
+    canContinueInBackground,
+    onClose,
+    successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+  } = props;
+
+  const isMulti = props.variant === "multi";
+
+  const visualStep = isMulti
+    ? getMultiVaultVisualStep(currentStep, props.currentVaultIndex)
+    : getVisualStep(currentStep, props.isWaiting);
+
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress),
-    [payoutSigningProgress],
+    () =>
+      isMulti ? multiVaultSteps : buildStepItems(props.payoutSigningProgress),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMulti, isMulti ? null : (props as SingleVaultProps).payoutSigningProgress],
   );
+
+  const onRetry = !isMulti ? props.onRetry : undefined;
+  const handleClick = error && onRetry ? onRetry : onClose;
 
   return (
     <div className="w-full max-w-[520px]">
@@ -128,7 +164,7 @@ export function DepositProgressView({
           variant="contained"
           color="secondary"
           className="w-full"
-          onClick={error && onRetry ? onRetry : onClose}
+          onClick={handleClick}
         >
           {canContinueInBackground ? (
             "You can close and come back later"
