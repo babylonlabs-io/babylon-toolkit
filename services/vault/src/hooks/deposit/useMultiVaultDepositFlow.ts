@@ -34,6 +34,7 @@ import type { Address, Hex } from "viem";
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useUTXOs } from "@/hooks/useUTXOs";
+import { depositService } from "@/services/deposit";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
   broadcastPeginWithLocalUtxo,
@@ -83,6 +84,10 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
+  /** Pre-computed allocation plan (skips Steps 0-2 if provided) */
+  precomputedPlan?: AllocationPlan;
+  /** Pre-computed split TX result (used with precomputedPlan) */
+  precomputedSplitTxResult?: SplitTxSignResult | null;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
@@ -136,7 +141,7 @@ export interface MultiVaultDepositResult {
   warnings?: string[];
 }
 
-interface SplitTxSignResult {
+export interface SplitTxSignResult {
   /** Transaction ID */
   txid: string;
   /** Signed transaction hex */
@@ -154,7 +159,7 @@ interface SplitTxSignResult {
 // Helper: Create and Sign Split Transaction
 // ============================================================================
 
-async function createAndSignSplitTransaction(
+export async function createAndSignSplitTransaction(
   splitTx: NonNullable<AllocationPlan["splitTransaction"]>,
   btcWalletProvider: BitcoinWallet,
 ): Promise<SplitTxSignResult> {
@@ -219,6 +224,8 @@ export function useMultiVaultDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    precomputedPlan,
+    precomputedSplitTxResult,
   } = params;
 
   // State
@@ -259,26 +266,72 @@ export function useMultiVaultDepositFlow(
       const warnings: string[] = [];
 
       try {
-        // ========================================================================
-        // Step 0: Validation
-        // ========================================================================
+        let plan: AllocationPlan;
+        let splitTxResult: SplitTxSignResult | null = null;
+        let confirmedBtcAddress: string;
+        let confirmedEthAddress: Address;
 
-        validateMultiVaultDepositInputs({
-          btcAddress,
-          depositorEthAddress,
-          vaultAmounts,
-          selectedProviders,
-          confirmedUTXOs: spendableUTXOs,
-          isUTXOsLoading,
-          utxoError,
-          vaultProviderBtcPubkey,
-          vaultKeeperBtcPubkeys,
-          universalChallengerBtcPubkeys,
-        });
+        if (precomputedPlan) {
+          // =======================================================================
+          // Pre-computed path: Steps 0-2 already done on split choice screen
+          // =======================================================================
+          plan = precomputedPlan;
+          splitTxResult = precomputedSplitTxResult ?? null;
+          setAllocationPlan(plan);
 
-        // After validation, these values are guaranteed to be defined
-        const confirmedBtcAddress = btcAddress!;
-        const confirmedEthAddress = depositorEthAddress!;
+          // Still need basic address validation
+          if (!btcAddress) throw new Error("BTC wallet not connected");
+          if (!depositorEthAddress) throw new Error("ETH wallet not connected");
+          confirmedBtcAddress = btcAddress;
+          confirmedEthAddress = depositorEthAddress;
+        } else {
+          // =======================================================================
+          // Standard path: Steps 0-2 (validation, planning, split TX)
+          // =======================================================================
+
+          // Step 0: Validation
+          validateMultiVaultDepositInputs({
+            btcAddress,
+            depositorEthAddress,
+            vaultAmounts,
+            selectedProviders,
+            confirmedUTXOs: spendableUTXOs,
+            isUTXOsLoading,
+            utxoError,
+            vaultProviderBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            universalChallengerBtcPubkeys,
+          });
+
+          confirmedBtcAddress = btcAddress!;
+          confirmedEthAddress = depositorEthAddress!;
+
+          // Step 1: Plan UTXO Allocation
+          plan = planUtxoAllocation(
+            spendableUTXOs,
+            vaultAmounts,
+            feeRate,
+            confirmedBtcAddress,
+          );
+
+          setAllocationPlan(plan);
+
+          // Step 2: Create and Broadcast Split Transaction (if needed)
+          if (plan.needsSplit && plan.splitTransaction) {
+            splitTxResult = await createAndSignSplitTransaction(
+              plan.splitTransaction,
+              btcWalletProvider,
+            );
+
+            try {
+              await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
+            } catch (broadcastError) {
+              throw new Error(
+                `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
+              );
+            }
+          }
+        }
 
         // Extract primary provider (current implementation supports single provider only)
         const primaryProvider = selectedProviders[0] as Address;
@@ -287,53 +340,14 @@ export function useMultiVaultDepositFlow(
         const batchId = uuidv4();
 
         // ========================================================================
-        // Step 1: Plan UTXO Allocation
-        // ========================================================================
-
-        const plan = planUtxoAllocation(
-          spendableUTXOs,
-          vaultAmounts,
-          feeRate,
-          confirmedBtcAddress,
-        );
-
-        setAllocationPlan(plan);
-
-        // ========================================================================
-        // Step 2: Create and Broadcast Split Transaction (if needed)
-        // ========================================================================
-
-        let splitTxResult: SplitTxSignResult | null = null;
-
-        if (plan.needsSplit && plan.splitTransaction) {
-          // 2a. Create and sign split transaction
-          splitTxResult = await createAndSignSplitTransaction(
-            plan.splitTransaction,
-            btcWalletProvider,
-          );
-
-          // 2b. Broadcast split TX IMMEDIATELY
-          try {
-            await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
-          } catch (broadcastError) {
-            throw new Error(
-              `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
-            );
-          }
-
-          // Split outputs are now on-chain (unconfirmed) and can be used for pegins
-        }
-
-        // ========================================================================
         // Step 3: Create N Pegins (1 or 2)
         // ========================================================================
-
-        setCurrentStep(DepositStep.SUBMIT_PEGIN);
 
         const peginResults: PeginCreationResult[] = [];
 
         for (let i = 0; i < vaultAmounts.length; i++) {
           setCurrentVaultIndex(i);
+          setCurrentStep(DepositStep.SIGN_POP);
 
           try {
             const allocation = plan.vaultAllocations[i];
@@ -393,6 +407,7 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
+                  onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
                 },
               );
 
@@ -426,6 +441,7 @@ export function useMultiVaultDepositFlow(
                 universalChallengerBtcPubkeys,
                 confirmedUTXOs: allocation.utxos, // MULTI_INPUT: pass all assigned UTXOs for this vault
                 reservedUtxoRefs: [],
+                onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
               });
 
               depositorBtcPubkey = result.depositorBtcPubkey;
@@ -495,7 +511,7 @@ export function useMultiVaultDepositFlow(
             addPendingPegin(confirmedEthAddress, {
               id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
               btcTxHash: peginResult.btcTxHash, // For compatibility
-              amount: (Number(vaultAmount) / 100000000).toFixed(8), // BTC format
+              amount: depositService.formatSatoshisToBtc(vaultAmount),
               providerIds: [primaryProvider],
               applicationController: selectedApplication,
               batchId, // Links to batch
@@ -683,6 +699,8 @@ export function useMultiVaultDepositFlow(
       utxoError,
       vaultKeepers,
       findProvider,
+      precomputedPlan,
+      precomputedSplitTxResult,
     ]);
 
   return {

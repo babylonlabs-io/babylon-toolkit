@@ -9,10 +9,13 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import type { AllocationPlan } from "@/services/vault";
+
 import {
   DepositStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
+import type { SplitTxSignResult } from "../deposit/useMultiVaultDepositFlow";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
@@ -36,6 +39,14 @@ export interface UseDepositPageFlowResult {
   selectedProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+
+  // Split deposit
+  isSplitDeposit: boolean;
+  setIsSplitDeposit: (isSplit: boolean) => void;
+  splitAllocationPlan: AllocationPlan | null;
+  splitTxResult: SplitTxSignResult | null;
+  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+  setSplitTxResult: (result: SplitTxSignResult | null) => void;
 
   // Actions
   startDeposit: (
@@ -81,6 +92,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setDepositData,
     setFeeRate,
     setTransactionHashes,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    splitTxResult,
+    setSplitAllocationPlan,
+    setSplitTxResult,
     reset: resetDeposit,
   } = useDepositState();
 
@@ -156,6 +173,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    splitTxResult,
+    setSplitAllocationPlan,
+    setSplitTxResult,
     startDeposit,
     confirmReview,
     onSignSuccess,

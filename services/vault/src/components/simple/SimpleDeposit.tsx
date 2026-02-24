@@ -1,6 +1,10 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { Hex } from "viem";
+
+import type { AllocationPlan } from "@/services/vault";
+
+import type { SplitTxSignResult } from "../../hooks/deposit/useMultiVaultDepositFlow";
 
 import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
@@ -18,10 +22,12 @@ import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
+import { MultiVaultDepositSignContent } from "./MultiVaultDepositSignContent";
 import {
   ResumeBroadcastContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
+import { SplitChoiceContent } from "./SplitChoiceContent";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -93,6 +99,12 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    splitTxResult,
+    setSplitAllocationPlan,
+    setSplitTxResult,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -116,8 +128,29 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
-      goToStep(DepositStep.SIGN);
+      goToStep(DepositStep.SPLIT_CHOICE);
     }
+  };
+
+  // Compute vault amounts for the split flow (50/50 split)
+  const vaultAmounts = useMemo(
+    () => [depositAmount / 2n, depositAmount - depositAmount / 2n],
+    [depositAmount],
+  );
+
+  const handleContinueSplit = useCallback(
+    (plan: AllocationPlan, result: SplitTxSignResult | null) => {
+      setSplitAllocationPlan(plan);
+      setSplitTxResult(result);
+      setIsSplitDeposit(true);
+      goToStep(DepositStep.SIGN);
+    },
+    [setSplitAllocationPlan, setSplitTxResult, setIsSplitDeposit, goToStep],
+  );
+
+  const handleDoNotSplit = () => {
+    setIsSplitDeposit(false);
+    goToStep(DepositStep.SIGN);
   };
 
   const handleSignSuccess = useCallback(
@@ -166,22 +199,58 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositStep.SIGN && (
+        {renderedStep === DepositStep.SPLIT_CHOICE && (
           <div className="mx-auto w-full max-w-[520px]">
-            <DepositSignContent
-              amount={depositAmount}
+            <SplitChoiceContent
+              vaultAmounts={vaultAmounts}
               feeRate={feeRate}
               btcWalletProvider={btcWalletProvider}
               depositorEthAddress={ethAddress}
-              selectedApplication={selectedApplication}
               selectedProviders={selectedProviders}
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              onSuccess={handleSignSuccess}
-              onClose={onClose}
-              onRefetchActivities={refetchActivities}
+              onContinueToSplit={handleContinueSplit}
+              onDoNotSplit={handleDoNotSplit}
             />
+          </div>
+        )}
+
+        {renderedStep === DepositStep.SIGN && (
+          <div className="mx-auto w-full max-w-[520px]">
+            {isSplitDeposit ? (
+              <MultiVaultDepositSignContent
+                amount={depositAmount}
+                feeRate={feeRate}
+                btcWalletProvider={btcWalletProvider}
+                depositorEthAddress={ethAddress}
+                selectedApplication={selectedApplication}
+                selectedProviders={selectedProviders}
+                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                precomputedPlan={splitAllocationPlan ?? undefined}
+                precomputedSplitTxResult={splitTxResult}
+                onSuccess={handleSignSuccess}
+                onClose={onClose}
+                onRefetchActivities={refetchActivities}
+              />
+            ) : (
+              <DepositSignContent
+                amount={depositAmount}
+                feeRate={feeRate}
+                btcWalletProvider={btcWalletProvider}
+                depositorEthAddress={ethAddress}
+                selectedApplication={selectedApplication}
+                selectedProviders={selectedProviders}
+                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                onSuccess={handleSignSuccess}
+                onClose={onClose}
+                onRefetchActivities={refetchActivities}
+              />
+            )}
           </div>
         )}
 
