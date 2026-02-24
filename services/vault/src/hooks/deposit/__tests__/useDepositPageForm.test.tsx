@@ -44,6 +44,7 @@ vi.mock("@/clients/eth-contract", () => ({
 
 import { useApplications } from "../../useApplications";
 import { useDepositPageForm } from "../useDepositPageForm";
+import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
 vi.mock("../../../context/wallet", () => ({
   useBTCWallet: vi.fn(() => ({
@@ -241,6 +242,16 @@ const mockValidateProviders = vi.fn((providers: string[]) => {
   return { valid: true };
 });
 
+vi.mock("../useEstimatedBtcFee", () => ({
+  useEstimatedBtcFee: vi.fn(() => ({
+    fee: 1500n,
+    feeRate: 5,
+    isLoading: false,
+    error: null,
+    maxDeposit: 798500n,
+  })),
+}));
+
 vi.mock("../useDepositValidation", () => ({
   useDepositValidation: vi.fn(() => ({
     validateAmount: mockValidateAmount,
@@ -432,6 +443,49 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcPrice).toBe(95000.5);
+    });
+
+    it("should expose estimated fee values from useEstimatedBtcFee", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.estimatedFeeSats).toBe(1500n);
+      expect(result.current.estimatedFeeRate).toBe(5);
+      expect(result.current.isLoadingFee).toBe(false);
+      expect(result.current.feeError).toBeNull();
+      expect(result.current.maxDepositSats).toBe(798500n);
+    });
+
+    it("should propagate fee loading state", () => {
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: null,
+        feeRate: 0,
+        isLoading: true,
+        error: null,
+        maxDeposit: null,
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.isLoadingFee).toBe(true);
+      expect(result.current.estimatedFeeSats).toBeNull();
+    });
+
+    it("should propagate fee error state", () => {
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: null,
+        feeRate: 5,
+        isLoading: false,
+        error: "Insufficient funds: need 900000 sats, have 800000 sats",
+        maxDeposit: 798500n,
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.feeError).toBe(
+        "Insufficient funds: need 900000 sats, have 800000 sats",
+      );
+      expect(result.current.estimatedFeeSats).toBeNull();
+      expect(result.current.estimatedFeeRate).toBe(5);
     });
   });
 
