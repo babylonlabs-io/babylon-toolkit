@@ -519,6 +519,7 @@ export function useMultiVaultDepositFlow(
 
         for (const result of successfulPegins) {
           try {
+            setIsWaiting(true);
             const { context, vaultProviderUrl, preparedTransactions } =
               await pollAndPreparePayoutSigning({
                 btcTxid: result.vaultId, // Use vaultId for payout lookup
@@ -533,6 +534,8 @@ export function useMultiVaultDepositFlow(
                   }),
                 ),
               });
+
+            setIsWaiting(false);
 
             // Sign payouts
             const signatures: Record<
@@ -590,6 +593,7 @@ export function useMultiVaultDepositFlow(
         // Step 6: Background - Wait for Contract Verification
         // ========================================================================
 
+        setIsWaiting(true);
         await Promise.all(
           successfulPegins.map((r) =>
             waitForContractVerification({ btcTxid: r.vaultId }),
@@ -600,6 +604,7 @@ export function useMultiVaultDepositFlow(
         // Step 7: Background - Broadcast Pegins to Bitcoin
         // ========================================================================
 
+        setIsWaiting(false);
         setCurrentStep(DepositStep.BROADCAST_BTC);
 
         for (const result of successfulPegins) {
