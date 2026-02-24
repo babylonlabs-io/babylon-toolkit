@@ -94,7 +94,7 @@ vi.mock("@/storage/peginStorage", () => ({
 
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
-  DepositStep: {
+  DepositFlowStep: {
     SIGN_POP: 1,
     SUBMIT_PEGIN: 2,
     SIGN_PAYOUTS: 3,

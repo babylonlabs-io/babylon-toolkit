@@ -1,14 +1,26 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 /**
  * Execute a callback exactly once on mount.
- * Prevents re-execution on dependency changes or React strict mode double-mounts.
+ * Supports both sync and async callbacks.
+ * Uses cleanup-based cancellation to handle React StrictMode double-mounts,
+ * and catches unhandled rejections from async callbacks.
  */
-export function useRunOnce(callback: () => void) {
-  const started = useRef(false);
+export function useRunOnce(callback: () => void | Promise<void>) {
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    callback();
+    let cancelled = false;
+
+    const result = callback();
+    if (result instanceof Promise) {
+      result.catch((err) => {
+        if (!cancelled) {
+          console.error("[useRunOnce] Unhandled error:", err);
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
   }, [callback]);
 }

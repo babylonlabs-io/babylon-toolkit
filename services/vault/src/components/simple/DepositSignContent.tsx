@@ -3,7 +3,7 @@ import type { Address } from "viem";
 
 import {
   canCloseModal,
-  DepositStep,
+  DepositFlowStep,
 } from "@/components/deposit/DepositSignModal/constants";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
@@ -60,11 +60,11 @@ export function DepositSignContent({
   }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
   // Derived state
-  const isComplete = currentStep === DepositStep.COMPLETED;
+  const isComplete = currentStep === DepositFlowStep.COMPLETED;
   const canClose = canCloseModal(currentStep, error, isWaiting);
   const isProcessing = (processing || isWaiting) && !error && !isComplete;
   const canContinueInBackground =
-    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
+    isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error;
 
   const handleClose = useCallback(() => {
     abort();

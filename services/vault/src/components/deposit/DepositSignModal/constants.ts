@@ -1,32 +1,32 @@
-import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 // Re-export for convenience
-export { DepositStep };
+export { DepositFlowStep };
 
 /**
  * Step descriptions for deposit flow
  */
 export const STEP_DESCRIPTIONS: Record<
-  DepositStep,
+  DepositFlowStep,
   { active: string; waiting?: string }
 > = {
-  [DepositStep.SIGN_POP]: {
+  [DepositFlowStep.SIGN_POP]: {
     active: "Please sign the proof of possession in your BTC wallet.",
   },
-  [DepositStep.SUBMIT_PEGIN]: {
+  [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",
   },
-  [DepositStep.SIGN_PAYOUTS]: {
+  [DepositFlowStep.SIGN_PAYOUTS]: {
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
   },
-  [DepositStep.BROADCAST_BTC]: {
+  [DepositFlowStep.BROADCAST_BTC]: {
     active:
       "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
     waiting: "Waiting for on-chain verification...",
   },
-  [DepositStep.COMPLETED]: {
+  [DepositFlowStep.COMPLETED]: {
     active: "Deposit successfully submitted!",
   },
 };
@@ -58,7 +58,7 @@ export const TOTAL_STEPS = 4;
  * Get the description text for the current step
  */
 export function getStepDescription(
-  step: DepositStep,
+  step: DepositFlowStep,
   isWaiting: boolean,
   payoutProgress: PayoutSigningProgress | null,
 ): string {
@@ -66,7 +66,7 @@ export function getStepDescription(
   if (!desc) return "";
 
   // Show detailed progress for payout signing step
-  if (step === DepositStep.SIGN_PAYOUTS && payoutProgress?.currentStep) {
+  if (step === DepositFlowStep.SIGN_PAYOUTS && payoutProgress?.currentStep) {
     const stepLabel = SIGNING_STEP_LABELS[payoutProgress.currentStep];
     const claimerInfo =
       payoutProgress.totalClaimers > 1
@@ -82,13 +82,13 @@ export function getStepDescription(
  * Determine if the modal can be closed
  */
 export function canCloseModal(
-  currentStep: DepositStep,
+  currentStep: DepositFlowStep,
   error: string | null,
   isWaiting: boolean = false,
 ): boolean {
   if (error) return true;
-  if (currentStep === DepositStep.COMPLETED) return true;
+  if (currentStep === DepositFlowStep.COMPLETED) return true;
   // Allow closing during waiting states (vault provider prep or verification)
-  if (isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS) return true;
+  if (isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS) return true;
   return false;
 }

@@ -25,11 +25,11 @@ import {
   getMultiVaultVisualStep,
   MULTI_VAULT_STEP_LABELS,
 } from "@/components/deposit/MultiVaultDepositSignModal/constants";
-import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
- * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-6).
+ * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-6).
  *
  * Visual steps:
  * 1. Sign proof of possession
@@ -40,19 +40,19 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * 6. Submit peg-in transactions
  */
 export function getVisualStep(
-  currentStep: DepositStep,
+  currentStep: DepositFlowStep,
   isWaiting: boolean,
 ): number {
   switch (currentStep) {
-    case DepositStep.SIGN_POP:
+    case DepositFlowStep.SIGN_POP:
       return 1;
-    case DepositStep.SUBMIT_PEGIN:
+    case DepositFlowStep.SUBMIT_PEGIN:
       return 2;
-    case DepositStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return isWaiting ? 3 : 4;
-    case DepositStep.BROADCAST_BTC:
+    case DepositFlowStep.BROADCAST_BTC:
       return isWaiting ? 5 : 6;
-    case DepositStep.COMPLETED:
+    case DepositFlowStep.COMPLETED:
       return 7; // All 6 steps completed
     default:
       return 1;
@@ -88,7 +88,7 @@ const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map((label) => ({
 // ---------------------------------------------------------------------------
 
 type SharedProps = {
-  currentStep: DepositStep;
+  currentStep: DepositFlowStep;
   error: string | null;
   isComplete: boolean;
   isProcessing: boolean;

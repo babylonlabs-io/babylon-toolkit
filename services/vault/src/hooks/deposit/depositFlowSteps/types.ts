@@ -17,7 +17,7 @@ import type {
 /**
  * Deposit flow step numbers
  */
-export enum DepositStep {
+export enum DepositFlowStep {
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
   /** Step 2: Sign and submit peg-in request in ETH wallet */

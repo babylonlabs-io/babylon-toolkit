@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { canCloseMultiVaultModal } from "@/components/deposit/MultiVaultDepositSignModal/constants";
-import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
   useMultiVaultDepositFlow,
   type SplitTxSignResult,
 } from "@/hooks/deposit/useMultiVaultDepositFlow";
+import { useRunOnce } from "@/hooks/useRunOnce";
 import type { AllocationPlan } from "@/services/vault";
 
 import { DepositProgressView } from "./DepositProgressView";
 
 interface MultiVaultDepositSignContentProps {
-  amount: bigint;
+  vaultAmounts: bigint[];
   feeRate: number;
   btcWalletProvider: any;
   depositorEthAddress: Address | undefined;
@@ -36,7 +37,7 @@ export function MultiVaultDepositSignContent({
   onClose,
   onSuccess,
   onRefetchActivities,
-  amount,
+  vaultAmounts,
   feeRate,
   btcWalletProvider,
   depositorEthAddress,
@@ -48,12 +49,6 @@ export function MultiVaultDepositSignContent({
   precomputedPlan,
   precomputedSplitTxResult,
 }: MultiVaultDepositSignContentProps) {
-  // Split amount 50/50 (handles odd satoshi via integer division)
-  const vaultAmounts = useMemo(
-    () => [amount / 2n, amount - amount / 2n],
-    [amount],
-  );
-
   const {
     executeMultiVaultDeposit,
     currentStep,
@@ -76,38 +71,30 @@ export function MultiVaultDepositSignContent({
   });
 
   // Auto-start the flow on mount
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
-    void (async () => {
-      const result = await executeMultiVaultDeposit();
-      if (result) {
-        onRefetchActivities?.();
-        // Extract first successful pegin for page-level success callback
-        const firstSuccess = result.pegins.find((p) => !p.error);
-        if (firstSuccess) {
-          onSuccess(
-            firstSuccess.btcTxHash,
-            firstSuccess.ethTxHash,
-            firstSuccess.depositorBtcPubkey,
-          );
-        }
+  const handleStart = useCallback(async () => {
+    const result = await executeMultiVaultDeposit();
+    if (result) {
+      onRefetchActivities?.();
+      // Extract first successful pegin for page-level success callback
+      const firstSuccess = result.pegins.find((p) => !p.error);
+      if (firstSuccess) {
+        onSuccess(
+          firstSuccess.btcTxHash,
+          firstSuccess.ethTxHash,
+          firstSuccess.depositorBtcPubkey,
+        );
       }
-    })();
+    }
   }, [executeMultiVaultDeposit, onRefetchActivities, onSuccess]);
 
+  useRunOnce(handleStart);
+
   // Derived state
-  const isComplete = currentStep === DepositStep.COMPLETED;
+  const isComplete = currentStep === DepositFlowStep.COMPLETED;
   const canClose = canCloseMultiVaultModal(currentStep, error, isWaiting);
   const isProcessing = (processing || isWaiting) && !error && !isComplete;
   const canContinueInBackground =
-    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
-
-  const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
+    isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error;
 
   return (
     <DepositProgressView
@@ -119,7 +106,7 @@ export function MultiVaultDepositSignContent({
       isProcessing={isProcessing}
       canClose={canClose}
       canContinueInBackground={canContinueInBackground}
-      onClose={handleClose}
+      onClose={onClose}
       successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
     />
   );

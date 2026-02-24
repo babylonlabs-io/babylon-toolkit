@@ -51,7 +51,7 @@ import { addPendingPegin } from "@/storage/peginStorage";
 
 import {
   broadcastBtcTransaction,
-  DepositStep,
+  DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   submitPayoutSignatures,
@@ -94,7 +94,7 @@ export interface UseMultiVaultDepositFlowReturn {
   /** Execute the multi-vault deposit flow */
   executeMultiVaultDeposit: () => Promise<MultiVaultDepositResult | null>;
   /** Current step in the deposit flow */
-  currentStep: DepositStep;
+  currentStep: DepositFlowStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
   currentVaultIndex: number | null;
   /** Whether the flow is currently processing */
@@ -229,8 +229,8 @@ export function useMultiVaultDepositFlow(
   } = params;
 
   // State
-  const [currentStep, setCurrentStep] = useState<DepositStep>(
-    DepositStep.SIGN_POP,
+  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
+    DepositFlowStep.SIGN_POP,
   );
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
@@ -260,7 +260,7 @@ export function useMultiVaultDepositFlow(
     useCallback(async (): Promise<MultiVaultDepositResult | null> => {
       setProcessing(true);
       setError(null);
-      setCurrentStep(DepositStep.SIGN_POP);
+      setCurrentStep(DepositFlowStep.SIGN_POP);
 
       // Track background operation failures
       const warnings: string[] = [];
@@ -278,6 +278,13 @@ export function useMultiVaultDepositFlow(
           plan = precomputedPlan;
           splitTxResult = precomputedSplitTxResult ?? null;
           setAllocationPlan(plan);
+
+          // Guard: if plan requires a split, the split TX must have been pre-signed
+          if (plan.needsSplit && !splitTxResult) {
+            throw new Error(
+              "Precomputed plan requires split TX but no split result was provided",
+            );
+          }
 
           // Still need basic address validation
           if (!btcAddress) throw new Error("BTC wallet not connected");
@@ -347,7 +354,7 @@ export function useMultiVaultDepositFlow(
 
         for (let i = 0; i < vaultAmounts.length; i++) {
           setCurrentVaultIndex(i);
-          setCurrentStep(DepositStep.SIGN_POP);
+          setCurrentStep(DepositFlowStep.SIGN_POP);
 
           try {
             const allocation = plan.vaultAllocations[i];
@@ -407,7 +414,8 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
-                  onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+                  onPopSigned: () =>
+                    setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
                 },
               );
 
@@ -441,7 +449,7 @@ export function useMultiVaultDepositFlow(
                 universalChallengerBtcPubkeys,
                 confirmedUTXOs: allocation.utxos, // MULTI_INPUT: pass all assigned UTXOs for this vault
                 reservedUtxoRefs: [],
-                onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+                onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
               });
 
               depositorBtcPubkey = result.depositorBtcPubkey;
@@ -526,7 +534,7 @@ export function useMultiVaultDepositFlow(
         // Step 5: Background - Sign Payout Transactions
         // ========================================================================
 
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
 
         const provider = findProvider(primaryProvider as Hex);
         if (!provider?.url) {
@@ -621,7 +629,7 @@ export function useMultiVaultDepositFlow(
         // ========================================================================
 
         setIsWaiting(false);
-        setCurrentStep(DepositStep.BROADCAST_BTC);
+        setCurrentStep(DepositFlowStep.BROADCAST_BTC);
 
         for (const result of successfulPegins) {
           try {
@@ -664,7 +672,7 @@ export function useMultiVaultDepositFlow(
           }
         }
 
-        setCurrentStep(DepositStep.COMPLETED);
+        setCurrentStep(DepositFlowStep.COMPLETED);
 
         // Return result
         return {

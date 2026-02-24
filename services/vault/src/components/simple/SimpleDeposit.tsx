@@ -11,7 +11,10 @@ import type { AllocationPlan } from "@/services/vault";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 
-import { DepositState, DepositStep } from "../../context/deposit/DepositState";
+import {
+  DepositPageStep,
+  DepositState,
+} from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
@@ -130,7 +133,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      goToStep(DepositStep.SPLIT_CHOICE);
+      goToStep(DepositPageStep.SPLIT_CHOICE);
     }
   };
 
@@ -145,25 +148,25 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       setSplitAllocationPlan(plan);
       setSplitTxResult(result);
       setIsSplitDeposit(true);
-      goToStep(DepositStep.SIGN);
+      goToStep(DepositPageStep.SIGN);
     },
     [setSplitAllocationPlan, setSplitTxResult, setIsSplitDeposit, goToStep],
   );
 
   const handleDoNotSplit = () => {
     setIsSplitDeposit(false);
-    goToStep(DepositStep.SIGN);
+    goToStep(DepositPageStep.SIGN);
   };
 
   const handleSignSuccess = useCallback(
     (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
       setTransactionHashes(btcTxid, ethTxHash, _depositorBtcPubkey);
-      goToStep(DepositStep.SUCCESS);
+      goToStep(DepositPageStep.SUCCESS);
     },
     [setTransactionHashes, goToStep],
   );
 
-  const showForm = !renderedStep || renderedStep === DepositStep.FORM;
+  const showForm = !renderedStep || renderedStep === DepositPageStep.FORM;
   const stepKey = renderedStep ?? "form";
 
   return (
@@ -207,7 +210,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositStep.SPLIT_CHOICE && (
+        {renderedStep === DepositPageStep.SPLIT_CHOICE && (
           <div className="mx-auto w-full max-w-[520px]">
             <SplitChoiceContent
               vaultAmounts={vaultAmounts}
@@ -224,11 +227,11 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositStep.SIGN && (
+        {renderedStep === DepositPageStep.SIGN && (
           <div className="mx-auto w-full max-w-[520px]">
             {isSplitDeposit ? (
               <MultiVaultDepositSignContent
-                amount={depositAmount}
+                vaultAmounts={vaultAmounts}
                 feeRate={feeRate}
                 btcWalletProvider={btcWalletProvider}
                 depositorEthAddress={ethAddress}
@@ -262,7 +265,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositStep.SUCCESS && (
+        {renderedStep === DepositPageStep.SUCCESS && (
           <div className="mx-auto w-full max-w-[520px]">
             <DepositSuccessContent onClose={onClose} />
           </div>

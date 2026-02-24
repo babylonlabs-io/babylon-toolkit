@@ -32,7 +32,7 @@ export type {
 
 // Export from the context-based state
 export {
-  DepositStep as DepositStateStep,
+  DepositPageStep as DepositStateStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";

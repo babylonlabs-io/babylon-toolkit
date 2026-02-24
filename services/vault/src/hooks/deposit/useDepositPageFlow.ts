@@ -12,7 +12,7 @@ import type { Address } from "viem";
 import type { AllocationPlan } from "@/services/vault";
 
 import {
-  DepositStep,
+  DepositPageStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
@@ -25,7 +25,7 @@ import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositPageFlowResult {
   // Deposit state
-  depositStep: DepositStep | undefined;
+  depositStep: DepositPageStep | undefined;
   depositAmount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
@@ -60,7 +60,7 @@ export interface UseDepositPageFlowResult {
   refetchActivities: () => Promise<void>;
 
   // Primitives (for custom flows like SimpleDeposit)
-  goToStep: (step: DepositStep) => void;
+  goToStep: (step: DepositPageStep) => void;
   setDepositData: (
     amount: bigint,
     application: string,
@@ -149,17 +149,17 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     providers: string[],
   ) => {
     setDepositData(amountSats, application, providers);
-    goToStep(DepositStep.REVIEW);
+    goToStep(DepositPageStep.REVIEW);
   };
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
-    goToStep(DepositStep.SIGN);
+    goToStep(DepositPageStep.SIGN);
   };
 
   const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setTransactionHashes(btcTxid, ethTxHash);
-    goToStep(DepositStep.SUCCESS);
+    goToStep(DepositPageStep.SUCCESS);
   };
 
   return {

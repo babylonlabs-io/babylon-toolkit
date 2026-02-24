@@ -30,7 +30,7 @@ import { getPendingPegins } from "@/storage/peginStorage";
 
 import {
   broadcastBtcTransaction,
-  DepositStep,
+  DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   savePendingPegin,
@@ -59,7 +59,7 @@ export interface UseDepositFlowReturn {
   executeDepositFlow: () => Promise<DepositFlowResult | null>;
   /** Abort the currently running deposit flow */
   abort: () => void;
-  currentStep: DepositStep;
+  currentStep: DepositFlowStep;
   processing: boolean;
   error: string | null;
   isWaiting: boolean;
@@ -82,8 +82,8 @@ export function useDepositFlow(
   } = params;
 
   // State
-  const [currentStep, setCurrentStep] = useState<DepositStep>(
-    DepositStep.SIGN_POP,
+  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
+    DepositFlowStep.SIGN_POP,
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +152,7 @@ export function useDepositFlow(
         });
 
         // Step 1: Get ETH wallet client
-        setCurrentStep(DepositStep.SIGN_POP);
+        setCurrentStep(DepositFlowStep.SIGN_POP);
         const walletClient = await getEthWalletClient(depositorEthAddress!);
 
         // Compute reserved UTXOs from cached vaults + localStorage
@@ -175,7 +175,7 @@ export function useDepositFlow(
           universalChallengerBtcPubkeys,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
-          onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+          onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
         });
 
         // Save to localStorage
@@ -191,7 +191,7 @@ export function useDepositFlow(
         });
 
         // Step 3: Poll and sign payout transactions
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
         setIsWaiting(true);
 
         const provider = getSelectedVaultProvider();
@@ -236,7 +236,7 @@ export function useDepositFlow(
         setPayoutSigningProgress(null);
 
         // Step 4a: Wait for verification
-        setCurrentStep(DepositStep.BROADCAST_BTC);
+        setCurrentStep(DepositFlowStep.BROADCAST_BTC);
         setIsWaiting(true);
         await waitForContractVerification({
           btcTxid: peginResult.btcTxid,
@@ -255,7 +255,7 @@ export function useDepositFlow(
         );
 
         // Complete
-        setCurrentStep(DepositStep.COMPLETED);
+        setCurrentStep(DepositFlowStep.COMPLETED);
 
         return {
           btcTxid: peginResult.btcTxid,

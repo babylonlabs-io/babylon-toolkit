@@ -10,7 +10,7 @@
 
 import type { Hex } from "viem";
 
-import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
+import { DepositFlowStep } from "@/components/deposit/DepositSignModal/constants";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRunOnce } from "@/hooks/useRunOnce";
@@ -57,7 +57,7 @@ export function ResumeSignContent({
   return (
     <DepositProgressView
       currentStep={
-        isComplete ? DepositStep.BROADCAST_BTC : DepositStep.SIGN_PAYOUTS
+        isComplete ? DepositFlowStep.BROADCAST_BTC : DepositFlowStep.SIGN_PAYOUTS
       }
       isWaiting={isComplete}
       error={error?.message ?? null}
@@ -102,7 +102,7 @@ export function ResumeBroadcastContent({
 
   return (
     <DepositProgressView
-      currentStep={DepositStep.BROADCAST_BTC}
+      currentStep={DepositFlowStep.BROADCAST_BTC}
       isWaiting={false}
       error={error}
       isComplete={false}
