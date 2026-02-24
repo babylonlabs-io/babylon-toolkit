@@ -22,7 +22,9 @@ interface Application {
 
 interface DepositFormProps {
   amount: string;
+  amountSats: bigint;
   btcBalance: bigint;
+  minDeposit: bigint;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -48,7 +50,9 @@ interface DepositFormProps {
 
 export function DepositForm({
   amount,
+  amountSats,
   btcBalance,
+  minDeposit,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -110,11 +114,13 @@ export function DepositForm({
   const hasAmount = !!amount && amount !== "0";
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
 
-  const ctaLabel = !hasAmount
-    ? "Enter an amount"
-    : isFeeError
-      ? (feeError ?? "Fee estimate unavailable")
-      : "Deposit";
+  const ctaLabel = isFeeError
+    ? (feeError ?? "Fee estimate unavailable")
+    : depositService.getDepositButtonLabel({
+        amountSats,
+        minDeposit,
+        btcBalance,
+      });
   const ctaDisabled =
     !isValid || !isDepositEnabled || isGeoBlocked || !hasAmount || feeDisabled;
 

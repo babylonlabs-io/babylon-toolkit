@@ -42,8 +42,7 @@ export function usePayoutSignModal(options: {
   // Handle payout sign success
   const handleSuccess = useCallback(() => {
     onSuccess();
-    handleClose();
-  }, [onSuccess, handleClose]);
+  }, [onSuccess]);
 
   return {
     signingActivity,

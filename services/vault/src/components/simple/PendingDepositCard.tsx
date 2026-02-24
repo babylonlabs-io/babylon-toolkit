@@ -12,6 +12,7 @@ import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 
 import {
   getActionStatus,
+  getWarningMessages,
   PeginAction,
 } from "@/components/deposit/DepositOverview/actionStatus";
 import { getNetworkConfigBTC } from "@/config";
@@ -38,6 +39,8 @@ export function PendingDepositCard({
 
   const { loading, transactions, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
+  const warnings = getWarningMessages(pollingResult);
+  const isDisabled = warnings.length > 0;
 
   const isActionable = status.type === "available";
   const displayLabel = peginState.displayLabel;
@@ -54,7 +57,7 @@ export function PendingDepositCard({
   };
 
   return (
-    <Card variant="filled" className="w-full">
+    <Card variant="filled" className={`w-full${isDisabled ? " opacity-50" : ""}`}>
       <div className="flex items-center gap-4">
         <div className="flex flex-1 items-center gap-2">
           <Avatar

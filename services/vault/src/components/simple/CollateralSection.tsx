@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Loader } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import { MenuButton } from "@/components/shared";
@@ -21,7 +21,10 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   hasDebt: boolean;
-  onDeposit: () => void;
+  hasAvailableVaults: boolean;
+  isPendingAdd: boolean;
+  isPendingWithdraw: boolean;
+  onAdd: () => void;
   onWithdraw: () => void;
 }
 
@@ -31,7 +34,10 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   hasDebt,
-  onDeposit,
+  hasAvailableVaults,
+  isPendingAdd,
+  isPendingWithdraw,
+  onAdd,
   onWithdraw,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -40,6 +46,8 @@ export function CollateralSection({
     onWithdraw();
   }, [onWithdraw]);
 
+  const isPending = isPendingAdd || isPendingWithdraw;
+  const isAddDisabled = !isConnected || !hasAvailableVaults || isPending;
   const canWithdraw = !hasDebt;
 
   return (
@@ -53,15 +61,24 @@ export function CollateralSection({
           variant="outlined"
           color="primary"
           size="medium"
-          onClick={onDeposit}
-          disabled={!isConnected}
+          onClick={onAdd}
+          disabled={isAddDisabled}
           className="rounded-full"
         >
-          Deposit
+          Add
         </Button>
       </div>
 
-      {hasCollateral ? (
+      {isPending ? (
+        <Card variant="filled" className="w-full">
+          <div className="flex items-center gap-3 py-4">
+            <Loader size={20} />
+            <span className="text-base text-accent-primary">
+              {isPendingAdd ? "Pending Add" : "Pending Withdrawal"}
+            </span>
+          </div>
+        </Card>
+      ) : hasCollateral ? (
         <Card variant="filled" className="w-full">
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
@@ -100,26 +117,25 @@ export function CollateralSection({
               className="mb-2 h-[100px] w-[100px]"
             />
             <p className="text-[20px] text-accent-primary">
-              Deposit {btcConfig.coinSymbol} to get started
+              No collateral available.
             </p>
             <p className="text-[14px] text-accent-secondary">
-              Add {btcConfig.coinSymbol} as collateral so you can begin
-              borrowing assets.
+              Add {btcConfig.coinSymbol} to enable collateral.
             </p>
             <div className="mt-8">
-              {isConnected ? (
+              {!isConnected ? (
+                <Connect />
+              ) : !isAddDisabled ? (
                 <Button
                   variant="contained"
                   color="primary"
                   size="medium"
-                  onClick={onDeposit}
+                  onClick={onAdd}
                   className="rounded-full !bg-white !text-black hover:!bg-gray-100"
                 >
-                  Deposit {btcConfig.coinSymbol}
+                  Add {btcConfig.coinSymbol}
                 </Button>
-              ) : (
-                <Connect />
-              )}
+              ) : null}
             </div>
           </div>
         </Card>

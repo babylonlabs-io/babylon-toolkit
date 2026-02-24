@@ -54,6 +54,7 @@ export interface UseDepositPageFormResult {
   isLoadingProviders: boolean;
 
   amountSats: bigint;
+  minDeposit: bigint;
 
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
@@ -271,6 +272,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     providers,
     isLoadingProviders,
     amountSats,
+    minDeposit: validation.minDeposit,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
