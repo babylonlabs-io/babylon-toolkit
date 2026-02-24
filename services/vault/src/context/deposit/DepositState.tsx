@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
 import type { AllocationPlan } from "@/services/vault";
 
-import { createStateUtils } from "../../utils/createStateUtils";
 import type { SplitTxSignResult } from "../../hooks/deposit/useMultiVaultDepositFlow";
+import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
   FORM = "form",
@@ -94,8 +94,9 @@ export function DepositState({ children }: PropsWithChildren) {
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitAllocationPlan, setSplitAllocationPlan] =
     useState<AllocationPlan | null>(null);
-  const [splitTxResult, setSplitTxResult] =
-    useState<SplitTxSignResult | null>(null);
+  const [splitTxResult, setSplitTxResult] = useState<SplitTxSignResult | null>(
+    null,
+  );
 
   const goToStep = useCallback((newStep: DepositStep) => {
     setStep(newStep);

@@ -15,10 +15,10 @@ import {
   DepositStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
-import type { SplitTxSignResult } from "../deposit/useMultiVaultDepositFlow";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
+import type { SplitTxSignResult } from "../deposit/useMultiVaultDepositFlow";
 import { useVaultDeposits } from "../useVaultDeposits";
 
 import { useVaultProviders } from "./useVaultProviders";
