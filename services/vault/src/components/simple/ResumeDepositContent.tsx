@@ -57,7 +57,9 @@ export function ResumeSignContent({
   return (
     <DepositProgressView
       currentStep={
-        isComplete ? DepositFlowStep.BROADCAST_BTC : DepositFlowStep.SIGN_PAYOUTS
+        isComplete
+          ? DepositFlowStep.BROADCAST_BTC
+          : DepositFlowStep.SIGN_PAYOUTS
       }
       isWaiting={isComplete}
       error={error?.message ?? null}
