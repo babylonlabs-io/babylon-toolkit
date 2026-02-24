@@ -14,7 +14,10 @@ import {
   type CollateralMode,
 } from "@/applications/aave/components/CollateralModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
-import { usePendingVaults, useSyncPendingVaults } from "@/applications/aave/context";
+import {
+  usePendingVaults,
+  useSyncPendingVaults,
+} from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import { useConnection, useETHWallet } from "@/context/wallet";

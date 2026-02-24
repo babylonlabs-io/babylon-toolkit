@@ -57,7 +57,10 @@ export function PendingDepositCard({
   };
 
   return (
-    <Card variant="filled" className={`w-full${isDisabled ? " opacity-50" : ""}`}>
+    <Card
+      variant="filled"
+      className={`w-full ${isDisabled ? "opacity-50" : ""}`.trim()}
+    >
       <div className="flex items-center gap-4">
         <div className="flex flex-1 items-center gap-2">
           <Avatar
