@@ -5,6 +5,10 @@
  * - SINGLE: One vault using standard flow
  * - MULTI_INPUT: Two vaults with existing UTXOs
  * - SPLIT: Two vaults with split transaction
+ *
+ * NOTE: Steps 0-2 (validation, planning, split TX) are handled by
+ * useSplitTransaction. This hook receives the precomputed plan and
+ * split TX result as required params.
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
@@ -13,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AllocationPlan } from "@/services/vault";
 
+import type { SplitTxSignResult } from "../useMultiVaultDepositFlow";
 import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 
 // ============================================================================
@@ -94,7 +99,7 @@ vi.mock("@/storage/peginStorage", () => ({
 
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
-  DepositStep: {
+  DepositFlowStep: {
     SIGN_POP: 1,
     SUBMIT_PEGIN: 2,
     SIGN_PAYOUTS: 3,
@@ -137,18 +142,6 @@ const MOCK_BTC_WALLET = {
 const MOCK_ETH_WALLET = {
   account: { address: "0xEthAddress123" as Address },
   chain: { id: 11155111 },
-};
-
-const MOCK_PARAMS = {
-  vaultAmounts: [100000n],
-  feeRate: 10,
-  btcWalletProvider: MOCK_BTC_WALLET as any,
-  depositorEthAddress: "0xEthAddress123" as Address,
-  selectedApplication: "0xAppController",
-  selectedProviders: ["0xProvider123"],
-  vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
-  vaultKeeperBtcPubkeys: ["keeper1pubkey"],
-  universalChallengerBtcPubkeys: ["uc1pubkey"],
 };
 
 const SINGLE_PLAN: AllocationPlan = {
@@ -219,25 +212,73 @@ const SPLIT_PLAN: AllocationPlan = {
   ],
 };
 
+const MOCK_SPLIT_TX_RESULT: SplitTxSignResult = {
+  txid: "splitTxId" + "0".repeat(56),
+  signedHex: "mockSignedSplitTxHex",
+  outputs: [
+    {
+      txid: "splitTxId" + "0".repeat(56),
+      vout: 0,
+      value: 100000,
+      scriptPubKey: "0xsplit1",
+    },
+    {
+      txid: "splitTxId" + "0".repeat(56),
+      vout: 1,
+      value: 100000,
+      scriptPubKey: "0xsplit2",
+    },
+    {
+      txid: "splitTxId" + "0".repeat(56),
+      vout: 2,
+      value: 290000,
+      scriptPubKey: "0xchange",
+    },
+  ],
+};
+
+// Params with precomputed plans (required by the hook)
+const MOCK_PARAMS = {
+  vaultAmounts: [100000n],
+  feeRate: 10,
+  btcWalletProvider: MOCK_BTC_WALLET as any,
+  depositorEthAddress: "0xEthAddress123" as Address,
+  selectedApplication: "0xAppController",
+  selectedProviders: ["0xProvider123"],
+  vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
+  vaultKeeperBtcPubkeys: ["keeper1pubkey"],
+  universalChallengerBtcPubkeys: ["uc1pubkey"],
+  precomputedPlan: SINGLE_PLAN,
+  precomputedSplitTxResult: null,
+};
+
+const MULTI_VAULT_PARAMS = {
+  ...MOCK_PARAMS,
+  vaultAmounts: [100000n, 100000n],
+  precomputedPlan: MULTI_INPUT_PLAN,
+  precomputedSplitTxResult: null,
+};
+
+const SPLIT_VAULT_PARAMS = {
+  ...MOCK_PARAMS,
+  vaultAmounts: [100000n, 100000n],
+  precomputedPlan: SPLIT_PLAN,
+  precomputedSplitTxResult: MOCK_SPLIT_TX_RESULT,
+};
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
 async function setupDefaultMocks() {
-  const { pushTx } = vi.mocked(await import("@babylonlabs-io/ts-sdk"));
-  const { createSplitTransaction, createSplitTransactionPsbt } = vi.mocked(
-    await import("@babylonlabs-io/ts-sdk/tbv/core"),
-  );
   const { useChainConnector } = vi.mocked(
     await import("@babylonlabs-io/wallet-connector"),
   );
   const { useProtocolParamsContext } = vi.mocked(
     await import("@/context/ProtocolParamsContext"),
   );
-  const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
   const { useVaultProviders } = vi.mocked(await import("../useVaultProviders"));
   const {
-    planUtxoAllocation,
     preparePeginFromSplitOutput,
     registerSplitPeginOnChain,
     broadcastPeginWithLocalUtxo,
@@ -262,13 +303,6 @@ async function setupDefaultMocks() {
     },
   } as any);
 
-  // UTXOs
-  vi.mocked(useUTXOs).mockReturnValue({
-    spendableUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
-    isLoading: false,
-    error: null,
-  } as any);
-
   // Protocol params (currently unused but kept for future compatibility)
   vi.mocked(useProtocolParamsContext).mockReturnValue({} as any);
 
@@ -282,36 +316,7 @@ async function setupDefaultMocks() {
     vaultKeepers: [{ btcPubKey: "keeper1pubkey" }],
   } as any);
 
-  // SDK functions
-  vi.mocked(pushTx).mockResolvedValue("splitTxBroadcastId");
-  vi.mocked(createSplitTransaction).mockReturnValue({
-    txHex: "splitTxHex",
-    txid: "splitTxId" + "0".repeat(56),
-    outputs: [
-      {
-        txid: "splitTxId" + "0".repeat(56),
-        vout: 0,
-        value: 100000,
-        scriptPubKey: "0xsplit1",
-      },
-      {
-        txid: "splitTxId" + "0".repeat(56),
-        vout: 1,
-        value: 100000,
-        scriptPubKey: "0xsplit2",
-      },
-      {
-        txid: "splitTxId" + "0".repeat(56),
-        vout: 2,
-        value: 290000,
-        scriptPubKey: "0xchange",
-      },
-    ],
-  });
-  vi.mocked(createSplitTransactionPsbt).mockReturnValue("splitPsbtHex");
-
   // Vault services
-  vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
   vi.mocked(preparePeginFromSplitOutput).mockResolvedValue({
     btcTxHash: "peginTxHash" as Hex,
     fundedTxHex: "fundedTxHex",
@@ -374,14 +379,9 @@ describe("useMultiVaultDepositFlow", () => {
 
   describe("SINGLE Vault Strategy", () => {
     it("should use standard submitPeginAndWait path", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { submitPeginAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
@@ -400,38 +400,10 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should NOT create split transaction", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-      const { createSplitTransaction } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
-
-      await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(result.current.processing).toBe(false);
-      });
-
-      expect(createSplitTransaction).not.toHaveBeenCalled();
-    });
-
     it("should save pegin with batchId but no splitTxId", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
@@ -453,12 +425,6 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should return result with 1 pegin and SINGLE strategy", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
@@ -486,20 +452,10 @@ describe("useMultiVaultDepositFlow", () => {
   });
 
   describe("MULTI_INPUT Strategy", () => {
-    const MULTI_VAULT_PARAMS = {
-      ...MOCK_PARAMS,
-      vaultAmounts: [100000n, 100000n],
-    };
-
     it("should create 2 pegins using standard path", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { submitPeginAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
@@ -512,38 +468,10 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should NOT create split transaction", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-      const { createSplitTransaction } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
-      );
-
-      await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(result.current.processing).toBe(false);
-      });
-
-      expect(createSplitTransaction).not.toHaveBeenCalled();
-    });
-
     it("should pass correct UTXOs to each vault", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { submitPeginAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
@@ -568,14 +496,9 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should save both pegins with same batchId, no splitTxId", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
@@ -611,12 +534,6 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should return result with 2 pegins and MULTI_INPUT strategy", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
-
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
@@ -637,67 +554,10 @@ describe("useMultiVaultDepositFlow", () => {
   });
 
   describe("SPLIT Strategy", () => {
-    const SPLIT_VAULT_PARAMS = {
-      ...MOCK_PARAMS,
-      vaultAmounts: [100000n, 100000n],
-    };
-
-    it("should create split transaction before pegins", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-      const { createSplitTransaction } = vi.mocked(
-        await import("@babylonlabs-io/ts-sdk/tbv/core"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
-      );
-
-      await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(createSplitTransaction).toHaveBeenCalledWith(
-          SPLIT_PLAN.splitTransaction!.inputs,
-          SPLIT_PLAN.splitTransaction!.outputs.map((o) => ({
-            amount: o.amount,
-            address: o.address,
-          })),
-          "testnet",
-        );
-      });
-    });
-
-    it("should broadcast split TX immediately", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-      const { pushTx } = vi.mocked(await import("@babylonlabs-io/ts-sdk"));
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
-      );
-
-      await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(pushTx).toHaveBeenCalledWith(
-          "mockSignedTxHex",
-          "https://mempool.test",
-        );
-      });
-    });
-
     it("should use preparePeginFromSplitOutput for both vaults", async () => {
-      const { planUtxoAllocation, preparePeginFromSplitOutput } = vi.mocked(
+      const { preparePeginFromSplitOutput } = vi.mocked(
         await import("@/services/vault"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
@@ -711,14 +571,9 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should save both pegins with batchId AND splitTxId", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
@@ -754,11 +609,9 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should use broadcastPeginWithLocalUtxo for broadcast", async () => {
-      const { planUtxoAllocation, broadcastPeginWithLocalUtxo } = vi.mocked(
+      const { broadcastPeginWithLocalUtxo } = vi.mocked(
         await import("@/services/vault"),
       );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
@@ -772,12 +625,6 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should return result with 2 pegins and SPLIT strategy", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
-
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
@@ -793,6 +640,26 @@ describe("useMultiVaultDepositFlow", () => {
         splitTxId: "splitTxId" + "0".repeat(56),
         strategy: "SPLIT",
         warnings: undefined,
+      });
+    });
+
+    it("should error if plan requires split but no split result provided", async () => {
+      const paramsWithoutSplitResult = {
+        ...SPLIT_VAULT_PARAMS,
+        precomputedSplitTxResult: null,
+      };
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow(paramsWithoutSplitResult),
+      );
+
+      const depositResult = await result.current.executeMultiVaultDeposit();
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toBe(
+          "Plan requires split TX but no split result was provided",
+        );
       });
     });
   });
@@ -818,147 +685,14 @@ describe("useMultiVaultDepositFlow", () => {
         expect(result.current.error).toBe("BTC wallet not connected");
       });
     });
-
-    it("should throw if no spendable UTXOs", async () => {
-      const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
-
-      vi.mocked(useUTXOs).mockReturnValue({
-        spendableUTXOs: [],
-      } as any);
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(MOCK_PARAMS),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("No spendable UTXOs available");
-      });
-    });
-
-    it("should throw if invalid vault provider pubkey", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        vaultProviderBtcPubkey: "short", // Not 64 hex chars
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toContain("Invalid pubkey format");
-      });
-    });
-
-    it("should throw if no vault amounts provided", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        vaultAmounts: [],
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("At least one vault amount required");
-      });
-    });
-
-    it("should throw if more than 2 vaults specified", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        vaultAmounts: [100000n, 100000n, 100000n], // 3 vaults
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("Maximum 2 vaults supported");
-      });
-    });
-
-    it("should throw if vault amount is zero", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        vaultAmounts: [0n],
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("All vault amounts must be positive");
-      });
-    });
-
-    it("should throw if vault amount is negative", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        vaultAmounts: [-100000n],
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe("All vault amounts must be positive");
-      });
-    });
-
-    it("should throw if no vault providers specified", async () => {
-      const invalidParams = {
-        ...MOCK_PARAMS,
-        selectedProviders: [],
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(invalidParams),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe(
-          "At least one vault provider required",
-        );
-      });
-    });
   });
 
   describe("Partial Success", () => {
     it("should continue if vault 1 succeeds but vault 2 fails", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { submitPeginAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(submitPeginAndWait)
         .mockResolvedValueOnce({
           // Vault 1 succeeds
@@ -972,10 +706,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockRejectedValueOnce(new Error("Vault 2 failed")); // Vault 2 fails
 
       const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
+        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
       const depositResult = await result.current.executeMultiVaultDeposit();
@@ -987,9 +718,6 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should save only successful pegins", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { submitPeginAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
       );
@@ -997,7 +725,6 @@ describe("useMultiVaultDepositFlow", () => {
         await import("@/storage/peginStorage"),
       );
 
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(submitPeginAndWait)
         .mockResolvedValueOnce({
           btcTxid: "vault1TxId",
@@ -1010,10 +737,7 @@ describe("useMultiVaultDepositFlow", () => {
         .mockRejectedValueOnce(new Error("Failed"));
 
       const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
+        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
       await result.current.executeMultiVaultDeposit();
@@ -1026,12 +750,6 @@ describe("useMultiVaultDepositFlow", () => {
 
   describe("State Management", () => {
     it("should update currentStep through flow", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
@@ -1048,17 +766,8 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should set currentVaultIndex when processing each vault", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
-
       const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
+        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
       expect(result.current.currentVaultIndex).toBeNull();
@@ -1070,13 +779,7 @@ describe("useMultiVaultDepositFlow", () => {
       });
     });
 
-    it("should update allocationPlan after planning", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-
+    it("should set allocationPlan from precomputed plan", async () => {
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
@@ -1091,53 +794,18 @@ describe("useMultiVaultDepositFlow", () => {
     });
   });
 
-  describe("Split TX Failures", () => {
-    it("should fail if split TX broadcast fails", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-      const { pushTx } = vi.mocked(await import("@babylonlabs-io/ts-sdk"));
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SPLIT_PLAN);
-      vi.mocked(pushTx).mockRejectedValue(new Error("Broadcast failed"));
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toContain(
-          "Failed to broadcast split transaction",
-        );
-      });
-    });
-  });
-
   describe("Background Operation Warnings", () => {
     it("should include warnings when payout signing fails", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { pollAndPreparePayoutSigning } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(pollAndPreparePayoutSigning).mockRejectedValue(
         new Error("Vault provider unavailable"),
       );
 
       const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
+        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
       const depositResult = await result.current.executeMultiVaultDeposit();
@@ -1154,14 +822,10 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should include warnings when BTC broadcast fails", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { broadcastBtcTransaction } = vi.mocked(
         await import("../depositFlowSteps"),
       );
 
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
       vi.mocked(broadcastBtcTransaction).mockRejectedValue(
         new Error("Network timeout"),
       );
@@ -1180,12 +844,6 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should not include warnings field when all operations succeed", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
-
-      vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
-
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
@@ -1197,13 +855,9 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should accumulate warnings from both payout and broadcast failures", async () => {
-      const { planUtxoAllocation } = vi.mocked(
-        await import("@/services/vault"),
-      );
       const { pollAndPreparePayoutSigning, broadcastBtcTransaction } =
         vi.mocked(await import("../depositFlowSteps"));
 
-      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(pollAndPreparePayoutSigning)
         .mockRejectedValueOnce(new Error("Payout fail vault 0"))
         .mockResolvedValueOnce({
@@ -1224,10 +878,7 @@ describe("useMultiVaultDepositFlow", () => {
       );
 
       const { result } = renderHook(() =>
-        useMultiVaultDepositFlow({
-          ...MOCK_PARAMS,
-          vaultAmounts: [100000n, 100000n],
-        }),
+        useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
       const depositResult = await result.current.executeMultiVaultDeposit();

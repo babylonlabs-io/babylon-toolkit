@@ -5,12 +5,15 @@
  * including wallet state, provider data, and modal flow management.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import type { AllocationPlan } from "@/services/vault";
+
 import {
-  DepositStep,
+  DepositPageStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
@@ -18,24 +21,33 @@ import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
 
+import type { SplitTxSignResult } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositPageFlowResult {
   // Deposit state
-  depositStep: DepositStep | undefined;
+  depositStep: DepositPageStep | undefined;
   depositAmount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
   feeRate: number;
 
   // Wallet data
-  btcWalletProvider: unknown;
+  btcWalletProvider: BitcoinWallet | null;
   ethAddress: Address | undefined;
 
   // Provider data
   selectedProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+
+  // Split deposit
+  isSplitDeposit: boolean;
+  setIsSplitDeposit: (isSplit: boolean) => void;
+  splitAllocationPlan: AllocationPlan | null;
+  splitTxResult: SplitTxSignResult | null;
+  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+  setSplitTxResult: (result: SplitTxSignResult | null) => void;
 
   // Actions
   startDeposit: (
@@ -49,7 +61,7 @@ export interface UseDepositPageFlowResult {
   refetchActivities: () => Promise<void>;
 
   // Primitives (for custom flows like SimpleDeposit)
-  goToStep: (step: DepositStep) => void;
+  goToStep: (step: DepositPageStep) => void;
   setDepositData: (
     amount: bigint,
     application: string,
@@ -81,6 +93,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setDepositData,
     setFeeRate,
     setTransactionHashes,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    splitTxResult,
+    setSplitAllocationPlan,
+    setSplitTxResult,
     reset: resetDeposit,
   } = useDepositState();
 
@@ -132,17 +150,17 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     providers: string[],
   ) => {
     setDepositData(amountSats, application, providers);
-    goToStep(DepositStep.REVIEW);
+    goToStep(DepositPageStep.REVIEW);
   };
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
-    goToStep(DepositStep.SIGN);
+    goToStep(DepositPageStep.SIGN);
   };
 
   const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setTransactionHashes(btcTxid, ethTxHash);
-    goToStep(DepositStep.SUCCESS);
+    goToStep(DepositPageStep.SUCCESS);
   };
 
   return {
@@ -156,6 +174,12 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    splitTxResult,
+    setSplitAllocationPlan,
+    setSplitTxResult,
     startDeposit,
     confirmReview,
     onSignSuccess,

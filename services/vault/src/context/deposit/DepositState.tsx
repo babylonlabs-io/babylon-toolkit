@@ -1,16 +1,20 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
+import type { AllocationPlan } from "@/services/vault";
+
+import type { SplitTxSignResult } from "../../hooks/deposit/depositFlowSteps";
 import { createStateUtils } from "../../utils/createStateUtils";
 
-export enum DepositStep {
+export enum DepositPageStep {
   FORM = "form",
+  SPLIT_CHOICE = "split_choice",
   REVIEW = "review",
   SIGN = "sign",
   SUCCESS = "success",
 }
 
 export interface DepositStateData {
-  step?: DepositStep;
+  step?: DepositPageStep;
   amount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
@@ -21,7 +25,7 @@ export interface DepositStateData {
 }
 
 interface DepositStateContext {
-  step?: DepositStep;
+  step?: DepositPageStep;
   amount: bigint;
   selectedApplication: string;
   selectedProviders: string[];
@@ -30,7 +34,10 @@ interface DepositStateContext {
   ethTxHash: string;
   depositorBtcPubkey?: string;
   processing: boolean;
-  goToStep: (step: DepositStep) => void;
+  isSplitDeposit: boolean;
+  splitAllocationPlan: AllocationPlan | null;
+  splitTxResult: SplitTxSignResult | null;
+  goToStep: (step: DepositPageStep) => void;
   setDepositData: (
     amount: bigint,
     application: string,
@@ -43,6 +50,9 @@ interface DepositStateContext {
     depositorBtcPubkey?: string,
   ) => void;
   setProcessing: (processing: boolean) => void;
+  setIsSplitDeposit: (isSplit: boolean) => void;
+  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+  setSplitTxResult: (result: SplitTxSignResult | null) => void;
   reset: () => void;
 }
 
@@ -57,16 +67,22 @@ const { StateProvider, useState: useDepositState } =
     ethTxHash: "",
     depositorBtcPubkey: undefined,
     processing: false,
+    isSplitDeposit: false,
+    splitAllocationPlan: null,
+    splitTxResult: null,
     goToStep: () => {},
     setDepositData: () => {},
     setFeeRate: () => {},
     setTransactionHashes: () => {},
     setProcessing: () => {},
+    setIsSplitDeposit: () => {},
+    setSplitAllocationPlan: () => {},
+    setSplitTxResult: () => {},
     reset: () => {},
   });
 
 export function DepositState({ children }: PropsWithChildren) {
-  const [step, setStep] = useState<DepositStep>();
+  const [step, setStep] = useState<DepositPageStep>();
   const [amount, setAmount] = useState<bigint>(0n);
   const [selectedApplication, setSelectedApplication] = useState("");
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
@@ -75,8 +91,14 @@ export function DepositState({ children }: PropsWithChildren) {
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
   const [processing, setProcessing] = useState(false);
+  const [isSplitDeposit, setIsSplitDeposit] = useState(false);
+  const [splitAllocationPlan, setSplitAllocationPlan] =
+    useState<AllocationPlan | null>(null);
+  const [splitTxResult, setSplitTxResult] = useState<SplitTxSignResult | null>(
+    null,
+  );
 
-  const goToStep = useCallback((newStep: DepositStep) => {
+  const goToStep = useCallback((newStep: DepositPageStep) => {
     setStep(newStep);
   }, []);
 
@@ -112,6 +134,9 @@ export function DepositState({ children }: PropsWithChildren) {
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
     setProcessing(false);
+    setIsSplitDeposit(false);
+    setSplitAllocationPlan(null);
+    setSplitTxResult(null);
   }, []);
 
   const context = useMemo(
@@ -125,11 +150,17 @@ export function DepositState({ children }: PropsWithChildren) {
       ethTxHash,
       depositorBtcPubkey,
       processing,
+      isSplitDeposit,
+      splitAllocationPlan,
+      splitTxResult,
       goToStep,
       setDepositData,
       setFeeRate: updateFeeRate,
       setTransactionHashes,
       setProcessing,
+      setIsSplitDeposit,
+      setSplitAllocationPlan,
+      setSplitTxResult,
       reset,
     }),
     [
@@ -142,6 +173,9 @@ export function DepositState({ children }: PropsWithChildren) {
       ethTxHash,
       depositorBtcPubkey,
       processing,
+      isSplitDeposit,
+      splitAllocationPlan,
+      splitTxResult,
       goToStep,
       setDepositData,
       updateFeeRate,

@@ -1,10 +1,8 @@
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import {
-  canCloseModal,
-  DepositStep,
-} from "@/components/deposit/DepositSignModal/constants";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/constants";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -12,7 +10,7 @@ import { DepositProgressView } from "./DepositProgressView";
 interface DepositSignContentProps {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: any;
+  btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
@@ -60,11 +58,8 @@ export function DepositSignContent({
   }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
   // Derived state
-  const isComplete = currentStep === DepositStep.COMPLETED;
-  const canClose = canCloseModal(currentStep, error, isWaiting);
-  const isProcessing = (processing || isWaiting) && !error && !isComplete;
-  const canContinueInBackground =
-    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
+  const { isComplete, canClose, isProcessing, canContinueInBackground } =
+    computeDepositDerivedState(currentStep, processing, isWaiting, error);
 
   const handleClose = useCallback(() => {
     abort();
@@ -82,7 +77,6 @@ export function DepositSignContent({
       canContinueInBackground={canContinueInBackground}
       payoutSigningProgress={payoutSigningProgress}
       onClose={handleClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
     />
   );
 }
