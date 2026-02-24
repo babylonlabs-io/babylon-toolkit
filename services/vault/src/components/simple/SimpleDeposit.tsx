@@ -6,6 +6,7 @@ import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 
@@ -61,9 +62,6 @@ export type SimpleDepositProps =
 // New deposit flow content (form → sign → success)
 // ---------------------------------------------------------------------------
 
-// Fallback fee rate in sats/vByte used until dynamic estimation is available.
-const DEFAULT_FEE_RATE_SATS_PER_VBYTE = 10;
-
 function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
 
@@ -72,13 +70,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setFormData,
     isValid,
     btcBalance,
-    btcBalanceFormatted,
     btcPrice,
     hasPriceFetchError,
     applications,
     providers,
     isLoadingProviders,
     amountSats,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    maxDepositSats,
     validateForm,
   } = useDepositPageForm();
 
@@ -105,8 +107,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
 
   const handleMaxClick = () => {
-    if (btcBalanceFormatted > 0) {
-      setFormData({ amountBtc: btcBalanceFormatted.toString() });
+    if (maxDepositSats !== null && maxDepositSats > 0n) {
+      const maxBtc = depositService.formatSatoshisToBtc(maxDepositSats);
+      setFormData({ amountBtc: maxBtc });
     }
   };
 
@@ -115,7 +118,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
       setDepositData(amountSats, formData.selectedApplication, [
         formData.selectedProvider,
       ]);
-      setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
+      setFeeRate(estimatedFeeRate);
       goToStep(DepositStep.SIGN);
     }
   };
@@ -158,6 +161,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   setFormData({ selectedProvider: providerId })
                 }
                 isValid={isValid}
+                estimatedFeeSats={estimatedFeeSats}
+                estimatedFeeRate={estimatedFeeRate}
+                isLoadingFee={isLoadingFee}
+                feeError={feeError}
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}

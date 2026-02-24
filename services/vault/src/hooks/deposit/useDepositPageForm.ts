@@ -11,6 +11,7 @@ import { calculateBalance, useUTXOs } from "../useUTXOs";
 
 import { useDepositFormErrors } from "./useDepositFormErrors";
 import { useDepositValidation } from "./useDepositValidation";
+import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 import { useVaultProviders } from "./useVaultProviders";
 
 export interface DepositPageFormData {
@@ -53,6 +54,12 @@ export interface UseDepositPageFormResult {
   isLoadingProviders: boolean;
 
   amountSats: bigint;
+
+  estimatedFeeSats: bigint | null;
+  estimatedFeeRate: number;
+  isLoadingFee: boolean;
+  feeError: string | null;
+  maxDepositSats: bigint | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -131,7 +138,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const validation = useDepositValidation(btcAddress, providerIds);
 
   // Get UTXOs for balance calculation (already respects inscription preference)
-  const { spendableUTXOs } = useUTXOs(btcAddress);
+  const { spendableUTXOs, spendableMempoolUTXOs } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(spendableUTXOs || []));
   }, [spendableUTXOs]);
@@ -172,6 +179,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     if (!formData.amountBtc) return 0n;
     return depositService.parseBtcToSatoshis(formData.amountBtc);
   }, [formData.amountBtc]);
+
+  const {
+    fee: estimatedFeeSats,
+    feeRate: estimatedFeeRate,
+    isLoading: isLoadingFee,
+    error: feeError,
+    maxDeposit: maxDepositSats,
+  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
 
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
@@ -256,6 +271,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     providers,
     isLoadingProviders,
     amountSats,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    maxDepositSats,
     validateForm,
     validateAmountOnBlur,
     resetForm,
