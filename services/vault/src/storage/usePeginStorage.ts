@@ -157,7 +157,7 @@ export function usePeginStorage({
       }));
 
     // Update confirmed activities with localStorage status (for displayLabel)
-    // This ensures e.g. "CONFIRMING" status shows "Pending Confirmations" instead of "Verified"
+    // This ensures e.g. "CONFIRMING" status shows "Confirming" instead of "Verified"
     const confirmedWithLocalStatus: VaultActivity[] = confirmedPegins.map(
       (activity) => {
         const pendingPegin = pendingMap.get(activity.id);
