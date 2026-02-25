@@ -166,6 +166,10 @@ export function DepositForm({
           <div className="flex items-center justify-center py-2">
             <Loader size={24} className="text-primary-main" />
           </div>
+        ) : providers.length === 0 ? (
+          <p className="px-4 py-2 text-sm text-accent-secondary">
+            No vault providers available at this time.
+          </p>
         ) : (
           <Select
             className="border-0 bg-transparent"
