@@ -14,6 +14,7 @@ import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
+import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
@@ -96,6 +97,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    hasExistingVaults,
+    confirmMnemonic,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -120,7 +123,11 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      goToStep(DepositStep.SIGN);
+      if (FeatureFlags.isDepositorAsClaimerEnabled) {
+        goToStep(DepositStep.MNEMONIC);
+      } else {
+        goToStep(DepositStep.SIGN);
+      }
     }
   };
 
@@ -174,6 +181,15 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               />
             </div>
           </div>
+        )}
+
+        {renderedStep === DepositStep.MNEMONIC && (
+          <MnemonicModal
+            open
+            onClose={onClose}
+            onComplete={confirmMnemonic}
+            hasExistingVaults={hasExistingVaults}
+          />
         )}
 
         {renderedStep === DepositStep.SIGN && (
