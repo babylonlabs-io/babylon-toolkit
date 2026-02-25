@@ -5,7 +5,6 @@ import {
   Nav,
   StandardSettingsMenu,
   TestingBanner,
-  useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import { useState } from "react";
@@ -73,7 +72,6 @@ function MobileNavigation() {
 }
 
 export default function RootLayout() {
-  const isMobile = useIsMobile();
   const { theme, setTheme } = useTheme();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
@@ -85,13 +83,7 @@ export default function RootLayout() {
   const [isDepositOpen, setIsDepositOpen] = useState(false);
 
   return (
-    <div
-      className={twJoin(
-        "relative h-full min-h-svh w-full",
-        "dark:app-bg app-bg bg-cover bg-center bg-no-repeat",
-        !isMobile ? "bg-fixed" : "",
-      )}
-    >
+    <div className="relative h-full min-h-svh w-full bg-surface">
       <div className="flex min-h-svh flex-col">
         <TestingBanner visible={shouldDisplayTestingMsg()} />
         <GeoBlockBanner visible={isGeoBlocked} />
