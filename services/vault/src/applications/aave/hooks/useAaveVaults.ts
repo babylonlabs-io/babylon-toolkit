@@ -18,6 +18,7 @@ import {
   PEGIN_DISPLAY_LABELS,
 } from "@/models/peginStateMachine";
 import type { Vault, VaultProvider } from "@/types";
+import { truncateAddress } from "@/utils/addressUtils";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import type { VaultData } from "../components/Overview/components/VaultsTable";
@@ -38,9 +39,7 @@ function transformVaultToTableData(
   const peginState = getPeginState(vault.status, { isInUse: vault.isInUse });
 
   // Use provider name if available, otherwise truncate the address
-  const providerName =
-    provider?.name ??
-    `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`;
+  const providerName = provider?.name ?? truncateAddress(vault.vaultProvider);
 
   return {
     id: vault.id,
