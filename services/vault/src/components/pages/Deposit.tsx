@@ -58,6 +58,7 @@ function DepositContent() {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    hasExistingVaults,
     startDeposit,
     confirmReview,
     confirmMnemonic,
@@ -175,6 +176,7 @@ function DepositContent() {
         selectedProviderBtcPubkey={selectedProviderBtcPubkey}
         vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
         universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+        hasExistingVaults={hasExistingVaults}
         onClose={resetDeposit}
         onConfirmReview={confirmReview}
         onConfirmMnemonic={confirmMnemonic}

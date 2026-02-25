@@ -31,7 +31,11 @@ interface MnemonicFlowState {
   hasStored: boolean;
 }
 
-export function useMnemonicFlow() {
+interface UseMnemonicFlowOptions {
+  hasExistingVaults: boolean;
+}
+
+export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
   const [state, setState] = useState<MnemonicFlowState>({
     step: MnemonicStep.LOADING,
     mnemonic: "",
@@ -45,16 +49,24 @@ export function useMnemonicFlow() {
     let isMounted = true;
     hasStoredMnemonic().then((stored) => {
       if (!isMounted) return;
+      let initialStep: MnemonicStep;
+      if (stored) {
+        initialStep = MnemonicStep.UNLOCK;
+      } else if (hasExistingVaults) {
+        initialStep = MnemonicStep.IMPORT;
+      } else {
+        initialStep = MnemonicStep.GENERATE;
+      }
       setState((prev) => ({
         ...prev,
         hasStored: stored,
-        step: stored ? MnemonicStep.UNLOCK : MnemonicStep.GENERATE,
+        step: initialStep,
       }));
     });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [hasExistingVaults]);
 
   const startNewMnemonic = useCallback(() => {
     const mnemonic = generateLamportMnemonic();

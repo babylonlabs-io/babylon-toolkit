@@ -18,6 +18,7 @@ import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
+import { useVaults } from "../useVaults";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -37,6 +38,9 @@ export interface UseDepositPageFlowResult {
   selectedProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+
+  // Vault data
+  hasExistingVaults: boolean;
 
   // Actions
   startDeposit: (
@@ -93,6 +97,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   // Get activities refetch function
   const { refetchActivities } = useVaultDeposits(ethAddress);
+
+  const { data: existingVaults } = useVaults(ethAddress);
+  const hasExistingVaults = (existingVaults?.length ?? 0) > 0;
 
   // Get selected provider's BTC public key, vault keepers, and universal challengers
   const {
@@ -166,6 +173,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    hasExistingVaults,
     startDeposit,
     confirmReview,
     confirmMnemonic,

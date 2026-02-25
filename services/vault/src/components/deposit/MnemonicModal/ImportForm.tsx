@@ -5,9 +5,15 @@ interface ImportFormProps {
   error: string | null;
   onSubmit: (mnemonic: string) => void;
   onBack: () => void;
+  backLabel?: string;
 }
 
-export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
+export function ImportForm({
+  error,
+  onSubmit,
+  onBack,
+  backLabel = "Back",
+}: ImportFormProps) {
   const [mnemonic, setMnemonic] = useState("");
 
   const handleSubmit = useCallback(() => {
@@ -50,7 +56,7 @@ export function ImportForm({ error, onSubmit, onBack }: ImportFormProps) {
 
       <div className="flex gap-3">
         <Button variant="outlined" className="flex-1" onClick={onBack}>
-          Back
+          {backLabel}
         </Button>
         <Button
           variant="contained"

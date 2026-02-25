@@ -23,6 +23,7 @@ interface DepositModalsProps {
   selectedProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  hasExistingVaults: boolean;
   onClose: () => void;
   onConfirmReview: (feeRate: number) => void;
   onConfirmMnemonic: () => void;
@@ -41,6 +42,7 @@ export function DepositModals({
   selectedProviderBtcPubkey,
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
+  hasExistingVaults,
   onClose,
   onConfirmReview,
   onConfirmMnemonic,
@@ -59,7 +61,12 @@ export function DepositModals({
         />
       )}
       {depositStep === DepositStep.MNEMONIC && (
-        <MnemonicModal open onClose={onClose} onComplete={onConfirmMnemonic} />
+        <MnemonicModal
+          open
+          onClose={onClose}
+          onComplete={onConfirmMnemonic}
+          hasExistingVaults={hasExistingVaults}
+        />
       )}
       {depositStep === DepositStep.SIGN && (
         <CollateralDepositSignModal

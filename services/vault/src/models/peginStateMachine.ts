@@ -64,13 +64,14 @@ export enum LocalStorageStatus {
  * PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  */
 export enum DaemonStatus {
+  PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
-  PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPk",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
+  EXPIRED = "Expired",
 }
 
 /**

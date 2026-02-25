@@ -22,12 +22,14 @@ interface MnemonicModalProps {
   open: boolean;
   onClose: () => void;
   onComplete: () => void;
+  hasExistingVaults: boolean;
 }
 
 export function MnemonicModal({
   open,
   onClose,
   onComplete,
+  hasExistingVaults,
 }: MnemonicModalProps) {
   const {
     step,
@@ -43,19 +45,12 @@ export function MnemonicModal({
     submitUnlock,
     submitImportedMnemonic,
     reset,
-  } = useMnemonicFlow();
+  } = useMnemonicFlow({ hasExistingVaults });
 
   useEffect(() => {
-    if (open && step === MnemonicStep.LOADING) return;
-    if (
-      open &&
-      !hasStored &&
-      step === MnemonicStep.GENERATE &&
-      words.length === 0
-    ) {
-      startNewMnemonic();
-    }
-  }, [open, step, hasStored, words.length, startNewMnemonic]);
+    if (!open || step !== MnemonicStep.GENERATE || words.length > 0) return;
+    startNewMnemonic();
+  }, [open, step, words.length, startNewMnemonic]);
 
   useEffect(() => {
     if (step === MnemonicStep.COMPLETE) {
@@ -138,6 +133,9 @@ export function MnemonicModal({
             error={error}
             onSubmit={submitImportedMnemonic}
             onBack={hasStored ? () => reset() : startNewMnemonic}
+            backLabel={
+              hasStored ? "Back" : "I don\u0027t have a recovery phrase"
+            }
           />
         )}
       </DialogBody>
