@@ -8,7 +8,7 @@
  * Must be rendered inside a PeginPollingProvider.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
 
 import {
   getActionStatus,
@@ -56,6 +56,18 @@ export function PendingDepositCard({
     }
   };
 
+  const button = (
+    <Button
+      variant="contained"
+      size="small"
+      className="rounded-full !bg-white !text-black hover:!bg-gray-100"
+      disabled={!isActionable || (loading && !transactions)}
+      onClick={handleClick}
+    >
+      {loading && !transactions ? "Loading..." : displayLabel}
+    </Button>
+  );
+
   return (
     <Card
       variant="filled"
@@ -74,15 +86,13 @@ export function PendingDepositCard({
           </span>
         </div>
 
-        <Button
-          variant="contained"
-          size="small"
-          className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-          disabled={!isActionable || (loading && !transactions)}
-          onClick={handleClick}
-        >
-          {loading && !transactions ? "Loading..." : displayLabel}
-        </Button>
+        {peginState.message ? (
+          <Hint tooltip={peginState.message} attachToChildren>
+            {button}
+          </Hint>
+        ) : (
+          button
+        )}
       </div>
     </Card>
   );
