@@ -16,6 +16,7 @@ import { getNetworkConfigBTC } from "@/config";
 import { useDepositForm } from "@/hooks/deposit/useDepositForm";
 import { usePrice } from "@/hooks/usePrices";
 import { depositService } from "@/services/deposit";
+import { truncateAddress } from "@/utils/addressUtils";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -179,15 +180,17 @@ export function CollateralDepositModal({
               </div>
             ) : (
               providers.map((provider) => {
-                const shortId =
-                  provider.id.length > 14
-                    ? `${provider.id.slice(0, 8)}...${provider.id.slice(-6)}`
-                    : provider.id;
+                const displayName =
+                  provider.name &&
+                  !provider.name.startsWith("0x") &&
+                  !provider.name.startsWith("Provider ")
+                    ? `${provider.name} (${truncateAddress(provider.id)})`
+                    : provider.name || truncateAddress(provider.id);
                 return (
                   <ProviderCard
                     key={provider.id}
                     id={provider.id}
-                    name={provider.name || shortId}
+                    name={displayName}
                     icon={
                       <Text
                         variant="body2"
