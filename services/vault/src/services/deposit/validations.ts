@@ -71,6 +71,26 @@ export function isDepositAmountValid(
 }
 
 /**
+ * Descriptive label for the CTA button based on deposit form validation state.
+ *
+ * @param params - Validation parameters (same as isDepositAmountValid)
+ * @returns Label string for the CTA button
+ */
+export function getDepositButtonLabel(
+  params: DepositFormValidityParams,
+): string {
+  const { amountSats, minDeposit, btcBalance } = params;
+
+  if (amountSats <= 0n) return "Enter an amount";
+  if (btcBalance <= 0n) return "No available balance";
+  if (amountSats > btcBalance) return "Insufficient balance";
+  if (amountSats < minDeposit)
+    return `Minimum ${formatSatoshisToBtc(minDeposit)} BTC`;
+
+  return "Deposit";
+}
+
+/**
  * Validate deposit amount against minimum constraint
  * @param amount - Deposit amount in satoshis
  * @param minDeposit - Minimum allowed deposit (from contract)

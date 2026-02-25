@@ -138,7 +138,7 @@ describe("useUtxoValidation", () => {
   });
 
   describe("filtering deposits", () => {
-    it("should only check VERIFIED deposits", () => {
+    it("should check PENDING and VERIFIED deposits but not ACTIVE or later", () => {
       const activities = [
         createActivity(
           "pending",
@@ -174,8 +174,8 @@ describe("useUtxoValidation", () => {
         }),
       );
 
-      // Only VERIFIED should be checked and marked unavailable
-      expect(result.current.unavailableUtxos.has("pending")).toBe(false);
+      // PENDING and VERIFIED should be checked and marked unavailable
+      expect(result.current.unavailableUtxos.has("pending")).toBe(true);
       expect(result.current.unavailableUtxos.has("verified")).toBe(true);
       expect(result.current.unavailableUtxos.has("active")).toBe(false);
       expect(result.current.unavailableUtxos.has("redeemed")).toBe(false);

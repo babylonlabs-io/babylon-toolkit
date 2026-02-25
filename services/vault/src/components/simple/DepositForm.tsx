@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ApplicationLogo } from "@/components/ApplicationLogo";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
 
 const btcConfig = getNetworkConfigBTC();
@@ -21,7 +22,9 @@ interface Application {
 
 interface DepositFormProps {
   amount: string;
+  amountSats: bigint;
   btcBalance: bigint;
+  minDeposit: bigint;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -36,6 +39,10 @@ interface DepositFormProps {
   onProviderSelect: (providerId: string) => void;
 
   isValid: boolean;
+  estimatedFeeSats: bigint | null;
+  estimatedFeeRate: number;
+  isLoadingFee: boolean;
+  feeError: string | null;
   isDepositEnabled: boolean;
   isGeoBlocked: boolean;
   onDeposit: () => void;
@@ -43,7 +50,9 @@ interface DepositFormProps {
 
 export function DepositForm({
   amount,
+  amountSats,
   btcBalance,
+  minDeposit,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -55,6 +64,10 @@ export function DepositForm({
   selectedProvider,
   onProviderSelect,
   isValid,
+  estimatedFeeSats,
+  estimatedFeeRate,
+  isLoadingFee,
+  feeError,
   isDepositEnabled,
   isGeoBlocked,
   onDeposit,
@@ -84,18 +97,32 @@ export function DepositForm({
     label: p.name,
   }));
 
-  const fees = useMemo(() => {
-    // TODO: wire to real fee calculation hooks
-    return [
-      { label: "Bitcoin Network Fee", amount: "0 BTC", price: "($0 USD)" },
-      { label: "Ethereum Network Fee", amount: "0 ETH", price: "($0 USD)" },
-      { label: "Protocol Fee", amount: "0 BTC", price: "($0 USD)" },
-    ];
-  }, []);
+  const {
+    btcFee,
+    feeAmount,
+    feePrice,
+    isError: isFeeError,
+  } = useBtcFeeDisplay({
+    estimatedFeeSats,
+    btcPrice,
+    hasPriceFetchError,
+    isLoadingFee,
+    feeError,
+    hasAmount: !!amount && amount !== "0",
+  });
 
-  const ctaLabel = !amount || amount === "0" ? "Enter an amount" : "Deposit";
+  const hasAmount = !!amount && amount !== "0";
+  const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
+
+  const ctaLabel = isFeeError
+    ? (feeError ?? "Fee estimate unavailable")
+    : depositService.getDepositButtonLabel({
+        amountSats,
+        minDeposit,
+        btcBalance,
+      });
   const ctaDisabled =
-    !isValid || !isDepositEnabled || isGeoBlocked || !amount || amount === "0";
+    !isValid || !isDepositEnabled || isGeoBlocked || !hasAmount || feeDisabled;
 
   return (
     <div className="flex w-full flex-col gap-4">
@@ -163,19 +190,16 @@ export function DepositForm({
       </DepositButton>
 
       {/* Fee breakdown */}
-      <div className="flex flex-col gap-4">
-        {fees.map((fee) => (
-          <div
-            key={fee.label}
-            className="flex items-center justify-between text-sm"
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-accent-primary">Bitcoin Network Fee</span>
+        <span>
+          <span
+            className={isFeeError ? "text-error-main" : "text-accent-primary"}
           >
-            <span className="text-accent-primary">{fee.label}</span>
-            <span>
-              <span className="text-accent-primary">{fee.amount}</span>{" "}
-              <span className="text-accent-secondary">{fee.price}</span>
-            </span>
-          </div>
-        ))}
+            {feeAmount}
+          </span>{" "}
+          <span className="text-accent-secondary">{feePrice}</span>
+        </span>
       </div>
     </div>
   );

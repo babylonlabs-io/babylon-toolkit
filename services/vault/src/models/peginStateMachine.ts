@@ -113,7 +113,7 @@ export const PEGIN_DISPLAY_LABELS = {
   SIGNING_REQUIRED: "Signing required",
   PROCESSING: "Processing",
   VERIFIED: "Verified",
-  PENDING_BITCOIN_CONFIRMATIONS: "Pending Confirmations",
+  PENDING_BITCOIN_CONFIRMATIONS: "Confirming",
   AVAILABLE: "Available",
   IN_USE: "In Use",
   REDEEM_IN_PROGRESS: "Redeem in Progress",

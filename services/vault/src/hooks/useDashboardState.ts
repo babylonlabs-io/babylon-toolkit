@@ -11,6 +11,11 @@ import {
   useAaveUserPosition,
 } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
+import type { CollateralVaultEntry } from "@/types/collateral";
+import { toCollateralVaultEntries } from "@/utils/collateral";
+
+// Re-export for consumers
+export type { CollateralVaultEntry };
 
 export function useDashboardState(connectedAddress: string | undefined) {
   const {
@@ -29,6 +34,15 @@ export function useDashboardState(connectedAddress: string | undefined) {
   });
 
   const hasCollateral = collateralBtc > 0;
+  const hasDebt = debtValueUsd > 0;
+
+  const collateralVaults = useMemo(
+    (): CollateralVaultEntry[] =>
+      position?.collaterals
+        ? toCollateralVaultEntries(position.collaterals)
+        : [],
+    [position?.collaterals],
+  );
 
   // Transform borrowed assets for the asset selection modal
   const selectableBorrowedAssets = useMemo(
@@ -50,6 +64,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     borrowedAssets,
     hasLoans,
     hasCollateral,
+    hasDebt,
+    collateralVaults,
     selectableBorrowedAssets,
     isLoading,
   };

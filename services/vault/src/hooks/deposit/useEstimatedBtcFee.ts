@@ -1,5 +1,10 @@
 import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
-import { selectUtxosForPegin } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  MAX_NON_LEGACY_OUTPUT_SIZE,
+  P2TR_INPUT_SIZE,
+  TX_BUFFER_SIZE_OVERHEAD,
+  selectUtxosForPegin,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
 import { useNetworkFees } from "../useNetworkFees";
@@ -13,6 +18,31 @@ export interface EstimatedBtcFeeResult {
   isLoading: boolean;
   /** Error if fee could not be calculated */
   error: string | null;
+  /** Maximum depositable amount in satoshis (balance minus fee for all UTXOs) */
+  maxDeposit: bigint | null;
+}
+
+/**
+ * Compute the maximum depositable amount.
+ *
+ * For a max deposit all UTXOs are spent and there is no change output,
+ * so the fee is deterministic: (numInputs × P2TR_INPUT_SIZE + 1 output + overhead) × feeRate.
+ */
+function computeMaxDeposit(
+  numInputs: number,
+  totalBalance: bigint,
+  feeRate: number,
+): bigint | null {
+  if (totalBalance <= 0n) return null;
+
+  // tx vsize: all inputs + 1 peg-in output (no change) + fixed overhead
+  const txVsize =
+    numInputs * P2TR_INPUT_SIZE +
+    MAX_NON_LEGACY_OUTPUT_SIZE +
+    TX_BUFFER_SIZE_OVERHEAD;
+  const fee = BigInt(Math.ceil(txVsize * feeRate));
+  const max = totalBalance - fee;
+  return max > 0n ? max : 0n;
 }
 
 /**
@@ -37,6 +67,13 @@ export function useEstimatedBtcFee(
 ): EstimatedBtcFeeResult {
   const { defaultFeeRate, isLoading, error: feeError } = useNetworkFees();
 
+  // Max deposit only depends on UTXOs + fee rate, not the user's amount
+  const maxDeposit = useMemo(() => {
+    if (isLoading || defaultFeeRate === 0 || !utxos?.length) return null;
+    const totalBalance = utxos.reduce((sum, u) => sum + BigInt(u.value), 0n);
+    return computeMaxDeposit(utxos.length, totalBalance, defaultFeeRate);
+  }, [utxos, defaultFeeRate, isLoading]);
+
   const result = useMemo((): EstimatedBtcFeeResult => {
     // Still loading fee rates
     if (isLoading) {
@@ -45,6 +82,7 @@ export function useEstimatedBtcFee(
         feeRate: 0,
         isLoading: true,
         error: null,
+        maxDeposit,
       };
     }
 
@@ -55,6 +93,7 @@ export function useEstimatedBtcFee(
         feeRate: 0,
         isLoading: false,
         error: feeError?.message ?? "Unable to fetch network fee rates",
+        maxDeposit,
       };
     }
 
@@ -65,6 +104,7 @@ export function useEstimatedBtcFee(
         feeRate: defaultFeeRate,
         isLoading: false,
         error: null,
+        maxDeposit,
       };
     }
 
@@ -75,6 +115,7 @@ export function useEstimatedBtcFee(
         feeRate: defaultFeeRate,
         isLoading: false,
         error: null,
+        maxDeposit,
       };
     }
 
@@ -87,6 +128,7 @@ export function useEstimatedBtcFee(
         feeRate: defaultFeeRate,
         isLoading: false,
         error: null,
+        maxDeposit,
       };
     } catch (err) {
       // Handle insufficient funds or other errors
@@ -98,9 +140,10 @@ export function useEstimatedBtcFee(
         feeRate: defaultFeeRate,
         isLoading: false,
         error: errorMessage,
+        maxDeposit,
       };
     }
-  }, [amount, utxos, defaultFeeRate, isLoading, feeError]);
+  }, [amount, utxos, defaultFeeRate, isLoading, feeError, maxDeposit]);
 
   return result;
 }

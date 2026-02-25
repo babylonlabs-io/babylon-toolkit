@@ -3,6 +3,7 @@ export { DepositButton } from "./DepositButton";
 export { DetailsCard, type DetailRow } from "./DetailsCard";
 export { EmptyState } from "./EmptyState";
 export { ErrorModal } from "./ErrorModal";
+export { HealthFactorGauge } from "./HealthFactorGauge";
 export { HeartIcon, InfoIcon } from "./icons";
 export { MenuButton } from "./MenuButton";
 export { NotificationContainer } from "./NotificationContainer";

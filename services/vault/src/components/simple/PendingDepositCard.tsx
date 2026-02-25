@@ -8,10 +8,11 @@
  * Must be rendered inside a PeginPollingProvider.
  */
 
-import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
 
 import {
   getActionStatus,
+  getWarningMessages,
   PeginAction,
 } from "@/components/deposit/DepositOverview/actionStatus";
 import { getNetworkConfigBTC } from "@/config";
@@ -38,6 +39,8 @@ export function PendingDepositCard({
 
   const { loading, transactions, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
+  const warnings = getWarningMessages(pollingResult);
+  const isDisabled = warnings.length > 0;
 
   const isActionable = status.type === "available";
   const displayLabel = peginState.displayLabel;
@@ -53,8 +56,23 @@ export function PendingDepositCard({
     }
   };
 
+  const button = (
+    <Button
+      variant="contained"
+      size="small"
+      className="rounded-full !bg-white !text-black hover:!bg-gray-100"
+      disabled={!isActionable || (loading && !transactions)}
+      onClick={handleClick}
+    >
+      {loading && !transactions ? "Loading..." : displayLabel}
+    </Button>
+  );
+
   return (
-    <Card variant="filled" className="w-full">
+    <Card
+      variant="filled"
+      className={`w-full ${isDisabled ? "opacity-50" : ""}`.trim()}
+    >
       <div className="flex items-center gap-4">
         <div className="flex flex-1 items-center gap-2">
           <Avatar
@@ -68,15 +86,13 @@ export function PendingDepositCard({
           </span>
         </div>
 
-        <Button
-          variant="contained"
-          size="small"
-          className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-          disabled={!isActionable || (loading && !transactions)}
-          onClick={handleClick}
-        >
-          {loading && !transactions ? "Loading..." : displayLabel}
-        </Button>
+        {peginState.message ? (
+          <Hint tooltip={peginState.message} attachToChildren>
+            {button}
+          </Hint>
+        ) : (
+          button
+        )}
       </div>
     </Card>
   );

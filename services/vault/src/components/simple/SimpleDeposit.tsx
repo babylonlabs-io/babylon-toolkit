@@ -1,10 +1,14 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
 import { useCallback } from "react";
+import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
 import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
+import { depositService } from "@/services/deposit";
+import type { VaultActivity } from "@/types/activity";
+import type { ClaimerTransactions } from "@/types/rpc";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -15,16 +19,50 @@ import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
+import {
+  ResumeBroadcastContent,
+  ResumeSignContent,
+} from "./ResumeDepositContent";
 
-interface SimpleDepositProps {
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+type SimpleDepositBaseProps = {
   open: boolean;
   onClose: () => void;
-}
+};
 
-// Fallback fee rate in sats/vByte used until dynamic estimation is available.
-const DEFAULT_FEE_RATE_SATS_PER_VBYTE = 10;
+type NewDepositProps = SimpleDepositBaseProps & {
+  resumeMode?: undefined;
+};
 
-function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
+type ResumeSignProps = SimpleDepositBaseProps & {
+  resumeMode: "sign_payouts";
+  activity: VaultActivity;
+  transactions: ClaimerTransactions[] | null;
+  btcPublicKey: string;
+  depositorEthAddress: Hex;
+  onResumeSuccess: () => void;
+};
+
+type ResumeBroadcastProps = SimpleDepositBaseProps & {
+  resumeMode: "broadcast_btc";
+  activity: VaultActivity;
+  depositorEthAddress: string;
+  onResumeSuccess: () => void;
+};
+
+export type SimpleDepositProps =
+  | NewDepositProps
+  | ResumeSignProps
+  | ResumeBroadcastProps;
+
+// ---------------------------------------------------------------------------
+// New deposit flow content (form → sign → success)
+// ---------------------------------------------------------------------------
+
+function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
 
   const {
@@ -32,13 +70,18 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
     setFormData,
     isValid,
     btcBalance,
-    btcBalanceFormatted,
     btcPrice,
     hasPriceFetchError,
     applications,
     providers,
     isLoadingProviders,
     amountSats,
+    minDeposit,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    maxDepositSats,
     validateForm,
   } = useDepositPageForm();
 
@@ -65,8 +108,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
 
   const handleMaxClick = () => {
-    if (btcBalanceFormatted > 0) {
-      setFormData({ amountBtc: btcBalanceFormatted.toString() });
+    if (maxDepositSats !== null && maxDepositSats > 0n) {
+      const maxBtc = depositService.formatSatoshisToBtc(maxDepositSats);
+      setFormData({ amountBtc: maxBtc });
     }
   };
 
@@ -75,7 +119,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
       setDepositData(amountSats, formData.selectedApplication, [
         formData.selectedProvider,
       ]);
-      setFeeRate(DEFAULT_FEE_RATE_SATS_PER_VBYTE);
+      setFeeRate(estimatedFeeRate);
       goToStep(DepositStep.SIGN);
     }
   };
@@ -104,7 +148,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
             <div className="mt-4">
               <DepositForm
                 amount={formData.amountBtc}
+                amountSats={amountSats}
                 btcBalance={btcBalance}
+                minDeposit={minDeposit}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
@@ -118,6 +164,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
                   setFormData({ selectedProvider: providerId })
                 }
                 isValid={isValid}
+                estimatedFeeSats={estimatedFeeSats}
+                estimatedFeeRate={estimatedFeeRate}
+                isLoadingFee={isLoadingFee}
+                feeError={feeError}
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
@@ -155,7 +205,47 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositProps) {
   );
 }
 
-export default function SimpleDeposit({ open, onClose }: SimpleDepositProps) {
+// ---------------------------------------------------------------------------
+// Public component — single modal for new deposits and resume flows
+// ---------------------------------------------------------------------------
+
+export default function SimpleDeposit(props: SimpleDepositProps) {
+  const { open, onClose, resumeMode } = props;
+
+  // Resume mode: skip form/state providers and render resume content directly
+  if (resumeMode) {
+    return (
+      <ProtocolParamsProvider>
+        <FullScreenDialog
+          open={open}
+          onClose={onClose}
+          className="items-center justify-center p-6"
+        >
+          <div className="mx-auto w-full max-w-[520px]">
+            {resumeMode === "sign_payouts" ? (
+              <ResumeSignContent
+                activity={props.activity}
+                transactions={props.transactions}
+                btcPublicKey={props.btcPublicKey}
+                depositorEthAddress={props.depositorEthAddress}
+                onClose={onClose}
+                onSuccess={props.onResumeSuccess}
+              />
+            ) : (
+              <ResumeBroadcastContent
+                activity={props.activity}
+                depositorEthAddress={props.depositorEthAddress}
+                onClose={onClose}
+                onSuccess={props.onResumeSuccess}
+              />
+            )}
+          </div>
+        </FullScreenDialog>
+      </ProtocolParamsProvider>
+    );
+  }
+
+  // New deposit flow
   return (
     <ProtocolParamsProvider>
       <DepositState>
