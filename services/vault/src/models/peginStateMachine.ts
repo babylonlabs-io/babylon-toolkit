@@ -65,6 +65,7 @@ export enum LocalStorageStatus {
  */
 export enum DaemonStatus {
   PENDING_BABE_SETUP = "PendingBabeSetup",
+  PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPk",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
@@ -78,6 +79,7 @@ export enum DaemonStatus {
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
   DaemonStatus.PENDING_BABE_SETUP,
+  DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
 

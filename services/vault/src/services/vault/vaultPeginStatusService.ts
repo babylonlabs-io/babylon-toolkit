@@ -69,6 +69,9 @@ export async function checkPeginStatus(
     case "PendingBabeSetup":
       status = DaemonStatus.PENDING_BABE_SETUP;
       break;
+    case "PendingDepositorLamportPk":
+      status = DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK;
+      break;
     case "PendingChallengerPresigning":
       status = DaemonStatus.PENDING_CHALLENGER_PRESIGNING;
       break;

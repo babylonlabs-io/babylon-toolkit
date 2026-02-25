@@ -9,6 +9,7 @@ import type {
   GetPeginStatusResponse,
   RequestDepositorPresignTransactionsParams,
   RequestDepositorPresignTransactionsResponse,
+  SubmitDepositorLamportPkParams,
   SubmitPayoutSignaturesParams,
 } from "./types";
 
@@ -61,6 +62,21 @@ export class VaultProviderRpcApi {
   ): Promise<void> {
     return this.client.call<SubmitPayoutSignaturesParams, void>(
       "vaultProvider_submitPayoutSignatures",
+      params,
+    );
+  }
+
+  /**
+   * Submit the depositor's Lamport public key for a PegIn transaction
+   *
+   * @param params - PegIn TX ID, depositor's x-only public key, and Lamport public key
+   * @returns void on success
+   */
+  async submitDepositorLamportPk(
+    params: SubmitDepositorLamportPkParams,
+  ): Promise<void> {
+    return this.client.call<SubmitDepositorLamportPkParams, void>(
+      "vaultProvider_submitDepositorLamportPk",
       params,
     );
   }

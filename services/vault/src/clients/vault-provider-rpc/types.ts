@@ -48,6 +48,18 @@ export interface SubmitPayoutSignaturesParams {
 }
 
 /**
+ * Parameters for submitting the depositor's Lamport public key
+ */
+export interface SubmitDepositorLamportPkParams {
+  /** The PegIn transaction ID (hex encoded txid) */
+  pegin_txid: string;
+  /** Hex encoded 32-byte x-only BTC public key of the depositor (no prefix) */
+  depositor_pk: string;
+  /** Lamport public key: array of 512 HASH160 hex strings */
+  lamport_pk: string[];
+}
+
+/**
  * Parameters for getting PegIn status
  * Corresponds to: GetPeginStatusParams
  */

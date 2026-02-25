@@ -16,6 +16,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
+import { FeatureFlags } from "@/config";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -34,6 +35,7 @@ import {
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   savePendingPegin,
+  submitLamportPublicKey,
   submitPayoutSignatures,
   submitPeginAndWait,
   validateDepositInputs,
@@ -52,6 +54,7 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  getMnemonic?: () => Promise<string>;
 }
 
 export interface UseDepositFlowReturn {
@@ -79,6 +82,7 @@ export function useDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    getMnemonic,
   } = params;
 
   // State
@@ -190,14 +194,27 @@ export function useDepositFlow(
           selectedUTXOs: peginResult.selectedUTXOs,
         });
 
-        // Step 3: Poll and sign payout transactions
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
-        setIsWaiting(true);
-
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
           throw new Error("Vault provider has no RPC URL");
         }
+
+        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+          setIsWaiting(true);
+          await submitLamportPublicKey({
+            btcTxid: peginResult.btcTxid,
+            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            appContractAddress: selectedApplication,
+            providerUrl: provider.url,
+            getMnemonic,
+            signal,
+          });
+          setIsWaiting(false);
+        }
+
+        // Step 3: Poll and sign payout transactions
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({
@@ -303,6 +320,7 @@ export function useDepositFlow(
       vaultKeepers,
       latestUniversalChallengers,
       minDeposit,
+      getMnemonic,
     ]);
 
   return {

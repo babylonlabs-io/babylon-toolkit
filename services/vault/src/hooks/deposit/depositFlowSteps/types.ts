@@ -89,6 +89,19 @@ export interface SavePendingPeginParams {
 }
 
 // ============================================================================
+// Step 2.5: Lamport Key Submission
+// ============================================================================
+
+export interface LamportSubmissionParams {
+  btcTxid: string;
+  depositorBtcPubkey: string;
+  appContractAddress: string;
+  providerUrl: string;
+  getMnemonic: () => Promise<string>;
+  signal?: AbortSignal;
+}
+
+// ============================================================================
 // Step 3: Payout Signing
 // ============================================================================
 

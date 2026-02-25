@@ -19,6 +19,7 @@ export type {
   BroadcastParams,
   DepositFlowResult,
   DepositUtxo,
+  LamportSubmissionParams,
   PayoutSigningContext,
   PayoutSigningParams,
   PeginSubmitParams,
@@ -37,6 +38,9 @@ export {
   savePendingPegin,
   submitPeginAndWait,
 } from "./ethereumSubmit";
+
+// Step 2.5: Lamport key submission
+export { submitLamportPublicKey } from "./lamportSubmission";
 
 // Step 3: Payout signing
 export {
