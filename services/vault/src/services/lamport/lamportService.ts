@@ -36,6 +36,9 @@ export function createVerificationChallenge(
   count: number = 3,
 ): VerificationChallenge {
   const words = getMnemonicWords(mnemonic);
+  if (count <= 0 || count > words.length) {
+    throw new Error(`Invalid count: must be between 1 and ${words.length}`);
+  }
   const indices: number[] = [];
 
   while (indices.length < count) {
@@ -76,6 +79,12 @@ function concatBytes(...arrays: Uint8Array[]): Uint8Array {
 
 function stringToBytes(str: string): Uint8Array {
   return new TextEncoder().encode(str);
+}
+
+function lengthPrefixed(data: Uint8Array): Uint8Array {
+  const len = new Uint8Array(4);
+  new DataView(len.buffer).setUint32(0, data.length, false);
+  return concatBytes(len, data);
 }
 
 async function hmacSha512(
@@ -125,9 +134,9 @@ export async function deriveLamportKeypair(
   const parentKey = seed.slice(0, 32);
 
   const vaultData = concatBytes(
-    stringToBytes(vaultId),
-    stringToBytes(depositorPk),
-    stringToBytes(appContractAddress),
+    lengthPrefixed(stringToBytes(vaultId)),
+    lengthPrefixed(stringToBytes(depositorPk)),
+    lengthPrefixed(stringToBytes(appContractAddress)),
   );
 
   const hmac = await hmacSha512(chainCode, concatBytes(parentKey, vaultData));
@@ -149,7 +158,14 @@ export async function deriveLamportKeypair(
     const publicValue = await hash160(privateValue);
     privateKey.push(privateValue);
     publicKey.push(publicValue);
+    slotHmac.fill(0);
   }
+
+  chainCode.fill(0);
+  parentKey.fill(0);
+  hmac.fill(0);
+  derivedKey.fill(0);
+  derivedChainCode.fill(0);
 
   return { privateKey, publicKey };
 }
