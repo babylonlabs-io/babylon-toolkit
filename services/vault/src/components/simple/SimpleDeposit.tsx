@@ -76,6 +76,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     providers,
     isLoadingProviders,
     amountSats,
+    minDeposit,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
@@ -147,7 +148,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
             <div className="mt-4">
               <DepositForm
                 amount={formData.amountBtc}
+                amountSats={amountSats}
                 btcBalance={btcBalance}
+                minDeposit={minDeposit}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
