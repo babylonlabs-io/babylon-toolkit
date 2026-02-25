@@ -97,7 +97,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
-      name: formatProviderName(p.id),
+      name: p.name || formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
     }));
   }, [rawProviders]);
