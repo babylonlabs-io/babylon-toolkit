@@ -10,6 +10,8 @@ import {
 import { useState } from "react";
 import { AiOutlinePlus } from "react-icons/ai";
 
+import { truncateAddress } from "@/utils/addressUtils";
+
 import {
   SelectVaultProviderModal,
   type Provider,
@@ -83,7 +85,14 @@ export function SelectVaultProviderSection({
                   size="medium"
                 />
               )}
-              <span>{selectedProviderData?.name || "Add Vault Provider"}</span>
+              <span>
+                {selectedProviderData
+                  ? selectedProviderData.name.startsWith("0x") ||
+                    selectedProviderData.name.startsWith("Provider ")
+                    ? selectedProviderData.name
+                    : `${selectedProviderData.name} (${truncateAddress(selectedProviderData.id)})`
+                  : "Add Vault Provider"}
+              </span>
             </div>
             <div className="flex h-8 w-8 items-center justify-center text-black dark:text-white">
               {selectedProviderData ? (

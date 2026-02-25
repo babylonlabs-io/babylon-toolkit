@@ -47,6 +47,8 @@ export interface VaultProvider {
   id: string;
   /** Provider's BTC public key (hex with 0x prefix) */
   btcPubKey: string;
+  /** Provider's display name (from registry, optional) */
+  name?: string;
   /** Provider's RPC URL (from registry) */
   url: string;
 }

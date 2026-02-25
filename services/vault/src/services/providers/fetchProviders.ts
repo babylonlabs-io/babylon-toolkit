@@ -155,6 +155,7 @@ export async function fetchAppProviders(
     .map((provider) => ({
       id: provider.id,
       btcPubKey: provider.btcPubKey,
+      name: provider.name ?? undefined,
       url: provider.rpcUrl,
     }));
 
