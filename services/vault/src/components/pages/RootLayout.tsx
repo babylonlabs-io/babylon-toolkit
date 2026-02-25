@@ -12,6 +12,10 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+export interface RootLayoutContext {
+  openDeposit: () => void;
+}
+
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressType } from "@/context/addressType";
@@ -116,7 +120,7 @@ export default function RootLayout() {
             </div>
           }
         />
-        <Outlet />
+        <Outlet context={{ openDeposit: () => setIsDepositOpen(true) } satisfies RootLayoutContext} />
         <SimpleDeposit
           open={isDepositOpen}
           onClose={() => setIsDepositOpen(false)}

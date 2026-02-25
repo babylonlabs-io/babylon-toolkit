@@ -6,6 +6,7 @@
 import { Avatar, Button, Card, Loader } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
+import { DepositButton } from "@/components/shared";
 import { MenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
@@ -26,6 +27,7 @@ interface CollateralSectionProps {
   isPendingWithdraw: boolean;
   onAdd: () => void;
   onWithdraw: () => void;
+  onDeposit: () => void;
 }
 
 export function CollateralSection({
@@ -39,6 +41,7 @@ export function CollateralSection({
   isPendingWithdraw,
   onAdd,
   onWithdraw,
+  onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -57,16 +60,27 @@ export function CollateralSection({
         <h2 className="text-[24px] font-normal text-accent-primary">
           Collateral
         </h2>
-        <Button
-          variant="outlined"
-          color="primary"
-          size="medium"
-          onClick={onAdd}
-          disabled={isAddDisabled}
-          className="rounded-full"
-        >
-          Add
-        </Button>
+        <div className="flex items-center gap-2">
+          <DepositButton
+            variant="outlined"
+            size="medium"
+            onClick={onDeposit}
+            disabled={!isConnected || isPending}
+            className="rounded-full"
+          >
+            Deposit
+          </DepositButton>
+          <Button
+            variant="outlined"
+            color="primary"
+            size="medium"
+            onClick={onAdd}
+            disabled={isAddDisabled}
+            className="rounded-full"
+          >
+            Add
+          </Button>
+        </div>
       </div>
 
       {isPending ? (

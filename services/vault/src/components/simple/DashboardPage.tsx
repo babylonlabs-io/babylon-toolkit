@@ -6,7 +6,7 @@
 
 import { Container } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
+import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
@@ -31,6 +32,7 @@ import { PendingDepositSection } from "./PendingDepositSection";
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
 
@@ -126,6 +128,7 @@ export function DashboardPage() {
           isPendingWithdraw={hasPendingWithdraw}
           onAdd={handleAdd}
           onWithdraw={handleWithdraw}
+          onDeposit={openDeposit}
         />
 
         <LoansSection
