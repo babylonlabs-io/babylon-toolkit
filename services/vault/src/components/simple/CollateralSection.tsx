@@ -6,8 +6,7 @@
 import { Avatar, Button, Card, Loader } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
-import { DepositButton } from "@/components/shared";
-import { MenuButton } from "@/components/shared";
+import { DepositButton, MenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -131,25 +130,26 @@ export function CollateralSection({
               className="mb-2 h-[100px] w-[100px]"
             />
             <p className="text-[20px] text-accent-primary">
-              No collateral available.
+              Deposit Bitcoin to get started
             </p>
-            <p className="text-[14px] text-accent-secondary">
-              Add {btcConfig.coinSymbol} to enable collateral.
+            <p className="text-[16px] text-accent-secondary">
+              Add {btcConfig.coinSymbol} as collateral so you can begin
+              borrowing assets.
             </p>
             <div className="mt-8">
               {!isConnected ? (
                 <Connect />
-              ) : !isAddDisabled ? (
-                <Button
-                  variant="contained"
-                  color="primary"
+              ) : (
+                <DepositButton
+                  variant="outlined"
                   size="medium"
-                  onClick={onAdd}
-                  className="rounded-full !bg-white !text-black hover:!bg-gray-100"
+                  onClick={onDeposit}
+                  disabled={isPending}
+                  className="rounded-full"
                 >
-                  Add {btcConfig.coinSymbol}
-                </Button>
-              ) : null}
+                  Deposit {btcConfig.coinSymbol}
+                </DepositButton>
+              )}
             </div>
           </div>
         </Card>
