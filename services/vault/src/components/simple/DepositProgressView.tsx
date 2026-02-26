@@ -151,6 +151,14 @@ export function DepositProgressView({
             "Sign"
           )}
         </Button>
+
+        <Text
+          variant="body2"
+          className="text-center text-xs text-accent-secondary"
+        >
+          Do not spend the Bitcoin used for this deposit until the transaction
+          is confirmed on the network.
+        </Text>
       </div>
     </div>
   );
