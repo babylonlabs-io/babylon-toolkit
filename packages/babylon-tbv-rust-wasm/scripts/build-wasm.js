@@ -11,9 +11,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - Update these when btc-vault updates
-const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vaults.git';
+const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = '';
+const BTC_VAULT_COMMIT = 'e7427c1eaf94747f480486b739ab83094de7ffb3';
 const REQUIRED_RUSTC_VERSION = '1.92.0';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
