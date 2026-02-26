@@ -23,6 +23,10 @@ import { GeoBlockBanner } from "../shared/GeoBlockBanner";
 import SimpleDeposit from "../simple/SimpleDeposit";
 import { Connect } from "../Wallet";
 
+export interface RootLayoutContext {
+  openDeposit: () => void;
+}
+
 const btcConfig = getNetworkConfigBTC();
 
 function AppNavLink({
@@ -116,7 +120,13 @@ export default function RootLayout() {
             </div>
           }
         />
-        <Outlet />
+        <Outlet
+          context={
+            {
+              openDeposit: () => setIsDepositOpen(true),
+            } satisfies RootLayoutContext
+          }
+        />
         <SimpleDeposit
           open={isDepositOpen}
           onClose={() => setIsDepositOpen(false)}
