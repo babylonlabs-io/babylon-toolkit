@@ -17,6 +17,7 @@
  * 6-8. Background - sign payouts, verify, broadcast to Bitcoin
  */
 
+import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
@@ -30,6 +31,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { depositService } from "@/services/deposit";
 import {
@@ -80,10 +82,8 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Pre-computed allocation plan (from useSplitTransaction) */
+  /** Pre-computed allocation plan (from useAllocationPlanning) */
   precomputedPlan: AllocationPlan;
-  /** Pre-computed split TX result (from useSplitTransaction, null if no split needed) */
-  precomputedSplitTxResult: SplitTxSignResult | null;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
@@ -211,7 +211,6 @@ export function useMultiVaultDepositFlow(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     precomputedPlan,
-    precomputedSplitTxResult,
   } = params;
 
   // State
@@ -258,24 +257,13 @@ export function useMultiVaultDepositFlow(
 
       setProcessing(true);
       setError(null);
-      setCurrentStep(DepositFlowStep.SIGN_POP);
 
       // Track background operation failures
       const warnings: string[] = [];
 
       try {
-        // Steps 0-2 (validation, planning, split TX) are handled by useSplitTransaction
-        // on the split choice screen. This hook receives the results via precomputedPlan.
         const plan = precomputedPlan;
-        const splitTxResult = precomputedSplitTxResult;
         setAllocationPlan(plan);
-
-        // Guard: if plan requires a split, the split TX must have been pre-signed
-        if (plan.needsSplit && !splitTxResult) {
-          throw new Error(
-            "Plan requires split TX but no split result was provided",
-          );
-        }
 
         // Basic address validation
         if (!btcAddress) throw new Error("BTC wallet not connected");
@@ -290,14 +278,47 @@ export function useMultiVaultDepositFlow(
         const batchId = uuidv4();
 
         // ========================================================================
-        // Step 3: Create N Pegins (1 or 2)
+        // Step 0: Sign & Broadcast Split TX (SPLIT strategy only)
+        // ========================================================================
+
+        let splitTxResult: SplitTxSignResult | null = null;
+
+        if (plan.needsSplit && plan.splitTransaction) {
+          setCurrentStep(DepositFlowStep.SIGN_SPLIT_TX);
+
+          splitTxResult = await createAndSignSplitTransaction(
+            plan.splitTransaction,
+            btcWalletProvider,
+          );
+
+          try {
+            await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
+          } catch (broadcastError) {
+            throw new Error(
+              `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
+            );
+          }
+        }
+
+        // ========================================================================
+        // Step 1-2: Create N Pegins (1 or 2) with POP reuse
         // ========================================================================
 
         const peginResults: PeginCreationResult[] = [];
+        // Track the POP signature from vault 0 for reuse on vault 1
+        let reusablePopSignature: Hex | undefined;
 
         for (let i = 0; i < vaultAmounts.length; i++) {
           setCurrentVaultIndex(i);
-          setCurrentStep(DepositFlowStep.SIGN_POP);
+
+          // Vault 0 needs fresh POP signing; vault 1+ reuses the POP
+          const isFirstVault = i === 0;
+          if (isFirstVault) {
+            setCurrentStep(DepositFlowStep.SIGN_POP);
+          } else {
+            // Skip POP step for subsequent vaults (reuse signature)
+            setCurrentStep(DepositFlowStep.SUBMIT_PEGIN);
+          }
 
           try {
             const allocation = plan.vaultAllocations[i];
@@ -313,6 +334,7 @@ export function useMultiVaultDepositFlow(
               btcTxHex: string;
               selectedUTXOs: UTXO[];
               fee: bigint;
+              btcPopSignature: Hex;
             };
             let depositorBtcPubkey: string;
 
@@ -359,6 +381,7 @@ export function useMultiVaultDepositFlow(
                   vaultProviderAddress: primaryProvider,
                   onPopSigned: () =>
                     setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+                  preSignedBtcPopSignature: reusablePopSignature,
                 },
               );
 
@@ -369,6 +392,7 @@ export function useMultiVaultDepositFlow(
                 btcTxHex: prepareResult.fundedTxHex,
                 selectedUTXOs: prepareResult.selectedUTXOs,
                 fee: prepareResult.fee,
+                btcPopSignature: registrationResult.btcPopSignature,
               };
             } else {
               // ================================================================
@@ -393,6 +417,7 @@ export function useMultiVaultDepositFlow(
                 confirmedUTXOs: allocation.utxos, // MULTI_INPUT: pass all assigned UTXOs for this vault
                 reservedUtxoRefs: [],
                 onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+                preSignedBtcPopSignature: reusablePopSignature,
               });
 
               depositorBtcPubkey = result.depositorBtcPubkey;
@@ -403,7 +428,13 @@ export function useMultiVaultDepositFlow(
                 btcTxHex: result.btcTxHex,
                 selectedUTXOs: result.selectedUTXOs,
                 fee: result.fee,
+                btcPopSignature: result.btcPopSignature,
               };
+            }
+
+            // Capture POP signature from first vault for reuse
+            if (isFirstVault) {
+              reusablePopSignature = peginResult.btcPopSignature;
             }
 
             // Store result
@@ -656,7 +687,6 @@ export function useMultiVaultDepositFlow(
       vaultKeepers,
       findProvider,
       precomputedPlan,
-      precomputedSplitTxResult,
     ]);
 
   return {

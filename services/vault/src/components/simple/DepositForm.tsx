@@ -1,4 +1,10 @@
-import { AmountSlider, Card, Loader, Select } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Card,
+  Loader,
+  Select,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -6,6 +12,7 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
+import type { AllocationStrategy } from "@/services/vault";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -46,6 +53,13 @@ interface DepositFormProps {
   isDepositEnabled: boolean;
   isGeoBlocked: boolean;
   onDeposit: () => void;
+
+  // Partial liquidation
+  isPartialLiquidation: boolean;
+  onPartialLiquidationChange: (checked: boolean) => void;
+  allocationStrategy: AllocationStrategy | null;
+  canSplit: boolean;
+  feeNote: string | null;
 }
 
 export function DepositForm({
@@ -71,6 +85,11 @@ export function DepositForm({
   isDepositEnabled,
   isGeoBlocked,
   onDeposit,
+  isPartialLiquidation,
+  onPartialLiquidationChange,
+  allocationStrategy,
+  canSplit,
+  feeNote,
 }: DepositFormProps) {
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -177,6 +196,33 @@ export function DepositForm({
         )}
       </Card>
 
+      {/* Partial liquidation checkbox */}
+      <Card variant="filled" className="flex flex-col gap-1 px-4 py-3">
+        <label
+          className={`flex items-center gap-2 ${!canSplit ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+        >
+          <input
+            type="checkbox"
+            checked={isPartialLiquidation}
+            disabled={!canSplit}
+            onChange={(e) => onPartialLiquidationChange(e.target.checked)}
+            className="h-4 w-4 accent-primary-main"
+          />
+          <Text as="span" variant="body2" className="text-accent-primary">
+            Enable partial liquidation
+          </Text>
+        </label>
+        <Text as="span" variant="body2" className="ml-6 text-accent-secondary">
+          {!canSplit
+            ? "Insufficient balance to split into 2 vaults"
+            : allocationStrategy === "MULTI_INPUT"
+              ? "Your BTC will be deposited into 2 vaults using existing UTXOs (no extra transaction)"
+              : allocationStrategy === "SPLIT"
+                ? "Your BTC will be split into 2 vaults via an additional Bitcoin transaction"
+                : "Your BTC will be deposited into 2 vaults"}
+        </Text>
+      </Card>
+
       {/* CTA button */}
       <DepositButton
         variant="contained"
@@ -198,7 +244,10 @@ export function DepositForm({
           >
             {feeAmount}
           </span>{" "}
-          <span className="text-accent-secondary">{feePrice}</span>
+          <span className="text-accent-secondary">
+            {feePrice}
+            {feeNote && ` ${feeNote}`}
+          </span>
         </span>
       </div>
     </div>

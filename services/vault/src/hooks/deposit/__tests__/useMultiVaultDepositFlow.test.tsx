@@ -6,9 +6,9 @@
  * - MULTI_INPUT: Two vaults with existing UTXOs
  * - SPLIT: Two vaults with split transaction
  *
- * NOTE: Steps 0-2 (validation, planning, split TX) are handled by
- * useSplitTransaction. This hook receives the precomputed plan and
- * split TX result as required params.
+ * The hook receives a precomputed allocation plan and handles split TX
+ * signing/broadcasting internally as step 0 (for SPLIT strategy).
+ * POP signature from vault 0 is reused for vault 1.
  */
 
 import { renderHook, waitFor } from "@testing-library/react";
@@ -17,7 +17,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AllocationPlan } from "@/services/vault";
 
-import type { SplitTxSignResult } from "../useMultiVaultDepositFlow";
 import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 
 // ============================================================================
@@ -100,6 +99,7 @@ vi.mock("@/storage/peginStorage", () => ({
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
   DepositFlowStep: {
+    SIGN_SPLIT_TX: 0,
     SIGN_POP: 1,
     SUBMIT_PEGIN: 2,
     SIGN_PAYOUTS: 3,
@@ -212,31 +212,6 @@ const SPLIT_PLAN: AllocationPlan = {
   ],
 };
 
-const MOCK_SPLIT_TX_RESULT: SplitTxSignResult = {
-  txid: "splitTxId" + "0".repeat(56),
-  signedHex: "mockSignedSplitTxHex",
-  outputs: [
-    {
-      txid: "splitTxId" + "0".repeat(56),
-      vout: 0,
-      value: 100000,
-      scriptPubKey: "0xsplit1",
-    },
-    {
-      txid: "splitTxId" + "0".repeat(56),
-      vout: 1,
-      value: 100000,
-      scriptPubKey: "0xsplit2",
-    },
-    {
-      txid: "splitTxId" + "0".repeat(56),
-      vout: 2,
-      value: 290000,
-      scriptPubKey: "0xchange",
-    },
-  ],
-};
-
 // Params with precomputed plans (required by the hook)
 const MOCK_PARAMS = {
   vaultAmounts: [100000n],
@@ -249,21 +224,18 @@ const MOCK_PARAMS = {
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
   precomputedPlan: SINGLE_PLAN,
-  precomputedSplitTxResult: null,
 };
 
 const MULTI_VAULT_PARAMS = {
   ...MOCK_PARAMS,
   vaultAmounts: [100000n, 100000n],
   precomputedPlan: MULTI_INPUT_PLAN,
-  precomputedSplitTxResult: null,
 };
 
 const SPLIT_VAULT_PARAMS = {
   ...MOCK_PARAMS,
   vaultAmounts: [100000n, 100000n],
   precomputedPlan: SPLIT_PLAN,
-  precomputedSplitTxResult: MOCK_SPLIT_TX_RESULT,
 };
 
 // ============================================================================
@@ -271,6 +243,10 @@ const SPLIT_VAULT_PARAMS = {
 // ============================================================================
 
 async function setupDefaultMocks() {
+  const { pushTx } = vi.mocked(await import("@babylonlabs-io/ts-sdk"));
+  const { createSplitTransaction, createSplitTransactionPsbt } = vi.mocked(
+    await import("@babylonlabs-io/ts-sdk/tbv/core"),
+  );
   const { useChainConnector } = vi.mocked(
     await import("@babylonlabs-io/wallet-connector"),
   );
@@ -295,6 +271,34 @@ async function setupDefaultMocks() {
     waitForContractVerification,
     broadcastBtcTransaction,
   } = vi.mocked(await import("../depositFlowSteps"));
+
+  // SDK split transaction mocks
+  vi.mocked(pushTx).mockResolvedValue("splitBroadcastTxId");
+  vi.mocked(createSplitTransaction).mockReturnValue({
+    txHex: "mockSplitTxHex",
+    txid: "splitTxId" + "0".repeat(56),
+    outputs: [
+      {
+        txid: "splitTxId" + "0".repeat(56),
+        vout: 0,
+        value: 100000,
+        scriptPubKey: "0xsplit1",
+      },
+      {
+        txid: "splitTxId" + "0".repeat(56),
+        vout: 1,
+        value: 100000,
+        scriptPubKey: "0xsplit2",
+      },
+      {
+        txid: "splitTxId" + "0".repeat(56),
+        vout: 2,
+        value: 290000,
+        scriptPubKey: "0xchange",
+      },
+    ],
+  });
+  vi.mocked(createSplitTransactionPsbt).mockReturnValue("mockPsbtHex");
 
   // Wallet connector
   vi.mocked(useChainConnector).mockReturnValue({
@@ -329,6 +333,7 @@ async function setupDefaultMocks() {
   vi.mocked(registerSplitPeginOnChain).mockResolvedValue({
     ethTxHash: "0xEthTxHash" as Hex,
     vaultId: "0xVaultId" as Hex,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
@@ -345,6 +350,7 @@ async function setupDefaultMocks() {
     btcTxHex: "standardTxHex",
     selectedUTXOs: [MOCK_UTXO_1],
     fee: 800n,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
     context: {} as any,
@@ -642,26 +648,6 @@ describe("useMultiVaultDepositFlow", () => {
         warnings: undefined,
       });
     });
-
-    it("should error if plan requires split but no split result provided", async () => {
-      const paramsWithoutSplitResult = {
-        ...SPLIT_VAULT_PARAMS,
-        precomputedSplitTxResult: null,
-      };
-
-      const { result } = renderHook(() =>
-        useMultiVaultDepositFlow(paramsWithoutSplitResult),
-      );
-
-      const depositResult = await result.current.executeMultiVaultDeposit();
-
-      await waitFor(() => {
-        expect(depositResult).toBeNull();
-        expect(result.current.error).toBe(
-          "Plan requires split TX but no split result was provided",
-        );
-      });
-    });
   });
 
   describe("Validation Errors", () => {
@@ -702,6 +688,7 @@ describe("useMultiVaultDepositFlow", () => {
           btcTxHex: "vault1Hex",
           selectedUTXOs: [MOCK_UTXO_1],
           fee: 800n,
+          btcPopSignature: "0xMockPopSignature" as Hex,
         })
         .mockRejectedValueOnce(new Error("Vault 2 failed")); // Vault 2 fails
 
@@ -733,6 +720,7 @@ describe("useMultiVaultDepositFlow", () => {
           btcTxHex: "vault1Hex",
           selectedUTXOs: [MOCK_UTXO_1],
           fee: 800n,
+          btcPopSignature: "0xMockPopSignature" as Hex,
         })
         .mockRejectedValueOnce(new Error("Failed"));
 

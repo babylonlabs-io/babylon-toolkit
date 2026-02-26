@@ -252,6 +252,17 @@ vi.mock("../useEstimatedBtcFee", () => ({
   })),
 }));
 
+vi.mock("../useAllocationPlanning", () => ({
+  useAllocationPlanning: vi.fn(() => ({
+    strategy: null,
+    allocationPlan: null,
+    totalFee: null,
+    isPlanning: false,
+    planError: null,
+    canSplit: false,
+  })),
+}));
+
 vi.mock("../useDepositValidation", () => ({
   useDepositValidation: vi.fn(() => ({
     validateAmount: mockValidateAmount,

@@ -222,6 +222,14 @@ export interface RegisterPeginParams {
    * Optional callback invoked after PoP signing completes but before ETH transaction.
    */
   onPopSigned?: () => void | Promise<void>;
+
+  /**
+   * Optional pre-signed BTC PoP signature (hex with 0x prefix).
+   * When provided, skips the internal BIP-322 signing step.
+   * Useful for multi-vault deposits where the same PoP can be reused
+   * since the PoP message is depositor-scoped, not vault-scoped.
+   */
+  preSignedBtcPopSignature?: Hex;
 }
 
 /**
@@ -239,6 +247,13 @@ export interface RegisterPeginResult {
    * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
    */
   vaultId: Hex;
+
+  /**
+   * BTC PoP signature used for this registration (hex with 0x prefix).
+   * Exposed so callers can reuse it for subsequent registrations
+   * without requiring another wallet interaction.
+   */
+  btcPopSignature: Hex;
 }
 
 /**
@@ -489,8 +504,13 @@ export class PeginManager {
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
-    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider, onPopSigned } =
-      params;
+    const {
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      vaultProvider,
+      onPopSigned,
+      preSignedBtcPopSignature,
+    } = params;
 
     // Step 1: Get depositor ETH address (from wallet account)
     if (!this.config.ethWallet.account) {
@@ -499,30 +519,37 @@ export class PeginManager {
     const depositorEthAddress = this.config.ethWallet.account.address;
 
     // Step 2: Create proof of possession
-    // The depositor signs a message with their BTC key using BIP-322 simple
-    // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
-    // This matches BTCProofOfPossession.sol buildMessage() format
-    // Addresses already include 0x prefix and must be lowercase
-    // Action is "pegin" for peg-in operations
-    const verifyingContract = this.config.vaultContracts.btcVaultsManager;
-    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
-      popMessage,
-      "bip322-simple",
-    );
+    let btcPopSignature: Hex;
+
+    if (preSignedBtcPopSignature) {
+      // Reuse a previously-signed PoP — the PoP message is depositor-scoped
+      // (not vault-scoped), so the same signature works for multiple pegins.
+      btcPopSignature = preSignedBtcPopSignature;
+    } else {
+      // The depositor signs a message with their BTC key using BIP-322 simple
+      // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
+      // This matches BTCProofOfPossession.sol buildMessage() format
+      // Addresses already include 0x prefix and must be lowercase
+      // Action is "pegin" for peg-in operations
+      const verifyingContract = this.config.vaultContracts.btcVaultsManager;
+      const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
+      const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
+        popMessage,
+        "bip322-simple",
+      );
+
+      // Convert PoP signature to hex format
+      // BTC wallets return base64, Ethereum contracts expect hex
+      if (btcPopSignatureRaw.startsWith("0x")) {
+        btcPopSignature = btcPopSignatureRaw as Hex;
+      } else {
+        const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
+        btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
+      }
+    }
 
     if (onPopSigned) {
       await onPopSigned();
-    }
-
-    // Convert PoP signature to hex format
-    // BTC wallets return base64, Ethereum contracts expect hex
-    let btcPopSignature: Hex;
-    if (btcPopSignatureRaw.startsWith("0x")) {
-      btcPopSignature = btcPopSignatureRaw as Hex;
-    } else {
-      const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
-      btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
     }
 
     // Step 3: Format parameters for contract call
@@ -596,6 +623,7 @@ export class PeginManager {
       return {
         ethTxHash,
         vaultId,
+        btcPopSignature,
       };
     } catch (error) {
       // Use proper error handler for better error messages

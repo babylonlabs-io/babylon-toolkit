@@ -3,14 +3,14 @@ import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/constants";
-import {
-  useMultiVaultDepositFlow,
-  type SplitTxSignResult,
-} from "@/hooks/deposit/useMultiVaultDepositFlow";
+import { useMultiVaultDepositFlow } from "@/hooks/deposit/useMultiVaultDepositFlow";
 import { useRunOnce } from "@/hooks/useRunOnce";
-import type { AllocationPlan } from "@/services/vault";
+import type { AllocationPlan, AllocationStrategy } from "@/services/vault";
 
-import { DepositProgressView } from "./DepositProgressView";
+import {
+  DepositProgressView,
+  type MultiVaultStrategy,
+} from "./DepositProgressView";
 
 interface MultiVaultDepositSignContentProps {
   vaultAmounts: bigint[];
@@ -23,7 +23,7 @@ interface MultiVaultDepositSignContentProps {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   precomputedPlan: AllocationPlan;
-  precomputedSplitTxResult: SplitTxSignResult | null;
+  strategy: AllocationStrategy;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
@@ -47,7 +47,7 @@ export function MultiVaultDepositSignContent({
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   precomputedPlan,
-  precomputedSplitTxResult,
+  strategy,
 }: MultiVaultDepositSignContentProps) {
   const {
     executeMultiVaultDeposit,
@@ -68,7 +68,6 @@ export function MultiVaultDepositSignContent({
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     precomputedPlan,
-    precomputedSplitTxResult,
   });
 
   // Auto-start the flow on mount
@@ -104,6 +103,7 @@ export function MultiVaultDepositSignContent({
       variant="multi"
       currentStep={currentStep}
       currentVaultIndex={currentVaultIndex}
+      strategy={strategy as MultiVaultStrategy}
       error={error}
       isComplete={isComplete}
       isProcessing={isProcessing}

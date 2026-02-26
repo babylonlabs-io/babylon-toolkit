@@ -2,12 +2,10 @@ import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
 import type { AllocationPlan } from "@/services/vault";
 
-import type { SplitTxSignResult } from "../../hooks/deposit/depositFlowSteps";
 import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositPageStep {
   FORM = "form",
-  SPLIT_CHOICE = "split_choice",
   REVIEW = "review",
   SIGN = "sign",
   SUCCESS = "success",
@@ -36,7 +34,6 @@ interface DepositStateContext {
   processing: boolean;
   isSplitDeposit: boolean;
   splitAllocationPlan: AllocationPlan | null;
-  splitTxResult: SplitTxSignResult | null;
   goToStep: (step: DepositPageStep) => void;
   setDepositData: (
     amount: bigint,
@@ -52,7 +49,6 @@ interface DepositStateContext {
   setProcessing: (processing: boolean) => void;
   setIsSplitDeposit: (isSplit: boolean) => void;
   setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
-  setSplitTxResult: (result: SplitTxSignResult | null) => void;
   reset: () => void;
 }
 
@@ -69,7 +65,6 @@ const { StateProvider, useState: useDepositState } =
     processing: false,
     isSplitDeposit: false,
     splitAllocationPlan: null,
-    splitTxResult: null,
     goToStep: () => {},
     setDepositData: () => {},
     setFeeRate: () => {},
@@ -77,7 +72,6 @@ const { StateProvider, useState: useDepositState } =
     setProcessing: () => {},
     setIsSplitDeposit: () => {},
     setSplitAllocationPlan: () => {},
-    setSplitTxResult: () => {},
     reset: () => {},
   });
 
@@ -94,9 +88,6 @@ export function DepositState({ children }: PropsWithChildren) {
   const [isSplitDeposit, setIsSplitDeposit] = useState(false);
   const [splitAllocationPlan, setSplitAllocationPlan] =
     useState<AllocationPlan | null>(null);
-  const [splitTxResult, setSplitTxResult] = useState<SplitTxSignResult | null>(
-    null,
-  );
 
   const goToStep = useCallback((newStep: DepositPageStep) => {
     setStep(newStep);
@@ -136,7 +127,6 @@ export function DepositState({ children }: PropsWithChildren) {
     setProcessing(false);
     setIsSplitDeposit(false);
     setSplitAllocationPlan(null);
-    setSplitTxResult(null);
   }, []);
 
   const context = useMemo(
@@ -152,7 +142,6 @@ export function DepositState({ children }: PropsWithChildren) {
       processing,
       isSplitDeposit,
       splitAllocationPlan,
-      splitTxResult,
       goToStep,
       setDepositData,
       setFeeRate: updateFeeRate,
@@ -160,7 +149,6 @@ export function DepositState({ children }: PropsWithChildren) {
       setProcessing,
       setIsSplitDeposit,
       setSplitAllocationPlan,
-      setSplitTxResult,
       reset,
     }),
     [
@@ -175,7 +163,6 @@ export function DepositState({ children }: PropsWithChildren) {
       processing,
       isSplitDeposit,
       splitAllocationPlan,
-      splitTxResult,
       goToStep,
       setDepositData,
       updateFeeRate,

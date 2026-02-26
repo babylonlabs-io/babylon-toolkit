@@ -18,6 +18,8 @@ import type {
  * Deposit flow step numbers
  */
 export enum DepositFlowStep {
+  /** Step 0: Sign and broadcast split transaction (SPLIT strategy only) */
+  SIGN_SPLIT_TX = 0,
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
   /** Step 2: Sign and submit peg-in request in ETH wallet */
@@ -66,6 +68,8 @@ export interface PeginSubmitParams {
   /** Reserved UTXOs to avoid (from in-flight deposits). */
   reservedUtxoRefs: UtxoRef[];
   onPopSigned?: () => void;
+  /** Optional pre-signed BTC PoP signature (hex with 0x prefix). */
+  preSignedBtcPopSignature?: Hex;
 }
 
 export interface PeginSubmitResult {
@@ -75,6 +79,8 @@ export interface PeginSubmitResult {
   btcTxHex: string;
   selectedUTXOs: DepositUtxo[];
   fee: bigint;
+  /** BTC PoP signature used (hex with 0x prefix), for reuse in multi-vault flows */
+  btcPopSignature: Hex;
 }
 
 export interface SavePendingPeginParams {

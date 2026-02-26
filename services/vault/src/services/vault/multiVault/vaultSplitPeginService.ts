@@ -97,6 +97,11 @@ export interface RegisterSplitPeginParams {
    * Ethereum transaction. Useful for updating UI between signing steps.
    */
   onPopSigned?: () => void | Promise<void>;
+  /**
+   * Optional pre-signed BTC PoP signature (hex with 0x prefix).
+   * When provided, skips the BIP-322 signing step.
+   */
+  preSignedBtcPopSignature?: Hex;
 }
 
 export interface RegisterSplitPeginResult {
@@ -104,6 +109,8 @@ export interface RegisterSplitPeginResult {
   ethTxHash: Hex;
   /** Vault ID returned by the contract — primary identifier for downstream flow */
   vaultId: Hex;
+  /** BTC PoP signature used (hex with 0x prefix), for reuse in multi-vault flows */
+  btcPopSignature: Hex;
 }
 
 export interface BroadcastSplitPeginParams {
@@ -245,6 +252,7 @@ export async function registerSplitPeginOnChain(
       unsignedBtcTx: params.unsignedBtcTx,
       vaultProvider: params.vaultProviderAddress,
       onPopSigned: params.onPopSigned,
+      preSignedBtcPopSignature: params.preSignedBtcPopSignature,
     });
 
     return result;

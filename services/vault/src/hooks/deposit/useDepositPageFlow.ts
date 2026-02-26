@@ -21,7 +21,6 @@ import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
 
-import type { SplitTxSignResult } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositPageFlowResult {
@@ -45,9 +44,7 @@ export interface UseDepositPageFlowResult {
   isSplitDeposit: boolean;
   setIsSplitDeposit: (isSplit: boolean) => void;
   splitAllocationPlan: AllocationPlan | null;
-  splitTxResult: SplitTxSignResult | null;
   setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
-  setSplitTxResult: (result: SplitTxSignResult | null) => void;
 
   // Actions
   startDeposit: (
@@ -96,9 +93,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
-    splitTxResult,
     setSplitAllocationPlan,
-    setSplitTxResult,
     reset: resetDeposit,
   } = useDepositState();
 
@@ -177,9 +172,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
-    splitTxResult,
     setSplitAllocationPlan,
-    setSplitTxResult,
     startDeposit,
     confirmReview,
     onSignSuccess,

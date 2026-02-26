@@ -81,7 +81,7 @@ import type {
  * @param feeRate   - Fee rate in sat/vByte
  * @returns Conservative fee estimate in satoshis (for allocation planning only)
  */
-function estimatePeginFeeForAllocation(
+export function estimatePeginFeeForAllocation(
   numInputs: number,
   feeRate: number,
 ): bigint {

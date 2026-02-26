@@ -77,59 +77,105 @@ export function buildStepItems(
 }
 
 /**
- * 6-step labels for the multi-vault deposit stepper.
- * Steps 1-4 have per-vault labels; steps 5-6 are shared.
+ * Strategy-dependent step labels for the multi-vault deposit stepper.
  *
  * Hardcoded for exactly 2 vaults — this is by design. The partial-liquidation
  * feature always splits into 2 vaults so at most half the BTC is exposed to
  * a single liquidation event. The 2-vault cap is enforced in
  * validateVaultAmounts() and utxoAllocationService.
+ *
+ * With POP reuse, vault 2 skips the separate POP signing step — the POP
+ * signature from vault 1 is reused automatically.
+ *
+ * SPLIT strategy (6 steps):
+ *   1. Sign & broadcast split transaction
+ *   2. Sign POP & submit pegin 1/2
+ *   3. Submit pegin 2/2
+ *   4. Sign payout transaction(s)
+ *   5. Wait for confirmation
+ *   6. Sign & broadcast Bitcoin transaction
+ *
+ * MULTI_INPUT strategy (5 steps):
+ *   1. Sign POP & submit pegin 1/2
+ *   2. Submit pegin 2/2
+ *   3. Sign payout transaction(s)
+ *   4. Wait for confirmation
+ *   5. Sign & broadcast Bitcoin transaction
  */
-const MULTI_VAULT_STEP_LABELS = [
-  "Sign proof of possession for pegin 1/2",
-  "Submit peg-in requests for pegin 1/2",
-  "Sign proof of possession for pegin 2/2",
-  "Submit peg-in requests for pegin 2/2",
+const SPLIT_STEP_LABELS = [
+  "Sign & broadcast split transaction",
+  "Sign POP & submit pegin 1/2",
+  "Submit pegin 2/2",
   "Sign payout transaction(s)",
+  "Wait for confirmation",
   "Sign & broadcast Bitcoin transaction",
 ] as const;
 
+const MULTI_INPUT_STEP_LABELS = [
+  "Sign POP & submit pegin 1/2",
+  "Submit pegin 2/2",
+  "Sign payout transaction(s)",
+  "Wait for confirmation",
+  "Sign & broadcast Bitcoin transaction",
+] as const;
+
+export type MultiVaultStrategy = "SPLIT" | "MULTI_INPUT";
+
 /**
- * Map the hook's (currentStep, currentVaultIndex) tuple to a 1-indexed
- * visual step position for the 6-step Stepper.
+ * Map the hook's (currentStep, currentVaultIndex, strategy) to a 1-indexed
+ * visual step position for the multi-vault Stepper.
  *
- * Mapping:
- *   SIGN_POP     + vault 0 -> visual 1
- *   SUBMIT_PEGIN + vault 0 -> visual 2
- *   SIGN_POP     + vault 1 -> visual 3
- *   SUBMIT_PEGIN + vault 1 -> visual 4
- *   SIGN_PAYOUTS            -> visual 5
- *   BROADCAST_BTC           -> visual 6
- *   COMPLETED               -> visual 7 (all 6 steps marked complete)
+ * SPLIT mapping (6 steps):
+ *   SIGN_SPLIT_TX             -> visual 1
+ *   SIGN_POP     + vault 0    -> visual 2
+ *   SUBMIT_PEGIN + vault 0    -> visual 2 (same step: "Sign POP & submit")
+ *   SUBMIT_PEGIN + vault 1    -> visual 3
+ *   SIGN_PAYOUTS              -> visual 4
+ *   BROADCAST_BTC (waiting)   -> visual 5
+ *   BROADCAST_BTC (signing)   -> visual 6
+ *   COMPLETED                 -> visual 7
+ *
+ * MULTI_INPUT mapping (5 steps):
+ *   SIGN_POP     + vault 0    -> visual 1
+ *   SUBMIT_PEGIN + vault 0    -> visual 1 (same step: "Sign POP & submit")
+ *   SUBMIT_PEGIN + vault 1    -> visual 2
+ *   SIGN_PAYOUTS              -> visual 3
+ *   BROADCAST_BTC (waiting)   -> visual 4
+ *   BROADCAST_BTC (signing)   -> visual 5
+ *   COMPLETED                 -> visual 6
  */
 function getMultiVaultVisualStep(
   currentStep: DepositFlowStep,
   currentVaultIndex: number | null,
+  strategy: MultiVaultStrategy,
 ): number {
+  const offset = strategy === "SPLIT" ? 1 : 0;
+
   switch (currentStep) {
+    case DepositFlowStep.SIGN_SPLIT_TX:
+      return 1; // Only for SPLIT
     case DepositFlowStep.SIGN_POP:
-      return currentVaultIndex === 1 ? 3 : 1;
+      return 1 + offset; // Vault 0 POP
     case DepositFlowStep.SUBMIT_PEGIN:
-      return currentVaultIndex === 1 ? 4 : 2;
+      // Vault 0 submit is combined with POP step; vault 1 is next step
+      return currentVaultIndex === 1 ? 2 + offset : 1 + offset;
     case DepositFlowStep.SIGN_PAYOUTS:
-      return 5;
+      return 3 + offset;
     case DepositFlowStep.BROADCAST_BTC:
-      return 6;
+      return 5 + offset;
     case DepositFlowStep.COMPLETED:
-      return 7;
+      // Total steps + 1 to mark all complete
+      return strategy === "SPLIT" ? 7 : 6;
     default:
       return 1;
   }
 }
 
-const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map((label) => ({
-  label,
-}));
+function buildMultiVaultSteps(strategy: MultiVaultStrategy): StepperItem[] {
+  const labels =
+    strategy === "SPLIT" ? SPLIT_STEP_LABELS : MULTI_INPUT_STEP_LABELS;
+  return labels.map((label) => ({ label }));
+}
 
 // ---------------------------------------------------------------------------
 // Props — discriminated union on `variant`
@@ -156,6 +202,7 @@ type SingleVaultProps = SharedProps & {
 type MultiVaultProps = SharedProps & {
   variant: "multi";
   currentVaultIndex: number | null;
+  strategy: MultiVaultStrategy;
 };
 
 export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
@@ -179,13 +226,22 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const isMulti = props.variant === "multi";
   const payoutSigningProgress = isMulti ? null : props.payoutSigningProgress;
 
+  const multiStrategy = isMulti ? props.strategy : null;
+
   const visualStep = isMulti
-    ? getMultiVaultVisualStep(currentStep, props.currentVaultIndex)
+    ? getMultiVaultVisualStep(
+        currentStep,
+        props.currentVaultIndex,
+        props.strategy,
+      )
     : getVisualStep(currentStep, props.isWaiting);
 
   const steps = useMemo(
-    () => (isMulti ? multiVaultSteps : buildStepItems(payoutSigningProgress)),
-    [isMulti, payoutSigningProgress],
+    () =>
+      isMulti && multiStrategy
+        ? buildMultiVaultSteps(multiStrategy)
+        : buildStepItems(payoutSigningProgress),
+    [isMulti, multiStrategy, payoutSigningProgress],
   );
 
   const onRetry = !isMulti ? props.onRetry : undefined;

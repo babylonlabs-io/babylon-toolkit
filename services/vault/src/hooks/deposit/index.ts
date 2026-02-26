@@ -20,7 +20,8 @@ export type {
   UseMultiVaultDepositFlowReturn,
 } from "./useMultiVaultDepositFlow";
 
-export { useSplitTransaction } from "./useSplitTransaction";
+export { useAllocationPlanning } from "./useAllocationPlanning";
+export type { UseAllocationPlanningResult } from "./useAllocationPlanning";
 
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";

@@ -85,6 +85,7 @@ export async function submitPeginAndWait(
     confirmedUTXOs,
     reservedUtxoRefs,
     onPopSigned,
+    preSignedBtcPopSignature,
   } = params;
 
   const utxosToUse = selectUtxosForDeposit({
@@ -106,6 +107,7 @@ export async function submitPeginAndWait(
     universalChallengerBtcPubkeys,
     availableUTXOs: utxosToUse,
     onPopSigned,
+    preSignedBtcPopSignature,
   });
 
   // Get depositor's BTC public key
@@ -125,6 +127,7 @@ export async function submitPeginAndWait(
     btcTxHex: result.btcTxHex,
     selectedUTXOs: result.selectedUTXOs,
     fee: result.fee,
+    btcPopSignature: result.btcPopSignature,
   };
 }
 

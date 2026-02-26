@@ -52,6 +52,11 @@ export interface SubmitPeginParams {
    * Can be async - will be awaited to allow UI updates before ETH signing.
    */
   onPopSigned?: () => void | Promise<void>;
+  /**
+   * Optional pre-signed BTC PoP signature (hex with 0x prefix).
+   * When provided, skips the BIP-322 signing step in PeginManager.
+   */
+  preSignedBtcPopSignature?: Hex;
 }
 
 /**
@@ -63,6 +68,8 @@ export interface SubmitPeginResult {
   btcTxHex: string; // Full transaction hex
   selectedUTXOs: UTXO[];
   fee: bigint;
+  /** BTC PoP signature used (hex with 0x prefix), for reuse in multi-vault flows */
+  btcPopSignature: Hex;
 }
 
 /**
@@ -135,6 +142,7 @@ export async function submitPeginRequest(
     unsignedBtcTx: peginResult.fundedTxHex,
     vaultProvider: params.vaultProviderAddress,
     onPopSigned: params.onPopSigned,
+    preSignedBtcPopSignature: params.preSignedBtcPopSignature,
   });
 
   // Step 5: Return results
@@ -144,6 +152,7 @@ export async function submitPeginRequest(
     btcTxHex: peginResult.fundedTxHex,
     selectedUTXOs: peginResult.selectedUTXOs,
     fee: peginResult.fee,
+    btcPopSignature: registrationResult.btcPopSignature,
   };
 }
 

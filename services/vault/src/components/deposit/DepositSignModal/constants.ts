@@ -11,6 +11,10 @@ export const STEP_DESCRIPTIONS: Record<
   DepositFlowStep,
   { active: string; waiting?: string }
 > = {
+  [DepositFlowStep.SIGN_SPLIT_TX]: {
+    active:
+      "Please sign the split transaction in your BTC wallet to divide funds into 2 vaults.",
+  },
   [DepositFlowStep.SIGN_POP]: {
     active: "Please sign the proof of possession in your BTC wallet.",
   },

@@ -7,7 +7,6 @@ import { useGeoFencing } from "@/context/geofencing";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { depositService } from "@/services/deposit";
-import type { AllocationPlan } from "@/services/vault";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 
@@ -18,7 +17,6 @@ import {
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
-import type { SplitTxSignResult } from "../../hooks/deposit/useMultiVaultDepositFlow";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
@@ -29,7 +27,6 @@ import {
   ResumeBroadcastContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
-import { SplitChoiceContent } from "./SplitChoiceContent";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -90,6 +87,13 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     feeError,
     maxDepositSats,
     validateForm,
+    // Partial liquidation
+    isPartialLiquidation,
+    setIsPartialLiquidation,
+    allocationStrategy,
+    allocationPlan,
+    canSplit,
+    feeNote,
   } = useDepositPageForm();
 
   const {
@@ -106,9 +110,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
-    splitTxResult,
     setSplitAllocationPlan,
-    setSplitTxResult,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -133,7 +135,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      goToStep(DepositPageStep.SPLIT_CHOICE);
+
+      // Wire partial liquidation state from the form checkbox
+      if (isPartialLiquidation && allocationPlan) {
+        setIsSplitDeposit(true);
+        setSplitAllocationPlan(allocationPlan);
+      } else {
+        setIsSplitDeposit(false);
+        setSplitAllocationPlan(null);
+      }
+
+      goToStep(DepositPageStep.SIGN);
     }
   };
 
@@ -143,21 +155,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     () => [depositAmount / 2n, depositAmount - depositAmount / 2n],
     [depositAmount],
   );
-
-  const handleContinueSplit = useCallback(
-    (plan: AllocationPlan, result: SplitTxSignResult | null) => {
-      setSplitAllocationPlan(plan);
-      setSplitTxResult(result);
-      setIsSplitDeposit(true);
-      goToStep(DepositPageStep.SIGN);
-    },
-    [setSplitAllocationPlan, setSplitTxResult, setIsSplitDeposit, goToStep],
-  );
-
-  const handleDoNotSplit = () => {
-    setIsSplitDeposit(false);
-    goToStep(DepositPageStep.SIGN);
-  };
 
   const handleSignSuccess = useCallback(
     (btcTxid: string, ethTxHash: string, _depositorBtcPubkey: string) => {
@@ -206,25 +203,13 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
+                isPartialLiquidation={isPartialLiquidation}
+                onPartialLiquidationChange={setIsPartialLiquidation}
+                allocationStrategy={allocationStrategy}
+                canSplit={canSplit}
+                feeNote={feeNote}
               />
             </div>
-          </div>
-        )}
-
-        {renderedStep === DepositPageStep.SPLIT_CHOICE && btcWalletProvider && (
-          <div className="mx-auto w-full max-w-[520px]">
-            <SplitChoiceContent
-              vaultAmounts={vaultAmounts}
-              feeRate={feeRate}
-              btcWalletProvider={btcWalletProvider}
-              depositorEthAddress={ethAddress}
-              selectedProviders={selectedProviders}
-              vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-              vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-              universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              onContinueToSplit={handleContinueSplit}
-              onDoNotSplit={handleDoNotSplit}
-            />
           </div>
         )}
 
@@ -242,7 +227,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
                 universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
                 precomputedPlan={splitAllocationPlan}
-                precomputedSplitTxResult={splitTxResult}
+                strategy={splitAllocationPlan.strategy}
                 onSuccess={handleSignSuccess}
                 onClose={onClose}
                 onRefetchActivities={refetchActivities}
