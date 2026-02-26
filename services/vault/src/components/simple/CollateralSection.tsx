@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Card } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import { DepositButton, MenuButton } from "@/components/shared";
@@ -64,16 +64,7 @@ export function CollateralSection({
         </div>
       </div>
 
-      {isPendingWithdraw ? (
-        <Card variant="filled" className="w-full">
-          <div className="flex items-center gap-3 py-4">
-            <Loader size={20} />
-            <span className="text-base text-accent-primary">
-              Pending Withdrawal
-            </span>
-          </div>
-        </Card>
-      ) : hasCollateral ? (
+      {hasCollateral ? (
         <Card variant="filled" className="w-full">
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
