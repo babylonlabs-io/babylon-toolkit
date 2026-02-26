@@ -53,3 +53,5 @@ Thumbs.db
 packages/*/.cursor
 .claude/*
 !.claude/skills
+
+/todo
