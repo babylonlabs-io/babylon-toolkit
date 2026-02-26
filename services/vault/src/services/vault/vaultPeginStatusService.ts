@@ -90,6 +90,12 @@ export async function checkPeginStatus(
     case "Expired":
       status = DaemonStatus.EXPIRED;
       break;
+    case "ClaimPosted":
+      status = DaemonStatus.CLAIM_POSTED;
+      break;
+    case "PeggedOut":
+      status = DaemonStatus.PEGGED_OUT;
+      break;
     default:
       throw new Error(`Unknown daemon status: ${rawStatus}`);
   }

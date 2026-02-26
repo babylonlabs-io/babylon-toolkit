@@ -6,7 +6,7 @@ import {
   generateLamportMnemonic,
   getMnemonicWords,
   isValidMnemonic,
-  keypairToHex,
+  keypairToPublicKey,
   mnemonicToLamportSeed,
   verifyMnemonicWords,
 } from "../lamportService";
@@ -127,26 +127,30 @@ describe("lamportService", () => {
     const depositorPk = "pk-abc";
     const appContractAddress = "0x1234";
 
-    it("generates 512 private and public key slots", async () => {
+    it("generates 508 preimage and hash slots per type", async () => {
       const keypair = await deriveLamportKeypair(
         seed,
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      expect(keypair.privateKey).toHaveLength(512);
-      expect(keypair.publicKey).toHaveLength(512);
+      expect(keypair.falsePreimages).toHaveLength(508);
+      expect(keypair.truePreimages).toHaveLength(508);
+      expect(keypair.falseHashes).toHaveLength(508);
+      expect(keypair.trueHashes).toHaveLength(508);
     });
 
-    it("produces 16-byte private keys and 20-byte public keys", async () => {
+    it("produces 16-byte preimages and 20-byte hashes", async () => {
       const keypair = await deriveLamportKeypair(
         seed,
         vaultId,
         depositorPk,
         appContractAddress,
       );
-      keypair.privateKey.forEach((pk) => expect(pk.length).toBe(16));
-      keypair.publicKey.forEach((pk) => expect(pk.length).toBe(20));
+      keypair.falsePreimages.forEach((p) => expect(p.length).toBe(16));
+      keypair.truePreimages.forEach((p) => expect(p.length).toBe(16));
+      keypair.falseHashes.forEach((h) => expect(h.length).toBe(20));
+      keypair.trueHashes.forEach((h) => expect(h.length).toBe(20));
     });
 
     it("is deterministic for the same inputs", async () => {
@@ -162,8 +166,10 @@ describe("lamportService", () => {
         depositorPk,
         appContractAddress,
       );
-      expect(a.privateKey).toEqual(b.privateKey);
-      expect(a.publicKey).toEqual(b.publicKey);
+      expect(a.falsePreimages).toEqual(b.falsePreimages);
+      expect(a.truePreimages).toEqual(b.truePreimages);
+      expect(a.falseHashes).toEqual(b.falseHashes);
+      expect(a.trueHashes).toEqual(b.trueHashes);
     });
 
     it("produces different keys for different vault IDs", async () => {
@@ -179,12 +185,12 @@ describe("lamportService", () => {
         depositorPk,
         appContractAddress,
       );
-      expect(a.privateKey[0]).not.toEqual(b.privateKey[0]);
+      expect(a.falsePreimages[0]).not.toEqual(b.falsePreimages[0]);
     });
   });
 
-  describe("keypairToHex", () => {
-    it("converts keypair byte arrays to hex strings", async () => {
+  describe("keypairToPublicKey", () => {
+    it("converts keypair hashes to hex strings", async () => {
       const seed = mnemonicToLamportSeed(KNOWN_MNEMONIC);
       const keypair = await deriveLamportKeypair(
         seed,
@@ -192,12 +198,16 @@ describe("lamportService", () => {
         "pk-abc",
         "0x1234",
       );
-      const hex = keypairToHex(keypair);
+      const pubkey = keypairToPublicKey(keypair);
 
-      expect(hex.privateKey).toHaveLength(512);
-      expect(hex.publicKey).toHaveLength(512);
-      hex.privateKey.forEach((h) => expect(h).toMatch(/^[0-9a-f]{32}$/));
-      hex.publicKey.forEach((h) => expect(h).toMatch(/^[0-9a-f]{40}$/));
+      expect(pubkey.false_list).toHaveLength(508);
+      expect(pubkey.true_list).toHaveLength(508);
+      pubkey.false_list.forEach((h: string) =>
+        expect(h).toMatch(/^[0-9a-f]{40}$/),
+      );
+      pubkey.true_list.forEach((h: string) =>
+        expect(h).toMatch(/^[0-9a-f]{40}$/),
+      );
     });
   });
 });

@@ -1,7 +1,7 @@
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import {
   deriveLamportKeypair,
-  keypairToHex,
+  keypairToPublicKey,
   mnemonicToLamportSeed,
 } from "@/services/lamport";
 import { stripHexPrefix } from "@/utils/btc";
@@ -31,13 +31,13 @@ export async function submitLamportPublicKey(
     depositorBtcPubkey,
     appContractAddress,
   );
-  const { publicKey } = keypairToHex(keypair);
+  const lamportPublicKey = keypairToPublicKey(keypair);
 
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
-  await rpcClient.submitDepositorLamportPk({
+  await rpcClient.submitDepositorLamportKey({
     pegin_txid: peginTxid,
     depositor_pk: depositorBtcPubkey,
-    lamport_pk: publicKey,
+    lamport_public_key: lamportPublicKey,
   });
 }

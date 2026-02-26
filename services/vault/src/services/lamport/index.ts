@@ -4,11 +4,15 @@ export {
   generateLamportMnemonic,
   getMnemonicWords,
   isValidMnemonic,
-  keypairToHex,
+  keypairToPublicKey,
   mnemonicToLamportSeed,
   verifyMnemonicWords,
 } from "./lamportService";
-export type { LamportKeypair, VerificationChallenge } from "./lamportService";
+export type {
+  LamportKeypair,
+  LamportPublicKey,
+  VerificationChallenge,
+} from "./lamportService";
 export {
   clearStoredMnemonic,
   hasStoredMnemonic,

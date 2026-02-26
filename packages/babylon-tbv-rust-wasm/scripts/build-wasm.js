@@ -11,9 +11,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration - Update these when btc-vault updates
-const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
+const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vaults.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = 'd0c94b71ac42af25caaa5852b0a2c0f51a013cd5';
+const BTC_VAULT_COMMIT = '';
 const REQUIRED_RUSTC_VERSION = '1.92.0';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
@@ -128,18 +128,21 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Checkout specific commit
-    // Use execFileSync with argument array to avoid shell command injection
-    console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
-    try {
-      execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
-        cwd: REPO_DIR,
-        stdio: 'inherit',
-      });
-    } catch {
-      console.error('Error: Failed to checkout commit');
-      shell.rm('-rf', REPO_DIR);
-      process.exit(1);
+    // Checkout specific commit (or stay on branch HEAD if not specified)
+    if (BTC_VAULT_COMMIT) {
+      console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
+      try {
+        execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
+          cwd: REPO_DIR,
+          stdio: 'inherit',
+        });
+      } catch {
+        console.error('Error: Failed to checkout commit');
+        shell.rm('-rf', REPO_DIR);
+        process.exit(1);
+      }
+    } else {
+      console.log(`Using latest ${BTC_VAULT_BRANCH} branch HEAD...`);
     }
 
     // Build with wasm-pack from vault-new crate

@@ -11,6 +11,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import type { ClaimerSignatures } from "../../../clients/vault-provider-rpc/types";
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
@@ -180,10 +181,7 @@ export function usePayoutSigningState({
 
       // Prepare transactions for signing
       const preparedTransactions = prepareTransactionsForSigning(transactions);
-      let signatures: Record<
-        string,
-        { payout_optimistic_signature: string; payout_signature: string }
-      > = {};
+      let signatures: Record<string, ClaimerSignatures> = {};
 
       // Check if wallet supports batch signing
       const canBatchSign = walletSupportsBatchSigning(btcWalletProvider);

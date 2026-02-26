@@ -72,6 +72,8 @@ export enum DaemonStatus {
   PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
   EXPIRED = "Expired",
+  CLAIM_POSTED = "ClaimPosted",
+  PEGGED_OUT = "PeggedOut",
 }
 
 /**

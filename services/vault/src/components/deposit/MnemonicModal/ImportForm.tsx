@@ -1,5 +1,7 @@
 import { Button, Text } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+
+const WORD_COUNT = 12;
 
 interface ImportFormProps {
   error: string | null;
@@ -14,14 +16,53 @@ export function ImportForm({
   onBack,
   backLabel = "Back",
 }: ImportFormProps) {
-  const [mnemonic, setMnemonic] = useState("");
+  const [words, setWords] = useState<string[]>(Array(WORD_COUNT).fill(""));
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const filledCount = words.filter((w) => w.trim().length > 0).length;
+  const isComplete = filledCount === WORD_COUNT;
+
+  const handleWordChange = useCallback((index: number, value: string) => {
+    const trimmed = value.trim();
+    const pastedWords = trimmed.split(/\s+/).filter(Boolean);
+
+    if (pastedWords.length > 1) {
+      setWords((prev) => {
+        const next = [...prev];
+        for (let i = 0; i < pastedWords.length && index + i < WORD_COUNT; i++) {
+          next[index + i] = pastedWords[i].toLowerCase();
+        }
+        return next;
+      });
+      const focusIndex = Math.min(index + pastedWords.length, WORD_COUNT) - 1;
+      inputRefs.current[focusIndex]?.focus();
+      return;
+    }
+
+    setWords((prev) => {
+      const next = [...prev];
+      next[index] = value.toLowerCase();
+      return next;
+    });
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === " " || e.key === "Tab") {
+        if (e.key === " ") e.preventDefault();
+        if (index < WORD_COUNT - 1) {
+          inputRefs.current[index + 1]?.focus();
+        }
+      } else if (e.key === "Backspace" && words[index] === "" && index > 0) {
+        inputRefs.current[index - 1]?.focus();
+      }
+    },
+    [words],
+  );
 
   const handleSubmit = useCallback(() => {
-    onSubmit(mnemonic);
-  }, [mnemonic, onSubmit]);
-
-  const wordCount = mnemonic.trim().split(/\s+/).filter(Boolean).length;
-  const hasContent = wordCount > 0;
+    onSubmit(words.map((w) => w.trim()).join(" "));
+  }, [words, onSubmit]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -30,22 +71,34 @@ export function ImportForm({
         for this vault.
       </Text>
 
-      <div className="flex flex-col gap-2">
-        <textarea
-          value={mnemonic}
-          onChange={(e) => setMnemonic(e.target.value)}
-          placeholder="Enter your 12-word recovery phrase, separated by spaces..."
-          className="h-32 w-full resize-none rounded-md border border-primary-main/20 bg-transparent px-3 py-2 text-sm text-accent-primary outline-none focus:border-primary-main"
-          autoComplete="off"
-          autoCorrect="off"
-          spellCheck={false}
-          aria-label="12-word recovery phrase"
-        />
-        {hasContent && (
-          <Text variant="body2" className="text-xs text-accent-secondary">
-            {wordCount} / 12 words
-          </Text>
-        )}
+      <div className="grid grid-cols-3 gap-2 rounded-lg bg-secondary-contrast/5 p-4">
+        {words.map((word, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-2 rounded-md bg-secondary-contrast/10 px-3 py-2"
+          >
+            <Text
+              variant="body2"
+              className="min-w-[1.5rem] text-xs text-accent-secondary"
+            >
+              {index + 1}.
+            </Text>
+            <input
+              ref={(el) => {
+                inputRefs.current[index] = el;
+              }}
+              type="text"
+              value={word}
+              onChange={(e) => handleWordChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              className="w-full bg-transparent text-sm font-medium text-accent-primary outline-none"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              aria-label={`Word ${index + 1}`}
+            />
+          </div>
+        ))}
       </div>
 
       {error && (
@@ -54,17 +107,17 @@ export function ImportForm({
         </Text>
       )}
 
-      <div className="flex gap-3">
-        <Button variant="outlined" className="flex-1" onClick={onBack}>
-          {backLabel}
-        </Button>
+      <div className="flex flex-col gap-2">
         <Button
           variant="contained"
-          className="flex-1"
+          className="w-full"
           onClick={handleSubmit}
-          disabled={wordCount !== 12}
+          disabled={!isComplete}
         >
           Continue
+        </Button>
+        <Button variant="outlined" className="w-full" onClick={onBack}>
+          {backLabel}
         </Button>
       </div>
     </div>

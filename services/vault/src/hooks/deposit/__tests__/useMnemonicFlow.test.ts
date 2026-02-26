@@ -34,7 +34,9 @@ import { MnemonicStep, useMnemonicFlow } from "../useMnemonicFlow";
 describe("useMnemonicFlow", () => {
   describe("initial state", () => {
     it("starts in LOADING then transitions to GENERATE when no stored mnemonic", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
 
       expect(result.current.step).toBe(MnemonicStep.LOADING);
 
@@ -47,7 +49,9 @@ describe("useMnemonicFlow", () => {
     it("transitions to UNLOCK when a stored mnemonic exists", async () => {
       vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
 
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
 
       await act(async () => {});
 
@@ -58,7 +62,9 @@ describe("useMnemonicFlow", () => {
 
   describe("startNewMnemonic", () => {
     it("generates a mnemonic and moves to GENERATE step", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -73,7 +79,9 @@ describe("useMnemonicFlow", () => {
 
   describe("startImportMnemonic", () => {
     it("moves to IMPORT step and clears state", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -94,7 +102,9 @@ describe("useMnemonicFlow", () => {
 
   describe("proceedToVerification", () => {
     it("creates a challenge and moves to VERIFY step", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -113,7 +123,9 @@ describe("useMnemonicFlow", () => {
 
   describe("submitVerification", () => {
     it("moves to SET_PASSWORD on correct answers", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -132,7 +144,9 @@ describe("useMnemonicFlow", () => {
     });
 
     it("sets an error on incorrect answers", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -153,7 +167,9 @@ describe("useMnemonicFlow", () => {
 
   describe("submitPassword", () => {
     it("stores mnemonic and moves to COMPLETE on success", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -179,7 +195,9 @@ describe("useMnemonicFlow", () => {
     it("sets an error when storage fails", async () => {
       vi.mocked(storeMnemonic).mockRejectedValueOnce(new Error("fail"));
 
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -205,7 +223,9 @@ describe("useMnemonicFlow", () => {
     it("decrypts and moves to COMPLETE on success", async () => {
       vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
 
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       expect(result.current.step).toBe(MnemonicStep.UNLOCK);
@@ -224,7 +244,9 @@ describe("useMnemonicFlow", () => {
       vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
       vi.mocked(unlockMnemonic).mockRejectedValueOnce(new Error("bad pw"));
 
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       await act(async () => {
@@ -238,7 +260,9 @@ describe("useMnemonicFlow", () => {
 
   describe("submitImportedMnemonic", () => {
     it("moves to SET_PASSWORD with a valid mnemonic", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -255,7 +279,9 @@ describe("useMnemonicFlow", () => {
     });
 
     it("sets an error with an invalid mnemonic", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {
@@ -273,7 +299,9 @@ describe("useMnemonicFlow", () => {
 
   describe("reset", () => {
     it("clears all state back to initial values", async () => {
-      const { result } = renderHook(() => useMnemonicFlow());
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false }),
+      );
       await act(async () => {});
 
       act(() => {

@@ -133,9 +133,7 @@ export function MnemonicModal({
             error={error}
             onSubmit={submitImportedMnemonic}
             onBack={hasStored ? () => reset() : startNewMnemonic}
-            backLabel={
-              hasStored ? "Back" : "I don\u0027t have a recovery phrase"
-            }
+            backLabel={"I don\u0027t have a recovery phrase"}
           />
         )}
       </DialogBody>
