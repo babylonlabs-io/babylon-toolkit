@@ -1,7 +1,7 @@
 /**
  * Type definitions for vault provider RPC API
  *
- * Source: https://github.com/babylonlabs-io/btc-vaults/blob/main/docs/pegin.md
+ * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
 
 import type { LamportPublicKey } from "@/services/lamport";
