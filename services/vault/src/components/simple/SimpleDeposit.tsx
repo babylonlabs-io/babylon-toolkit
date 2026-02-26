@@ -230,7 +230,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
         {renderedStep === DepositPageStep.SIGN && btcWalletProvider && (
           <div className="mx-auto w-full max-w-[520px]">
-            {isSplitDeposit ? (
+            {isSplitDeposit && splitAllocationPlan ? (
               <MultiVaultDepositSignContent
                 vaultAmounts={vaultAmounts}
                 feeRate={feeRate}
@@ -241,7 +241,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 vaultProviderBtcPubkey={selectedProviderBtcPubkey}
                 vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
                 universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                precomputedPlan={splitAllocationPlan ?? undefined}
+                precomputedPlan={splitAllocationPlan}
                 precomputedSplitTxResult={splitTxResult}
                 onSuccess={handleSignSuccess}
                 onClose={onClose}

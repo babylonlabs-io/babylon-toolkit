@@ -23,8 +23,8 @@ interface MultiVaultDepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  precomputedPlan?: AllocationPlan;
-  precomputedSplitTxResult?: SplitTxSignResult | null;
+  precomputedPlan: AllocationPlan;
+  precomputedSplitTxResult: SplitTxSignResult | null;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,

@@ -17,27 +17,23 @@
  * 6-8. Background - sign payouts, verify, broadcast to Bitcoin
  */
 
-import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   createSplitTransaction,
   createSplitTransactionPsbt,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
-import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { depositService } from "@/services/deposit";
-import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
   broadcastPeginWithLocalUtxo,
-  planUtxoAllocation,
   preparePeginFromSplitOutput,
   registerSplitPeginOnChain,
   type AllocationPlan,
@@ -83,10 +79,10 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Pre-computed allocation plan (skips Steps 0-2 if provided) */
-  precomputedPlan?: AllocationPlan;
-  /** Pre-computed split TX result (used with precomputedPlan) */
-  precomputedSplitTxResult?: SplitTxSignResult | null;
+  /** Pre-computed allocation plan (from useSplitTransaction) */
+  precomputedPlan: AllocationPlan;
+  /** Pre-computed split TX result (from useSplitTransaction, null if no split needed) */
+  precomputedSplitTxResult: SplitTxSignResult | null;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
@@ -257,8 +253,8 @@ export function useMultiVaultDepositFlow(
   }, [abort]);
 
   // Hooks
-  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
-    useBtcWalletState();
+  const btcConnector = useChainConnector("BTC");
+  const btcAddress = btcConnector?.connectedWallet?.account?.address;
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
 
   // ============================================================================
@@ -279,79 +275,24 @@ export function useMultiVaultDepositFlow(
       const warnings: string[] = [];
 
       try {
-        let plan: AllocationPlan;
-        let splitTxResult: SplitTxSignResult | null = null;
-        let confirmedBtcAddress: string;
-        let confirmedEthAddress: Address;
+        // Steps 0-2 (validation, planning, split TX) are handled by useSplitTransaction
+        // on the split choice screen. This hook receives the results via precomputedPlan.
+        const plan = precomputedPlan;
+        const splitTxResult = precomputedSplitTxResult;
+        setAllocationPlan(plan);
 
-        if (precomputedPlan) {
-          // =======================================================================
-          // Pre-computed path: Steps 0-2 already done on split choice screen
-          // =======================================================================
-          plan = precomputedPlan;
-          splitTxResult = precomputedSplitTxResult ?? null;
-          setAllocationPlan(plan);
-
-          // Guard: if plan requires a split, the split TX must have been pre-signed
-          if (plan.needsSplit && !splitTxResult) {
-            throw new Error(
-              "Precomputed plan requires split TX but no split result was provided",
-            );
-          }
-
-          // Still need basic address validation
-          if (!btcAddress) throw new Error("BTC wallet not connected");
-          if (!depositorEthAddress) throw new Error("ETH wallet not connected");
-          confirmedBtcAddress = btcAddress;
-          confirmedEthAddress = depositorEthAddress;
-        } else {
-          // =======================================================================
-          // Standard path: Steps 0-2 (validation, planning, split TX)
-          // =======================================================================
-
-          // Step 0: Validation
-          validateMultiVaultDepositInputs({
-            btcAddress,
-            depositorEthAddress,
-            vaultAmounts,
-            selectedProviders,
-            confirmedUTXOs: spendableUTXOs,
-            isUTXOsLoading,
-            utxoError,
-            vaultProviderBtcPubkey,
-            vaultKeeperBtcPubkeys,
-            universalChallengerBtcPubkeys,
-          });
-
-          confirmedBtcAddress = btcAddress!;
-          confirmedEthAddress = depositorEthAddress!;
-
-          // Step 1: Plan UTXO Allocation
-          plan = planUtxoAllocation(
-            spendableUTXOs,
-            vaultAmounts,
-            feeRate,
-            confirmedBtcAddress,
+        // Guard: if plan requires a split, the split TX must have been pre-signed
+        if (plan.needsSplit && !splitTxResult) {
+          throw new Error(
+            "Plan requires split TX but no split result was provided",
           );
-
-          setAllocationPlan(plan);
-
-          // Step 2: Create and Broadcast Split Transaction (if needed)
-          if (plan.needsSplit && plan.splitTransaction) {
-            splitTxResult = await createAndSignSplitTransaction(
-              plan.splitTransaction,
-              btcWalletProvider,
-            );
-
-            try {
-              await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
-            } catch (broadcastError) {
-              throw new Error(
-                `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
-              );
-            }
-          }
         }
+
+        // Basic address validation
+        if (!btcAddress) throw new Error("BTC wallet not connected");
+        if (!depositorEthAddress) throw new Error("ETH wallet not connected");
+        const confirmedBtcAddress = btcAddress;
+        const confirmedEthAddress: Address = depositorEthAddress;
 
         // Extract primary provider (current implementation supports single provider only)
         const primaryProvider = selectedProviders[0] as Address;
@@ -723,9 +664,6 @@ export function useMultiVaultDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       btcAddress,
-      spendableUTXOs,
-      isUTXOsLoading,
-      utxoError,
       vaultKeepers,
       findProvider,
       precomputedPlan,
