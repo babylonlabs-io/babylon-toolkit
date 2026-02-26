@@ -15,9 +15,12 @@ export { useMultiVaultDepositFlow } from "./useMultiVaultDepositFlow";
 export type {
   MultiVaultDepositResult,
   PeginCreationResult,
+  SplitTxSignResult,
   UseMultiVaultDepositFlowParams,
   UseMultiVaultDepositFlowReturn,
 } from "./useMultiVaultDepositFlow";
+
+export { useSplitTransaction } from "./useSplitTransaction";
 
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";
