@@ -1,3 +1,4 @@
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef } from "react";
 import type { Address } from "viem";
 
@@ -12,7 +13,7 @@ import { DepositProgressView } from "./DepositProgressView";
 interface DepositSignContentProps {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: any;
+  btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];

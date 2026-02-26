@@ -1,4 +1,5 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Address } from "viem";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
@@ -13,7 +14,7 @@ const btcConfig = getNetworkConfigBTC();
 interface SplitChoiceContentProps {
   vaultAmounts: bigint[];
   feeRate: number;
-  btcWalletProvider: any;
+  btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
   selectedProviders: string[];
   vaultProviderBtcPubkey: string;

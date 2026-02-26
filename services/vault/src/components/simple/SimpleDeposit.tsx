@@ -210,7 +210,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositPageStep.SPLIT_CHOICE && (
+        {renderedStep === DepositPageStep.SPLIT_CHOICE && btcWalletProvider && (
           <div className="mx-auto w-full max-w-[520px]">
             <SplitChoiceContent
               vaultAmounts={vaultAmounts}
@@ -227,7 +227,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
-        {renderedStep === DepositPageStep.SIGN && (
+        {renderedStep === DepositPageStep.SIGN && btcWalletProvider && (
           <div className="mx-auto w-full max-w-[520px]">
             {isSplitDeposit ? (
               <MultiVaultDepositSignContent

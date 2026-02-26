@@ -5,6 +5,7 @@
  * including wallet state, provider data, and modal flow management.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import type { Address } from "viem";
@@ -32,7 +33,7 @@ export interface UseDepositPageFlowResult {
   feeRate: number;
 
   // Wallet data
-  btcWalletProvider: unknown;
+  btcWalletProvider: BitcoinWallet | null;
   ethAddress: Address | undefined;
 
   // Provider data
