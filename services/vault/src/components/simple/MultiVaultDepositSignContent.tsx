@@ -52,6 +52,7 @@ export function MultiVaultDepositSignContent({
 }: MultiVaultDepositSignContentProps) {
   const {
     executeMultiVaultDeposit,
+    abort,
     currentStep,
     currentVaultIndex,
     processing,
@@ -90,6 +91,11 @@ export function MultiVaultDepositSignContent({
 
   useRunOnce(handleStart);
 
+  const handleClose = useCallback(() => {
+    abort();
+    onClose();
+  }, [abort, onClose]);
+
   // Derived state
   const isComplete = currentStep === DepositFlowStep.COMPLETED;
   const canClose = canCloseMultiVaultModal(currentStep, error, isWaiting);
@@ -107,7 +113,7 @@ export function MultiVaultDepositSignContent({
       isProcessing={isProcessing}
       canClose={canClose}
       canContinueInBackground={canContinueInBackground}
-      onClose={onClose}
+      onClose={handleClose}
       successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
     />
   );

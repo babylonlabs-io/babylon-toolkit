@@ -27,7 +27,7 @@ import {
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
@@ -93,6 +93,8 @@ export interface UseMultiVaultDepositFlowParams {
 export interface UseMultiVaultDepositFlowReturn {
   /** Execute the multi-vault deposit flow */
   executeMultiVaultDeposit: () => Promise<MultiVaultDepositResult | null>;
+  /** Abort the currently running deposit flow */
+  abort: () => void;
   /** Current step in the deposit flow */
   currentStep: DepositFlowStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
@@ -242,6 +244,19 @@ export function useMultiVaultDepositFlow(
     null,
   );
 
+  // Abort controller for cancelling the flow
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const abort = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
+  // Abort any running flow on unmount so async work doesn't leak
+  useEffect(() => {
+    return () => abort();
+  }, [abort]);
+
   // Hooks
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -258,6 +273,10 @@ export function useMultiVaultDepositFlow(
 
   const executeMultiVaultDeposit =
     useCallback(async (): Promise<MultiVaultDepositResult | null> => {
+      // Create a new AbortController for this flow execution
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
       setProcessing(true);
       setError(null);
       setCurrentStep(DepositFlowStep.SIGN_POP);
@@ -557,6 +576,7 @@ export function useMultiVaultDepositFlow(
                     btcPubKey,
                   }),
                 ),
+                signal,
               });
 
             setIsWaiting(false);
@@ -620,7 +640,7 @@ export function useMultiVaultDepositFlow(
         setIsWaiting(true);
         await Promise.all(
           successfulPegins.map((r) =>
-            waitForContractVerification({ btcTxid: r.vaultId }),
+            waitForContractVerification({ btcTxid: r.vaultId, signal }),
           ),
         );
 
@@ -683,13 +703,20 @@ export function useMultiVaultDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setError(errorMsg);
+        // Don't show error if flow was aborted (user intentionally closed modal)
+        const isAbortError =
+          err instanceof Error && err.message.includes("aborted");
+
+        if (!isAbortError) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          setError(errorMsg);
+        }
         return null;
       } finally {
         setProcessing(false);
         setIsWaiting(false);
         setCurrentVaultIndex(null);
+        abortControllerRef.current = null;
       }
     }, [
       vaultAmounts,
@@ -713,6 +740,7 @@ export function useMultiVaultDepositFlow(
 
   return {
     executeMultiVaultDeposit,
+    abort,
     currentStep,
     currentVaultIndex,
     processing,
