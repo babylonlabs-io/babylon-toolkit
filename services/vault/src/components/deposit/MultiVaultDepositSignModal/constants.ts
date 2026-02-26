@@ -7,6 +7,11 @@ export { canCloseModal as canCloseMultiVaultModal, DepositFlowStep };
 /**
  * 6-step labels for the multi-vault deposit stepper.
  * Steps 1-4 have per-vault labels; steps 5-6 are shared.
+ *
+ * Hardcoded for exactly 2 vaults — this is by design. The partial-liquidation
+ * feature always splits into 2 vaults so at most half the BTC is exposed to
+ * a single liquidation event. The 2-vault cap is enforced in
+ * validateVaultAmounts() and utxoAllocationService.
  */
 export const MULTI_VAULT_STEP_LABELS = [
   "Sign proof of possession for pegin 1/2",
