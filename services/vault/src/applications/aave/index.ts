@@ -1,7 +1,4 @@
-import {
-  AAVE_FUNCTION_NAMES,
-  AaveIntegrationControllerABI,
-} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { AaveIntegrationControllerABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
@@ -22,9 +19,7 @@ export const aaveApp: ApplicationRegistration = {
   Routes: AaveRoutes,
   contracts: {
     abi: AaveIntegrationControllerABI,
-    functionNames: {
-      redeem: AAVE_FUNCTION_NAMES.REDEEM,
-    },
+    functionNames: {},
   },
 };
 

@@ -16,10 +16,10 @@ const GET_VAULT_PROVIDERS = gql`
         id
         btcPubKey
         applicationController
-        depositAmount
-        status
+        name
+        rpcUrl
+        grpcUrl
         registeredAt
-        activatedAt
         blockNumber
         transactionHash
       }
@@ -33,10 +33,10 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
       id
       btcPubKey
       applicationController
-      depositAmount
-      status
+      name
+      rpcUrl
+      grpcUrl
       registeredAt
-      activatedAt
       blockNumber
       transactionHash
     }
@@ -44,16 +44,16 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
 `;
 
 /**
- * Vault provider data shape
+ * Vault provider data shape (matches indexer vaultProvider entity)
  */
 export interface VaultProvider {
   id: string;
   btcPubKey: string;
   applicationController: string;
-  depositAmount: string;
-  status: string;
+  name: string | null;
+  rpcUrl: string | null;
+  grpcUrl: string | null;
   registeredAt: string;
-  activatedAt: string | null;
   blockNumber: string;
   transactionHash: string;
 }

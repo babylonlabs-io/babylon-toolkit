@@ -23,7 +23,7 @@ import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import type { Asset } from "../../types";
 import { AssetSelectionModal } from "../AssetSelectionModal";
-import { CollateralModal, type CollateralMode } from "../CollateralModal";
+import { CollateralModal } from "../CollateralModal";
 
 import { OverviewCard } from "./components/OverviewCard";
 import { PositionCard } from "./components/PositionCard";
@@ -43,8 +43,6 @@ function AaveOverviewContent() {
   );
   const [isBorrowFlowOpen, setIsBorrowFlowOpen] = useState(false);
   const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
-  const [collateralModalMode, setCollateralModalMode] =
-    useState<CollateralMode>("add");
 
   // Wallet connection
   const { address } = useETHWallet();
@@ -58,13 +56,11 @@ function AaveOverviewContent() {
     vaults,
     deposits,
     activities,
-    hasPendingAdd,
     hasPendingWithdraw,
     borrowedAssets,
     hasLoans,
     selectableBorrowedAssets,
     hasCollateral,
-    hasAvailableVaults,
     triggerRedeem,
     onRedeemSuccess,
   } = useAaveOverviewState(address);
@@ -90,13 +86,7 @@ function AaveOverviewContent() {
   };
 
   // Modal handlers
-  const handleAdd = () => {
-    setCollateralModalMode("add");
-    setIsCollateralModalOpen(true);
-  };
-
   const handleWithdraw = () => {
-    setCollateralModalMode("withdraw");
     setIsCollateralModalOpen(true);
   };
 
@@ -160,10 +150,7 @@ function AaveOverviewContent() {
           collateralAmount={collateralAmountFormatted}
           collateralUsdValue={collateralValueFormatted}
           hasCollateral={hasCollateral}
-          hasAvailableVaults={hasAvailableVaults}
-          isPendingAdd={hasPendingAdd}
           isPendingWithdraw={hasPendingWithdraw}
-          onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           hasLoans={hasLoans}
           borrowedAssets={borrowedAssets}
@@ -193,11 +180,10 @@ function AaveOverviewContent() {
         }
       />
 
-      {/* Collateral Modal (Add/Withdraw) */}
+      {/* Collateral Withdraw Modal */}
       <CollateralModal
         isOpen={isCollateralModalOpen}
         onClose={() => setIsCollateralModalOpen(false)}
-        mode={collateralModalMode}
       />
 
       {/* Redeem Modals - manages its own state internally */}

@@ -39,6 +39,8 @@ export enum ContractStatus {
   INVALID = 5,
   /** Status 6: Depositor has withdrawn their BTC (redemption complete) */
   DEPOSITOR_WITHDRAWN = 6,
+  /** Status 7 (indexer-only): Vault expired due to AckTimeout or ProofTimeout */
+  EXPIRED = 7,
 }
 
 /**
@@ -126,6 +128,7 @@ export const PEGIN_DISPLAY_LABELS = {
   REDEEM_IN_PROGRESS: "Redeem in Progress",
   REDEEMED: "Redeemed",
   LIQUIDATED: "Liquidated",
+  EXPIRED: "Expired",
   INVALID: "Invalid",
   UNKNOWN: "Unknown",
 } as const;
@@ -358,6 +361,19 @@ export function getPeginState(
     };
   }
 
+  // Contract Status 7 (indexer-only): Expired (AckTimeout or ProofTimeout)
+  if (contractStatus === ContractStatus.EXPIRED) {
+    return {
+      contractStatus,
+      localStatus,
+      displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+      displayVariant: "warning",
+      availableActions: [PeginAction.NONE],
+      message:
+        "This vault has expired. The peg-in was not completed within the required timeframe.",
+    };
+  }
+
   // Contract Status 5: Invalid (UTXOs spent in a different transaction)
   if (contractStatus === ContractStatus.INVALID) {
     return {
@@ -489,7 +505,8 @@ export function shouldRemoveFromLocalStorage(
     contractStatus === ContractStatus.REDEEMED ||
     contractStatus === ContractStatus.LIQUIDATED ||
     contractStatus === ContractStatus.INVALID ||
-    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN
+    contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN ||
+    contractStatus === ContractStatus.EXPIRED
   ) {
     return true;
   }

@@ -12,7 +12,7 @@ import { hasDebtFromPosition } from "../utils";
 
 import {
   fetchAaveActivePositionsWithCollaterals,
-  fetchAavePositionById,
+  fetchAavePositionByDepositor,
   fetchAavePositionCollaterals,
   type AavePosition,
   type AavePositionCollateral,
@@ -67,6 +67,11 @@ export interface GetUserPositionsOptions {
    * This avoids a separate RPC call when both position and debt data are needed.
    */
   borrowableReserveIds?: bigint[];
+  /**
+   * vBTC reserve ID on Core Spoke (from config: btcVaultCoreVbtcReserveId).
+   * Required for fetching collateral position data from Spoke.
+   */
+  vbtcReserveId: bigint;
 }
 
 /**
@@ -89,15 +94,15 @@ export interface GetUserPositionsOptions {
  *
  * @param depositor - User's Ethereum address
  * @param spokeAddress - Spoke contract address (from config context)
- * @param options - Optional parameters including borrowableReserveIds for debt positions
+ * @param options - Parameters including vbtcReserveId and optional borrowableReserveIds
  * @returns Array of positions with live data (0 or 1 position)
  */
 export async function getUserPositionsWithLiveData(
   depositor: string,
   spokeAddress: Address,
-  options: GetUserPositionsOptions = {},
+  options: GetUserPositionsOptions,
 ): Promise<AavePositionWithLiveData[]> {
-  const { borrowableReserveIds } = options;
+  const { borrowableReserveIds, vbtcReserveId } = options;
 
   // Fetch active positions with collaterals in a single GraphQL call
   const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
@@ -112,7 +117,7 @@ export async function getUserPositionsWithLiveData(
 
   // Fetch live data from Spoke in parallel
   const [spokePosition, accountData] = await Promise.all([
-    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserPosition(spokeAddress, vbtcReserveId, proxyAddress),
     AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
   ]);
 
@@ -202,20 +207,22 @@ async function fetchDebtPositionsForReserves(
 }
 
 /**
- * Get a single position with live data by position ID
+ * Get a single position with live data by depositor address
  *
- * @param positionId - Position ID (bytes32)
+ * @param depositorAddress - User's Ethereum address
  * @param spokeAddress - Spoke contract address (from config context)
+ * @param vbtcReserveId - vBTC reserve ID (from config)
  * @returns Position with live data or null if not found
  */
 export async function getPositionWithLiveData(
-  positionId: string,
+  depositorAddress: string,
   spokeAddress: Address,
+  vbtcReserveId: bigint,
 ): Promise<AavePositionWithLiveData | null> {
   // Fetch position and collaterals from indexer in parallel
   const [position, collaterals] = await Promise.all([
-    fetchAavePositionById(positionId),
-    fetchAavePositionCollaterals(positionId),
+    fetchAavePositionByDepositor(depositorAddress),
+    fetchAavePositionCollaterals(depositorAddress),
   ]);
 
   if (!position) {
@@ -226,7 +233,7 @@ export async function getPositionWithLiveData(
 
   // Fetch live data from Spoke in parallel
   const [spokePosition, accountData] = await Promise.all([
-    AaveSpoke.getUserPosition(spokeAddress, position.reserveId, proxyAddress),
+    AaveSpoke.getUserPosition(spokeAddress, vbtcReserveId, proxyAddress),
     AaveSpoke.getUserAccountData(spokeAddress, proxyAddress),
   ]);
 
@@ -248,34 +255,23 @@ export async function getPositionWithLiveData(
  *
  * Position can only withdraw if it has no debt.
  *
- * @param positionId - Position ID
+ * @param depositorAddress - User's Ethereum address
  * @param spokeAddress - Spoke contract address (from config context)
+ * @param vbtcReserveId - vBTC reserve ID (from config)
  * @returns true if position can withdraw
  */
 export async function canWithdrawCollateral(
-  positionId: string,
+  depositorAddress: string,
   spokeAddress: Address,
+  vbtcReserveId: bigint,
 ): Promise<boolean> {
-  const position = await getPositionWithLiveData(positionId, spokeAddress);
+  const position = await getPositionWithLiveData(
+    depositorAddress,
+    spokeAddress,
+    vbtcReserveId,
+  );
   if (!position) {
     return false;
   }
   return !position.liveData.hasDebt;
-}
-
-/**
- * Get position for a specific reserve
- *
- * @param depositor - User's Ethereum address
- * @param reserveId - Reserve ID
- * @param spokeAddress - Spoke contract address (from config context)
- * @returns Position with live data or null if not found
- */
-export async function getUserPositionForReserve(
-  depositor: string,
-  reserveId: bigint,
-  spokeAddress: Address,
-): Promise<AavePositionWithLiveData | null> {
-  const positions = await getUserPositionsWithLiveData(depositor, spokeAddress);
-  return positions.find((p) => p.reserveId === reserveId) || null;
 }

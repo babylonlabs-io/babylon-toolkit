@@ -31,7 +31,7 @@ export function toCollateralVaultEntries(
   collaterals: AavePositionCollateral[],
 ): CollateralVaultEntry[] {
   return collaterals.filter(isActiveCollateral).map((c) => ({
-    id: c.id,
+    id: `${c.depositorAddress}-${c.vaultId}`,
     vaultId: c.vaultId,
     amountBtc: satoshiToBtcNumber(c.amount),
     addedAt: Number(c.addedAt),

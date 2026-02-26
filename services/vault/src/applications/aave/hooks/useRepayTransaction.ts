@@ -7,7 +7,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Address } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
@@ -23,8 +23,6 @@ import { repayFull, repayPartial } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
 export interface UseRepayTransactionProps {
-  /** User's position ID (from useAaveUserPosition) */
-  positionId: string | undefined;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
 }
@@ -52,7 +50,6 @@ export interface UseRepayTransactionResult {
  * Handles React state, error handling, and cache invalidation.
  */
 export function useRepayTransaction({
-  positionId,
   proxyContract,
 }: UseRepayTransactionProps): UseRepayTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -87,15 +84,12 @@ export function useRepayTransaction({
         );
       }
 
-      if (!positionId) {
-        throw new Error("No position found. Cannot repay without a position.");
-      }
-
       if (!config?.controllerAddress || !config?.btcVaultCoreSpokeAddress) {
         throw new Error("Aave config not available");
       }
 
       // Call appropriate service based on repayment type
+      // The borrower address is resolved from the connected wallet (self-repay)
       if (isFullRepayment) {
         if (!proxyContract) {
           throw new Error(
@@ -107,7 +101,6 @@ export function useRepayTransaction({
           walletClient,
           chain,
           config.controllerAddress as Address,
-          positionId as Hex,
           reserve.reserveId,
           reserve.token.address,
           config.btcVaultCoreSpokeAddress as Address,
@@ -118,7 +111,6 @@ export function useRepayTransaction({
           walletClient,
           chain,
           config.controllerAddress as Address,
-          positionId as Hex,
           reserve.reserveId,
           reserve.token.address,
           parseUnits(repayAmount.toString(), reserve.token.decimals),

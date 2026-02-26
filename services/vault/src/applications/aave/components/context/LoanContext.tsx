@@ -25,8 +25,6 @@ export interface LoanContextValue {
   selectedReserve: AaveReserveConfig;
   /** Asset display config (icon, name, symbol) */
   assetConfig: Asset;
-  /** User's position ID (for transactions) */
-  positionId: string | undefined;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
   /** Callback when borrow succeeds */

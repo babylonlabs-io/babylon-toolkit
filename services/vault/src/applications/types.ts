@@ -15,8 +15,8 @@ export interface ApplicationMetadata {
  * Contract function names for application interactions
  */
 export interface ApplicationFunctionNames {
-  /** Function to redeem vault back to depositor */
-  redeem: string;
+  /** Function to redeem vault back to depositor (optional: not all contracts have per-vault redeem) */
+  redeem?: string;
 }
 
 /**

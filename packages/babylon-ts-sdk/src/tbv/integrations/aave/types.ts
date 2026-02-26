@@ -15,14 +15,10 @@ export interface DepositorStruct {
 }
 
 /**
- * Aave position structure from the contract
+ * Aave position structure from the contract.
+ * The controller resolves the user's proxy and vaults from their address.
  */
 export interface AaveMarketPosition {
-  depositor: {
-    ethAddress: Address;
-    btcPubKey: Hex;
-  };
-  reserveId: bigint;
   proxyContract: Address;
   vaultIds: Hex[];
 }
@@ -32,7 +28,7 @@ export interface AaveMarketPosition {
  * Contains aggregated position health data calculated by Aave using on-chain oracle prices.
  */
 export interface AaveSpokeUserAccountData {
-  /** Risk premium in BPS */
+  /** Risk premium */
   riskPremium: bigint;
   /** Weighted average collateral factor in WAD (1e18 = 100%) */
   avgCollateralFactor: bigint;

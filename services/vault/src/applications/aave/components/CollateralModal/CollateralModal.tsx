@@ -1,10 +1,7 @@
 /**
  * CollateralModal Component
- * Modal for adding or withdrawing collateral from an Aave position
- *
- * Supports two modes:
- * - "add": Add vaults as collateral to a position
- * - "withdraw": Withdraw collateral back to vaults (requires zero debt)
+ * Modal for withdrawing collateral from an Aave position.
+ * Requires zero debt - position must have no outstanding borrows.
  */
 
 import {
@@ -28,43 +25,14 @@ import {
   MIN_SLIDER_MAX,
 } from "../../constants";
 
-import { useAddCollateralModal, useWithdrawCollateralModal } from "./hooks";
-
-export type CollateralMode = "add" | "withdraw";
+import { useWithdrawCollateralModal } from "./hooks";
 
 export interface CollateralModalProps {
   isOpen: boolean;
   onClose: () => void;
-  mode: CollateralMode;
 }
 
-const MODE_CONFIG = {
-  add: {
-    title: "Collateralize",
-    description: "Enter the amount of BTC you want to collateralize.",
-    buttonText: "Deposit",
-    processingText: "Processing...",
-  },
-  withdraw: {
-    title: "Withdraw Collateral",
-    description:
-      "Enter the amount of BTC you want to withdraw from collateral.",
-    buttonText: "Withdraw",
-    processingText: "Processing...",
-  },
-} as const;
-
-export function CollateralModal({
-  isOpen,
-  onClose,
-  mode,
-}: CollateralModalProps) {
-  const addCollateralHook = useAddCollateralModal();
-  const withdrawCollateralHook = useWithdrawCollateralModal();
-
-  const hook = mode === "add" ? addCollateralHook : withdrawCollateralHook;
-  const config = MODE_CONFIG[mode];
-
+export function CollateralModal({ isOpen, onClose }: CollateralModalProps) {
   const {
     collateralAmount,
     setCollateralAmount,
@@ -76,7 +44,7 @@ export function CollateralModal({
     isProcessing,
     isDisabled,
     errorMessage,
-  } = hook;
+  } = useWithdrawCollateralModal();
 
   // Fetch price metadata for warnings
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
@@ -93,12 +61,14 @@ export function CollateralModal({
   return (
     <ResponsiveDialog open={isOpen} onClose={onClose}>
       <DialogHeader
-        title={config.title}
+        title="Withdraw Collateral"
         onClose={onClose}
         className="text-accent-primary"
       />
       <DialogBody className="space-y-6 pb-6">
-        <p className="text-base text-accent-secondary">{config.description}</p>
+        <p className="text-base text-accent-secondary">
+          Enter the amount of BTC you want to withdraw from collateral.
+        </p>
 
         {/* Price warning banner */}
         {(hasStalePrices || hasPriceFetchError) && (
@@ -157,9 +127,7 @@ export function CollateralModal({
           disabled={isDisabled}
           className="w-full"
         >
-          {isProcessing
-            ? config.processingText
-            : (errorMessage ?? config.buttonText)}
+          {isProcessing ? "Processing..." : (errorMessage ?? "Withdraw")}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

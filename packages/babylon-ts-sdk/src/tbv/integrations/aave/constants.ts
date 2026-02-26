@@ -10,11 +10,7 @@
  * Centralized constants for contract interactions
  */
 export const AAVE_FUNCTION_NAMES = {
-  /** Redeem vault back to vault provider (depositorRedeem) */
-  REDEEM: "depositorRedeem",
-  /** Add collateral to Core Spoke position */
-  ADD_COLLATERAL: "addCollateralToCorePosition",
-  /** Withdraw all collateral from Core Spoke position */
+  /** Withdraw all collateral from Core Spoke position (also redeems vaults) */
   WITHDRAW_ALL_COLLATERAL: "withdrawAllCollateralFromCorePosition",
   /** Borrow from Core Spoke position */
   BORROW: "borrowFromCorePosition",
@@ -88,4 +84,4 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
  * between fetching debt and transaction execution.
  * 0.01% buffer (1 basis point) - the contract only takes what's owed.
  */
-export const FULL_REPAY_BUFFER_BPS = 10000n; // Divisor for 0.01% (1/10000)
+export const FULL_REPAY_BUFFER_DIVISOR = 10000n; // 1/10000 = 0.01% buffer

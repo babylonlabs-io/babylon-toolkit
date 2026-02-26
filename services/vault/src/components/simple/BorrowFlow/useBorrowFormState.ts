@@ -74,10 +74,9 @@ export function useBorrowFormState({
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
-    positionId,
   } = useLoanContext();
 
-  const { executeBorrow, isProcessing } = useBorrowTransaction({ positionId });
+  const { executeBorrow, isProcessing } = useBorrowTransaction();
 
   const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
     collateralValueUsd,

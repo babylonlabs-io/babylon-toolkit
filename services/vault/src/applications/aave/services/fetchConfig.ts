@@ -70,6 +70,12 @@ export interface AaveAppConfig {
   borrowableReserves: AaveReserveConfig[];
 }
 
+/**
+ * Aave config singleton ID.
+ * The indexer stores one global config record with this ID.
+ */
+const AAVE_CONFIG_ID = 1;
+
 /** GraphQL reserve item shape */
 interface GraphQLReserveItem {
   id: string;
@@ -115,7 +121,7 @@ interface GraphQLAaveAppConfigResponse {
  */
 const GET_AAVE_APP_CONFIG = gql`
   query GetAaveAppConfig {
-    aaveConfig(id: 1) {
+    aaveConfig(id: ${AAVE_CONFIG_ID}) {
       id
       controllerAddress
       vaultBtcAddress
@@ -254,7 +260,7 @@ interface GraphQLAaveConfigResponse {
 
 const GET_AAVE_CONFIG = gql`
   query GetAaveConfig {
-    aaveConfig(id: 1) {
+    aaveConfig(id: ${AAVE_CONFIG_ID}) {
       id
       controllerAddress
       vaultBtcAddress

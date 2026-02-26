@@ -5,7 +5,6 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import type { Hex } from "viem";
 import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
@@ -18,11 +17,6 @@ import {
 
 import { borrow } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
-
-export interface UseBorrowTransactionProps {
-  /** User's position ID (from useAaveUserPosition) */
-  positionId: string | undefined;
-}
 
 export interface UseBorrowTransactionResult {
   /** Execute the borrow transaction */
@@ -39,12 +33,9 @@ export interface UseBorrowTransactionResult {
  *
  * Returns the transaction handler and processing state.
  * Handles wallet validation, error mapping, and cache invalidation.
- *
- * @param props.positionId - The user's position ID from useAaveUserPosition
+ * The controller resolves the borrower's proxy automatically from msg.sender.
  */
-export function useBorrowTransaction({
-  positionId,
-}: UseBorrowTransactionProps): UseBorrowTransactionResult {
+export function useBorrowTransaction(): UseBorrowTransactionResult {
   const [isProcessing, setIsProcessing] = useState(false);
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
@@ -75,12 +66,6 @@ export function useBorrowTransaction({
         );
       }
 
-      if (!positionId) {
-        throw new Error(
-          "No position found. Please add collateral before borrowing.",
-        );
-      }
-
       // Convert borrow amount to token decimals
       const borrowAmountBigInt = parseUnits(
         borrowAmount.toString(),
@@ -88,13 +73,8 @@ export function useBorrowTransaction({
       );
 
       // Execute the borrow transaction
-      await borrow(
-        walletClient,
-        chain,
-        positionId as Hex,
-        reserve.reserveId,
-        borrowAmountBigInt,
-      );
+      // Controller resolves borrower's proxy from msg.sender
+      await borrow(walletClient, chain, reserve.reserveId, borrowAmountBigInt);
 
       // Invalidate position queries to refresh data
       await queryClient.invalidateQueries({

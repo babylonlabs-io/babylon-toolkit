@@ -36,7 +36,6 @@ export function Repay() {
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
-    positionId,
     proxyContract,
     onRepaySuccess,
   } = useLoanContext();
@@ -51,7 +50,6 @@ export function Repay() {
   );
 
   const { executeRepay, isProcessing } = useRepayTransaction({
-    positionId,
     proxyContract,
   });
 

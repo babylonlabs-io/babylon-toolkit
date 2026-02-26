@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Button, Card, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Loader } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import { DepositButton, MenuButton } from "@/components/shared";
@@ -21,10 +21,7 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   hasDebt: boolean;
-  hasAvailableVaults: boolean;
-  isPendingAdd: boolean;
   isPendingWithdraw: boolean;
-  onAdd: () => void;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
@@ -35,10 +32,7 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   hasDebt,
-  hasAvailableVaults,
-  isPendingAdd,
   isPendingWithdraw,
-  onAdd,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
@@ -48,8 +42,6 @@ export function CollateralSection({
     onWithdraw();
   }, [onWithdraw]);
 
-  const isPending = isPendingAdd || isPendingWithdraw;
-  const isAddDisabled = !isConnected || !hasAvailableVaults || isPending;
   const canWithdraw = !hasDebt;
 
   return (
@@ -64,30 +56,20 @@ export function CollateralSection({
             variant="outlined"
             size="medium"
             onClick={onDeposit}
-            disabled={!isConnected || isPending}
+            disabled={!isConnected || isPendingWithdraw}
             className="rounded-full"
           >
             Deposit
           </DepositButton>
-          <Button
-            variant="outlined"
-            color="primary"
-            size="medium"
-            onClick={onAdd}
-            disabled={isAddDisabled}
-            className="rounded-full"
-          >
-            Add
-          </Button>
         </div>
       </div>
 
-      {isPending ? (
+      {isPendingWithdraw ? (
         <Card variant="filled" className="w-full">
           <div className="flex items-center gap-3 py-4">
             <Loader size={20} />
             <span className="text-base text-accent-primary">
-              {isPendingAdd ? "Pending Add" : "Pending Withdrawal"}
+              Pending Withdrawal
             </span>
           </div>
         </Card>
@@ -144,7 +126,7 @@ export function CollateralSection({
                   variant="outlined"
                   size="medium"
                   onClick={onDeposit}
-                  disabled={isPending}
+                  disabled={isPendingWithdraw}
                   className="rounded-full"
                 >
                   Deposit {btcConfig.coinSymbol}

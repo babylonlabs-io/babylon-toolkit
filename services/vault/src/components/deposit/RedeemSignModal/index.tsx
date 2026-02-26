@@ -110,6 +110,12 @@ export function RedeemCollateralSignModal({
 
       const { abi: contractABI, functionNames } = app.contracts;
 
+      if (!functionNames.redeem) {
+        throw new Error(
+          `Application ${app.metadata.name} does not support per-vault redemption`,
+        );
+      }
+
       const results = await redeemVaults(
         ethWalletClient as WalletClient,
         ethChain,

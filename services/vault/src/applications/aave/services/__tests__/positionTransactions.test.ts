@@ -4,39 +4,23 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Buffer for full repayment (0.01% = 1/10000)
-// Matches FULL_REPAY_BUFFER_BPS from @babylonlabs-io/ts-sdk
-const FULL_REPAY_BUFFER_BPS = 10000n;
-
 // Hoist mock functions so they can be used in vi.mock factories
 const {
   mockApproveERC20,
   mockGetERC20Allowance,
   mockGetERC20Balance,
-  mockGetReserveById,
-  mockGetVbtcReserveId,
   mockGetUserTotalDebt,
-  mockHasDebt,
-  mockAddCollateralToCorePosition,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
   mockWithdrawAllCollateralFromCorePosition,
-  mockDepositorRedeem,
-  mockFetchAaveConfig,
 } = vi.hoisted(() => ({
   mockApproveERC20: vi.fn(),
   mockGetERC20Allowance: vi.fn(),
   mockGetERC20Balance: vi.fn(),
-  mockGetReserveById: vi.fn(),
-  mockGetVbtcReserveId: vi.fn(),
   mockGetUserTotalDebt: vi.fn(),
-  mockHasDebt: vi.fn(),
-  mockAddCollateralToCorePosition: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
   mockWithdrawAllCollateralFromCorePosition: vi.fn(),
-  mockDepositorRedeem: vi.fn(),
-  mockFetchAaveConfig: vi.fn(),
 }));
 
 // Mock ERC20 module
@@ -48,25 +32,16 @@ vi.mock("../../../../clients/eth-contract", () => ({
   },
 }));
 
-// Mock reserve service
-vi.mock("../reserveService", () => ({
-  getReserveById: mockGetReserveById,
-  getVbtcReserveId: mockGetVbtcReserveId,
-}));
-
 // Mock Aave clients
 vi.mock("../../clients", () => ({
   AaveControllerTx: {
-    addCollateralToCorePosition: mockAddCollateralToCorePosition,
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
     withdrawAllCollateralFromCorePosition:
       mockWithdrawAllCollateralFromCorePosition,
-    depositorRedeem: mockDepositorRedeem,
   },
   AaveSpoke: {
     getUserTotalDebt: mockGetUserTotalDebt,
-    hasDebt: mockHasDebt,
   },
 }));
 
@@ -75,15 +50,9 @@ vi.mock("../../config", () => ({
   getAaveControllerAddress: vi.fn(() => "0xcontroller"),
 }));
 
-vi.mock("../fetchConfig", () => ({
-  fetchAaveConfig: mockFetchAaveConfig,
-}));
-
+import { FULL_REPAY_BUFFER_DIVISOR } from "../../constants";
 import {
-  addCollateral,
   borrow,
-  canWithdraw,
-  redeemVault,
   repay,
   repayFull,
   repayPartial,
@@ -97,15 +66,6 @@ describe("positionTransactions", () => {
 
   const mockChain = { id: 1 } as any;
 
-  const mockReserve = {
-    id: 1n,
-    token: {
-      address: "0xtoken",
-      decimals: 18,
-      symbol: "USDC",
-    },
-  };
-
   const mockTxResult = {
     transactionHash: "0xhash",
     receipt: { status: "success" },
@@ -113,43 +73,10 @@ describe("positionTransactions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetReserveById.mockResolvedValue(mockReserve);
-    mockGetVbtcReserveId.mockResolvedValue(1n);
     mockApproveERC20.mockResolvedValue(mockTxResult);
-    mockAddCollateralToCorePosition.mockResolvedValue(mockTxResult);
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
     mockWithdrawAllCollateralFromCorePosition.mockResolvedValue(mockTxResult);
-    mockDepositorRedeem.mockResolvedValue(mockTxResult);
-    mockFetchAaveConfig.mockResolvedValue({
-      btcVaultCoreSpokeAddress: "0xspoke",
-    });
-  });
-
-  // ============================================================================
-  // addCollateral
-  // ============================================================================
-  describe("addCollateral", () => {
-    it("should add collateral with vault IDs", async () => {
-      const vaultIds = ["0xvault1", "0xvault2"] as any[];
-
-      const result = await addCollateral(mockWalletClient, mockChain, vaultIds);
-
-      expect(mockAddCollateralToCorePosition).toHaveBeenCalledWith(
-        mockWalletClient,
-        mockChain,
-        "0xcontroller",
-        vaultIds,
-        1n, // reserveId from mockGetVbtcReserveId
-      );
-      expect(result.transactionHash).toBe("0xhash");
-    });
-
-    it("should fetch vBTC reserve ID", async () => {
-      await addCollateral(mockWalletClient, mockChain, ["0xvault1"] as any[]);
-
-      expect(mockGetVbtcReserveId).toHaveBeenCalled();
-    });
   });
 
   // ============================================================================
@@ -157,14 +84,12 @@ describe("positionTransactions", () => {
   // ============================================================================
   describe("borrow", () => {
     it("should borrow from position", async () => {
-      const positionId = "0xposition" as any;
       const debtReserveId = 2n;
       const amount = 1000000n;
 
       const result = await borrow(
         mockWalletClient,
         mockChain,
-        positionId,
         debtReserveId,
         amount,
       );
@@ -173,7 +98,6 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller",
-        positionId,
         debtReserveId,
         amount,
         "0xuser",
@@ -185,7 +109,7 @@ describe("positionTransactions", () => {
       const noAccountWallet = { account: undefined } as any;
 
       await expect(
-        borrow(noAccountWallet, mockChain, "0xposition" as any, 1n, 1000n),
+        borrow(noAccountWallet, mockChain, 1n, 1000n),
       ).rejects.toThrow("Wallet address not available");
     });
   });
@@ -195,7 +119,7 @@ describe("positionTransactions", () => {
   // ============================================================================
   describe("repay", () => {
     it("should repay debt to position", async () => {
-      const positionId = "0xposition" as any;
+      const borrower = "0xuser" as any;
       const debtReserveId = 2n;
       const amount = 1000000n;
 
@@ -203,7 +127,7 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        positionId,
+        borrower,
         debtReserveId,
         amount,
       );
@@ -212,7 +136,7 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller",
-        positionId,
+        borrower,
         debtReserveId,
         amount,
       );
@@ -225,7 +149,7 @@ describe("positionTransactions", () => {
           mockWalletClient,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
+          "0xuser" as any,
           1n,
           0n,
         ),
@@ -238,7 +162,7 @@ describe("positionTransactions", () => {
           mockWalletClient,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
+          "0xuser" as any,
           1n,
           -100n,
         ),
@@ -252,6 +176,7 @@ describe("positionTransactions", () => {
   describe("repayPartial", () => {
     beforeEach(() => {
       mockGetERC20Allowance.mockResolvedValue(0n);
+      mockGetERC20Balance.mockResolvedValue(2000000n);
     });
 
     it("should approve and repay when allowance insufficient", async () => {
@@ -261,7 +186,6 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        "0xposition" as any,
         1n,
         "0xtoken" as any,
         amount,
@@ -283,7 +207,7 @@ describe("positionTransactions", () => {
         amount,
       );
 
-      // Should repay
+      // Should repay with borrower = user address
       expect(mockRepayToCorePosition).toHaveBeenCalled();
     });
 
@@ -295,7 +219,6 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        "0xposition" as any,
         1n,
         "0xtoken" as any,
         amount,
@@ -313,7 +236,6 @@ describe("positionTransactions", () => {
           noAccountWallet,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
           1n,
           "0xtoken" as any,
           1000n,
@@ -327,7 +249,7 @@ describe("positionTransactions", () => {
   // ============================================================================
   describe("repayFull", () => {
     const defaultDebt = 1000000n;
-    const amountToRepay = defaultDebt + defaultDebt / FULL_REPAY_BUFFER_BPS;
+    const amountToRepay = defaultDebt + defaultDebt / FULL_REPAY_BUFFER_DIVISOR;
 
     beforeEach(() => {
       mockGetUserTotalDebt.mockResolvedValue(defaultDebt);
@@ -338,13 +260,12 @@ describe("positionTransactions", () => {
     it("should approve exact debt amount plus buffer (not MAX_UINT256)", async () => {
       const currentDebt = 1000000n;
       const expectedRepayAmount =
-        currentDebt + currentDebt / FULL_REPAY_BUFFER_BPS;
+        currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
 
       await repayFull(
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        "0xposition" as any,
         1n,
         "0xtoken" as any,
         "0xspoke" as any,
@@ -366,7 +287,6 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        "0xposition" as any,
         1n,
         "0xtoken" as any,
         "0xspoke" as any,
@@ -382,14 +302,14 @@ describe("positionTransactions", () => {
 
     it("should skip approval if allowance is sufficient", async () => {
       const currentDebt = 1000000n;
-      const amountToRepay = currentDebt + currentDebt / FULL_REPAY_BUFFER_BPS;
+      const amountToRepay =
+        currentDebt + currentDebt / FULL_REPAY_BUFFER_DIVISOR;
       mockGetERC20Allowance.mockResolvedValue(amountToRepay + 1000n);
 
       await repayFull(
         mockWalletClient,
         mockChain,
         "0xcontroller" as any,
-        "0xposition" as any,
         1n,
         "0xtoken" as any,
         "0xspoke" as any,
@@ -407,7 +327,6 @@ describe("positionTransactions", () => {
           mockWalletClient,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
           1n,
           "0xtoken" as any,
           "0xspoke" as any,
@@ -424,7 +343,6 @@ describe("positionTransactions", () => {
           mockWalletClient,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
           1n,
           "0xtoken" as any,
           "0xspoke" as any,
@@ -443,7 +361,6 @@ describe("positionTransactions", () => {
           noAccountWallet,
           mockChain,
           "0xcontroller" as any,
-          "0xposition" as any,
           1n,
           "0xtoken" as any,
           "0xspoke" as any,
@@ -464,64 +381,8 @@ describe("positionTransactions", () => {
         mockWalletClient,
         mockChain,
         "0xcontroller",
-        1n, // reserveId
       );
       expect(result.transactionHash).toBe("0xhash");
-    });
-
-    it("should fetch vBTC reserve ID", async () => {
-      await withdrawAllCollateral(mockWalletClient, mockChain);
-
-      expect(mockGetVbtcReserveId).toHaveBeenCalled();
-    });
-  });
-
-  // ============================================================================
-  // redeemVault
-  // ============================================================================
-  describe("redeemVault", () => {
-    it("should redeem vault", async () => {
-      const vaultId = "0xvault" as any;
-
-      const result = await redeemVault(mockWalletClient, mockChain, vaultId);
-
-      expect(mockDepositorRedeem).toHaveBeenCalledWith(
-        mockWalletClient,
-        mockChain,
-        "0xcontroller",
-        vaultId,
-      );
-      expect(result.transactionHash).toBe("0xhash");
-    });
-  });
-
-  // ============================================================================
-  // canWithdraw
-  // ============================================================================
-  describe("canWithdraw", () => {
-    it("should return true when position has no debt", async () => {
-      mockHasDebt.mockResolvedValue(false);
-
-      const result = await canWithdraw("0xproxy" as any, 1n);
-
-      expect(mockHasDebt).toHaveBeenCalledWith("0xspoke", 1n, "0xproxy");
-      expect(result).toBe(true);
-    });
-
-    it("should return false when position has debt", async () => {
-      mockHasDebt.mockResolvedValue(true);
-
-      const result = await canWithdraw("0xproxy" as any, 1n);
-
-      expect(result).toBe(false);
-    });
-
-    it("should return false when config fetch fails", async () => {
-      mockFetchAaveConfig.mockResolvedValue(null);
-
-      const result = await canWithdraw("0xproxy" as any, 1n);
-
-      expect(result).toBe(false);
     });
   });
 });

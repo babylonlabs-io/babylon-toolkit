@@ -78,7 +78,7 @@ function resolveTokenSymbol(
 
   // Check if indexer symbol looks like an address
   const isSymbolAnAddress =
-    indexerSymbol.startsWith("0x") && indexerSymbol.length > 10;
+    indexerSymbol.startsWith("0x") && indexerSymbol.length >= 42;
 
   return isSymbolAnAddress ? "Unknown" : indexerSymbol;
 }

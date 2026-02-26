@@ -39,11 +39,10 @@ export function Borrow() {
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
-    positionId,
     onBorrowSuccess,
   } = useLoanContext();
 
-  const { executeBorrow, isProcessing } = useBorrowTransaction({ positionId });
+  const { executeBorrow, isProcessing } = useBorrowTransaction();
 
   const { borrowAmount, setBorrowAmount, resetBorrowAmount, maxBorrowAmount } =
     useBorrowState({

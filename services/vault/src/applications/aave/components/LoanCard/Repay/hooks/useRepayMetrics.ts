@@ -6,6 +6,7 @@
  * Repaying improves the health factor.
  */
 
+import { FULL_REPAY_TOLERANCE } from "../../../../constants";
 import {
   calculateBorrowRatio,
   calculateHealthFactor,
@@ -59,7 +60,7 @@ export function useRepayMetrics({
   }
 
   const projectedTotalDebtUsd = Math.max(0, totalDebtValueUsd - repayAmount);
-  const isFullRepayment = projectedTotalDebtUsd < 0.01;
+  const isFullRepayment = projectedTotalDebtUsd < FULL_REPAY_TOLERANCE;
 
   const healthFactorValue =
     projectedTotalDebtUsd > 0

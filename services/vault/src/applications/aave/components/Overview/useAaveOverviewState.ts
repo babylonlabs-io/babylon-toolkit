@@ -71,11 +71,10 @@ export function useAaveOverviewState(address: string | undefined) {
   } = useAaveUserPosition(address);
 
   // Fetch user's vaults (for display and redeem operations)
-  const { vaults, rawVaults, availableForCollateral } = useAaveVaults(address);
+  const { vaults, rawVaults } = useAaveVaults(address);
 
   // Get pending state and sync with indexed vault data
-  const { hasPendingAdd, hasPendingWithdraw, markVaultsAsPending } =
-    usePendingVaults();
+  const { hasPendingWithdraw, markVaultsAsPending } = usePendingVaults();
   useSyncPendingVaults(vaults);
 
   // Fetch user's borrowed assets (reuses position data to avoid duplicate RPC calls)
@@ -121,7 +120,6 @@ export function useAaveOverviewState(address: string | undefined) {
 
   // Derive display values
   const hasCollateral = collateralBtc > 0;
-  const hasAvailableVaults = availableForCollateral.length > 0;
 
   return {
     // Position data
@@ -136,7 +134,6 @@ export function useAaveOverviewState(address: string | undefined) {
     activities,
 
     // Pending state
-    hasPendingAdd,
     hasPendingWithdraw,
 
     // Borrowed assets
@@ -146,7 +143,6 @@ export function useAaveOverviewState(address: string | undefined) {
 
     // Derived values
     hasCollateral,
-    hasAvailableVaults,
 
     // Redeem - trigger and success callback
     triggerRedeem,

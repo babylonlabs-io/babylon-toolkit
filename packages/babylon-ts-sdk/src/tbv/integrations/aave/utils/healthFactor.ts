@@ -127,7 +127,7 @@ export function getHealthFactorStatusFromValue(
  * @param collateralValueUsd - Total collateral value in USD (as number, not bigint)
  * @param totalDebtUsd - Total debt value in USD (as number, not bigint)
  * @param liquidationThresholdBps - Liquidation threshold in basis points (e.g., `8000` = 80%)
- * @returns Health factor value (e.g., `1.5`), or `0` if no debt
+ * @returns Health factor value (e.g., `1.5`), or `Infinity` if no debt
  *
  * @example
  * ```typescript
@@ -159,7 +159,7 @@ export function calculateHealthFactor(
   totalDebtUsd: number,
   liquidationThresholdBps: number,
 ): number {
-  if (totalDebtUsd <= 0) return 0;
+  if (totalDebtUsd <= 0) return Infinity;
   return (
     (collateralValueUsd * (liquidationThresholdBps / BPS_SCALE)) / totalDebtUsd
   );

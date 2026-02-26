@@ -12,9 +12,7 @@ export {
 
 // Transaction builders
 export {
-  buildAddCollateralTx,
   buildBorrowTx,
-  buildDepositorRedeemTx,
   buildRepayTx,
   buildWithdrawAllCollateralTx,
 } from "./transaction.js";

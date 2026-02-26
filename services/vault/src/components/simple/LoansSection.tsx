@@ -31,8 +31,6 @@ interface LoansSectionProps {
   healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
   onRepay: () => void;
-  canAdd: boolean;
-  onAdd: () => void;
 }
 
 export function LoansSection({
@@ -44,8 +42,6 @@ export function LoansSection({
   healthFactorStatus,
   onBorrow,
   onRepay,
-  canAdd,
-  onAdd,
 }: LoansSectionProps) {
   const healthFactorFormatted = formatHealthFactor(healthFactor);
   const healthFactorColor = getHealthFactorColor(healthFactorStatus);
@@ -137,24 +133,10 @@ export function LoansSection({
               Borrow assets using your {btcConfig.coinSymbol}
             </p>
             <p className="text-[14px] text-accent-secondary">
-              Add {btcConfig.coinSymbol} as collateral to start borrowing.
+              Deposit {btcConfig.coinSymbol} as collateral to start borrowing.
             </p>
 
-            <div className="mt-8">
-              {!isConnected ? (
-                <Connect />
-              ) : canAdd ? (
-                <Button
-                  variant="contained"
-                  color="primary"
-                  size="medium"
-                  onClick={onAdd}
-                  className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-                >
-                  Add {btcConfig.coinSymbol}
-                </Button>
-              ) : null}
-            </div>
+            <div className="mt-8">{!isConnected ? <Connect /> : null}</div>
           </div>
         )}
       </Card>

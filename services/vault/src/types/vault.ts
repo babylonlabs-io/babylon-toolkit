@@ -43,7 +43,7 @@ export interface Vault {
   /** Vault provider's Ethereum address */
   vaultProvider: Address;
 
-  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed) */
+  /** Vault status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
   status: ContractStatus;
 
   /** Application controller address (immutable, set at creation) */
@@ -57,25 +57,32 @@ export interface Vault {
   /** Version of universal challengers when vault was created */
   universalChallengersVersion: number;
 
+  /** Version of offchain params (timing, security council) when vault was created */
+  offchainParamsVersion: number;
+
   // === Timestamps ===
 
   /** Timestamp when vault was created (pendingAt from indexer) */
   createdAt: number;
 
+  /** Timestamp when vault expired (null if not expired), milliseconds */
+  expiredAt?: number;
+
+  /** Expiration reason: "ack_timeout" or "proof_timeout" (null if not expired) */
+  expirationReason?: string;
+
+  // === Ownership ===
+
+  /** Current vault owner (changes during liquidation/escrow, null if not yet set) */
+  currentOwner?: Address;
+
+  /** Referral attribution code (0 = no referral) */
+  referralCode: number;
+
   // === Application/usage status ===
 
   /** Whether vault is currently in use as collateral */
   isInUse: boolean;
-}
-
-/**
- * VaultData - aggregate vault statistics for display
- */
-export interface VaultData {
-  supplyTVL: number;
-  borrowTVL: number;
-  protocolLTV: number;
-  btc: number;
 }
 
 /**

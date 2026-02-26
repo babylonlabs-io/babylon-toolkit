@@ -8,8 +8,7 @@ function makeCollateral(
   overrides: Partial<AavePositionCollateral> = {},
 ): AavePositionCollateral {
   return {
-    id: "pos1-vault1",
-    positionId: "pos1",
+    depositorAddress: "0xdepositor1",
     vaultId: "vault1",
     amount: 100000000n, // 1 BTC
     addedAt: 1700000000n,
@@ -27,7 +26,7 @@ describe("Collateral Utilities", () => {
 
       expect(result).toEqual([
         {
-          id: "pos1-vault1",
+          id: "0xdepositor1-vault1",
           vaultId: "vault1",
           amountBtc: 1,
           addedAt: 1700000000,
@@ -39,7 +38,6 @@ describe("Collateral Utilities", () => {
       const collaterals = [
         makeCollateral(),
         makeCollateral({
-          id: "pos1-vault2",
           vaultId: "vault2",
           removedAt: 1700001000n,
         }),

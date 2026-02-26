@@ -35,8 +35,6 @@ export interface UseAaveReserveDetailResult {
   vbtcReserve: AaveReserveConfig | null;
   /** Liquidation threshold in BPS */
   liquidationThresholdBps: number;
-  /** User's position ID (for transactions) */
-  positionId: string | undefined;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
   /** Collateral value in USD */
@@ -116,7 +114,6 @@ export function useAaveReserveDetail({
     assetConfig,
     vbtcReserve,
     liquidationThresholdBps,
-    positionId: position?.id,
     proxyContract: position?.proxyContract,
     collateralValueUsd,
     currentDebtAmount,
