@@ -110,7 +110,6 @@ export function MultiVaultDepositSignContent({
       canClose={canClose}
       canContinueInBackground={canContinueInBackground}
       onClose={handleClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
     />
   );
 }

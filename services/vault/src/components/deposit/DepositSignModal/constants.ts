@@ -94,6 +94,12 @@ export function canCloseModal(
 }
 
 /**
+ * Success message shown after deposit broadcast
+ */
+export const DEPOSIT_SUCCESS_MESSAGE =
+  "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
+
+/**
  * Compute derived UI state from deposit flow state.
  * Shared between single-vault and multi-vault deposit sign components.
  */

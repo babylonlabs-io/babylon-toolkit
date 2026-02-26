@@ -20,6 +20,9 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import {
+  DEPOSIT_SUCCESS_MESSAGE,
+} from "@/components/deposit/DepositSignModal/constants";
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import {
   getMultiVaultVisualStep,
@@ -125,7 +128,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canClose,
     canContinueInBackground,
     onClose,
-    successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+    successMessage = DEPOSIT_SUCCESS_MESSAGE,
   } = props;
 
   const isMulti = props.variant === "multi";

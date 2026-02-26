@@ -77,7 +77,6 @@ export function DepositSignContent({
       canContinueInBackground={canContinueInBackground}
       payoutSigningProgress={payoutSigningProgress}
       onClose={handleClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
     />
   );
 }

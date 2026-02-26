@@ -113,7 +113,6 @@ export function ResumeBroadcastContent({
       canContinueInBackground={false}
       payoutSigningProgress={null}
       onClose={onClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
       onRetry={error ? handleBroadcast : undefined}
     />
   );
