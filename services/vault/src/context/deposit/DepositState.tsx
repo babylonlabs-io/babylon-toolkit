@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
 import type { AllocationPlan } from "@/services/vault";
 
-import type { SplitTxSignResult } from "../../hooks/deposit/useMultiVaultDepositFlow";
+import type { SplitTxSignResult } from "../../hooks/deposit/depositFlowSteps";
 import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositPageStep {

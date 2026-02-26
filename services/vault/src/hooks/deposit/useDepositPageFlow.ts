@@ -19,9 +19,9 @@ import {
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
-import type { SplitTxSignResult } from "../deposit/useMultiVaultDepositFlow";
 import { useVaultDeposits } from "../useVaultDeposits";
 
+import type { SplitTxSignResult } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositPageFlowResult {

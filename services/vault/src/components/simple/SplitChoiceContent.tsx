@@ -7,7 +7,7 @@ import { getNetworkConfigBTC } from "@/config";
 import { useSplitTransaction } from "@/hooks/deposit/useSplitTransaction";
 import type { AllocationPlan } from "@/services/vault";
 
-import type { SplitTxSignResult } from "../../hooks/deposit/useMultiVaultDepositFlow";
+import type { SplitTxSignResult } from "../../hooks/deposit/depositFlowSteps";
 
 const btcConfig = getNetworkConfigBTC();
 

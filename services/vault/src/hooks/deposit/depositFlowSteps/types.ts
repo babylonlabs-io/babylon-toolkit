@@ -122,6 +122,25 @@ export interface BroadcastParams {
 }
 
 // ============================================================================
+// Split Transaction
+// ============================================================================
+
+/** Result of creating and signing a split transaction */
+export interface SplitTxSignResult {
+  /** Transaction ID */
+  txid: string;
+  /** Signed transaction hex */
+  signedHex: string;
+  /** Output UTXOs created by split transaction */
+  outputs: Array<{
+    txid: string;
+    vout: number;
+    value: number;
+    scriptPubKey: string;
+  }>;
+}
+
+// ============================================================================
 // Flow Result
 // ============================================================================
 

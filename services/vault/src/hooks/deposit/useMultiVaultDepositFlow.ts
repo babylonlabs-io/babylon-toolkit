@@ -53,6 +53,7 @@ import {
   submitPeginAndWait,
   waitForContractVerification,
   type DepositUtxo,
+  type SplitTxSignResult,
 } from "./depositFlowSteps";
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -138,19 +139,7 @@ export interface MultiVaultDepositResult {
   warnings?: string[];
 }
 
-export interface SplitTxSignResult {
-  /** Transaction ID */
-  txid: string;
-  /** Signed transaction hex */
-  signedHex: string;
-  /** Output UTXOs created by split transaction */
-  outputs: Array<{
-    txid: string;
-    vout: number;
-    value: number;
-    scriptPubKey: string;
-  }>;
-}
+export type { SplitTxSignResult };
 
 // ============================================================================
 // Helper: Create and Sign Split Transaction

@@ -24,6 +24,7 @@ export type {
   PeginSubmitParams,
   PeginSubmitResult,
   SavePendingPeginParams,
+  SplitTxSignResult,
   UtxoRef,
 } from "./types";
 
