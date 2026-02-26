@@ -3,6 +3,7 @@
  */
 
 import { getNetworkConfigBTC } from "@/config";
+import { truncateAddress } from "@/utils/addressUtils";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -23,6 +24,30 @@ export function formatLLTV(lltv: string | bigint): string {
  */
 export function formatProviderName(providerId: string): string {
   return `Provider ${providerId.slice(0, 6)}...${providerId.slice(-4)}`;
+}
+
+/**
+ * Format a provider's display name for UI.
+ * Determines if the provider has a "real" name (not address-based) and formats accordingly.
+ *
+ * @param name - The provider's name (may be undefined or address-based like "0x..." or "Provider 0x...")
+ * @param id - The provider's ID (used for address fallback)
+ * @param options.includeAddress - If true, appends truncated address for real names (e.g., "Lombard (0x1234...5678)")
+ * @returns Formatted display name
+ */
+export function formatProviderDisplayName(
+  name: string | undefined,
+  id: string,
+  options?: { includeAddress?: boolean },
+): string {
+  const isRealName =
+    name && !name.startsWith("0x") && !name.startsWith("Provider ");
+
+  if (isRealName) {
+    return options?.includeAddress ? `${name} (${truncateAddress(id)})` : name;
+  }
+
+  return name || truncateAddress(id);
 }
 
 /**

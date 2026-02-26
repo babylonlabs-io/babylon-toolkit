@@ -57,7 +57,7 @@ export function useDepositForm(): UseDepositFormResult {
   const providers = useMemo(() => {
     return vaultProviders.map((p) => ({
       id: p.id,
-      name: p.name || formatProviderName(p.id),
+      name: p.name ?? formatProviderName(p.id),
       btcPubkey: p.btcPubKey || "",
     }));
   }, [vaultProviders]);
