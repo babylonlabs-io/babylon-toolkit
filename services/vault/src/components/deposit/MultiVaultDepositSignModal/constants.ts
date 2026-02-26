@@ -1,8 +1,7 @@
-import { canCloseModal } from "@/components/deposit/DepositSignModal/constants";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 
 // Re-export for convenience
-export { canCloseModal as canCloseMultiVaultModal, DepositFlowStep };
+export { DepositFlowStep };
 
 /**
  * 6-step labels for the multi-vault deposit stepper.

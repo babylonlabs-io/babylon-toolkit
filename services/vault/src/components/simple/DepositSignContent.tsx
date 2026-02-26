@@ -2,10 +2,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef } from "react";
 import type { Address } from "viem";
 
-import {
-  canCloseModal,
-  DepositFlowStep,
-} from "@/components/deposit/DepositSignModal/constants";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/constants";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -61,11 +58,8 @@ export function DepositSignContent({
   }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
   // Derived state
-  const isComplete = currentStep === DepositFlowStep.COMPLETED;
-  const canClose = canCloseModal(currentStep, error, isWaiting);
-  const isProcessing = (processing || isWaiting) && !error && !isComplete;
-  const canContinueInBackground =
-    isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error;
+  const { isComplete, canClose, isProcessing, canContinueInBackground } =
+    computeDepositDerivedState(currentStep, processing, isWaiting, error);
 
   const handleClose = useCallback(() => {
     abort();

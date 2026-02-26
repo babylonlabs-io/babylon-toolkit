@@ -2,8 +2,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback } from "react";
 import type { Address } from "viem";
 
-import { canCloseMultiVaultModal } from "@/components/deposit/MultiVaultDepositSignModal/constants";
-import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/constants";
 import {
   useMultiVaultDepositFlow,
   type SplitTxSignResult,
@@ -97,11 +96,8 @@ export function MultiVaultDepositSignContent({
   }, [abort, onClose]);
 
   // Derived state
-  const isComplete = currentStep === DepositFlowStep.COMPLETED;
-  const canClose = canCloseMultiVaultModal(currentStep, error, isWaiting);
-  const isProcessing = (processing || isWaiting) && !error && !isComplete;
-  const canContinueInBackground =
-    isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error;
+  const { isComplete, canClose, isProcessing, canContinueInBackground } =
+    computeDepositDerivedState(currentStep, processing, isWaiting, error);
 
   return (
     <DepositProgressView

@@ -92,3 +92,23 @@ export function canCloseModal(
   if (isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS) return true;
   return false;
 }
+
+/**
+ * Compute derived UI state from deposit flow state.
+ * Shared between single-vault and multi-vault deposit sign components.
+ */
+export function computeDepositDerivedState(
+  currentStep: DepositFlowStep,
+  processing: boolean,
+  isWaiting: boolean,
+  error: string | null,
+) {
+  const isComplete = currentStep === DepositFlowStep.COMPLETED;
+  return {
+    isComplete,
+    canClose: canCloseModal(currentStep, error, isWaiting),
+    isProcessing: (processing || isWaiting) && !error && !isComplete,
+    canContinueInBackground:
+      isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error,
+  };
+}
