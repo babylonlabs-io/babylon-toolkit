@@ -16,17 +16,15 @@ interface ActionCellProps {
   onSignClick: (depositId: string, transactions: unknown[]) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
+  onLamportKeyClick?: (depositId: string) => void;
 }
 
-/**
- * Action cell for deposit table rows.
- * Shows action buttons when available, or warning indicators otherwise.
- */
 export function ActionCell({
   depositId,
   onSignClick,
   onBroadcastClick,
   onRedeemClick,
+  onLamportKeyClick,
 }: ActionCellProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -35,7 +33,6 @@ export function ActionCell({
   const { loading, transactions } = pollingResult;
   const status = getActionStatus(pollingResult);
 
-  // Show warning indicator if action is unavailable
   if (status.type === "unavailable") {
     return <ActionWarningIndicator messages={status.reasons} />;
   }
@@ -43,6 +40,17 @@ export function ActionCell({
   const { label, action } = status.action;
 
   switch (action) {
+    case PeginAction.SUBMIT_LAMPORT_KEY:
+      return (
+        <Button
+          size="small"
+          variant="contained"
+          onClick={() => onLamportKeyClick?.(depositId)}
+        >
+          {label}
+        </Button>
+      );
+
     case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
       return (
         <Button

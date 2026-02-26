@@ -21,7 +21,7 @@ import { WordGrid } from "./WordGrid";
 interface MnemonicModalProps {
   open: boolean;
   onClose: () => void;
-  onComplete: () => void;
+  onComplete: (mnemonic?: string) => void;
   hasExistingVaults: boolean;
 }
 
@@ -33,6 +33,7 @@ export function MnemonicModal({
 }: MnemonicModalProps) {
   const {
     step,
+    mnemonic,
     words,
     challenge,
     error,
@@ -53,11 +54,11 @@ export function MnemonicModal({
   }, [open, step, words.length, startNewMnemonic]);
 
   useEffect(() => {
-    if (step === MnemonicStep.COMPLETE) {
-      onComplete();
-      reset();
-    }
-  }, [step, onComplete, reset]);
+    if (step !== MnemonicStep.COMPLETE) return;
+    const captured = mnemonic || undefined;
+    reset();
+    onComplete(captured);
+  }, [step, mnemonic, onComplete, reset]);
 
   const handleClose = () => {
     reset();

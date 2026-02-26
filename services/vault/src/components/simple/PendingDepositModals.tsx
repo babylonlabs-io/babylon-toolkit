@@ -1,8 +1,8 @@
 /**
  * PendingDepositModals Component
  *
- * Renders the sign / broadcast / success modals used by the pending deposit
- * section. Uses SimpleDeposit in resume mode for both sign and broadcast actions.
+ * Renders the sign / broadcast / lamport key / success modals used by the
+ * pending deposit section. Uses SimpleDeposit in resume mode for all actions.
  */
 
 import type { Hex } from "viem";
@@ -10,6 +10,7 @@ import type { Hex } from "viem";
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
+import type { VaultProvider } from "@/types/vaultProvider";
 
 import SimpleDeposit from "./SimpleDeposit";
 
@@ -30,9 +31,18 @@ interface BroadcastModalState {
   handleSuccessClose: () => void;
 }
 
+interface LamportKeyModalState {
+  isOpen: boolean;
+  activity: VaultActivity | null;
+  handleClose: () => void;
+  handleSuccess: () => void;
+}
+
 interface PendingDepositModalsProps {
   signModal: SignModalState;
   broadcastModal: BroadcastModalState;
+  lamportKeyModal: LamportKeyModalState;
+  vaultProviders: VaultProvider[];
   btcPublicKey: string | undefined;
   ethAddress: string | undefined;
 }
@@ -40,6 +50,8 @@ interface PendingDepositModalsProps {
 export function PendingDepositModals({
   signModal,
   broadcastModal,
+  lamportKeyModal,
+  vaultProviders,
   btcPublicKey,
   ethAddress,
 }: PendingDepositModalsProps) {
@@ -68,6 +80,18 @@ export function PendingDepositModals({
           onResumeSuccess={broadcastModal.handleSuccess}
           activity={broadcastModal.broadcastingActivity}
           depositorEthAddress={ethAddress}
+        />
+      )}
+
+      {/* Lamport Key Modal – mnemonic re-entry */}
+      {lamportKeyModal.isOpen && lamportKeyModal.activity && (
+        <SimpleDeposit
+          open={lamportKeyModal.isOpen}
+          resumeMode="submit_lamport_key"
+          onClose={lamportKeyModal.handleClose}
+          onResumeSuccess={lamportKeyModal.handleSuccess}
+          activity={lamportKeyModal.activity}
+          vaultProviders={vaultProviders}
         />
       )}
 

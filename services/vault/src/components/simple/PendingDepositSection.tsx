@@ -28,6 +28,7 @@ export function PendingDepositSection() {
     hasPendingDeposits,
     signModal,
     broadcastModal,
+    lamportKeyModal,
   } = usePendingDeposits();
 
   if (!hasPendingDeposits) return null;
@@ -58,15 +59,18 @@ export function PendingDepositSection() {
               amount={activity.collateral.amount}
               onSignClick={signModal.handleSignClick}
               onBroadcastClick={broadcastModal.handleBroadcastClick}
+              onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
             />
           ))}
         </div>
       </div>
 
-      {/* Sign / Broadcast / Success modals */}
+      {/* Sign / Broadcast / Lamport Key / Success modals */}
       <PendingDepositModals
         signModal={signModal}
         broadcastModal={broadcastModal}
+        lamportKeyModal={lamportKeyModal}
+        vaultProviders={vaultProviders}
         btcPublicKey={btcPublicKey}
         ethAddress={ethAddress}
       />

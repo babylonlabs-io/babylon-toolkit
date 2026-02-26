@@ -12,6 +12,7 @@ import { useVaultRedeemState } from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "../../../hooks/deposit/useBroadcastModal";
+import { useLamportKeyModal } from "../../../hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
 import { useBtcPublicKey } from "../../../hooks/useBtcPublicKey";
 import { useVaultDeposits } from "../../../hooks/useVaultDeposits";
@@ -69,6 +70,18 @@ export function useDepositOverviewState() {
     onSuccess: refetchActivities,
   });
 
+  // Lamport key modal state
+  const {
+    activity: lamportKeyActivity,
+    isOpen: isLamportKeyModalOpen,
+    handleLamportKeyClick,
+    handleClose: handleLamportKeyClose,
+    handleSuccess: handleLamportKeySuccess,
+  } = useLamportKeyModal({
+    allActivities,
+    onSuccess: refetchActivities,
+  });
+
   // Get redeem trigger from context - RedeemModals handles the rest internally
   const { triggerRedeem } = useVaultRedeemState();
 
@@ -118,6 +131,13 @@ export function useDepositOverviewState() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
+
+    // Lamport key modal
+    lamportKeyActivity,
+    isLamportKeyModalOpen,
+    handleLamportKeyClick,
+    handleLamportKeyClose,
+    handleLamportKeySuccess,
 
     // Redeem - RedeemModals handles the flow internally
     triggerRedeem,

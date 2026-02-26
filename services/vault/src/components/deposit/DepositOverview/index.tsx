@@ -59,6 +59,11 @@ export function DepositOverview() {
     handleBroadcastClose,
     handleBroadcastSuccess,
     handleBroadcastSuccessClose,
+    lamportKeyActivity,
+    isLamportKeyModalOpen,
+    handleLamportKeyClick,
+    handleLamportKeyClose,
+    handleLamportKeySuccess,
     triggerRedeem,
     refetchActivities,
   } = state;
@@ -144,6 +149,7 @@ export function DepositOverview() {
           onSignClick={handleSignClick}
           onBroadcastClick={handleBroadcastClick}
           onRedeemClick={triggerRedeem}
+          onLamportKeyClick={handleLamportKeyClick}
         />
       ),
     },
@@ -168,6 +174,7 @@ export function DepositOverview() {
                 onSignClick={handleSignClick}
                 onBroadcastClick={handleBroadcastClick}
                 onRedeemClick={triggerRedeem}
+                onLamportKeyClick={handleLamportKeyClick}
               />
             ))}
           </div>
@@ -206,6 +213,18 @@ export function DepositOverview() {
             onResumeSuccess={handleBroadcastSuccess}
             activity={broadcastingActivity}
             depositorEthAddress={ethAddress}
+          />
+        )}
+
+        {/* Lamport Key Modal */}
+        {isLamportKeyModalOpen && lamportKeyActivity && (
+          <SimpleDeposit
+            open={isLamportKeyModalOpen}
+            resumeMode="submit_lamport_key"
+            onClose={handleLamportKeyClose}
+            onResumeSuccess={handleLamportKeySuccess}
+            activity={lamportKeyActivity}
+            vaultProviders={vaultProviders}
           />
         )}
 

@@ -44,10 +44,12 @@ export function getVisualStep(
       return 2;
     case DepositStep.SIGN_PAYOUTS:
       return isWaiting ? 3 : 4;
+    case DepositStep.ARTIFACT_DOWNLOAD:
+      return 5;
     case DepositStep.BROADCAST_BTC:
-      return isWaiting ? 5 : 6;
+      return isWaiting ? 6 : 7;
     case DepositStep.COMPLETED:
-      return 7; // All 6 steps completed
+      return 8;
     default:
       return 1;
   }
@@ -68,6 +70,7 @@ export function buildStepItems(
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
+    { label: "Download vault artifacts" },
     { label: "Wait", description: "(~ 12 mins)" },
     { label: "Submit peg-in transactions" },
   ];

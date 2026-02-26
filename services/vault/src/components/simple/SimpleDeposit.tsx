@@ -9,6 +9,7 @@ import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
+import type { VaultProvider } from "@/types/vaultProvider";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
@@ -22,6 +23,7 @@ import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
 import {
   ResumeBroadcastContent,
+  ResumeLamportContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
 
@@ -54,10 +56,18 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
+type ResumeLamportProps = SimpleDepositBaseProps & {
+  resumeMode: "submit_lamport_key";
+  activity: VaultActivity;
+  vaultProviders: VaultProvider[];
+  onResumeSuccess: () => void;
+};
+
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
-  | ResumeBroadcastProps;
+  | ResumeBroadcastProps
+  | ResumeLamportProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -230,6 +240,19 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // Resume mode: skip form/state providers and render resume content directly
   if (resumeMode) {
+    if (resumeMode === "submit_lamport_key") {
+      return (
+        <ProtocolParamsProvider>
+          <ResumeLamportContent
+            activity={props.activity}
+            vaultProviders={props.vaultProviders}
+            onClose={onClose}
+            onSuccess={props.onResumeSuccess}
+          />
+        </ProtocolParamsProvider>
+      );
+    }
+
     return (
       <ProtocolParamsProvider>
         <FullScreenDialog

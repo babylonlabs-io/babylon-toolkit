@@ -47,6 +47,8 @@ interface PollingQueryData {
   transactions: Map<string, ClaimerTransactions[]>;
   /** Map of depositId -> error (for deposits with provider connectivity issues) */
   errors: Map<string, Error>;
+  /** Set of depositIds where vault provider needs the depositor's lamport key */
+  needsLamportKey: Set<string>;
 }
 
 interface UsePeginPollingQueryResult {
@@ -54,6 +56,8 @@ interface UsePeginPollingQueryResult {
   data: Map<string, ClaimerTransactions[]> | undefined;
   /** Map of depositId -> error */
   errors: Map<string, Error> | undefined;
+  /** Set of depositIds needing lamport key submission */
+  needsLamportKey: Set<string> | undefined;
   /** Whether any polling is in progress */
   isLoading: boolean;
   /** Trigger manual refetch */
@@ -65,12 +69,20 @@ interface UsePeginPollingQueryResult {
 /**
  * Fetch transactions from a single vault provider for multiple deposits
  */
+function isLamportKeyNeeded(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes("PendingDepositorLamportPK")
+  );
+}
+
 async function fetchFromProvider(
   providerUrl: string,
   deposits: DepositToPoll[],
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
   errors: Map<string, Error>,
+  needsLamportKey: Set<string>,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
@@ -84,18 +96,20 @@ async function fetchFromProvider(
       if (response.txs && response.txs.length > 0) {
         results.set(deposit.activity.id, response.txs);
       }
-      // Clear any previous error for this deposit on success
       errors.delete(deposit.activity.id);
+      needsLamportKey.delete(deposit.activity.id);
     } catch (error) {
-      // Expected transient errors: Vault provider is still processing
-      // (e.g., PegIn not found, before PendingDepositorSignatures state)
-      if (isTransientPollingError(error)) {
-        // Transactions not ready yet - continue polling
-        // Clear any previous error since provider is reachable
+      if (isLamportKeyNeeded(error)) {
+        needsLamportKey.add(deposit.activity.id);
         errors.delete(deposit.activity.id);
         continue;
       }
-      // Track provider connectivity errors per deposit
+
+      if (isTransientPollingError(error)) {
+        errors.delete(deposit.activity.id);
+        needsLamportKey.delete(deposit.activity.id);
+        continue;
+      }
       const errorObj =
         error instanceof Error ? error : new Error("Provider unreachable");
       errors.set(deposit.activity.id, errorObj);
@@ -156,6 +170,7 @@ export function usePeginPollingQuery({
         return {
           transactions: new Map<string, ClaimerTransactions[]>(),
           errors: new Map<string, Error>(),
+          needsLamportKey: new Set<string>(),
         };
       }
 
@@ -167,6 +182,7 @@ export function usePeginPollingQuery({
 
       const transactions = new Map<string, ClaimerTransactions[]>();
       const errors = new Map<string, Error>();
+      const needsLamportKey = new Set<string>();
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
@@ -177,11 +193,12 @@ export function usePeginPollingQuery({
             currentBtcPubKey,
             transactions,
             errors,
+            needsLamportKey,
           ),
       );
 
       await Promise.all(fetchPromises);
-      return { transactions, errors };
+      return { transactions, errors, needsLamportKey };
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -225,6 +242,7 @@ export function usePeginPollingQuery({
   return {
     data: data?.transactions,
     errors: data?.errors,
+    needsLamportKey: data?.needsLamportKey,
     isLoading,
     refetch,
     depositsToPoll,

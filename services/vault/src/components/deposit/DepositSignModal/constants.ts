@@ -21,6 +21,9 @@ export const STEP_DESCRIPTIONS: Record<
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
   },
+  [DepositStep.ARTIFACT_DOWNLOAD]: {
+    active: "Download your vault artifacts before continuing.",
+  },
   [DepositStep.BROADCAST_BTC]: {
     active:
       "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
@@ -46,13 +49,14 @@ export const STEP_LABELS = [
   "Sign proof of possession",
   "Sign & submit peg-in request to Ethereum",
   "Sign payout transaction(s)",
+  "Download vault artifacts",
   "Sign & broadcast Bitcoin transaction",
 ] as const;
 
 /**
  * Total number of steps in the deposit flow (excluding completion)
  */
-export const TOTAL_STEPS = 4;
+export const TOTAL_STEPS = 5;
 
 /**
  * Get the description text for the current step
@@ -88,7 +92,7 @@ export function canCloseModal(
 ): boolean {
   if (error) return true;
   if (currentStep === DepositStep.COMPLETED) return true;
-  // Allow closing during waiting states (vault provider prep or verification)
+  if (currentStep === DepositStep.ARTIFACT_DOWNLOAD) return true;
   if (isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS) return true;
   return false;
 }

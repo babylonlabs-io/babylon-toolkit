@@ -24,10 +24,12 @@ export enum DepositStep {
   SUBMIT_PEGIN = 2,
   /** Step 3: Sign payout transactions in BTC wallet */
   SIGN_PAYOUTS = 3,
-  /** Step 4: Sign and broadcast BTC transaction */
-  BROADCAST_BTC = 4,
-  /** Step 5: Deposit completed */
-  COMPLETED = 5,
+  /** Step 4: Download vault artifacts */
+  ARTIFACT_DOWNLOAD = 4,
+  /** Step 5: Sign and broadcast BTC transaction */
+  BROADCAST_BTC = 5,
+  /** Step 6: Deposit completed */
+  COMPLETED = 6,
 }
 
 // ============================================================================
