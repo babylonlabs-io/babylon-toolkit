@@ -20,14 +20,8 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
-import {
-  DEPOSIT_SUCCESS_MESSAGE,
-} from "@/components/deposit/DepositSignModal/constants";
+import { DEPOSIT_SUCCESS_MESSAGE } from "@/components/deposit/DepositSignModal/constants";
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import {
-  getMultiVaultVisualStep,
-  MULTI_VAULT_STEP_LABELS,
-} from "@/components/deposit/MultiVaultDepositSignModal/constants";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -80,6 +74,57 @@ export function buildStepItems(
     { label: "Wait", description: "(~ 12 mins)" },
     { label: "Submit peg-in transactions" },
   ];
+}
+
+/**
+ * 6-step labels for the multi-vault deposit stepper.
+ * Steps 1-4 have per-vault labels; steps 5-6 are shared.
+ *
+ * Hardcoded for exactly 2 vaults — this is by design. The partial-liquidation
+ * feature always splits into 2 vaults so at most half the BTC is exposed to
+ * a single liquidation event. The 2-vault cap is enforced in
+ * validateVaultAmounts() and utxoAllocationService.
+ */
+const MULTI_VAULT_STEP_LABELS = [
+  "Sign proof of possession for pegin 1/2",
+  "Submit peg-in requests for pegin 1/2",
+  "Sign proof of possession for pegin 2/2",
+  "Submit peg-in requests for pegin 2/2",
+  "Sign payout transaction(s)",
+  "Sign & broadcast Bitcoin transaction",
+] as const;
+
+/**
+ * Map the hook's (currentStep, currentVaultIndex) tuple to a 1-indexed
+ * visual step position for the 6-step Stepper.
+ *
+ * Mapping:
+ *   SIGN_POP     + vault 0 -> visual 1
+ *   SUBMIT_PEGIN + vault 0 -> visual 2
+ *   SIGN_POP     + vault 1 -> visual 3
+ *   SUBMIT_PEGIN + vault 1 -> visual 4
+ *   SIGN_PAYOUTS            -> visual 5
+ *   BROADCAST_BTC           -> visual 6
+ *   COMPLETED               -> visual 7 (all 6 steps marked complete)
+ */
+function getMultiVaultVisualStep(
+  currentStep: DepositFlowStep,
+  currentVaultIndex: number | null,
+): number {
+  switch (currentStep) {
+    case DepositFlowStep.SIGN_POP:
+      return currentVaultIndex === 1 ? 3 : 1;
+    case DepositFlowStep.SUBMIT_PEGIN:
+      return currentVaultIndex === 1 ? 4 : 2;
+    case DepositFlowStep.SIGN_PAYOUTS:
+      return 5;
+    case DepositFlowStep.BROADCAST_BTC:
+      return 6;
+    case DepositFlowStep.COMPLETED:
+      return 7;
+    default:
+      return 1;
+  }
 }
 
 const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map((label) => ({
