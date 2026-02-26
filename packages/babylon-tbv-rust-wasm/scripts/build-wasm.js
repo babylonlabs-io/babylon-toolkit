@@ -101,7 +101,7 @@ const buildWasm = async () => {
         `\n\nPlease update your Rust toolchain:`,
         `\n  rustup update stable`,
         `\nThen verify the version:`,
-        `\n  rustc --version\n`
+        `\n  rustc --version\n`,
       );
       process.exit(1);
     }
@@ -128,21 +128,18 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Checkout specific commit (or stay on branch HEAD if not specified)
-    if (BTC_VAULT_COMMIT) {
-      console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
-      try {
-        execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
-          cwd: REPO_DIR,
-          stdio: 'inherit',
-        });
-      } catch {
-        console.error('Error: Failed to checkout commit');
-        shell.rm('-rf', REPO_DIR);
-        process.exit(1);
-      }
-    } else {
-      console.log(`Using latest ${BTC_VAULT_BRANCH} branch HEAD...`);
+    // Checkout specific commit
+    // Use execFileSync with argument array to avoid shell command injection
+    console.log(`Checking out commit: ${BTC_VAULT_COMMIT}...`);
+    try {
+      execFileSync('git', ['checkout', BTC_VAULT_COMMIT], {
+        cwd: REPO_DIR,
+        stdio: 'inherit',
+      });
+    } catch {
+      console.error('Error: Failed to checkout commit');
+      shell.rm('-rf', REPO_DIR);
+      process.exit(1);
     }
 
     // Build with wasm-pack from vault-new crate
@@ -194,10 +191,22 @@ const buildWasm = async () => {
     const srcName = 'btc_vault_new';
     const targetName = 'btc_vault';
 
-    shell.cp(`${wasmOutputDir}/${srcName}.js`, `${OUTPUT_DIR}/${targetName}.js`);
-    shell.cp(`${wasmOutputDir}/${srcName}.d.ts`, `${OUTPUT_DIR}/${targetName}.d.ts`);
-    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm`, `${OUTPUT_DIR}/${targetName}_bg.wasm`);
-    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`);
+    shell.cp(
+      `${wasmOutputDir}/${srcName}.js`,
+      `${OUTPUT_DIR}/${targetName}.js`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}.d.ts`,
+      `${OUTPUT_DIR}/${targetName}.d.ts`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}_bg.wasm`,
+      `${OUTPUT_DIR}/${targetName}_bg.wasm`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}_bg.wasm.d.ts`,
+      `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`,
+    );
 
     // Update imports in JS file to match renamed wasm file
     const jsFilePath = `${OUTPUT_DIR}/${targetName}.js`;
