@@ -137,7 +137,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     }
   };
 
-  // Compute vault amounts for the split flow (50/50 split)
+  // Split 50/50 for partial liquidation protection — not configurable by design.
+  // Uses truncation + remainder to handle odd sat amounts correctly.
   const vaultAmounts = useMemo(
     () => [depositAmount / 2n, depositAmount - depositAmount / 2n],
     [depositAmount],
