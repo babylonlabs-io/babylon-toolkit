@@ -8,12 +8,11 @@
 
 import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Address } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
-import { useUTXOs } from "@/hooks/useUTXOs";
+import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { planUtxoAllocation, type AllocationPlan } from "@/services/vault";
 
@@ -59,13 +58,8 @@ export function useSplitTransaction(
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const btcConnector = useChainConnector("BTC");
-  const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const {
-    spendableUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
 
   const executeSplit = useCallback(async () => {
     setProcessing(true);

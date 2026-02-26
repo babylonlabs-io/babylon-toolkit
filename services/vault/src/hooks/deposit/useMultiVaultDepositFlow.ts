@@ -24,7 +24,6 @@ import {
   createSplitTransaction,
   createSplitTransactionPsbt,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -33,7 +32,7 @@ import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { useUTXOs } from "@/hooks/useUTXOs";
+import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { depositService } from "@/services/deposit";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
@@ -258,13 +257,8 @@ export function useMultiVaultDepositFlow(
   }, [abort]);
 
   // Hooks
-  const btcConnector = useChainConnector("BTC");
-  const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const {
-    spendableUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
 
   // ============================================================================

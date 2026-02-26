@@ -12,12 +12,11 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { useUTXOs } from "@/hooks/useUTXOs";
+import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useVaults } from "@/hooks/useVaults";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
@@ -105,13 +104,8 @@ export function useDepositFlow(
   }, [abort]);
 
   // Hooks
-  const btcConnector = useChainConnector("BTC");
-  const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const {
-    spendableUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
   const { minDeposit, latestUniversalChallengers } = useProtocolParamsContext();
