@@ -13,6 +13,7 @@ import { useNavigate } from "react-router";
 
 import { RedeemModals } from "@/components/deposit/RedeemModals";
 import { BackButton } from "@/components/shared";
+import { BorrowFlow } from "@/components/simple/BorrowFlow";
 import { getNetworkConfigBTC } from "@/config";
 import { VaultRedeemState } from "@/context/deposit/VaultRedeemState";
 import { useETHWallet } from "@/context/wallet";
@@ -40,6 +41,7 @@ function AaveOverviewContent() {
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
+  const [isBorrowFlowOpen, setIsBorrowFlowOpen] = useState(false);
   const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
   const [collateralModalMode, setCollateralModalMode] =
     useState<CollateralMode>("add");
@@ -99,8 +101,7 @@ function AaveOverviewContent() {
   };
 
   const handleBorrow = () => {
-    setAssetModalMode(LOAN_TAB.BORROW);
-    setIsAssetModalOpen(true);
+    setIsBorrowFlowOpen(true);
   };
 
   const handleRepay = () => {
@@ -173,7 +174,13 @@ function AaveOverviewContent() {
         />
       </div>
 
-      {/* Asset Selection Modal */}
+      {/* Borrow Flow (full-screen multi-step modal) */}
+      <BorrowFlow
+        open={isBorrowFlowOpen}
+        onClose={() => setIsBorrowFlowOpen(false)}
+      />
+
+      {/* Asset Selection Modal (repay only) */}
       <AssetSelectionModal
         isOpen={isAssetModalOpen}
         onClose={() => setIsAssetModalOpen(false)}
