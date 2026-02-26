@@ -20,6 +20,7 @@ import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
 import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
+import FeatureFlags from "@/config/featureFlags";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
@@ -37,6 +38,9 @@ export function getVisualStep(
   currentStep: DepositStep,
   isWaiting: boolean,
 ): number {
+  const hasArtifactStep = FeatureFlags.isDepositorAsClaimerEnabled;
+  const artifactOffset = hasArtifactStep ? 1 : 0;
+
   switch (currentStep) {
     case DepositStep.SIGN_POP:
       return 1;
@@ -47,9 +51,9 @@ export function getVisualStep(
     case DepositStep.ARTIFACT_DOWNLOAD:
       return 5;
     case DepositStep.BROADCAST_BTC:
-      return isWaiting ? 6 : 7;
+      return isWaiting ? 5 + artifactOffset : 6 + artifactOffset;
     case DepositStep.COMPLETED:
-      return 8;
+      return 7 + artifactOffset;
     default:
       return 1;
   }
@@ -61,7 +65,7 @@ export function buildStepItems(
   const payoutTotal = progress?.total ?? 0;
   const payoutCompleted = progress?.completed ?? 0;
 
-  return [
+  const steps: StepperItem[] = [
     { label: "Sign proof of possession" },
     { label: "Submit peg-in requests" },
     { label: "Wait", description: "(~ 15 min)" },
@@ -70,10 +74,18 @@ export function buildStepItems(
       description:
         payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
     },
-    { label: "Download vault artifacts" },
+  ];
+
+  if (FeatureFlags.isDepositorAsClaimerEnabled) {
+    steps.push({ label: "Download vault artifacts" });
+  }
+
+  steps.push(
     { label: "Wait", description: "(~ 12 mins)" },
     { label: "Submit peg-in transactions" },
-  ];
+  );
+
+  return steps;
 }
 
 export interface DepositProgressViewProps {
