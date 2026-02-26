@@ -1,7 +1,8 @@
+import { canCloseModal } from "@/components/deposit/DepositSignModal/constants";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 
 // Re-export for convenience
-export { DepositFlowStep };
+export { canCloseModal as canCloseMultiVaultModal, DepositFlowStep };
 
 /**
  * 6-step labels for the multi-vault deposit stepper.
@@ -78,19 +79,4 @@ export function getMultiVaultStepDescription(
     default:
       return "";
   }
-}
-
-/**
- * Same close logic as single-vault: allow close on error, completion,
- * or waiting in SIGN_PAYOUTS+ stages.
- */
-export function canCloseMultiVaultModal(
-  currentStep: DepositFlowStep,
-  error: string | null,
-  isWaiting: boolean = false,
-): boolean {
-  if (error) return true;
-  if (currentStep === DepositFlowStep.COMPLETED) return true;
-  if (isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS) return true;
-  return false;
 }
