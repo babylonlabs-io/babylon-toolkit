@@ -23,6 +23,8 @@ interface MnemonicModalProps {
   onClose: () => void;
   onComplete: (mnemonic?: string) => void;
   hasExistingVaults: boolean;
+  /** User identifier (e.g. ETH address) used to scope the localStorage key. */
+  scope?: string;
 }
 
 export function MnemonicModal({
@@ -30,6 +32,7 @@ export function MnemonicModal({
   onClose,
   onComplete,
   hasExistingVaults,
+  scope,
 }: MnemonicModalProps) {
   const {
     step,
@@ -46,7 +49,7 @@ export function MnemonicModal({
     submitUnlock,
     submitImportedMnemonic,
     reset,
-  } = useMnemonicFlow({ hasExistingVaults });
+  } = useMnemonicFlow({ hasExistingVaults, scope });
 
   useEffect(() => {
     if (!open || step !== MnemonicStep.GENERATE || words.length > 0) return;

@@ -11,6 +11,8 @@ const TEST_MNEMONIC =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const TEST_PASSWORD = "test-password-123";
 const STORAGE_KEY = "babylon-lamport-vault";
+const TEST_SCOPE = "0xABCDEF1234567890";
+const SCOPED_STORAGE_KEY = `${STORAGE_KEY}-${TEST_SCOPE}`;
 
 describe("mnemonicVaultService", () => {
   beforeEach(() => {
@@ -32,6 +34,18 @@ describe("mnemonicVaultService", () => {
       const result = await hasStoredMnemonic();
       expect(result).toBe(true);
     });
+
+    it("returns false for a scope that has no stored mnemonic", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const result = await hasStoredMnemonic(TEST_SCOPE);
+      expect(result).toBe(false);
+    });
+
+    it("returns true for a scope that has a stored mnemonic", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      const result = await hasStoredMnemonic(TEST_SCOPE);
+      expect(result).toBe(true);
+    });
   });
 
   describe("storeMnemonic", () => {
@@ -49,6 +63,13 @@ describe("mnemonicVaultService", () => {
       await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       const raw = localStorage.getItem(STORAGE_KEY)!;
       expect(raw).not.toContain(TEST_MNEMONIC);
+    });
+
+    it("stores under a scoped key when scope is provided", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+      const raw = localStorage.getItem(SCOPED_STORAGE_KEY);
+      expect(raw).not.toBeNull();
     });
   });
 
@@ -76,6 +97,19 @@ describe("mnemonicVaultService", () => {
         "Stored mnemonic data is corrupted",
       );
     });
+
+    it("decrypts a scoped mnemonic with the correct password", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      const result = await unlockMnemonic(TEST_PASSWORD, TEST_SCOPE);
+      expect(result).toBe(TEST_MNEMONIC);
+    });
+
+    it("does not find a scoped mnemonic when using the wrong scope", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      await expect(
+        unlockMnemonic(TEST_PASSWORD, "other-scope"),
+      ).rejects.toThrow("No stored mnemonic found");
+    });
   });
 
   describe("clearStoredMnemonic", () => {
@@ -89,6 +123,16 @@ describe("mnemonicVaultService", () => {
 
     it("does not throw when no mnemonic is stored", () => {
       expect(() => clearStoredMnemonic()).not.toThrow();
+    });
+
+    it("removes only the scoped mnemonic, leaving the global one", async () => {
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+
+      clearStoredMnemonic(TEST_SCOPE);
+
+      expect(await hasStoredMnemonic()).toBe(true);
+      expect(await hasStoredMnemonic(TEST_SCOPE)).toBe(false);
     });
   });
 });

@@ -186,7 +186,11 @@ describe("useMnemonicFlow", () => {
         await result.current.submitPassword("mypassword");
       });
 
-      expect(storeMnemonic).toHaveBeenCalledWith(MOCK_MNEMONIC, "mypassword");
+      expect(storeMnemonic).toHaveBeenCalledWith(
+        MOCK_MNEMONIC,
+        "mypassword",
+        undefined,
+      );
       expect(result.current.step).toBe(MnemonicStep.COMPLETE);
       expect(result.current.hasStored).toBe(true);
       expect(result.current.error).toBeNull();
@@ -234,7 +238,7 @@ describe("useMnemonicFlow", () => {
         await result.current.submitUnlock("mypassword");
       });
 
-      expect(unlockMnemonic).toHaveBeenCalledWith("mypassword");
+      expect(unlockMnemonic).toHaveBeenCalledWith("mypassword", undefined);
       expect(result.current.step).toBe(MnemonicStep.COMPLETE);
       expect(result.current.words).toEqual(MOCK_WORDS);
       expect(result.current.error).toBeNull();

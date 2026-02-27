@@ -176,14 +176,19 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
 }));
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
-  submitPeginRequest: vi.fn().mockResolvedValue({
+  preparePeginTransaction: vi.fn().mockResolvedValue({
     btcTxHash: "0xmocktxid123",
-    transactionHash: "0xmockhash456",
-    btcTxHex: "0xmockhex",
+    fundedTxHex: "0xmockhex",
     selectedUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
     ],
     fee: 1000n,
+    depositorBtcPubkey: "ab".repeat(32),
+  }),
+  registerPeginOnChain: vi.fn().mockResolvedValue({
+    transactionHash: "0xmockhash456",
+    btcTxHash: "0xmocktxid123",
+    btcTxHex: "0xmockhex",
   }),
 }));
 
@@ -531,7 +536,7 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      expect(result.current.currentStep).toBe(1);
+      expect(result.current.currentStep).toBe("SIGN_POP");
       expect(result.current.processing).toBe(false);
 
       const flowResult = await result.current.executeDepositFlow();

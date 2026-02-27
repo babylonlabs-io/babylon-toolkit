@@ -1,12 +1,18 @@
 /**
- * Step 2.5: Lamport public key submission
+ * Step 2.5: Lamport public key RPC submission
  *
  * Derives a deterministic Lamport keypair from the depositor's mnemonic
  * and vault-specific inputs (pegin txid, depositor pubkey, app contract
- * address), then submits the public key to the vault provider.
+ * address), then submits the full public key to the vault provider via RPC.
  *
- * Called after the pegin is finalized on Ethereum, when the VP enters
- * `PendingDepositorLamportPK` status.
+ * Note: The Lamport keypair is first derived *before* the ETH transaction
+ * so its keccak256 hash can be committed on-chain as `depositorLamportPkHash`.
+ * This function re-derives the same keypair and sends the full public key
+ * to the vault provider *after* the ETH transaction is confirmed, since the
+ * VP only accepts keys for pegins that are finalized on Ethereum.
+ *
+ * Also used by the "resume deposit" flow when a user returns after closing
+ * the app before the RPC submission completed.
  */
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
@@ -23,8 +29,9 @@ import type { LamportSubmissionParams } from "./types";
 const RPC_TIMEOUT_MS = 60 * 1000;
 
 /**
- * Derive a Lamport keypair from the mnemonic and submit the public key
- * to the vault provider.
+ * Derive a Lamport keypair from the mnemonic and submit the full public
+ * key to the vault provider via RPC. The VP validates the key against the
+ * keccak256 hash committed on-chain during the pegin ETH transaction.
  *
  * @param params - Vault identifiers, provider URL, and a callback to
  *                 retrieve the decrypted mnemonic.
@@ -38,19 +45,32 @@ export async function submitLamportPublicKey(
     appContractAddress,
     providerUrl,
     getMnemonic,
+    signal,
   } = params;
+
+  signal?.throwIfAborted();
 
   const peginTxid = stripHexPrefix(btcTxid);
 
   const mnemonic = await getMnemonic();
+  signal?.throwIfAborted();
+
   const seed = mnemonicToLamportSeed(mnemonic);
-  const keypair = await deriveLamportKeypair(
-    seed,
-    peginTxid,
-    depositorBtcPubkey,
-    appContractAddress,
-  );
-  const lamportPublicKey = keypairToPublicKey(keypair);
+  let lamportPublicKey: ReturnType<typeof keypairToPublicKey>;
+  try {
+    const keypair = await deriveLamportKeypair(
+      seed,
+      peginTxid,
+      depositorBtcPubkey,
+      appContractAddress,
+    );
+    lamportPublicKey = keypairToPublicKey(keypair);
+  } finally {
+    // Zero out seed to avoid leaving sensitive key material in memory
+    seed.fill(0);
+  }
+
+  signal?.throwIfAborted();
 
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 

@@ -5,6 +5,10 @@
 import type { Address } from "viem";
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
+import type {
+  ClaimerSignatures,
+  ClaimerTransactions,
+} from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
@@ -60,7 +64,7 @@ export async function pollAndPreparePayoutSigning(
   } = params;
 
   const buildContext = (
-    payoutTransactions: import("@/clients/vault-provider-rpc/types").ClaimerTransactions[],
+    payoutTransactions: ClaimerTransactions[],
   ): PayoutSigningContext => {
     const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
     const universalChallengerBtcPubkeys =
@@ -113,10 +117,7 @@ export async function submitPayoutSignatures(
   vaultProviderUrl: string,
   btcTxid: string,
   depositorBtcPubkey: string,
-  signatures: Record<
-    string,
-    { payout_optimistic_signature: string; payout_signature: string }
-  >,
+  signatures: Record<string, ClaimerSignatures>,
   depositorEthAddress: Address,
 ): Promise<void> {
   await submitSignaturesToVaultProvider(

@@ -44,7 +44,6 @@ export enum MnemonicStep {
 interface MnemonicFlowState {
   step: MnemonicStep;
   mnemonic: string;
-  words: string[];
   challenge: VerificationChallenge | null;
   error: string | null;
   hasStored: boolean;
@@ -53,6 +52,8 @@ interface MnemonicFlowState {
 interface UseMnemonicFlowOptions {
   /** Whether the user already has vaults (skips generation, goes to import). */
   hasExistingVaults: boolean;
+  /** User identifier (e.g. ETH address) used to scope the localStorage key. */
+  scope?: string;
 }
 
 /**
@@ -62,19 +63,29 @@ interface UseMnemonicFlowOptions {
  * routes to the appropriate initial step. Returns the current state and
  * callbacks for each user action.
  */
-export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
+export function useMnemonicFlow({
+  hasExistingVaults,
+  scope,
+}: UseMnemonicFlowOptions) {
   const [state, setState] = useState<MnemonicFlowState>({
     step: MnemonicStep.LOADING,
     mnemonic: "",
-    words: [],
     challenge: null,
     error: null,
     hasStored: false,
   });
 
+  // Derived — no need to store in state
+  const words = state.mnemonic ? getMnemonicWords(state.mnemonic) : [];
+
+  // Clear sensitive mnemonic from memory on unmount
+  useEffect(() => {
+    return () => setState((prev) => ({ ...prev, mnemonic: "" }));
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
-    hasStoredMnemonic().then((stored) => {
+    hasStoredMnemonic(scope).then((stored) => {
       if (!isMounted) return;
       let initialStep: MnemonicStep;
       if (stored) {
@@ -93,18 +104,14 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
     return () => {
       isMounted = false;
     };
-  }, [hasExistingVaults]);
+  }, [hasExistingVaults, scope]);
 
   /** Generate a fresh 12-word mnemonic and move to the GENERATE step. */
   const startNewMnemonic = useCallback(() => {
-    const mnemonic = generateLamportMnemonic();
-    const words = getMnemonicWords(mnemonic);
-
     setState((prev) => ({
       ...prev,
       step: MnemonicStep.GENERATE,
-      mnemonic,
-      words,
+      mnemonic: generateLamportMnemonic(),
       challenge: null,
       error: null,
     }));
@@ -116,7 +123,6 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
       ...prev,
       step: MnemonicStep.IMPORT,
       mnemonic: "",
-      words: [],
       challenge: null,
       error: null,
     }));
@@ -159,7 +165,7 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
   const submitPassword = useCallback(
     async (password: string) => {
       try {
-        await storeMnemonic(state.mnemonic, password);
+        await storeMnemonic(state.mnemonic, password, scope);
         setState((prev) => ({
           ...prev,
           step: MnemonicStep.COMPLETE,
@@ -173,28 +179,29 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
         }));
       }
     },
-    [state.mnemonic],
+    [state.mnemonic, scope],
   );
 
   /** Decrypt the stored mnemonic with the user's password. */
-  const submitUnlock = useCallback(async (password: string) => {
-    try {
-      const mnemonic = await unlockMnemonic(password);
-      const words = getMnemonicWords(mnemonic);
-      setState((prev) => ({
-        ...prev,
-        step: MnemonicStep.COMPLETE,
-        mnemonic,
-        words,
-        error: null,
-      }));
-    } catch {
-      setState((prev) => ({
-        ...prev,
-        error: "Incorrect password. Please try again.",
-      }));
-    }
-  }, []);
+  const submitUnlock = useCallback(
+    async (password: string) => {
+      try {
+        const mnemonic = await unlockMnemonic(password, scope);
+        setState((prev) => ({
+          ...prev,
+          step: MnemonicStep.COMPLETE,
+          mnemonic,
+          error: null,
+        }));
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          error: "Incorrect password. Please try again.",
+        }));
+      }
+    },
+    [scope],
+  );
 
   /** Validate a user-provided mnemonic phrase and advance to SET_PASSWORD. */
   const submitImportedMnemonic = useCallback((mnemonic: string) => {
@@ -208,12 +215,10 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
       return;
     }
 
-    const words = getMnemonicWords(trimmed);
     setState((prev) => ({
       ...prev,
       step: MnemonicStep.SET_PASSWORD,
       mnemonic: trimmed,
-      words,
       challenge: null,
       error: null,
     }));
@@ -224,7 +229,6 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
     setState({
       step: MnemonicStep.GENERATE,
       mnemonic: "",
-      words: [],
       challenge: null,
       error: null,
       hasStored: false,
@@ -233,6 +237,7 @@ export function useMnemonicFlow({ hasExistingVaults }: UseMnemonicFlowOptions) {
 
   return {
     ...state,
+    words,
     startNewMnemonic,
     startImportMnemonic,
     proceedToVerification,

@@ -60,8 +60,14 @@ export enum LocalStorageStatus {
  * Backend daemon status (vault provider database)
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
- * State flow:
- * PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
+ * State flow (happy path):
+ * PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
+ *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
+ *
+ * Terminal / branching states:
+ * - Expired: vault timed out before activation
+ * - ClaimPosted: claim transaction posted on-chain
+ * - PeggedOut: BTC has been returned to the depositor
  */
 export enum DaemonStatus {
   PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
@@ -82,7 +88,6 @@ export enum DaemonStatus {
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
   DaemonStatus.PENDING_BABE_SETUP,
-  DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
 

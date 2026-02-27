@@ -199,6 +199,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
             onClose={onClose}
             onComplete={confirmMnemonic}
             hasExistingVaults={hasExistingVaults}
+            scope={ethAddress}
           />
         )}
 

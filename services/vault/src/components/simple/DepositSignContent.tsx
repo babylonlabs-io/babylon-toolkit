@@ -5,7 +5,7 @@ import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModa
 import {
   canCloseModal,
   DepositStep,
-} from "@/components/deposit/DepositSignModal/constants";
+} from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
 import { DepositProgressView } from "./DepositProgressView";
@@ -67,7 +67,11 @@ export function DepositSignContent({
   const canClose = canCloseModal(currentStep, error, isWaiting);
   const isProcessing = (processing || isWaiting) && !error && !isComplete;
   const canContinueInBackground =
-    isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS && !error;
+    isWaiting &&
+    (currentStep === DepositStep.SIGN_PAYOUTS ||
+      currentStep === DepositStep.ARTIFACT_DOWNLOAD ||
+      currentStep === DepositStep.BROADCAST_BTC) &&
+    !error;
 
   const handleClose = useCallback(() => {
     abort();

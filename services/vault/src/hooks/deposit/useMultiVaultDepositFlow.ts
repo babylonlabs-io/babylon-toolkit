@@ -27,14 +27,17 @@ import {
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
+import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
+import { FeatureFlags } from "@/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { deriveLamportPkHash } from "@/services/lamport";
 import {
   broadcastPeginWithLocalUtxo,
   planUtxoAllocation,
@@ -47,14 +50,17 @@ import {
   signPayoutOptimistic,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
+import { stripHexPrefix } from "@/utils/btc";
 
 import {
   broadcastBtcTransaction,
   DepositStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
+  preparePegin,
+  registerPeginAndWait,
+  submitLamportPublicKey,
   submitPayoutSignatures,
-  submitPeginAndWait,
   waitForContractVerification,
   type DepositUtxo,
 } from "./depositFlowSteps";
@@ -83,11 +89,15 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
+  /** Callback to retrieve the decrypted Lamport mnemonic (depositor-as-claimer) */
+  getMnemonic?: () => Promise<string>;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
   /** Execute the multi-vault deposit flow */
   executeMultiVaultDeposit: () => Promise<MultiVaultDepositResult | null>;
+  /** Cancel the running flow (e.g. when the user closes the modal) */
+  abort: () => void;
   /** Current step in the deposit flow */
   currentStep: DepositStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
@@ -219,6 +229,7 @@ export function useMultiVaultDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    getMnemonic,
   } = params;
 
   // State
@@ -234,6 +245,19 @@ export function useMultiVaultDepositFlow(
   const [allocationPlan, setAllocationPlan] = useState<AllocationPlan | null>(
     null,
   );
+
+  // Abort controller for cancelling the flow
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const abort = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
+  // Abort any running flow on unmount so async work doesn't leak
+  useEffect(() => {
+    return () => abort();
+  }, [abort]);
 
   // Hooks
   const btcConnector = useChainConnector("BTC");
@@ -251,6 +275,10 @@ export function useMultiVaultDepositFlow(
 
   const executeMultiVaultDeposit =
     useCallback(async (): Promise<MultiVaultDepositResult | null> => {
+      // Create a new AbortController for this flow execution
+      abortControllerRef.current = new AbortController();
+      const { signal } = abortControllerRef.current;
+
       setProcessing(true);
       setError(null);
       setCurrentStep(DepositStep.SIGN_POP);
@@ -386,6 +414,18 @@ export function useMultiVaultDepositFlow(
                 splitOutput: utxoToUse,
               });
 
+              // Derive Lamport keypair and compute PK hash (before ETH tx)
+              let splitLamportPkHash: Hex | undefined;
+              if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+                const mnemonic = await getMnemonic();
+                splitLamportPkHash = await deriveLamportPkHash(
+                  mnemonic,
+                  stripHexPrefix(prepareResult.btcTxHash),
+                  prepareResult.depositorBtcPubkey,
+                  selectedApplication,
+                );
+              }
+
               const registrationResult = await registerSplitPeginOnChain(
                 btcWalletProvider,
                 walletClient,
@@ -393,6 +433,7 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
+                  depositorLamportPkHash: splitLamportPkHash,
                 },
               );
 
@@ -406,7 +447,7 @@ export function useMultiVaultDepositFlow(
               };
             } else {
               // ================================================================
-              // STANDARD PATH: Use existing submitPeginAndWait (mempool OK)
+              // STANDARD PATH: Prepare + register pegin (mempool OK)
               // ================================================================
 
               // Validate UTXOs are available
@@ -414,7 +455,7 @@ export function useMultiVaultDepositFlow(
                 throw new Error(`No UTXO available for vault ${i}`);
               }
 
-              const result = await submitPeginAndWait({
+              const prepared = await preparePegin({
                 btcWalletProvider,
                 walletClient,
                 amount: peginAmount,
@@ -424,18 +465,39 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
-                confirmedUTXOs: allocation.utxos, // MULTI_INPUT: pass all assigned UTXOs for this vault
+                confirmedUTXOs: allocation.utxos,
                 reservedUtxoRefs: [],
               });
 
-              depositorBtcPubkey = result.depositorBtcPubkey;
+              // Derive Lamport keypair and compute PK hash (before ETH tx)
+              let lamportPkHash: Hex | undefined;
+              if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+                const mnemonic = await getMnemonic();
+                lamportPkHash = await deriveLamportPkHash(
+                  mnemonic,
+                  stripHexPrefix(prepared.btcTxid),
+                  prepared.depositorBtcPubkey,
+                  selectedApplication,
+                );
+              }
+
+              const registration = await registerPeginAndWait({
+                btcWalletProvider,
+                walletClient,
+                depositorBtcPubkey: prepared.depositorBtcPubkey,
+                fundedTxHex: prepared.btcTxHex,
+                vaultProviderAddress: selectedProviders[0],
+                depositorLamportPkHash: lamportPkHash,
+              });
+
+              depositorBtcPubkey = prepared.depositorBtcPubkey;
               peginResult = {
-                btcTxid: result.btcTxid,
-                ethTxHash: result.ethTxHash,
-                vaultId: result.btcTxid as Hex, // In standard path, btcTxid = vaultId
-                btcTxHex: result.btcTxHex,
-                selectedUTXOs: result.selectedUTXOs,
-                fee: result.fee,
+                btcTxid: registration.btcTxid,
+                ethTxHash: registration.ethTxHash,
+                vaultId: registration.btcTxid as Hex,
+                btcTxHex: prepared.btcTxHex,
+                selectedUTXOs: prepared.selectedUTXOs,
+                fee: prepared.fee,
               };
             }
 
@@ -507,15 +569,46 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 5: Background - Sign Payout Transactions
+        // Step 4.5: Submit Lamport Public Keys to Vault Provider (if enabled)
         // ========================================================================
-
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
 
         const provider = findProvider(primaryProvider as Hex);
         if (!provider?.url) {
           throw new Error("Vault provider has no RPC URL");
         }
+
+        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+          for (const result of successfulPegins) {
+            try {
+              await submitLamportPublicKey({
+                btcTxid: result.vaultId,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                appContractAddress: selectedApplication,
+                providerUrl: provider.url,
+                getMnemonic,
+                signal,
+              });
+            } catch (error) {
+              const errorMsg =
+                error instanceof Error ? error.message : String(error);
+              const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
+              warnings.push(warning);
+              console.error(
+                "[Multi-Vault] Failed to submit Lamport key for vault",
+                result.vaultId,
+                ":",
+                error,
+              );
+              // Continue with other vaults
+            }
+          }
+        }
+
+        // ========================================================================
+        // Step 5: Background - Sign Payout Transactions
+        // ========================================================================
+
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
 
         for (const result of successfulPegins) {
           try {
@@ -533,18 +626,13 @@ export function useMultiVaultDepositFlow(
                     btcPubKey,
                   }),
                 ),
+                signal,
               });
 
             setIsWaiting(false);
 
             // Sign payouts
-            const signatures: Record<
-              string,
-              {
-                payout_optimistic_signature: string;
-                payout_signature: string;
-              }
-            > = {};
+            const signatures: Record<string, ClaimerSignatures> = {};
 
             for (const tx of preparedTransactions) {
               const payoutOptimisticSig = await signPayoutOptimistic(
@@ -596,7 +684,7 @@ export function useMultiVaultDepositFlow(
         setIsWaiting(true);
         await Promise.all(
           successfulPegins.map((r) =>
-            waitForContractVerification({ btcTxid: r.vaultId }),
+            waitForContractVerification({ btcTxid: r.vaultId, signal }),
           ),
         );
 
@@ -659,13 +747,18 @@ export function useMultiVaultDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setError(errorMsg);
+        // Don't show error if flow was aborted (user intentionally closed modal)
+        if (!signal.aborted) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          setError(errorMsg);
+          console.error("Multi-vault deposit flow error:", err);
+        }
         return null;
       } finally {
         setProcessing(false);
         setIsWaiting(false);
         setCurrentVaultIndex(null);
+        abortControllerRef.current = null;
       }
     }, [
       vaultAmounts,
@@ -683,10 +776,12 @@ export function useMultiVaultDepositFlow(
       utxoError,
       vaultKeepers,
       findProvider,
+      getMnemonic,
     ]);
 
   return {
     executeMultiVaultDeposit,
+    abort,
     currentStep,
     currentVaultIndex,
     processing,

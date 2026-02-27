@@ -12,15 +12,19 @@ import { ethClient } from "@/clients/eth-contract/client";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
 import { selectUtxosForDeposit } from "@/services/vault";
-import { submitPeginRequest } from "@/services/vault/vaultTransactionService";
+import {
+  preparePeginTransaction,
+  registerPeginOnChain,
+} from "@/services/vault/vaultTransactionService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { pollUntil } from "@/utils/async";
-import { processPublicKeyToXOnly } from "@/utils/btc";
 import { ContractError, mapViemErrorToContractError } from "@/utils/errors";
 
 import type {
-  PeginSubmitParams,
-  PeginSubmitResult,
+  PeginPrepareParams,
+  PeginPrepareResult,
+  PeginRegisterParams,
+  PeginRegisterResult,
   SavePendingPeginParams,
 } from "./types";
 
@@ -62,16 +66,16 @@ export async function getEthWalletClient(
 }
 
 // ============================================================================
-// Step 2: Submit Pegin Request
+// Step 2a: Prepare Pegin Transaction (build + fund BTC tx)
 // ============================================================================
 
 /**
- * Submit pegin request (PoP signature + ETH transaction).
- * Returns transaction details after ETH confirmation.
+ * Build and fund the BTC pegin transaction. Returns the btcTxid so the
+ * caller can derive the Lamport keypair before on-chain registration.
  */
-export async function submitPeginAndWait(
-  params: PeginSubmitParams,
-): Promise<PeginSubmitResult> {
+export async function preparePegin(
+  params: PeginPrepareParams,
+): Promise<PeginPrepareResult> {
   const {
     btcWalletProvider,
     walletClient,
@@ -84,7 +88,6 @@ export async function submitPeginAndWait(
     universalChallengerBtcPubkeys,
     confirmedUTXOs,
     reservedUtxoRefs,
-    onPopSigned,
   } = params;
 
   const utxosToUse = selectUtxosForDeposit({
@@ -94,37 +97,63 @@ export async function submitPeginAndWait(
     feeRate,
   });
 
-  // Submit pegin request
-  const result = await submitPeginRequest(btcWalletProvider, walletClient, {
-    pegInAmount: amount,
-    feeRate,
-    changeAddress: btcAddress,
-    // TODO: support multiple vault providers
-    vaultProviderAddress: selectedProviders[0] as Address,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    availableUTXOs: utxosToUse,
+  const result = await preparePeginTransaction(
+    btcWalletProvider,
+    walletClient,
+    {
+      pegInAmount: amount,
+      feeRate,
+      changeAddress: btcAddress,
+      vaultProviderAddress: selectedProviders[0] as Address,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      availableUTXOs: utxosToUse,
+    },
+  );
+
+  return {
+    btcTxid: result.btcTxHash,
+    depositorBtcPubkey: result.depositorBtcPubkey,
+    btcTxHex: result.fundedTxHex,
+    selectedUTXOs: result.selectedUTXOs,
+    fee: result.fee,
+  };
+}
+
+// ============================================================================
+// Step 2b: Register Pegin On-Chain (PoP + ETH tx + wait confirmation)
+// ============================================================================
+
+/**
+ * Submit the PoP signature and ETH transaction, then wait for confirmation.
+ */
+export async function registerPeginAndWait(
+  params: PeginRegisterParams,
+): Promise<PeginRegisterResult> {
+  const {
+    btcWalletProvider,
+    walletClient,
+    depositorBtcPubkey,
+    fundedTxHex,
+    vaultProviderAddress,
+    depositorLamportPkHash,
+    onPopSigned,
+  } = params;
+
+  const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
+    depositorBtcPubkey,
+    fundedTxHex,
+    vaultProviderAddress: vaultProviderAddress as Address,
+    depositorLamportPkHash,
     onPopSigned,
   });
 
-  // Get depositor's BTC public key
-  const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-  const depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
-
-  const btcTxid = result.btcTxHash;
-  const ethTxHash = result.transactionHash;
-
-  // Wait for ETH transaction confirmation with retry on RPC hiccups.
-  await waitForEthConfirmation(ethTxHash);
+  await waitForEthConfirmation(result.transactionHash);
 
   return {
-    btcTxid,
-    ethTxHash,
-    depositorBtcPubkey,
-    btcTxHex: result.btcTxHex,
-    selectedUTXOs: result.selectedUTXOs,
-    fee: result.fee,
+    btcTxid: result.btcTxHash,
+    ethTxHash: result.transactionHash,
   };
 }
 

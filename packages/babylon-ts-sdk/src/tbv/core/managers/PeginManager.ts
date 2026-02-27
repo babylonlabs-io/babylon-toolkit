@@ -45,6 +45,9 @@ import {
   type UTXO,
 } from "../utils";
 
+export const BYTES32_ZERO: Hex =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
 /**
  * Configuration for the PeginManager.
  */
@@ -217,6 +220,14 @@ export interface RegisterPeginParams {
    * Vault provider's Ethereum address.
    */
   vaultProvider: Address;
+
+  /**
+   * Keccak256 hash of the depositor's Lamport public key (bytes32).
+   * When provided, the contract stores this hash so the vault provider
+   * can later verify submitted Lamport keys against it.
+   * When omitted, bytes32(0) is used for backward compatibility.
+   */
+  depositorLamportPkHash?: Hex;
 
   /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
@@ -489,8 +500,13 @@ export class PeginManager {
   async registerPeginOnChain(
     params: RegisterPeginParams,
   ): Promise<RegisterPeginResult> {
-    const { depositorBtcPubkey, unsignedBtcTx, vaultProvider, onPopSigned } =
-      params;
+    const {
+      depositorBtcPubkey,
+      unsignedBtcTx,
+      vaultProvider,
+      depositorLamportPkHash,
+      onPopSigned,
+    } = params;
 
     // Step 1: Get depositor ETH address (from wallet account)
     if (!this.config.ethWallet.account) {
@@ -548,6 +564,8 @@ export class PeginManager {
       );
     }
 
+    const lamportPkHash: Hex = depositorLamportPkHash ?? BYTES32_ZERO;
+
     // Step 5: Encode the contract call data
     const callData = encodeFunctionData({
       abi: BTCVaultsManagerABI,
@@ -558,6 +576,7 @@ export class PeginManager {
         btcPopSignature,
         unsignedPegInTx,
         vaultProvider,
+        lamportPkHash,
       ],
     });
 

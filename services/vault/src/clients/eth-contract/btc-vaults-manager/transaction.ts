@@ -2,6 +2,7 @@
  * BTC Vaults Manager - Write operations (transactions)
  */
 
+import { BYTES32_ZERO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
 import {
@@ -23,6 +24,7 @@ export async function submitPeginRequest(
   btcPopSignature: Hex,
   unsignedPegInTx: Hex,
   vaultProvider: Address,
+  depositorLamportPkHash: Hex = BYTES32_ZERO,
 ): Promise<TransactionResult> {
   return executeWriteWithHashRecovery({
     walletClient,
@@ -36,6 +38,7 @@ export async function submitPeginRequest(
       btcPopSignature,
       unsignedPegInTx,
       vaultProvider,
+      depositorLamportPkHash,
     ],
     errorContext: "submit pegin request",
   });

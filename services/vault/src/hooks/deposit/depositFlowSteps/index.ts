@@ -8,7 +8,9 @@
  * Flow steps:
  * 0. Validation - validateDepositInputs
  * 1. Get ETH wallet - getEthWalletClient
- * 2. Submit pegin - submitPeginAndWait, savePendingPegin
+ * 2a. Prepare pegin - preparePegin (build + fund BTC tx)
+ * 2b. Register pegin - registerPeginAndWait (PoP + ETH tx)
+ * 2.5. Lamport key RPC submission - submitLamportPublicKey
  * 3. Payout signing - pollAndPreparePayoutSigning, submitPayoutSignatures
  * 4. Broadcast - waitForContractVerification, broadcastBtcTransaction
  */
@@ -22,8 +24,10 @@ export type {
   LamportSubmissionParams,
   PayoutSigningContext,
   PayoutSigningParams,
-  PeginSubmitParams,
-  PeginSubmitResult,
+  PeginPrepareParams,
+  PeginPrepareResult,
+  PeginRegisterParams,
+  PeginRegisterResult,
   SavePendingPeginParams,
   UtxoRef,
 } from "./types";
@@ -35,8 +39,9 @@ export type { DepositFlowInputs } from "./validation";
 // Steps 1-2: ETH wallet and pegin submission
 export {
   getEthWalletClient,
+  preparePegin,
+  registerPeginAndWait,
   savePendingPegin,
-  submitPeginAndWait,
 } from "./ethereumSubmit";
 
 // Step 2.5: Lamport key submission

@@ -85,7 +85,8 @@ vi.mock("@/config/pegin", () => ({
 }));
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
-  submitPeginRequest: vi.fn(),
+  preparePeginTransaction: vi.fn(),
+  registerPeginOnChain: vi.fn(),
 }));
 
 vi.mock("@/storage/peginStorage", () => ({

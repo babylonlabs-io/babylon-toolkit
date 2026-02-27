@@ -33,84 +33,84 @@ export interface PeginUTXOParams {
 export type UTXO = SDKUtxo;
 
 /**
- * Parameters for submitting a pegin request
+ * Parameters for preparing a pegin transaction (build + fund, no on-chain submission)
  */
-export interface SubmitPeginParams {
+export interface PreparePeginParams {
   pegInAmount: bigint;
   feeRate: number;
   changeAddress: string;
   vaultProviderAddress: Address;
   vaultProviderBtcPubkey: string;
-  /** Vault keeper BTC public keys (per-application) */
   vaultKeeperBtcPubkeys: string[];
-  /** Universal challenger BTC public keys (system-wide) */
   universalChallengerBtcPubkeys: string[];
   availableUTXOs: UTXO[];
-  /**
-   * Optional callback invoked after PoP signing completes but before ETH transaction.
-   * Useful for updating UI step indicators between Step 1 (PoP) and Step 2 (ETH).
-   * Can be async - will be awaited to allow UI updates before ETH signing.
-   */
+}
+
+/**
+ * Result of preparing a pegin transaction (before on-chain registration)
+ */
+export interface PreparePeginResult {
+  btcTxHash: Hex;
+  fundedTxHex: string;
+  selectedUTXOs: UTXO[];
+  fee: bigint;
+  depositorBtcPubkey: string;
+}
+
+/**
+ * Parameters for registering a prepared pegin on-chain
+ */
+export interface RegisterPeginOnChainParams {
+  depositorBtcPubkey: string;
+  fundedTxHex: string;
+  vaultProviderAddress: Address;
+  depositorLamportPkHash?: Hex;
   onPopSigned?: () => void | Promise<void>;
 }
 
 /**
- * Result of submitting a pegin request
+ * Result of registering a pegin on-chain (PoP + ETH tx only).
+ * UTXOs and fee come from the earlier prepare step, not from registration.
  */
-export interface SubmitPeginResult {
+export interface RegisterPeginResult {
   transactionHash: Hex;
-  btcTxHash: Hex; // Bitcoin transaction hash (with 0x prefix)
-  btcTxHex: string; // Full transaction hex
-  selectedUTXOs: UTXO[];
-  fee: bigint;
+  btcTxHash: Hex;
+  btcTxHex: string;
 }
 
-/**
- * Submit a pegin request using PeginManager
- *
- * This function uses the SDK's PeginManager to orchestrate the complete peg-in flow:
- * 1. Build unfunded transaction
- * 2. Select UTXOs automatically
- * 3. Fund transaction
- * 4. Create proof of possession (PoP) signature
- * 5. Submit to smart contract
- *
- * The PeginManager handles all orchestration internally, dramatically simplifying
- * the service layer code.
- *
- * **IMPORTANT:** This function returns immediately after the Ethereum transaction is
- * submitted. It does NOT wait for transaction confirmation. Use polling mechanisms
- * (e.g., usePeginPollingQuery) to track transaction status separately.
- *
- * @param btcWallet - Bitcoin wallet (from wallet-connector, implements BitcoinWallet interface)
- * @param ethWallet - Ethereum wallet client (viem WalletClient)
- * @param params - Pegin parameters
- * @returns Transaction hash, vault ID, BTC txid, funded tx hex, selected UTXOs, and fee
- */
-export async function submitPeginRequest(
+function createPeginManager(
   btcWallet: BitcoinWallet,
   ethWallet: WalletClient,
-  params: SubmitPeginParams,
-): Promise<SubmitPeginResult> {
-  // Validate wallet client has an account
+): PeginManager {
   if (!ethWallet.account) {
     throw new Error("Ethereum wallet account not found");
   }
 
-  // Step 1: Create PeginManager instance
-  // PeginManager now uses viem's WalletClient directly for proper gas estimation
-  const peginManager = new PeginManager({
+  return new PeginManager({
     btcNetwork: getBTCNetworkForWASM(),
     btcWallet,
-    ethWallet, // viem's WalletClient
-    ethChain: getETHChain(), // Required for proper gas estimation in writeContract
+    ethWallet,
+    ethChain: getETHChain(),
     vaultContracts: {
       btcVaultsManager: CONTRACTS.BTC_VAULTS_MANAGER,
     },
     mempoolApiUrl: getMempoolApiUrl(),
   });
+}
 
-  // Step 2: Prepare peg-in (builds, funds, selects UTXOs automatically)
+/**
+ * Build and fund a pegin BTC transaction without submitting to Ethereum.
+ *
+ * Returns the funded transaction hex and the BTC txid (vault ID) so the
+ * caller can derive the Lamport keypair before on-chain registration.
+ */
+export async function preparePeginTransaction(
+  btcWallet: BitcoinWallet,
+  ethWallet: WalletClient,
+  params: PreparePeginParams,
+): Promise<PreparePeginResult> {
+  const peginManager = createPeginManager(btcWallet, ethWallet);
+
   const peginResult = await peginManager.preparePegin({
     amount: params.pegInAmount,
     vaultProvider: params.vaultProviderAddress,
@@ -122,28 +122,46 @@ export async function submitPeginRequest(
     changeAddress: params.changeAddress,
   });
 
-  // Step 3: Get depositor BTC pubkey (manager handles x-only conversion internally)
   const depositorBtcPubkeyRaw = await btcWallet.getPublicKeyHex();
   const depositorBtcPubkey =
     depositorBtcPubkeyRaw.length === 66
-      ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
-      : depositorBtcPubkeyRaw; // Already x-only
+      ? depositorBtcPubkeyRaw.slice(2)
+      : depositorBtcPubkeyRaw;
 
-  // Step 4: Register on-chain (submits to contract + creates PoP automatically)
-  const registrationResult = await peginManager.registerPeginOnChain({
+  return {
+    btcTxHash: peginResult.btcTxHash as Hex,
+    fundedTxHex: peginResult.fundedTxHex,
+    selectedUTXOs: peginResult.selectedUTXOs,
+    fee: peginResult.fee,
     depositorBtcPubkey,
-    unsignedBtcTx: peginResult.fundedTxHex,
+  };
+}
+
+/**
+ * Register a prepared pegin on Ethereum (PoP signature + contract call).
+ *
+ * This is the second half of the pegin flow, called after the Lamport
+ * keypair has been derived and its hash is available.
+ */
+export async function registerPeginOnChain(
+  btcWallet: BitcoinWallet,
+  ethWallet: WalletClient,
+  params: RegisterPeginOnChainParams,
+): Promise<RegisterPeginResult> {
+  const peginManager = createPeginManager(btcWallet, ethWallet);
+
+  const registrationResult = await peginManager.registerPeginOnChain({
+    depositorBtcPubkey: params.depositorBtcPubkey,
+    unsignedBtcTx: params.fundedTxHex,
     vaultProvider: params.vaultProviderAddress,
+    depositorLamportPkHash: params.depositorLamportPkHash,
     onPopSigned: params.onPopSigned,
   });
 
-  // Step 5: Return results
   return {
     transactionHash: registrationResult.ethTxHash,
-    btcTxHash: registrationResult.vaultId, // Vault identifier (Bitcoin transaction hash with 0x prefix)
-    btcTxHex: peginResult.fundedTxHex,
-    selectedUTXOs: peginResult.selectedUTXOs,
-    fee: peginResult.fee,
+    btcTxHash: registrationResult.vaultId,
+    btcTxHex: params.fundedTxHex,
   };
 }
 
