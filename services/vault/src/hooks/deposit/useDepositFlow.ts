@@ -20,7 +20,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
-import { FeatureFlags } from "@/config";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -217,7 +216,7 @@ export function useDepositFlow(
 
         // Step 2a.5: Derive Lamport keypair and compute PK hash (before ETH tx)
         let lamportPkHash: Hex | undefined;
-        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+        if (getMnemonic) {
           const mnemonic = await getMnemonic();
           lamportPkHash = await deriveLamportPkHash(
             mnemonic,
@@ -256,7 +255,7 @@ export function useDepositFlow(
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
-        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+        if (getMnemonic) {
           setIsWaiting(true);
           try {
             await submitLamportPublicKey({
@@ -319,17 +318,15 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
-        if (FeatureFlags.isDepositorAsClaimerEnabled) {
-          setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
-          setArtifactDownloadInfo({
-            providerUrl: provider.url,
-            peginTxid: registration.btcTxid,
-            depositorPk: prepared.depositorBtcPubkey,
-          });
-          await new Promise<void>((resolve) => {
-            artifactResolverRef.current = resolve;
-          });
-        }
+        setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
+        setArtifactDownloadInfo({
+          providerUrl: provider.url,
+          peginTxid: registration.btcTxid,
+          depositorPk: prepared.depositorBtcPubkey,
+        });
+        await new Promise<void>((resolve) => {
+          artifactResolverRef.current = resolve;
+        });
 
         setCurrentStep(DepositStep.BROADCAST_BTC);
         setIsWaiting(true);

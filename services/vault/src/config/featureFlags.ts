@@ -36,17 +36,6 @@ export default {
   },
 
   /**
-   * ENABLE_DEPOSITOR_AS_CLAIMER feature flag
-   *
-   * Purpose: Controls whether the depositor-as-claimer flow is available
-   * Why needed: Gates the Lamport key mnemonic step in the deposit flow
-   * Default: false (disabled unless explicitly set to "true")
-   */
-  get isDepositorAsClaimerEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_DEPOSITOR_AS_CLAIMER === "true";
-  },
-
-  /**
    * SIMPLIFIED_TERMS feature flag
    *
    * Purpose: Controls whether the wallet connection dialog shows simplified terms

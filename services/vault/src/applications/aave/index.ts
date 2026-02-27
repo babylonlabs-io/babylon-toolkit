@@ -19,7 +19,6 @@ export const aaveApp: ApplicationRegistration = {
   Routes: AaveRoutes,
   contracts: {
     abi: AaveIntegrationControllerABI,
-    functionNames: {},
   },
 };
 

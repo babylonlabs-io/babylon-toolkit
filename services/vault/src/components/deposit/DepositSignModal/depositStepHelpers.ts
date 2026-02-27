@@ -1,4 +1,3 @@
-import FeatureFlags from "@/config/featureFlags";
 import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -47,20 +46,17 @@ export const SIGNING_STEP_LABELS: Record<string, string> = {
  * Step labels for the progress indicator
  */
 export function getStepLabels(): string[] {
-  const labels = [
+  return [
     "Sign proof of possession",
     "Sign & submit peg-in request to Ethereum",
     "Sign payout transaction(s)",
+    "Download vault artifacts",
+    "Sign & broadcast Bitcoin transaction",
   ];
-  if (FeatureFlags.isDepositorAsClaimerEnabled) {
-    labels.push("Download vault artifacts");
-  }
-  labels.push("Sign & broadcast Bitcoin transaction");
-  return labels;
 }
 
 export function getTotalSteps(): number {
-  return FeatureFlags.isDepositorAsClaimerEnabled ? 5 : 4;
+  return 5;
 }
 
 /**
@@ -97,15 +93,10 @@ export function canCloseModal(
 ): boolean {
   if (error) return true;
   if (currentStep === DepositStep.COMPLETED) return true;
-  if (
-    FeatureFlags.isDepositorAsClaimerEnabled &&
-    currentStep === DepositStep.ARTIFACT_DOWNLOAD
-  )
-    return true;
+  if (currentStep === DepositStep.ARTIFACT_DOWNLOAD) return true;
   if (
     isWaiting &&
     (currentStep === DepositStep.SIGN_PAYOUTS ||
-      currentStep === DepositStep.ARTIFACT_DOWNLOAD ||
       currentStep === DepositStep.BROADCAST_BTC)
   )
     return true;

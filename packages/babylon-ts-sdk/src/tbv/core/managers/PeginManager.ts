@@ -587,11 +587,11 @@ export class PeginManager {
         functionName: "getPegInFee",
         args: [vaultProvider],
       })) as bigint;
-    } catch (error) {
-      // Fee query failed — default to 0 for backwards compatibility
-      // with contracts that don't have getPegInFee yet
-      console.warn("[PeginManager] Could not query pegin fee, defaulting to 0:", error);
-      peginFee = 0n;
+    } catch {
+      throw new Error(
+        "Failed to query pegin fee from the contract. " +
+          "Please check your network connection and that the contract address is correct.",
+      );
     }
 
     // Step 6: Encode the contract call data

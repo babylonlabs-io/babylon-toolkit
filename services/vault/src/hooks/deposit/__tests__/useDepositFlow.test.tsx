@@ -17,7 +17,11 @@ vi.mock("@/config/contracts", () => ({
 }));
 
 vi.mock("@/config", () => ({
-  FeatureFlags: { isDepositorAsClaimerEnabled: false },
+  FeatureFlags: {
+    isDepositEnabled: true,
+    isBorrowEnabled: true,
+    isSimplifiedTermsEnabled: false,
+  },
 }));
 
 // Mock dependencies

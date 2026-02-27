@@ -134,11 +134,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      if (FeatureFlags.isDepositorAsClaimerEnabled) {
-        goToStep(DepositStep.MNEMONIC);
-      } else {
-        goToStep(DepositStep.SIGN);
-      }
+      goToStep(DepositStep.MNEMONIC);
     }
   };
 

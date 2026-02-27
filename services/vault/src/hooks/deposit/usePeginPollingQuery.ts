@@ -9,7 +9,6 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import FeatureFlags from "../../config/featureFlags";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -100,10 +99,7 @@ async function fetchFromProvider(
       errors.delete(deposit.activity.id);
       needsLamportKey.delete(deposit.activity.id);
     } catch (error) {
-      if (
-        FeatureFlags.isDepositorAsClaimerEnabled &&
-        isLamportKeyNeeded(error)
-      ) {
+      if (isLamportKeyNeeded(error)) {
         needsLamportKey.add(deposit.activity.id);
         errors.delete(deposit.activity.id);
         continue;

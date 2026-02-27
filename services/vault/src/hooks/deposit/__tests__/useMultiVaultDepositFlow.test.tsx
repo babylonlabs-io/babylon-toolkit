@@ -56,10 +56,6 @@ vi.mock("@/clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
 
-vi.mock("@/config", () => ({
-  FeatureFlags: { isDepositorAsClaimerEnabled: false },
-}));
-
 vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
