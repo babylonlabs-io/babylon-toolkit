@@ -36,7 +36,8 @@ export async function createPayoutConnector(
     params.depositor,
     params.vaultProvider,
     params.vaultKeepers,
-    params.universalChallengers
+    params.universalChallengers,
+    params.timelockPegin
   );
 
   return {

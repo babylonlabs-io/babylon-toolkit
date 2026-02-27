@@ -3,9 +3,6 @@
 // Shared client
 export { ethClient } from "./client";
 
-// BTC Vaults Manager
-export * as BTCVaultsManagerTx from "./btc-vaults-manager/transaction";
-
 // Protocol Params
 export * as ProtocolParamsQuery from "./protocol-params";
 export type { PegInConfiguration, TBVProtocolParams } from "./protocol-params";

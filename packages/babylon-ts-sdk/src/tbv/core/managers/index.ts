@@ -71,7 +71,7 @@
  * @module managers
  */
 
-export { BYTES32_ZERO, PeginManager } from "./PeginManager";
+export { PeginManager } from "./PeginManager";
 export type {
   CreatePeginParams,
   PeginManagerConfig,

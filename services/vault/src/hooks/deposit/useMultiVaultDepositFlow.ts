@@ -35,6 +35,7 @@ import { getMempoolApiUrl } from "@/clients/btc/config";
 import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { FeatureFlags } from "@/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash } from "@/services/lamport";
@@ -268,6 +269,7 @@ export function useMultiVaultDepositFlow(
     error: utxoError,
   } = useUTXOs(btcAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
+  const { timelockPegin, depositorClaimValue } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -411,6 +413,8 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
+                timelockPegin,
+                depositorClaimValue,
                 splitOutput: utxoToUse,
               });
 
@@ -465,6 +469,8 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
+                timelockPegin,
+                depositorClaimValue,
                 confirmedUTXOs: allocation.utxos,
                 reservedUtxoRefs: [],
               });
@@ -626,6 +632,7 @@ export function useMultiVaultDepositFlow(
                     btcPubKey,
                   }),
                 ),
+                timelockPegin,
                 signal,
               });
 
@@ -770,6 +777,8 @@ export function useMultiVaultDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      timelockPegin,
+      depositorClaimValue,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

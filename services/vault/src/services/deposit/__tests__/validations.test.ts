@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import type { UTXO } from "../../vault/vaultTransactionService";
 import {
+  getDepositButtonLabel,
   isDepositAmountValid,
   validateDepositAmount,
   validateProviderSelection,
@@ -51,9 +52,30 @@ describe("Deposit Validations", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("should accept very large amounts (no max limit)", () => {
+    it("should accept very large amounts when no maxDeposit", () => {
       const veryLargeAmount = 21_000_000_00_000_000n; // 21M BTC
       const result = validateDepositAmount(veryLargeAmount, minDeposit);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it("should reject amount exceeding maxDeposit", () => {
+      const maxDeposit = 100_000_000n; // 1 BTC
+      const result = validateDepositAmount(200_000_000n, minDeposit, maxDeposit);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("Maximum deposit");
+    });
+
+    it("should accept exact maxDeposit amount", () => {
+      const maxDeposit = 100_000_000n;
+      const result = validateDepositAmount(maxDeposit, minDeposit, maxDeposit);
+
+      expect(result.valid).toBe(true);
+    });
+
+    it("should ignore maxDeposit when zero", () => {
+      const result = validateDepositAmount(200_000_000n, minDeposit, 0n);
 
       expect(result.valid).toBe(true);
     });
@@ -301,7 +323,7 @@ describe("Deposit Validations", () => {
       expect(result).toBe(true);
     });
 
-    it("should accept very large amounts if balance allows (no max limit)", () => {
+    it("should accept very large amounts if balance allows and no maxDeposit", () => {
       const largeBalance = 21_000_000_00_000_000n; // 21M BTC
       const result = isDepositAmountValid({
         amountSats: largeBalance,
@@ -309,6 +331,75 @@ describe("Deposit Validations", () => {
         btcBalance: largeBalance,
       });
       expect(result).toBe(true);
+    });
+
+    it("should return false for amount exceeding maxDeposit", () => {
+      const maxDeposit = 500000n;
+      const result = isDepositAmountValid({
+        amountSats: 600000n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(false);
+    });
+
+    it("should return true for amount at exact maxDeposit", () => {
+      const maxDeposit = 500000n;
+      const result = isDepositAmountValid({
+        amountSats: maxDeposit,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(result).toBe(true);
+    });
+  });
+
+  describe("getDepositButtonLabel", () => {
+    const minDeposit = 10000n;
+    const btcBalance = 1000000n;
+
+    it("should show 'Enter an amount' for zero amount", () => {
+      expect(
+        getDepositButtonLabel({ amountSats: 0n, minDeposit, btcBalance }),
+      ).toBe("Enter an amount");
+    });
+
+    it("should show 'Deposit' for valid amount", () => {
+      expect(
+        getDepositButtonLabel({ amountSats: 100000n, minDeposit, btcBalance }),
+      ).toBe("Deposit");
+    });
+
+    it("should show minimum message for amount below min", () => {
+      const label = getDepositButtonLabel({
+        amountSats: 5000n,
+        minDeposit,
+        btcBalance,
+      });
+      expect(label).toContain("Minimum");
+    });
+
+    it("should show maximum message for amount above max", () => {
+      const maxDeposit = 500000n;
+      const label = getDepositButtonLabel({
+        amountSats: 600000n,
+        minDeposit,
+        maxDeposit,
+        btcBalance,
+      });
+      expect(label).toContain("Maximum");
+    });
+
+    it("should show 'Insufficient balance' when exceeding balance", () => {
+      expect(
+        getDepositButtonLabel({
+          amountSats: btcBalance + 1n,
+          minDeposit,
+          btcBalance,
+        }),
+      ).toBe("Insufficient balance");
     });
   });
 });

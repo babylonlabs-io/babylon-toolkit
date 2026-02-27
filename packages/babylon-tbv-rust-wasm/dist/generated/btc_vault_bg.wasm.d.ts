@@ -1,32 +1,26 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
-export const __wbg_wasmpayoutoptimistictx_free: (a: number, b: number) => void;
 export const __wbg_wasmpayouttx_free: (a: number, b: number) => void;
 export const __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
 export const __wbg_wasmpegintx_free: (a: number, b: number) => void;
-export const wasmpayoutoptimistictx_estimateVsize: (a: number, b: number, c: number) => bigint;
-export const wasmpayoutoptimistictx_fromJson: (a: number, b: number) => [number, number, number];
-export const wasmpayoutoptimistictx_getTxid: (a: number) => [number, number];
-export const wasmpayoutoptimistictx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number) => [number, number, number];
-export const wasmpayoutoptimistictx_toHex: (a: number) => [number, number];
-export const wasmpayoutoptimistictx_toJson: (a: number) => [number, number, number, number];
-export const wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number) => bigint;
+export const wasmpayouttx_estimateVsize: (a: number, b: number, c: number, d: number, e: number, f: number) => [bigint, number, number];
 export const wasmpayouttx_fromJson: (a: number, b: number) => [number, number, number];
 export const wasmpayouttx_getTxid: (a: number) => [number, number];
-export const wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number) => [number, number, number];
+export const wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: bigint, h: number, i: number, j: number, k: number) => [number, number, number];
 export const wasmpayouttx_toHex: (a: number) => [number, number];
 export const wasmpayouttx_toJson: (a: number) => [number, number, number, number];
 export const wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
 export const wasmpeginpayoutconnector_getPayoutScript: (a: number) => [number, number];
 export const wasmpeginpayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
 export const wasmpeginpayoutconnector_getTaprootScriptHash: (a: number) => [number, number];
-export const wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number];
+export const wasmpeginpayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
 export const wasmpegintx_fromJson: (a: number, b: number) => [number, number, number];
 export const wasmpegintx_getTxid: (a: number) => [number, number];
 export const wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
 export const wasmpegintx_getVaultValue: (a: number) => bigint;
-export const wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: bigint, j: number, k: number) => [number, number, number];
+export const wasmpegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint, k: bigint, l: number, m: number) => [number, number, number];
+export const wasmpegintx_newWithAnchorOutput: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: bigint, k: bigint, l: number, m: number, n: number, o: number) => [number, number, number];
 export const wasmpegintx_toHex: (a: number) => [number, number];
 export const wasmpegintx_toJson: (a: number) => [number, number, number, number];
 export const init_panic_hook: () => void;

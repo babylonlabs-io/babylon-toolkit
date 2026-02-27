@@ -45,9 +45,6 @@ import {
   type UTXO,
 } from "../utils";
 
-export const BYTES32_ZERO: Hex =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
-
 /**
  * Configuration for the PeginManager.
  */
@@ -123,6 +120,16 @@ export interface CreatePeginParams {
    * Can be provided with or without "0x" prefix (will be stripped automatically).
    */
   universalChallengerBtcPubkeys: string[];
+
+  /**
+   * CSV timelock in blocks for the PegIn output.
+   */
+  timelockPegin: number;
+
+  /**
+   * Amount in satoshis for the depositor's claim output.
+   */
+  depositorClaimValue: bigint;
 
   /**
    * Available UTXOs from the depositor's wallet for funding the transaction.
@@ -222,17 +229,12 @@ export interface RegisterPeginParams {
   vaultProvider: Address;
 
   /**
-   * Keccak256 hash of the depositor's Lamport public key (bytes32).
-   * When provided, the contract stores this hash so the vault provider
-   * can later verify submitted Lamport keys against it.
-   * When omitted, bytes32(0) is used for backward compatibility.
-   */
-  depositorLamportPkHash?: Hex;
-
-  /**
    * Optional callback invoked after PoP signing completes but before ETH transaction.
    */
   onPopSigned?: () => void | Promise<void>;
+
+  /** Keccak256 hash of the depositor's Lamport public key (bytes32) */
+  depositorLamportPkHash?: Hex;
 }
 
 /**
@@ -335,15 +337,18 @@ export class PeginManager {
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
       pegInAmount: params.amount,
+      depositorClaimValue: params.depositorClaimValue,
       network: this.config.btcNetwork,
     });
 
     // Step 3: Select UTXOs using iterative fee calculation
-    // This handles the complexity of fee estimation based on input count
+    // Total output value includes both vault amount and depositor claim value
+    const totalOutputValue = params.amount + params.depositorClaimValue;
     const utxoSelection = selectUtxosForPegin(
       params.availableUTXOs,
-      params.amount,
+      totalOutputValue,
       params.feeRate,
     );
 
@@ -504,8 +509,9 @@ export class PeginManager {
       depositorBtcPubkey,
       unsignedBtcTx,
       vaultProvider,
-      depositorLamportPkHash,
       onPopSigned,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      depositorLamportPkHash,
     } = params;
 
     // Step 1: Get depositor ETH address (from wallet account)
@@ -564,9 +570,31 @@ export class PeginManager {
       );
     }
 
-    const lamportPkHash: Hex = depositorLamportPkHash ?? BYTES32_ZERO;
+    // TODO: Pass depositorLamportPkHash as the 6th arg to submitPeginRequest
+    // once the next contract upgrade adds the parameter.
 
-    // Step 5: Encode the contract call data
+    // Step 5: Query required pegin fee from the contract
+    const publicClient = createPublicClient({
+      chain: this.config.ethChain,
+      transport: http(),
+    });
+
+    let peginFee: bigint;
+    try {
+      peginFee = (await publicClient.readContract({
+        address: this.config.vaultContracts.btcVaultsManager,
+        abi: BTCVaultsManagerABI,
+        functionName: "getPegInFee",
+        args: [vaultProvider],
+      })) as bigint;
+    } catch (error) {
+      // Fee query failed — default to 0 for backwards compatibility
+      // with contracts that don't have getPegInFee yet
+      console.warn("[PeginManager] Could not query pegin fee, defaulting to 0:", error);
+      peginFee = 0n;
+    }
+
+    // Step 6: Encode the contract call data
     const callData = encodeFunctionData({
       abi: BTCVaultsManagerABI,
       functionName: "submitPeginRequest",
@@ -576,23 +604,18 @@ export class PeginManager {
         btcPopSignature,
         unsignedPegInTx,
         vaultProvider,
-        lamportPkHash,
       ],
     });
 
-    // Step 6: Estimate gas first to catch contract errors before showing wallet popup
+    // Step 7: Estimate gas first to catch contract errors before showing wallet popup
     // This ensures users see actual contract revert reasons instead of gas errors
     // The gas estimate is then passed to sendTransaction to avoid double estimation
-    const publicClient = createPublicClient({
-      chain: this.config.ethChain,
-      transport: http(),
-    });
-
     let gasEstimate: bigint;
     try {
       gasEstimate = await publicClient.estimateGas({
         to: this.config.vaultContracts.btcVaultsManager,
         data: callData,
+        value: peginFee,
         account: this.config.ethWallet.account.address,
       });
     } catch (error) {
@@ -600,13 +623,14 @@ export class PeginManager {
       handleContractError(error);
     }
 
-    // Step 7: Submit peg-in request to contract (estimation passed)
+    // Step 8: Submit peg-in request to contract (estimation passed)
     try {
       // Send transaction with pre-estimated gas to skip internal estimation
       // Note: viem's sendTransaction uses `gas`, not `gasLimit`
       const ethTxHash = await this.config.ethWallet.sendTransaction({
         to: this.config.vaultContracts.btcVaultsManager,
         data: callData,
+        value: peginFee,
         account: this.config.ethWallet.account,
         chain: this.config.ethChain,
         gas: gasEstimate,

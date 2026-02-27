@@ -60,6 +60,7 @@ export async function pollAndPreparePayoutSigning(
     providerBtcPubKey,
     vaultKeepers,
     universalChallengers,
+    timelockPegin,
     signal,
   } = params;
 
@@ -76,6 +77,7 @@ export async function pollAndPreparePayoutSigning(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       depositorBtcPubkey,
+      timelockPegin,
       network: getBTCNetworkForWASM(),
     };
 

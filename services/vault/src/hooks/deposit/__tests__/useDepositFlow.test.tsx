@@ -246,11 +246,16 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
     config: {
       minimumPegInAmount: 10000n,
-      pegInFee: 0n,
+      maxPegInAmount: 100_000_000n,
       pegInActivationTimeout: 50400n,
       pegInConfirmationDepth: 30n,
+      timelockPegin: 100,
+      depositorClaimValue: 35000n,
     },
     minDeposit: 10000n,
+    maxDeposit: 100_000_000n,
+    timelockPegin: 100,
+    depositorClaimValue: 35000n,
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],

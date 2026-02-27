@@ -49,7 +49,9 @@ export async function createPegInTransaction(
     params.vaultProviderPubkey,
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
+    params.timelockPegin,
     params.pegInAmount,
+    params.depositorClaimValue,
     params.network
   );
 

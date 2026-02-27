@@ -88,6 +88,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     isLoadingProviders,
     amountSats,
     minDeposit,
+    maxDeposit,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
@@ -168,6 +169,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 amountSats={amountSats}
                 btcBalance={btcBalance}
                 minDeposit={minDeposit}
+                maxDeposit={maxDeposit}
                 btcPrice={btcPrice}
                 hasPriceFetchError={hasPriceFetchError}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}

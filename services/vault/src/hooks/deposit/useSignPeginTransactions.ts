@@ -59,8 +59,11 @@ export function useSignPeginTransactions(
   const [error, setError] = useState<Error | null>(null);
   const [success, setSuccess] = useState(false);
 
-  const { latestUniversalChallengers, getUniversalChallengersByVersion } =
-    useProtocolParamsContext();
+  const {
+    latestUniversalChallengers,
+    getUniversalChallengersByVersion,
+    timelockPegin,
+  } = useProtocolParamsContext();
   const { findProvider, vaultKeepers } = useVaultProviders(
     applicationController,
   );
@@ -107,6 +110,7 @@ export function useSignPeginTransactions(
             })),
           },
           btcWallet: params.btcWallet,
+          timelockPegin,
           getUniversalChallengersByVersion,
         });
 
@@ -129,6 +133,7 @@ export function useSignPeginTransactions(
       vaultKeepers,
       latestUniversalChallengers,
       getUniversalChallengersByVersion,
+      timelockPegin,
     ],
   );
 

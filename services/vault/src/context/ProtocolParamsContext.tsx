@@ -34,6 +34,12 @@ interface ProtocolParamsContextValue {
   config: PegInConfiguration;
   /** Minimum deposit amount in satoshis (from contract) */
   minDeposit: bigint;
+  /** Maximum deposit amount in satoshis (from contract) */
+  maxDeposit: bigint;
+  /** CSV timelock in blocks for the PegIn output (from offchain params) */
+  timelockPegin: number;
+  /** Value in satoshis for the depositor's claim output (from offchain params) */
+  depositorClaimValue: bigint;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
@@ -120,6 +126,9 @@ export function ProtocolParamsProvider({
   const value: ProtocolParamsContextValue = {
     config: configData,
     minDeposit: configData.minimumPegInAmount,
+    maxDeposit: configData.maxPegInAmount,
+    timelockPegin: configData.timelockPegin,
+    depositorClaimValue: configData.depositorClaimValue,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
   };

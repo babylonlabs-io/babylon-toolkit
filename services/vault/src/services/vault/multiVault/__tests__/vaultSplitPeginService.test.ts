@@ -214,6 +214,8 @@ describe("preparePeginFromSplitOutput", () => {
       vaultProviderBtcPubkey: VAULT_PROVIDER_BTC_PUBKEY,
       vaultKeeperBtcPubkeys: [...VAULT_KEEPER_PUBKEYS],
       universalChallengerBtcPubkeys: [...UNIVERSAL_CHALLENGER_PUBKEYS],
+      timelockPegin: 100,
+      depositorClaimValue: 35_000n,
       splitOutput: SPLIT_OUTPUT,
     };
 
@@ -277,7 +279,7 @@ describe("preparePeginFromSplitOutput", () => {
   // ── SDK call orchestration ────────────────────────────────────────────────
 
   describe("SDK call orchestration", () => {
-    it("calls buildPeginPsbt with normalised pubkeys, pegInAmount, and network", async () => {
+    it("calls buildPeginPsbt with normalised pubkeys, pegInAmount, timelock, claimValue, and network", async () => {
       await preparePeginFromSplitOutput(baseParams);
 
       expect(mockBuildPeginPsbt).toHaveBeenCalledTimes(1);
@@ -286,7 +288,9 @@ describe("preparePeginFromSplitOutput", () => {
         vaultProviderPubkey: VAULT_PROVIDER_BTC_PUBKEY,
         vaultKeeperPubkeys: VAULT_KEEPER_PUBKEYS,
         universalChallengerPubkeys: UNIVERSAL_CHALLENGER_PUBKEYS,
+        timelockPegin: 100,
         pegInAmount: baseParams.pegInAmount,
+        depositorClaimValue: 35_000n,
         network: "testnet",
       });
     });
@@ -443,6 +447,7 @@ describe("registerSplitPeginOnChain", () => {
         unsignedBtcTx: "unsigned-tx-hex",
         vaultProvider: VAULT_PROVIDER_ADDRESS,
         onPopSigned: undefined,
+        depositorLamportPkHash: undefined,
       });
     });
 

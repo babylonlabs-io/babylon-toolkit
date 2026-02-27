@@ -43,6 +43,10 @@ export interface PreparePeginParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
+  /** Value in satoshis for the depositor's claim output */
+  depositorClaimValue: bigint;
   availableUTXOs: UTXO[];
 }
 
@@ -64,8 +68,9 @@ export interface RegisterPeginOnChainParams {
   depositorBtcPubkey: string;
   fundedTxHex: string;
   vaultProviderAddress: Address;
-  depositorLamportPkHash?: Hex;
   onPopSigned?: () => void | Promise<void>;
+  /** Keccak256 hash of the depositor's Lamport public key */
+  depositorLamportPkHash?: Hex;
 }
 
 /**
@@ -117,6 +122,8 @@ export async function preparePeginTransaction(
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+    timelockPegin: params.timelockPegin,
+    depositorClaimValue: params.depositorClaimValue,
     availableUTXOs: params.availableUTXOs,
     feeRate: params.feeRate,
     changeAddress: params.changeAddress,
@@ -154,8 +161,8 @@ export async function registerPeginOnChain(
     depositorBtcPubkey: params.depositorBtcPubkey,
     unsignedBtcTx: params.fundedTxHex,
     vaultProvider: params.vaultProviderAddress,
-    depositorLamportPkHash: params.depositorLamportPkHash,
     onPopSigned: params.onPopSigned,
+    depositorLamportPkHash: params.depositorLamportPkHash,
   });
 
   return {

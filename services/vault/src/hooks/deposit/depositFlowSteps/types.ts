@@ -64,6 +64,10 @@ export interface PeginPrepareParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
+  /** Value in satoshis for the depositor's claim output */
+  depositorClaimValue: bigint;
   confirmedUTXOs: DepositUtxo[];
   reservedUtxoRefs: UtxoRef[];
 }
@@ -82,8 +86,9 @@ export interface PeginRegisterParams {
   depositorBtcPubkey: string;
   fundedTxHex: string;
   vaultProviderAddress: string;
-  depositorLamportPkHash?: Hex;
   onPopSigned?: () => void;
+  /** Keccak256 hash of the depositor's Lamport public key */
+  depositorLamportPkHash?: Hex;
 }
 
 export interface PeginRegisterResult {
@@ -128,6 +133,8 @@ export interface PayoutSigningParams {
   providerBtcPubKey: string;
   vaultKeepers: Array<{ btcPubKey: string }>;
   universalChallengers: Array<{ btcPubKey: string }>;
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
   /** Optional AbortSignal for cancellation */
   signal?: AbortSignal;
 }

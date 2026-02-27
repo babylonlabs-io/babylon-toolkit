@@ -277,8 +277,11 @@ async function setupDefaultMocks() {
     error: null,
   } as any);
 
-  // Protocol params (currently unused but kept for future compatibility)
-  vi.mocked(useProtocolParamsContext).mockReturnValue({} as any);
+  // Protocol params
+  vi.mocked(useProtocolParamsContext).mockReturnValue({
+    timelockPegin: 100,
+    depositorClaimValue: 35000n,
+  } as any);
 
   // Vault providers
   vi.mocked(useVaultProviders).mockReturnValue({

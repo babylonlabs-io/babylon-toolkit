@@ -14,7 +14,7 @@
   },
   {
     "type": "function",
-    "name": "pegInFee",
+    "name": "maxPegInAmount",
     "inputs": [],
     "outputs": [
       {
@@ -67,22 +67,12 @@
             "internalType": "address"
           },
           {
-            "name": "vpRegistrationFee",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "feeCollector",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
             "name": "minimumPegInAmount",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "pegInFee",
+            "name": "maxPegInAmount",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -95,26 +85,84 @@
             "name": "pegInConfirmationDepth",
             "type": "uint256",
             "internalType": "uint256"
-          },
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "latestOffchainParamsVersion",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getLatestOffchainParams",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IProtocolParams.VersionedOffchainParams",
+        "components": [
           {
-            "name": "liquidatorFeeBps",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "arbitrageurDiscountBps",
-            "type": "uint128",
-            "internalType": "uint128"
-          },
-          {
-            "name": "coreSpokeLiquidationFeeBps",
+            "name": "timelockAssert",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "protocolFeeRecipient",
-            "type": "address",
-            "internalType": "address"
+            "name": "timelockChallengeAssert",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "securityCouncilKeys",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
+          },
+          {
+            "name": "feeRate",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "feeMarginPercent",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "challengerOutputValue",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "payoutNopayoutOutputValue",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "babeTotalInstances",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "babeInstancesToFinalize",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "vpCommissionBps",
+            "type": "uint16",
+            "internalType": "uint16"
           }
         ]
       }

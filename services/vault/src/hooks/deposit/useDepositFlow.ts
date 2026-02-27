@@ -143,7 +143,13 @@ export function useDepositFlow(
   } = useUTXOs(btcAddress);
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { minDeposit, latestUniversalChallengers } = useProtocolParamsContext();
+  const {
+    minDeposit,
+    maxDeposit,
+    timelockPegin,
+    depositorClaimValue,
+    latestUniversalChallengers,
+  } = useProtocolParamsContext();
 
   const getSelectedVaultProvider = useCallback(() => {
     if (!selectedProviders || selectedProviders.length === 0) {
@@ -178,6 +184,7 @@ export function useDepositFlow(
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
           minDeposit,
+          maxDeposit,
         });
 
         // Step 1: Get ETH wallet client
@@ -202,6 +209,8 @@ export function useDepositFlow(
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
+          timelockPegin,
+          depositorClaimValue,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
         });
@@ -218,15 +227,15 @@ export function useDepositFlow(
           );
         }
 
-        // Step 2b: Register pegin on-chain (PoP + ETH tx with lamport hash)
+        // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
           btcWalletProvider,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           fundedTxHex: prepared.btcTxHex,
           vaultProviderAddress: selectedProviders[0],
-          depositorLamportPkHash: lamportPkHash,
           onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+          depositorLamportPkHash: lamportPkHash,
         });
 
         // Save to localStorage
@@ -288,6 +297,7 @@ export function useDepositFlow(
             universalChallengers: latestUniversalChallengers.map((uc) => ({
               btcPubKey: uc.btcPubKey,
             })),
+            timelockPegin,
             signal,
           });
 
@@ -375,6 +385,8 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      timelockPegin,
+      depositorClaimValue,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,
@@ -384,6 +396,7 @@ export function useDepositFlow(
       vaultKeepers,
       latestUniversalChallengers,
       minDeposit,
+      maxDeposit,
       getMnemonic,
     ]);
 

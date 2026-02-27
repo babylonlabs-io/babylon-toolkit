@@ -37,9 +37,6 @@ vi.mock("@/clients/eth-contract", () => ({
   BTCVaultsManagerQuery: {
     getPeginRequest: vi.fn(),
   },
-  BTCVaultsManagerTx: {
-    submitPeginRequest: vi.fn(),
-  },
 }));
 
 import { useApplications } from "../../useApplications";
@@ -257,6 +254,7 @@ vi.mock("../useDepositValidation", () => ({
     validateAmount: mockValidateAmount,
     validateProviders: mockValidateProviders,
     minDeposit: 10000n,
+    maxDeposit: 100_000_000n,
     availableProviders: [
       "0x1234567890abcdef1234567890abcdef12345678",
       "0xabcdef1234567890abcdef1234567890abcdef12",

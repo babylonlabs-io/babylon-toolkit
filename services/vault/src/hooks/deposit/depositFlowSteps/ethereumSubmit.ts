@@ -86,6 +86,8 @@ export async function preparePegin(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    timelockPegin,
+    depositorClaimValue,
     confirmedUTXOs,
     reservedUtxoRefs,
   } = params;
@@ -108,6 +110,8 @@ export async function preparePegin(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      timelockPegin,
+      depositorClaimValue,
       availableUTXOs: utxosToUse,
     },
   );
@@ -137,16 +141,16 @@ export async function registerPeginAndWait(
     depositorBtcPubkey,
     fundedTxHex,
     vaultProviderAddress,
-    depositorLamportPkHash,
     onPopSigned,
+    depositorLamportPkHash,
   } = params;
 
   const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
     depositorBtcPubkey,
     fundedTxHex,
     vaultProviderAddress: vaultProviderAddress as Address,
-    depositorLamportPkHash,
     onPopSigned,
+    depositorLamportPkHash,
   });
 
   await waitForEthConfirmation(result.transactionHash);

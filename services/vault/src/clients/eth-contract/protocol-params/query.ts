@@ -19,16 +19,27 @@ import ProtocolParamsAbi from "./abis/ProtocolParams.abi.json";
  */
 export interface TBVProtocolParams {
   btcPrismAddress: Address;
-  vpRegistrationFee: bigint;
-  feeCollector: Address;
   minimumPegInAmount: bigint;
-  pegInFee: bigint;
+  maxPegInAmount: bigint;
   pegInActivationTimeout: bigint;
   pegInConfirmationDepth: bigint;
-  liquidatorFeeBps: bigint;
-  arbitrageurDiscountBps: bigint;
-  coreSpokeLiquidationFeeBps: bigint;
-  protocolFeeRecipient: Address;
+}
+
+/**
+ * Versioned offchain parameters from the ProtocolParams contract.
+ * Used by off-chain actors for transaction graph construction.
+ */
+export interface VersionedOffchainParams {
+  timelockAssert: bigint;
+  timelockChallengeAssert: bigint;
+  securityCouncilKeys: `0x${string}`[];
+  feeRate: bigint;
+  feeMarginPercent: number;
+  challengerOutputValue: bigint;
+  payoutNopayoutOutputValue: bigint;
+  babeTotalInstances: number;
+  babeInstancesToFinalize: number;
+  vpCommissionBps: number;
 }
 
 /**
@@ -37,12 +48,16 @@ export interface TBVProtocolParams {
 export interface PegInConfiguration {
   /** Minimum deposit amount in satoshis */
   minimumPegInAmount: bigint;
-  /** Fee for peg-in request in wei */
-  pegInFee: bigint;
+  /** Maximum deposit amount in satoshis */
+  maxPegInAmount: bigint;
   /** Timeout for peg-in activation in ETH blocks */
   pegInActivationTimeout: bigint;
   /** Required BTC confirmation depth */
   pegInConfirmationDepth: bigint;
+  /** CSV timelock in blocks for the PegIn output (from offchain params) */
+  timelockPegin: number;
+  /** Value in satoshis for the depositor's claim output (from offchain params) */
+  depositorClaimValue: bigint;
 }
 
 /**
@@ -102,31 +117,55 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
 
   return {
     btcPrismAddress: result.btcPrismAddress,
-    vpRegistrationFee: result.vpRegistrationFee,
-    feeCollector: result.feeCollector,
     minimumPegInAmount: result.minimumPegInAmount,
-    pegInFee: result.pegInFee,
+    maxPegInAmount: result.maxPegInAmount,
     pegInActivationTimeout: result.pegInActivationTimeout,
     pegInConfirmationDepth: result.pegInConfirmationDepth,
-    liquidatorFeeBps: result.liquidatorFeeBps,
-    arbitrageurDiscountBps: result.arbitrageurDiscountBps,
-    coreSpokeLiquidationFeeBps: result.coreSpokeLiquidationFeeBps,
-    protocolFeeRecipient: result.protocolFeeRecipient,
   };
 }
 
 /**
- * Get peg-in configuration from the ProtocolParams contract
- * This is a convenience function that returns only the peg-in related parameters
+ * Get the latest versioned offchain parameters from the ProtocolParams contract.
+ * These include timelocks, fee rates, and output values used for transaction construction.
+ */
+export async function getLatestOffchainParams(): Promise<VersionedOffchainParams> {
+  const publicClient = ethClient.getPublicClient();
+  const protocolParamsAddress = await getProtocolParamsAddress();
+
+  const result = await publicClient.readContract({
+    address: protocolParamsAddress,
+    abi: ProtocolParamsAbi,
+    functionName: "getLatestOffchainParams",
+  });
+
+  return result as VersionedOffchainParams;
+}
+
+/**
+ * Get peg-in configuration from the ProtocolParams contract.
+ * Fetches both on-chain protocol params and offchain params to provide
+ * all values needed for pegin transaction construction.
  */
 export async function getPegInConfiguration(): Promise<PegInConfiguration> {
-  const params = await getTBVProtocolParams();
+  const [params, offchainParams] = await Promise.all([
+    getTBVProtocolParams(),
+    getLatestOffchainParams(),
+  ]);
+
+  // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
+  const timelockPegin = Number(offchainParams.timelockAssert);
+
+  // depositorClaimValue funds the depositor's future Claim transaction.
+  // Use challengerOutputValue as a reasonable protocol-aligned default.
+  const depositorClaimValue = offchainParams.challengerOutputValue;
 
   return {
     minimumPegInAmount: params.minimumPegInAmount,
-    pegInFee: params.pegInFee,
+    maxPegInAmount: params.maxPegInAmount,
     pegInActivationTimeout: params.pegInActivationTimeout,
     pegInConfirmationDepth: params.pegInConfirmationDepth,
+    timelockPegin,
+    depositorClaimValue,
   };
 }
 

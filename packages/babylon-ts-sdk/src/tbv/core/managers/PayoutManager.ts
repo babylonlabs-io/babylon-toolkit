@@ -66,6 +66,11 @@ interface SignPayoutBaseParams {
   universalChallengerBtcPubkeys: string[];
 
   /**
+   * CSV timelock in blocks for the PegIn output.
+   */
+  timelockPegin: number;
+
+  /**
    * Depositor's BTC public key (x-only, 64-char hex).
    * This should be the public key that was used when creating the vault,
    * as stored on-chain. If not provided, will be fetched from the wallet.
@@ -206,6 +211,7 @@ export class PayoutManager {
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
       network: this.config.network,
     });
 
@@ -278,6 +284,7 @@ export class PayoutManager {
       vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
       network: this.config.network,
     });
 
@@ -386,6 +393,7 @@ export class PayoutManager {
         vaultKeeperBtcPubkeys: tx.payoutOptimistic.vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys:
           tx.payoutOptimistic.universalChallengerBtcPubkeys,
+        timelockPegin: tx.payoutOptimistic.timelockPegin,
         network: this.config.network,
       });
       psbtsToSign.push(payoutOptimisticPsbt.psbtHex);
@@ -410,6 +418,7 @@ export class PayoutManager {
         vaultKeeperBtcPubkeys: tx.payout.vaultKeeperBtcPubkeys,
         universalChallengerBtcPubkeys:
           tx.payout.universalChallengerBtcPubkeys,
+        timelockPegin: tx.payout.timelockPegin,
         network: this.config.network,
       });
       psbtsToSign.push(payoutPsbt.psbtHex);
