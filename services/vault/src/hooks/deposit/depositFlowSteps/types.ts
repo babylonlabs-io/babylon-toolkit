@@ -17,7 +17,7 @@ import type {
 /**
  * Deposit flow step numbers
  */
-export enum DepositStep {
+export enum DepositFlowStep {
   /** Step 1: Sign proof of possession in BTC wallet */
   SIGN_POP = 1,
   /** Step 2: Sign and submit peg-in request in ETH wallet */
@@ -119,6 +119,25 @@ export interface BroadcastParams {
   btcTxid: string;
   depositorBtcPubkey: string;
   btcWalletProvider: BitcoinWallet;
+}
+
+// ============================================================================
+// Split Transaction
+// ============================================================================
+
+/** Result of creating and signing a split transaction */
+export interface SplitTxSignResult {
+  /** Transaction ID */
+  txid: string;
+  /** Signed transaction hex */
+  signedHex: string;
+  /** Output UTXOs created by split transaction */
+  outputs: Array<{
+    txid: string;
+    vout: number;
+    value: number;
+    scriptPubKey: string;
+  }>;
 }
 
 // ============================================================================

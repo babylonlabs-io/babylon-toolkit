@@ -15,9 +15,12 @@ export { useMultiVaultDepositFlow } from "./useMultiVaultDepositFlow";
 export type {
   MultiVaultDepositResult,
   PeginCreationResult,
+  SplitTxSignResult,
   UseMultiVaultDepositFlowParams,
   UseMultiVaultDepositFlowReturn,
 } from "./useMultiVaultDepositFlow";
+
+export { useSplitTransaction } from "./useSplitTransaction";
 
 export { useDepositValidation } from "./useDepositValidation";
 export type { UseDepositValidationResult } from "./useDepositValidation";
@@ -32,7 +35,7 @@ export type {
 
 // Export from the context-based state
 export {
-  DepositStep as DepositStateStep,
+  DepositPageStep as DepositStateStep,
   useDepositState,
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";

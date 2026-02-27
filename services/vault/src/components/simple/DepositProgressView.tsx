@@ -2,8 +2,10 @@
  * DepositProgressView
  *
  * Pure view component for the deposit progress stepper UI.
- * Used by both the initial deposit flow (DepositSignContent) and
- * the resume flows (payout signing / broadcast from the deposits table).
+ * Supports both single-vault and multi-vault flows via a `variant` prop.
+ *
+ * Used by DepositSignContent (single), ResumeDepositContent (single),
+ * and MultiVaultDepositSignContent (multi).
  *
  * Renders: Heading, 6-step Stepper, status banners, action button.
  */
@@ -18,12 +20,13 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { DEPOSIT_SUCCESS_MESSAGE } from "@/components/deposit/DepositSignModal/constants";
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
- * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-6).
+ * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-6).
  *
  * Visual steps:
  * 1. Sign proof of possession
@@ -34,19 +37,19 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * 6. Submit peg-in transactions
  */
 export function getVisualStep(
-  currentStep: DepositStep,
+  currentStep: DepositFlowStep,
   isWaiting: boolean,
 ): number {
   switch (currentStep) {
-    case DepositStep.SIGN_POP:
+    case DepositFlowStep.SIGN_POP:
       return 1;
-    case DepositStep.SUBMIT_PEGIN:
+    case DepositFlowStep.SUBMIT_PEGIN:
       return 2;
-    case DepositStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return isWaiting ? 3 : 4;
-    case DepositStep.BROADCAST_BTC:
+    case DepositFlowStep.BROADCAST_BTC:
       return isWaiting ? 5 : 6;
-    case DepositStep.COMPLETED:
+    case DepositFlowStep.COMPLETED:
       return 7; // All 6 steps completed
     default:
       return 1;
@@ -73,40 +76,120 @@ export function buildStepItems(
   ];
 }
 
-export interface DepositProgressViewProps {
-  currentStep: DepositStep;
-  isWaiting: boolean;
+/**
+ * 6-step labels for the multi-vault deposit stepper.
+ * Steps 1-4 have per-vault labels; steps 5-6 are shared.
+ *
+ * Hardcoded for exactly 2 vaults — this is by design. The partial-liquidation
+ * feature always splits into 2 vaults so at most half the BTC is exposed to
+ * a single liquidation event. The 2-vault cap is enforced in
+ * validateVaultAmounts() and utxoAllocationService.
+ */
+const MULTI_VAULT_STEP_LABELS = [
+  "Sign proof of possession for pegin 1/2",
+  "Submit peg-in requests for pegin 1/2",
+  "Sign proof of possession for pegin 2/2",
+  "Submit peg-in requests for pegin 2/2",
+  "Sign payout transaction(s)",
+  "Sign & broadcast Bitcoin transaction",
+] as const;
+
+/**
+ * Map the hook's (currentStep, currentVaultIndex) tuple to a 1-indexed
+ * visual step position for the 6-step Stepper.
+ *
+ * Mapping:
+ *   SIGN_POP     + vault 0 -> visual 1
+ *   SUBMIT_PEGIN + vault 0 -> visual 2
+ *   SIGN_POP     + vault 1 -> visual 3
+ *   SUBMIT_PEGIN + vault 1 -> visual 4
+ *   SIGN_PAYOUTS            -> visual 5
+ *   BROADCAST_BTC           -> visual 6
+ *   COMPLETED               -> visual 7 (all 6 steps marked complete)
+ */
+function getMultiVaultVisualStep(
+  currentStep: DepositFlowStep,
+  currentVaultIndex: number | null,
+): number {
+  switch (currentStep) {
+    case DepositFlowStep.SIGN_POP:
+      return currentVaultIndex === 1 ? 3 : 1;
+    case DepositFlowStep.SUBMIT_PEGIN:
+      return currentVaultIndex === 1 ? 4 : 2;
+    case DepositFlowStep.SIGN_PAYOUTS:
+      return 5;
+    case DepositFlowStep.BROADCAST_BTC:
+      return 6;
+    case DepositFlowStep.COMPLETED:
+      return 7;
+    default:
+      return 1;
+  }
+}
+
+const multiVaultSteps: StepperItem[] = MULTI_VAULT_STEP_LABELS.map((label) => ({
+  label,
+}));
+
+// ---------------------------------------------------------------------------
+// Props — discriminated union on `variant`
+// ---------------------------------------------------------------------------
+
+type SharedProps = {
+  currentStep: DepositFlowStep;
   error: string | null;
   isComplete: boolean;
   isProcessing: boolean;
   canClose: boolean;
   canContinueInBackground: boolean;
-  payoutSigningProgress: PayoutSigningProgress | null;
   onClose: () => void;
-  /** Override the default success message */
   successMessage?: string;
-  /** Override the default error retry handler (defaults to onClose) */
-  onRetry?: () => void;
-}
+};
 
-export function DepositProgressView({
-  currentStep,
-  isWaiting,
-  error,
-  isComplete,
-  isProcessing,
-  canClose,
-  canContinueInBackground,
-  payoutSigningProgress,
-  onClose,
-  successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
-  onRetry,
-}: DepositProgressViewProps) {
-  const visualStep = getVisualStep(currentStep, isWaiting);
+type SingleVaultProps = SharedProps & {
+  variant?: "single";
+  isWaiting: boolean;
+  payoutSigningProgress: PayoutSigningProgress | null;
+  onRetry?: () => void;
+};
+
+type MultiVaultProps = SharedProps & {
+  variant: "multi";
+  currentVaultIndex: number | null;
+};
+
+export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+export function DepositProgressView(props: DepositProgressViewProps) {
+  const {
+    currentStep,
+    error,
+    isComplete,
+    isProcessing,
+    canClose,
+    canContinueInBackground,
+    onClose,
+    successMessage = DEPOSIT_SUCCESS_MESSAGE,
+  } = props;
+
+  const isMulti = props.variant === "multi";
+  const payoutSigningProgress = isMulti ? null : props.payoutSigningProgress;
+
+  const visualStep = isMulti
+    ? getMultiVaultVisualStep(currentStep, props.currentVaultIndex)
+    : getVisualStep(currentStep, props.isWaiting);
+
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress),
-    [payoutSigningProgress],
+    () => (isMulti ? multiVaultSteps : buildStepItems(payoutSigningProgress)),
+    [isMulti, payoutSigningProgress],
   );
+
+  const onRetry = !isMulti ? props.onRetry : undefined;
+  const handleClick = error && onRetry ? onRetry : onClose;
 
   return (
     <div className="w-full max-w-[520px]">
@@ -128,7 +211,7 @@ export function DepositProgressView({
           variant="contained"
           color="secondary"
           className="w-full"
-          onClick={error && onRetry ? onRetry : onClose}
+          onClick={handleClick}
         >
           {canContinueInBackground ? (
             "You can close and come back later"
