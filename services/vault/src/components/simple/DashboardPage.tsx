@@ -28,6 +28,7 @@ import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
+import { PendingCollateralSection } from "./PendingCollateralSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 
 export function DashboardPage() {
@@ -116,6 +117,11 @@ export function DashboardPage() {
         />
 
         <PendingDepositSection />
+
+        <PendingCollateralSection
+          isPendingAdd={hasPendingAdd}
+          isPendingWithdraw={hasPendingWithdraw}
+        />
 
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
