@@ -1,7 +1,7 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
 import type { SigningStepType } from "../../../services/vault/vaultPayoutSignatureService";
-import { DepositStep } from "../DepositSignModal/constants";
+import { DepositStep } from "../DepositSignModal/depositStepHelpers";
 
 /** Progress display modes for the signing flow */
 enum ProgressMode {

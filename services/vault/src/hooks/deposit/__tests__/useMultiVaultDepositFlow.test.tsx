@@ -56,6 +56,10 @@ vi.mock("@/clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
 
+vi.mock("@/config", () => ({
+  FeatureFlags: { isDepositorAsClaimerEnabled: false },
+}));
+
 vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
@@ -95,17 +99,18 @@ vi.mock("@/storage/peginStorage", () => ({
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
   DepositStep: {
-    SIGN_POP: 1,
-    SUBMIT_PEGIN: 2,
-    SIGN_PAYOUTS: 3,
-    ARTIFACT_DOWNLOAD: 4,
-    BROADCAST_BTC: 5,
-    COMPLETED: 6,
+    SIGN_POP: "SIGN_POP",
+    SUBMIT_PEGIN: "SUBMIT_PEGIN",
+    SIGN_PAYOUTS: "SIGN_PAYOUTS",
+    ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
+    BROADCAST_BTC: "BROADCAST_BTC",
+    COMPLETED: "COMPLETED",
   },
   getEthWalletClient: vi.fn(),
   preparePegin: vi.fn(),
   registerPeginAndWait: vi.fn(),
   pollAndPreparePayoutSigning: vi.fn(),
+  submitLamportPublicKey: vi.fn(),
   submitPayoutSignatures: vi.fn(),
   waitForContractVerification: vi.fn(),
   broadcastBtcTransaction: vi.fn(),
@@ -337,14 +342,14 @@ async function setupDefaultMocks() {
   // Deposit flow steps
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
   vi.mocked(preparePegin).mockResolvedValue({
-    btcTxid: "standardBtcTxid",
+    btcTxid: "0xstandardBtcTxid" as Hex,
     depositorBtcPubkey: "ab".repeat(32),
     btcTxHex: "standardTxHex",
     selectedUTXOs: [MOCK_UTXO_1],
     fee: 800n,
   });
   vi.mocked(registerPeginAndWait).mockResolvedValue({
-    btcTxid: "standardBtcTxid",
+    btcTxid: "0xstandardBtcTxid" as Hex,
     ethTxHash: "0xStandardEthTx" as Hex,
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
@@ -383,9 +388,7 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { preparePegin } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
 
       vi.mocked(planUtxoAllocation).mockReturnValue(SINGLE_PLAN);
 
@@ -479,7 +482,7 @@ describe("useMultiVaultDepositFlow", () => {
         pegins: [
           expect.objectContaining({
             vaultIndex: 0,
-            btcTxHash: "standardBtcTxid",
+            btcTxHash: "0xstandardBtcTxid",
             ethTxHash: "0xStandardEthTx",
           }),
         ],
@@ -501,9 +504,7 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { preparePegin } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
 
       vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
 
@@ -545,9 +546,7 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { preparePegin } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
 
       vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
 
@@ -960,14 +959,12 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { preparePegin } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
 
       vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(preparePegin)
         .mockResolvedValueOnce({
-          btcTxid: "vault1TxId",
+          btcTxid: "0xvault1TxId" as Hex,
           depositorBtcPubkey: "ab".repeat(32),
           btcTxHex: "vault1Hex",
           selectedUTXOs: [MOCK_UTXO_1],
@@ -994,9 +991,7 @@ describe("useMultiVaultDepositFlow", () => {
       const { planUtxoAllocation } = vi.mocked(
         await import("@/services/vault"),
       );
-      const { preparePegin } = vi.mocked(
-        await import("../depositFlowSteps"),
-      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
@@ -1004,7 +999,7 @@ describe("useMultiVaultDepositFlow", () => {
       vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
       vi.mocked(preparePegin)
         .mockResolvedValueOnce({
-          btcTxid: "vault1TxId",
+          btcTxid: "0xvault1TxId" as Hex,
           depositorBtcPubkey: "ab".repeat(32),
           btcTxHex: "vault1Hex",
           selectedUTXOs: [MOCK_UTXO_1],
@@ -1039,12 +1034,12 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      expect(result.current.currentStep).toBe(1); // SIGN_POP
+      expect(result.current.currentStep).toBe("SIGN_POP");
 
       const executePromise = result.current.executeMultiVaultDeposit();
 
       await waitFor(() => {
-        expect(result.current.currentStep).toBe(6); // COMPLETED
+        expect(result.current.currentStep).toBe("COMPLETED");
       });
 
       await executePromise;

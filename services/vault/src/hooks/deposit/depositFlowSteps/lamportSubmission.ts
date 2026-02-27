@@ -45,19 +45,32 @@ export async function submitLamportPublicKey(
     appContractAddress,
     providerUrl,
     getMnemonic,
+    signal,
   } = params;
+
+  signal?.throwIfAborted();
 
   const peginTxid = stripHexPrefix(btcTxid);
 
   const mnemonic = await getMnemonic();
+  signal?.throwIfAborted();
+
   const seed = mnemonicToLamportSeed(mnemonic);
-  const keypair = await deriveLamportKeypair(
-    seed,
-    peginTxid,
-    depositorBtcPubkey,
-    appContractAddress,
-  );
-  const lamportPublicKey = keypairToPublicKey(keypair);
+  let lamportPublicKey: ReturnType<typeof keypairToPublicKey>;
+  try {
+    const keypair = await deriveLamportKeypair(
+      seed,
+      peginTxid,
+      depositorBtcPubkey,
+      appContractAddress,
+    );
+    lamportPublicKey = keypairToPublicKey(keypair);
+  } finally {
+    // Zero out seed to avoid leaving sensitive key material in memory
+    seed.fill(0);
+  }
+
+  signal?.throwIfAborted();
 
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 

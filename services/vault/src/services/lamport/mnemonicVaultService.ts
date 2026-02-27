@@ -9,8 +9,17 @@
 
 import { decrypt, encrypt } from "@metamask/browser-passworder";
 
-/** localStorage key where the encrypted vault is stored. */
+/** Base localStorage key where the encrypted vault is stored. */
 const STORAGE_KEY = "babylon-lamport-vault";
+
+/**
+ * Build the storage key, optionally scoped to a user identifier
+ * (e.g. an ETH address). When no scope is provided the original
+ * global key is used so existing stored mnemonics keep working.
+ */
+function storageKey(scope?: string): string {
+  return scope ? `${STORAGE_KEY}-${scope}` : STORAGE_KEY;
+}
 
 /** Shape of the JSON blob persisted in localStorage. */
 interface StoredVault {
@@ -45,8 +54,8 @@ function safeRemoveItem(key: string): void {
 }
 
 /** Check whether an encrypted mnemonic already exists in storage. */
-export async function hasStoredMnemonic(): Promise<boolean> {
-  return safeGetItem(STORAGE_KEY) !== null;
+export async function hasStoredMnemonic(scope?: string): Promise<boolean> {
+  return safeGetItem(storageKey(scope)) !== null;
 }
 
 /**
@@ -54,24 +63,30 @@ export async function hasStoredMnemonic(): Promise<boolean> {
  *
  * @param mnemonic - The plaintext BIP-39 mnemonic.
  * @param password - User-chosen password used as the encryption key.
+ * @param scope    - Optional user identifier (e.g. ETH address) to isolate storage.
  */
 export async function storeMnemonic(
   mnemonic: string,
   password: string,
+  scope?: string,
 ): Promise<void> {
   const encrypted = await encrypt(password, { mnemonic });
   const vault: StoredVault = { encrypted };
-  safeSetItem(STORAGE_KEY, JSON.stringify(vault));
+  safeSetItem(storageKey(scope), JSON.stringify(vault));
 }
 
 /**
  * Decrypt and return the stored mnemonic.
  *
  * @param password - The password originally used to encrypt the vault.
+ * @param scope    - Optional user identifier (e.g. ETH address) to isolate storage.
  * @throws If no vault exists, the data is corrupted, or the password is wrong.
  */
-export async function unlockMnemonic(password: string): Promise<string> {
-  const raw = safeGetItem(STORAGE_KEY);
+export async function unlockMnemonic(
+  password: string,
+  scope?: string,
+): Promise<string> {
+  const raw = safeGetItem(storageKey(scope));
   if (!raw) {
     throw new Error("No stored mnemonic found");
   }
@@ -87,13 +102,18 @@ export async function unlockMnemonic(password: string): Promise<string> {
     throw new Error("Stored mnemonic data is corrupted");
   }
 
-  const decrypted = (await decrypt(password, vault.encrypted)) as {
-    mnemonic: string;
-  };
-  return decrypted.mnemonic;
+  const decrypted: unknown = await decrypt(password, vault.encrypted);
+  if (
+    typeof decrypted !== "object" ||
+    decrypted === null ||
+    typeof (decrypted as Record<string, unknown>).mnemonic !== "string"
+  ) {
+    throw new Error("Decrypted data does not contain a valid mnemonic");
+  }
+  return (decrypted as { mnemonic: string }).mnemonic;
 }
 
 /** Remove the encrypted vault from localStorage. */
-export function clearStoredMnemonic(): void {
-  safeRemoveItem(STORAGE_KEY);
+export function clearStoredMnemonic(scope?: string): void {
+  safeRemoveItem(storageKey(scope));
 }

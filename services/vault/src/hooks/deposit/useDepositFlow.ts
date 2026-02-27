@@ -19,10 +19,12 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
+import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { FeatureFlags } from "@/config";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
+import { deriveLamportPkHash } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
   signPayout,
@@ -31,12 +33,6 @@ import {
   type SigningStepType,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-
-import {
-  computeLamportPkHash,
-  deriveLamportKeypair,
-  mnemonicToLamportSeed,
-} from "@/services/lamport";
 import { stripHexPrefix } from "@/utils/btc";
 
 import {
@@ -214,14 +210,12 @@ export function useDepositFlow(
         let lamportPkHash: Hex | undefined;
         if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
           const mnemonic = await getMnemonic();
-          const seed = mnemonicToLamportSeed(mnemonic);
-          const keypair = await deriveLamportKeypair(
-            seed,
+          lamportPkHash = await deriveLamportPkHash(
+            mnemonic,
             stripHexPrefix(prepared.btcTxid),
             prepared.depositorBtcPubkey,
             selectedApplication,
           );
-          lamportPkHash = computeLamportPkHash(keypair);
         }
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx with lamport hash)
@@ -255,15 +249,26 @@ export function useDepositFlow(
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
         if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
           setIsWaiting(true);
-          await submitLamportPublicKey({
-            btcTxid: registration.btcTxid,
-            depositorBtcPubkey: prepared.depositorBtcPubkey,
-            appContractAddress: selectedApplication,
-            providerUrl: provider.url,
-            getMnemonic,
-            signal,
-          });
-          setIsWaiting(false);
+          try {
+            await submitLamportPublicKey({
+              btcTxid: registration.btcTxid,
+              depositorBtcPubkey: prepared.depositorBtcPubkey,
+              appContractAddress: selectedApplication,
+              providerUrl: provider.url,
+              getMnemonic,
+              signal,
+            });
+          } catch (err) {
+            // Re-throw abort errors so they're suppressed by the outer catch
+            if (signal.aborted) throw err;
+            // ETH tx already succeeded — deposit is recoverable via resume flow
+            console.error(
+              "Lamport key submission failed (deposit is recoverable):",
+              err,
+            );
+          } finally {
+            setIsWaiting(false);
+          }
         }
 
         // Step 3: Poll and sign payout transactions
@@ -348,10 +353,7 @@ export function useDepositFlow(
         };
       } catch (err) {
         // Don't show error if flow was aborted (user intentionally closed modal)
-        const isAbortError =
-          err instanceof Error && err.message.includes("aborted");
-
-        if (!isAbortError) {
+        if (!signal.aborted) {
           const errorMessage =
             err instanceof Error ? err.message : "Unknown error";
           setError(errorMessage);
@@ -407,20 +409,12 @@ async function signPayoutTransactionsWithProgress(
   context: Parameters<typeof signPayoutOptimistic>[1],
   preparedTransactions: Parameters<typeof signPayoutOptimistic>[2][],
   setProgress: (progress: PayoutSigningProgress | null) => void,
-): Promise<
-  Record<
-    string,
-    { payout_optimistic_signature: string; payout_signature: string }
-  >
-> {
+): Promise<Record<string, ClaimerSignatures>> {
   const totalClaimers = preparedTransactions.length;
   const totalSteps = totalClaimers * 2;
   let completedSteps = 0;
 
-  const signatures: Record<
-    string,
-    { payout_optimistic_signature: string; payout_signature: string }
-  > = {};
+  const signatures: Record<string, ClaimerSignatures> = {};
 
   const updateProgress = (
     step: SigningStepType | null,

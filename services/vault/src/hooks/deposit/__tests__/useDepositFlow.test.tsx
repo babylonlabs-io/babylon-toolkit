@@ -538,7 +538,7 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      expect(result.current.currentStep).toBe(1);
+      expect(result.current.currentStep).toBe("SIGN_POP");
       expect(result.current.processing).toBe(false);
 
       const flowResult = await result.current.executeDepositFlow();

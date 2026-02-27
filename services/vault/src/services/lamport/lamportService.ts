@@ -57,9 +57,11 @@
  * |------------------------------|----------------------------------------|
  * | `@scure/bip39`               | BIP-39 mnemonic generation & seed      |
  * | `@noble/hashes` (ripemd160)  | RIPEMD-160 for Hash160                 |
- * | Web Crypto API               | HMAC-SHA-512, SHA-256                  |
+ * | `@noble/hashes` (hmac, sha2) | HMAC-SHA-512, SHA-256                  |
  */
+import { hmac } from "@noble/hashes/hmac.js";
 import { ripemd160 } from "@noble/hashes/legacy.js";
+import { sha256, sha512 } from "@noble/hashes/sha2.js";
 import { keccak_256 } from "@noble/hashes/sha3.js";
 import {
   generateMnemonic,
@@ -79,6 +81,21 @@ const PI_1_BITS = 508;
  * Preimages are truncated from HMAC-SHA-512 output to this length.
  */
 const GC_LABEL_SIZE = 16;
+
+/** Bits of entropy for BIP-39 mnemonic generation (128 = 12 words). */
+const MNEMONIC_ENTROPY_BITS = 128;
+
+/** Size in bytes of the parent key or derived key (first half of a 64-byte seed/HMAC). */
+const KEY_SIZE = 32;
+
+/** Size in bytes of the full BIP-39 seed / HMAC-SHA-512 output. */
+const SEED_SIZE = 64;
+
+/** Size of the index buffer used in per-bit derivation (1 byte flag + 4 byte big-endian index). */
+const INDEX_BUFFER_SIZE = 5;
+
+/** Size of the big-endian length prefix prepended to variable-length fields. */
+const LENGTH_PREFIX_SIZE = 4;
 
 /**
  * A Lamport keypair consisting of preimages (private) and their hashes
@@ -124,7 +141,7 @@ export interface VerificationChallenge {
  * @returns A space-separated 12-word mnemonic string.
  */
 export function generateLamportMnemonic(): string {
-  return generateMnemonic(wordlist, 128);
+  return generateMnemonic(wordlist, MNEMONIC_ENTROPY_BITS);
 }
 
 /**
@@ -171,7 +188,10 @@ export function createVerificationChallenge(
   const indices: number[] = [];
 
   while (indices.length < count) {
-    const index = Math.floor(Math.random() * words.length);
+    const randomBytes = new Uint8Array(4);
+    crypto.getRandomValues(randomBytes);
+    const randomValue = new DataView(randomBytes.buffer).getUint32(0, false);
+    const index = randomValue % words.length;
     if (!indices.includes(index)) {
       indices.push(index);
     }
@@ -231,53 +251,28 @@ function stringToBytes(str: string): Uint8Array {
  * derivation path.
  */
 function lengthPrefixed(data: Uint8Array): Uint8Array {
-  const len = new Uint8Array(4);
+  const len = new Uint8Array(LENGTH_PREFIX_SIZE);
   new DataView(len.buffer).setUint32(0, data.length, false);
   return concatBytes(len, data);
 }
 
 // ---------------------------------------------------------------------------
-// Internal cryptographic primitives (Web Crypto API wrappers)
+// Internal cryptographic primitives (@noble/hashes wrappers)
 // ---------------------------------------------------------------------------
 
 /**
  * Compute HMAC-SHA-512.
  *
+ * Uses `@noble/hashes/hmac` which accepts `Uint8Array` directly,
+ * avoiding the unsafe `Uint8Array.buffer as ArrayBuffer` cast that
+ * the Web Crypto API would require.
+ *
  * @param key  - HMAC key bytes.
  * @param data - Message bytes.
  * @returns 64-byte HMAC digest.
  */
-async function hmacSha512(
-  key: Uint8Array,
-  data: Uint8Array,
-): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    key.buffer as ArrayBuffer,
-    { name: "HMAC", hash: "SHA-512" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    cryptoKey,
-    data.buffer as ArrayBuffer,
-  );
-  return new Uint8Array(signature);
-}
-
-/**
- * Compute SHA-256 digest.
- *
- * @param data - Input bytes.
- * @returns 32-byte hash.
- */
-async function sha256(data: Uint8Array): Promise<Uint8Array> {
-  const hash = await crypto.subtle.digest(
-    "SHA-256",
-    data.buffer as ArrayBuffer,
-  );
-  return new Uint8Array(hash);
+function hmacSha512(key: Uint8Array, data: Uint8Array): Uint8Array {
+  return hmac(sha512, key, data);
 }
 
 /**
@@ -288,9 +283,8 @@ async function sha256(data: Uint8Array): Promise<Uint8Array> {
  * @param data - Input bytes.
  * @returns 20-byte hash.
  */
-async function hash160(data: Uint8Array): Promise<Uint8Array> {
-  const sha = await sha256(data);
-  return ripemd160(sha);
+function hash160(data: Uint8Array): Uint8Array {
+  return ripemd160(sha256(data));
 }
 
 // ---------------------------------------------------------------------------
@@ -355,8 +349,8 @@ export async function deriveLamportKeypair(
   depositorPk: string,
   appContractAddress: string,
 ): Promise<LamportKeypair> {
-  const chainCode = seed.slice(32, 64);
-  const parentKey = seed.slice(0, 32);
+  const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
+  const parentKey = seed.slice(0, KEY_SIZE);
 
   const vaultData = concatBytes(
     lengthPrefixed(stringToBytes(vaultId)),
@@ -364,9 +358,9 @@ export async function deriveLamportKeypair(
     lengthPrefixed(stringToBytes(appContractAddress)),
   );
 
-  const hmac = await hmacSha512(chainCode, concatBytes(parentKey, vaultData));
-  const derivedKey = hmac.slice(0, 32);
-  const derivedChainCode = hmac.slice(32, 64);
+  const hmacResult = hmacSha512(chainCode, concatBytes(parentKey, vaultData));
+  const derivedKey = hmacResult.slice(0, KEY_SIZE);
+  const derivedChainCode = hmacResult.slice(KEY_SIZE, SEED_SIZE);
 
   const falsePreimages: Uint8Array[] = [];
   const truePreimages: Uint8Array[] = [];
@@ -374,19 +368,19 @@ export async function deriveLamportKeypair(
   const trueHashes: Uint8Array[] = [];
 
   for (let bit = 0; bit < PI_1_BITS; bit++) {
-    const falseIndex = new Uint8Array(5);
+    const falseIndex = new Uint8Array(INDEX_BUFFER_SIZE);
     falseIndex[0] = 0;
     new DataView(falseIndex.buffer).setUint32(1, bit, false);
 
-    const trueIndex = new Uint8Array(5);
+    const trueIndex = new Uint8Array(INDEX_BUFFER_SIZE);
     trueIndex[0] = 1;
     new DataView(trueIndex.buffer).setUint32(1, bit, false);
 
-    const falseHmac = await hmacSha512(
+    const falseHmac = hmacSha512(
       derivedChainCode,
       concatBytes(derivedKey, falseIndex),
     );
-    const trueHmac = await hmacSha512(
+    const trueHmac = hmacSha512(
       derivedChainCode,
       concatBytes(derivedKey, trueIndex),
     );
@@ -396,8 +390,8 @@ export async function deriveLamportKeypair(
 
     falsePreimages.push(falsePreimage);
     truePreimages.push(truePreimage);
-    falseHashes.push(await hash160(falsePreimage));
-    trueHashes.push(await hash160(truePreimage));
+    falseHashes.push(hash160(falsePreimage));
+    trueHashes.push(hash160(truePreimage));
 
     falseHmac.fill(0);
     trueHmac.fill(0);
@@ -405,7 +399,7 @@ export async function deriveLamportKeypair(
 
   chainCode.fill(0);
   parentKey.fill(0);
-  hmac.fill(0);
+  hmacResult.fill(0);
   derivedKey.fill(0);
   derivedChainCode.fill(0);
 
@@ -472,4 +466,31 @@ export function computeLamportPkHash(keypair: LamportKeypair): `0x${string}` {
 
   const digest = keccak_256(buffer);
   return `0x${toHex(digest)}`;
+}
+
+/**
+ * Convenience wrapper: derive a Lamport keypair from a mnemonic and return
+ * the keccak256 hash of its public key. Handles seed creation and cleanup.
+ *
+ * Used before the ETH transaction to produce the `depositorLamportPkHash`
+ * that gets committed on-chain.
+ */
+export async function deriveLamportPkHash(
+  mnemonic: string,
+  peginTxid: string,
+  depositorBtcPubkey: string,
+  appContractAddress: string,
+): Promise<`0x${string}`> {
+  const seed = mnemonicToLamportSeed(mnemonic);
+  try {
+    const keypair = await deriveLamportKeypair(
+      seed,
+      peginTxid,
+      depositorBtcPubkey,
+      appContractAddress,
+    );
+    return computeLamportPkHash(keypair);
+  } finally {
+    seed.fill(0);
+  }
 }

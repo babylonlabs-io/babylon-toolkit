@@ -102,6 +102,12 @@ export function canCloseModal(
     currentStep === DepositStep.ARTIFACT_DOWNLOAD
   )
     return true;
-  if (isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS) return true;
+  if (
+    isWaiting &&
+    (currentStep === DepositStep.SIGN_PAYOUTS ||
+      currentStep === DepositStep.ARTIFACT_DOWNLOAD ||
+      currentStep === DepositStep.BROADCAST_BTC)
+  )
+    return true;
   return false;
 }

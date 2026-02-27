@@ -93,6 +93,13 @@ export interface RegisterSplitPeginParams {
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
   /**
+   * Keccak256 hash of the depositor's Lamport public key (bytes32).
+   * When provided, the contract stores this hash so the vault provider
+   * can later verify submitted Lamport keys against it.
+   * When omitted, bytes32(0) is used for backward compatibility.
+   */
+  depositorLamportPkHash?: Hex;
+  /**
    * Optional callback invoked after BIP-322 PoP signing but before the
    * Ethereum transaction. Useful for updating UI between signing steps.
    */
@@ -244,6 +251,7 @@ export async function registerSplitPeginOnChain(
       depositorBtcPubkey: params.depositorBtcPubkey,
       unsignedBtcTx: params.unsignedBtcTx,
       vaultProvider: params.vaultProviderAddress,
+      depositorLamportPkHash: params.depositorLamportPkHash,
       onPopSigned: params.onPopSigned,
     });
 

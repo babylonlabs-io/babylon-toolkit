@@ -11,9 +11,10 @@
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import { DepositStep } from "@/components/deposit/DepositSignModal/constants";
+import { DepositStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
+import { useETHWallet } from "@/context/wallet";
 import { submitLamportPublicKey } from "@/hooks/deposit/depositFlowSteps/lamportSubmission";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRunOnce } from "@/hooks/useRunOnce";
@@ -151,6 +152,7 @@ export function ResumeLamportContent({
   onClose,
   onSuccess,
 }: ResumeLamportContentProps) {
+  const { address: ethAddress } = useETHWallet();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMnemonic, setShowMnemonic] = useState(true);
@@ -176,10 +178,21 @@ export function ResumeLamportContent({
           throw new Error("Missing transaction hash");
         }
 
+        if (!activity.depositorBtcPubkey) {
+          throw new Error(
+            "Missing depositor BTC public key on activity; cannot derive Lamport keypair",
+          );
+        }
+        if (!activity.applicationController) {
+          throw new Error(
+            "Missing application controller address on activity; cannot derive Lamport keypair",
+          );
+        }
+
         await submitLamportPublicKey({
           btcTxid,
-          depositorBtcPubkey: activity.depositorBtcPubkey ?? "",
-          appContractAddress: activity.applicationController ?? "",
+          depositorBtcPubkey: activity.depositorBtcPubkey,
+          appContractAddress: activity.applicationController,
           providerUrl,
           getMnemonic: () => Promise.resolve(mnemonic),
         });
@@ -208,6 +221,7 @@ export function ResumeLamportContent({
         onClose={onClose}
         onComplete={handleMnemonicComplete}
         hasExistingVaults
+        scope={ethAddress}
       />
     );
   }

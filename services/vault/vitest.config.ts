@@ -43,7 +43,7 @@ export default defineConfig({
     },
     server: {
       deps: {
-        inline: ["@babylonlabs-io/wallet-connector"],
+        inline: ["@babylonlabs-io/wallet-connector", "@noble/hashes"],
       },
     },
   },

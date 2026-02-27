@@ -2,6 +2,7 @@ export {
   computeLamportPkHash,
   createVerificationChallenge,
   deriveLamportKeypair,
+  deriveLamportPkHash,
   generateLamportMnemonic,
   getMnemonicWords,
   isValidMnemonic,

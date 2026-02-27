@@ -97,16 +97,20 @@ export async function preparePegin(
     feeRate,
   });
 
-  const result = await preparePeginTransaction(btcWalletProvider, walletClient, {
-    pegInAmount: amount,
-    feeRate,
-    changeAddress: btcAddress,
-    vaultProviderAddress: selectedProviders[0] as Address,
-    vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys,
-    availableUTXOs: utxosToUse,
-  });
+  const result = await preparePeginTransaction(
+    btcWalletProvider,
+    walletClient,
+    {
+      pegInAmount: amount,
+      feeRate,
+      changeAddress: btcAddress,
+      vaultProviderAddress: selectedProviders[0] as Address,
+      vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      availableUTXOs: utxosToUse,
+    },
+  );
 
   return {
     btcTxid: result.btcTxHash,
