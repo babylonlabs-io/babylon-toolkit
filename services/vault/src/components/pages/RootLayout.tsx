@@ -57,8 +57,9 @@ function AppNavLink({
 function DesktopNavigation() {
   return (
     <Nav>
-      <AppNavLink to="/">Applications</AppNavLink>
+      <AppNavLink to="/">Dashboard</AppNavLink>
       <AppNavLink to="/activity">Activity</AppNavLink>
+      <AppNavLink to="/faqs">FAQs</AppNavLink>
     </Nav>
   );
 }
@@ -69,8 +70,9 @@ function DesktopNavigation() {
 function MobileNavigation() {
   return (
     <div className="flex flex-col gap-4 p-4">
-      <AppNavLink to="/">Applications</AppNavLink>
+      <AppNavLink to="/">Dashboard</AppNavLink>
       <AppNavLink to="/activity">Activity</AppNavLink>
+      <AppNavLink to="/faqs">FAQs</AppNavLink>
     </div>
   );
 }

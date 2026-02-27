@@ -12,10 +12,11 @@ import { formatUnits } from "viem";
 
 import { getTokenByAddress } from "@/services/token/tokenService";
 
-import { useAaveConfig } from "../../../context";
-import { useAaveUserPosition } from "../../../hooks";
-import type { AaveReserveConfig } from "../../../services/fetchConfig";
-import type { Asset } from "../../../types";
+import { useAaveConfig } from "../context";
+import type { AaveReserveConfig } from "../services/fetchConfig";
+import type { Asset } from "../types";
+
+import { useAaveUserPosition } from "./useAaveUserPosition";
 
 export interface UseAaveReserveDetailProps {
   /** Reserve symbol from URL param */

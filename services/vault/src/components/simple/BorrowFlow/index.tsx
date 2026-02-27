@@ -3,7 +3,7 @@ import { IoChevronBack } from "react-icons/io5";
 import { useAccount } from "wagmi";
 
 import { LoanProvider } from "@/applications/aave/components/context/LoanContext";
-import { useAaveReserveDetail } from "@/applications/aave/components/Detail/hooks/useAaveReserveDetail";
+import { useAaveReserveDetail } from "@/applications/aave/hooks/useAaveReserveDetail";
 import { FadeTransition } from "@/components/simple/FadeTransition";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 
@@ -48,10 +48,6 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     address,
   });
 
-  const handleClose = () => {
-    onClose();
-  };
-
   const showBackButton = renderedStep === BorrowFlowStep.BORROW_FORM;
   // Only show X close on asset selection and success steps (not borrow form)
   const showCloseButton = !showBackButton;
@@ -59,7 +55,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
   return (
     <FullScreenDialog
       open={open}
-      onClose={showCloseButton ? handleClose : undefined}
+      onClose={showCloseButton ? onClose : undefined}
       className="items-center justify-center p-6"
     >
       {/* Back button for borrow form step (replaces X close) */}
@@ -95,7 +91,7 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
         )}
 
         {renderedStep === BorrowFlowStep.SUCCESS && successData && (
-          <BorrowSuccess data={successData} onClose={handleClose} />
+          <BorrowSuccess data={successData} onClose={onClose} />
         )}
       </FadeTransition>
     </FullScreenDialog>

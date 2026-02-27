@@ -6,10 +6,6 @@
 import { Button } from "@babylonlabs-io/core-ui";
 import { useNavigate } from "react-router";
 
-import { getNetworkConfigBTC } from "../../config";
-
-const btcConfig = getNetworkConfigBTC();
-
 interface ActivityEmptyStateProps {
   isConnected: boolean;
 }
@@ -32,8 +28,8 @@ export function ActivityEmptyState({ isConnected }: ActivityEmptyStateProps) {
       <p className="text-lg text-accent-secondary">
         No activity yet. Make your first deposit to get started.
       </p>
-      <Button color="secondary" rounded onClick={() => navigate("/deposit")}>
-        Deposit {btcConfig.coinSymbol}
+      <Button color="secondary" rounded onClick={() => navigate("/")}>
+        Go to Dashboard
       </Button>
     </div>
   );

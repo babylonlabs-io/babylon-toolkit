@@ -7,7 +7,6 @@ import { registerApplication } from "../registry";
 import type { ApplicationRegistration } from "../types";
 
 import { AAVE_APP_ID, getAaveControllerAddress } from "./config";
-import { AaveRoutes } from "./routes";
 
 export const aaveApp: ApplicationRegistration = {
   metadata: {
@@ -19,7 +18,6 @@ export const aaveApp: ApplicationRegistration = {
     logoUrl: "/images/aave.svg",
     websiteUrl: "https://aave.com",
   },
-  Routes: AaveRoutes,
   contracts: {
     abi: AaveIntegrationControllerABI,
     functionNames: {
@@ -31,4 +29,3 @@ export const aaveApp: ApplicationRegistration = {
 registerApplication(aaveApp, getAaveControllerAddress());
 
 export { AAVE_APP_ID, AAVE_CONTRACTS } from "./config";
-export { AaveRoutes } from "./routes";

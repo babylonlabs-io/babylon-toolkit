@@ -30,7 +30,6 @@ interface LoansSectionProps {
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
-  onRepay: () => void;
   canAdd: boolean;
   onAdd: () => void;
 }
@@ -43,7 +42,6 @@ export function LoansSection({
   healthFactor,
   healthFactorStatus,
   onBorrow,
-  onRepay,
   canAdd,
   onAdd,
 }: LoansSectionProps) {
@@ -65,18 +63,6 @@ export function LoansSection({
           >
             Borrow
           </Button>
-          {hasLoans && (
-            <Button
-              variant="outlined"
-              color="primary"
-              size="medium"
-              onClick={onRepay}
-              className="rounded-full"
-              disabled={!isConnected}
-            >
-              Repay
-            </Button>
-          )}
         </div>
       </div>
 
@@ -149,7 +135,7 @@ export function LoansSection({
                   color="primary"
                   size="medium"
                   onClick={onAdd}
-                  className="rounded-full !bg-white !text-black hover:!bg-gray-100"
+                  className="rounded-full"
                 >
                   Add {btcConfig.coinSymbol}
                 </Button>

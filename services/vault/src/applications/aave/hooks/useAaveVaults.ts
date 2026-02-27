@@ -20,9 +20,9 @@ import {
 import type { Vault, VaultProvider } from "@/types";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
-import type { VaultData } from "../components/Overview/components/VaultsTable";
 import { usePendingVaults } from "../context";
 import { useAaveConfig } from "../context/AaveConfigContext";
+import type { VaultData } from "../types";
 
 /**
  * Transform a Vault to VaultData for display

@@ -14,11 +14,11 @@ import {
   findVaultIndicesForAmount,
 } from "@/utils/subsetSum";
 
+import type { VaultData } from "../../../types";
 import {
   calculateHealthFactor,
   calculateTotalVaultAmount,
 } from "../../../utils";
-import type { VaultData } from "../../Overview/components/VaultsTable";
 
 export interface UseAddCollateralStateProps {
   /** Available vaults that can be added as collateral */

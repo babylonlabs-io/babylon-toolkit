@@ -4,6 +4,11 @@ export {
   type UseAaveBorrowedAssetsResult,
 } from "./useAaveBorrowedAssets";
 export {
+  useAaveReserveDetail,
+  type UseAaveReserveDetailProps,
+  type UseAaveReserveDetailResult,
+} from "./useAaveReserveDetail";
+export {
   useAaveUserPosition,
   type HealthFactorStatus,
   type UseAaveUserPositionResult,
