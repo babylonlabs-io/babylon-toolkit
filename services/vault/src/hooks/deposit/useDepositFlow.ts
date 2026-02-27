@@ -35,7 +35,6 @@ import { getPendingPegins } from "@/storage/peginStorage";
 import {
   computeLamportPkHash,
   deriveLamportKeypair,
-  keypairToPublicKey,
   mnemonicToLamportSeed,
 } from "@/services/lamport";
 import { stripHexPrefix } from "@/utils/btc";

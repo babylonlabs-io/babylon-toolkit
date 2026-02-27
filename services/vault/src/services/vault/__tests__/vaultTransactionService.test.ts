@@ -8,17 +8,15 @@ import {
   type UTXO,
 } from "../vaultTransactionService";
 
-const { mockPreparePegin, mockRegisterPeginOnChain, MockPeginManager } =
+const { mockPreparePegin, MockPeginManager } =
   vi.hoisted(() => {
     const mockPreparePegin = vi.fn();
-    const mockRegisterPeginOnChain = vi.fn();
 
     class MockPeginManager {
       preparePegin = mockPreparePegin;
-      registerPeginOnChain = mockRegisterPeginOnChain;
     }
 
-    return { mockPreparePegin, mockRegisterPeginOnChain, MockPeginManager };
+    return { mockPreparePegin, MockPeginManager };
   });
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
