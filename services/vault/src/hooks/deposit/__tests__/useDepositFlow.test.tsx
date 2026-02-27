@@ -189,8 +189,6 @@ vi.mock("@/services/vault/vaultTransactionService", () => ({
     transactionHash: "0xmockhash456",
     btcTxHash: "0xmocktxid123",
     btcTxHex: "0xmockhex",
-    selectedUTXOs: [],
-    fee: 0n,
   }),
 }));
 

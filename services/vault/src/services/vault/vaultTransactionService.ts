@@ -69,14 +69,13 @@ export interface RegisterPeginOnChainParams {
 }
 
 /**
- * Result of submitting a pegin request
+ * Result of registering a pegin on-chain (PoP + ETH tx only).
+ * UTXOs and fee come from the earlier prepare step, not from registration.
  */
-export interface SubmitPeginResult {
+export interface RegisterPeginResult {
   transactionHash: Hex;
   btcTxHash: Hex;
   btcTxHex: string;
-  selectedUTXOs: UTXO[];
-  fee: bigint;
 }
 
 function createPeginManager(
@@ -148,7 +147,7 @@ export async function registerPeginOnChain(
   btcWallet: BitcoinWallet,
   ethWallet: WalletClient,
   params: RegisterPeginOnChainParams,
-): Promise<SubmitPeginResult> {
+): Promise<RegisterPeginResult> {
   const peginManager = createPeginManager(btcWallet, ethWallet);
 
   const registrationResult = await peginManager.registerPeginOnChain({
@@ -163,8 +162,6 @@ export async function registerPeginOnChain(
     transactionHash: registrationResult.ethTxHash,
     btcTxHash: registrationResult.vaultId,
     btcTxHex: params.fundedTxHex,
-    selectedUTXOs: [],
-    fee: 0n,
   };
 }
 
