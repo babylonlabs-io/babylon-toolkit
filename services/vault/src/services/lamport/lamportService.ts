@@ -60,6 +60,7 @@
  * | Web Crypto API               | HMAC-SHA-512, SHA-256                  |
  */
 import { ripemd160 } from "@noble/hashes/legacy.js";
+import { keccak_256 } from "@noble/hashes/sha3.js";
 import {
   generateMnemonic,
   mnemonicToSeedSync,
@@ -438,4 +439,37 @@ export function keypairToPublicKey(keypair: LamportKeypair): LamportPublicKey {
     false_list: keypair.falseHashes.map(toHex),
     true_list: keypair.trueHashes.map(toHex),
   };
+}
+
+/**
+ * Compute the keccak256 hash of a Lamport keypair's public key.
+ *
+ * Matches the Rust `InputLabelHashes::keccak256_hash()` implementation:
+ * `keccak256(falseHashes[0] || falseHashes[1] || ... || trueHashes[0] || trueHashes[1] || ...)`
+ *
+ * Each hash is 20 bytes (Hash160). Total input: `PI_1_BITS * 20 * 2` bytes.
+ * The result is committed on-chain as `depositorLamportPkHash` so the vault
+ * provider can later verify submitted Lamport public keys.
+ *
+ * @param keypair - A derived {@link LamportKeypair}.
+ * @returns 32-byte keccak256 digest as a `0x`-prefixed hex string.
+ */
+export function computeLamportPkHash(keypair: LamportKeypair): `0x${string}` {
+  const hashSize = keypair.falseHashes[0].length;
+  const totalBytes =
+    (keypair.falseHashes.length + keypair.trueHashes.length) * hashSize;
+  const buffer = new Uint8Array(totalBytes);
+
+  let offset = 0;
+  for (const h of keypair.falseHashes) {
+    buffer.set(h, offset);
+    offset += hashSize;
+  }
+  for (const h of keypair.trueHashes) {
+    buffer.set(h, offset);
+    offset += hashSize;
+  }
+
+  const digest = keccak_256(buffer);
+  return `0x${toHex(digest)}`;
 }

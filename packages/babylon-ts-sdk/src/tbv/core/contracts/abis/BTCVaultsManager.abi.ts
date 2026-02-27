@@ -41,6 +41,11 @@ export const BTCVaultsManagerABI = [
         type: "address",
         internalType: "address",
       },
+      {
+        name: "depositorLamportPkHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
     ],
     outputs: [
       {

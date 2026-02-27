@@ -5,10 +5,13 @@
  * and managing React state between steps.
  *
  * Flow steps:
- * 1. Sign Proof of Possession (PoP)
- * 2. Sign & Submit Ethereum Transaction
- * 3. Sign Payout Transactions (after polling for readiness)
- * 4. Sign & Broadcast BTC Transaction
+ * 1. Build & fund BTC transaction (preparePegin)
+ * 2. Derive Lamport keypair + compute keccak256 hash (if depositor-as-claimer)
+ * 3. Sign PoP + submit ETH transaction with Lamport PK hash (registerPeginAndWait)
+ * 4. Submit full Lamport PK to vault provider via RPC (if depositor-as-claimer)
+ * 5. Sign Payout Transactions (after polling for readiness)
+ * 6. Download vault artifacts (if depositor-as-claimer)
+ * 7. Sign & Broadcast BTC Transaction
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
@@ -30,14 +33,23 @@ import {
 import { getPendingPegins } from "@/storage/peginStorage";
 
 import {
+  computeLamportPkHash,
+  deriveLamportKeypair,
+  keypairToPublicKey,
+  mnemonicToLamportSeed,
+} from "@/services/lamport";
+import { stripHexPrefix } from "@/utils/btc";
+
+import {
   broadcastBtcTransaction,
   DepositStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
+  preparePegin,
+  registerPeginAndWait,
   savePendingPegin,
   submitLamportPublicKey,
   submitPayoutSignatures,
-  submitPeginAndWait,
   validateDepositInputs,
   waitForContractVerification,
   type DepositFlowResult,
@@ -184,8 +196,8 @@ export function useDepositFlow(
           pendingPegins,
         });
 
-        // Step 1-2: Submit pegin request and wait for ETH confirmation
-        const peginResult = await submitPeginAndWait({
+        // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
+        const prepared = await preparePegin({
           btcWalletProvider,
           walletClient,
           amount,
@@ -197,19 +209,43 @@ export function useDepositFlow(
           universalChallengerBtcPubkeys,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
+        });
+
+        // Step 2a.5: Derive Lamport keypair and compute PK hash (before ETH tx)
+        let lamportPkHash: Hex | undefined;
+        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+          const mnemonic = await getMnemonic();
+          const seed = mnemonicToLamportSeed(mnemonic);
+          const keypair = await deriveLamportKeypair(
+            seed,
+            stripHexPrefix(prepared.btcTxid),
+            prepared.depositorBtcPubkey,
+            selectedApplication,
+          );
+          lamportPkHash = computeLamportPkHash(keypair);
+        }
+
+        // Step 2b: Register pegin on-chain (PoP + ETH tx with lamport hash)
+        const registration = await registerPeginAndWait({
+          btcWalletProvider,
+          walletClient,
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
+          fundedTxHex: prepared.btcTxHex,
+          vaultProviderAddress: selectedProviders[0],
+          depositorLamportPkHash: lamportPkHash,
           onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
         });
 
         // Save to localStorage
         savePendingPegin({
           depositorEthAddress: depositorEthAddress!,
-          btcTxid: peginResult.btcTxid,
-          ethTxHash: peginResult.ethTxHash,
+          btcTxid: registration.btcTxid,
+          ethTxHash: registration.ethTxHash,
           amount,
           selectedProviders,
           applicationController: selectedApplication,
-          unsignedTxHex: peginResult.btcTxHex,
-          selectedUTXOs: peginResult.selectedUTXOs,
+          unsignedTxHex: prepared.btcTxHex,
+          selectedUTXOs: prepared.selectedUTXOs,
         });
 
         const provider = getSelectedVaultProvider();
@@ -217,11 +253,12 @@ export function useDepositFlow(
           throw new Error("Vault provider has no RPC URL");
         }
 
+        // Step 2.5: Submit full Lamport PK to vault provider via RPC
         if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
           setIsWaiting(true);
           await submitLamportPublicKey({
-            btcTxid: peginResult.btcTxid,
-            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            btcTxid: registration.btcTxid,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
             appContractAddress: selectedApplication,
             providerUrl: provider.url,
             getMnemonic,
@@ -236,9 +273,9 @@ export function useDepositFlow(
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({
-            btcTxid: peginResult.btcTxid,
-            btcTxHex: peginResult.btcTxHex,
-            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            btcTxid: registration.btcTxid,
+            btcTxHex: prepared.btcTxHex,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
             providerUrl: provider.url,
             providerBtcPubKey: provider.btcPubKey,
             vaultKeepers: vaultKeepers.map((vk) => ({
@@ -261,8 +298,8 @@ export function useDepositFlow(
 
         await submitPayoutSignatures(
           vaultProviderUrl,
-          peginResult.btcTxid,
-          peginResult.depositorBtcPubkey,
+          registration.btcTxid,
+          prepared.depositorBtcPubkey,
           signatures,
           depositorEthAddress!,
         );
@@ -272,8 +309,8 @@ export function useDepositFlow(
           setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
           setArtifactDownloadInfo({
             providerUrl: provider.url,
-            peginTxid: peginResult.btcTxid,
-            depositorPk: peginResult.depositorBtcPubkey,
+            peginTxid: registration.btcTxid,
+            depositorPk: prepared.depositorBtcPubkey,
           });
           await new Promise<void>((resolve) => {
             artifactResolverRef.current = resolve;
@@ -283,15 +320,15 @@ export function useDepositFlow(
         setCurrentStep(DepositStep.BROADCAST_BTC);
         setIsWaiting(true);
         await waitForContractVerification({
-          btcTxid: peginResult.btcTxid,
+          btcTxid: registration.btcTxid,
           signal,
         });
         setIsWaiting(false);
 
         await broadcastBtcTransaction(
           {
-            btcTxid: peginResult.btcTxid,
-            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            btcTxid: registration.btcTxid,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
             btcWalletProvider,
           },
           depositorEthAddress!,
@@ -301,13 +338,13 @@ export function useDepositFlow(
         setCurrentStep(DepositStep.COMPLETED);
 
         return {
-          btcTxid: peginResult.btcTxid,
-          ethTxHash: peginResult.ethTxHash,
-          depositorBtcPubkey: peginResult.depositorBtcPubkey,
+          btcTxid: registration.btcTxid,
+          ethTxHash: registration.ethTxHash,
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
           transactionData: {
-            unsignedTxHex: peginResult.btcTxHex,
-            selectedUTXOs: peginResult.selectedUTXOs,
-            fee: peginResult.fee,
+            unsignedTxHex: prepared.btcTxHex,
+            selectedUTXOs: prepared.selectedUTXOs,
+            fee: prepared.fee,
           },
         };
       } catch (err) {

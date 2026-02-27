@@ -53,8 +53,9 @@ import {
   DepositStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
+  preparePegin,
+  registerPeginAndWait,
   submitPayoutSignatures,
-  submitPeginAndWait,
   waitForContractVerification,
   type DepositUtxo,
 } from "./depositFlowSteps";
@@ -406,7 +407,7 @@ export function useMultiVaultDepositFlow(
               };
             } else {
               // ================================================================
-              // STANDARD PATH: Use existing submitPeginAndWait (mempool OK)
+              // STANDARD PATH: Prepare + register pegin (mempool OK)
               // ================================================================
 
               // Validate UTXOs are available
@@ -414,7 +415,7 @@ export function useMultiVaultDepositFlow(
                 throw new Error(`No UTXO available for vault ${i}`);
               }
 
-              const result = await submitPeginAndWait({
+              const prepared = await preparePegin({
                 btcWalletProvider,
                 walletClient,
                 amount: peginAmount,
@@ -424,18 +425,26 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
-                confirmedUTXOs: allocation.utxos, // MULTI_INPUT: pass all assigned UTXOs for this vault
+                confirmedUTXOs: allocation.utxos,
                 reservedUtxoRefs: [],
               });
 
-              depositorBtcPubkey = result.depositorBtcPubkey;
+              const registration = await registerPeginAndWait({
+                btcWalletProvider,
+                walletClient,
+                depositorBtcPubkey: prepared.depositorBtcPubkey,
+                fundedTxHex: prepared.btcTxHex,
+                vaultProviderAddress: selectedProviders[0],
+              });
+
+              depositorBtcPubkey = prepared.depositorBtcPubkey;
               peginResult = {
-                btcTxid: result.btcTxid,
-                ethTxHash: result.ethTxHash,
-                vaultId: result.btcTxid as Hex, // In standard path, btcTxid = vaultId
-                btcTxHex: result.btcTxHex,
-                selectedUTXOs: result.selectedUTXOs,
-                fee: result.fee,
+                btcTxid: registration.btcTxid,
+                ethTxHash: registration.ethTxHash,
+                vaultId: registration.btcTxid as Hex,
+                btcTxHex: prepared.btcTxHex,
+                selectedUTXOs: prepared.selectedUTXOs,
+                fee: prepared.fee,
               };
             }
 

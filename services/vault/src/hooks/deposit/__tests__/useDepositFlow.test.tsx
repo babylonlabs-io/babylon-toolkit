@@ -176,14 +176,21 @@ vi.mock("@/services/vault/vaultProofOfPossessionService", () => ({
 }));
 
 vi.mock("@/services/vault/vaultTransactionService", () => ({
-  submitPeginRequest: vi.fn().mockResolvedValue({
+  preparePeginTransaction: vi.fn().mockResolvedValue({
     btcTxHash: "0xmocktxid123",
-    transactionHash: "0xmockhash456",
-    btcTxHex: "0xmockhex",
+    fundedTxHex: "0xmockhex",
     selectedUTXOs: [
       { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
     ],
     fee: 1000n,
+    depositorBtcPubkey: "ab".repeat(32),
+  }),
+  registerPeginOnChain: vi.fn().mockResolvedValue({
+    transactionHash: "0xmockhash456",
+    btcTxHash: "0xmocktxid123",
+    btcTxHex: "0xmockhex",
+    selectedUTXOs: [],
+    fee: 0n,
   }),
 }));
 

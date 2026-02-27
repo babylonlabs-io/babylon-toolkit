@@ -3,8 +3,8 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import {
-  submitPeginRequest,
-  type SubmitPeginParams,
+  preparePeginTransaction,
+  type PreparePeginParams,
   type UTXO,
 } from "../vaultTransactionService";
 
@@ -59,7 +59,7 @@ vi.mock("../../../clients/eth-contract/client", () => ({
   },
 }));
 
-describe("vaultTransactionService - submitPeginRequest", () => {
+describe("vaultTransactionService - preparePeginTransaction", () => {
   let mockBtcWallet: {
     getPublicKeyHex: Mock;
   };
@@ -74,7 +74,7 @@ describe("vaultTransactionService - submitPeginRequest", () => {
     { txid: "txid4", vout: 2, value: 200000, scriptPubKey: "script4" },
   ];
 
-  const baseParams: SubmitPeginParams = {
+  const baseParams: PreparePeginParams = {
     pegInAmount: 100000n,
     feeRate: 10,
     changeAddress: "bc1qtest",
@@ -89,14 +89,10 @@ describe("vaultTransactionService - submitPeginRequest", () => {
     vi.clearAllMocks();
 
     mockPreparePegin.mockResolvedValue({
+      btcTxHash: "txhash123",
       fundedTxHex: "0x123abc",
       selectedUTXOs: [mockUTXOs[0]],
       fee: 1000n,
-    });
-
-    mockRegisterPeginOnChain.mockResolvedValue({
-      ethTxHash: "0xethtx",
-      vaultId: "0xvaultid",
     });
 
     mockBtcWallet = {
@@ -110,7 +106,7 @@ describe("vaultTransactionService - submitPeginRequest", () => {
 
   describe("basic functionality", () => {
     it("should use all available UTXOs", async () => {
-      await submitPeginRequest(
+      await preparePeginTransaction(
         mockBtcWallet as any,
         mockEthWallet as any,
         baseParams,
@@ -127,7 +123,7 @@ describe("vaultTransactionService - submitPeginRequest", () => {
       const noAccountWallet = { account: undefined };
 
       await expect(
-        submitPeginRequest(
+        preparePeginTransaction(
           mockBtcWallet as any,
           noAccountWallet as any,
           baseParams,
@@ -139,7 +135,7 @@ describe("vaultTransactionService - submitPeginRequest", () => {
       mockPreparePegin.mockRejectedValue(new Error("Network error"));
 
       await expect(
-        submitPeginRequest(
+        preparePeginTransaction(
           mockBtcWallet as any,
           mockEthWallet as any,
           baseParams,

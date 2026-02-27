@@ -1,4 +1,5 @@
 export {
+  computeLamportPkHash,
   createVerificationChallenge,
   deriveLamportKeypair,
   generateLamportMnemonic,

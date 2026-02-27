@@ -54,7 +54,7 @@ export interface UtxoRef {
 // Steps 1-2: Pegin Submit
 // ============================================================================
 
-export interface PeginSubmitParams {
+export interface PeginPrepareParams {
   btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   amount: bigint;
@@ -65,18 +65,30 @@ export interface PeginSubmitParams {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   confirmedUTXOs: DepositUtxo[];
-  /** Reserved UTXOs to avoid (from in-flight deposits). */
   reservedUtxoRefs: UtxoRef[];
-  onPopSigned?: () => void;
 }
 
-export interface PeginSubmitResult {
+export interface PeginPrepareResult {
   btcTxid: string;
-  ethTxHash: Hex;
   depositorBtcPubkey: string;
   btcTxHex: string;
   selectedUTXOs: DepositUtxo[];
   fee: bigint;
+}
+
+export interface PeginRegisterParams {
+  btcWalletProvider: BitcoinWallet;
+  walletClient: WalletClient;
+  depositorBtcPubkey: string;
+  fundedTxHex: string;
+  vaultProviderAddress: string;
+  depositorLamportPkHash?: Hex;
+  onPopSigned?: () => void;
+}
+
+export interface PeginRegisterResult {
+  btcTxid: string;
+  ethTxHash: Hex;
 }
 
 export interface SavePendingPeginParams {
