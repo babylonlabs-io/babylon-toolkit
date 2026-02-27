@@ -61,7 +61,11 @@ describe("Deposit Validations", () => {
 
     it("should reject amount exceeding maxDeposit", () => {
       const maxDeposit = 100_000_000n; // 1 BTC
-      const result = validateDepositAmount(200_000_000n, minDeposit, maxDeposit);
+      const result = validateDepositAmount(
+        200_000_000n,
+        minDeposit,
+        maxDeposit,
+      );
 
       expect(result.valid).toBe(false);
       expect(result.error).toContain("Maximum deposit");
