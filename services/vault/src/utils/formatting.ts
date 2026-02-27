@@ -110,6 +110,24 @@ export function formatAmount(amount: number, maxDecimals = 2): string {
 }
 
 /**
+ * Parse a decimal amount input string and set the numeric value.
+ * Handles empty strings, lone decimals, and non-numeric input gracefully.
+ */
+export function parseAmountInput(
+  value: string,
+  setAmount: (n: number) => void,
+) {
+  if (value === "" || value === ".") {
+    setAmount(0);
+    return;
+  }
+  const parsed = parseFloat(value);
+  if (!isNaN(parsed)) {
+    setAmount(parsed);
+  }
+}
+
+/**
  * Format a date as "YYYY-MM-DD HH:mm:ss"
  * @param date - The date to format
  * @returns Formatted date string

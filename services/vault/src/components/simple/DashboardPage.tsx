@@ -6,9 +6,8 @@
 
 import { Container } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
-import { useNavigate, useOutletContext } from "react-router";
+import { useOutletContext } from "react-router";
 
-import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import {
   CollateralModal,
   type CollateralMode,
@@ -19,19 +18,18 @@ import {
   useSyncPendingVaults,
 } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
-import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
+import { BorrowFlow } from "./BorrowFlow";
 import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
 
 export function DashboardPage() {
-  const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
@@ -39,10 +37,13 @@ export function DashboardPage() {
   const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
   const [collateralModalMode, setCollateralModalMode] =
     useState<CollateralMode>("add");
-  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
+  const [isBorrowFlowOpen, setIsBorrowFlowOpen] = useState(false);
+  const [borrowFlowInitialTab, setBorrowFlowInitialTab] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
+  const [borrowFlowInitialAsset, setBorrowFlowInitialAsset] = useState<
+    string | undefined
+  >();
 
   const {
     collateralBtc,
@@ -55,7 +56,6 @@ export function DashboardPage() {
     hasCollateral,
     hasDebt,
     collateralVaults,
-    selectableBorrowedAssets,
   } = useDashboardState(address);
 
   const { availableForCollateral, vaults: aaveVaults } = useAaveVaults(address);
@@ -79,29 +79,15 @@ export function DashboardPage() {
   };
 
   const handleBorrow = () => {
-    setAssetModalMode(LOAN_TAB.BORROW);
-    setIsAssetModalOpen(true);
+    setBorrowFlowInitialTab(LOAN_TAB.BORROW);
+    setBorrowFlowInitialAsset(undefined);
+    setIsBorrowFlowOpen(true);
   };
 
-  const handleRepay = () => {
-    if (borrowedAssets.length === 1) {
-      const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=${LOAN_TAB.REPAY}`,
-      );
-      return;
-    }
-    setAssetModalMode(LOAN_TAB.REPAY);
-    setIsAssetModalOpen(true);
-  };
-
-  const handleSelectAsset = (assetSymbol: string) => {
-    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
-    const path =
-      assetModalMode === LOAN_TAB.REPAY
-        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
-        : basePath;
-    navigate(path);
+  const handleRepay = (symbol: string) => {
+    setBorrowFlowInitialTab(LOAN_TAB.REPAY);
+    setBorrowFlowInitialAsset(symbol);
+    setIsBorrowFlowOpen(true);
   };
 
   return (
@@ -136,8 +122,6 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           borrowedAssets={borrowedAssets}
-          healthFactor={healthFactor}
-          healthFactorStatus={healthFactorStatus}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
           canAdd={hasAvailableVaults && !hasPendingAdd && !hasPendingWithdraw}
@@ -152,17 +136,12 @@ export function DashboardPage() {
         mode={collateralModalMode}
       />
 
-      {/* Asset Selection Modal for Borrow/Repay */}
-      <AssetSelectionModal
-        isOpen={isAssetModalOpen}
-        onClose={() => setIsAssetModalOpen(false)}
-        onSelectAsset={handleSelectAsset}
-        mode={assetModalMode}
-        assets={
-          assetModalMode === LOAN_TAB.REPAY
-            ? (selectableBorrowedAssets as Asset[])
-            : undefined
-        }
+      {/* Borrow/Repay Flow (full-screen multi-step modal with tabs) */}
+      <BorrowFlow
+        open={isBorrowFlowOpen}
+        onClose={() => setIsBorrowFlowOpen(false)}
+        initialTab={borrowFlowInitialTab}
+        initialAsset={borrowFlowInitialAsset}
       />
     </Container>
   );

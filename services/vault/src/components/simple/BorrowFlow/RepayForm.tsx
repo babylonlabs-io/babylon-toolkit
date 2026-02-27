@@ -1,30 +1,27 @@
 import { Avatar, Button, Slider } from "@babylonlabs-io/core-ui";
-import { IoChevronDown, IoWarningOutline } from "react-icons/io5";
+import { IoChevronDown } from "react-icons/io5";
 
 import { HeartIcon, LabelWithInfo } from "@/components/shared";
 
-import { type BorrowFormState, useBorrowFormState } from "./useBorrowFormState";
+import { type RepayFormState, useRepayFormState } from "./useRepayFormState";
 
-interface BorrowFormProps {
+interface RepayFormProps {
   onChangeAsset: () => void;
-  onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
+  onRepaySuccess: (amount: number, symbol: string, icon: string) => void;
 }
 
-export function BorrowForm({
-  onChangeAsset,
-  onBorrowSuccess,
-}: BorrowFormProps) {
-  const state = useBorrowFormState({ onBorrowSuccess });
+export function RepayForm({ onChangeAsset, onRepaySuccess }: RepayFormProps) {
+  const state = useRepayFormState({ onRepaySuccess });
 
-  return <BorrowFormView state={state} onChangeAsset={onChangeAsset} />;
+  return <RepayFormView state={state} onChangeAsset={onChangeAsset} />;
 }
 
-interface BorrowFormViewProps {
-  state: BorrowFormState;
+interface RepayFormViewProps {
+  state: RepayFormState;
   onChangeAsset: () => void;
 }
 
-function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
+function RepayFormView({ state, onChangeAsset }: RepayFormViewProps) {
   return (
     <div className="mx-auto w-full max-w-[520px]">
       {/* Token Input Card */}
@@ -51,7 +48,7 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
           <input
             type="text"
             inputMode="decimal"
-            value={state.borrowAmount === 0 ? "" : state.borrowAmount}
+            value={state.repayAmount === 0 ? "" : state.repayAmount}
             onChange={state.handleAmountChange}
             placeholder="0"
             className="w-full min-w-0 bg-transparent text-right text-2xl font-normal text-accent-primary outline-none placeholder:text-accent-secondary"
@@ -61,12 +58,12 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
         {/* Rainbow slider */}
         <div className="mt-4">
           <Slider
-            value={state.borrowAmount}
+            value={state.repayAmount}
             min={0}
             max={state.sliderMax}
             step={state.sliderMax / 1000}
             steps={[]}
-            onChange={state.setBorrowAmount}
+            onChange={state.setRepayAmount}
             variant="rainbow"
             activeColor={state.tokenBrandColor}
           />
@@ -89,19 +86,6 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
             {state.usdValueFormatted}
           </span>
         </div>
-
-        {/* Liquidation warning */}
-        {state.showLiquidationWarning && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-warning-main/30 bg-warning-main/5 px-4 py-3">
-            <IoWarningOutline
-              className="shrink-0 text-warning-main"
-              size={20}
-            />
-            <span className="text-sm text-warning-main">
-              At Risk of Liquidation
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Details Card */}
@@ -115,9 +99,9 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
             </span>
           </div>
 
-          {/* Borrow rate */}
+          {/* Interest (borrow rate) */}
           <div className="flex items-center justify-between">
-            <LabelWithInfo>Borrow rate</LabelWithInfo>
+            <LabelWithInfo>Interest</LabelWithInfo>
             <span className="text-sm text-accent-primary">
               {state.borrowRatioOriginal ? (
                 <span className="flex items-center gap-2">
@@ -173,16 +157,19 @@ function BorrowFormView({ state, onChangeAsset }: BorrowFormViewProps) {
         </div>
       </div>
 
-      {/* Borrow Button */}
+      {/* Error message */}
+      {state.errorMessage && (
+        <p className="mt-2 text-sm text-error-main">{state.errorMessage}</p>
+      )}
+
+      {/* Repay Button */}
       <Button
         variant="contained"
         color="secondary"
         size="large"
         fluid
-        disabled={
-          state.isDisabled || state.isProcessing || !state.isBorrowEnabled
-        }
-        onClick={state.handleBorrow}
+        disabled={state.isDisabled || state.isProcessing}
+        onClick={state.handleRepay}
         className="mt-6"
       >
         {state.buttonText}

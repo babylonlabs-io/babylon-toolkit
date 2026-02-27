@@ -5,6 +5,7 @@ export { EmptyState } from "./EmptyState";
 export { ErrorModal } from "./ErrorModal";
 export { HealthFactorGauge } from "./HealthFactorGauge";
 export { HeartIcon, InfoIcon } from "./icons";
+export { LabelWithInfo } from "./LabelWithInfo";
 export { MenuButton } from "./MenuButton";
 export { NotificationContainer } from "./NotificationContainer";
 export { PriceWarningBanner } from "./PriceWarningBanner";

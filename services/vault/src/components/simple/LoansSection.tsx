@@ -1,16 +1,10 @@
 /**
  * LoansSection Component
- * Displays loan information with borrow/repay buttons and empty/active states
+ * Displays loan cards with repay buttons, and empty state
  */
 
 import { Avatar, Button, Card } from "@babylonlabs-io/core-ui";
 
-import {
-  formatHealthFactor,
-  getHealthFactorColor,
-  type HealthFactorStatus,
-} from "@/applications/aave/utils";
-import { HeartIcon } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 
@@ -27,10 +21,8 @@ interface LoansSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   borrowedAssets: LoanAsset[];
-  healthFactor: number | null;
-  healthFactorStatus: HealthFactorStatus;
   onBorrow: () => void;
-  onRepay: () => void;
+  onRepay: (symbol: string) => void;
   canAdd: boolean;
   onAdd: () => void;
 }
@@ -40,76 +32,67 @@ export function LoansSection({
   hasCollateral,
   isConnected,
   borrowedAssets,
-  healthFactor,
-  healthFactorStatus,
   onBorrow,
   onRepay,
   canAdd,
   onAdd,
 }: LoansSectionProps) {
-  const healthFactorFormatted = formatHealthFactor(healthFactor);
-  const healthFactorColor = getHealthFactorColor(healthFactorStatus);
-
   return (
     <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-[24px] font-normal text-accent-primary">Loans</h2>
-        <div className="flex gap-3">
-          <Button
-            variant="outlined"
-            color="primary"
-            size="medium"
-            onClick={onBorrow}
-            className="rounded-full"
-            disabled={!isConnected || !hasCollateral}
-          >
-            Borrow
-          </Button>
-          {hasLoans && (
-            <Button
-              variant="outlined"
-              color="primary"
-              size="medium"
-              onClick={onRepay}
-              className="rounded-full"
-              disabled={!isConnected}
-            >
-              Repay
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="outlined"
+          color="primary"
+          size="medium"
+          onClick={onBorrow}
+          className="rounded-full"
+          disabled={!isConnected || !hasCollateral}
+        >
+          Borrow
+        </Button>
       </div>
 
-      <Card variant="filled" className="w-full">
-        {hasLoans ? (
-          <div className="space-y-4">
-            {borrowedAssets.map((asset) => (
-              <div
-                key={asset.symbol}
-                className="flex items-center justify-between"
-              >
-                <span className="text-sm text-accent-secondary">Borrowed</span>
-                <div className="flex items-center gap-2">
-                  <Avatar url={asset.icon} alt={asset.symbol} size="small" />
-                  <span className="text-base text-accent-primary">
-                    {asset.amount} {asset.symbol}
+      {hasLoans ? (
+        <div className="flex flex-col gap-4">
+          {borrowedAssets.map((asset) => (
+            <Card key={asset.symbol} variant="filled" className="w-full">
+              <div className="space-y-4">
+                {/* Token + Amount + Repay button */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar url={asset.icon} alt={asset.symbol} size="small" />
+                    <span className="text-base text-accent-primary">
+                      {asset.amount} {asset.symbol}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    size="small"
+                    onClick={() => onRepay(asset.symbol)}
+                    className="rounded-full"
+                  >
+                    Repay Loan
+                  </Button>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-primary-contrast/10 dark:border-[#333]" />
+
+                {/* Borrow rate row */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-accent-secondary">
+                    Borrow rate
                   </span>
+                  <span className="text-sm text-accent-primary">&mdash;</span>
                 </div>
               </div>
-            ))}
-
-            {/* Health Factor Row */}
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-accent-secondary">
-                Health Factor
-              </span>
-              <span className="flex items-center gap-2 text-base text-accent-primary">
-                <HeartIcon color={healthFactorColor} />
-                {healthFactorFormatted}
-              </span>
-            </div>
-          </div>
-        ) : (
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card variant="filled" className="w-full">
           <div className="flex flex-col items-center justify-center gap-2 py-20">
             {/* Overlapping token icons */}
             <div className="mb-2 flex items-center">
@@ -156,8 +139,8 @@ export function LoansSection({
               ) : null}
             </div>
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 }

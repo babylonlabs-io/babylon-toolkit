@@ -21,8 +21,6 @@ import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { AAVE_APP_ID } from "../../config";
 import { LOAN_TAB, type LoanTab } from "../../constants";
-import type { Asset } from "../../types";
-import { AssetSelectionModal } from "../AssetSelectionModal";
 import { CollateralModal, type CollateralMode } from "../CollateralModal";
 
 import { OverviewCard } from "./components/OverviewCard";
@@ -37,11 +35,10 @@ const btcConfig = getNetworkConfigBTC();
  */
 function AaveOverviewContent() {
   const navigate = useNavigate();
-  const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
-  const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
+  const [isBorrowFlowOpen, setIsBorrowFlowOpen] = useState(false);
+  const [borrowFlowInitialTab, setBorrowFlowInitialTab] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
-  const [isBorrowFlowOpen, setIsBorrowFlowOpen] = useState(false);
   const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
   const [collateralModalMode, setCollateralModalMode] =
     useState<CollateralMode>("add");
@@ -62,7 +59,6 @@ function AaveOverviewContent() {
     hasPendingWithdraw,
     borrowedAssets,
     hasLoans,
-    selectableBorrowedAssets,
     hasCollateral,
     hasAvailableVaults,
     triggerRedeem,
@@ -80,15 +76,6 @@ function AaveOverviewContent() {
     navigate(`/deposit?app=${AAVE_APP_ID}`);
   };
 
-  const handleSelectAsset = (assetSymbol: string) => {
-    const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
-    const path =
-      assetModalMode === LOAN_TAB.REPAY
-        ? `${basePath}?tab=${LOAN_TAB.REPAY}`
-        : basePath;
-    navigate(path);
-  };
-
   // Modal handlers
   const handleAdd = () => {
     setCollateralModalMode("add");
@@ -101,19 +88,15 @@ function AaveOverviewContent() {
   };
 
   const handleBorrow = () => {
+    setBorrowFlowInitialTab(LOAN_TAB.BORROW);
     setIsBorrowFlowOpen(true);
   };
 
+  // No initialAsset passed — opens at asset selection step (unlike DashboardPage
+  // which passes the asset symbol from per-loan "Repay" buttons to skip selection)
   const handleRepay = () => {
-    if (borrowedAssets.length === 1) {
-      const assetSymbol = borrowedAssets[0].symbol;
-      navigate(
-        `/app/aave/reserve/${assetSymbol.toLowerCase()}?tab=${LOAN_TAB.REPAY}`,
-      );
-      return;
-    }
-    setAssetModalMode(LOAN_TAB.REPAY);
-    setIsAssetModalOpen(true);
+    setBorrowFlowInitialTab(LOAN_TAB.REPAY);
+    setIsBorrowFlowOpen(true);
   };
 
   return (
@@ -174,23 +157,11 @@ function AaveOverviewContent() {
         />
       </div>
 
-      {/* Borrow Flow (full-screen multi-step modal) */}
+      {/* Borrow/Repay Flow (full-screen multi-step modal with tabs) */}
       <BorrowFlow
         open={isBorrowFlowOpen}
         onClose={() => setIsBorrowFlowOpen(false)}
-      />
-
-      {/* Asset Selection Modal (repay only) */}
-      <AssetSelectionModal
-        isOpen={isAssetModalOpen}
-        onClose={() => setIsAssetModalOpen(false)}
-        onSelectAsset={handleSelectAsset}
-        mode={assetModalMode}
-        assets={
-          assetModalMode === LOAN_TAB.REPAY
-            ? (selectableBorrowedAssets as Asset[])
-            : undefined
-        }
+        initialTab={borrowFlowInitialTab}
       />
 
       {/* Collateral Modal (Add/Withdraw) */}

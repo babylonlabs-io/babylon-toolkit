@@ -1,17 +1,26 @@
 import { Avatar, Button } from "@babylonlabs-io/core-ui";
 
-import type { BorrowSuccessData } from "./useBorrowFlow";
+import { formatAmount } from "@/utils/formatting";
 
-interface BorrowSuccessProps {
-  data: BorrowSuccessData;
+import type { FlowSuccessData } from "./useBorrowFlow";
+
+interface FlowSuccessProps {
+  data: FlowSuccessData;
   onClose: () => void;
 }
 
-export function BorrowSuccess({ data, onClose }: BorrowSuccessProps) {
-  const formattedAmount = data.amount.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  });
+export function FlowSuccess({ data, onClose }: FlowSuccessProps) {
+  const formattedAmount = formatAmount(data.amount);
+
+  const heading =
+    data.type === "borrow"
+      ? "Borrow Successful"
+      : `${data.symbol} Repay Successful`;
+
+  const body =
+    data.type === "borrow"
+      ? `${formattedAmount} ${data.symbol} has been borrowed and is now available in your wallet.`
+      : `You have repaid ${formattedAmount} ${data.symbol}.`;
 
   return (
     <div className="flex items-center justify-center">
@@ -24,12 +33,11 @@ export function BorrowSuccess({ data, onClose }: BorrowSuccessProps) {
         />
 
         <h4 className="mt-6 text-[34px] font-normal text-accent-primary">
-          Borrow Successful
+          {heading}
         </h4>
 
         <p className="mt-4 text-[20px] leading-7 text-accent-secondary">
-          {formattedAmount} {data.symbol} has been borrowed and is now available
-          in your wallet.
+          {body}
         </p>
 
         <Button

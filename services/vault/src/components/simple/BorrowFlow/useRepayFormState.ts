@@ -1,19 +1,19 @@
 import { useLoanContext } from "@/applications/aave/components/context/LoanContext";
-import { useBorrowMetrics } from "@/applications/aave/components/LoanCard/Borrow/hooks/useBorrowMetrics";
-import { useBorrowState } from "@/applications/aave/components/LoanCard/Borrow/hooks/useBorrowState";
-import { validateBorrowAction } from "@/applications/aave/components/LoanCard/Borrow/hooks/validateBorrowAction";
+import { useRepayMetrics } from "@/applications/aave/components/LoanCard/Repay/hooks/useRepayMetrics";
+import { useRepayState } from "@/applications/aave/components/LoanCard/Repay/hooks/useRepayState";
+import { validateRepayAction } from "@/applications/aave/components/LoanCard/Repay/hooks/validateRepayAction";
 import {
   BPS_TO_PERCENT_DIVISOR,
-  MIN_HEALTH_FACTOR_FOR_BORROW,
   MIN_SLIDER_MAX,
 } from "@/applications/aave/constants";
-import { useBorrowTransaction } from "@/applications/aave/hooks";
+import { useRepayTransaction } from "@/applications/aave/hooks";
 import {
   getHealthFactorColor,
   getHealthFactorStatusFromValue,
   type HealthFactorColor,
 } from "@/applications/aave/utils";
-import { FeatureFlags } from "@/config";
+import { useETHWallet } from "@/context/wallet";
+import { useERC20Balance } from "@/hooks/useERC20Balance";
 import {
   getCurrencyIconWithFallback,
   getTokenBrandColor,
@@ -24,15 +24,15 @@ import {
   parseAmountInput,
 } from "@/utils/formatting";
 
-export interface BorrowFormState {
+export interface RepayFormState {
   // Asset info
   assetSymbol: string;
   currencyIcon: string;
   tokenBrandColor: string;
 
   // Amount state
-  borrowAmount: number;
-  setBorrowAmount: (amount: number) => void;
+  repayAmount: number;
+  setRepayAmount: (amount: number) => void;
   sliderMax: number;
   maxAmountFormatted: string;
   usdValueFormatted: string;
@@ -41,8 +41,7 @@ export interface BorrowFormState {
   isDisabled: boolean;
   buttonText: string;
   isProcessing: boolean;
-  isBorrowEnabled: boolean;
-  showLiquidationWarning: boolean;
+  errorMessage: string | null;
 
   // Details card
   balanceFormatted: string;
@@ -52,55 +51,70 @@ export interface BorrowFormState {
   healthFactorColor: HealthFactorColor;
   healthFactorOriginal?: string;
   healthFactorOriginalColor?: HealthFactorColor;
-  healthFactorOriginalValue?: number;
   hasDebt: boolean;
   liquidationLtvFormatted: string;
 
   // Actions
   handleAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   handleMaxClick: () => void;
-  handleBorrow: () => Promise<void>;
+  handleRepay: () => Promise<void>;
 }
 
-interface UseBorrowFormStateProps {
-  onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
+interface UseRepayFormStateProps {
+  onRepaySuccess: (amount: number, symbol: string, icon: string) => void;
 }
 
-export function useBorrowFormState({
-  onBorrowSuccess,
-}: UseBorrowFormStateProps): BorrowFormState {
+export function useRepayFormState({
+  onRepaySuccess,
+}: UseRepayFormStateProps): RepayFormState {
   const {
     collateralValueUsd,
+    currentDebtAmount,
     totalDebtValueUsd,
     healthFactor,
     liquidationThresholdBps,
     selectedReserve,
     assetConfig,
     positionId,
+    proxyContract,
   } = useLoanContext();
 
-  const { executeBorrow, isProcessing } = useBorrowTransaction({ positionId });
+  const { address } = useETHWallet();
 
-  const { borrowAmount, setBorrowAmount, maxBorrowAmount } = useBorrowState({
-    collateralValueUsd,
-    currentDebtUsd: totalDebtValueUsd,
+  const { balance: userTokenBalance } = useERC20Balance(
+    selectedReserve.token.address,
+    address,
+    selectedReserve.token.decimals,
+  );
+
+  const { executeRepay, isProcessing } = useRepayTransaction({
+    positionId,
+    proxyContract,
   });
 
-  const metrics = useBorrowMetrics({
-    borrowAmount,
+  const { repayAmount, setRepayAmount, maxRepayAmount, isFullRepayment } =
+    useRepayState({
+      currentDebtAmount,
+      userTokenBalance,
+    });
+
+  const metrics = useRepayMetrics({
+    repayAmount,
     collateralValueUsd,
-    currentDebtUsd: totalDebtValueUsd,
+    totalDebtValueUsd,
     liquidationThresholdBps,
     currentHealthFactor: healthFactor,
   });
 
-  const { isDisabled, buttonText } = validateBorrowAction(
-    borrowAmount,
-    metrics.healthFactorValue,
+  const { isDisabled, buttonText, errorMessage } = validateRepayAction(
+    repayAmount,
+    maxRepayAmount,
+    currentDebtAmount,
+    userTokenBalance,
   );
 
-  const sliderMax = Math.max(maxBorrowAmount, MIN_SLIDER_MAX);
-  const hasDebt = totalDebtValueUsd > 0 || borrowAmount > 0;
+  const sliderMax = Math.max(maxRepayAmount, MIN_SLIDER_MAX);
+  const hasDebt = totalDebtValueUsd > 0;
   const liquidationLtv = liquidationThresholdBps / BPS_TO_PERCENT_DIVISOR;
 
   const healthFactorStatus = getHealthFactorStatusFromValue(
@@ -113,23 +127,23 @@ export function useBorrowFormState({
       : undefined;
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    parseAmountInput(e.target.value, setBorrowAmount);
+    parseAmountInput(e.target.value, setRepayAmount);
   };
 
-  const handleMaxClick = () => setBorrowAmount(sliderMax);
+  const handleMaxClick = () => setRepayAmount(sliderMax);
 
-  const handleBorrow = async () => {
-    const success = await executeBorrow(borrowAmount, selectedReserve);
+  const handleRepay = async () => {
+    const success = await executeRepay(
+      repayAmount,
+      selectedReserve,
+      isFullRepayment,
+    );
     if (success) {
-      onBorrowSuccess(borrowAmount, assetConfig.symbol, assetConfig.icon);
+      onRepaySuccess(repayAmount, assetConfig.symbol, assetConfig.icon);
     }
   };
 
-  const resolvedButtonText = !FeatureFlags.isBorrowEnabled
-    ? "Borrowing Unavailable"
-    : isProcessing
-      ? "Processing..."
-      : buttonText;
+  const resolvedButtonText = isProcessing ? "Processing..." : buttonText;
 
   return {
     assetSymbol: assetConfig.symbol,
@@ -139,22 +153,18 @@ export function useBorrowFormState({
     ),
     tokenBrandColor: getTokenBrandColor(assetConfig.symbol),
 
-    borrowAmount,
-    setBorrowAmount,
+    repayAmount,
+    setRepayAmount,
     sliderMax,
     maxAmountFormatted: `${formatTokenAmount(sliderMax)} ${assetConfig.symbol}`,
-    usdValueFormatted: formatUsdValue(borrowAmount),
+    usdValueFormatted: formatUsdValue(repayAmount),
 
     isDisabled,
     buttonText: resolvedButtonText,
     isProcessing,
-    isBorrowEnabled: FeatureFlags.isBorrowEnabled,
-    showLiquidationWarning:
-      borrowAmount > 0 &&
-      metrics.healthFactorValue > 0 &&
-      metrics.healthFactorValue < MIN_HEALTH_FACTOR_FOR_BORROW,
+    errorMessage,
 
-    balanceFormatted: `${formatTokenAmount(collateralValueUsd, 2)} USD`,
+    balanceFormatted: `${formatTokenAmount(userTokenBalance)} ${assetConfig.symbol}`,
     borrowRatio: metrics.borrowRatio,
     borrowRatioOriginal: metrics.borrowRatioOriginal,
     healthFactor: hasDebt ? metrics.healthFactor : "—",
@@ -163,12 +173,11 @@ export function useBorrowFormState({
     healthFactorOriginalColor: originalStatus
       ? getHealthFactorColor(originalStatus)
       : undefined,
-    healthFactorOriginalValue: metrics.healthFactorOriginalValue,
     hasDebt,
     liquidationLtvFormatted: hasDebt ? `${liquidationLtv.toFixed(1)}%` : "—",
 
     handleAmountChange,
     handleMaxClick,
-    handleBorrow,
+    handleRepay,
   };
 }

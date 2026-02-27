@@ -1,34 +1,49 @@
-import { FullScreenDialog } from "@babylonlabs-io/core-ui";
+import { FullScreenDialog, Tabs } from "@babylonlabs-io/core-ui";
 import { IoChevronBack } from "react-icons/io5";
 import { useAccount } from "wagmi";
 
 import { LoanProvider } from "@/applications/aave/components/context/LoanContext";
 import { useAaveReserveDetail } from "@/applications/aave/components/Detail/hooks/useAaveReserveDetail";
+import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
+import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
+import type { Asset } from "@/applications/aave/types";
 import { FadeTransition } from "@/components/simple/FadeTransition";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 
 import { BorrowAssetSelection } from "./BorrowAssetSelection";
 import { BorrowForm } from "./BorrowForm";
-import { BorrowSuccess } from "./BorrowSuccess";
+import { FlowSuccess } from "./FlowSuccess";
+import { RepayForm } from "./RepayForm";
 import { BorrowFlowStep, useBorrowFlow } from "./useBorrowFlow";
 
 interface BorrowFlowProps {
   open: boolean;
   onClose: () => void;
+  initialTab?: LoanTab;
+  /** When provided, skips asset selection and goes straight to the form */
+  initialAsset?: string;
 }
 
-export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
+export function BorrowFlow({
+  open,
+  onClose,
+  initialTab,
+  initialAsset,
+}: BorrowFlowProps) {
   const { address } = useAccount();
 
   const {
     step,
+    activeTab,
+    setActiveTab,
     selectedAssetSymbol,
     successData,
     selectAsset,
     goBack,
     completeBorrow,
+    completeRepay,
     reset,
-  } = useBorrowFlow();
+  } = useBorrowFlow({ initialTab, initialAsset });
 
   const renderedStep = useDialogStep(open, step, reset);
 
@@ -48,21 +63,16 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     address,
   });
 
-  const handleClose = () => {
-    onClose();
-  };
-
-  const showBackButton = renderedStep === BorrowFlowStep.BORROW_FORM;
-  // Only show X close on asset selection and success steps (not borrow form)
+  const showBackButton = renderedStep === BorrowFlowStep.FORM;
   const showCloseButton = !showBackButton;
 
   return (
     <FullScreenDialog
       open={open}
-      onClose={showCloseButton ? handleClose : undefined}
+      onClose={showCloseButton ? onClose : undefined}
       className="items-center justify-center p-6"
     >
-      {/* Back button for borrow form step (replaces X close) */}
+      {/* Back button for form step (replaces X close) */}
       {showBackButton && (
         <button
           onClick={goBack}
@@ -77,8 +87,8 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
           <BorrowAssetSelection onSelectAsset={selectAsset} />
         )}
 
-        {renderedStep === BorrowFlowStep.BORROW_FORM && (
-          <BorrowFormStep
+        {renderedStep === BorrowFlowStep.FORM && (
+          <FormStep
             isLoading={isLoading}
             selectedReserve={selectedReserve}
             assetConfig={assetConfig}
@@ -89,23 +99,44 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
             currentDebtAmount={currentDebtAmount}
             totalDebtValueUsd={totalDebtValueUsd}
             healthFactor={healthFactor}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
             onChangeAsset={goBack}
             onBorrowSuccess={completeBorrow}
+            onRepaySuccess={completeRepay}
           />
         )}
 
         {renderedStep === BorrowFlowStep.SUCCESS && successData && (
-          <BorrowSuccess data={successData} onClose={handleClose} />
+          <FlowSuccess data={successData} onClose={onClose} />
         )}
       </FadeTransition>
     </FullScreenDialog>
   );
 }
 
+interface FormStepProps {
+  isLoading: boolean;
+  selectedReserve: AaveReserveConfig | null;
+  assetConfig: Asset | null;
+  liquidationThresholdBps: number;
+  positionId: string | undefined;
+  proxyContract: string | undefined;
+  collateralValueUsd: number;
+  currentDebtAmount: number;
+  totalDebtValueUsd: number;
+  healthFactor: number | null;
+  activeTab: LoanTab;
+  onTabChange: (tab: LoanTab) => void;
+  onChangeAsset: () => void;
+  onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
+  onRepaySuccess: (amount: number, symbol: string, icon: string) => void;
+}
+
 /**
- * Wrapper that provides LoanContext when data is ready
+ * Wrapper that provides LoanContext and renders Borrow/Repay tabs
  */
-function BorrowFormStep({
+function FormStep({
   isLoading,
   selectedReserve,
   assetConfig,
@@ -116,22 +147,12 @@ function BorrowFormStep({
   currentDebtAmount,
   totalDebtValueUsd,
   healthFactor,
+  activeTab,
+  onTabChange,
   onChangeAsset,
   onBorrowSuccess,
-}: {
-  isLoading: boolean;
-  selectedReserve: ReturnType<typeof useAaveReserveDetail>["selectedReserve"];
-  assetConfig: ReturnType<typeof useAaveReserveDetail>["assetConfig"];
-  liquidationThresholdBps: number;
-  positionId: string | undefined;
-  proxyContract: string | undefined;
-  collateralValueUsd: number;
-  currentDebtAmount: number;
-  totalDebtValueUsd: number;
-  healthFactor: number | null;
-  onChangeAsset: () => void;
-  onBorrowSuccess: (amount: number, symbol: string, icon: string) => void;
-}) {
+  onRepaySuccess,
+}: FormStepProps) {
   if (isLoading || !selectedReserve || !assetConfig) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -152,15 +173,38 @@ function BorrowFormStep({
         assetConfig,
         positionId,
         proxyContract,
-        // These callbacks are handled by the BorrowFlow orchestrator
         onBorrowSuccess: () => {},
         onRepaySuccess: () => {},
       }}
     >
-      <BorrowForm
-        onChangeAsset={onChangeAsset}
-        onBorrowSuccess={onBorrowSuccess}
-      />
+      <div className="mx-auto w-full max-w-[520px]">
+        <Tabs
+          items={[
+            {
+              id: LOAN_TAB.BORROW,
+              label: "Borrow",
+              content: (
+                <BorrowForm
+                  onChangeAsset={onChangeAsset}
+                  onBorrowSuccess={onBorrowSuccess}
+                />
+              ),
+            },
+            {
+              id: LOAN_TAB.REPAY,
+              label: "Repay",
+              content: (
+                <RepayForm
+                  onChangeAsset={onChangeAsset}
+                  onRepaySuccess={onRepaySuccess}
+                />
+              ),
+            },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tabId) => onTabChange(tabId as LoanTab)}
+        />
+      </div>
     </LoanProvider>
   );
 }
