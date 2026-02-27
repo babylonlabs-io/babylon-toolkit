@@ -13,7 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = 'd0c94b71ac42af25caaa5852b0a2c0f51a013cd5';
+const BTC_VAULT_COMMIT = 'e7427c1eaf94747f480486b739ab83094de7ffb3';
 const REQUIRED_RUSTC_VERSION = '1.92.0';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
@@ -101,7 +101,7 @@ const buildWasm = async () => {
         `\n\nPlease update your Rust toolchain:`,
         `\n  rustup update stable`,
         `\nThen verify the version:`,
-        `\n  rustc --version\n`
+        `\n  rustc --version\n`,
       );
       process.exit(1);
     }
@@ -191,10 +191,22 @@ const buildWasm = async () => {
     const srcName = 'btc_vault_new';
     const targetName = 'btc_vault';
 
-    shell.cp(`${wasmOutputDir}/${srcName}.js`, `${OUTPUT_DIR}/${targetName}.js`);
-    shell.cp(`${wasmOutputDir}/${srcName}.d.ts`, `${OUTPUT_DIR}/${targetName}.d.ts`);
-    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm`, `${OUTPUT_DIR}/${targetName}_bg.wasm`);
-    shell.cp(`${wasmOutputDir}/${srcName}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`);
+    shell.cp(
+      `${wasmOutputDir}/${srcName}.js`,
+      `${OUTPUT_DIR}/${targetName}.js`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}.d.ts`,
+      `${OUTPUT_DIR}/${targetName}.d.ts`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}_bg.wasm`,
+      `${OUTPUT_DIR}/${targetName}_bg.wasm`,
+    );
+    shell.cp(
+      `${wasmOutputDir}/${srcName}_bg.wasm.d.ts`,
+      `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`,
+    );
 
     // Update imports in JS file to match renamed wasm file
     const jsFilePath = `${OUTPUT_DIR}/${targetName}.js`;

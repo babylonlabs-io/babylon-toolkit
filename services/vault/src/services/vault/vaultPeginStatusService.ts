@@ -66,6 +66,9 @@ export async function checkPeginStatus(
   let status: DaemonStatus;
 
   switch (rawStatus) {
+    case "PendingDepositorLamportPK":
+      status = DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK;
+      break;
     case "PendingBabeSetup":
       status = DaemonStatus.PENDING_BABE_SETUP;
       break;
@@ -83,6 +86,15 @@ export async function checkPeginStatus(
       break;
     case "Activated":
       status = DaemonStatus.ACTIVATED;
+      break;
+    case "Expired":
+      status = DaemonStatus.EXPIRED;
+      break;
+    case "ClaimPosted":
+      status = DaemonStatus.CLAIM_POSTED;
+      break;
+    case "PeggedOut":
+      status = DaemonStatus.PEGGED_OUT;
       break;
     default:
       throw new Error(`Unknown daemon status: ${rawStatus}`);

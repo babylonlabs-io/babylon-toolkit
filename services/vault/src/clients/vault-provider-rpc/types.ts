@@ -1,58 +1,69 @@
 /**
  * Type definitions for vault provider RPC API
  *
- * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/crates/vaultd-new/src/rpc/server/vault_provider.rs
+ * Source: https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md
  */
+
+import type { LamportPublicKey } from "@/services/lamport";
 
 // ============================================================================
 // Request Parameter Types
 // ============================================================================
 
-/**
- * Parameters for requesting depositor presign transactions
- * Corresponds to: RequestDepositorPresignTransactionsParams
- */
+/** Params for requesting the payout/claim/assert transactions to pre-sign. */
 export interface RequestDepositorPresignTransactionsParams {
-  /** The PegIn transaction ID (hex encoded txid) */
   pegin_txid: string;
-  /** Hex encoded 32-byte x-only BTC public key of the depositor (no prefix) */
   depositor_pk: string;
 }
 
-/**
- * Depositor's signatures for a single claimer's transactions
- * Contains signatures for both PayoutOptimistic and Payout transactions
- */
+/** Params for submitting the depositor's Lamport public key to the VP. */
+export interface SubmitDepositorLamportKeyParams {
+  pegin_txid: string;
+  depositor_pk: string;
+  lamport_public_key: LamportPublicKey;
+}
+
+/** Per-challenger signatures for the depositor-as-claimer flow. */
+export interface DepositorPreSigsPerChallenger {
+  challenge_assert_signatures: [string, string, string];
+  nopayout_signature: string;
+}
+
+/** Depositor-as-claimer pre-signatures (payout + per-challenger). */
+export interface DepositorAsClaimerPresignatures {
+  payout_signatures: ClaimerSignatures;
+  per_challenger: Record<string, DepositorPreSigsPerChallenger>;
+}
+
+/** Params for submitting depositor pre-signatures including claimer presignatures. */
+export interface SubmitDepositorPresignaturesParams {
+  pegin_txid: string;
+  depositor_pk: string;
+  signatures: Record<string, ClaimerSignatures>;
+  depositor_claimer_presignatures: DepositorAsClaimerPresignatures;
+}
+
+/** Payout signatures per claimer (optimistic + standard). */
 export interface ClaimerSignatures {
-  /** Signature for PayoutOptimistic transaction (64-byte Schnorr, 128 hex chars) */
-  payout_optimistic_signature: string;
-  /** Signature for Payout transaction (64-byte Schnorr, 128 hex chars) */
+  payout_optimistic_signature?: string;
   payout_signature: string;
 }
 
-/**
- * Parameters for submitting payout signatures
- * Corresponds to: SubmitPayoutSignaturesParams
- */
+/** Params for submitting payout transaction signatures. */
 export interface SubmitPayoutSignaturesParams {
-  /** The PegIn transaction ID (hex encoded txid) */
   pegin_txid: string;
-  /** Depositor's 32-byte x-only BTC public key (hex encoded, no prefix) */
   depositor_pk: string;
-  /**
-   * Map of claimer public key to depositor's signatures
-   * - Key: Claimer 32-byte x-only public key (hex encoded, no prefix)
-   * - Value: ClaimerSignatures containing both PayoutOptimistic and Payout signatures
-   */
   signatures: Record<string, ClaimerSignatures>;
 }
 
-/**
- * Parameters for getting PegIn status
- * Corresponds to: GetPeginStatusParams
- */
+/** Params for requesting BaBe DecryptorArtifacts from the VP. */
+export interface RequestDepositorClaimerArtifactsParams {
+  pegin_txid: string;
+  depositor_pk: string;
+}
+
+/** Params for querying pegin status from the VP daemon. */
 export interface GetPeginStatusParams {
-  /** The PegIn transaction ID (hex encoded txid) */
   pegin_txid: string;
 }
 
@@ -60,97 +71,77 @@ export interface GetPeginStatusParams {
 // Response Types
 // ============================================================================
 
-/**
- * Transaction data in the response
- * Corresponds to: TransactionData
- */
+/** A raw Bitcoin transaction with its hex encoding and optional sighash. */
 export interface TransactionData {
-  /** Transaction hex */
   tx_hex: string;
-  /**
-   * Sighash that the depositor should sign (hex encoded 32 bytes)
-   * Provided for PayoutOptimistic and Payout transactions
-   */
   sighash: string | null;
 }
 
-/**
- * Single claimer's transactions for depositor to sign
- * Corresponds to: ClaimerTransactions
- *
- * The depositor needs to sign both:
- * - PayoutOptimistic (optimistic path after Claim, if no challenge)
- * - Payout (challenge path after Assert, if claimer proves validity)
- */
+/** Set of transactions the depositor must pre-sign for a single claimer. */
 export interface ClaimerTransactions {
-  /** Claimer's public key (hex encoded 32 bytes x-only) */
   claimer_pubkey: string;
-  /** Claim transaction (for reference) */
   claim_tx: TransactionData;
-  /** PayoutOptimistic transaction (depositor signs input 0) */
-  payout_optimistic_tx: TransactionData;
-  /** Assert transaction (for reference) */
   assert_tx: TransactionData;
-  /** Payout transaction (depositor signs input 0) */
   payout_tx: TransactionData;
+  payout_optimistic_tx: TransactionData;
 }
 
-/**
- * Response for requesting depositor presign transactions
- * Corresponds to: RequestDepositorPresignTransactionsResponse
- */
+/** Challenger-specific transactions the depositor must pre-sign. */
+export interface ChallengerPresignData {
+  challenger_pubkey: string;
+  challenge_assert_tx: TransactionData;
+  nopayout_tx: TransactionData;
+}
+
+/** Depositor-as-claimer TxGraph transactions (claim, assert, payout + challengers). */
+export interface DepositorGraphTransactions {
+  claim_tx: TransactionData;
+  assert_tx: TransactionData;
+  payout_tx: TransactionData;
+  challenger_presign_data: ChallengerPresignData[];
+}
+
+/** Response from `requestDepositorPresignTransactions`. */
 export interface RequestDepositorPresignTransactionsResponse {
-  /** List of transactions for each claimer (VP and VKs) */
   txs: ClaimerTransactions[];
+  /** Present when depositor-as-claimer is enabled. */
+  depositor_graph?: DepositorGraphTransactions;
 }
 
-/**
- * Progress tracking for challenger-based operations
- * Used across multiple pegin states (GC data, presigning, ACK collection)
- */
+/** BaBe garbled-circuit session data for a single challenger. */
+export interface BaBeSessionData {
+  decryptor_artifacts_hex: string;
+}
+
+/** Response from `requestDepositorClaimerArtifacts`. */
+export interface RequestDepositorClaimerArtifactsResponse {
+  tx_graph_json: string;
+  verifying_key_hex: string;
+  babe_sessions: Record<string, BaBeSessionData>;
+}
+
+/** Progress tracker for a multi-challenger operation. */
 export interface ChallengerProgress {
-  /** Total number of challengers */
   total_challengers: number;
-  /** Number of challengers that have completed */
   completed_challengers: number;
-  /** Public keys of completed challengers */
   completed_challenger_pubkeys: string[];
-  /** Public keys of pending challengers */
   pending_challenger_pubkeys: string[];
 }
 
-/** GC data progress (PendingBabeSetup state) */
-export type GcDataProgress = ChallengerProgress;
-/** Presigning progress (PendingChallengerPresigning state) */
+export type BabeSetupProgress = ChallengerProgress;
 export type PresigningProgress = ChallengerProgress;
-/** ACK collection progress (PendingACKs state) */
 export type AckCollectionProgress = ChallengerProgress;
 
-/**
- * Detailed progress information for a PegIn
- * Contains state-specific progress details
- */
+/** Detailed progress breakdown for an in-progress pegin. */
 export interface PeginProgressDetails {
-  /** GC data progress (only present in PendingBabeSetup state) */
-  gc_data?: GcDataProgress;
-  /** Presigning progress (only present in PendingChallengerPresigning state) */
+  babe_setup?: BabeSetupProgress;
   presigning?: PresigningProgress;
-  /** ACK collection progress (present in PendingACKs state) */
   ack_collection?: AckCollectionProgress;
 }
 
-/**
- * Response for getting PegIn status
- * Corresponds to: GetPeginStatusResponse
- */
+/** Response from `getPeginStatus`. */
 export interface GetPeginStatusResponse {
-  /**
-   * The current status of the PegIn in vault provider's database
-   * State flow: PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures
-   *             -> PendingACKs -> PendingActivation -> Activated
-   */
   status: string;
-  /** Detailed progress information for the current state (may be absent in some states) */
   progress?: PeginProgressDetails;
 }
 
@@ -158,10 +149,7 @@ export interface GetPeginStatusResponse {
 // Error Codes
 // ============================================================================
 
-/**
- * Error codes that can be returned by the btc-vault RPC service
- * Based on: RpcError enum
- */
+/** JSON-RPC error codes returned by the vault provider. */
 export enum RpcErrorCode {
   DATABASE_ERROR = -32005,
   PRESIGN_ERROR = -32006,

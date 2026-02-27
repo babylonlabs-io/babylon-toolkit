@@ -16,6 +16,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
+import { FeatureFlags } from "@/config";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -34,6 +35,7 @@ import {
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   savePendingPegin,
+  submitLamportPublicKey,
   submitPayoutSignatures,
   submitPeginAndWait,
   validateDepositInputs,
@@ -52,18 +54,25 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  getMnemonic?: () => Promise<string>;
+}
+
+export interface ArtifactDownloadInfo {
+  providerUrl: string;
+  peginTxid: string;
+  depositorPk: string;
 }
 
 export interface UseDepositFlowReturn {
-  /** Execute the deposit flow. Returns result on success, null on error. */
   executeDepositFlow: () => Promise<DepositFlowResult | null>;
-  /** Abort the currently running deposit flow */
   abort: () => void;
   currentStep: DepositStep;
   processing: boolean;
   error: string | null;
   isWaiting: boolean;
   payoutSigningProgress: PayoutSigningProgress | null;
+  artifactDownloadInfo: ArtifactDownloadInfo | null;
+  continueAfterArtifactDownload: () => void;
 }
 
 export function useDepositFlow(
@@ -79,6 +88,7 @@ export function useDepositFlow(
     vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    getMnemonic,
   } = params;
 
   // State
@@ -90,6 +100,16 @@ export function useDepositFlow(
   const [isWaiting, setIsWaiting] = useState(false);
   const [payoutSigningProgress, setPayoutSigningProgress] =
     useState<PayoutSigningProgress | null>(null);
+  const [artifactDownloadInfo, setArtifactDownloadInfo] =
+    useState<ArtifactDownloadInfo | null>(null);
+
+  const artifactResolverRef = useRef<(() => void) | null>(null);
+
+  const continueAfterArtifactDownload = useCallback(() => {
+    setArtifactDownloadInfo(null);
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
+  }, []);
 
   // Abort controller for cancelling the flow
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -97,6 +117,8 @@ export function useDepositFlow(
   const abort = useCallback(() => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
+    artifactResolverRef.current?.();
+    artifactResolverRef.current = null;
   }, []);
 
   // Abort any running flow on unmount so async work doesn't leak
@@ -190,14 +212,27 @@ export function useDepositFlow(
           selectedUTXOs: peginResult.selectedUTXOs,
         });
 
-        // Step 3: Poll and sign payout transactions
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
-        setIsWaiting(true);
-
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
           throw new Error("Vault provider has no RPC URL");
         }
+
+        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+          setIsWaiting(true);
+          await submitLamportPublicKey({
+            btcTxid: peginResult.btcTxid,
+            depositorBtcPubkey: peginResult.depositorBtcPubkey,
+            appContractAddress: selectedApplication,
+            providerUrl: provider.url,
+            getMnemonic,
+            signal,
+          });
+          setIsWaiting(false);
+        }
+
+        // Step 3: Poll and sign payout transactions
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({
@@ -217,7 +252,6 @@ export function useDepositFlow(
 
         setIsWaiting(false);
 
-        // Sign with progress tracking (loop stays in hook for state updates)
         const signatures = await signPayoutTransactionsWithProgress(
           btcWalletProvider,
           context,
@@ -225,7 +259,6 @@ export function useDepositFlow(
           setPayoutSigningProgress,
         );
 
-        // Submit signatures
         await submitPayoutSignatures(
           vaultProviderUrl,
           peginResult.btcTxid,
@@ -235,7 +268,18 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
-        // Step 4a: Wait for verification
+        if (FeatureFlags.isDepositorAsClaimerEnabled) {
+          setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
+          setArtifactDownloadInfo({
+            providerUrl: provider.url,
+            peginTxid: peginResult.btcTxid,
+            depositorPk: peginResult.depositorBtcPubkey,
+          });
+          await new Promise<void>((resolve) => {
+            artifactResolverRef.current = resolve;
+          });
+        }
+
         setCurrentStep(DepositStep.BROADCAST_BTC);
         setIsWaiting(true);
         await waitForContractVerification({
@@ -244,7 +288,6 @@ export function useDepositFlow(
         });
         setIsWaiting(false);
 
-        // Step 4b: Broadcast BTC transaction
         await broadcastBtcTransaction(
           {
             btcTxid: peginResult.btcTxid,
@@ -303,6 +346,7 @@ export function useDepositFlow(
       vaultKeepers,
       latestUniversalChallengers,
       minDeposit,
+      getMnemonic,
     ]);
 
   return {
@@ -313,6 +357,8 @@ export function useDepositFlow(
     error,
     isWaiting,
     payoutSigningProgress,
+    artifactDownloadInfo,
+    continueAfterArtifactDownload,
   };
 }
 

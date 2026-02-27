@@ -19,6 +19,7 @@ import {
   useState,
 } from "react";
 
+import FeatureFlags from "../../config/featureFlags";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useUtxoValidation } from "../../hooks/deposit/useUtxoValidation";
 import { useUTXOs } from "../../hooks/useUTXOs";
@@ -60,12 +61,13 @@ export function PeginPollingProvider({
   >(new Map());
 
   // Use the polling query hook
-  const { data, errors, isLoading, refetch } = usePeginPollingQuery({
-    activities,
-    pendingPegins,
-    btcPublicKey,
-    vaultProviders,
-  });
+  const { data, errors, needsLamportKey, isLoading, refetch } =
+    usePeginPollingQuery({
+      activities,
+      pendingPegins,
+      btcPublicKey,
+      vaultProviders,
+    });
 
   // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)
   const {
@@ -151,6 +153,9 @@ export function PeginPollingProvider({
         transactionsReady: isReady,
         isInUse: activity.isInUse,
         utxoUnavailable,
+        needsLamportKey:
+          FeatureFlags.isDepositorAsClaimerEnabled &&
+          needsLamportKey?.has(depositId),
       });
 
       const isOwnedByCurrentWallet = isVaultOwnedByWallet(
@@ -174,6 +179,7 @@ export function PeginPollingProvider({
       pendingPegins,
       data,
       errors,
+      needsLamportKey,
       isLoading,
       optimisticStatuses,
       btcPublicKey,

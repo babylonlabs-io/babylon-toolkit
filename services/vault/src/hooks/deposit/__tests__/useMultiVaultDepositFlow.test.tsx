@@ -98,8 +98,9 @@ vi.mock("../depositFlowSteps", () => ({
     SIGN_POP: 1,
     SUBMIT_PEGIN: 2,
     SIGN_PAYOUTS: 3,
-    BROADCAST_BTC: 4,
-    COMPLETED: 5,
+    ARTIFACT_DOWNLOAD: 4,
+    BROADCAST_BTC: 5,
+    COMPLETED: 6,
   },
   getEthWalletClient: vi.fn(),
   submitPeginAndWait: vi.fn(),
@@ -1041,7 +1042,7 @@ describe("useMultiVaultDepositFlow", () => {
       const executePromise = result.current.executeMultiVaultDeposit();
 
       await waitFor(() => {
-        expect(result.current.currentStep).toBe(5); // COMPLETED
+        expect(result.current.currentStep).toBe(6); // COMPLETED
       });
 
       await executePromise;

@@ -12,6 +12,7 @@ import type { Address } from "viem";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
+import { useLamportKeyModal } from "@/hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "@/hooks/deposit/usePayoutSignModal";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
@@ -49,6 +50,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const lamportKeyModal = useLamportKeyModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   return {
     pendingActivities,
     allActivities: activities,
@@ -62,5 +68,6 @@ export function usePendingDeposits() {
     refetchActivities,
     signModal,
     broadcastModal,
+    lamportKeyModal,
   };
 }

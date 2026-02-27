@@ -24,6 +24,7 @@ interface DepositMobileCardProps {
   onSignClick: (depositId: string, transactions: unknown[]) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
+  onLamportKeyClick?: (depositId: string) => void;
 }
 
 export function DepositMobileCard({
@@ -31,6 +32,7 @@ export function DepositMobileCard({
   onSignClick,
   onBroadcastClick,
   onRedeemClick,
+  onLamportKeyClick,
 }: DepositMobileCardProps) {
   const pollingResult = useDepositPollingResult(deposit.id);
 
@@ -92,7 +94,9 @@ export function DepositMobileCard({
       ]}
       actions={actions}
       onAction={(id, action) => {
-        if (action === "sign" && transactions) {
+        if (action === "lamport_key") {
+          onLamportKeyClick?.(id);
+        } else if (action === "sign" && transactions) {
           onSignClick(id, transactions);
         } else if (action === "broadcast") {
           onBroadcastClick(id);

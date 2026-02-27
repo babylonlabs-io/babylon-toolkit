@@ -1,17 +1,25 @@
-/**
- * High-level API methods for vault provider RPC service
- */
-
 import { JsonRpcClient } from "../../utils/rpc";
 
 import type {
   GetPeginStatusParams,
   GetPeginStatusResponse,
+  RequestDepositorClaimerArtifactsParams,
+  RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
   RequestDepositorPresignTransactionsResponse,
+  SubmitDepositorLamportKeyParams,
+  SubmitDepositorPresignaturesParams,
   SubmitPayoutSignaturesParams,
 } from "./types";
 
+/**
+ * JSON-RPC client for the Vault Provider API.
+ *
+ * Wraps {@link JsonRpcClient} with typed methods matching the
+ * `vaultProvider_*` RPC namespace defined in the btc-vaults pegin spec.
+ *
+ * @see https://github.com/babylonlabs-io/btc-vaults/blob/main/docs/pegin.md
+ */
 export class VaultProviderRpcApi {
   private client: JsonRpcClient;
 
@@ -23,17 +31,8 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Request transactions for depositor to presign
-   *
-   * Depositors call this method to get the transactions that they need to sign
-   * for the PegIn flow. Returns 4 transactions per claimer:
-   * - Claim (for reference)
-   * - PayoutOptimistic (depositor signs)
-   * - Assert (for reference)
-   * - Payout (depositor signs)
-   *
-   * @param params - PegIn transaction ID and depositor's 32-byte x-only public key
-   * @returns List of transaction sets for each claimer (VP and VKs)
+   * Request the payout/claim/assert transactions that the depositor
+   * needs to pre-sign before the vault can be activated on Bitcoin.
    */
   async requestDepositorPresignTransactions(
     params: RequestDepositorPresignTransactionsParams,
@@ -45,16 +44,21 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Submit depositor signatures for PayoutOptimistic and Payout transactions
-   *
-   * After the depositor receives transactions via `requestDepositorPresignTransactions`,
-   * they sign both PayoutOptimistic and Payout transactions and submit their signatures
-   * through this API. The vault provider will store these signatures and use them to
-   * finalize the PegIn flow.
-   *
-   * @param params - PegIn TX ID, depositor's 32-byte x-only public key, and signatures
-   *                 (both PayoutOptimistic and Payout signatures for each claimer)
-   * @returns void on success
+   * Submit the depositor's pre-signatures for the depositor-as-claimer
+   * challenge/assert transactions (one set per challenger).
+   */
+  async submitDepositorPresignatures(
+    params: SubmitDepositorPresignaturesParams,
+  ): Promise<void> {
+    return this.client.call<SubmitDepositorPresignaturesParams, void>(
+      "vaultProvider_submitDepositorPresignatures",
+      params,
+    );
+  }
+
+  /**
+   * Submit the depositor's payout transaction signatures
+   * (payout + payout-optimistic per claimer).
    */
   async submitPayoutSignatures(
     params: SubmitPayoutSignaturesParams,
@@ -66,11 +70,33 @@ export class VaultProviderRpcApi {
   }
 
   /**
-   * Get the current status of a PegIn transaction
-   *
-   * @param params - PegIn transaction ID
-   * @returns Current status as a string
+   * Submit the depositor's Lamport public key to the vault provider.
+   * Called after the pegin is finalized on Ethereum, when the VP is in
+   * `PendingDepositorLamportPK` status.
    */
+  async submitDepositorLamportKey(
+    params: SubmitDepositorLamportKeyParams,
+  ): Promise<void> {
+    return this.client.call<SubmitDepositorLamportKeyParams, void>(
+      "vaultProvider_submitDepositorLamportKey",
+      params,
+    );
+  }
+
+  /**
+   * Request the BaBe DecryptorArtifacts needed for the depositor to
+   * independently evaluate garbled circuits during a challenge.
+   */
+  async requestDepositorClaimerArtifacts(
+    params: RequestDepositorClaimerArtifactsParams,
+  ): Promise<RequestDepositorClaimerArtifactsResponse> {
+    return this.client.call<
+      RequestDepositorClaimerArtifactsParams,
+      RequestDepositorClaimerArtifactsResponse
+    >("vaultProvider_requestDepositorClaimerArtifacts", params);
+  }
+
+  /** Get the current pegin status from the vault provider daemon. */
   async getPeginStatus(
     params: GetPeginStatusParams,
   ): Promise<GetPeginStatusResponse> {

@@ -25,6 +25,7 @@ interface PendingDepositCardProps {
   amount: string;
   onSignClick: (depositId: string, transactions: unknown[]) => void;
   onBroadcastClick: (depositId: string) => void;
+  onLamportKeyClick: (depositId: string) => void;
 }
 
 export function PendingDepositCard({
@@ -32,6 +33,7 @@ export function PendingDepositCard({
   amount,
   onSignClick,
   onBroadcastClick,
+  onLamportKeyClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -49,7 +51,9 @@ export function PendingDepositCard({
     if (status.type !== "available") return;
 
     const { action } = status.action;
-    if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
+    if (action === PeginAction.SUBMIT_LAMPORT_KEY) {
+      onLamportKeyClick(depositId);
+    } else if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
       onSignClick(depositId, transactions || []);
     } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcastClick(depositId);

@@ -9,6 +9,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import { FeatureFlags } from "../../config";
 import {
   DepositStep,
   useDepositState,
@@ -17,6 +18,7 @@ import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
+import { useVaults } from "../useVaults";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -37,6 +39,9 @@ export interface UseDepositPageFlowResult {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
 
+  // Vault data
+  hasExistingVaults: boolean;
+
   // Actions
   startDeposit: (
     amountSats: bigint,
@@ -44,6 +49,7 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
+  confirmMnemonic: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -92,6 +98,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   // Get activities refetch function
   const { refetchActivities } = useVaultDeposits(ethAddress);
 
+  const { data: existingVaults } = useVaults(ethAddress);
+  const hasExistingVaults = (existingVaults?.length ?? 0) > 0;
+
   // Get selected provider's BTC public key, vault keepers, and universal challengers
   const {
     selectedProviderBtcPubkey,
@@ -137,6 +146,14 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const confirmReview = (confirmedFeeRate: number) => {
     setFeeRate(confirmedFeeRate);
+    if (FeatureFlags.isDepositorAsClaimerEnabled) {
+      goToStep(DepositStep.MNEMONIC);
+    } else {
+      goToStep(DepositStep.SIGN);
+    }
+  };
+
+  const confirmMnemonic = () => {
     goToStep(DepositStep.SIGN);
   };
 
@@ -156,8 +173,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    hasExistingVaults,
     startDeposit,
     confirmReview,
+    confirmMnemonic,
     onSignSuccess,
     resetDeposit,
     refetchActivities,

@@ -16,6 +16,10 @@ vi.mock("@/config/contracts", () => ({
   },
 }));
 
+vi.mock("@/config", () => ({
+  FeatureFlags: { isDepositorAsClaimerEnabled: false },
+}));
+
 // Mock dependencies
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({

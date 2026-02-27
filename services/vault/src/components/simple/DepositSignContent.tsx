@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { Address } from "viem";
 
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
   canCloseModal,
   DepositStep,
@@ -42,6 +43,8 @@ export function DepositSignContent({
     error,
     isWaiting,
     payoutSigningProgress,
+    artifactDownloadInfo,
+    continueAfterArtifactDownload,
   } = useDepositFlow(flowParams);
 
   // Auto-start the flow on mount
@@ -72,17 +75,29 @@ export function DepositSignContent({
   }, [abort, onClose]);
 
   return (
-    <DepositProgressView
-      currentStep={currentStep}
-      isWaiting={isWaiting}
-      error={error}
-      isComplete={isComplete}
-      isProcessing={isProcessing}
-      canClose={canClose}
-      canContinueInBackground={canContinueInBackground}
-      payoutSigningProgress={payoutSigningProgress}
-      onClose={handleClose}
-      successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
-    />
+    <>
+      <DepositProgressView
+        currentStep={currentStep}
+        isWaiting={isWaiting}
+        error={error}
+        isComplete={isComplete}
+        isProcessing={isProcessing}
+        canClose={canClose}
+        canContinueInBackground={canContinueInBackground}
+        payoutSigningProgress={payoutSigningProgress}
+        onClose={handleClose}
+        successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
+      />
+      {artifactDownloadInfo && (
+        <ArtifactDownloadModal
+          open={!!artifactDownloadInfo}
+          onClose={handleClose}
+          onComplete={continueAfterArtifactDownload}
+          providerUrl={artifactDownloadInfo.providerUrl}
+          peginTxid={artifactDownloadInfo.peginTxid}
+          depositorPk={artifactDownloadInfo.depositorPk}
+        />
+      )}
+    </>
   );
 }

@@ -59,46 +59,43 @@ export async function pollAndPreparePayoutSigning(
     signal,
   } = params;
 
+  const buildContext = (
+    payoutTransactions: import("@/clients/vault-provider-rpc/types").ClaimerTransactions[],
+  ): PayoutSigningContext => {
+    const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
+    const universalChallengerBtcPubkeys =
+      getSortedUniversalChallengerPubkeys(universalChallengers);
+
+    const context: SigningContext = {
+      peginTxHex: btcTxHex,
+      vaultProviderBtcPubkey: stripHexPrefix(providerBtcPubKey),
+      vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys,
+      depositorBtcPubkey,
+      network: getBTCNetworkForWASM(),
+    };
+
+    return {
+      context,
+      vaultProviderUrl: providerUrl,
+      preparedTransactions: prepareTransactionsForSigning(payoutTransactions),
+    };
+  };
+
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
-  // Poll vault provider until payout transactions are ready
   return pollUntil<PayoutSigningContext>(
     async () => {
-      // Fetch payout transactions from vault provider
       const response = await rpcClient.requestDepositorPresignTransactions({
         pegin_txid: stripHexPrefix(btcTxid),
         depositor_pk: depositorBtcPubkey,
       });
 
       if (!response.txs || response.txs.length === 0) {
-        return null; // Continue polling
+        return null;
       }
 
-      const payoutTransactions = response.txs;
-
-      // Construct signing context from passed-in data (no indexer dependency)
-      const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
-      const universalChallengerBtcPubkeys =
-        getSortedUniversalChallengerPubkeys(universalChallengers);
-
-      const context: SigningContext = {
-        peginTxHex: btcTxHex,
-        vaultProviderBtcPubkey: stripHexPrefix(providerBtcPubKey),
-        vaultKeeperBtcPubkeys,
-        universalChallengerBtcPubkeys,
-        depositorBtcPubkey,
-        network: getBTCNetworkForWASM(),
-      };
-
-      // Prepare transactions for signing
-      const preparedTransactions =
-        prepareTransactionsForSigning(payoutTransactions);
-
-      return {
-        context,
-        vaultProviderUrl: providerUrl,
-        preparedTransactions,
-      };
+      return buildContext(response.txs);
     },
     {
       intervalMs: POLLING_INTERVAL_MS,

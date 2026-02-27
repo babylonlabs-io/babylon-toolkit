@@ -1,3 +1,4 @@
+import FeatureFlags from "@/config/featureFlags";
 import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
@@ -21,6 +22,9 @@ export const STEP_DESCRIPTIONS: Record<
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
   },
+  [DepositStep.ARTIFACT_DOWNLOAD]: {
+    active: "Download your vault artifacts before continuing.",
+  },
   [DepositStep.BROADCAST_BTC]: {
     active:
       "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
@@ -42,17 +46,22 @@ export const SIGNING_STEP_LABELS: Record<string, string> = {
 /**
  * Step labels for the progress indicator
  */
-export const STEP_LABELS = [
-  "Sign proof of possession",
-  "Sign & submit peg-in request to Ethereum",
-  "Sign payout transaction(s)",
-  "Sign & broadcast Bitcoin transaction",
-] as const;
+export function getStepLabels(): string[] {
+  const labels = [
+    "Sign proof of possession",
+    "Sign & submit peg-in request to Ethereum",
+    "Sign payout transaction(s)",
+  ];
+  if (FeatureFlags.isDepositorAsClaimerEnabled) {
+    labels.push("Download vault artifacts");
+  }
+  labels.push("Sign & broadcast Bitcoin transaction");
+  return labels;
+}
 
-/**
- * Total number of steps in the deposit flow (excluding completion)
- */
-export const TOTAL_STEPS = 4;
+export function getTotalSteps(): number {
+  return FeatureFlags.isDepositorAsClaimerEnabled ? 5 : 4;
+}
 
 /**
  * Get the description text for the current step
@@ -88,7 +97,11 @@ export function canCloseModal(
 ): boolean {
   if (error) return true;
   if (currentStep === DepositStep.COMPLETED) return true;
-  // Allow closing during waiting states (vault provider prep or verification)
+  if (
+    FeatureFlags.isDepositorAsClaimerEnabled &&
+    currentStep === DepositStep.ARTIFACT_DOWNLOAD
+  )
+    return true;
   if (isWaiting && currentStep >= DepositStep.SIGN_PAYOUTS) return true;
   return false;
 }

@@ -64,12 +64,16 @@ export enum LocalStorageStatus {
  * PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  */
 export enum DaemonStatus {
+  PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
   PENDING_DEPOSITOR_SIGNATURES = "PendingDepositorSignatures",
   PENDING_ACKS = "PendingACKs",
   PENDING_ACTIVATION = "PendingActivation",
   ACTIVATED = "Activated",
+  EXPIRED = "Expired",
+  CLAIM_POSTED = "ClaimPosted",
+  PEGGED_OUT = "PeggedOut",
 }
 
 /**
@@ -78,6 +82,7 @@ export enum DaemonStatus {
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
   DaemonStatus.PENDING_BABE_SETUP,
+  DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
 
@@ -150,6 +155,8 @@ export interface PeginState {
  * Note: Only includes ACTUAL user actions, not waiting states
  */
 export enum PeginAction {
+  /** Submit lamport key (re-enter mnemonic) */
+  SUBMIT_LAMPORT_KEY = "SUBMIT_LAMPORT_KEY",
   /** Sign payout transactions */
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   /** Sign and broadcast peg-in transaction to Bitcoin */
@@ -176,6 +183,8 @@ export interface GetPeginStateOptions {
   isInUse?: boolean;
   /** Whether the UTXO for this deposit is no longer available (spent) */
   utxoUnavailable?: boolean;
+  /** Whether the vault provider is waiting for the depositor's lamport public key */
+  needsLamportKey?: boolean;
 }
 
 /**
@@ -189,7 +198,13 @@ export function getPeginState(
   contractStatus: ContractStatus,
   options: GetPeginStateOptions = {},
 ): PeginState {
-  const { localStatus, transactionsReady, isInUse, utxoUnavailable } = options;
+  const {
+    localStatus,
+    transactionsReady,
+    isInUse,
+    utxoUnavailable,
+    needsLamportKey,
+  } = options;
 
   // Early check: If UTXO is unavailable (spent), show Invalid state
   // This provides immediate feedback before the backend updates the status
@@ -220,6 +235,19 @@ export function getPeginState(
         availableActions: [PeginAction.NONE],
         message:
           "Payout signatures submitted. Waiting for vault provider to collect acknowledgements and update on-chain status...",
+      };
+    }
+
+    // Sub-state: Vault provider waiting for depositor's lamport public key
+    if (needsLamportKey) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
+        displayVariant: "pending",
+        availableActions: [PeginAction.SUBMIT_LAMPORT_KEY],
+        message:
+          "Vault provider is waiting for your Lamport public key. Please enter your mnemonic to continue.",
       };
     }
 
@@ -378,6 +406,13 @@ export function getPrimaryActionButton(state: PeginState): {
   label: string;
   action: PeginAction;
 } | null {
+  if (state.availableActions.includes(PeginAction.SUBMIT_LAMPORT_KEY)) {
+    return {
+      label: "Enter Mnemonic",
+      action: PeginAction.SUBMIT_LAMPORT_KEY,
+    };
+  }
+
   if (state.availableActions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
     return {
       label: "Sign",

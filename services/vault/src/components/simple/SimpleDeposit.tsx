@@ -9,11 +9,13 @@ import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { depositService } from "@/services/deposit";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
+import type { VaultProvider } from "@/types/vaultProvider";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
+import { MnemonicModal } from "../deposit/MnemonicModal";
 
 import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
@@ -21,6 +23,7 @@ import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
 import {
   ResumeBroadcastContent,
+  ResumeLamportContent,
   ResumeSignContent,
 } from "./ResumeDepositContent";
 
@@ -53,10 +56,18 @@ type ResumeBroadcastProps = SimpleDepositBaseProps & {
   onResumeSuccess: () => void;
 };
 
+type ResumeLamportProps = SimpleDepositBaseProps & {
+  resumeMode: "submit_lamport_key";
+  activity: VaultActivity;
+  vaultProviders: VaultProvider[];
+  onResumeSuccess: () => void;
+};
+
 export type SimpleDepositProps =
   | NewDepositProps
   | ResumeSignProps
-  | ResumeBroadcastProps;
+  | ResumeBroadcastProps
+  | ResumeLamportProps;
 
 // ---------------------------------------------------------------------------
 // New deposit flow content (form → sign → success)
@@ -96,6 +107,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     selectedProviderBtcPubkey,
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
+    hasExistingVaults,
+    confirmMnemonic,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -120,7 +133,11 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      goToStep(DepositStep.SIGN);
+      if (FeatureFlags.isDepositorAsClaimerEnabled) {
+        goToStep(DepositStep.MNEMONIC);
+      } else {
+        goToStep(DepositStep.SIGN);
+      }
     }
   };
 
@@ -176,6 +193,15 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           </div>
         )}
 
+        {renderedStep === DepositStep.MNEMONIC && (
+          <MnemonicModal
+            open
+            onClose={onClose}
+            onComplete={confirmMnemonic}
+            hasExistingVaults={hasExistingVaults}
+          />
+        )}
+
         {renderedStep === DepositStep.SIGN && (
           <div className="mx-auto w-full max-w-[520px]">
             <DepositSignContent
@@ -214,6 +240,19 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // Resume mode: skip form/state providers and render resume content directly
   if (resumeMode) {
+    if (resumeMode === "submit_lamport_key") {
+      return (
+        <ProtocolParamsProvider>
+          <ResumeLamportContent
+            activity={props.activity}
+            vaultProviders={props.vaultProviders}
+            onClose={onClose}
+            onSuccess={props.onResumeSuccess}
+          />
+        </ProtocolParamsProvider>
+      );
+    }
+
     return (
       <ProtocolParamsProvider>
         <FullScreenDialog

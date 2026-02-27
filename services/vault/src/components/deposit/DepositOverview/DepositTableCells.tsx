@@ -35,6 +35,8 @@ export function getCardActions(
   if (!actionButton) return undefined;
 
   switch (actionButton.action) {
+    case PeginAction.SUBMIT_LAMPORT_KEY:
+      return [{ name: "Enter Mnemonic", action: "lamport_key" }];
     case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
       return [{ name: "Sign", action: "sign" }];
     case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
