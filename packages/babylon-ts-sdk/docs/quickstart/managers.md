@@ -42,6 +42,8 @@ Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io
 
 ### Configuration
 
+The `btcVaultsManager` is the Ethereum smart contract that handles BTC vault registration, status tracking, and fees. The contract address is deployment-specific — obtain it from your deployment configuration or the [Babylon vault indexer API](https://github.com/babylonlabs-io/btc-vault).
+
 ```typescript
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 
@@ -51,7 +53,7 @@ const peginManager = new PeginManager({
   ethWallet, // viem WalletClient
   ethChain: sepolia, // viem Chain
   vaultContracts: {
-    btcVaultsManager: "0x...", // Contract address
+    btcVaultsManager: "0x...", // BTCVaultsManager contract address
   },
   mempoolApiUrl: "https://mempool.space/signet/api",
 });
