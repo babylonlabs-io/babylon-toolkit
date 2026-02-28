@@ -135,9 +135,11 @@ const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
 
 ---
 
-## Utilities (Also Available)
+## Utilities
 
-The SDK also provides utility functions you'll need when using primitives:
+The SDK provides utility functions you'll need when using primitives.
+
+### Transaction Utilities
 
 ```typescript
 import {
@@ -149,7 +151,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 ```
 
-### UTXO Selection
+#### UTXO Selection
 
 ```typescript
 const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
@@ -159,17 +161,13 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
 );
 ```
 
-### Calculate Transaction Hash
+#### Calculate Transaction Hash
 
 ```typescript
 const txHash = calculateBtcTxHash(txHex); // Returns "0x..." format
 ```
 
----
-
-## Bitcoin Utilities
-
-Helper functions for pubkey/hex handling:
+### Data Conversion Helpers
 
 ```typescript
 import {
