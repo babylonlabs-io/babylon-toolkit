@@ -38,7 +38,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ### 1. buildPeginPsbt
 
-Builds an **unfunded** peg-in transaction hex (0 inputs, 1 vault output).
+Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 vault output).
 
 ```typescript
 import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";

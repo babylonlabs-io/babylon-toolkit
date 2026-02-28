@@ -27,7 +27,7 @@ Managers orchestrate complex flows that involve multiple steps across Bitcoin an
 
 ## PeginManager
 
-Orchestrates BTC vault creation (peg-in flow).
+Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)).
 
 ### What It Does
 
@@ -130,9 +130,9 @@ Signs payout authorizations for vault providers.
 
 ### What It Does
 
-**Used during peg-in Step 3** - After registering a vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize future fund distribution before broadcasting to Bitcoin (Step 4).
+**Used during [peg-in Step 3](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)** - After registering a vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize future fund distribution before broadcasting to Bitcoin (Step 4).
 
-**Important:** This is NOT the same as redemption/withdrawal. During peg-in, you pre-sign transactions that enable the vault provider to distribute your funds in the future when you request redemption.
+**Important:** This is NOT the same as [redemption/withdrawal](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md). During peg-in, you pre-sign transactions that enable the vault provider to distribute your funds in the future when you request redemption.
 
 ### Configuration
 

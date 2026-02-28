@@ -15,8 +15,8 @@ The Babylon TypeScript SDK is a production-ready toolkit for integrating Trustle
 
 Trustless Bitcoin Vaults (TBV) let you lock Bitcoin and use it in applications on supported chains (like lending protocols) without giving up custody. The vault protocol enables:
 
-- **Peg-in**: Lock BTC in a vault on Bitcoin to use as collateral
-- **Peg-out**: Unlock BTC from the vault back to your wallet
+- **Peg-in**: Lock BTC in a vault on Bitcoin to use as collateral ([protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md))
+- **Peg-out**: Unlock BTC from the vault back to your wallet ([protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md))
 - **DeFi Integration**: Use vaulted BTC in protocols like Aave
 
 This SDK handles the complex Bitcoin and Ethereum interactions needed to create and manage these vaults.
