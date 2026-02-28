@@ -15,7 +15,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ## When to Use Primitives
 
-> **Managers** are high-level classes that orchestrate multi-step vault operations with wallet integration. See [Managers Quickstart](./managers.md) for details.
+> **Managers** are high-level classes that orchestrate multi-step BTC vault operations with wallet integration. See [Managers Quickstart](./managers.md) for details.
 
 | Use Case                                       | Use            |
 | ---------------------------------------------- | -------------- |
@@ -38,7 +38,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ### 1. buildPeginPsbt
 
-Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 vault output).
+Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 BTC vault output).
 
 ```typescript
 import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -197,5 +197,5 @@ import {
 ## Next Steps
 
 - **[Managers](./managers.md)** - High-level orchestration (easier)
-- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use BTC vaults as collateral
 - **[API Reference](../api/primitives.md)** - Complete function signatures

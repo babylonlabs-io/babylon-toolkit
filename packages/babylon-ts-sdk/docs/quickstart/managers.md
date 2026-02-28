@@ -1,6 +1,6 @@
 # Managers
 
-High-level orchestration for multi-step vault operations.
+High-level orchestration for multi-step BTC vault operations.
 
 > For complete function signatures, see [API Reference](../api/managers.md).
 
@@ -31,8 +31,8 @@ Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io
 
 ### What It Does
 
-1. Builds funded Bitcoin transaction with vault output
-2. Registers vault on Ethereum (with proof-of-possession)
+1. Builds funded Bitcoin transaction with BTC vault output
+2. Registers BTC vault on Ethereum (with proof-of-possession)
 3. Signs payout authorization (pre-authorizes future fund distribution)
 4. Signs and broadcasts to Bitcoin network
 
@@ -130,7 +130,7 @@ Signs payout authorizations for vault providers.
 
 ### What It Does
 
-**Used during [peg-in Step 3](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)** - After registering a vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize future fund distribution before broadcasting to Bitcoin (Step 4).
+**Used during [peg-in Step 3](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)** - After registering a BTC vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize future fund distribution before broadcasting to Bitcoin (Step 4).
 
 **Important:** This is NOT the same as [redemption/withdrawal](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md). During peg-in, you pre-sign transactions that enable the vault provider to distribute your funds in the future when you request redemption.
 
@@ -212,5 +212,5 @@ const ethWallet = createWalletClient({
 ## Next Steps
 
 - **[Primitives](./primitives.md)** - Low-level functions for custom implementations
-- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use BTC vaults as collateral
 - **[API Reference](../api/managers.md)** - Complete function signatures
