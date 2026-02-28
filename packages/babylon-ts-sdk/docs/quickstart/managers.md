@@ -137,7 +137,7 @@ console.log("Broadcasted:", btcTxid);
 
 ## PayoutManager
 
-Signs payout authorizations for vault providers.
+Co-signs the Payout transactions used by all potential claimers. For more details, see the [transaction graph documentation](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
 
 ### What It Does
 
