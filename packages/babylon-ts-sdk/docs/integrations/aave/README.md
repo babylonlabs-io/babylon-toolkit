@@ -52,11 +52,9 @@ Build unsigned transactions. Returns `{ to, data }` for you to execute.
 
 | Function                         | Purpose                                    |
 | -------------------------------- | ------------------------------------------ |
-| `buildAddCollateralTx()`         | Add BTC vaults as collateral               |
 | `buildBorrowTx()`                | Borrow against collateral                  |
 | `buildRepayTx()`                 | Repay borrowed assets                      |
 | `buildWithdrawAllCollateralTx()` | Remove all collateral (requires zero debt) |
-| `buildDepositorRedeemTx()`       | Redeem BTC vault to vault provider         |
 
 ### Query Functions
 
@@ -88,15 +86,12 @@ Pure calculations and helpers.
 
 | I want to...               | Use this function                            |
 | -------------------------- | -------------------------------------------- |
-| Add BTC vaults as collateral | `buildAddCollateralTx()`                     |
-| Choose which vaults to use | `selectVaultsForAmount()`                    |
 | Borrow stablecoins         | `buildBorrowTx()`                            |
 | Check if safe to borrow    | `getUserAccountData()` → check health factor |
 | Get exact debt amount      | `getUserTotalDebt()`                         |
 | Repay debt                 | `buildRepayTx()`                             |
 | Check if can withdraw      | `hasDebt()` → must be false                  |
 | Withdraw collateral        | `buildWithdrawAllCollateralTx()`             |
-| Redeem BTC vault           | `buildDepositorRedeemTx()`                   |
 
 ---
 
@@ -104,17 +99,17 @@ Pure calculations and helpers.
 
 ```typescript
 import {
-  buildAddCollateralTx,
-  selectVaultsForAmount,
+  buildBorrowTx,
+  getUserAccountData,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { parseUnits } from "viem";
 
-// Select BTC vaults for 0.5 BTC
-const { vaultIds } = selectVaultsForAmount(availableVaults, 0.5);
+// Check position health before borrowing
+const accountData = await getUserAccountData(publicClient, spokeAddress, proxyAddress);
+const healthFactor = Number(accountData.healthFactor) / 1e18;
 
-// Build transaction
-const tx = buildAddCollateralTx(controllerAddress, vaultIds, reserveId);
-
-// Execute with your wallet
+// Borrow 100 USDC against your BTC vault collateral
+const tx = buildBorrowTx(controllerAddress, reserveId, parseUnits("100", 6), receiver);
 await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 ```
 
