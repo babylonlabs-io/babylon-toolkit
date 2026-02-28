@@ -48,7 +48,7 @@ const USDC_RESERVE_ID = 2n;
 **Sequence:** Get position → Check health → Build transaction → Execute
 
 ```typescript
-// 1. Get your proxy address from your position
+// 1. Get the user's proxy address from their position
 const account = walletClient.account;
 if (!account) {
   throw new Error("Wallet client has no connected account configured.");
@@ -87,7 +87,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 **What happens on-chain:**
 
 - Borrowed amount transferred to receiver address
-- Debt recorded in your Aave position
+- Debt recorded in the borrower's Aave position
 - Health factor recalculated
 
 **Important:** Always check health factor before borrowing.
@@ -101,7 +101,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 > **Gotcha:** Requires ERC20 approval before repaying!
 
 ```typescript
-// 1. Get your proxy address from your position
+// 1. Get the user's proxy address from their position
 const position = await getPosition(
   publicClient,
   CONTROLLER,
@@ -153,8 +153,8 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 **What happens on-chain:**
 
-- Repayment tokens transferred from your wallet to controller
-- Debt reduced in your Aave position
+- Repayment tokens transferred from the borrower's wallet to controller
+- Debt zeroed out in the borrower's Aave position
 - Health factor improves
 
 **Partial repayment:** Pass specific amount instead of `totalDebt`.
@@ -168,7 +168,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 > **Gotcha:** Must repay ALL debt before withdrawing!
 
 ```typescript
-// 1. Get your proxy address from your position
+// 1. Get the user's proxy address from their position
 const position = await getPosition(
   publicClient,
   CONTROLLER,
@@ -199,7 +199,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 **What happens on-chain:**
 
-- Collateral removed from your Aave position
+- Collateral removed from the user's Aave position
 - Vaults are automatically redeemed (triggers BTC payout)
 
 ---
