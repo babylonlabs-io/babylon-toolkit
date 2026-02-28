@@ -36,6 +36,8 @@ Primitives are the lowest-level SDK functions. They:
 
 ## The 4 Primitives
 
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged), but those are generated and managed by the vault provider. The SDK only provides primitives for the operations the **depositor** performs: building the peg-in transaction and signing payout authorizations.
+
 ### 1. buildPeginPsbt
 
 Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 BTC vault output).
