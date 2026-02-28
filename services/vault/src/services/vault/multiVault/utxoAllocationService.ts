@@ -42,6 +42,7 @@ import {
   DUST_THRESHOLD,
   MAX_NON_LEGACY_OUTPUT_SIZE,
   P2TR_INPUT_SIZE,
+  rateBasedTxBufferFee,
   TX_BUFFER_SIZE_OVERHEAD,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 
@@ -75,7 +76,11 @@ import type {
  *   1 × MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes  (vault output)
  *   1 × MAX_NON_LEGACY_OUTPUT_SIZE (43) vBytes  (change output, pre-budgeted)
  *   TX_BUFFER_SIZE_OVERHEAD (11) vBytes
- *   → 1 input = 155 vBytes; each additional input adds 58 vBytes
+ *   + rateBasedTxBufferFee (30 sats when feeRate ≤ 2)
+ *   → 1 input at feeRate=1 = 155 + 30 = 185 sats
+ *
+ * The rateBasedTxBufferFee must match the SDK's selectUtxosForPegin() which
+ * adds it to ensure the fee is sufficient for wallet relay at low fee rates.
  *
  * @param numInputs - Number of P2TR inputs in the pegin transaction
  * @param feeRate   - Fee rate in sat/vByte
@@ -90,7 +95,9 @@ function estimatePeginFeeForAllocation(
     MAX_NON_LEGACY_OUTPUT_SIZE + // vault output
     MAX_NON_LEGACY_OUTPUT_SIZE + // change output (pre-budgeted)
     TX_BUFFER_SIZE_OVERHEAD;
-  return BigInt(Math.ceil(txSize * feeRate));
+  return (
+    BigInt(Math.ceil(txSize * feeRate)) + BigInt(rateBasedTxBufferFee(feeRate))
+  );
 }
 
 /**
@@ -149,6 +156,7 @@ interface VaultUtxoSelectionResult {
 function selectUtxosForVault(
   pool: UTXO[],
   vaultAmount: bigint,
+  depositorClaimValue: bigint,
   feeRate: number,
 ): VaultUtxoSelectionResult | null {
   const selected: UTXO[] = [];
@@ -160,7 +168,7 @@ function selectUtxosForVault(
     accumulated += BigInt(utxo.value);
 
     const peginFee = estimatePeginFeeForAllocation(selected.length, feeRate);
-    if (accumulated >= vaultAmount + peginFee) {
+    if (accumulated >= vaultAmount + depositorClaimValue + peginFee) {
       // Remove selected UTXOs from pool (in-place splice)
       pool.splice(0, selected.length);
       return { selectedUtxos: selected, peginFee };
@@ -281,6 +289,7 @@ function tryPlanMultiInputAllocation(
   availableUtxos: UTXO[],
   vaultAmounts: bigint[],
   feeRate: number,
+  depositorClaimValue: bigint,
 ): AllocationPlan | null {
   // Sort UTXOs descending by value so largest-first selection works correctly
   const sortedPool = [...availableUtxos].sort((a, b) => b.value - a.value);
@@ -292,12 +301,22 @@ function tryPlanMultiInputAllocation(
 
   // Assign UTXOs to vault 0 (larger vault) from the pool
   const vault0 = sortedVaults[0]!;
-  const result0 = selectUtxosForVault(sortedPool, vault0.amount, feeRate);
+  const result0 = selectUtxosForVault(
+    sortedPool,
+    vault0.amount,
+    depositorClaimValue,
+    feeRate,
+  );
   if (result0 === null) return null;
 
   // Assign UTXOs to vault 1 (smaller vault) from whatever remains
   const vault1 = sortedVaults[1]!;
-  const result1 = selectUtxosForVault(sortedPool, vault1.amount, feeRate);
+  const result1 = selectUtxosForVault(
+    sortedPool,
+    vault1.amount,
+    depositorClaimValue,
+    feeRate,
+  );
   if (result1 === null) return null;
 
   // Build allocations indexed by original vault index
@@ -341,7 +360,7 @@ function tryPlanMultiInputAllocation(
  * change output.
  *
  * Split output sizing:
- *   output[i].amount = vaultAmounts[i] + peginFeePerVault
+ *   output[i].amount = vaultAmounts[i] + depositorClaimValue + peginFeePerVault
  *
  * This gives each vault output enough value so that the pegin transaction using
  * that output can pay its own fee. The `VaultAllocation.amount` field records the
@@ -359,6 +378,7 @@ function planSplitAllocation(
   vaultAmounts: bigint[],
   feeRate: number,
   changeAddress: string,
+  depositorClaimValue: bigint,
 ): AllocationPlan {
   // 1. Compute pegin fee buffer per vault output.
   //    Each split output funds a pegin tx that uses exactly 1 input (the split output itself),
@@ -368,7 +388,7 @@ function planSplitAllocation(
   // 2. Build the fixed vault outputs (amounts are constant regardless of input count).
   const splitOutputs: Array<{ amount: bigint; address: string; vout: number }> =
     vaultAmounts.map((amount, i) => ({
-      amount: amount + peginFeePerVault,
+      amount: amount + depositorClaimValue + peginFeePerVault,
       address: changeAddress,
       vout: i,
     }));
@@ -472,6 +492,7 @@ export function planUtxoAllocation(
   vaultAmounts: bigint[],
   feeRate: number,
   changeAddress: string,
+  depositorClaimValue: bigint = 0n,
 ): AllocationPlan {
   // --- Input validation ---
 
@@ -505,6 +526,7 @@ export function planUtxoAllocation(
       availableUtxos,
       [amount0, amount1],
       feeRate,
+      depositorClaimValue,
     );
     if (multiPlan !== null) {
       return multiPlan;
@@ -517,5 +539,6 @@ export function planUtxoAllocation(
     [amount0, amount1],
     feeRate,
     changeAddress,
+    depositorClaimValue,
   );
 }

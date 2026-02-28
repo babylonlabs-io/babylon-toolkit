@@ -43,6 +43,12 @@ import { useApplications } from "../../useApplications";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
+vi.mock("../../../context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: vi.fn(() => ({
+    depositorClaimValue: 35_000n,
+  })),
+}));
+
 vi.mock("../../../context/wallet", () => ({
   useBTCWallet: vi.fn(() => ({
     address: "bc1qtest123",
@@ -186,6 +192,17 @@ vi.mock("../useVaultProviders", () => ({
       },
     ],
     loading: false,
+  })),
+}));
+
+vi.mock("../useAllocationPlanning", () => ({
+  useAllocationPlanning: vi.fn(() => ({
+    allocationPlan: null,
+    strategy: null,
+    totalFeeSats: null,
+    isPlanning: false,
+    planError: null,
+    canSplit: false,
   })),
 }));
 

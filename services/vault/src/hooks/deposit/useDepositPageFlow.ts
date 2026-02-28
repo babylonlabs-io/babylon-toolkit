@@ -5,9 +5,12 @@
  * including wallet state, provider data, and modal flow management.
  */
 
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
+
+import type { AllocationPlan } from "@/services/vault";
 
 import {
   DepositStep,
@@ -30,7 +33,7 @@ export interface UseDepositPageFlowResult {
   feeRate: number;
 
   // Wallet data
-  btcWalletProvider: unknown;
+  btcWalletProvider: BitcoinWallet | null;
   ethAddress: Address | undefined;
 
   // Provider data
@@ -55,6 +58,12 @@ export interface UseDepositPageFlowResult {
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
 
+  // Split deposit state
+  isSplitDeposit: boolean;
+  setIsSplitDeposit: (v: boolean) => void;
+  splitAllocationPlan: AllocationPlan | null;
+  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
+
   // Primitives (for custom flows like SimpleDeposit)
   goToStep: (step: DepositStep) => void;
   setDepositData: (
@@ -73,7 +82,9 @@ export interface UseDepositPageFlowResult {
 export function useDepositPageFlow(): UseDepositPageFlowResult {
   // Wallet providers
   const btcConnector = useChainConnector("BTC");
-  const btcWalletProvider = btcConnector?.connectedWallet?.provider || null;
+  const btcWalletProvider =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
   const { address: ethAddressRaw } = useETHWallet();
   const ethAddress = ethAddressRaw as Address | undefined;
 
@@ -88,6 +99,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setDepositData,
     setFeeRate,
     setTransactionHashes,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    setSplitAllocationPlan,
     reset: resetDepositState,
   } = useDepositState();
 
@@ -196,6 +211,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    setSplitAllocationPlan,
     startDeposit,
     confirmReview,
     confirmMnemonic,

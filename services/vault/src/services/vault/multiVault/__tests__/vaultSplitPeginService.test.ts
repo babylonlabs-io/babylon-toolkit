@@ -302,7 +302,9 @@ describe("preparePeginFromSplitOutput", () => {
       const [utxos, amount, feeRate] = mockSelectUtxosForPegin.mock.calls[0];
       expect(utxos).toHaveLength(1);
       expect(utxos[0]).toBe(SPLIT_OUTPUT);
-      expect(amount).toBe(baseParams.pegInAmount);
+      expect(amount).toBe(
+        baseParams.pegInAmount + baseParams.depositorClaimValue,
+      );
       expect(feeRate).toBe(baseParams.feeRate);
     });
 

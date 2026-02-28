@@ -15,12 +15,10 @@
  */
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
@@ -33,7 +31,7 @@ import { getPendingPegins } from "@/storage/peginStorage";
 
 import {
   broadcastBtcTransaction,
-  DepositStep,
+  DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   preparePegin,
@@ -45,6 +43,7 @@ import {
   waitForContractVerification,
   type DepositFlowResult,
 } from "./depositFlowSteps";
+import { useBtcWalletState } from "./useBtcWalletState";
 import { useVaultProviders } from "./useVaultProviders";
 
 export interface UseDepositFlowParams {
@@ -74,7 +73,7 @@ export interface ArtifactDownloadInfo {
 export interface UseDepositFlowReturn {
   executeDepositFlow: () => Promise<DepositFlowResult | null>;
   abort: () => void;
-  currentStep: DepositStep;
+  currentStep: DepositFlowStep;
   processing: boolean;
   error: string | null;
   isWaiting: boolean;
@@ -101,8 +100,8 @@ export function useDepositFlow(
   } = params;
 
   // State
-  const [currentStep, setCurrentStep] = useState<DepositStep>(
-    DepositStep.SIGN_POP,
+  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
+    DepositFlowStep.SIGN_POP,
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -136,13 +135,8 @@ export function useDepositFlow(
   }, [abort]);
 
   // Hooks
-  const btcConnector = useChainConnector("BTC");
-  const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const {
-    spendableUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
   const {
@@ -180,7 +174,7 @@ export function useDepositFlow(
         });
 
         // Step 1: Get ETH wallet client
-        setCurrentStep(DepositStep.SIGN_POP);
+        setCurrentStep(DepositFlowStep.SIGN_POP);
         const walletClient = await getEthWalletClient(depositorEthAddress!);
 
         // Compute reserved UTXOs from cached vaults + localStorage
@@ -224,7 +218,7 @@ export function useDepositFlow(
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           fundedTxHex: prepared.btcTxHex,
           vaultProviderAddress: selectedProviders[0],
-          onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+          onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
           depositorLamportPkHash: lamportPkHash,
         });
 
@@ -250,7 +244,7 @@ export function useDepositFlow(
 
         // Move to next step after persisting pegin + mnemonic link,
         // so a page refresh won't lose the association.
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
         setIsWaiting(true);
 
         const provider = findProvider(selectedProviders[0] as Hex);
@@ -337,7 +331,7 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
-        setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
+        setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
         setArtifactDownloadInfo({
           providerUrl: provider.url,
           peginTxid: registration.btcTxid,
@@ -347,7 +341,7 @@ export function useDepositFlow(
           artifactResolverRef.current = resolve;
         });
 
-        setCurrentStep(DepositStep.BROADCAST_BTC);
+        setCurrentStep(DepositFlowStep.BROADCAST_BTC);
         setIsWaiting(true);
         await waitForContractVerification({
           btcTxid: registration.btcTxid,
@@ -365,7 +359,7 @@ export function useDepositFlow(
         );
 
         // Complete
-        setCurrentStep(DepositStep.COMPLETED);
+        setCurrentStep(DepositFlowStep.COMPLETED);
 
         return {
           btcTxid: registration.btcTxid,
