@@ -14,6 +14,8 @@ Managers orchestrate complex flows that involve multiple steps across Bitcoin an
 
 ## When to Use Managers vs Primitives
 
+> **Primitives** are low-level pure functions for building Bitcoin PSBTs with no wallet dependencies. See [Primitives Quickstart](./primitives.md) for details.
+
 | Use Case                              | Use          |
 | ------------------------------------- | ------------ |
 | Browser app with standard wallet      | **Managers** |

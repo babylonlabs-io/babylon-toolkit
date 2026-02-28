@@ -15,6 +15,8 @@ Primitives are the lowest-level SDK functions. They:
 
 ## When to Use Primitives
 
+> **Managers** are high-level classes that orchestrate multi-step vault operations with wallet integration. See [Managers Quickstart](./managers.md) for details.
+
 | Use Case                                       | Use            |
 | ---------------------------------------------- | -------------- |
 | Backend services with custom signing (KMS/HSM) | **Primitives** |
