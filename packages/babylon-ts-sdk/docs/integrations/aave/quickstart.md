@@ -110,7 +110,7 @@ const position = await getPosition(
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
-// 2. Get exact current debt
+// 2. Get exact current debt (queried live from contract)
 const totalDebt = await getUserTotalDebt(
   publicClient,
   SPOKE,
@@ -118,7 +118,8 @@ const totalDebt = await getUserTotalDebt(
   proxyAddress,
 );
 
-// For full repayment, add buffer for accruing interest
+// For full repayment, add buffer to cover interest that accrues
+// between this query and transaction execution.
 const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_DIVISOR;
 
 // 3. Approve token spending (required!)
