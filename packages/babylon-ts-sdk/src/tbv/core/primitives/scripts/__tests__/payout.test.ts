@@ -26,6 +26,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -62,6 +63,7 @@ describe("createPayoutScript", () => {
           vaultProvider: TEST_KEYS.VAULT_PROVIDER,
           vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
           network,
         };
 
@@ -89,6 +91,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -109,6 +112,7 @@ describe("createPayoutScript", () => {
           TEST_KEYS.UNIVERSAL_CHALLENGER_1,
           TEST_KEYS.UNIVERSAL_CHALLENGER_2,
         ],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -128,6 +132,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -141,6 +146,7 @@ describe("createPayoutScript", () => {
           vaultProvider: params.vaultProvider,
           vaultKeepers: params.vaultKeepers,
           universalChallengers: params.universalChallengers,
+          timelockPegin: params.timelockPegin,
         },
         params.network,
       );
@@ -160,6 +166,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -178,6 +185,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -201,6 +209,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -224,6 +233,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -253,6 +263,7 @@ describe("createPayoutScript", () => {
           TEST_KEYS.UNIVERSAL_CHALLENGER_1,
           TEST_KEYS.UNIVERSAL_CHALLENGER_2,
         ],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -283,6 +294,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -298,6 +310,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -310,6 +323,7 @@ describe("createPayoutScript", () => {
         vaultProvider: "not-a-valid-hex-key-123",
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -322,6 +336,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: ["zzzzinvalidhexzzzz"],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -334,6 +349,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "invalid-network" as Network,
       };
 
@@ -346,6 +362,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -358,6 +375,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -372,6 +390,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -387,6 +406,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -405,6 +425,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -420,6 +441,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet",
       };
 
@@ -438,6 +460,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "bitcoin",
       };
 
@@ -452,6 +475,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "testnet",
       };
 
@@ -466,6 +490,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "regtest",
       };
 
@@ -480,6 +505,7 @@ describe("createPayoutScript", () => {
         vaultProvider: TEST_KEYS.VAULT_PROVIDER,
         vaultKeepers: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengers: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "bitcoin",
       };
 

@@ -60,6 +60,11 @@ interface PayoutBaseParams {
   universalChallengerBtcPubkeys: string[];
 
   /**
+   * CSV timelock in blocks for the PegIn output.
+   */
+  timelockPegin: number;
+
+  /**
    * Bitcoin network
    */
   network: Network;
@@ -151,6 +156,7 @@ async function buildPayoutPsbtInternal(
     vaultProvider: params.vaultProviderBtcPubkey,
     vaultKeepers: params.vaultKeeperBtcPubkeys,
     universalChallengers: params.universalChallengerBtcPubkeys,
+    timelockPegin: params.timelockPegin,
     network: params.network,
   });
 
@@ -301,6 +307,7 @@ export async function buildPayoutOptimisticPsbt(
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+    timelockPegin: params.timelockPegin,
     network: params.network,
   });
 }
@@ -334,6 +341,7 @@ export async function buildPayoutPsbt(
     vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
     vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+    timelockPegin: params.timelockPegin,
     network: params.network,
   });
 }

@@ -98,6 +98,8 @@ describe("UTXO Reservation", () => {
       isInUse: false,
       appVaultKeepersVersion: 1,
       universalChallengersVersion: 1,
+      offchainParamsVersion: 1,
+      referralCode: 0,
     });
 
     it("should collect refs from localStorage selectedUTXOs", () => {

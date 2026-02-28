@@ -27,9 +27,14 @@ const VAULT_FIELDS = `
   unsignedPegInTx
   appVaultKeepersVersion
   universalChallengersVersion
+  offchainParamsVersion
+  currentOwner
+  referralCode
   pendingAt
   verifiedAt
   activatedAt
+  expiredAt
+  expirationReason
   blockNumber
   transactionHash
 `;
@@ -68,6 +73,7 @@ type GraphQLVaultStatus =
   | "available"
   | "redeemed"
   | "liquidated"
+  | "expired"
   | "invalid"
   | "depositor_withdrawn";
 
@@ -87,9 +93,14 @@ interface GraphQLVaultItem {
   unsignedPegInTx: string;
   appVaultKeepersVersion: number;
   universalChallengersVersion: number;
+  offchainParamsVersion: number;
+  currentOwner: string | null;
+  referralCode: number;
   pendingAt: string;
   verifiedAt: string | null;
   activatedAt: string | null;
+  expiredAt: string | null;
+  expirationReason: string | null;
   blockNumber: string;
   transactionHash: string;
 }
@@ -128,6 +139,8 @@ function mapGraphQLStatusToVaultStatus(
       return VaultStatus.REDEEMED;
     case "liquidated":
       return VaultStatus.LIQUIDATED;
+    case "expired":
+      return VaultStatus.EXPIRED;
     case "invalid":
       return VaultStatus.INVALID;
     case "depositor_withdrawn":
@@ -152,7 +165,14 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     applicationController: item.applicationController as Address,
     appVaultKeepersVersion: item.appVaultKeepersVersion,
     universalChallengersVersion: item.universalChallengersVersion,
+    offchainParamsVersion: item.offchainParamsVersion,
+    currentOwner: item.currentOwner
+      ? (item.currentOwner as Address)
+      : undefined,
+    referralCode: item.referralCode,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
+    expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
+    expirationReason: item.expirationReason ?? undefined,
     isInUse: item.inUse,
   };
 }
@@ -161,7 +181,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
  * Fetch vaults by depositor address from GraphQL
  *
  * @param depositorAddress - Depositor's Ethereum address
- * @returns Array of vaults with isInUse status
+ * @returns Array of vaults
  */
 export async function fetchVaultsByDepositor(
   depositorAddress: Address,
@@ -178,7 +198,7 @@ export async function fetchVaultsByDepositor(
  * Fetch a single vault by ID from GraphQL
  *
  * @param vaultId - Vault ID (pegin tx hash)
- * @returns Vault with isInUse status, or null if not found
+ * @returns Vault or null if not found
  */
 export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
   const data = await graphqlClient.request<VaultGraphQLResponse>(

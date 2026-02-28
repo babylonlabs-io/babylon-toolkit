@@ -20,7 +20,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
-import { FeatureFlags } from "@/config";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -143,7 +142,13 @@ export function useDepositFlow(
   } = useUTXOs(btcAddress);
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { minDeposit, latestUniversalChallengers } = useProtocolParamsContext();
+  const {
+    minDeposit,
+    maxDeposit,
+    timelockPegin,
+    depositorClaimValue,
+    latestUniversalChallengers,
+  } = useProtocolParamsContext();
 
   const getSelectedVaultProvider = useCallback(() => {
     if (!selectedProviders || selectedProviders.length === 0) {
@@ -178,6 +183,7 @@ export function useDepositFlow(
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
           minDeposit,
+          maxDeposit,
         });
 
         // Step 1: Get ETH wallet client
@@ -202,13 +208,15 @@ export function useDepositFlow(
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys,
+          timelockPegin,
+          depositorClaimValue,
           confirmedUTXOs: spendableUTXOs!,
           reservedUtxoRefs,
         });
 
         // Step 2a.5: Derive Lamport keypair and compute PK hash (before ETH tx)
         let lamportPkHash: Hex | undefined;
-        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+        if (getMnemonic) {
           const mnemonic = await getMnemonic();
           lamportPkHash = await deriveLamportPkHash(
             mnemonic,
@@ -218,15 +226,15 @@ export function useDepositFlow(
           );
         }
 
-        // Step 2b: Register pegin on-chain (PoP + ETH tx with lamport hash)
+        // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
           btcWalletProvider,
           walletClient,
           depositorBtcPubkey: prepared.depositorBtcPubkey,
           fundedTxHex: prepared.btcTxHex,
           vaultProviderAddress: selectedProviders[0],
-          depositorLamportPkHash: lamportPkHash,
           onPopSigned: () => setCurrentStep(DepositStep.SUBMIT_PEGIN),
+          depositorLamportPkHash: lamportPkHash,
         });
 
         // Save to localStorage
@@ -247,7 +255,7 @@ export function useDepositFlow(
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
-        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+        if (getMnemonic) {
           setIsWaiting(true);
           try {
             await submitLamportPublicKey({
@@ -288,6 +296,7 @@ export function useDepositFlow(
             universalChallengers: latestUniversalChallengers.map((uc) => ({
               btcPubKey: uc.btcPubKey,
             })),
+            timelockPegin,
             signal,
           });
 
@@ -309,17 +318,15 @@ export function useDepositFlow(
         );
         setPayoutSigningProgress(null);
 
-        if (FeatureFlags.isDepositorAsClaimerEnabled) {
-          setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
-          setArtifactDownloadInfo({
-            providerUrl: provider.url,
-            peginTxid: registration.btcTxid,
-            depositorPk: prepared.depositorBtcPubkey,
-          });
-          await new Promise<void>((resolve) => {
-            artifactResolverRef.current = resolve;
-          });
-        }
+        setCurrentStep(DepositStep.ARTIFACT_DOWNLOAD);
+        setArtifactDownloadInfo({
+          providerUrl: provider.url,
+          peginTxid: registration.btcTxid,
+          depositorPk: prepared.depositorBtcPubkey,
+        });
+        await new Promise<void>((resolve) => {
+          artifactResolverRef.current = resolve;
+        });
 
         setCurrentStep(DepositStep.BROADCAST_BTC);
         setIsWaiting(true);
@@ -375,6 +382,8 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      timelockPegin,
+      depositorClaimValue,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,
@@ -384,6 +393,7 @@ export function useDepositFlow(
       vaultKeepers,
       latestUniversalChallengers,
       minDeposit,
+      maxDeposit,
       getMnemonic,
     ]);
 

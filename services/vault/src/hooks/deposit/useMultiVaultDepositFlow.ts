@@ -33,8 +33,8 @@ import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
-import { FeatureFlags } from "@/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
+import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash } from "@/services/lamport";
@@ -268,6 +268,7 @@ export function useMultiVaultDepositFlow(
     error: utxoError,
   } = useUTXOs(btcAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
+  const { timelockPegin, depositorClaimValue } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -411,12 +412,14 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
+                timelockPegin,
+                depositorClaimValue,
                 splitOutput: utxoToUse,
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
               let splitLamportPkHash: Hex | undefined;
-              if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+              if (getMnemonic) {
                 const mnemonic = await getMnemonic();
                 splitLamportPkHash = await deriveLamportPkHash(
                   mnemonic,
@@ -465,13 +468,15 @@ export function useMultiVaultDepositFlow(
                 vaultProviderBtcPubkey,
                 vaultKeeperBtcPubkeys,
                 universalChallengerBtcPubkeys,
+                timelockPegin,
+                depositorClaimValue,
                 confirmedUTXOs: allocation.utxos,
                 reservedUtxoRefs: [],
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
               let lamportPkHash: Hex | undefined;
-              if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+              if (getMnemonic) {
                 const mnemonic = await getMnemonic();
                 lamportPkHash = await deriveLamportPkHash(
                   mnemonic,
@@ -577,7 +582,7 @@ export function useMultiVaultDepositFlow(
           throw new Error("Vault provider has no RPC URL");
         }
 
-        if (FeatureFlags.isDepositorAsClaimerEnabled && getMnemonic) {
+        if (getMnemonic) {
           for (const result of successfulPegins) {
             try {
               await submitLamportPublicKey({
@@ -626,6 +631,7 @@ export function useMultiVaultDepositFlow(
                     btcPubKey,
                   }),
                 ),
+                timelockPegin,
                 signal,
               });
 
@@ -770,6 +776,8 @@ export function useMultiVaultDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
+      timelockPegin,
+      depositorClaimValue,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

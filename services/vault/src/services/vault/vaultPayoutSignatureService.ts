@@ -57,6 +57,8 @@ export interface SignAndSubmitPayoutSignaturesParams {
   claimerTransactions: ClaimerTransactions[];
   providers: PayoutProviders;
   btcWallet: BitcoinWallet;
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
   /** Function to get UCs by version from context (for versioned payout signing) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
@@ -65,6 +67,8 @@ export interface PrepareSigningContextParams {
   peginTxId: string;
   depositorBtcPubkey: string;
   providers: PayoutProviders;
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
   /** Function to get UCs by version from context (avoids redundant fetch) */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
@@ -182,6 +186,7 @@ export interface SigningContext {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   depositorBtcPubkey: string;
+  timelockPegin: number;
   network: Network;
 }
 
@@ -246,6 +251,7 @@ export async function signPayoutOptimistic(
       vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
       depositorBtcPubkey: context.depositorBtcPubkey,
+      timelockPegin: context.timelockPegin,
     });
 
     return result.signature;
@@ -288,6 +294,7 @@ export async function signPayout(
       vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
       depositorBtcPubkey: context.depositorBtcPubkey,
+      timelockPegin: context.timelockPegin,
     });
 
     return result.signature;
@@ -362,6 +369,7 @@ export async function prepareSigningContext(
     peginTxId,
     depositorBtcPubkey,
     providers,
+    timelockPegin,
     getUniversalChallengersByVersion,
   } = params;
   const { vaultProvider } = providers;
@@ -408,6 +416,7 @@ export async function prepareSigningContext(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       depositorBtcPubkey,
+      timelockPegin,
       network: getBTCNetworkForWASM(),
     },
     vaultProviderUrl: vaultProvider.url,
@@ -432,6 +441,7 @@ export async function signAndSubmitPayoutSignatures(
     claimerTransactions,
     providers,
     btcWallet,
+    timelockPegin,
     getUniversalChallengersByVersion,
   } = params;
 
@@ -450,6 +460,7 @@ export async function signAndSubmitPayoutSignatures(
     peginTxId,
     depositorBtcPubkey,
     providers,
+    timelockPegin,
     getUniversalChallengersByVersion,
   });
 
@@ -515,6 +526,7 @@ export async function signAllTransactionsBatch(
           vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
           depositorBtcPubkey: context.depositorBtcPubkey,
+          timelockPegin: context.timelockPegin,
         },
         payout: {
           payoutTxHex: tx.payoutTxHex,
@@ -524,6 +536,7 @@ export async function signAllTransactionsBatch(
           vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
           universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
           depositorBtcPubkey: context.depositorBtcPubkey,
+          timelockPegin: context.timelockPegin,
         },
       })),
     );

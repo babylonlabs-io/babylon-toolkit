@@ -5,7 +5,7 @@
  * UTXO inputs and change outputs, creating a transaction ready for wallet signing.
  *
  * Transaction Flow:
- * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, 1 vault output)
+ * 1. SDK buildPeginPsbt() → unfunded transaction (0 inputs, vault + depositor claim outputs)
  * 2. selectUtxosForPegin() → select UTXOs and calculate fees
  * 3. fundPeginTransaction() → add inputs/change, create funded transaction
  *
@@ -22,7 +22,7 @@ import { DUST_THRESHOLD } from "../fee/constants";
 import type { UTXO } from "../utxo/selectUtxos";
 
 export interface FundPeginTransactionParams {
-  /** Unfunded transaction hex from SDK (0 inputs, 1 vault output) */
+  /** Unfunded transaction hex from SDK (0 inputs, vault + depositor claim outputs) */
   unfundedTxHex: string;
   /** Selected UTXOs to use as inputs */
   selectedUTXOs: UTXO[];
@@ -34,12 +34,17 @@ export interface FundPeginTransactionParams {
   network: bitcoin.Network;
 }
 
+/** A single parsed output from the unfunded WASM transaction */
+interface ParsedOutput {
+  value: number;
+  script: Buffer;
+}
+
 /** Parsed data from an unfunded WASM transaction */
 interface ParsedUnfundedTx {
   version: number;
   locktime: number;
-  vaultValue: number;
-  vaultScript: Buffer;
+  outputs: ParsedOutput[];
 }
 
 /**
@@ -48,8 +53,10 @@ interface ParsedUnfundedTx {
  * WASM produces witness-format transactions with 0 inputs, which bitcoinjs-lib cannot parse.
  * This function manually extracts the transaction components.
  *
- * Format: [version:4bytes][marker:0x00][flag:0x01][inputs:1byte=0x00][outputs:1byte=0x01]
- *         [value:8bytes][scriptLen:1byte][script:N bytes][locktime:4bytes]
+ * Format: [version:4bytes][marker:0x00][flag:0x01][inputs:1byte=0x00][outputCount:1byte]
+ *         [output1: value:8bytes + scriptLen:1byte + script:N bytes]
+ *         [output2: ...]
+ *         [locktime:4bytes]
  *
  * @param unfundedTxHex - Raw transaction hex from WASM
  * @returns Parsed transaction components
@@ -75,25 +82,9 @@ export function parseUnfundedWasmTransaction(
   if (inputCount !== 0) {
     throw new Error(`Expected 0 inputs from WASM, got ${inputCount}`);
   }
-  if (outputCount !== 1) {
-    throw new Error(`Expected 1 output from WASM, got ${outputCount}`);
+  if (outputCount === 0) {
+    throw new Error("Expected at least 1 output from WASM, got 0");
   }
-
-  // Extract vault output (after input/output counts)
-  const outputDataStart = dataOffset + 4;
-  const valueHex = unfundedTxHex.substring(
-    outputDataStart,
-    outputDataStart + 16,
-  );
-  const scriptLenPos = outputDataStart + 16;
-  const scriptLen = parseInt(
-    unfundedTxHex.substring(scriptLenPos, scriptLenPos + 2),
-    16,
-  );
-  const scriptHex = unfundedTxHex.substring(
-    scriptLenPos + 2,
-    scriptLenPos + 2 + scriptLen * 2,
-  );
 
   // Parse version (first 4 bytes, little-endian)
   const version = Buffer.from(unfundedTxHex.substring(0, 8), "hex").readUInt32LE(0);
@@ -104,11 +95,26 @@ export function parseUnfundedWasmTransaction(
     "hex",
   ).readUInt32LE(0);
 
-  // Parse vault output value (little-endian uint64)
-  const vaultValue = Number(Buffer.from(valueHex, "hex").readBigUInt64LE(0));
-  const vaultScript = Buffer.from(scriptHex, "hex");
+  // Parse all outputs sequentially
+  const outputs: ParsedOutput[] = [];
+  let pos = dataOffset + 4; // position after input/output counts
 
-  return { version, locktime, vaultValue, vaultScript };
+  for (let i = 0; i < outputCount; i++) {
+    const valueHex = unfundedTxHex.substring(pos, pos + 16);
+    const value = Number(Buffer.from(valueHex, "hex").readBigUInt64LE(0));
+    pos += 16;
+
+    const scriptLen = parseInt(unfundedTxHex.substring(pos, pos + 2), 16);
+    pos += 2;
+
+    const scriptHex = unfundedTxHex.substring(pos, pos + scriptLen * 2);
+    const script = Buffer.from(scriptHex, "hex");
+    pos += scriptLen * 2;
+
+    outputs.push({ value, script });
+  }
+
+  return { version, locktime, outputs };
 }
 
 /**
@@ -128,7 +134,7 @@ export function fundPeginTransaction(
     params;
 
   // Parse the unfunded transaction from WASM
-  const { version, locktime, vaultValue, vaultScript } =
+  const { version, locktime, outputs } =
     parseUnfundedWasmTransaction(unfundedTxHex);
 
   // Create a new transaction with the extracted data
@@ -143,8 +149,10 @@ export function fundPeginTransaction(
     tx.addInput(txHash, utxo.vout);
   }
 
-  // Add the vault output at index 0
-  tx.addOutput(vaultScript, vaultValue);
+  // Add all WASM outputs (vault output at index 0, depositor claim at index 1, etc.)
+  for (const output of outputs) {
+    tx.addOutput(output.script, output.value);
+  }
 
   // Add change output if above dust threshold
   if (changeAmount > DUST_THRESHOLD) {

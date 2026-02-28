@@ -25,6 +25,7 @@ interface DepositFormProps {
   amountSats: bigint;
   btcBalance: bigint;
   minDeposit: bigint;
+  maxDeposit?: bigint;
   btcPrice: number;
   hasPriceFetchError: boolean;
   onAmountChange: (value: string) => void;
@@ -53,6 +54,7 @@ export function DepositForm({
   amountSats,
   btcBalance,
   minDeposit,
+  maxDeposit,
   btcPrice,
   hasPriceFetchError,
   onAmountChange,
@@ -119,6 +121,7 @@ export function DepositForm({
     : depositService.getDepositButtonLabel({
         amountSats,
         minDeposit,
+        maxDeposit,
         btcBalance,
       });
   const ctaDisabled =

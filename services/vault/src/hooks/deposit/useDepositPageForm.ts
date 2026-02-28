@@ -55,6 +55,7 @@ export interface UseDepositPageFormResult {
 
   amountSats: bigint;
   minDeposit: bigint;
+  maxDeposit: bigint;
 
   estimatedFeeSats: bigint | null;
   estimatedFeeRate: number;
@@ -226,6 +227,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     const isAmountValid = depositService.isDepositAmountValid({
       amountSats,
       minDeposit: validation.minDeposit,
+      maxDeposit: validation.maxDeposit,
       btcBalance,
     });
 
@@ -243,6 +245,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     errors,
     amountSats,
     validation.minDeposit,
+    validation.maxDeposit,
     btcBalance,
   ]);
 
@@ -273,6 +276,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingProviders,
     amountSats,
     minDeposit: validation.minDeposit,
+    maxDeposit: validation.maxDeposit,
     estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,

@@ -165,6 +165,7 @@ describe("buildPayoutOptimisticPsbt", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -215,6 +216,7 @@ describe("buildPayoutOptimisticPsbt", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
           network,
         };
 
@@ -251,6 +253,7 @@ describe("buildPayoutOptimisticPsbt", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -277,6 +280,7 @@ describe("buildPayoutOptimisticPsbt", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -321,6 +325,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -368,6 +373,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
           network,
         };
 
@@ -395,6 +401,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -431,6 +438,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -468,6 +476,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 
@@ -491,6 +500,7 @@ describe("buildPayoutPsbt (challenge path)", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         network: "signet" as Network,
       };
 

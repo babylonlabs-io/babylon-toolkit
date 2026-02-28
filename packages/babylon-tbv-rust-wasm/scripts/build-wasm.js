@@ -13,8 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Configuration - Update these when btc-vault updates
 const BTC_VAULT_REPO_URL = 'git@github.com:babylonlabs-io/btc-vault.git';
 const BTC_VAULT_BRANCH = 'main';
-const BTC_VAULT_COMMIT = 'e7427c1eaf94747f480486b739ab83094de7ffb3';
-const REQUIRED_RUSTC_VERSION = '1.92.0';
+const BTC_VAULT_COMMIT = '5d614733';
+const REQUIRED_RUSTC_VERSION = '1.90';
 
 const REPO_DIR = path.join(__dirname, '..', 'btc-vault-temp');
 const OUTPUT_DIR = path.join(__dirname, '..', 'dist', 'generated');
@@ -94,16 +94,10 @@ const buildWasm = async () => {
     console.log(`Rustc version: ${rustcVersion}`);
 
     if (!rustcVersion.includes(REQUIRED_RUSTC_VERSION)) {
-      console.error(
-        `\nError: Incorrect rustc version detected.`,
-        `\nRequired: ${REQUIRED_RUSTC_VERSION}`,
-        `\nFound: ${rustcVersion}`,
-        `\n\nPlease update your Rust toolchain:`,
-        `\n  rustup update stable`,
-        `\nThen verify the version:`,
-        `\n  rustc --version\n`,
+      console.warn(
+        `\nWarning: Default rustc is ${rustcVersion}, expected ${REQUIRED_RUSTC_VERSION}.`,
+        `\nThe btc-vault rust-toolchain.toml will override the toolchain during build.\n`,
       );
-      process.exit(1);
     }
 
     // Clean up any previous temp directory
@@ -142,8 +136,8 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Build with wasm-pack from vault-new crate
-    console.log('Building WASM with wasm-pack from crates/vault-new...');
+    // Build with wasm-pack from vault crate
+    console.log('Building WASM with wasm-pack from crates/vault...');
     const wasmOutputDir = path.join(REPO_DIR, 'wasm-build-output');
 
     try {
@@ -157,7 +151,7 @@ const buildWasm = async () => {
           'babylonlabs-io',
           '--out-dir',
           wasmOutputDir,
-          'crates/vault-new',
+          'crates/vault',
           '--',
           '--no-default-features',
           '--features',
@@ -186,45 +180,12 @@ const buildWasm = async () => {
     shell.rm('-rf', OUTPUT_DIR);
     shell.mkdir('-p', OUTPUT_DIR);
 
-    // The output files are named btc_vault_new (from package name)
-    // Rename to btc_vault for consistency
-    const srcName = 'btc_vault_new';
-    const targetName = 'btc_vault';
-
-    shell.cp(
-      `${wasmOutputDir}/${srcName}.js`,
-      `${OUTPUT_DIR}/${targetName}.js`,
-    );
-    shell.cp(
-      `${wasmOutputDir}/${srcName}.d.ts`,
-      `${OUTPUT_DIR}/${targetName}.d.ts`,
-    );
-    shell.cp(
-      `${wasmOutputDir}/${srcName}_bg.wasm`,
-      `${OUTPUT_DIR}/${targetName}_bg.wasm`,
-    );
-    shell.cp(
-      `${wasmOutputDir}/${srcName}_bg.wasm.d.ts`,
-      `${OUTPUT_DIR}/${targetName}_bg.wasm.d.ts`,
-    );
-
-    // Update imports in JS file to match renamed wasm file
-    const jsFilePath = `${OUTPUT_DIR}/${targetName}.js`;
-    const jsContent = shell.cat(jsFilePath).toString();
-    const updatedJsContent = jsContent.replace(
-      new RegExp(`${srcName}_bg\\.wasm`, 'g'),
-      `${targetName}_bg.wasm`,
-    );
-    shell.ShellString(updatedJsContent).to(jsFilePath);
-
-    // Update imports in d.ts file
-    const dtsFilePath = `${OUTPUT_DIR}/${targetName}.d.ts`;
-    const dtsContent = shell.cat(dtsFilePath).toString();
-    const updatedDtsContent = dtsContent.replace(
-      new RegExp(`${srcName}_bg\\.wasm`, 'g'),
-      `${targetName}_bg.wasm`,
-    );
-    shell.ShellString(updatedDtsContent).to(dtsFilePath);
+    // Copy wasm-pack output files to dist/generated
+    const name = 'btc_vault';
+    shell.cp(`${wasmOutputDir}/${name}.js`, `${OUTPUT_DIR}/${name}.js`);
+    shell.cp(`${wasmOutputDir}/${name}.d.ts`, `${OUTPUT_DIR}/${name}.d.ts`);
+    shell.cp(`${wasmOutputDir}/${name}_bg.wasm`, `${OUTPUT_DIR}/${name}_bg.wasm`);
+    shell.cp(`${wasmOutputDir}/${name}_bg.wasm.d.ts`, `${OUTPUT_DIR}/${name}_bg.wasm.d.ts`);
 
     // Clean up
     console.log('Cleaning up...');

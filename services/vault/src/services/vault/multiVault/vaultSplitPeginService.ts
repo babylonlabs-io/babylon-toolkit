@@ -61,6 +61,10 @@ export interface PrepareSplitPeginParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
+  /** Amount in satoshis for the depositor's claim output */
+  depositorClaimValue: bigint;
   /**
    * The split transaction output that funds this pegin.
    * Must include `txid`, `vout`, `value`, and `scriptPubKey`.
@@ -93,17 +97,12 @@ export interface RegisterSplitPeginParams {
   /** Ethereum address of the vault provider */
   vaultProviderAddress: Address;
   /**
-   * Keccak256 hash of the depositor's Lamport public key (bytes32).
-   * When provided, the contract stores this hash so the vault provider
-   * can later verify submitted Lamport keys against it.
-   * When omitted, bytes32(0) is used for backward compatibility.
-   */
-  depositorLamportPkHash?: Hex;
-  /**
    * Optional callback invoked after BIP-322 PoP signing but before the
    * Ethereum transaction. Useful for updating UI between signing steps.
    */
   onPopSigned?: () => void | Promise<void>;
+  /** Keccak256 hash of the depositor's Lamport public key */
+  depositorLamportPkHash?: Hex;
 }
 
 export interface RegisterSplitPeginResult {
@@ -177,7 +176,9 @@ export async function preparePeginFromSplitOutput(
       vaultProviderPubkey: vaultProviderBtcPubkey,
       vaultKeeperPubkeys: vaultKeeperBtcPubkeys,
       universalChallengerPubkeys: universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
       pegInAmount: params.pegInAmount,
+      depositorClaimValue: params.depositorClaimValue,
       network,
     });
 
@@ -251,8 +252,8 @@ export async function registerSplitPeginOnChain(
       depositorBtcPubkey: params.depositorBtcPubkey,
       unsignedBtcTx: params.unsignedBtcTx,
       vaultProvider: params.vaultProviderAddress,
-      depositorLamportPkHash: params.depositorLamportPkHash,
       onPopSigned: params.onPopSigned,
+      depositorLamportPkHash: params.depositorLamportPkHash,
     });
 
     return result;

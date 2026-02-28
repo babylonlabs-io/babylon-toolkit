@@ -56,6 +56,10 @@ export const CONTRACT_ERRORS: Record<string, string> = {
   // VaultProviderNotRegistered()
   "0x5a3c6b3e":
     "Vault provider not registered: The selected vault provider is not registered.",
+  // InvalidPeginFee(uint256,uint256)
+  "0x979f4518":
+    "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
+    "This may indicate a fee rate change during the transaction.",
 };
 
 /**
@@ -113,7 +117,11 @@ export function extractErrorData(error: unknown): string | undefined {
 export function getContractErrorMessage(error: unknown): string | undefined {
   const errorData = extractErrorData(error);
   if (errorData) {
-    return CONTRACT_ERRORS[errorData];
+    // Check exact match first, then match by 4-byte selector prefix.
+    // Parametric errors (e.g. InvalidPeginFee(uint256,uint256)) return
+    // the selector + ABI-encoded args, so the full string won't match.
+    const selector = errorData.substring(0, 10); // "0x" + 4 bytes
+    return CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[selector];
   }
   return undefined;
 }
@@ -126,7 +134,9 @@ export function getContractErrorMessage(error: unknown): string | undefined {
  */
 export function isKnownContractError(error: unknown): boolean {
   const errorData = extractErrorData(error);
-  return errorData !== undefined && errorData in CONTRACT_ERRORS;
+  if (errorData === undefined) return false;
+  const selector = errorData.substring(0, 10);
+  return errorData in CONTRACT_ERRORS || selector in CONTRACT_ERRORS;
 }
 
 /**
@@ -146,9 +156,10 @@ export function handleContractError(error: unknown): never {
   const errorData = extractErrorData(error);
   console.error("[Contract Error] Extracted error data:", errorData);
 
-  // Check for known contract error signatures
+  // Check for known contract error signatures (exact match or 4-byte selector prefix)
   if (errorData) {
-    const knownError = CONTRACT_ERRORS[errorData];
+    const selector = errorData.substring(0, 10);
+    const knownError = CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[selector];
     if (knownError) {
       console.error("[Contract Error] Known error:", knownError);
       throw new Error(knownError);

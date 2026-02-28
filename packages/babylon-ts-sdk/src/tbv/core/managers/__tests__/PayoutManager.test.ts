@@ -169,6 +169,7 @@ describe("PayoutManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
       });
 
       expect(result.signature).toBe(deterministicSignature);
@@ -196,6 +197,7 @@ describe("PayoutManager", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
         }),
       ).rejects.toThrow();
     });
@@ -344,6 +346,7 @@ describe("PayoutManager", () => {
             vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            timelockPegin: 100,
           },
           payout: {
             payoutTxHex: payoutTxHex1,
@@ -352,6 +355,7 @@ describe("PayoutManager", () => {
             vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            timelockPegin: 100,
           },
         },
         {
@@ -362,6 +366,7 @@ describe("PayoutManager", () => {
             vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            timelockPegin: 100,
           },
           payout: {
             payoutTxHex: payoutTxHex2,
@@ -370,6 +375,7 @@ describe("PayoutManager", () => {
             vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
             vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
             universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+            timelockPegin: 100,
           },
         },
       ]);
@@ -417,6 +423,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: "0200000001...",
@@ -425,6 +432,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
         ]),
@@ -466,6 +474,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: "0200000001...",
@@ -474,6 +483,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
         ]),
@@ -535,6 +545,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -543,6 +554,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
           {
@@ -556,6 +568,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -564,6 +577,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
         ]),
@@ -629,6 +643,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -637,6 +652,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
           {
@@ -650,6 +666,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
             payout: {
               payoutTxHex: createTestPayoutTransaction(peginTxHex, assertTxHex),
@@ -658,6 +675,7 @@ describe("PayoutManager", () => {
               vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
               vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
               universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+              timelockPegin: 100,
             },
           },
         ]),

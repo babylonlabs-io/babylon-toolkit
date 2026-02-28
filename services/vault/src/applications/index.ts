@@ -1,6 +1,5 @@
 export type {
   ApplicationContractConfig,
-  ApplicationFunctionNames,
   ApplicationMetadata,
   ApplicationRegistration,
 } from "./types";

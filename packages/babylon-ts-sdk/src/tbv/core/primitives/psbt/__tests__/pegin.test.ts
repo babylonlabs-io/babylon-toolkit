@@ -23,7 +23,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet" as Network,
       };
 
@@ -57,7 +59,9 @@ describe("buildPeginPsbt", () => {
           vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
           pegInAmount: TEST_AMOUNTS.PEGIN,
+          depositorClaimValue: 35000n,
           network,
         };
 
@@ -84,7 +88,9 @@ describe("buildPeginPsbt", () => {
           vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
           universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
           pegInAmount: amount,
+          depositorClaimValue: 35000n,
           network: "signet",
         };
 
@@ -100,7 +106,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -120,7 +128,9 @@ describe("buildPeginPsbt", () => {
           TEST_KEYS.UNIVERSAL_CHALLENGER_1,
           TEST_KEYS.UNIVERSAL_CHALLENGER_2,
         ],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -139,7 +149,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -152,7 +164,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: params.vaultProviderPubkey,
         vaultKeeperPubkeys: params.vaultKeeperPubkeys,
         universalChallengerPubkeys: params.universalChallengerPubkeys,
+        timelockPegin: params.timelockPegin,
         pegInAmount: params.pegInAmount,
+        depositorClaimValue: params.depositorClaimValue,
         network: params.network,
       });
 
@@ -171,7 +185,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -190,7 +206,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -216,7 +234,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.MAX,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -237,7 +257,9 @@ describe("buildPeginPsbt", () => {
           TEST_KEYS.UNIVERSAL_CHALLENGER_1,
           TEST_KEYS.UNIVERSAL_CHALLENGER_2,
         ],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN_MEDIUM,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -267,7 +289,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet" as Network,
       };
 
@@ -281,7 +305,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: BigInt(90000),
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -298,7 +324,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -311,7 +339,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: "not-a-valid-hex-key-123",
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -324,7 +354,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: ["zzzzinvalidhexzzzz"],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -337,7 +369,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "invalid-network" as Network,
       };
 
@@ -350,7 +384,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -363,7 +399,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -378,7 +416,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -399,7 +439,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 
@@ -416,7 +458,9 @@ describe("buildPeginPsbt", () => {
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
+        depositorClaimValue: 35000n,
         network: "signet",
       };
 

@@ -4,7 +4,7 @@
  * **Pure, reusable SDK for AAVE protocol integration** - Use your BTC as collateral to borrow stablecoins.
  *
  * This module provides transaction builders, query functions, and utilities for:
- * - **Transaction Builders** - Build unsigned txs for add collateral, borrow, repay, withdraw, redeem
+ * - **Transaction Builders** - Build unsigned txs for borrow, repay, and withdraw
  * - **Query Functions** - Fetch live position data, health factor, debt amounts from AAVE spoke
  * - **Utility Functions** - Calculate health factor, select vaults, format values, check safety
  *
@@ -27,24 +27,19 @@
  * @example
  * ```typescript
  * import {
- *   buildAddCollateralTx,
  *   buildBorrowTx,
  *   getUserAccountData,
  *   calculateHealthFactor,
  *   HEALTH_FACTOR_WARNING_THRESHOLD
  * } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
  *
- * // Add BTC vaults as collateral
- * const addTx = buildAddCollateralTx(controllerAddress, vaultIds, reserveId);
- * await walletClient.sendTransaction({ to: addTx.to, data: addTx.data });
- *
  * // Check position health
  * const accountData = await getUserAccountData(publicClient, spokeAddress, proxyAddress);
  * const hf = Number(accountData.healthFactor) / 1e18;
  * console.log("Health Factor:", hf);
  *
- * // Borrow stablecoins
- * const borrowTx = buildBorrowTx(controllerAddress, positionId, reserveId, amount, receiver);
+ * // Borrow stablecoins (controller resolves proxy from msg.sender)
+ * const borrowTx = buildBorrowTx(controllerAddress, reserveId, amount, receiver);
  * await walletClient.sendTransaction({ to: borrowTx.to, data: borrowTx.data });
  * ```
  */
@@ -56,7 +51,7 @@ export {
   BPS_SCALE,
   BPS_TO_PERCENT_DIVISOR,
   BTC_DECIMALS,
-  FULL_REPAY_BUFFER_BPS,
+  FULL_REPAY_BUFFER_DIVISOR,
   HEALTH_FACTOR_WARNING_THRESHOLD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
   USDC_DECIMALS,
@@ -74,9 +69,7 @@ export type {
 
 // Contract clients (queries and transaction builders)
 export {
-  buildAddCollateralTx,
   buildBorrowTx,
-  buildDepositorRedeemTx,
   buildRepayTx,
   buildWithdrawAllCollateralTx,
   getPosition,

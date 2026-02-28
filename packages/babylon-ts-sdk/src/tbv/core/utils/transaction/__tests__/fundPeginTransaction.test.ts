@@ -174,17 +174,14 @@ describe("fundPeginTransaction", () => {
     ).toThrow("Expected 0 inputs from WASM");
   });
 
-  it("should throw error for unfunded tx with non-1 outputs", () => {
-    // Mock tx with 2 outputs (invalid for our use case)
+  it("should throw error for unfunded tx with zero outputs", () => {
+    // Mock tx with 0 outputs (invalid for our use case)
     const invalidTxHex =
       "02000000" +
       "0001" +
       "00" + // 0 inputs
-      "02" + // 2 outputs (invalid!)
-      "a086010000000000" +
-      "22" +
-      "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890" +
-      "00000000";
+      "00" + // 0 outputs (invalid!)
+      "00000000"; // locktime
 
     expect(() =>
       fundPeginTransaction({
@@ -194,7 +191,7 @@ describe("fundPeginTransaction", () => {
         changeAmount: 10000n,
         network: bitcoin.networks.testnet,
       }),
-    ).toThrow("Expected 1 output from WASM");
+    ).toThrow("Expected at least 1 output from WASM");
   });
 });
 

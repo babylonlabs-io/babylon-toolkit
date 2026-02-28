@@ -333,6 +333,7 @@ describe("vaultPayoutSignatureService", () => {
         vaultKeeperBtcPubkeys: ["keeper1"],
         universalChallengerBtcPubkeys: ["challenger1"],
         depositorBtcPubkey: "depositor_pubkey",
+        timelockPegin: 100,
         network: "testnet" as const,
       };
 
@@ -401,6 +402,7 @@ describe("vaultPayoutSignatureService", () => {
             vaultKeeperBtcPubkeys: ["keeper1"],
             universalChallengerBtcPubkeys: ["challenger1"],
             depositorBtcPubkey: "depositor_pubkey",
+            timelockPegin: 100,
           },
           payout: {
             payoutTxHex: "payout_1",
@@ -410,6 +412,7 @@ describe("vaultPayoutSignatureService", () => {
             vaultKeeperBtcPubkeys: ["keeper1"],
             universalChallengerBtcPubkeys: ["challenger1"],
             depositorBtcPubkey: "depositor_pubkey",
+            timelockPegin: 100,
           },
         },
         {
@@ -421,6 +424,7 @@ describe("vaultPayoutSignatureService", () => {
             vaultKeeperBtcPubkeys: ["keeper1"],
             universalChallengerBtcPubkeys: ["challenger1"],
             depositorBtcPubkey: "depositor_pubkey",
+            timelockPegin: 100,
           },
           payout: {
             payoutTxHex: "payout_2",
@@ -430,6 +434,7 @@ describe("vaultPayoutSignatureService", () => {
             vaultKeeperBtcPubkeys: ["keeper1"],
             universalChallengerBtcPubkeys: ["challenger1"],
             depositorBtcPubkey: "depositor_pubkey",
+            timelockPegin: 100,
           },
         },
       ]);
@@ -452,6 +457,7 @@ describe("vaultPayoutSignatureService", () => {
         vaultKeeperBtcPubkeys: ["keeper1"],
         universalChallengerBtcPubkeys: ["challenger1"],
         depositorBtcPubkey: "depositor_pubkey",
+        timelockPegin: 100,
         network: "testnet" as const,
       };
 
@@ -499,6 +505,7 @@ describe("vaultPayoutSignatureService", () => {
         vaultKeeperBtcPubkeys: ["keeper1"],
         universalChallengerBtcPubkeys: ["challenger1"],
         depositorBtcPubkey: "depositor_pubkey",
+        timelockPegin: 100,
         network: "testnet" as const,
       };
 
@@ -551,6 +558,7 @@ describe("vaultPayoutSignatureService", () => {
         vaultKeeperBtcPubkeys: ["keeper1"],
         universalChallengerBtcPubkeys: ["challenger1"],
         depositorBtcPubkey: "depositor_pubkey",
+        timelockPegin: 100,
         network: "testnet" as const,
       };
 

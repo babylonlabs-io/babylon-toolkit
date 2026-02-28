@@ -28,7 +28,7 @@
         "internalType": "address"
       },
       {
-        "name": "coreVbtcReserveId_",
+        "name": "coreVaultBtcReserveId_",
         "type": "uint256",
         "internalType": "uint256"
       },
@@ -107,7 +107,7 @@
   },
   {
     "type": "function",
-    "name": "BTC_VAULT_CORE_VBTC_RESERVE_ID",
+    "name": "BTC_VAULT_CORE_VAULT_BTC_RESERVE_ID",
     "inputs": [],
     "outputs": [
       {
@@ -198,36 +198,79 @@
   },
   {
     "type": "function",
-    "name": "addCollateralToCorePosition",
-    "inputs": [
-      {
-        "name": "vaultIds",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      },
-      {
-        "name": "reserveId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "positionId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "arbitrageurRedeem",
+    "name": "activateVault",
     "inputs": [
       {
         "name": "vaultId",
         "type": "bytes32",
         "internalType": "bytes32"
+      },
+      {
+        "name": "vault",
+        "type": "tuple",
+        "internalType": "struct IBTCVaultsManager.BTCVault",
+        "components": [
+          {
+            "name": "depositor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "depositorBtcPubKey",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "unsignedPegInTx",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "vaultProvider",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IBTCVaultsManager.BTCVaultStatus"
+          },
+          {
+            "name": "applicationController",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "universalChallengersVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "appVaultKeepersVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "offchainParamsVersion",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "createdAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "verifiedAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -235,13 +278,21 @@
   },
   {
     "type": "function",
+    "name": "applicationFeeRecipient",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "borrowFromCorePosition",
     "inputs": [
-      {
-        "name": "positionId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
       {
         "name": "debtReserveId",
         "type": "uint256",
@@ -274,19 +325,36 @@
   },
   {
     "type": "function",
-    "name": "calculateLiquidationPayment",
+    "name": "calculateLiquidationFees",
     "inputs": [
       {
-        "name": "borrowerProxy",
+        "name": "borrower",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "payments",
-        "type": "tuple[]",
-        "internalType": "struct AaveBTCVaultCoreSpokeLiquidationLogic.TokenAmount[]",
+        "name": "fairnessPayment",
+        "type": "tuple",
+        "internalType": "struct TokenAmountLib.TokenAmount",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "protocolFee",
+        "type": "tuple",
+        "internalType": "struct TokenAmountLib.TokenAmount",
         "components": [
           {
             "name": "token",
@@ -305,34 +373,60 @@
   },
   {
     "type": "function",
-    "name": "depositorRedeem",
+    "name": "calculateLiquidationPayment",
     "inputs": [
       {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "escrowVaultForSwap",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "seller",
+        "name": "borrower",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "outputs": [
+      {
+        "name": "payments",
+        "type": "tuple[]",
+        "internalType": "struct TokenAmountLib.TokenAmount[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "coreSpokeLiquidationFeeBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "fairnessPaymentReserveId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -356,70 +450,24 @@
   },
   {
     "type": "function",
-    "name": "getLiquidationFees",
+    "name": "getPosition",
     "inputs": [
       {
-        "name": "borrowerProxy",
+        "name": "user",
         "type": "address",
         "internalType": "address"
       }
     ],
     "outputs": [
       {
-        "name": "fairnessPayment",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "protocolFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getPosition",
-    "inputs": [
-      {
-        "name": "positionId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
         "name": "position",
         "type": "tuple",
-        "internalType": "struct AaveCollateralLogic.MarketPosition",
+        "internalType": "struct AaveApplicationBase.MarketPosition",
         "components": [
-          {
-            "name": "depositor",
-            "type": "tuple",
-            "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair",
-            "components": [
-              {
-                "name": "ethAddress",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "btcPubKey",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              }
-            ]
-          },
           {
             "name": "vaultIds",
             "type": "bytes32[]",
             "internalType": "bytes32[]"
-          },
-          {
-            "name": "reserveId",
-            "type": "uint96",
-            "internalType": "uint96"
           },
           {
             "name": "proxyContract",
@@ -436,14 +484,37 @@
     "name": "getPositionCollateral",
     "inputs": [
       {
-        "name": "positionId",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
       {
         "name": "totalCollateral",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPositionSizeParams",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "minPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maxVaultsPerPosition",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -465,6 +536,25 @@
         "name": "",
         "type": "bytes32",
         "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getUserOfProxy",
+    "inputs": [
+      {
+        "name": "proxy",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -502,7 +592,7 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum ApplicationVaultTracker.VaultUsageStatus"
+        "internalType": "enum AaveVaultHandler.VaultUsageStatus"
       }
     ],
     "stateMutability": "view"
@@ -557,6 +647,16 @@
         "name": "initialTBVAdmin",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "coreSpokeLiquidationFeeBps_",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "applicationFeeRecipient_",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -564,7 +664,7 @@
   },
   {
     "type": "function",
-    "name": "isVaultAvailable",
+    "name": "isVaultCollateralized",
     "inputs": [
       {
         "name": "vaultId",
@@ -574,7 +674,7 @@
     ],
     "outputs": [
       {
-        "name": "available",
+        "name": "",
         "type": "bool",
         "internalType": "bool"
       }
@@ -583,7 +683,7 @@
   },
   {
     "type": "function",
-    "name": "isVaultInUse",
+    "name": "isVaultEscrowed",
     "inputs": [
       {
         "name": "vaultId",
@@ -593,7 +693,7 @@
     ],
     "outputs": [
       {
-        "name": "inUse",
+        "name": "",
         "type": "bool",
         "internalType": "bool"
       }
@@ -605,9 +705,14 @@
     "name": "liquidateCorePosition",
     "inputs": [
       {
-        "name": "borrowerProxy",
+        "name": "borrower",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "btcRedeemKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -634,41 +739,23 @@
   },
   {
     "type": "function",
-    "name": "positions",
-    "inputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
+    "name": "positionSizeParams",
+    "inputs": [],
     "outputs": [
       {
-        "name": "depositor",
-        "type": "tuple",
-        "internalType": "struct IBTCVaultsManager.AddressBTCKeyPair",
-        "components": [
-          {
-            "name": "ethAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "btcPubKey",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          }
-        ]
+        "name": "minPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
       },
       {
-        "name": "reserveId",
-        "type": "uint96",
-        "internalType": "uint96"
+        "name": "maxPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
       },
       {
-        "name": "proxyContract",
-        "type": "address",
-        "internalType": "address"
+        "name": "maxVaultsPerPosition",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -688,7 +775,7 @@
   },
   {
     "type": "function",
-    "name": "releaseVaultFromSwap",
+    "name": "redeemVaultFromSwap",
     "inputs": [
       {
         "name": "vaultId",
@@ -696,9 +783,9 @@
         "internalType": "bytes32"
       },
       {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
+        "name": "btcRedeemKey",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -727,9 +814,9 @@
     "name": "repayToCorePosition",
     "inputs": [
       {
-        "name": "positionId",
-        "type": "bytes32",
-        "internalType": "bytes32"
+        "name": "borrower",
+        "type": "address",
+        "internalType": "address"
       },
       {
         "name": "debtReserveId",
@@ -776,12 +863,68 @@
   },
   {
     "type": "function",
+    "name": "setApplicationFeeRecipient",
+    "inputs": [
+      {
+        "name": "applicationFeeRecipient_",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setCoreSpokeLiquidationFeeBps",
+    "inputs": [
+      {
+        "name": "coreSpokeLiquidationFeeBps_",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setFairnessPaymentToken",
     "inputs": [
       {
         "name": "token",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPositionSizeParams",
+    "inputs": [
+      {
+        "name": "params",
+        "type": "tuple",
+        "internalType": "struct AaveApplicationBase.PositionSizeParams",
+        "components": [
+          {
+            "name": "minPositionBTC",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxPositionBTC",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "maxVaultsPerPosition",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -853,24 +996,6 @@
   },
   {
     "type": "function",
-    "name": "vaultActivated",
-    "inputs": [
-      {
-        "name": "vaultId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "depositor",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "vaultOwner",
     "inputs": [
       {
@@ -904,13 +1029,7 @@
   {
     "type": "function",
     "name": "withdrawAllCollateralFromCorePosition",
-    "inputs": [
-      {
-        "name": "reserveId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
         "name": "withdrawnAmount",
@@ -925,7 +1044,7 @@
     "name": "BTCVaultCoreSpokeLiquidated",
     "inputs": [
       {
-        "name": "borrowerProxy",
+        "name": "depositor",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -937,19 +1056,13 @@
         "internalType": "address"
       },
       {
-        "name": "depositor",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
-        "name": "debtRepaid",
+        "name": "valueDebtRepaid",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "collateralSeized",
+        "name": "valueCollateralSeized",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -974,12 +1087,6 @@
     "name": "BorrowedFromPosition",
     "inputs": [
       {
-        "name": "positionId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
         "name": "borrower",
         "type": "address",
         "indexed": true,
@@ -992,7 +1099,77 @@
         "internalType": "uint256"
       },
       {
+        "name": "receiver",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
         "name": "borrowAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CollateralAdded",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CollateralWithdrawn",
+    "inputs": [
+      {
+        "name": "depositor",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ControllerApplicationFeeRecipientUpdated",
+    "inputs": [
+      {
+        "name": "applicationFeeRecipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CoreSpokeLiquidationFeeBpsUpdated",
+    "inputs": [
+      {
+        "name": "coreSpokeLiquidationFeeBps",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1005,12 +1182,6 @@
     "name": "FairnessPaymentFailed",
     "inputs": [
       {
-        "name": "proxy",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
         "name": "depositor",
         "type": "address",
         "indexed": true,
@@ -1020,6 +1191,12 @@
         "name": "liquidator",
         "type": "address",
         "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "protocolRecipient",
+        "type": "address",
+        "indexed": false,
         "internalType": "address"
       },
       {
@@ -1035,12 +1212,6 @@
     "type": "event",
     "name": "FairnessPaymentPaid",
     "inputs": [
-      {
-        "name": "proxy",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
       {
         "name": "depositor",
         "type": "address",
@@ -1109,14 +1280,51 @@
   },
   {
     "type": "event",
-    "name": "RepaidFromPosition",
+    "name": "PositionSizeParamsUpdated",
     "inputs": [
       {
-        "name": "positionId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
+        "name": "oldMinPositionBTC",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
+      {
+        "name": "oldMaxPositionBTC",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "oldMaxVaultsPerPosition",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newMinPositionBTC",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newMaxPositionBTC",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "newMaxVaultsPerPosition",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RepaidFromPosition",
+    "inputs": [
       {
         "name": "borrower",
         "type": "address",
@@ -1241,6 +1449,25 @@
   },
   {
     "type": "event",
+    "name": "UserProxyCreated",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "proxy",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "VaultLiquidated",
     "inputs": [
       {
@@ -1250,19 +1477,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "borrowerProxy",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
         "name": "liquidator",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
-        "name": "depositor",
         "type": "address",
         "indexed": false,
         "internalType": "address"
@@ -1272,19 +1487,52 @@
   },
   {
     "type": "event",
-    "name": "VaultOwnershipTransferred",
+    "name": "VaultMarkedCollateralized",
     "inputs": [
       {
         "name": "vaultId",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
-      },
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultMarkedEscrowed",
+    "inputs": [
       {
-        "name": "previousOwner",
-        "type": "address",
+        "name": "vaultId",
+        "type": "bytes32",
         "indexed": true,
-        "internalType": "address"
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultMarkedRedeemed",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "VaultOwnershipChanged",
+    "inputs": [
+      {
+        "name": "vaultId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       },
       {
         "name": "newOwner",
@@ -1321,7 +1569,7 @@
   },
   {
     "type": "error",
-    "name": "BTCVaultNotFound",
+    "name": "DebtMustBeRepaidFirst",
     "inputs": []
   },
   {
@@ -1347,6 +1595,11 @@
   },
   {
     "type": "error",
+    "name": "FailedDeployment",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "IncompleteLiquidation",
     "inputs": [
       {
@@ -1363,6 +1616,43 @@
   },
   {
     "type": "error",
+    "name": "IncompleteWithdrawal",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InsufficientBalance",
+    "inputs": [
+      {
+        "name": "balance",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "needed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidAmount",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidFairnessPaymentTokenDecimals",
     "inputs": []
   },
@@ -1373,18 +1663,24 @@
   },
   {
     "type": "error",
-    "name": "InvalidVault",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InvalidVaultStatus",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "NoDebtToLiquidate",
-    "inputs": []
+    "name": "MaxPositionBelowMin",
+    "inputs": [
+      {
+        "name": "maxPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -1393,7 +1689,71 @@
   },
   {
     "type": "error",
-    "name": "ProxyMismatch",
+    "name": "PositionAboveMaximum",
+    "inputs": [
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maximum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PositionBelowMinimum",
+    "inputs": [
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "minimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PositionMaxBelowVaultMax",
+    "inputs": [
+      {
+        "name": "maxPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "vaultMaximum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PositionMinBelowVaultMin",
+    "inputs": [
+      {
+        "name": "minPositionBTC",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "vaultMinimum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "PositionNotLiquidatable",
     "inputs": []
   },
   {
@@ -1450,12 +1810,28 @@
   },
   {
     "type": "error",
-    "name": "VaultKeeperNotAuthorized",
-    "inputs": []
+    "name": "VaultCountExceedsMaximum",
+    "inputs": [
+      {
+        "name": "actual",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "maximum",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
     "name": "VaultNotEscrowed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "VaultSwapNotSet",
     "inputs": []
   },
   {

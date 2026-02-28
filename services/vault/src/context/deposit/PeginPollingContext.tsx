@@ -19,7 +19,6 @@ import {
   useState,
 } from "react";
 
-import FeatureFlags from "../../config/featureFlags";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useUtxoValidation } from "../../hooks/deposit/useUtxoValidation";
 import { useUTXOs } from "../../hooks/useUTXOs";
@@ -153,9 +152,7 @@ export function PeginPollingProvider({
         transactionsReady: isReady,
         isInUse: activity.isInUse,
         utxoUnavailable,
-        needsLamportKey:
-          FeatureFlags.isDepositorAsClaimerEnabled &&
-          needsLamportKey?.has(depositId),
+        needsLamportKey: needsLamportKey?.has(depositId),
       });
 
       const isOwnedByCurrentWallet = isVaultOwnedByWallet(

@@ -56,10 +56,6 @@ vi.mock("@/clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
 
-vi.mock("@/config", () => ({
-  FeatureFlags: { isDepositorAsClaimerEnabled: false },
-}));
-
 vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
@@ -277,8 +273,11 @@ async function setupDefaultMocks() {
     error: null,
   } as any);
 
-  // Protocol params (currently unused but kept for future compatibility)
-  vi.mocked(useProtocolParamsContext).mockReturnValue({} as any);
+  // Protocol params
+  vi.mocked(useProtocolParamsContext).mockReturnValue({
+    timelockPegin: 100,
+    depositorClaimValue: 35000n,
+  } as any);
 
   // Vault providers
   vi.mocked(useVaultProviders).mockReturnValue({

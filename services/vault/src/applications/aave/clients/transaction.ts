@@ -8,9 +8,7 @@
 import { BTCVaultsManagerABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   AaveIntegrationControllerABI,
-  buildAddCollateralTx,
   buildBorrowTx,
-  buildDepositorRedeemTx,
   buildRepayTx,
   buildWithdrawAllCollateralTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -99,40 +97,6 @@ async function executeTx(
 }
 
 /**
- * Add collateral to Core Spoke position
- *
- * Creates a new position or adds to existing position for the given reserve.
- * User's proxy is deployed on first position creation.
- *
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
- * @param vaultIds - Array of vault IDs (pegin tx hashes) to use as collateral
- * @param reserveId - Aave reserve ID for the collateral
- * @returns Transaction result with position ID
- */
-export async function addCollateralToCorePosition(
-  walletClient: WalletClient,
-  chain: Chain,
-  contractAddress: Address,
-  vaultIds: Hex[],
-  reserveId: bigint,
-): Promise<TransactionResult> {
-  const { to, data } = buildAddCollateralTx(
-    contractAddress,
-    vaultIds,
-    reserveId,
-  );
-  return executeTx(
-    walletClient,
-    chain,
-    to,
-    data,
-    "add collateral to Aave Core position",
-  );
-}
-
-/**
  * Withdraw all collateral from Core Spoke position
  *
  * Withdraws all vBTC collateral and releases vaults back to Available status.
@@ -141,16 +105,14 @@ export async function addCollateralToCorePosition(
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param contractAddress - AaveIntegrationController contract address
- * @param reserveId - Aave reserve ID for the collateral
- * @returns Transaction result with withdrawn amount
+ * @returns Transaction result with hash and receipt
  */
 export async function withdrawAllCollateralFromCorePosition(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
-  reserveId: bigint,
 ): Promise<TransactionResult> {
-  const { to, data } = buildWithdrawAllCollateralTx(contractAddress, reserveId);
+  const { to, data } = buildWithdrawAllCollateralTx(contractAddress);
   return executeTx(
     walletClient,
     chain,
@@ -168,24 +130,21 @@ export async function withdrawAllCollateralFromCorePosition(
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param contractAddress - AaveIntegrationController contract address
- * @param positionId - Position ID to borrow against
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to borrow
  * @param receiver - Address to receive borrowed tokens
- * @returns Transaction result with borrowed shares and amount
+ * @returns Transaction result with hash and receipt
  */
 export async function borrowFromCorePosition(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
-  positionId: Hex,
   debtReserveId: bigint,
   amount: bigint,
   receiver: Address,
 ): Promise<TransactionResult> {
   const { to, data } = buildBorrowTx(
     contractAddress,
-    positionId,
     debtReserveId,
     amount,
     receiver,
@@ -208,22 +167,22 @@ export async function borrowFromCorePosition(
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param contractAddress - AaveIntegrationController contract address
- * @param positionId - Position ID with debt
+ * @param borrower - Borrower's address (for self-repay, use connected wallet address)
  * @param debtReserveId - Aave reserve ID for the debt asset
  * @param amount - Amount to repay
- * @returns Transaction result with repaid shares and amount
+ * @returns Transaction result with hash and receipt
  */
 export async function repayToCorePosition(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
-  positionId: Hex,
+  borrower: Address,
   debtReserveId: bigint,
   amount: bigint,
 ): Promise<TransactionResult> {
   const { to, data } = buildRepayTx(
     contractAddress,
-    positionId,
+    borrower,
     debtReserveId,
     amount,
   );
@@ -234,26 +193,4 @@ export async function repayToCorePosition(
     data,
     "repay to Aave Core position",
   );
-}
-
-/**
- * Redeem vault to vault provider (for original depositors)
- *
- * Only callable by the original depositor who still owns the vault.
- * Vault must be Available (not in use or already redeemed).
- *
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param contractAddress - AaveIntegrationController contract address
- * @param vaultId - Vault ID to redeem
- * @returns Transaction result
- */
-export async function depositorRedeem(
-  walletClient: WalletClient,
-  chain: Chain,
-  contractAddress: Address,
-  vaultId: Hex,
-): Promise<TransactionResult> {
-  const { to, data } = buildDepositorRedeemTx(contractAddress, vaultId);
-  return executeTx(walletClient, chain, to, data, "depositor redeem vault");
 }

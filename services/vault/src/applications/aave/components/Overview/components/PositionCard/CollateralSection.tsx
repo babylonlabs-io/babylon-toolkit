@@ -1,6 +1,6 @@
 /**
  * CollateralSection Component
- * Displays collateral information with Add/Withdraw buttons
+ * Displays collateral information with Withdraw button
  */
 
 import { Avatar, Button, Loader, SubSection } from "@babylonlabs-io/core-ui";
@@ -66,7 +66,7 @@ function EmptyContent() {
           No collateral available.
         </p>
         <p className="text-sm text-accent-secondary">
-          Add {btcConfig.coinSymbol} to enable collateral.
+          Deposit {btcConfig.coinSymbol} to enable collateral.
         </p>
       </div>
     </SubSection>
@@ -77,10 +77,7 @@ export interface CollateralSectionProps {
   amount?: string;
   usdValue?: string;
   hasCollateral?: boolean;
-  hasAvailableVaults?: boolean;
-  isPendingAdd?: boolean;
   isPendingWithdraw?: boolean;
-  onAdd: () => void;
   onWithdraw: () => void;
 }
 
@@ -88,19 +85,13 @@ export function CollateralSection({
   amount,
   usdValue,
   hasCollateral = false,
-  hasAvailableVaults = false,
-  isPendingAdd = false,
   isPendingWithdraw = false,
-  onAdd,
   onWithdraw,
 }: CollateralSectionProps) {
   const { isConnected } = useConnection();
-  const isPending = isPendingAdd || isPendingWithdraw;
-  const isAddDisabled = !isConnected || !hasAvailableVaults || isPending;
-  const showWithdrawButton = hasCollateral && !isPending;
+  const showWithdrawButton = hasCollateral && !isPendingWithdraw;
 
   const renderContent = () => {
-    if (isPendingAdd) return <PendingContent message="Pending Add" />;
     if (isPendingWithdraw)
       return <PendingContent message="Pending Withdrawal" />;
     if (hasCollateral)
@@ -115,22 +106,13 @@ export function CollateralSection({
           Collateral
         </h2>
         <div className="flex gap-3">
-          <Button
-            variant="outlined"
-            color="primary"
-            size="medium"
-            onClick={onAdd}
-            disabled={isAddDisabled}
-            className="rounded-full"
-          >
-            Add
-          </Button>
           {showWithdrawButton && (
             <Button
               variant="outlined"
               color="primary"
               size="medium"
               onClick={onWithdraw}
+              disabled={!isConnected}
               className="rounded-full"
             >
               Withdraw

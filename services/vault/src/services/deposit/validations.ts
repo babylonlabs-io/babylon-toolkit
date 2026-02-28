@@ -30,6 +30,7 @@ export interface DepositFlowInputs {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   minDeposit: bigint;
+  maxDeposit?: bigint;
 }
 
 /**
@@ -40,6 +41,8 @@ export interface DepositFormValidityParams {
   amountSats: bigint;
   /** Minimum deposit from protocol params */
   minDeposit: bigint;
+  /** Maximum deposit from protocol params (optional) */
+  maxDeposit?: bigint;
   /** User's available BTC balance in satoshis */
   btcBalance: bigint;
 }
@@ -56,13 +59,16 @@ export interface DepositFormValidityParams {
 export function isDepositAmountValid(
   params: DepositFormValidityParams,
 ): boolean {
-  const { amountSats, minDeposit, btcBalance } = params;
+  const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
 
   // Must have a positive amount
   if (amountSats <= 0n) return false;
 
   // Must meet minimum
   if (amountSats < minDeposit) return false;
+
+  // Must not exceed max deposit (if set)
+  if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit) return false;
 
   // Must not exceed balance
   if (amountSats > btcBalance) return false;
@@ -79,13 +85,15 @@ export function isDepositAmountValid(
 export function getDepositButtonLabel(
   params: DepositFormValidityParams,
 ): string {
-  const { amountSats, minDeposit, btcBalance } = params;
+  const { amountSats, minDeposit, maxDeposit, btcBalance } = params;
 
   if (amountSats <= 0n) return "Enter an amount";
   if (btcBalance <= 0n) return "No available balance";
   if (amountSats > btcBalance) return "Insufficient balance";
   if (amountSats < minDeposit)
     return `Minimum ${formatSatoshisToBtc(minDeposit)} BTC`;
+  if (maxDeposit && maxDeposit > 0n && amountSats > maxDeposit)
+    return `Maximum ${formatSatoshisToBtc(maxDeposit)} BTC`;
 
   return "Deposit";
 }
@@ -99,6 +107,7 @@ export function getDepositButtonLabel(
 export function validateDepositAmount(
   amount: bigint,
   minDeposit: bigint,
+  maxDeposit?: bigint,
 ): ValidationResult {
   if (amount <= 0n) {
     return {
@@ -111,6 +120,13 @@ export function validateDepositAmount(
     return {
       valid: false,
       error: `Minimum deposit is ${formatSatoshisToBtc(minDeposit)} BTC`,
+    };
+  }
+
+  if (maxDeposit && maxDeposit > 0n && amount > maxDeposit) {
+    return {
+      valid: false,
+      error: `Maximum deposit is ${formatSatoshisToBtc(maxDeposit)} BTC`,
     };
   }
 
@@ -334,11 +350,16 @@ export function validateDepositInputs(params: DepositFlowInputs): void {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     minDeposit,
+    maxDeposit,
   } = params;
 
   validateWalletConnections(btcAddress, depositorEthAddress);
 
-  const amountValidation = validateDepositAmount(amount, minDeposit);
+  const amountValidation = validateDepositAmount(
+    amount,
+    minDeposit,
+    maxDeposit,
+  );
   if (!amountValidation.valid) {
     throw new Error(amountValidation.error);
   }

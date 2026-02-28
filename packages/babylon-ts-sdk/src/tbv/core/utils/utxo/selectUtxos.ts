@@ -104,7 +104,7 @@ export function selectUtxosForPegin(
 
     // Recalculate fee based on CURRENT number of inputs
     const inputSize = selectedUTXOs.length * P2TR_INPUT_SIZE;
-    const outputSize = MAX_NON_LEGACY_OUTPUT_SIZE; // 1 pegin output
+    const outputSize = 2 * MAX_NON_LEGACY_OUTPUT_SIZE; // vault + depositor claim outputs
     const baseTxSize = inputSize + outputSize + TX_BUFFER_SIZE_OVERHEAD;
 
     // Calculate base fee with buffer

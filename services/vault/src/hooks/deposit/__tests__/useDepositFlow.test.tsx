@@ -17,7 +17,11 @@ vi.mock("@/config/contracts", () => ({
 }));
 
 vi.mock("@/config", () => ({
-  FeatureFlags: { isDepositorAsClaimerEnabled: false },
+  FeatureFlags: {
+    isDepositEnabled: true,
+    isBorrowEnabled: true,
+    isSimplifiedTermsEnabled: false,
+  },
 }));
 
 // Mock dependencies
@@ -246,11 +250,16 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
     config: {
       minimumPegInAmount: 10000n,
-      pegInFee: 0n,
+      maxPegInAmount: 100_000_000n,
       pegInActivationTimeout: 50400n,
       pegInConfirmationDepth: 30n,
+      timelockPegin: 100,
+      depositorClaimValue: 35000n,
     },
     minDeposit: 10000n,
+    maxDeposit: 100_000_000n,
+    timelockPegin: 100,
+    depositorClaimValue: 35000n,
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],
@@ -342,8 +351,8 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      // Execute deposit flow
-      await result.current.executeDepositFlow();
+      // Fire the flow without awaiting — it will block on artifact download
+      result.current.executeDepositFlow();
 
       await waitFor(() => {
         expect(switchChain).toHaveBeenCalledWith(
@@ -381,7 +390,8 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      await result.current.executeDepositFlow();
+      // Fire the flow without awaiting — it will block on artifact download
+      result.current.executeDepositFlow();
 
       await waitFor(() => {
         expect(callOrder).toEqual(["switchChain", "getWalletClient"]);
@@ -492,7 +502,8 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      await result.current.executeDepositFlow();
+      // Fire the flow without awaiting — it will block on artifact download
+      result.current.executeDepositFlow();
 
       await waitFor(() => {
         expect(switchChain).toHaveBeenCalledWith(expect.anything(), {
@@ -514,7 +525,8 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      await result.current.executeDepositFlow();
+      // Fire the flow without awaiting — it will block on artifact download
+      result.current.executeDepositFlow();
 
       await waitFor(() => {
         expect(switchChain).toHaveBeenCalledWith(expect.anything(), {
@@ -539,11 +551,18 @@ describe("useDepositFlow - Chain Switching", () => {
       expect(result.current.currentStep).toBe("SIGN_POP");
       expect(result.current.processing).toBe(false);
 
-      const flowResult = await result.current.executeDepositFlow();
+      const flowPromise = result.current.executeDepositFlow();
+
+      // Wait for the artifact download step and then continue past it
+      await waitFor(() => {
+        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+      });
+      result.current.continueAfterArtifactDownload();
+
+      const flowResult = await flowPromise;
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
-        // executeDepositFlow now returns result instead of calling onSuccess
         expect(flowResult).not.toBeNull();
       });
 
@@ -570,8 +589,14 @@ describe("useDepositFlow - Chain Switching", () => {
         expect(result.current.processing).toBe(true);
       });
 
-      // Resolve the chain switch
+      // Resolve the chain switch — flow will block on artifact download
       resolveSwitch!({ id: 11155111 });
+
+      // Wait for artifact download step and continue past it
+      await waitFor(() => {
+        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+      });
+      result.current.continueAfterArtifactDownload();
 
       await executePromise;
     });
@@ -655,21 +680,18 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      // Execute deposit flow
-      await result.current.executeDepositFlow();
-
-      // Wait for deposit flow to complete
-      await waitFor(() => {
-        expect(result.current.processing).toBe(false);
-      });
+      // Fire flow — addPendingPegin is called before the artifact download step
+      result.current.executeDepositFlow();
 
       // Verify addPendingPegin was called with applicationController set to selectedApplication
-      expect(addPendingPegin).toHaveBeenCalledWith(
-        "0xEthAddress123",
-        expect.objectContaining({
-          applicationController: "0xcb3843752798493344c254d8d88640621e202395",
-        }),
-      );
+      await waitFor(() => {
+        expect(addPendingPegin).toHaveBeenCalledWith(
+          "0xEthAddress123",
+          expect.objectContaining({
+            applicationController: "0xcb3843752798493344c254d8d88640621e202395",
+          }),
+        );
+      });
     });
   });
 });

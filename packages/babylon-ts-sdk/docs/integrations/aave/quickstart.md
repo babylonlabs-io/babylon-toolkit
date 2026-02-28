@@ -23,7 +23,7 @@ import {
   selectVaultsForAmount,
   aaveValueToUsd,
   getHealthFactorStatus,
-  FULL_REPAY_BUFFER_BPS,
+  FULL_REPAY_BUFFER_DIVISOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { sepolia } from "viem/chains";
@@ -147,7 +147,7 @@ const totalDebt = await getUserTotalDebt(
 );
 
 // For full repayment, add buffer for accruing interest
-const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_BPS;
+const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_DIVISOR;
 
 // 2. Approve token spending (required!)
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
@@ -284,7 +284,7 @@ const debt = await getUserTotalDebt(
   reserveId,
   proxyAddress,
 );
-const withBuffer = debt + debt / FULL_REPAY_BUFFER_BPS; // Covers interest accrual
+const withBuffer = debt + debt / FULL_REPAY_BUFFER_DIVISOR; // Covers interest accrual
 ```
 
 ---

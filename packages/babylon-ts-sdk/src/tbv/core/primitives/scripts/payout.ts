@@ -61,6 +61,11 @@ export interface PayoutScriptParams {
   universalChallengers: string[];
 
   /**
+   * CSV timelock in blocks for the PegIn output.
+   */
+  timelockPegin: number;
+
+  /**
    * Bitcoin network for script generation.
    *
    * Must match the network used for all other vault operations to ensure
@@ -137,6 +142,7 @@ export async function createPayoutScript(
       vaultProvider: params.vaultProvider,
       vaultKeepers: params.vaultKeepers,
       universalChallengers: params.universalChallengers,
+      timelockPegin: params.timelockPegin,
     },
     params.network,
   );

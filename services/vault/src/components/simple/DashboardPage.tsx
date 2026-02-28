@@ -9,10 +9,7 @@ import { useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
-import {
-  CollateralModal,
-  type CollateralMode,
-} from "@/applications/aave/components/CollateralModal";
+import { CollateralModal } from "@/applications/aave/components/CollateralModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import {
   usePendingVaults,
@@ -37,8 +34,6 @@ export function DashboardPage() {
   const { isConnected } = useConnection();
 
   const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
-  const [collateralModalMode, setCollateralModalMode] =
-    useState<CollateralMode>("add");
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
@@ -58,9 +53,8 @@ export function DashboardPage() {
     selectableBorrowedAssets,
   } = useDashboardState(address);
 
-  const { availableForCollateral, vaults: aaveVaults } = useAaveVaults(address);
-  const hasAvailableVaults = availableForCollateral.length > 0;
-  const { hasPendingAdd, hasPendingWithdraw } = usePendingVaults();
+  const { vaults: aaveVaults } = useAaveVaults(address);
+  const { hasPendingWithdraw } = usePendingVaults();
   useSyncPendingVaults(aaveVaults);
 
   // Format display values
@@ -68,13 +62,7 @@ export function DashboardPage() {
   const amountToRepay = formatUsdValue(debtValueUsd);
   const totalAmountBtc = formatBtcAmount(collateralBtc);
 
-  const handleAdd = () => {
-    setCollateralModalMode("add");
-    setIsCollateralModalOpen(true);
-  };
-
   const handleWithdraw = () => {
-    setCollateralModalMode("withdraw");
     setIsCollateralModalOpen(true);
   };
 
@@ -123,10 +111,7 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           hasDebt={hasDebt}
-          hasAvailableVaults={hasAvailableVaults}
-          isPendingAdd={hasPendingAdd}
           isPendingWithdraw={hasPendingWithdraw}
-          onAdd={handleAdd}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -140,16 +125,13 @@ export function DashboardPage() {
           healthFactorStatus={healthFactorStatus}
           onBorrow={handleBorrow}
           onRepay={handleRepay}
-          canAdd={hasAvailableVaults && !hasPendingAdd && !hasPendingWithdraw}
-          onAdd={handleAdd}
         />
       </div>
 
-      {/* Collateral Add/Withdraw Modal */}
+      {/* Collateral Withdraw Modal */}
       <CollateralModal
         isOpen={isCollateralModalOpen}
         onClose={() => setIsCollateralModalOpen(false)}
-        mode={collateralModalMode}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

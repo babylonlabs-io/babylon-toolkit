@@ -757,7 +757,7 @@ Total debt amount in token units (e.g., for USDC: `100000000n` = 100 USDC)
 #### Example
 
 ```typescript
-import { getUserTotalDebt, FULL_REPAY_BUFFER_BPS } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { formatUnits } from "viem";
 
 const totalDebt = await getUserTotalDebt(
@@ -768,7 +768,7 @@ const totalDebt = await getUserTotalDebt(
 );
 
 // For full repayment, add buffer to account for interest accrual
-const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_BPS);
+const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
 
 console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
 ```
@@ -776,7 +776,7 @@ console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
 #### Remarks
 
 **Important for full repayment:**
-- Add `FULL_REPAY_BUFFER_BPS` buffer to account for interest between fetch and tx execution
+- Add `FULL_REPAY_BUFFER_DIVISOR` buffer to account for interest between fetch and tx execution
 - Contract only takes what's owed; excess stays in wallet
 - For partial repayment, use any amount less than total debt
 
@@ -1078,7 +1078,7 @@ Unsigned transaction parameters for execution with viem wallet
 #### Example
 
 ```typescript
-import { buildRepayTx, getUserTotalDebt, FULL_REPAY_BUFFER_BPS } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { buildRepayTx, getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 // Get exact current debt
 const totalDebt = await getUserTotalDebt(
@@ -1089,7 +1089,7 @@ const totalDebt = await getUserTotalDebt(
 );
 
 // Add buffer for full repayment (accounts for interest accrual)
-const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_BPS);
+const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
 
 // IMPORTANT: Approve token spending first
 const USDC_ADDRESS = "0x...";
@@ -1768,7 +1768,7 @@ Prevents users from borrowing if resulting health factor would be below this.
 ### FULL\_REPAY\_BUFFER\_BPS
 
 ```ts
-const FULL_REPAY_BUFFER_BPS: 10000n = 10000n;
+const FULL_REPAY_BUFFER_DIVISOR: 10000n = 10000n;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts:91](../../packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts#L91)

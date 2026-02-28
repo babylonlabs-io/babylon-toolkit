@@ -79,6 +79,8 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     vaultProviderBtcPubkey: "pubkey",
     vaultKeeperBtcPubkeys: ["keeper1"],
     universalChallengerBtcPubkeys: ["challenger1"],
+    timelockPegin: 100,
+    depositorClaimValue: 35000n,
     availableUTXOs: mockUTXOs,
   };
 

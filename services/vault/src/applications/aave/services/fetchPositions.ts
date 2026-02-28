@@ -3,6 +3,7 @@
  *
  * Fetches Aave position data from the GraphQL indexer.
  * Positions represent user lending positions with collateral.
+ * Position is keyed by depositor address (one position per user).
  */
 
 import { gql } from "graphql-request";
@@ -12,16 +13,11 @@ import { graphqlClient } from "../../../clients/graphql";
 /**
  * Aave position from GraphQL indexer
  * Position is active if totalCollateral > 0
+ * Keyed by depositorAddress (one position per user).
  */
 export interface AavePosition {
-  /** Position ID (bytes32 hex string) */
-  id: string;
-  /** User's ETH address */
-  depositor: string;
-  /** User's BTC public key */
-  depositorBtcPubKey: string;
-  /** Aave reserve ID for the collateral */
-  reserveId: bigint;
+  /** Depositor's ETH address (primary key) */
+  depositorAddress: string;
   /** Proxy contract holding the position */
   proxyContract: string;
   /** Total vBTC collateral (8 decimals) */
@@ -34,14 +30,13 @@ export interface AavePosition {
 
 /**
  * Aave position collateral entry
- * Tracks which vaults are used as collateral in a position
+ * Tracks which vaults are used as collateral in a position.
+ * Composite primary key: (depositorAddress, vaultId)
  */
 export interface AavePositionCollateral {
-  /** Composite ID: `${positionId}-${vaultId}` */
-  id: string;
-  /** Position ID */
-  positionId: string;
-  /** Vault ID (pegInTxHash) */
+  /** Depositor's ETH address (part of composite key) */
+  depositorAddress: string;
+  /** Vault ID (pegInTxHash, part of composite key) */
   vaultId: string;
   /** Collateral amount from this vault */
   amount: bigint;
@@ -66,10 +61,7 @@ export interface AavePositionWithCollaterals extends AavePosition {
 
 /** GraphQL position item shape */
 interface GraphQLPositionItem {
-  id: string;
-  depositor: string;
-  depositorBtcPubKey: string;
-  reserveId: string;
+  depositorAddress: string;
   proxyContract: string;
   totalCollateral: string;
   createdAt: string;
@@ -78,8 +70,7 @@ interface GraphQLPositionItem {
 
 /** GraphQL collateral item shape */
 interface GraphQLCollateralItem {
-  id: string;
-  positionId: string;
+  depositorAddress: string;
   vaultId: string;
   amount: string;
   addedAt: string;
@@ -98,13 +89,6 @@ interface GraphQLPositionItemWithCollaterals extends GraphQLPositionItem {
   };
 }
 
-/** GraphQL response for user positions */
-interface GraphQLUserPositionsResponse {
-  aavePositions: {
-    items: GraphQLPositionItem[];
-  };
-}
-
 /** GraphQL response for user positions with collaterals */
 interface GraphQLUserPositionsWithCollateralsResponse {
   aavePositions: {
@@ -119,56 +103,18 @@ interface GraphQLPositionCollateralsResponse {
   };
 }
 
-const GET_AAVE_USER_POSITIONS = gql`
-  query GetAaveUserPositions($depositor: String!) {
-    aavePositions(where: { depositor: $depositor }) {
-      items {
-        id
-        depositor
-        depositorBtcPubKey
-        reserveId
-        proxyContract
-        totalCollateral
-        createdAt
-        updatedAt
-      }
-    }
-  }
-`;
-
-const GET_AAVE_ACTIVE_POSITIONS = gql`
-  query GetAaveActivePositions($depositor: String!) {
-    aavePositions(where: { depositor: $depositor }) {
-      items {
-        id
-        depositor
-        depositorBtcPubKey
-        reserveId
-        proxyContract
-        totalCollateral
-        createdAt
-        updatedAt
-      }
-    }
-  }
-`;
-
 const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
-  query GetAaveActivePositionsWithCollaterals($depositor: String!) {
-    aavePositions(where: { depositor: $depositor }) {
+  query GetAaveActivePositionsWithCollaterals($depositorAddress: String!) {
+    aavePositions(where: { depositorAddress: $depositorAddress }) {
       items {
-        id
-        depositor
-        depositorBtcPubKey
-        reserveId
+        depositorAddress
         proxyContract
         totalCollateral
         createdAt
         updatedAt
         collaterals {
           items {
-            id
-            positionId
+            depositorAddress
             vaultId
             amount
             addedAt
@@ -186,11 +132,10 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
 `;
 
 const GET_AAVE_POSITION_COLLATERALS = gql`
-  query GetAavePositionCollaterals($positionId: String!) {
-    aavePositionCollaterals(where: { positionId: $positionId }) {
+  query GetAavePositionCollaterals($depositorAddress: String!) {
+    aavePositionCollaterals(where: { depositorAddress: $depositorAddress }) {
       items {
-        id
-        positionId
+        depositorAddress
         vaultId
         amount
         addedAt
@@ -205,13 +150,10 @@ const GET_AAVE_POSITION_COLLATERALS = gql`
   }
 `;
 
-const GET_AAVE_POSITION_BY_ID = gql`
-  query GetAavePositionById($id: String!) {
-    aavePosition(id: $id) {
-      id
-      depositor
-      depositorBtcPubKey
-      reserveId
+const GET_AAVE_POSITION_BY_DEPOSITOR = gql`
+  query GetAavePositionByDepositor($depositorAddress: String!) {
+    aavePosition(depositorAddress: $depositorAddress) {
+      depositorAddress
       proxyContract
       totalCollateral
       createdAt
@@ -227,10 +169,7 @@ function mapGraphQLPositionToAavePosition(
   item: GraphQLPositionItem,
 ): AavePosition {
   return {
-    id: item.id,
-    depositor: item.depositor,
-    depositorBtcPubKey: item.depositorBtcPubKey,
-    reserveId: BigInt(item.reserveId),
+    depositorAddress: item.depositorAddress,
     proxyContract: item.proxyContract,
     totalCollateral: BigInt(item.totalCollateral),
     createdAt: BigInt(item.createdAt),
@@ -245,8 +184,7 @@ function mapGraphQLCollateralToAavePositionCollateral(
   item: GraphQLCollateralItem,
 ): AavePositionCollateral {
   return {
-    id: item.id,
-    positionId: item.positionId,
+    depositorAddress: item.depositorAddress,
     vaultId: item.vaultId,
     amount: BigInt(item.amount),
     addedAt: BigInt(item.addedAt),
@@ -262,40 +200,6 @@ function mapGraphQLCollateralToAavePositionCollateral(
 }
 
 /**
- * Fetches all Aave positions for a user from the GraphQL indexer.
- *
- * @param depositor - User's Ethereum address (lowercase)
- * @returns Array of Aave positions
- */
-export async function fetchAaveUserPositions(
-  depositor: string,
-): Promise<AavePosition[]> {
-  const response = await graphqlClient.request<GraphQLUserPositionsResponse>(
-    GET_AAVE_USER_POSITIONS,
-    { depositor: depositor.toLowerCase() },
-  );
-
-  return response.aavePositions.items.map(mapGraphQLPositionToAavePosition);
-}
-
-/**
- * Fetches active Aave positions for a user from the GraphQL indexer.
- *
- * @param depositor - User's Ethereum address (lowercase)
- * @returns Array of active Aave positions
- */
-export async function fetchAaveActivePositions(
-  depositor: string,
-): Promise<AavePosition[]> {
-  const response = await graphqlClient.request<GraphQLUserPositionsResponse>(
-    GET_AAVE_ACTIVE_POSITIONS,
-    { depositor: depositor.toLowerCase() },
-  );
-
-  return response.aavePositions.items.map(mapGraphQLPositionToAavePosition);
-}
-
-/**
  * Fetches active Aave positions with their collaterals in a single GraphQL call.
  * More efficient than fetching positions and collaterals separately (avoids N+1 queries).
  *
@@ -308,7 +212,7 @@ export async function fetchAaveActivePositionsWithCollaterals(
   const response =
     await graphqlClient.request<GraphQLUserPositionsWithCollateralsResponse>(
       GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS,
-      { depositor: depositor.toLowerCase() },
+      { depositorAddress: depositor.toLowerCase() },
     );
 
   return response.aavePositions.items.map((item) => ({
@@ -320,17 +224,19 @@ export async function fetchAaveActivePositionsWithCollaterals(
 }
 
 /**
- * Fetches a single Aave position by ID from the GraphQL indexer.
+ * Fetches a single Aave position by depositor address from the GraphQL indexer.
  *
- * @param positionId - Position ID (bytes32 hex string)
+ * @param depositorAddress - User's Ethereum address
  * @returns Aave position or null if not found
  */
-export async function fetchAavePositionById(
-  positionId: string,
+export async function fetchAavePositionByDepositor(
+  depositorAddress: string,
 ): Promise<AavePosition | null> {
   const response = await graphqlClient.request<{
     aavePosition: GraphQLPositionItem | null;
-  }>(GET_AAVE_POSITION_BY_ID, { id: positionId });
+  }>(GET_AAVE_POSITION_BY_DEPOSITOR, {
+    depositorAddress: depositorAddress.toLowerCase(),
+  });
 
   if (!response.aavePosition) {
     return null;
@@ -342,16 +248,16 @@ export async function fetchAavePositionById(
 /**
  * Fetches collateral entries for a position from the GraphQL indexer.
  *
- * @param positionId - Position ID (bytes32 hex string)
+ * @param depositorAddress - Depositor's Ethereum address
  * @returns Array of collateral entries with vault data
  */
 export async function fetchAavePositionCollaterals(
-  positionId: string,
+  depositorAddress: string,
 ): Promise<AavePositionCollateral[]> {
   const response =
     await graphqlClient.request<GraphQLPositionCollateralsResponse>(
       GET_AAVE_POSITION_COLLATERALS,
-      { positionId },
+      { depositorAddress: depositorAddress.toLowerCase() },
     );
 
   return response.aavePositionCollaterals.items.map(
@@ -363,36 +269,32 @@ export async function fetchAavePositionCollaterals(
  * Fetches a position with its collateral entries from the GraphQL indexer.
  * Combines position data with collateral data in a single response.
  *
- * @param positionId - Position ID (bytes32 hex string)
- * @param depositor - User's Ethereum address (to find the position)
+ * @param depositorAddress - User's Ethereum address
  * @returns Position with collaterals or null if not found
  */
 export async function fetchAavePositionWithCollaterals(
-  positionId: string,
-  depositor: string,
+  depositorAddress: string,
 ): Promise<AavePositionWithCollaterals | null> {
   // Fetch position and collaterals in parallel
-  const [positionsResponse, collateralsResponse] = await Promise.all([
-    graphqlClient.request<GraphQLUserPositionsResponse>(
-      GET_AAVE_USER_POSITIONS,
-      { depositor: depositor.toLowerCase() },
-    ),
+  const [positionResponse, collateralsResponse] = await Promise.all([
+    graphqlClient.request<{
+      aavePosition: GraphQLPositionItem | null;
+    }>(GET_AAVE_POSITION_BY_DEPOSITOR, {
+      depositorAddress: depositorAddress.toLowerCase(),
+    }),
     graphqlClient.request<GraphQLPositionCollateralsResponse>(
       GET_AAVE_POSITION_COLLATERALS,
-      { positionId },
+      { depositorAddress: depositorAddress.toLowerCase() },
     ),
   ]);
 
-  // Find the specific position
-  const positionItem = positionsResponse.aavePositions.items.find(
-    (item) => item.id.toLowerCase() === positionId.toLowerCase(),
-  );
-
-  if (!positionItem) {
+  if (!positionResponse.aavePosition) {
     return null;
   }
 
-  const position = mapGraphQLPositionToAavePosition(positionItem);
+  const position = mapGraphQLPositionToAavePosition(
+    positionResponse.aavePosition,
+  );
   const collaterals = collateralsResponse.aavePositionCollaterals.items.map(
     mapGraphQLCollateralToAavePositionCollateral,
   );

@@ -108,7 +108,7 @@ export function RedeemCollateralSignModal({
         );
       }
 
-      const { abi: contractABI, functionNames } = app.contracts;
+      const { abi: contractABI } = app.contracts;
 
       const results = await redeemVaults(
         ethWalletClient as WalletClient,
@@ -116,7 +116,7 @@ export function RedeemCollateralSignModal({
         applicationController,
         pegInTxHashes,
         contractABI,
-        functionNames.redeem,
+        "redeem",
       );
 
       setProcessing(false);

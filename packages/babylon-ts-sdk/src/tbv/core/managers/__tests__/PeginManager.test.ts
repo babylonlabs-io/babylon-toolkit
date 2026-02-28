@@ -29,7 +29,11 @@ vi.mock("viem", async (importOriginal) => {
     ...actual,
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(100000n),
-      readContract: vi.fn().mockResolvedValue({ depositor: actual.zeroAddress }),
+      readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
+        if (functionName === "getPegInFee") return Promise.resolve(0n);
+        // getBTCVault — return vault with zero depositor (vault doesn't exist)
+        return Promise.resolve({ depositor: actual.zeroAddress });
+      }),
     })),
   };
 });
@@ -172,6 +176,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -225,6 +231,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 5,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -233,13 +241,13 @@ describe("PeginManager", () => {
       // Should select at least one UTXO
       expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(1);
 
-      // Total selected value should be >= amount + fee
+      // Total selected value should be >= amount + depositorClaimValue + fee
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
       expect(totalSelected).toBeGreaterThanOrEqual(
-        TEST_AMOUNTS.PEGIN_SMALL + result.fee,
+        TEST_AMOUNTS.PEGIN_SMALL + 35000n + result.fee,
       );
     });
 
@@ -264,6 +272,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -294,18 +304,20 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
       });
 
-      // Verify accounting: totalSelected = amount + fee + change
+      // Verify accounting: totalSelected = amount + depositorClaimValue + fee + change
       const totalSelected = result.selectedUTXOs.reduce(
         (sum, utxo) => sum + BigInt(utxo.value),
         0n,
       );
       expect(totalSelected).toBe(
-        TEST_AMOUNTS.PEGIN + result.fee + result.changeAmount,
+        TEST_AMOUNTS.PEGIN + 35000n + result.fee + result.changeAmount,
       );
     });
 
@@ -338,6 +350,8 @@ describe("PeginManager", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -367,6 +381,8 @@ describe("PeginManager", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          depositorClaimValue: 35000n,
           availableUTXOs: [], // Empty UTXOs
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -397,6 +413,8 @@ describe("PeginManager", () => {
           vaultProviderBtcPubkey: "invalid-pubkey",
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -426,6 +444,8 @@ describe("PeginManager", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [], // Empty vault keepers
           universalChallengerBtcPubkeys: [],
+          timelockPegin: 100,
+          depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -460,6 +480,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -497,6 +519,8 @@ describe("PeginManager", () => {
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          timelockPegin: 100,
+          depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
           feeRate: 10,
           changeAddress: TEST_CHANGE_ADDRESS,
@@ -691,6 +715,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,
@@ -738,6 +764,8 @@ describe("PeginManager", () => {
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
         vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_2],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+        timelockPegin: 100,
+        depositorClaimValue: 35000n,
         availableUTXOs: TEST_UTXOS,
         feeRate: 10,
         changeAddress: TEST_CHANGE_ADDRESS,

@@ -91,7 +91,7 @@ function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
  * - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
  * - `totalCollateralValue` - USD value in base currency (1e26 = $1)
  * - `totalDebtValue` - USD value in base currency (1e26 = $1)
- * - `avgCollateralFactor` - Weighted average LTV in BPS (8000 = 80%)
+ * - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
  * - `riskPremium` - Additional risk premium
  *
  * **Use cases:**
@@ -214,7 +214,7 @@ export async function hasCollateral(
  *
  * @example
  * ```typescript
- * import { getUserTotalDebt, FULL_REPAY_BUFFER_BPS } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
  * import { formatUnits } from "viem";
  *
  * const totalDebt = await getUserTotalDebt(
@@ -225,14 +225,14 @@ export async function hasCollateral(
  * );
  *
  * // For full repayment, add buffer to account for interest accrual
- * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_BPS);
+ * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
  *
  * console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
  * ```
  *
  * @remarks
  * **Important for full repayment:**
- * - Add `FULL_REPAY_BUFFER_BPS` buffer to account for interest between fetch and tx execution
+ * - Add `FULL_REPAY_BUFFER_DIVISOR` buffer to account for interest between fetch and tx execution
  * - Contract only takes what's owed; excess stays in wallet
  * - For partial repayment, use any amount less than total debt
  */

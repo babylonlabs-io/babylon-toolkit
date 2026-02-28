@@ -1,5 +1,1 @@
-export {
-  CollateralModal,
-  type CollateralModalProps,
-  type CollateralMode,
-} from "./CollateralModal";
+export { CollateralModal, type CollateralModalProps } from "./CollateralModal";

@@ -18,7 +18,7 @@ import type { PeginDisplayLabel } from "../models/peginStateMachine";
  * Vault activity - represents both deposits and borrowing positions
  */
 export interface VaultActivity {
-  /** Unique identifier (txHash or positionId) */
+  /** Unique identifier (txHash or depositorAddress) */
   id: string;
 
   /** Collateral information */
@@ -44,7 +44,7 @@ export interface VaultActivity {
   /** Transaction hash (pegin tx) */
   txHash?: Hex;
 
-  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed) - from BTCVaultsManager */
+  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
   contractStatus?: number;
 
   /** Application usage status - whether vault is in use by an application */

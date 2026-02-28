@@ -88,8 +88,11 @@ export function usePayoutSigningState({
   const { findProvider, vaultKeepers } = useVaultProviders(
     activity.applicationController,
   );
-  const { latestUniversalChallengers, getUniversalChallengersByVersion } =
-    useProtocolParamsContext();
+  const {
+    latestUniversalChallengers,
+    getUniversalChallengersByVersion,
+    timelockPegin,
+  } = useProtocolParamsContext();
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
 
@@ -176,6 +179,7 @@ export function usePayoutSigningState({
         peginTxId: activity.txHash!,
         depositorBtcPubkey: btcPublicKey,
         providers,
+        timelockPegin,
         getUniversalChallengersByVersion,
       });
 
@@ -298,6 +302,7 @@ export function usePayoutSigningState({
     vaultKeepers,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    timelockPegin,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,
     depositorEthAddress,

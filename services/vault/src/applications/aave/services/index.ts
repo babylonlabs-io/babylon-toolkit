@@ -17,12 +17,10 @@ export {
 
 // GraphQL: Positions
 export {
-  fetchAaveActivePositions,
   fetchAaveActivePositionsWithCollaterals,
-  fetchAavePositionById,
+  fetchAavePositionByDepositor,
   fetchAavePositionCollaterals,
   fetchAavePositionWithCollaterals,
-  fetchAaveUserPositions,
   type AavePosition,
   type AavePositionCollateral,
   type AavePositionWithCollaterals,
@@ -42,30 +40,17 @@ export {
 export {
   canWithdrawCollateral,
   getPositionWithLiveData,
-  getUserPositionForReserve,
   getUserPositionsWithLiveData,
   type AavePositionWithLiveData,
   type DebtPosition,
+  type GetUserPositionsOptions,
 } from "./positionService";
-
-// Reserve service
-export {
-  getAvailableReserves,
-  getCoreSpokeAddress,
-  getReserveById,
-  getVbtcReserveId,
-  type AaveReserveWithMetadata,
-} from "./reserveService";
 
 // Position transactions
 export {
-  addCollateral,
   borrow,
-  canWithdraw,
-  redeemVault,
   repay,
   repayFull,
   repayPartial,
   withdrawAllCollateral,
-  type AddCollateralResult,
 } from "./positionTransactions";

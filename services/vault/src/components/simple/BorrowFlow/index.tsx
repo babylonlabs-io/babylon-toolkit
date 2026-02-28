@@ -37,7 +37,6 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
     selectedReserve,
     assetConfig,
     liquidationThresholdBps,
-    positionId,
     proxyContract,
     collateralValueUsd,
     currentDebtAmount,
@@ -83,7 +82,6 @@ export function BorrowFlow({ open, onClose }: BorrowFlowProps) {
             selectedReserve={selectedReserve}
             assetConfig={assetConfig}
             liquidationThresholdBps={liquidationThresholdBps}
-            positionId={positionId}
             proxyContract={proxyContract}
             collateralValueUsd={collateralValueUsd}
             currentDebtAmount={currentDebtAmount}
@@ -110,7 +108,6 @@ function BorrowFormStep({
   selectedReserve,
   assetConfig,
   liquidationThresholdBps,
-  positionId,
   proxyContract,
   collateralValueUsd,
   currentDebtAmount,
@@ -123,7 +120,6 @@ function BorrowFormStep({
   selectedReserve: ReturnType<typeof useAaveReserveDetail>["selectedReserve"];
   assetConfig: ReturnType<typeof useAaveReserveDetail>["assetConfig"];
   liquidationThresholdBps: number;
-  positionId: string | undefined;
   proxyContract: string | undefined;
   collateralValueUsd: number;
   currentDebtAmount: number;
@@ -150,7 +146,6 @@ function BorrowFormStep({
         liquidationThresholdBps,
         selectedReserve,
         assetConfig,
-        positionId,
         proxyContract,
         // These callbacks are handled by the BorrowFlow orchestrator
         onBorrowSuccess: () => {},

@@ -23,8 +23,12 @@ export interface PegInParams {
   vaultKeeperPubkeys: string[];
   /** Array of x-only public keys of universal challengers (hex encoded) */
   universalChallengerPubkeys: string[];
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
   /** Amount to peg-in in satoshis */
   pegInAmount: bigint;
+  /** Amount in satoshis for the depositor's claim output */
+  depositorClaimValue: bigint;
   /** Bitcoin network */
   network: Network;
 }
@@ -61,6 +65,8 @@ export interface PayoutConnectorParams {
   vaultKeepers: string[];
   /** Array of x-only public keys of universal challengers (hex encoded) */
   universalChallengers: string[];
+  /** CSV timelock in blocks for the PegIn output */
+  timelockPegin: number;
 }
 
 /**

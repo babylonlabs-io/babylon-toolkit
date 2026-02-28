@@ -2,7 +2,7 @@
  * Aave Vault Status Service
  *
  * Fetches vault usage status within Aave from the GraphQL indexer.
- * Status indicates whether a vault is available, in use (as collateral), or redeemed.
+ * Status indicates whether a vault is none (unregistered), collateralized, escrowed, or redeemed.
  */
 
 import { gql } from "graphql-request";
@@ -11,8 +11,16 @@ import { graphqlClient } from "../../../clients/graphql";
 
 /**
  * Aave vault usage status
+ * - "none": Default for uninitialized entries; vault not registered with Aave
+ * - "collateralized": Vault is backing an Aave position
+ * - "escrowed": Vault is in VaultSwap escrow after liquidation
+ * - "redeemed": Vault has been redeemed
  */
-export type AaveVaultUsageStatus = "available" | "in_use" | "redeemed";
+export type AaveVaultUsageStatus =
+  | "none"
+  | "collateralized"
+  | "escrowed"
+  | "redeemed";
 
 /**
  * Aave vault status entry
@@ -141,7 +149,8 @@ export async function isVaultAvailableForAave(
   vaultId: string,
 ): Promise<boolean> {
   const status = await fetchAaveVaultStatus(vaultId);
-  return status?.status === "available";
+  // Vault is available if it has no Aave status entry or status is "none"
+  return !status || status.status === "none";
 }
 
 /**
@@ -161,6 +170,7 @@ export async function filterAvailableVaults(
 
   return vaultIds.filter((vaultId) => {
     const status = statuses.get(vaultId.toLowerCase());
-    return status?.status === "available";
+    // Vault is available if it has no Aave status entry or status is "none"
+    return !status || status.status === "none";
   });
 }

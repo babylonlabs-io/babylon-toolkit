@@ -82,11 +82,12 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
     config: {
       minimumPegInAmount: 10000n,
-      pegInFee: 0n,
+      maxPegInAmount: 100_000_000n,
       pegInActivationTimeout: 50400n,
       pegInConfirmationDepth: 30n,
     },
     minDeposit: 10000n,
+    maxDeposit: 100_000_000n,
   })),
 }));
 
@@ -420,7 +421,7 @@ describe("useDepositValidation", () => {
       expect(validationResult.valid).toBe(true);
     });
 
-    it("should accept very large amounts (no max limit)", () => {
+    it("should reject amounts exceeding max deposit", () => {
       const { result } = renderHook(
         () => useDepositValidation("bc1qaddress", mockProviders),
         {
@@ -428,9 +429,11 @@ describe("useDepositValidation", () => {
         },
       );
 
-      const validationResult = result.current.validateAmount("21000001");
+      // maxDeposit is 100_000_000 satoshis = 1 BTC
+      const validationResult = result.current.validateAmount("2");
 
-      expect(validationResult.valid).toBe(true);
+      expect(validationResult.valid).toBe(false);
+      expect(validationResult.error).toContain("Maximum deposit");
     });
 
     it("should handle negative amounts by stripping minus sign", () => {

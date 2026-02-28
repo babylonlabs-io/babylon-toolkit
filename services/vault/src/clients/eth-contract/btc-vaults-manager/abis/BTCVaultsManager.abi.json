@@ -847,8 +847,8 @@
     "inputs": [
       {
         "name": "vaultId",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "inclusionProof",
@@ -865,8 +865,8 @@
     "inputs": [
       {
         "name": "vaultId",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "signature",
@@ -930,11 +930,6 @@
         "name": "vaultProvider",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "depositorLamportPkHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -944,7 +939,7 @@
         "internalType": "bytes32"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",

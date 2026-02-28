@@ -31,8 +31,8 @@ export type { HealthFactorStatus };
  * Result interface for useAaveUserPosition hook
  *
  * Note: In the Babylon vault integration, users can only have ONE position
- * because there's only one collateral reserve (vBTC). The position key is
- * keccak256(user, reserveId) and there's a single BTC_VAULT_CORE_VBTC_RESERVE_ID.
+ * because there's only one collateral reserve (vaultBTC). The position is
+ * keyed by the user's depositor address.
  */
 export interface UseAaveUserPositionResult {
   /** User's vBTC collateral position (null if no position) */
@@ -73,6 +73,7 @@ export function useAaveUserPosition(
     isLoading: configLoading,
   } = useAaveConfig();
   const spokeAddress = config?.btcVaultCoreSpokeAddress as Address | undefined;
+  const vbtcReserveId = config?.btcVaultCoreVbtcReserveId;
 
   // Extract reserve IDs for fetching debt positions
   const borrowableReserveIds = useMemo(
@@ -96,13 +97,15 @@ export function useAaveUserPosition(
       "aaveUserPosition",
       connectedAddress,
       spokeAddress,
+      vbtcReserveId?.toString(),
       borrowableReserveIdsKey,
     ],
     queryFn: () =>
       getUserPositionsWithLiveData(connectedAddress!, spokeAddress!, {
         borrowableReserveIds,
+        vbtcReserveId: vbtcReserveId!,
       }),
-    enabled: !!connectedAddress && !!spokeAddress,
+    enabled: !!connectedAddress && !!spokeAddress && vbtcReserveId != null,
     refetchOnMount: true,
     refetchInterval: POSITION_REFETCH_INTERVAL_MS,
   });

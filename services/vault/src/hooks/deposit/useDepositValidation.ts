@@ -21,6 +21,7 @@ export interface UseDepositValidationResult {
 
   availableProviders: string[];
   minDeposit: bigint;
+  maxDeposit: bigint;
 }
 
 /**
@@ -36,18 +37,22 @@ export function useDepositValidation(
 ): UseDepositValidationResult {
   const providers = availableProviders;
 
-  const { minDeposit } = useProtocolParamsContext();
+  const { minDeposit, maxDeposit } = useProtocolParamsContext();
 
   // Get UTXOs for validation (already filtered based on inscription preference)
   const { spendableUTXOs } = useUTXOs(btcAddress, { enabled: !!btcAddress });
 
-  // Validate amount using on-chain minDeposit
+  // Validate amount using on-chain minDeposit and maxDeposit
   const validateAmount = useCallback(
     (amount: string): ValidationResult => {
       const satoshis = depositService.parseBtcToSatoshis(amount);
-      return depositService.validateDepositAmount(satoshis, minDeposit);
+      return depositService.validateDepositAmount(
+        satoshis,
+        minDeposit,
+        maxDeposit,
+      );
     },
-    [minDeposit],
+    [minDeposit, maxDeposit],
   );
 
   // Validate provider selection
@@ -134,5 +139,6 @@ export function useDepositValidation(
     validateDeposit,
     availableProviders: providers,
     minDeposit,
+    maxDeposit,
   };
 }

@@ -37,9 +37,19 @@ export interface PeginParams {
   universalChallengerPubkeys: string[];
 
   /**
+   * CSV timelock in blocks for the PegIn output
+   */
+  timelockPegin: number;
+
+  /**
    * Amount to peg in (in satoshis)
    */
   pegInAmount: bigint;
+
+  /**
+   * Amount in satoshis for the depositor's claim output
+   */
+  depositorClaimValue: bigint;
 
   /**
    * Bitcoin network
@@ -108,7 +118,9 @@ export async function buildPeginPsbt(
     vaultProviderPubkey: params.vaultProviderPubkey,
     vaultKeeperPubkeys: params.vaultKeeperPubkeys,
     universalChallengerPubkeys: params.universalChallengerPubkeys,
+    timelockPegin: params.timelockPegin,
     pegInAmount: params.pegInAmount,
+    depositorClaimValue: params.depositorClaimValue,
     network: params.network,
   });
 
