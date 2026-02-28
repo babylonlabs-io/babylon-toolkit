@@ -76,6 +76,7 @@ if (status !== "safe" && status !== "no_debt") {
 // 3. Build transaction
 const amount = parseUnits("100", 6); // 100 USDC
 
+// USDC_RESERVE_ID can be any debt reserve
 const tx = buildBorrowTx(CONTROLLER, USDC_RESERVE_ID, amount, userAddress);
 
 // 4. Execute
