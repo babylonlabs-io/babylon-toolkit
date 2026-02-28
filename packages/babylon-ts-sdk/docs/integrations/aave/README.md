@@ -32,7 +32,7 @@ When using BTC vaults as collateral in this integration:
 
 - **BTC Vault Status** - When your BTC vault is activated, it is automatically deposited as collateral in your Aave v4 position. When you withdraw, it triggers redemption.
 - **Proxy Position Manager** - Aave deploys a proxy position manager contract for your account on first deposit to manage your position (collateral, borrows, liquidations). See the [Aave Documentation](https://docs.aave.com/) for details.
-- **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
+- **Position Tracking** - Your position contains vault IDs with certain collateral value, and debt across reserves
 
 **Health Factor Quick Reference:**
 
