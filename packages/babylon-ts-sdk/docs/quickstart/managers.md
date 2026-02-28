@@ -158,6 +158,8 @@ const payoutManager = new PayoutManager({
 
 ### Methods
 
+> **Deprecation notice:** `signPayoutOptimisticTransaction` is planned for removal in a future release.
+
 ```typescript
 // Sign PayoutOptimistic (normal path - no challenge)
 const { signature } = await payoutManager.signPayoutOptimisticTransaction({

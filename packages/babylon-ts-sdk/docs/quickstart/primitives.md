@@ -65,6 +65,8 @@ const result = await buildPeginPsbt({
 
 **You then:** Add UTXOs as inputs, add change output, sign, broadcast.
 
+> **Deprecation notice:** `buildPayoutOptimisticPsbt` is planned for removal in a future release.
+
 ### 2. buildPayoutOptimisticPsbt
 
 Builds unsigned PayoutOptimistic PSBT for depositor signing (normal path - no challenge).
