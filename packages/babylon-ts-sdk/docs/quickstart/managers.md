@@ -59,6 +59,8 @@ const peginManager = new PeginManager({
 });
 ```
 
+> **Application selection:** The vault provider you choose determines which application your BTC vault is registered with (e.g., Aave). Each vault provider is bound to a specific application controller on-chain. This cannot be changed after registration.
+
 ### 4-Step Flow
 
 ```typescript
@@ -89,8 +91,11 @@ const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
 console.log("Registered:", ethTxHash);
 // Contract status: PENDING (0)
 
-// Step 3: Sign payout authorization
-// Wait for vault provider to prepare claim/payout transactions
+// ⏳ WAIT: The vault provider now generates transaction graphs (BaBe setup).
+// This is NOT handled by the SDK — you must poll the vault provider's RPC:
+//   POST vaultProvider_requestDepositorPresignTransactions({ btc_tx_id: vaultId })
+
+// Step 3: Sign payout authorization (after vault provider returns transactions)
 const payoutManager = new PayoutManager({ network: "signet", btcWallet });
 
 // For each claimer, sign BOTH PayoutOptimistic and Payout transactions
