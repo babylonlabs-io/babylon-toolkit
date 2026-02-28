@@ -15,21 +15,25 @@ import type {
 // ============================================================================
 
 /**
- * Deposit flow step numbers
+ * Deposit flow step numbers.
+ *
+ * Numeric values enable ordered comparisons (e.g. `currentStep >= SIGN_PAYOUTS`).
  */
-export enum DepositStep {
+export enum DepositFlowStep {
+  /** Step 0: Sign and broadcast split transaction (multi-vault SPLIT strategy only) */
+  SIGN_SPLIT_TX = 0,
   /** Step 1: Sign proof of possession in BTC wallet */
-  SIGN_POP = "SIGN_POP",
+  SIGN_POP = 1,
   /** Step 2: Sign and submit peg-in request in ETH wallet */
-  SUBMIT_PEGIN = "SUBMIT_PEGIN",
+  SUBMIT_PEGIN = 2,
   /** Step 3: Sign payout transactions in BTC wallet */
-  SIGN_PAYOUTS = "SIGN_PAYOUTS",
+  SIGN_PAYOUTS = 3,
   /** Step 4: Download vault artifacts */
-  ARTIFACT_DOWNLOAD = "ARTIFACT_DOWNLOAD",
+  ARTIFACT_DOWNLOAD = 4,
   /** Step 5: Sign and broadcast BTC transaction */
-  BROADCAST_BTC = "BROADCAST_BTC",
+  BROADCAST_BTC = 5,
   /** Step 6: Deposit completed */
-  COMPLETED = "COMPLETED",
+  COMPLETED = 6,
 }
 
 // ============================================================================
@@ -89,11 +93,15 @@ export interface PeginRegisterParams {
   onPopSigned?: () => void;
   /** Keccak256 hash of the depositor's Lamport public key */
   depositorLamportPkHash?: Hex;
+  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  preSignedBtcPopSignature?: Hex;
 }
 
 export interface PeginRegisterResult {
   btcTxid: string;
   ethTxHash: Hex;
+  /** The BTC PoP signature used, for reuse in subsequent pegins */
+  btcPopSignature: Hex;
 }
 
 export interface SavePendingPeginParams {

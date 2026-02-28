@@ -11,7 +11,10 @@
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import { DepositStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import {
+  computeDepositDerivedState,
+  DepositFlowStep,
+} from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useETHWallet } from "@/context/wallet";
@@ -57,20 +60,26 @@ export function ResumeSignContent({
 
   useRunOnce(handleSign);
 
-  const isProcessing = signing && !error && !isComplete;
-  const canClose = !!error || isComplete || !signing;
+  const derived = computeDepositDerivedState(
+    isComplete ? DepositFlowStep.COMPLETED : DepositFlowStep.SIGN_PAYOUTS,
+    signing,
+    false,
+    error?.message ?? null,
+  );
 
   return (
     <DepositProgressView
       currentStep={
-        isComplete ? DepositStep.BROADCAST_BTC : DepositStep.SIGN_PAYOUTS
+        isComplete
+          ? DepositFlowStep.BROADCAST_BTC
+          : DepositFlowStep.SIGN_PAYOUTS
       }
       isWaiting={isComplete}
       error={error?.message ?? null}
-      isComplete={isComplete}
-      isProcessing={isProcessing}
-      canClose={canClose}
-      canContinueInBackground={false}
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={signing ? progress : null}
       onClose={onClose}
       successMessage="Your payout transactions have been signed and submitted successfully. Your deposit is now being processed."
@@ -104,17 +113,22 @@ export function ResumeBroadcastContent({
 
   useRunOnce(handleBroadcast);
 
-  const canClose = !!error || !broadcasting;
+  const derived = computeDepositDerivedState(
+    DepositFlowStep.BROADCAST_BTC,
+    broadcasting,
+    false,
+    error,
+  );
 
   return (
     <DepositProgressView
-      currentStep={DepositStep.BROADCAST_BTC}
+      currentStep={DepositFlowStep.BROADCAST_BTC}
       isWaiting={false}
       error={error}
-      isComplete={false}
-      isProcessing={broadcasting}
-      canClose={canClose}
-      canContinueInBackground={false}
+      isComplete={derived.isComplete}
+      isProcessing={derived.isProcessing}
+      canClose={derived.canClose}
+      canContinueInBackground={derived.canContinueInBackground}
       payoutSigningProgress={null}
       onClose={onClose}
       successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
@@ -228,7 +242,7 @@ export function ResumeLamportContent({
 
   return (
     <DepositProgressView
-      currentStep={DepositStep.SIGN_PAYOUTS}
+      currentStep={DepositFlowStep.SIGN_PAYOUTS}
       isWaiting={false}
       error={error}
       isComplete={!submitting && !error}

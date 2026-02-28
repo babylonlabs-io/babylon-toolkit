@@ -235,6 +235,13 @@ export interface RegisterPeginParams {
 
   /** Keccak256 hash of the depositor's Lamport public key (bytes32) */
   depositorLamportPkHash?: Hex;
+
+  /**
+   * Pre-signed BTC PoP signature (hex with 0x prefix).
+   * When provided, the BTC wallet signing step is skipped and this signature is used directly.
+   * Useful for multi-vault deposits where PoP only needs to be signed once.
+   */
+  preSignedBtcPopSignature?: Hex;
 }
 
 /**
@@ -252,6 +259,12 @@ export interface RegisterPeginResult {
    * Corresponds to btcTxHash from PeginResult, but formatted as Hex with '0x' prefix.
    */
   vaultId: Hex;
+
+  /**
+   * The BTC PoP signature used for this registration (hex with 0x prefix).
+   * Returned so callers can reuse it for subsequent pegins without re-signing.
+   */
+  btcPopSignature: Hex;
 }
 
 /**
@@ -512,6 +525,7 @@ export class PeginManager {
       onPopSigned,
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       depositorLamportPkHash,
+      preSignedBtcPopSignature,
     } = params;
 
     // Step 1: Get depositor ETH address (from wallet account)
@@ -520,31 +534,36 @@ export class PeginManager {
     }
     const depositorEthAddress = this.config.ethWallet.account.address;
 
-    // Step 2: Create proof of possession
-    // The depositor signs a message with their BTC key using BIP-322 simple
-    // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
-    // This matches BTCProofOfPossession.sol buildMessage() format
-    // Addresses already include 0x prefix and must be lowercase
-    // Action is "pegin" for peg-in operations
-    const verifyingContract = this.config.vaultContracts.btcVaultsManager;
-    const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
-    const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
-      popMessage,
-      "bip322-simple",
-    );
+    // Step 2: Create proof of possession (or reuse pre-signed one)
+    let btcPopSignature: Hex;
+    if (preSignedBtcPopSignature) {
+      // Reuse a previously signed PoP (e.g. multi-vault deposit)
+      btcPopSignature = preSignedBtcPopSignature;
+    } else {
+      // The depositor signs a message with their BTC key using BIP-322 simple
+      // Message format: "<eth_address>:<chainId>:<action>:<verifying_contract>"
+      // This matches BTCProofOfPossession.sol buildMessage() format
+      // Addresses already include 0x prefix and must be lowercase
+      // Action is "pegin" for peg-in operations
+      const verifyingContract = this.config.vaultContracts.btcVaultsManager;
+      const popMessage = `${depositorEthAddress.toLowerCase()}:${this.config.ethChain.id}:pegin:${verifyingContract.toLowerCase()}`;
+      const btcPopSignatureRaw = await this.config.btcWallet.signMessage(
+        popMessage,
+        "bip322-simple",
+      );
+
+      // Convert PoP signature to hex format
+      // BTC wallets return base64, Ethereum contracts expect hex
+      if (btcPopSignatureRaw.startsWith("0x")) {
+        btcPopSignature = btcPopSignatureRaw as Hex;
+      } else {
+        const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
+        btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
+      }
+    }
 
     if (onPopSigned) {
       await onPopSigned();
-    }
-
-    // Convert PoP signature to hex format
-    // BTC wallets return base64, Ethereum contracts expect hex
-    let btcPopSignature: Hex;
-    if (btcPopSignatureRaw.startsWith("0x")) {
-      btcPopSignature = btcPopSignatureRaw as Hex;
-    } else {
-      const signatureBytes = Buffer.from(btcPopSignatureRaw, "base64");
-      btcPopSignature = `0x${signatureBytes.toString("hex")}` as Hex;
     }
 
     // Step 3: Format parameters for contract call
@@ -639,6 +658,7 @@ export class PeginManager {
       return {
         ethTxHash,
         vaultId,
+        btcPopSignature,
       };
     } catch (error) {
       // Use proper error handler for better error messages

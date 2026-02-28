@@ -16,7 +16,7 @@
  */
 
 // Types and enums
-export { DepositStep } from "./types";
+export { DepositFlowStep } from "./types";
 export type {
   BroadcastParams,
   DepositFlowResult,

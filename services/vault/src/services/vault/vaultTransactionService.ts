@@ -71,6 +71,8 @@ export interface RegisterPeginOnChainParams {
   onPopSigned?: () => void | Promise<void>;
   /** Keccak256 hash of the depositor's Lamport public key */
   depositorLamportPkHash?: Hex;
+  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  preSignedBtcPopSignature?: Hex;
 }
 
 /**
@@ -81,6 +83,8 @@ export interface RegisterPeginResult {
   transactionHash: Hex;
   btcTxHash: Hex;
   btcTxHex: string;
+  /** The BTC PoP signature used, for reuse in subsequent pegins */
+  btcPopSignature: Hex;
 }
 
 function createPeginManager(
@@ -163,12 +167,14 @@ export async function registerPeginOnChain(
     vaultProvider: params.vaultProviderAddress,
     onPopSigned: params.onPopSigned,
     depositorLamportPkHash: params.depositorLamportPkHash,
+    preSignedBtcPopSignature: params.preSignedBtcPopSignature,
   });
 
   return {
     transactionHash: registrationResult.ethTxHash,
     btcTxHash: registrationResult.vaultId,
     btcTxHex: params.fundedTxHex,
+    btcPopSignature: registrationResult.btcPopSignature,
   };
 }
 

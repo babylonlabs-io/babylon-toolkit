@@ -6,6 +6,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "../depositFlowSteps/types";
 import { useDepositFlow } from "../useDepositFlow";
 
 // Mock config/contracts to avoid env var validation
@@ -548,14 +549,16 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      expect(result.current.currentStep).toBe("SIGN_POP");
+      expect(result.current.currentStep).toBe(DepositFlowStep.SIGN_POP);
       expect(result.current.processing).toBe(false);
 
       const flowPromise = result.current.executeDepositFlow();
 
       // Wait for the artifact download step and then continue past it
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+        expect(result.current.currentStep).toBe(
+          DepositFlowStep.ARTIFACT_DOWNLOAD,
+        );
       });
       result.current.continueAfterArtifactDownload();
 
@@ -594,7 +597,9 @@ describe("useDepositFlow - Chain Switching", () => {
 
       // Wait for artifact download step and continue past it
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+        expect(result.current.currentStep).toBe(
+          DepositFlowStep.ARTIFACT_DOWNLOAD,
+        );
       });
       result.current.continueAfterArtifactDownload();
 

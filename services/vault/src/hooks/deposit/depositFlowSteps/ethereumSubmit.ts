@@ -143,6 +143,7 @@ export async function registerPeginAndWait(
     vaultProviderAddress,
     onPopSigned,
     depositorLamportPkHash,
+    preSignedBtcPopSignature,
   } = params;
 
   const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
@@ -151,6 +152,7 @@ export async function registerPeginAndWait(
     vaultProviderAddress: vaultProviderAddress as Address,
     onPopSigned,
     depositorLamportPkHash,
+    preSignedBtcPopSignature,
   });
 
   await waitForEthConfirmation(result.transactionHash);
@@ -158,6 +160,7 @@ export async function registerPeginAndWait(
   return {
     btcTxid: result.btcTxHash,
     ethTxHash: result.transactionHash,
+    btcPopSignature: result.btcPopSignature,
   };
 }
 

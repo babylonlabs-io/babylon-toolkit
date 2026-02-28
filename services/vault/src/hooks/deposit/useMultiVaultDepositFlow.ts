@@ -24,7 +24,6 @@ import {
   createSplitTransaction,
   createSplitTransactionPsbt,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,7 +34,6 @@ import { getMempoolApiUrl } from "@/clients/btc/config";
 import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash } from "@/services/lamport";
 import {
@@ -54,7 +52,7 @@ import { stripHexPrefix } from "@/utils/btc";
 
 import {
   broadcastBtcTransaction,
-  DepositStep,
+  DepositFlowStep,
   getEthWalletClient,
   pollAndPreparePayoutSigning,
   preparePegin,
@@ -64,6 +62,7 @@ import {
   waitForContractVerification,
   type DepositUtxo,
 } from "./depositFlowSteps";
+import { useBtcWalletState } from "./useBtcWalletState";
 import { useVaultProviders } from "./useVaultProviders";
 
 // ============================================================================
@@ -91,6 +90,8 @@ export interface UseMultiVaultDepositFlowParams {
   universalChallengerBtcPubkeys: string[];
   /** Callback to retrieve the decrypted Lamport mnemonic (depositor-as-claimer) */
   getMnemonic?: () => Promise<string>;
+  /** Pre-computed allocation plan from the form (skips runtime planning) */
+  precomputedPlan?: AllocationPlan;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
@@ -99,7 +100,7 @@ export interface UseMultiVaultDepositFlowReturn {
   /** Cancel the running flow (e.g. when the user closes the modal) */
   abort: () => void;
   /** Current step in the deposit flow */
-  currentStep: DepositStep;
+  currentStep: DepositFlowStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
   currentVaultIndex: number | null;
   /** Whether the flow is currently processing */
@@ -230,11 +231,12 @@ export function useMultiVaultDepositFlow(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     getMnemonic,
+    precomputedPlan,
   } = params;
 
   // State
-  const [currentStep, setCurrentStep] = useState<DepositStep>(
-    DepositStep.SIGN_POP,
+  const [currentStep, setCurrentStep] = useState<DepositFlowStep>(
+    DepositFlowStep.SIGN_POP,
   );
   const [currentVaultIndex, setCurrentVaultIndex] = useState<number | null>(
     null,
@@ -260,13 +262,8 @@ export function useMultiVaultDepositFlow(
   }, [abort]);
 
   // Hooks
-  const btcConnector = useChainConnector("BTC");
-  const btcAddress = btcConnector?.connectedWallet?.account?.address;
-  const {
-    spendableUTXOs,
-    isLoading: isUTXOsLoading,
-    error: utxoError,
-  } = useUTXOs(btcAddress);
+  const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
+    useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
   const { timelockPegin, depositorClaimValue } = useProtocolParamsContext();
 
@@ -282,7 +279,7 @@ export function useMultiVaultDepositFlow(
 
       setProcessing(true);
       setError(null);
-      setCurrentStep(DepositStep.SIGN_POP);
+      setCurrentStep(DepositFlowStep.SIGN_POP);
 
       // Track background operation failures
       const warnings: string[] = [];
@@ -316,15 +313,17 @@ export function useMultiVaultDepositFlow(
         const batchId = uuidv4();
 
         // ========================================================================
-        // Step 1: Plan UTXO Allocation
+        // Step 1: Plan UTXO Allocation (use precomputed plan if available)
         // ========================================================================
 
-        const plan = planUtxoAllocation(
-          spendableUTXOs,
-          vaultAmounts,
-          feeRate,
-          confirmedBtcAddress,
-        );
+        const plan =
+          precomputedPlan ??
+          planUtxoAllocation(
+            spendableUTXOs,
+            vaultAmounts,
+            feeRate,
+            confirmedBtcAddress,
+          );
 
         setAllocationPlan(plan);
 
@@ -335,6 +334,8 @@ export function useMultiVaultDepositFlow(
         let splitTxResult: SplitTxSignResult | null = null;
 
         if (plan.needsSplit && plan.splitTransaction) {
+          setCurrentStep(DepositFlowStep.SIGN_SPLIT_TX);
+
           // 2a. Create and sign split transaction
           splitTxResult = await createAndSignSplitTransaction(
             plan.splitTransaction,
@@ -354,10 +355,12 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 3: Create N Pegins (1 or 2)
+        // Step 3: Create N Pegins (1 or 2) — with POP reuse
         // ========================================================================
 
-        setCurrentStep(DepositStep.SUBMIT_PEGIN);
+        setCurrentStep(DepositFlowStep.SIGN_POP);
+
+        let capturedPopSignature: Hex | undefined;
 
         const peginResults: PeginCreationResult[] = [];
 
@@ -437,8 +440,14 @@ export function useMultiVaultDepositFlow(
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
                   depositorLamportPkHash: splitLamportPkHash,
+                  preSignedBtcPopSignature: capturedPopSignature,
+                  onPopSigned: () =>
+                    setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
                 },
               );
+
+              // Capture PoP signature from first vault for reuse
+              capturedPopSignature ??= registrationResult.btcPopSignature;
 
               peginResult = {
                 btcTxid: prepareResult.btcTxHash,
@@ -493,7 +502,12 @@ export function useMultiVaultDepositFlow(
                 fundedTxHex: prepared.btcTxHex,
                 vaultProviderAddress: selectedProviders[0],
                 depositorLamportPkHash: lamportPkHash,
+                preSignedBtcPopSignature: capturedPopSignature,
+                onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
               });
+
+              // Capture PoP signature from first vault for reuse
+              capturedPopSignature ??= registration.btcPopSignature;
 
               depositorBtcPubkey = prepared.depositorBtcPubkey;
               peginResult = {
@@ -613,7 +627,7 @@ export function useMultiVaultDepositFlow(
         // Step 5: Background - Sign Payout Transactions
         // ========================================================================
 
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setCurrentStep(DepositFlowStep.SIGN_PAYOUTS);
 
         for (const result of successfulPegins) {
           try {
@@ -699,7 +713,7 @@ export function useMultiVaultDepositFlow(
         // ========================================================================
 
         setIsWaiting(false);
-        setCurrentStep(DepositStep.BROADCAST_BTC);
+        setCurrentStep(DepositFlowStep.BROADCAST_BTC);
 
         for (const result of successfulPegins) {
           try {
@@ -742,7 +756,7 @@ export function useMultiVaultDepositFlow(
           }
         }
 
-        setCurrentStep(DepositStep.COMPLETED);
+        setCurrentStep(DepositFlowStep.COMPLETED);
 
         // Return result
         return {
@@ -785,6 +799,7 @@ export function useMultiVaultDepositFlow(
       vaultKeepers,
       findProvider,
       getMnemonic,
+      precomputedPlan,
     ]);
 
   return {

@@ -29,9 +29,14 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   createSplitTransactionPsbt: vi.fn(),
 }));
 
-// Mock wallet connector
+// Mock wallet connector (still needed by other code)
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
+}));
+
+// Mock useBtcWalletState (replaces useChainConnector + useUTXOs in the hook)
+vi.mock("../useBtcWalletState", () => ({
+  useBtcWalletState: vi.fn(),
 }));
 
 // Mock bitcoinjs-lib
@@ -94,13 +99,14 @@ vi.mock("@/storage/peginStorage", () => ({
 
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
-  DepositStep: {
-    SIGN_POP: "SIGN_POP",
-    SUBMIT_PEGIN: "SUBMIT_PEGIN",
-    SIGN_PAYOUTS: "SIGN_PAYOUTS",
-    ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
-    BROADCAST_BTC: "BROADCAST_BTC",
-    COMPLETED: "COMPLETED",
+  DepositFlowStep: {
+    SIGN_SPLIT_TX: 0,
+    SIGN_POP: 1,
+    SUBMIT_PEGIN: 2,
+    SIGN_PAYOUTS: 3,
+    ARTIFACT_DOWNLOAD: 4,
+    BROADCAST_BTC: 5,
+    COMPLETED: 6,
   },
   getEthWalletClient: vi.fn(),
   preparePegin: vi.fn(),
@@ -231,13 +237,10 @@ async function setupDefaultMocks() {
   const { createSplitTransaction, createSplitTransactionPsbt } = vi.mocked(
     await import("@babylonlabs-io/ts-sdk/tbv/core"),
   );
-  const { useChainConnector } = vi.mocked(
-    await import("@babylonlabs-io/wallet-connector"),
-  );
+  const { useBtcWalletState } = vi.mocked(await import("../useBtcWalletState"));
   const { useProtocolParamsContext } = vi.mocked(
     await import("@/context/ProtocolParamsContext"),
   );
-  const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
   const { useVaultProviders } = vi.mocked(await import("../useVaultProviders"));
   const {
     planUtxoAllocation,
@@ -259,18 +262,12 @@ async function setupDefaultMocks() {
     broadcastBtcTransaction,
   } = vi.mocked(await import("../depositFlowSteps"));
 
-  // Wallet connector
-  vi.mocked(useChainConnector).mockReturnValue({
-    connectedWallet: {
-      account: { address: "bc1qtest" },
-    },
-  } as any);
-
-  // UTXOs
-  vi.mocked(useUTXOs).mockReturnValue({
+  // BTC wallet state (btcAddress + UTXOs)
+  vi.mocked(useBtcWalletState).mockReturnValue({
+    btcAddress: "bc1qtest",
     spendableUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
-    isLoading: false,
-    error: null,
+    isUTXOsLoading: false,
+    utxoError: null,
   } as any);
 
   // Protocol params
@@ -331,6 +328,7 @@ async function setupDefaultMocks() {
   vi.mocked(registerSplitPeginOnChain).mockResolvedValue({
     ethTxHash: "0xEthTxHash" as Hex,
     vaultId: "0xVaultId" as Hex,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
@@ -350,6 +348,7 @@ async function setupDefaultMocks() {
   vi.mocked(registerPeginAndWait).mockResolvedValue({
     btcTxid: "0xstandardBtcTxid" as Hex,
     ethTxHash: "0xStandardEthTx" as Hex,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
     context: {} as any,
@@ -803,12 +802,15 @@ describe("useMultiVaultDepositFlow", () => {
 
   describe("Validation Errors", () => {
     it("should throw if wallet not connected (no btcAddress)", async () => {
-      const { useChainConnector } = vi.mocked(
-        await import("@babylonlabs-io/wallet-connector"),
+      const { useBtcWalletState } = vi.mocked(
+        await import("../useBtcWalletState"),
       );
 
-      vi.mocked(useChainConnector).mockReturnValue({
-        connectedWallet: null,
+      vi.mocked(useBtcWalletState).mockReturnValue({
+        btcAddress: undefined,
+        spendableUTXOs: undefined,
+        isUTXOsLoading: false,
+        utxoError: null,
       } as any);
 
       const { result } = renderHook(() =>
@@ -824,10 +826,15 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should throw if no spendable UTXOs", async () => {
-      const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
+      const { useBtcWalletState } = vi.mocked(
+        await import("../useBtcWalletState"),
+      );
 
-      vi.mocked(useUTXOs).mockReturnValue({
+      vi.mocked(useBtcWalletState).mockReturnValue({
+        btcAddress: "bc1qtest",
         spendableUTXOs: [],
+        isUTXOsLoading: false,
+        utxoError: null,
       } as any);
 
       const { result } = renderHook(() =>
@@ -1033,12 +1040,12 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      expect(result.current.currentStep).toBe("SIGN_POP");
+      expect(result.current.currentStep).toBe(1); // SIGN_POP
 
       const executePromise = result.current.executeMultiVaultDeposit();
 
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("COMPLETED");
+        expect(result.current.currentStep).toBe(6); // COMPLETED
       });
 
       await executePromise;
