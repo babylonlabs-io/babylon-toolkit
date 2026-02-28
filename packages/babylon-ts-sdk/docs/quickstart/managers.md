@@ -31,10 +31,14 @@ Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io
 
 ### What It Does
 
-1. Builds funded Bitcoin transaction with BTC vault output
-2. Registers BTC vault on Ethereum (with proof-of-possession)
-3. Signs payout authorization (pre-authorizes future fund distribution)
-4. Signs and broadcasts to Bitcoin network
+1. **Prepare** — Builds a funded Bitcoin transaction with BTC vault output, selects UTXOs, and calculates fees
+2. **Register** — Submits BTC vault to Ethereum (with proof-of-possession). Pays a peg-in fee in ETH (queried from the contract per vault provider)
+3. **Sign payout authorization** — After the vault provider prepares claim/payout transactions, signs 2 payout transactions per claimer (PayoutOptimistic + Payout). The depositor only signs input 0 (the vault UTXO)
+4. **Broadcast** — Signs and broadcasts the funded Bitcoin transaction to the network
+
+> **Wallet requirements:** BTC wallet needs sufficient UTXOs to cover the vault amount + transaction fees. ETH wallet needs gas + the peg-in fee.
+>
+> **Wait times:** Between steps 2 and 3, the vault provider prepares payout transactions. Between steps 3 and 4, the contract must reach VERIFIED status.
 
 ### Configuration
 
