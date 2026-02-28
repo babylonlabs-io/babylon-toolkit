@@ -14,7 +14,7 @@ The SDK provides pure functions for Babylon's custom Aave integration:
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
 - **Utilities** - Calculate health factor, select vaults, format values
 
-> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through a Controller contract that translates your vault operations into standard Aave actions on the Spoke (the Aave pool contract).
+> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through a Controller contract that translates your BTC vault operations into standard Aave actions on the Spoke (the Aave pool contract).
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ This integration uses Aave v4's lending mechanics, see the [Aave Documentation](
 
 When using BTC vaults as collateral in this integration:
 
-- **Vault Status** - When you create a vault (becomes Active), it automatically goes into the position. When you withdraw, it triggers redemption.
+- **BTC Vault Status** - When your BTC vault is activated, it is automatically deposited as collateral in your Aave v4 position. When you withdraw, it triggers redemption.
 - **Proxy Contract** - Aave deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations). See public docs for details.
 - **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
 
@@ -56,7 +56,7 @@ Build unsigned transactions. Returns `{ to, data }` for you to execute.
 | `buildBorrowTx()`                | Borrow against collateral                  |
 | `buildRepayTx()`                 | Repay borrowed assets                      |
 | `buildWithdrawAllCollateralTx()` | Remove all collateral (requires zero debt) |
-| `buildDepositorRedeemTx()`       | Redeem vault to vault provider             |
+| `buildDepositorRedeemTx()`       | Redeem BTC vault to vault provider         |
 
 ### Query Functions
 
@@ -76,7 +76,7 @@ Pure calculations and helpers.
 
 | Function                  | Purpose                                 |
 | ------------------------- | --------------------------------------- |
-| `selectVaultsForAmount()` | Choose optimal vaults for target amount |
+| `selectVaultsForAmount()` | Choose optimal BTC vaults for target amount |
 | `calculateHealthFactor()` | Calculate HF from values                |
 | `formatHealthFactor()`    | Format HF for display                   |
 | `getHealthFactorStatus()` | Get status (safe/warning/danger)        |
@@ -88,7 +88,7 @@ Pure calculations and helpers.
 
 | I want to...               | Use this function                            |
 | -------------------------- | -------------------------------------------- |
-| Add vaults as collateral   | `buildAddCollateralTx()`                     |
+| Add BTC vaults as collateral | `buildAddCollateralTx()`                     |
 | Choose which vaults to use | `selectVaultsForAmount()`                    |
 | Borrow stablecoins         | `buildBorrowTx()`                            |
 | Check if safe to borrow    | `getUserAccountData()` → check health factor |
@@ -96,7 +96,7 @@ Pure calculations and helpers.
 | Repay debt                 | `buildRepayTx()`                             |
 | Check if can withdraw      | `hasDebt()` → must be false                  |
 | Withdraw collateral        | `buildWithdrawAllCollateralTx()`             |
-| Redeem vault for BTC       | `buildDepositorRedeemTx()`                   |
+| Redeem BTC vault           | `buildDepositorRedeemTx()`                   |
 
 ---
 
@@ -108,7 +108,7 @@ import {
   selectVaultsForAmount,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
-// Select vaults for 0.5 BTC
+// Select BTC vaults for 0.5 BTC
 const { vaultIds } = selectVaultsForAmount(availableVaults, 0.5);
 
 // Build transaction
