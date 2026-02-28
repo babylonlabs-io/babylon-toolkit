@@ -14,7 +14,7 @@ The SDK provides pure functions for Babylon's custom Aave integration:
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
 - **Utilities** - Calculate health factor, select vaults, format values
 
-> **Note:** Under the hood, the Spoke is a standard Aave contract. Since you can't interact with native BTC directly, the Controller contract translates your vault requests into what Aave understands.
+> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through a Controller contract that translates your vault operations into standard Aave actions on the Spoke (the Aave pool contract).
 
 ## Prerequisites
 
