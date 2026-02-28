@@ -143,7 +143,7 @@ Co-signs the Payout transactions used by all potential claimers. For more detail
 
 **Used during [peg-in Step 3](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)** - After registering a BTC vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize the withdrawal of funds by each potential claimer if they have a valid ZK proof before broadcasting to Bitcoin (Step 4).
 
-**Important:** This is NOT the same as [redemption/withdrawal](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegout.md). During peg-in, you pre-sign transactions that enable the vault provider to distribute your funds in the future when you request redemption.
+**Important:** During peg-in setup, you pre-sign Bitcoin transactions that claimers will need later to move funds out of the vault. You are providing cryptographic authorization upfront as part of the [vault's security model](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
 
 ### Configuration
 
