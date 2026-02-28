@@ -174,7 +174,7 @@ export async function submitSignaturesToVaultProvider(
   const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
   await rpcClient.submitPayoutSignatures({
     pegin_txid: stripHexPrefix(peginTxId),
-    depositor_pk: depositorBtcPubkey,
+    depositor_pk: stripHexPrefix(depositorBtcPubkey),
     signatures,
   });
 }
@@ -409,16 +409,18 @@ export async function prepareSigningContext(
     universalChallengers.map((uc) => ({ btcPubKey: uc.btcPubKey })),
   );
 
+  const signingContext = {
+    peginTxHex: vault.unsignedBtcTx,
+    vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+    depositorBtcPubkey,
+    timelockPegin,
+    network: getBTCNetworkForWASM(),
+  };
+
   return {
-    context: {
-      peginTxHex: vault.unsignedBtcTx,
-      vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys,
-      depositorBtcPubkey,
-      timelockPegin,
-      network: getBTCNetworkForWASM(),
-    },
+    context: signingContext,
     vaultProviderUrl: vaultProvider.url,
   };
 }

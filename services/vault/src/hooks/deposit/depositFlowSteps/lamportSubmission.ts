@@ -76,7 +76,7 @@ export async function submitLamportPublicKey(
 
   await rpcClient.submitDepositorLamportKey({
     pegin_txid: peginTxid,
-    depositor_pk: depositorBtcPubkey,
+    depositor_pk: stripHexPrefix(depositorBtcPubkey),
     lamport_public_key: lamportPublicKey,
   });
 }

@@ -94,7 +94,7 @@ export async function pollAndPreparePayoutSigning(
     async () => {
       const response = await rpcClient.requestDepositorPresignTransactions({
         pegin_txid: stripHexPrefix(btcTxid),
-        depositor_pk: depositorBtcPubkey,
+        depositor_pk: stripHexPrefix(depositorBtcPubkey),
       });
 
       if (!response.txs || response.txs.length === 0) {
