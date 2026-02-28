@@ -14,6 +14,7 @@ import {
   buildRepayTx,
   buildWithdrawAllCollateralTx,
   // Query functions
+  getPosition,
   getUserAccountData,
   getUserTotalDebt,
   hasDebt,
@@ -44,11 +45,22 @@ const USDC_RESERVE_ID = 2n;
 
 ## Operation 1: Borrow
 
-**Sequence:** Check health → Build transaction → Execute
+**Sequence:** Get position → Check health → Build transaction → Execute
 
 ```typescript
-// 1. Check current health (need proxy address from your position data)
-const proxyAddress: Address = "0x..."; // From your position data
+// 1. Get your proxy address from your position
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
+
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
+
+// 2. Check current health
 const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 
 const healthFactor = Number(accountData.healthFactor) / 1e18;
@@ -61,24 +73,12 @@ if (status !== "safe" && status !== "no_debt") {
   throw new Error(`Unsafe to borrow: ${status}`);
 }
 
-// 2. Build transaction
+// 3. Build transaction
 const amount = parseUnits("100", 6); // 100 USDC
 
-const account = walletClient.account;
-if (!account) {
-  throw new Error("Wallet client has no connected account configured.");
-}
-const receiver: Address =
-  typeof account === "string" ? account : account.address;
+const tx = buildBorrowTx(CONTROLLER, USDC_RESERVE_ID, amount, userAddress);
 
-const tx = buildBorrowTx(
-  CONTROLLER,
-  USDC_RESERVE_ID,
-  amount,
-  receiver,
-);
-
-// 3. Execute
+// 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
@@ -95,13 +95,21 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 ## Operation 2: Repay
 
-**Sequence:** Get debt → Approve token → Build transaction → Execute
+**Sequence:** Get position → Get debt → Approve token → Build transaction → Execute
 
 > **Gotcha:** Requires ERC20 approval before repaying!
 
 ```typescript
-// 1. Get exact current debt
-const proxyAddress: Address = "0x...";
+// 1. Get your proxy address from your position
+const position = await getPosition(
+  publicClient,
+  CONTROLLER,
+  walletClient.account.address,
+);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
+
+// 2. Get exact current debt
 const totalDebt = await getUserTotalDebt(
   publicClient,
   SPOKE,
@@ -112,7 +120,7 @@ const totalDebt = await getUserTotalDebt(
 // For full repayment, add buffer for accruing interest
 const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_DIVISOR;
 
-// 2. Approve token spending (required!)
+// 3. Approve token spending (required!)
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
 const approveHash = await walletClient.writeContract({
   address: USDC_ADDRESS,
@@ -132,11 +140,11 @@ const approveHash = await walletClient.writeContract({
 });
 await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-// 3. Build transaction
+// 4. Build transaction
 const borrower: Address = "0x..."; // Borrower's address
 const tx = buildRepayTx(CONTROLLER, borrower, USDC_RESERVE_ID, repayAmount);
 
-// 4. Execute
+// 5. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
@@ -153,13 +161,21 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 ## Operation 3: Withdraw Collateral
 
-**Sequence:** Verify zero debt → Build transaction → Execute
+**Sequence:** Get position → Verify zero debt → Build transaction → Execute
 
 > **Gotcha:** Must repay ALL debt before withdrawing!
 
 ```typescript
-// 1. Verify zero debt
-const proxyAddress: Address = "0x...";
+// 1. Get your proxy address from your position
+const position = await getPosition(
+  publicClient,
+  CONTROLLER,
+  walletClient.account.address,
+);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
+
+// 2. Verify zero debt
 const userHasDebt = await hasDebt(
   publicClient,
   SPOKE,
@@ -171,10 +187,10 @@ if (userHasDebt) {
   throw new Error("Repay all debt before withdrawing");
 }
 
-// 2. Build transaction (withdraws ALL collateral)
+// 3. Build transaction (withdraws ALL collateral)
 const tx = buildWithdrawAllCollateralTx(CONTROLLER);
 
-// 3. Execute
+// 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
@@ -229,12 +245,12 @@ const withBuffer = debt + debt / FULL_REPAY_BUFFER_DIVISOR; // Covers interest a
 
 ## Error Reference
 
-| Error                     | Cause                         | Solution               |
-| ------------------------- | ----------------------------- | ---------------------- |
-| "Vault already in use"    | Vault is collateral elsewhere | Use different vault    |
-| "Health factor too low"   | Would become liquidatable     | Reduce borrow amount   |
-| "Must have zero debt"     | Debt exists when withdrawing  | Repay all debt first   |
-| "Approval required"       | Token not approved            | Call ERC20 `approve()` |
+| Error                   | Cause                         | Solution               |
+| ----------------------- | ----------------------------- | ---------------------- |
+| "Vault already in use"  | Vault is collateral elsewhere | Use different vault    |
+| "Health factor too low" | Would become liquidatable     | Reduce borrow amount   |
+| "Must have zero debt"   | Debt exists when withdrawing  | Repay all debt first   |
+| "Approval required"     | Token not approved            | Call ERC20 `approve()` |
 
 ---
 
