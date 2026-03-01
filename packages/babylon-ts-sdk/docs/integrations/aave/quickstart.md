@@ -102,11 +102,14 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 ```typescript
 // 1. Get the user's proxy address from their position
-const position = await getPosition(
-  publicClient,
-  CONTROLLER,
-  walletClient.account.address,
-);
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
+
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
@@ -169,11 +172,14 @@ await publicClient.waitForTransactionReceipt({ hash });
 
 ```typescript
 // 1. Get the user's proxy address from their position
-const position = await getPosition(
-  publicClient,
-  CONTROLLER,
-  walletClient.account.address,
-);
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
+
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
 if (!position) throw new Error("No position found");
 const proxyAddress = position.proxyContract;
 
