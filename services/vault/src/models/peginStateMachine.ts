@@ -120,6 +120,7 @@ export function isPreDepositorSignaturesError(error: unknown): boolean {
 export const PEGIN_DISPLAY_LABELS = {
   PENDING: "Pending",
   SIGNING_REQUIRED: "Signing required",
+  AWAITING_KEY: "Awaiting key",
   PROCESSING: "Processing",
   VERIFIED: "Verified",
   PENDING_BITCOIN_CONFIRMATIONS: "Confirming",
@@ -251,7 +252,7 @@ export function getPeginState(
       return {
         contractStatus,
         localStatus,
-        displayLabel: PEGIN_DISPLAY_LABELS.SIGNING_REQUIRED,
+        displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_KEY,
         displayVariant: "pending",
         availableActions: [PeginAction.SUBMIT_LAMPORT_KEY],
         message:
