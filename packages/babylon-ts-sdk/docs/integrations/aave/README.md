@@ -4,22 +4,22 @@ Use BTC vaults as collateral in Aave v4 to borrow other assets.
 
 ## About Aave v4
 
-Aave is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows you to use Bitcoin vaults as collateral in Aave v4 Babylon Core Spoke.
+Aave is a decentralized lending protocol where users can supply assets as collateral and borrow other assets against it. This SDK integration allows using Bitcoin vaults as collateral in Aave v4 Babylon Core Spoke.
 
 ## What This Provides
 
 The SDK provides pure functions for Babylon's custom Aave integration:
 
-- **Transaction Builders** - Build unsigned transactions (you execute with your wallet)
+- **Transaction Builders** - Build unsigned transactions (the caller executes with their wallet)
 - **Query Functions** - Read on-chain data (health factor, debt, positions)
 - **Utilities** - Calculate health factor, select vaults, format values
 
-> **Note:** Under the hood, the Spoke is a standard Aave contract. Since you can't interact with native BTC directly, the Controller contract translates your vault requests into what Aave understands.
+> **Note:** Since you can't interact with native BTC directly on Aave, the SDK calls go through a Controller contract that translates BTC vault operations into standard Aave actions on the Spoke (the Aave pool contract).
 
 ## Prerequisites
 
 1. **Active BTC Vaults** - Created via `PeginManager` (see [managers quickstart](../../quickstart/managers.md))
-2. **Contract Addresses** - Aave controller, spoke, reserve IDs (from your config/indexer)
+2. **Contract Addresses** - Aave controller, spoke, reserve IDs (from config/indexer)
 3. **Ethereum Wallet** - viem `WalletClient` for signing transactions
 
 ## Key Concepts
@@ -30,9 +30,9 @@ This integration uses Aave v4's lending mechanics, see the [Aave Documentation](
 
 When using BTC vaults as collateral in this integration:
 
-- **Vault Status** - When you create a vault (becomes Active), it automatically goes into the position. When you withdraw, it triggers redemption.
-- **Proxy Contract** - Aave deploys a proxy contract for your account on first deposit to manage your position (collateral, borrows, liquidations). See public docs for details.
-- **Position Tracking** - Your position tracks vault IDs, collateral value, and debt across reserves
+- **BTC Vault Status** - When a BTC vault is activated, it is automatically deposited as collateral in the user's Aave v4 position. When collateral is withdrawn, it triggers redemption.
+- **Proxy Position Manager** - Aave deploys a proxy position manager contract for the user's account on first deposit to manage their position (collateral, borrows, liquidations). See the [Aave Documentation](https://docs.aave.com/) for details.
+- **Position Tracking** - The position contains vault IDs with certain collateral value, and debt across reserves
 
 **Health Factor Quick Reference:**
 
@@ -48,15 +48,13 @@ When using BTC vaults as collateral in this integration:
 
 ### Transaction Builders
 
-Build unsigned transactions. Returns `{ to, data }` for you to execute.
+Build unsigned transactions. Returns `{ to, data }` for the caller to execute.
 
 | Function                         | Purpose                                    |
 | -------------------------------- | ------------------------------------------ |
-| `buildAddCollateralTx()`         | Add BTC vaults as collateral               |
 | `buildBorrowTx()`                | Borrow against collateral                  |
 | `buildRepayTx()`                 | Repay borrowed assets                      |
 | `buildWithdrawAllCollateralTx()` | Remove all collateral (requires zero debt) |
-| `buildDepositorRedeemTx()`       | Redeem vault to vault provider             |
 
 ### Query Functions
 
@@ -76,7 +74,7 @@ Pure calculations and helpers.
 
 | Function                  | Purpose                                 |
 | ------------------------- | --------------------------------------- |
-| `selectVaultsForAmount()` | Choose optimal vaults for target amount |
+| `selectVaultsForAmount()` | Choose optimal BTC vaults for target amount |
 | `calculateHealthFactor()` | Calculate HF from values                |
 | `formatHealthFactor()`    | Format HF for display                   |
 | `getHealthFactorStatus()` | Get status (safe/warning/danger)        |
@@ -88,15 +86,12 @@ Pure calculations and helpers.
 
 | I want to...               | Use this function                            |
 | -------------------------- | -------------------------------------------- |
-| Add vaults as collateral   | `buildAddCollateralTx()`                     |
-| Choose which vaults to use | `selectVaultsForAmount()`                    |
 | Borrow stablecoins         | `buildBorrowTx()`                            |
 | Check if safe to borrow    | `getUserAccountData()` → check health factor |
 | Get exact debt amount      | `getUserTotalDebt()`                         |
 | Repay debt                 | `buildRepayTx()`                             |
 | Check if can withdraw      | `hasDebt()` → must be false                  |
 | Withdraw collateral        | `buildWithdrawAllCollateralTx()`             |
-| Redeem vault for BTC       | `buildDepositorRedeemTx()`                   |
 
 ---
 
@@ -104,17 +99,17 @@ Pure calculations and helpers.
 
 ```typescript
 import {
-  buildAddCollateralTx,
-  selectVaultsForAmount,
+  buildBorrowTx,
+  getUserAccountData,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { parseUnits } from "viem";
 
-// Select vaults for 0.5 BTC
-const { vaultIds } = selectVaultsForAmount(availableVaults, 0.5);
+// Check position health before borrowing
+const accountData = await getUserAccountData(publicClient, spokeAddress, proxyAddress);
+const healthFactor = Number(accountData.healthFactor) / 1e18;
 
-// Build transaction
-const tx = buildAddCollateralTx(controllerAddress, vaultIds, reserveId);
-
-// Execute with your wallet
+// Borrow 100 USDC against BTC vault collateral
+const tx = buildBorrowTx(controllerAddress, reserveId, parseUnits("100", 6), receiver);
 await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 ```
 

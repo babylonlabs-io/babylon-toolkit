@@ -15,6 +15,8 @@ Primitives are the lowest-level SDK functions. They:
 
 ## When to Use Primitives
 
+> **Managers** are high-level classes that orchestrate multi-step BTC vault operations with wallet integration. See [Managers Quickstart](./managers.md) for details.
+
 | Use Case                                       | Use            |
 | ---------------------------------------------- | -------------- |
 | Backend services with custom signing (KMS/HSM) | **Primitives** |
@@ -34,9 +36,11 @@ Primitives are the lowest-level SDK functions. They:
 
 ## The 4 Primitives
 
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged), but those are generated and managed by the vault provider. The SDK only provides primitives for the operations the **depositor** performs: building the peg-in transaction and signing payout authorizations.
+
 ### 1. buildPeginPsbt
 
-Builds an **unfunded** peg-in transaction hex (0 inputs, 1 vault output).
+Builds an **unfunded** [peg-in](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) transaction hex (0 inputs, 1 BTC vault output).
 
 ```typescript
 import { buildPeginPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -62,6 +66,8 @@ const result = await buildPeginPsbt({
 **Note:** Despite the field name `psbtHex`, this contains raw unfunded transaction hex (not PSBT format). You must construct a PSBT from it, add UTXOs as inputs, add change output, sign, and broadcast.
 
 **You then:** Add UTXOs as inputs, add change output, sign, broadcast.
+
+> **Deprecation notice:** `buildPayoutOptimisticPsbt` is planned for removal in a future release.
 
 ### 2. buildPayoutOptimisticPsbt
 
@@ -129,9 +135,11 @@ const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
 
 ---
 
-## Utilities (Also Available)
+## Utilities
 
-The SDK also provides utility functions you'll need when using primitives:
+The SDK provides utility functions you'll need when using primitives.
+
+### Transaction Utilities
 
 ```typescript
 import {
@@ -143,7 +151,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 ```
 
-### UTXO Selection
+#### UTXO Selection
 
 ```typescript
 const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
@@ -153,17 +161,13 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
 );
 ```
 
-### Calculate Transaction Hash
+#### Calculate Transaction Hash
 
 ```typescript
 const txHash = calculateBtcTxHash(txHex); // Returns "0x..." format
 ```
 
----
-
-## Bitcoin Utilities
-
-Helper functions for pubkey/hex handling:
+### Data Conversion Helpers
 
 ```typescript
 import {
@@ -195,5 +199,5 @@ import {
 ## Next Steps
 
 - **[Managers](./managers.md)** - High-level orchestration (easier)
-- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use BTC vaults as collateral
 - **[API Reference](../api/primitives.md)** - Complete function signatures
