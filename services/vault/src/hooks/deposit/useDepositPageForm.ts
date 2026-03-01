@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+import type { AllocationPlan } from "@/services/vault";
 
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
@@ -9,6 +10,7 @@ import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
+import { useAllocationPlanning } from "./useAllocationPlanning";
 import { useDepositFormErrors } from "./useDepositFormErrors";
 import { useDepositValidation } from "./useDepositValidation";
 import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
@@ -62,6 +64,17 @@ export interface UseDepositPageFormResult {
   isLoadingFee: boolean;
   feeError: string | null;
   maxDepositSats: bigint | null;
+
+  // Partial liquidation (multi-vault)
+  isPartialLiquidation: boolean;
+  setIsPartialLiquidation: (v: boolean) => void;
+  canSplit: boolean;
+  strategy: AllocationPlan["strategy"] | null;
+  allocationPlan: AllocationPlan | null;
+  isPlanning: boolean;
+  planError: string | null;
+  /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
+  effectiveFeeSats: bigint | null;
 
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
@@ -190,6 +203,38 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxDeposit: maxDepositSats,
   } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
 
+  // Partial liquidation (multi-vault deposit)
+  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const hasAutoChecked = useRef(false);
+
+  const {
+    allocationPlan,
+    strategy,
+    totalFeeSats: multiVaultFeeSats,
+    isPlanning,
+    planError,
+    canSplit,
+  } = useAllocationPlanning({
+    amountSats,
+    feeRate: estimatedFeeRate,
+    isPartialLiquidation,
+    spendableUTXOs,
+    btcAddress,
+  });
+
+  // Auto-check once when splitting first becomes possible
+  useEffect(() => {
+    if (canSplit && !hasAutoChecked.current) {
+      hasAutoChecked.current = true;
+      setIsPartialLiquidation(true);
+    }
+  }, [canSplit]);
+
+  const effectiveFeeSats =
+    isPartialLiquidation && multiVaultFeeSats != null
+      ? multiVaultFeeSats
+      : estimatedFeeSats;
+
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
@@ -282,6 +327,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingFee,
     feeError,
     maxDepositSats,
+    isPartialLiquidation,
+    setIsPartialLiquidation,
+    canSplit,
+    strategy,
+    allocationPlan,
+    isPlanning,
+    planError,
+    effectiveFeeSats,
     validateForm,
     validateAmountOnBlur,
     resetForm,

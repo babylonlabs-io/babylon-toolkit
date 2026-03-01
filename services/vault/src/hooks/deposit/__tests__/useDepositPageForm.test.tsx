@@ -189,6 +189,17 @@ vi.mock("../useVaultProviders", () => ({
   })),
 }));
 
+vi.mock("../useAllocationPlanning", () => ({
+  useAllocationPlanning: vi.fn(() => ({
+    allocationPlan: null,
+    strategy: null,
+    totalFeeSats: null,
+    isPlanning: false,
+    planError: null,
+    canSplit: false,
+  })),
+}));
+
 vi.mock("../../../utils/formatting", () => ({
   formatProviderName: vi.fn((id: string) => `Provider ${id.slice(0, 6)}...`),
 }));

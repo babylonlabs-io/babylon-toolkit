@@ -19,11 +19,11 @@ import {
 import { useMemo } from "react";
 
 import { StatusBanner } from "@/components/deposit/DepositSignModal/StatusBanner";
-import { DepositStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
+import { DepositFlowStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 /**
- * Map the internal DepositStep + isWaiting to a 1-indexed visual step (1-6).
+ * Map the internal DepositFlowStep + isWaiting to a 1-indexed visual step (1-6).
  *
  * Visual steps:
  * 1. Sign proof of possession
@@ -34,21 +34,21 @@ import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatur
  * 6. Submit peg-in transactions
  */
 export function getVisualStep(
-  currentStep: DepositStep,
+  currentStep: DepositFlowStep,
   isWaiting: boolean,
 ): number {
   switch (currentStep) {
-    case DepositStep.SIGN_POP:
+    case DepositFlowStep.SIGN_POP:
       return 1;
-    case DepositStep.SUBMIT_PEGIN:
+    case DepositFlowStep.SUBMIT_PEGIN:
       return 2;
-    case DepositStep.SIGN_PAYOUTS:
+    case DepositFlowStep.SIGN_PAYOUTS:
       return isWaiting ? 3 : 4;
-    case DepositStep.ARTIFACT_DOWNLOAD:
+    case DepositFlowStep.ARTIFACT_DOWNLOAD:
       return 5;
-    case DepositStep.BROADCAST_BTC:
+    case DepositFlowStep.BROADCAST_BTC:
       return isWaiting ? 6 : 7;
-    case DepositStep.COMPLETED:
+    case DepositFlowStep.COMPLETED:
       return 8;
     default:
       return 1;
@@ -76,8 +76,8 @@ export function buildStepItems(
   ];
 }
 
-export interface DepositProgressViewProps {
-  currentStep: DepositStep;
+interface BaseProgressViewProps {
+  currentStep: DepositFlowStep;
   isWaiting: boolean;
   error: string | null;
   isComplete: boolean;
@@ -92,23 +92,114 @@ export interface DepositProgressViewProps {
   onRetry?: () => void;
 }
 
-export function DepositProgressView({
-  currentStep,
-  isWaiting,
-  error,
-  isComplete,
-  isProcessing,
-  canClose,
-  canContinueInBackground,
-  payoutSigningProgress,
-  onClose,
-  successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
-  onRetry,
-}: DepositProgressViewProps) {
-  const visualStep = getVisualStep(currentStep, isWaiting);
+interface SingleVaultProps extends BaseProgressViewProps {
+  variant?: "single";
+}
+
+interface MultiVaultProps extends BaseProgressViewProps {
+  variant: "multi";
+  currentVaultIndex: number | null;
+  strategy: "MULTI_INPUT" | "SPLIT";
+}
+
+export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
+
+/**
+ * Map DepositFlowStep + vault index + strategy to a 1-indexed visual step for multi-vault.
+ *
+ * SPLIT (7 steps):    Sign split TX → Sign PoP + Submit 1/2 → Submit 2/2 → Wait → Sign payouts → Wait → Broadcast
+ * MULTI_INPUT (6 steps): Sign PoP + Submit 1/2 → Submit 2/2 → Wait → Sign payouts → Wait → Broadcast
+ */
+export function getMultiVaultVisualStep(
+  currentStep: DepositFlowStep,
+  isWaiting: boolean,
+  currentVaultIndex: number | null,
+  strategy: "MULTI_INPUT" | "SPLIT",
+): number {
+  const offset = strategy === "SPLIT" ? 1 : 0;
+
+  switch (currentStep) {
+    case DepositFlowStep.SIGN_SPLIT_TX:
+      return 1; // Only for SPLIT
+    case DepositFlowStep.SIGN_POP:
+    case DepositFlowStep.SUBMIT_PEGIN:
+      // Vault 0 = step 1+offset, Vault 1 = step 2+offset
+      return offset + 1 + (currentVaultIndex ?? 0);
+    case DepositFlowStep.SIGN_PAYOUTS:
+      return isWaiting ? offset + 3 : offset + 4;
+    case DepositFlowStep.BROADCAST_BTC:
+      return isWaiting ? offset + 5 : offset + 6;
+    case DepositFlowStep.COMPLETED:
+      return offset + 7;
+    default:
+      return 1;
+  }
+}
+
+export function buildMultiVaultStepItems(
+  strategy: "MULTI_INPUT" | "SPLIT",
+  progress: PayoutSigningProgress | null,
+): StepperItem[] {
+  const payoutTotal = progress?.total ?? 0;
+  const payoutCompleted = progress?.completed ?? 0;
+
+  const steps: StepperItem[] = [];
+
+  if (strategy === "SPLIT") {
+    steps.push({ label: "Sign split transaction" });
+  }
+
+  steps.push(
+    { label: "Sign PoP + Submit pegin 1/2" },
+    { label: "Submit pegin 2/2" },
+    { label: "Wait", description: "(~ 15 min)" },
+    {
+      label: "Sign payout transactions",
+      description:
+        payoutTotal > 0 ? `(${payoutCompleted} of ${payoutTotal})` : undefined,
+    },
+    { label: "Wait", description: "(~ 12 mins)" },
+    { label: "Broadcast" },
+  );
+
+  return steps;
+}
+
+export function DepositProgressView(props: DepositProgressViewProps) {
+  const {
+    currentStep,
+    isWaiting,
+    error,
+    isComplete,
+    isProcessing,
+    canClose,
+    canContinueInBackground,
+    payoutSigningProgress,
+    onClose,
+    successMessage = "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.",
+    onRetry,
+  } = props;
+
+  const isMulti = props.variant === "multi";
+
+  const visualStep = isMulti
+    ? getMultiVaultVisualStep(
+        currentStep,
+        isWaiting,
+        props.currentVaultIndex,
+        props.strategy,
+      )
+    : getVisualStep(currentStep, isWaiting);
+
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress),
-    [payoutSigningProgress],
+    () =>
+      isMulti
+        ? buildMultiVaultStepItems(
+            (props as MultiVaultProps).strategy,
+            payoutSigningProgress,
+          )
+        : buildStepItems(payoutSigningProgress),
+    [isMulti, props, payoutSigningProgress],
   );
 
   return (

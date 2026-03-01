@@ -37,6 +37,10 @@ export {
 } from "../../context/deposit/DepositState";
 export type { DepositStateData } from "../../context/deposit/DepositState";
 
+// Wallet and allocation hooks
+export { useAllocationPlanning } from "./useAllocationPlanning";
+export { useBtcWalletState } from "./useBtcWalletState";
+
 // Modal hooks
 export { usePayoutSignModal } from "./usePayoutSignModal";
 export { useRedeemModal } from "./useRedeemModal";

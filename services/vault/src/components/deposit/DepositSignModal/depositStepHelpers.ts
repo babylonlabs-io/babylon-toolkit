@@ -1,35 +1,37 @@
-import { DepositStep } from "@/hooks/deposit/depositFlowSteps";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 
 // Re-export for convenience
-export { DepositStep };
+export { DepositFlowStep };
 
 /**
  * Step descriptions for deposit flow
  */
-export const STEP_DESCRIPTIONS: Record<
-  DepositStep,
-  { active: string; waiting?: string }
+export const STEP_DESCRIPTIONS: Partial<
+  Record<DepositFlowStep, { active: string; waiting?: string }>
 > = {
-  [DepositStep.SIGN_POP]: {
+  [DepositFlowStep.SIGN_SPLIT_TX]: {
+    active: "Please sign the split transaction in your BTC wallet.",
+  },
+  [DepositFlowStep.SIGN_POP]: {
     active: "Please sign the proof of possession in your BTC wallet.",
   },
-  [DepositStep.SUBMIT_PEGIN]: {
+  [DepositFlowStep.SUBMIT_PEGIN]: {
     active: "Please sign and submit the peg-in request in your ETH wallet.",
   },
-  [DepositStep.SIGN_PAYOUTS]: {
+  [DepositFlowStep.SIGN_PAYOUTS]: {
     active: "Please sign the payout transaction(s) in your BTC wallet.",
     waiting: "Waiting for Vault Provider to prepare payout transaction(s)...",
   },
-  [DepositStep.ARTIFACT_DOWNLOAD]: {
+  [DepositFlowStep.ARTIFACT_DOWNLOAD]: {
     active: "Download your vault artifacts before continuing.",
   },
-  [DepositStep.BROADCAST_BTC]: {
+  [DepositFlowStep.BROADCAST_BTC]: {
     active:
       "Please sign and broadcast the Bitcoin transaction in your BTC wallet.",
     waiting: "Waiting for on-chain verification...",
   },
-  [DepositStep.COMPLETED]: {
+  [DepositFlowStep.COMPLETED]: {
     active: "Deposit successfully submitted!",
   },
 };
@@ -63,7 +65,7 @@ export function getTotalSteps(): number {
  * Get the description text for the current step
  */
 export function getStepDescription(
-  step: DepositStep,
+  step: DepositFlowStep,
   isWaiting: boolean,
   payoutProgress: PayoutSigningProgress | null,
 ): string {
@@ -71,7 +73,7 @@ export function getStepDescription(
   if (!desc) return "";
 
   // Show detailed progress for payout signing step
-  if (step === DepositStep.SIGN_PAYOUTS && payoutProgress?.currentStep) {
+  if (step === DepositFlowStep.SIGN_PAYOUTS && payoutProgress?.currentStep) {
     const stepLabel = SIGNING_STEP_LABELS[payoutProgress.currentStep];
     const claimerInfo =
       payoutProgress.totalClaimers > 1
@@ -87,18 +89,44 @@ export function getStepDescription(
  * Determine if the modal can be closed
  */
 export function canCloseModal(
-  currentStep: DepositStep,
+  currentStep: DepositFlowStep,
   error: string | null,
   isWaiting: boolean = false,
 ): boolean {
   if (error) return true;
-  if (currentStep === DepositStep.COMPLETED) return true;
-  if (currentStep === DepositStep.ARTIFACT_DOWNLOAD) return true;
+  if (currentStep === DepositFlowStep.COMPLETED) return true;
+  if (currentStep === DepositFlowStep.ARTIFACT_DOWNLOAD) return true;
   if (
     isWaiting &&
-    (currentStep === DepositStep.SIGN_PAYOUTS ||
-      currentStep === DepositStep.BROADCAST_BTC)
+    (currentStep === DepositFlowStep.SIGN_PAYOUTS ||
+      currentStep === DepositFlowStep.BROADCAST_BTC)
   )
     return true;
   return false;
+}
+
+/**
+ * Default success message for deposit completion
+ */
+export const DEPOSIT_SUCCESS_MESSAGE =
+  "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
+
+/**
+ * Compute derived UI state from flow state.
+ * Used by DepositSignContent and MultiVaultDepositSignContent.
+ */
+export function computeDepositDerivedState(
+  currentStep: DepositFlowStep,
+  processing: boolean,
+  isWaiting: boolean,
+  error: string | null,
+) {
+  const isComplete = currentStep === DepositFlowStep.COMPLETED;
+  return {
+    isComplete,
+    canClose: canCloseModal(currentStep, error, isWaiting),
+    isProcessing: (processing || isWaiting) && !error && !isComplete,
+    canContinueInBackground:
+      isWaiting && currentStep >= DepositFlowStep.SIGN_PAYOUTS && !error,
+  };
 }

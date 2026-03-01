@@ -3,8 +3,8 @@ import type { Address } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import {
-  canCloseModal,
-  DepositStep,
+  computeDepositDerivedState,
+  DEPOSIT_SUCCESS_MESSAGE,
 } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 
@@ -63,15 +63,8 @@ export function DepositSignContent({
   }, [executeDepositFlow, onRefetchActivities, onSuccess]);
 
   // Derived state
-  const isComplete = currentStep === DepositStep.COMPLETED;
-  const canClose = canCloseModal(currentStep, error, isWaiting);
-  const isProcessing = (processing || isWaiting) && !error && !isComplete;
-  const canContinueInBackground =
-    isWaiting &&
-    (currentStep === DepositStep.SIGN_PAYOUTS ||
-      currentStep === DepositStep.ARTIFACT_DOWNLOAD ||
-      currentStep === DepositStep.BROADCAST_BTC) &&
-    !error;
+  const { isComplete, canClose, isProcessing, canContinueInBackground } =
+    computeDepositDerivedState(currentStep, processing, isWaiting, error);
 
   const handleClose = useCallback(() => {
     abort();
@@ -90,7 +83,7 @@ export function DepositSignContent({
         canContinueInBackground={canContinueInBackground}
         payoutSigningProgress={payoutSigningProgress}
         onClose={handleClose}
-        successMessage="Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations."
+        successMessage={DEPOSIT_SUCCESS_MESSAGE}
       />
       {artifactDownloadInfo && (
         <ArtifactDownloadModal
