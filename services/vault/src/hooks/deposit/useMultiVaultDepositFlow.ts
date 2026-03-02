@@ -576,7 +576,7 @@ export function useMultiVaultDepositFlow(
 
             if (mnemonicId) {
               linkPeginToMnemonic(
-                peginResult.btcTxHash,
+                peginResult.vaultId,
                 mnemonicId,
                 confirmedEthAddress,
               );
