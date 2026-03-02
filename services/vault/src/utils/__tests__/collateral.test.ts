@@ -13,7 +13,13 @@ function makeCollateral(
     amount: 100000000n, // 1 BTC
     addedAt: 1700000000n,
     removedAt: null,
-    vault: { id: "vault1", amount: 100000000n, status: "active" },
+    vault: {
+      id: "vault1",
+      amount: 100000000n,
+      status: "active",
+      vaultProvider: "0xprovider1",
+      inUse: true,
+    },
     ...overrides,
   };
 }
@@ -30,6 +36,9 @@ describe("Collateral Utilities", () => {
           vaultId: "vault1",
           amountBtc: 1,
           addedAt: 1700000000,
+          inUse: true,
+          providerName: "0xprov...der1",
+          providerIconUrl: undefined,
         },
       ]);
     });
@@ -51,7 +60,13 @@ describe("Collateral Utilities", () => {
     it("should filter out liquidated vaults", () => {
       const collaterals = [
         makeCollateral({
-          vault: { id: "vault1", amount: 100000000n, status: "liquidated" },
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "liquidated",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
         }),
       ];
       const result = toCollateralVaultEntries(collaterals);
@@ -66,6 +81,8 @@ describe("Collateral Utilities", () => {
             id: "vault1",
             amount: 100000000n,
             status: "depositor_withdrawn",
+            vaultProvider: "0xprovider1",
+            inUse: false,
           },
         }),
       ];
