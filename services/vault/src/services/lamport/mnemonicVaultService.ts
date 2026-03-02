@@ -370,10 +370,7 @@ export function getMnemonicIdForPegin(
  * @param scope      - Optional user identifier to isolate storage.
  * @returns `true` if an entry with that UUID exists.
  */
-export function hasMnemonicEntry(
-  mnemonicId: string,
-  scope?: string,
-): boolean {
+export function hasMnemonicEntry(mnemonicId: string, scope?: string): boolean {
   const vault = readVault(scope);
   if (!vault) return false;
   return vault.mnemonics.some((m) => m.id === mnemonicId);
