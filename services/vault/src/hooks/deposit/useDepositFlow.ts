@@ -23,7 +23,7 @@ import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
-import { deriveLamportPkHash } from "@/services/lamport";
+import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
   signPayout,
@@ -61,6 +61,7 @@ export interface UseDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   getMnemonic?: () => Promise<string>;
+  mnemonicId?: string;
 }
 
 export interface ArtifactDownloadInfo {
@@ -95,6 +96,7 @@ export function useDepositFlow(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     getMnemonic,
+    mnemonicId,
   } = params;
 
   // State
@@ -249,6 +251,14 @@ export function useDepositFlow(
           selectedUTXOs: prepared.selectedUTXOs,
         });
 
+        if (mnemonicId && depositorEthAddress) {
+          linkPeginToMnemonic(
+            registration.btcTxid,
+            mnemonicId,
+            depositorEthAddress,
+          );
+        }
+
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
           throw new Error("Vault provider has no RPC URL");
@@ -395,6 +405,7 @@ export function useDepositFlow(
       minDeposit,
       maxDeposit,
       getMnemonic,
+      mnemonicId,
     ]);
 
   return {

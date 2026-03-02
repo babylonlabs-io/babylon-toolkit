@@ -19,12 +19,13 @@
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  addMnemonic,
   createVerificationChallenge,
   generateLamportMnemonic,
+  getActiveMnemonicId,
   getMnemonicWords,
   hasStoredMnemonic,
   isValidMnemonic,
-  storeMnemonic,
   unlockMnemonic,
   verifyMnemonicWords,
   type VerificationChallenge,
@@ -44,6 +45,7 @@ export enum MnemonicStep {
 interface MnemonicFlowState {
   step: MnemonicStep;
   mnemonic: string;
+  mnemonicId: string | null;
   challenge: VerificationChallenge | null;
   error: string | null;
   hasStored: boolean;
@@ -54,6 +56,8 @@ interface UseMnemonicFlowOptions {
   hasExistingVaults: boolean;
   /** User identifier (e.g. ETH address) used to scope the localStorage key. */
   scope?: string;
+  /** When set, unlock this specific mnemonic instead of the active one. */
+  targetMnemonicId?: string;
 }
 
 /**
@@ -66,10 +70,12 @@ interface UseMnemonicFlowOptions {
 export function useMnemonicFlow({
   hasExistingVaults,
   scope,
+  targetMnemonicId,
 }: UseMnemonicFlowOptions) {
   const [state, setState] = useState<MnemonicFlowState>({
     step: MnemonicStep.LOADING,
     mnemonic: "",
+    mnemonicId: null,
     challenge: null,
     error: null,
     hasStored: false,
@@ -165,10 +171,11 @@ export function useMnemonicFlow({
   const submitPassword = useCallback(
     async (password: string) => {
       try {
-        await storeMnemonic(state.mnemonic, password, scope);
+        const id = await addMnemonic(state.mnemonic, password, scope);
         setState((prev) => ({
           ...prev,
           step: MnemonicStep.COMPLETE,
+          mnemonicId: id,
           hasStored: true,
           error: null,
         }));
@@ -186,11 +193,17 @@ export function useMnemonicFlow({
   const submitUnlock = useCallback(
     async (password: string) => {
       try {
-        const mnemonic = await unlockMnemonic(password, scope);
+        const mnemonic = await unlockMnemonic(
+          password,
+          scope,
+          targetMnemonicId,
+        );
+        const resolvedId = targetMnemonicId ?? getActiveMnemonicId(scope);
         setState((prev) => ({
           ...prev,
           step: MnemonicStep.COMPLETE,
           mnemonic,
+          mnemonicId: resolvedId,
           error: null,
         }));
       } catch {
@@ -200,7 +213,7 @@ export function useMnemonicFlow({
         }));
       }
     },
-    [scope],
+    [scope, targetMnemonicId],
   );
 
   /** Validate a user-provided mnemonic phrase and advance to SET_PASSWORD. */
@@ -229,6 +242,7 @@ export function useMnemonicFlow({
     setState({
       step: MnemonicStep.GENERATE,
       mnemonic: "",
+      mnemonicId: null,
       challenge: null,
       error: null,
       hasStored: false,

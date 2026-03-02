@@ -18,6 +18,7 @@ import { useETHWallet } from "@/context/wallet";
 import { submitLamportPublicKey } from "@/hooks/deposit/depositFlowSteps/lamportSubmission";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useRunOnce } from "@/hooks/useRunOnce";
+import { getMnemonicIdForPegin } from "@/services/lamport";
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -157,10 +158,13 @@ export function ResumeLamportContent({
   const [error, setError] = useState<string | null>(null);
   const [showMnemonic, setShowMnemonic] = useState(true);
 
-  const handleMnemonicComplete = useCallback(
-    async (mnemonic?: string) => {
-      if (!mnemonic) return;
+  const mappedMnemonicId =
+    activity.txHash && ethAddress
+      ? getMnemonicIdForPegin(stripHexPrefix(activity.txHash), ethAddress)
+      : null;
 
+  const submitWithMnemonic = useCallback(
+    async (mnemonic: string) => {
       setShowMnemonic(false);
       setSubmitting(true);
       setError(null);
@@ -209,6 +213,14 @@ export function ResumeLamportContent({
     [activity, vaultProviders, onSuccess],
   );
 
+  const handleMnemonicComplete = useCallback(
+    async (mnemonic?: string) => {
+      if (!mnemonic) return;
+      await submitWithMnemonic(mnemonic);
+    },
+    [submitWithMnemonic],
+  );
+
   const handleRetry = useCallback(() => {
     setError(null);
     setShowMnemonic(true);
@@ -222,6 +234,7 @@ export function ResumeLamportContent({
         onComplete={handleMnemonicComplete}
         hasExistingVaults
         scope={ethAddress}
+        mnemonicId={mappedMnemonicId ?? undefined}
       />
     );
   }

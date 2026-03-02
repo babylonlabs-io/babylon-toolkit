@@ -16,8 +16,13 @@ export type {
   VerificationChallenge,
 } from "./lamportService";
 export {
+  addMnemonic,
   clearStoredMnemonic,
+  getActiveMnemonicId,
+  getMnemonicIdForPegin,
   hasStoredMnemonic,
+  linkPeginToMnemonic,
   storeMnemonic,
   unlockMnemonic,
+  unlockMnemonicForPegin,
 } from "./mnemonicVaultService";

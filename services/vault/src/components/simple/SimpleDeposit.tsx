@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
@@ -109,7 +109,6 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
-    confirmMnemonic,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -117,6 +116,16 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setFeeRate,
     setTransactionHashes,
   } = useDepositPageFlow();
+
+  const [mnemonicId, setMnemonicId] = useState<string>();
+
+  const handleMnemonicComplete = useCallback(
+    (_mnemonic?: string, id?: string) => {
+      setMnemonicId(id);
+      goToStep(DepositStep.SIGN);
+    },
+    [goToStep],
+  );
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
@@ -195,7 +204,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           <MnemonicModal
             open
             onClose={onClose}
-            onComplete={confirmMnemonic}
+            onComplete={handleMnemonicComplete}
             hasExistingVaults={hasExistingVaults}
             scope={ethAddress}
           />
@@ -213,6 +222,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+              mnemonicId={mnemonicId}
               onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}

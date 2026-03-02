@@ -21,10 +21,12 @@ import { WordGrid } from "./WordGrid";
 interface MnemonicModalProps {
   open: boolean;
   onClose: () => void;
-  onComplete: (mnemonic?: string) => void;
+  onComplete: (mnemonic?: string, mnemonicId?: string) => void;
   hasExistingVaults: boolean;
   /** User identifier (e.g. ETH address) used to scope the localStorage key. */
   scope?: string;
+  /** When set, unlock this specific mnemonic instead of the active one. */
+  mnemonicId?: string;
 }
 
 export function MnemonicModal({
@@ -33,10 +35,12 @@ export function MnemonicModal({
   onComplete,
   hasExistingVaults,
   scope,
+  mnemonicId: targetMnemonicId,
 }: MnemonicModalProps) {
   const {
     step,
     mnemonic,
+    mnemonicId,
     words,
     challenge,
     error,
@@ -49,7 +53,7 @@ export function MnemonicModal({
     submitUnlock,
     submitImportedMnemonic,
     reset,
-  } = useMnemonicFlow({ hasExistingVaults, scope });
+  } = useMnemonicFlow({ hasExistingVaults, scope, targetMnemonicId });
 
   useEffect(() => {
     if (!open || step !== MnemonicStep.GENERATE || words.length > 0) return;
@@ -58,10 +62,11 @@ export function MnemonicModal({
 
   useEffect(() => {
     if (step !== MnemonicStep.COMPLETE) return;
-    const captured = mnemonic || undefined;
+    const capturedMnemonic = mnemonic || undefined;
+    const capturedId = mnemonicId || undefined;
     reset();
-    onComplete(captured);
-  }, [step, mnemonic, onComplete, reset]);
+    onComplete(capturedMnemonic, capturedId);
+  }, [step, mnemonic, mnemonicId, onComplete, reset]);
 
   const handleClose = () => {
     reset();
