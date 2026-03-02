@@ -27,6 +27,12 @@ interface MnemonicModalProps {
   scope?: string;
   /** When set, unlock this specific mnemonic instead of the active one. */
   mnemonicId?: string;
+  /**
+   * When true, start in the IMPORT step regardless of whether stored
+   * mnemonics exist. Used by the resume flow when the stored mnemonic
+   * doesn't match the peg-in being resumed.
+   */
+  importMode?: boolean;
 }
 
 export function MnemonicModal({
@@ -36,6 +42,7 @@ export function MnemonicModal({
   hasExistingVaults,
   scope,
   mnemonicId: targetMnemonicId,
+  importMode,
 }: MnemonicModalProps) {
   const {
     step,
@@ -53,7 +60,12 @@ export function MnemonicModal({
     submitUnlock,
     submitImportedMnemonic,
     reset,
-  } = useMnemonicFlow({ hasExistingVaults, scope, targetMnemonicId });
+  } = useMnemonicFlow({
+    hasExistingVaults,
+    scope,
+    targetMnemonicId,
+    importMode,
+  });
 
   useEffect(() => {
     if (!open || step !== MnemonicStep.GENERATE || words.length > 0) return;

@@ -20,6 +20,7 @@ export {
   clearStoredMnemonic,
   getActiveMnemonicId,
   getMnemonicIdForPegin,
+  hasMnemonicEntry,
   hasStoredMnemonic,
   linkPeginToMnemonic,
   unlockMnemonic,

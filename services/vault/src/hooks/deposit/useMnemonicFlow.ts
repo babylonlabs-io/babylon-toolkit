@@ -58,6 +58,12 @@ interface UseMnemonicFlowOptions {
   scope?: string;
   /** When set, unlock this specific mnemonic instead of the active one. */
   targetMnemonicId?: string;
+  /**
+   * When true, start in the IMPORT step regardless of whether stored
+   * mnemonics exist. Used by the resume flow when the stored mnemonic
+   * doesn't match the peg-in being resumed.
+   */
+  importMode?: boolean;
 }
 
 /**
@@ -71,6 +77,7 @@ export function useMnemonicFlow({
   hasExistingVaults,
   scope,
   targetMnemonicId,
+  importMode,
 }: UseMnemonicFlowOptions) {
   const [state, setState] = useState<MnemonicFlowState>({
     step: MnemonicStep.LOADING,
@@ -94,7 +101,9 @@ export function useMnemonicFlow({
     hasStoredMnemonic(scope).then((stored) => {
       if (!isMounted) return;
       let initialStep: MnemonicStep;
-      if (stored) {
+      if (importMode) {
+        initialStep = MnemonicStep.IMPORT;
+      } else if (stored) {
         initialStep = MnemonicStep.UNLOCK;
       } else if (hasExistingVaults) {
         initialStep = MnemonicStep.IMPORT;
@@ -110,7 +119,7 @@ export function useMnemonicFlow({
     return () => {
       isMounted = false;
     };
-  }, [hasExistingVaults, scope]);
+  }, [hasExistingVaults, scope, importMode]);
 
   /** Generate a fresh 12-word mnemonic and move to the GENERATE step. */
   const startNewMnemonic = useCallback(() => {

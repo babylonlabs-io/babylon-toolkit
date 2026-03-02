@@ -362,6 +362,24 @@ export function getMnemonicIdForPegin(
 }
 
 /**
+ * Check whether a specific mnemonic UUID exists in the vault
+ * (without decrypting). Used by the resume flow to verify the
+ * mapped mnemonic is still present before prompting for a password.
+ *
+ * @param mnemonicId - The UUID to look for.
+ * @param scope      - Optional user identifier to isolate storage.
+ * @returns `true` if an entry with that UUID exists.
+ */
+export function hasMnemonicEntry(
+  mnemonicId: string,
+  scope?: string,
+): boolean {
+  const vault = readVault(scope);
+  if (!vault) return false;
+  return vault.mnemonics.some((m) => m.id === mnemonicId);
+}
+
+/**
  * Return the active mnemonic UUID for the given scope.
  *
  * The active mnemonic is the one most recently added or matched by

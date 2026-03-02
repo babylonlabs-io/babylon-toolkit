@@ -5,6 +5,7 @@ import {
   clearStoredMnemonic,
   getActiveMnemonicId,
   getMnemonicIdForPegin,
+  hasMnemonicEntry,
   hasStoredMnemonic,
   linkPeginToMnemonic,
   unlockMnemonic,
@@ -266,6 +267,28 @@ describe("mnemonicVaultService", () => {
       const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       const id2 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       expect(id1).toBe(id2);
+    });
+  });
+
+  describe("hasMnemonicEntry", () => {
+    it("returns true when the mnemonic exists", async () => {
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      expect(hasMnemonicEntry(id)).toBe(true);
+    });
+
+    it("returns false for a non-existent id", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      expect(hasMnemonicEntry("non-existent-id")).toBe(false);
+    });
+
+    it("returns false when no vault exists", () => {
+      expect(hasMnemonicEntry("any-id")).toBe(false);
+    });
+
+    it("respects scope", async () => {
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      expect(hasMnemonicEntry(id, TEST_SCOPE)).toBe(true);
+      expect(hasMnemonicEntry(id)).toBe(false);
     });
   });
 
