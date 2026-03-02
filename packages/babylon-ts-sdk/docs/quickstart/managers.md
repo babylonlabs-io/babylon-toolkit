@@ -1,6 +1,6 @@
 # Managers
 
-High-level orchestration for multi-step vault operations.
+High-level orchestration for multi-step BTC vault operations.
 
 > For complete function signatures, see [API Reference](../api/managers.md).
 
@@ -14,6 +14,8 @@ Managers orchestrate complex flows that involve multiple steps across Bitcoin an
 
 ## When to Use Managers vs Primitives
 
+> **Primitives** are low-level pure functions for building Bitcoin PSBTs with no wallet dependencies. See [Primitives Quickstart](./primitives.md) for details.
+
 | Use Case                              | Use          |
 | ------------------------------------- | ------------ |
 | Browser app with standard wallet      | **Managers** |
@@ -25,16 +27,22 @@ Managers orchestrate complex flows that involve multiple steps across Bitcoin an
 
 ## PeginManager
 
-Orchestrates BTC vault creation (peg-in flow).
+Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)).
 
 ### What It Does
 
-1. Builds funded Bitcoin transaction with vault output
-2. Registers vault on Ethereum (with proof-of-possession)
-3. Signs payout authorization (pre-authorizes future fund distribution)
-4. Signs and broadcasts to Bitcoin network
+1. **Prepare** — Builds a funded Bitcoin transaction with BTC vault output, selects UTXOs, and calculates fees
+2. **Register** — Submits BTC vault to Ethereum (with proof-of-possession). Pays a peg-in fee in ETH (queried from the contract per vault provider)
+3. **Sign payout authorization** — After the vault provider prepares claim/payout transactions, signs 2 payout transactions per claimer (PayoutOptimistic + Payout). The depositor only signs input 0 (the vault UTXO)
+4. **Broadcast** — Signs and broadcasts the funded Bitcoin transaction to the network
+
+> **Wallet requirements:** BTC wallet needs sufficient UTXOs to cover the vault amount + transaction fees. ETH wallet needs gas + the peg-in fee.
+>
+> **Wait times:** Between steps 2 and 3, the vault provider prepares payout transactions. Between steps 3 and 4, the contract must reach VERIFIED status.
 
 ### Configuration
+
+The `btcVaultsManager` is the Ethereum smart contract that handles BTC vault registration, status tracking, and fees. The contract address is deployment-specific — obtain it from your deployment configuration or the [Babylon vault indexer API](https://github.com/babylonlabs-io/btc-vault).
 
 ```typescript
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -45,11 +53,13 @@ const peginManager = new PeginManager({
   ethWallet, // viem WalletClient
   ethChain: sepolia, // viem Chain
   vaultContracts: {
-    btcVaultsManager: "0x...", // Contract address
+    btcVaultsManager: "0x...", // BTCVaultsManager contract address
   },
   mempoolApiUrl: "https://mempool.space/signet/api",
 });
 ```
+
+> **Application selection:** The vault provider you choose determines which application your BTC vault is registered with (e.g., Aave). Each vault provider is bound to a specific application controller on-chain. This cannot be changed after registration.
 
 ### 4-Step Flow
 
@@ -81,8 +91,11 @@ const { ethTxHash, vaultId } = await peginManager.registerPeginOnChain({
 console.log("Registered:", ethTxHash);
 // Contract status: PENDING (0)
 
-// Step 3: Sign payout authorization
-// Wait for vault provider to prepare claim/payout transactions
+// ⏳ WAIT: The vault provider now generates transaction graphs (BaBe setup).
+// This is NOT handled by the SDK — you must poll the vault provider's RPC:
+//   POST vaultProvider_requestDepositorPresignTransactions({ btc_tx_id: vaultId })
+
+// Step 3: Sign payout authorization (after vault provider returns transactions)
 const payoutManager = new PayoutManager({ network: "signet", btcWallet });
 
 // For each claimer, sign BOTH PayoutOptimistic and Payout transactions
@@ -124,13 +137,13 @@ console.log("Broadcasted:", btcTxid);
 
 ## PayoutManager
 
-Signs payout authorizations for vault providers.
+Co-signs the Payout transactions used by all potential claimers. For more details, see the [transaction graph documentation](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
 
 ### What It Does
 
-**Used during peg-in Step 3** - After registering a vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize future fund distribution before broadcasting to Bitcoin (Step 4).
+**Used during [peg-in Step 3](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md)** - After registering a BTC vault (Step 2), the vault provider prepares claim/payout transactions. You must sign these to pre-authorize the withdrawal of funds by each potential claimer if they have a valid ZK proof before broadcasting to Bitcoin (Step 4).
 
-**Important:** This is NOT the same as redemption/withdrawal. During peg-in, you pre-sign transactions that enable the vault provider to distribute your funds in the future when you request redemption.
+**Important:** During peg-in setup, you pre-sign Bitcoin transactions that claimers will need later to move funds out of the vault. You are providing cryptographic authorization upfront as part of the [vault's security model](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
 
 ### Configuration
 
@@ -144,6 +157,8 @@ const payoutManager = new PayoutManager({
 ```
 
 ### Methods
+
+> **Deprecation notice:** `signPayoutOptimisticTransaction` is planned for removal in a future release.
 
 ```typescript
 // Sign PayoutOptimistic (normal path - no challenge)
@@ -210,5 +225,5 @@ const ethWallet = createWalletClient({
 ## Next Steps
 
 - **[Primitives](./primitives.md)** - Low-level functions for custom implementations
-- **[Aave Integration](../integrations/aave/README.md)** - Use vaults as collateral
+- **[Aave Integration](../integrations/aave/README.md)** - Use BTC vaults as collateral
 - **[API Reference](../api/managers.md)** - Complete function signatures

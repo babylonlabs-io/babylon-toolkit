@@ -10,12 +10,11 @@ Operation sequences and examples for each Aave function.
 ```typescript
 import {
   // Transaction builders
-  buildAddCollateralTx,
   buildBorrowTx,
   buildRepayTx,
   buildWithdrawAllCollateralTx,
-  buildDepositorRedeemTx,
   // Query functions
+  getPosition,
   getUserAccountData,
   getUserTotalDebt,
   hasDebt,
@@ -44,46 +43,24 @@ const USDC_RESERVE_ID = 2n;
 
 ---
 
-## Operation 1: Add Collateral
+## Operation 1: Borrow
 
-> Vaults are automatically added to your position when created (`Active` state). This operation allows adding additional vaults to an existing position.
-
-**Sequence:** Select vaults → Build transaction → Execute
+**Sequence:** Get position → Check health → Build transaction → Execute
 
 ```typescript
-// Your available vaults (from your data source)
-const availableVaults = [
-  { id: "0xabc...", amount: 0.5 },
-  { id: "0xdef...", amount: 0.3 },
-];
+// 1. Get the user's proxy address from their position
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
 
-// 1. Select vaults for target amount
-const { vaultIds, actualAmount } = selectVaultsForAmount(availableVaults, 0.5);
-// Note: May select more than target (whole vaults only)
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
 
-// 2. Build transaction
-const tx = buildAddCollateralTx(CONTROLLER, vaultIds, VBTC_RESERVE_ID);
-
-// 3. Execute
-const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
-await publicClient.waitForTransactionReceipt({ hash });
-```
-
-**What happens on-chain:**
-
-- First time: Aave deploys your proxy contract
-- Vaults transfer to controller
-- Collateral added to your Aave position
-
----
-
-## Operation 2: Borrow
-
-**Sequence:** Check health → Build transaction → Execute
-
-```typescript
-// 1. Check current health (need proxy address from your position data)
-const proxyAddress: Address = "0x..."; // From your position data
+// 2. Check current health
 const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 
 const healthFactor = Number(accountData.healthFactor) / 1e18;
@@ -96,26 +73,13 @@ if (status !== "safe" && status !== "no_debt") {
   throw new Error(`Unsafe to borrow: ${status}`);
 }
 
-// 2. Build transaction
-const positionId: Hex = "0x..."; // From your position data
+// 3. Build transaction
 const amount = parseUnits("100", 6); // 100 USDC
 
-const account = walletClient.account;
-if (!account) {
-  throw new Error("Wallet client has no connected account configured.");
-}
-const receiver: Address =
-  typeof account === "string" ? account : account.address;
+// USDC_RESERVE_ID can be any debt reserve
+const tx = buildBorrowTx(CONTROLLER, USDC_RESERVE_ID, amount, userAddress);
 
-const tx = buildBorrowTx(
-  CONTROLLER,
-  positionId,
-  USDC_RESERVE_ID,
-  amount,
-  receiver,
-);
-
-// 3. Execute
+// 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
@@ -123,22 +87,33 @@ await publicClient.waitForTransactionReceipt({ hash });
 **What happens on-chain:**
 
 - Borrowed amount transferred to receiver address
-- Debt recorded in your Aave position
+- Debt recorded in the borrower's Aave position
 - Health factor recalculated
 
 **Important:** Always check health factor before borrowing.
 
 ---
 
-## Operation 3: Repay
+## Operation 2: Repay
 
-**Sequence:** Get debt → Approve token → Build transaction → Execute
+**Sequence:** Get position → Get debt → Approve token → Build transaction → Execute
 
 > **Gotcha:** Requires ERC20 approval before repaying!
 
 ```typescript
-// 1. Get exact current debt
-const proxyAddress: Address = "0x...";
+// 1. Get the user's proxy address from their position
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
+
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
+
+// 2. Get exact current debt (queried live from contract)
 const totalDebt = await getUserTotalDebt(
   publicClient,
   SPOKE,
@@ -146,10 +121,11 @@ const totalDebt = await getUserTotalDebt(
   proxyAddress,
 );
 
-// For full repayment, add buffer for accruing interest
+// For full repayment, add buffer to cover interest that accrues
+// between this query and transaction execution.
 const repayAmount = totalDebt + totalDebt / FULL_REPAY_BUFFER_DIVISOR;
 
-// 2. Approve token spending (required!)
+// 3. Approve token spending (required!)
 const USDC_ADDRESS: Address = "0x..."; // USDC token contract
 const approveHash = await walletClient.writeContract({
   address: USDC_ADDRESS,
@@ -169,34 +145,45 @@ const approveHash = await walletClient.writeContract({
 });
 await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
-// 3. Build transaction
-const positionId: Hex = "0x...";
-const tx = buildRepayTx(CONTROLLER, positionId, USDC_RESERVE_ID, repayAmount);
+// 4. Build transaction
+const borrower: Address = "0x..."; // Borrower's address
+const tx = buildRepayTx(CONTROLLER, borrower, USDC_RESERVE_ID, repayAmount);
 
-// 4. Execute
+// 5. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
 
 **What happens on-chain:**
 
-- Repayment tokens transferred from your wallet to controller
-- Debt reduced in your Aave position
+- Repayment tokens transferred from the borrower's wallet to controller
+- Debt zeroed out in the borrower's Aave position
 - Health factor improves
 
 **Partial repayment:** Pass specific amount instead of `totalDebt`.
 
 ---
 
-## Operation 4: Withdraw Collateral
+## Operation 3: Withdraw Collateral
 
-**Sequence:** Verify zero debt → Build transaction → Execute
+**Sequence:** Get position → Verify zero debt → Build transaction → Execute
 
 > **Gotcha:** Must repay ALL debt before withdrawing!
 
 ```typescript
-// 1. Verify zero debt
-const proxyAddress: Address = "0x...";
+// 1. Get the user's proxy address from their position
+const account = walletClient.account;
+if (!account) {
+  throw new Error("Wallet client has no connected account configured.");
+}
+const userAddress: Address =
+  typeof account === "string" ? account : account.address;
+
+const position = await getPosition(publicClient, CONTROLLER, userAddress);
+if (!position) throw new Error("No position found");
+const proxyAddress = position.proxyContract;
+
+// 2. Verify zero debt
 const userHasDebt = await hasDebt(
   publicClient,
   SPOKE,
@@ -208,43 +195,18 @@ if (userHasDebt) {
   throw new Error("Repay all debt before withdrawing");
 }
 
-// 2. Build transaction (withdraws ALL collateral)
-const tx = buildWithdrawAllCollateralTx(CONTROLLER, VBTC_RESERVE_ID);
+// 3. Build transaction (withdraws ALL collateral)
+const tx = buildWithdrawAllCollateralTx(CONTROLLER);
 
-// 3. Execute
+// 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
 await publicClient.waitForTransactionReceipt({ hash });
 ```
 
 **What happens on-chain:**
 
-- Collateral removed from your Aave position
+- Collateral removed from the user's Aave position
 - Vaults are automatically redeemed (triggers BTC payout)
-
----
-
-## Operation 5: Redeem Vault
-
-**Purpose:** Redeem vault back to vault provider (triggers BTC payout).
-
-```typescript
-const vaultId: Hex = "0x..."; // Vault to redeem
-
-// Build and execute
-const tx = buildDepositorRedeemTx(CONTROLLER, vaultId);
-const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });
-await publicClient.waitForTransactionReceipt({ hash });
-```
-
-**What happens on-chain:**
-
-- Vault redeemed to provider
-- BTC payout initiated
-
-**Requirements:**
-
-- Caller must be original depositor
-- Vault must be withdrawn from the position first (see Operation 4)
 
 ---
 
@@ -291,13 +253,12 @@ const withBuffer = debt + debt / FULL_REPAY_BUFFER_DIVISOR; // Covers interest a
 
 ## Error Reference
 
-| Error                     | Cause                         | Solution               |
-| ------------------------- | ----------------------------- | ---------------------- |
-| "Vault already in use"    | Vault is collateral elsewhere | Use different vault    |
-| "Insufficient collateral" | Not enough for borrow amount  | Add more collateral    |
-| "Health factor too low"   | Would become liquidatable     | Reduce borrow amount   |
-| "Must have zero debt"     | Debt exists when withdrawing  | Repay all debt first   |
-| "Approval required"       | Token not approved            | Call ERC20 `approve()` |
+| Error                   | Cause                         | Solution               |
+| ----------------------- | ----------------------------- | ---------------------- |
+| "Vault already in use"  | Vault is collateral elsewhere | Use different vault    |
+| "Health factor too low" | Would become liquidatable     | Reduce borrow amount   |
+| "Must have zero debt"   | Debt exists when withdrawing  | Repay all debt first   |
+| "Approval required"     | Token not approved            | Call ERC20 `approve()` |
 
 ---
 
