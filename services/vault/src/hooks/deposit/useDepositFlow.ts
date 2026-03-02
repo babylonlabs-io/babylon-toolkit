@@ -253,7 +253,7 @@ export function useDepositFlow(
 
         if (mnemonicId && depositorEthAddress) {
           linkPeginToMnemonic(
-            registration.btcTxid,
+            stripHexPrefix(registration.btcTxid),
             mnemonicId,
             depositorEthAddress,
           );

@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const MOCK_MNEMONIC =
   "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12";
@@ -34,6 +34,10 @@ import {
 import { MnemonicStep, useMnemonicFlow } from "../useMnemonicFlow";
 
 describe("useMnemonicFlow", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("initial state", () => {
     it("starts in LOADING then transitions to GENERATE when no stored mnemonic", async () => {
       const { result } = renderHook(() =>
@@ -59,6 +63,26 @@ describe("useMnemonicFlow", () => {
 
       expect(result.current.step).toBe(MnemonicStep.UNLOCK);
       expect(result.current.hasStored).toBe(true);
+    });
+  });
+
+  describe("initial step routing", () => {
+    it("starts at IMPORT when importMode is true even if stored mnemonics exist", async () => {
+      vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false, importMode: true }),
+      );
+      await act(async () => {});
+      expect(result.current.step).toBe(MnemonicStep.IMPORT);
+    });
+
+    it("starts at IMPORT when hasExistingVaults is true and no stored mnemonic", async () => {
+      vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(false);
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: true }),
+      );
+      await act(async () => {});
+      expect(result.current.step).toBe(MnemonicStep.IMPORT);
     });
   });
 
@@ -199,6 +223,30 @@ describe("useMnemonicFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("forwards scope to addMnemonic", async () => {
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false, scope: "0xTestScope" }),
+      );
+      await act(async () => {});
+
+      // Generate and verify mnemonic
+      act(() => result.current.startNewMnemonic());
+      act(() => result.current.proceedToVerification());
+      await act(async () => {
+        await result.current.submitVerification(MOCK_CHALLENGE.expectedWords);
+      });
+
+      await act(async () => {
+        await result.current.submitPassword("mypassword");
+      });
+
+      expect(addMnemonic).toHaveBeenCalledWith(
+        MOCK_MNEMONIC,
+        "mypassword",
+        "0xTestScope",
+      );
+    });
+
     it("sets an error when storage fails", async () => {
       vi.mocked(addMnemonic).mockRejectedValueOnce(new Error("fail"));
 
@@ -252,6 +300,25 @@ describe("useMnemonicFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("forwards scope to unlockMnemonic", async () => {
+      vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
+
+      const { result } = renderHook(() =>
+        useMnemonicFlow({ hasExistingVaults: false, scope: "0xTestScope" }),
+      );
+      await act(async () => {});
+
+      await act(async () => {
+        await result.current.submitUnlock("mypassword");
+      });
+
+      expect(unlockMnemonic).toHaveBeenCalledWith(
+        "mypassword",
+        "0xTestScope",
+        undefined,
+      );
+    });
+
     it("passes targetMnemonicId to unlockMnemonic when provided", async () => {
       vi.mocked(hasStoredMnemonic).mockResolvedValueOnce(true);
       const targetId = "specific-mnemonic-id";
@@ -273,6 +340,7 @@ describe("useMnemonicFlow", () => {
         undefined,
         targetId,
       );
+      expect(result.current.mnemonicId).toBe(targetId);
     });
 
     it("sets an error on wrong password", async () => {

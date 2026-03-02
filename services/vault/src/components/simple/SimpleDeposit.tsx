@@ -127,8 +127,13 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     [goToStep],
   );
 
+  const handleReset = useCallback(() => {
+    setMnemonicId(undefined);
+    resetDeposit();
+  }, [resetDeposit]);
+
   // Freeze the rendered step during the close animation and reset on reopen
-  const renderedStep = useDialogStep(open, depositStep, resetDeposit);
+  const renderedStep = useDialogStep(open, depositStep, handleReset);
 
   const handleMaxClick = () => {
     if (maxDepositSats !== null && maxDepositSats > 0n) {

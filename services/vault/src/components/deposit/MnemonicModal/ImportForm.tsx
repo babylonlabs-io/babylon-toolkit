@@ -48,9 +48,17 @@ export function ImportForm({
 
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === " " || e.key === "Tab") {
-        if (e.key === " ") e.preventDefault();
+      if (e.key === " ") {
+        e.preventDefault();
         if (index < WORD_COUNT - 1) {
+          inputRefs.current[index + 1]?.focus();
+        }
+      } else if (e.key === "Tab") {
+        if (e.shiftKey && index > 0) {
+          e.preventDefault();
+          inputRefs.current[index - 1]?.focus();
+        } else if (!e.shiftKey && index < WORD_COUNT - 1) {
+          e.preventDefault();
           inputRefs.current[index + 1]?.focus();
         }
       } else if (e.key === "Backspace" && words[index] === "" && index > 0) {

@@ -273,7 +273,10 @@ export async function addMnemonic(
         return entry.id;
       }
     } catch {
-      // Corrupted entry — skip
+      // Password already verified; failure here means the entry is corrupted or tampered
+      console.warn(
+        `[mnemonicVault] Skipping corrupted mnemonic entry: ${entry.id}`,
+      );
     }
   }
 
@@ -341,7 +344,13 @@ export function linkPeginToMnemonic(
   mnemonicId: string,
   scope?: string,
 ): void {
-  const vault = readVault(scope) ?? emptyVault();
+  const vault = readVault(scope);
+  if (!vault) {
+    console.warn(
+      "[mnemonicVault] linkPeginToMnemonic: no vault exists for scope, skipping",
+    );
+    return;
+  }
   vault.peginMap[peginId] = mnemonicId;
   writeVault(vault, scope);
 }
