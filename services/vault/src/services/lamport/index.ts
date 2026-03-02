@@ -22,7 +22,5 @@ export {
   getMnemonicIdForPegin,
   hasStoredMnemonic,
   linkPeginToMnemonic,
-  storeMnemonic,
   unlockMnemonic,
-  unlockMnemonicForPegin,
 } from "./mnemonicVaultService";

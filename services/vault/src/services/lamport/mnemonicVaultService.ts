@@ -290,23 +290,6 @@ export async function addMnemonic(
 }
 
 /**
- * @deprecated Use {@link addMnemonic} instead. Kept for backward
- * compatibility; delegates directly to `addMnemonic`.
- *
- * @param mnemonic - The plaintext BIP-39 mnemonic to store.
- * @param password - User-chosen password used as the encryption key.
- * @param scope    - Optional user identifier to isolate storage.
- * @returns The UUID of the mnemonic entry.
- */
-export async function storeMnemonic(
-  mnemonic: string,
-  password: string,
-  scope?: string,
-): Promise<string> {
-  return addMnemonic(mnemonic, password, scope);
-}
-
-/**
  * Decrypt and return a stored mnemonic.
  *
  * When `mnemonicId` is provided the specific entry is unlocked.
@@ -376,27 +359,6 @@ export function getMnemonicIdForPegin(
 ): string | null {
   const vault = readVault(scope);
   return vault?.peginMap[peginId] ?? null;
-}
-
-/**
- * Look up the mnemonic for a peg-in and decrypt it in one call.
- *
- * @param peginId  - The peg-in transaction hash.
- * @param password - The password used to encrypt the vault.
- * @param scope    - Optional user identifier to isolate storage.
- * @returns The plaintext mnemonic, or `null` if no mapping exists
- *          for the given peg-in.
- * @throws If the mapping exists but the password is incorrect or the
- *         entry is corrupted.
- */
-export async function unlockMnemonicForPegin(
-  peginId: string,
-  password: string,
-  scope?: string,
-): Promise<string | null> {
-  const mnemonicId = getMnemonicIdForPegin(peginId, scope);
-  if (!mnemonicId) return null;
-  return unlockMnemonic(password, scope, mnemonicId);
 }
 
 /**

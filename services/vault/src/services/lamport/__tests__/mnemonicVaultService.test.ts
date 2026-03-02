@@ -7,9 +7,7 @@ import {
   getMnemonicIdForPegin,
   hasStoredMnemonic,
   linkPeginToMnemonic,
-  storeMnemonic,
   unlockMnemonic,
-  unlockMnemonicForPegin,
 } from "../mnemonicVaultService";
 
 const TEST_MNEMONIC =
@@ -117,15 +115,6 @@ describe("mnemonicVaultService", () => {
     });
   });
 
-  describe("storeMnemonic (backward compat)", () => {
-    it("delegates to addMnemonic and returns an ID", async () => {
-      const id = await storeMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      expect(typeof id).toBe("string");
-      const mnemonic = await unlockMnemonic(TEST_PASSWORD);
-      expect(mnemonic).toBe(TEST_MNEMONIC);
-    });
-  });
-
   describe("unlockMnemonic", () => {
     it("decrypts and returns the mnemonic with the correct password", async () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
@@ -225,23 +214,6 @@ describe("mnemonicVaultService", () => {
 
       expect(getMnemonicIdForPegin("0xabc", TEST_SCOPE)).toBe(id);
       expect(getMnemonicIdForPegin("0xabc")).toBeNull();
-    });
-  });
-
-  describe("unlockMnemonicForPegin", () => {
-    it("unlocks the correct mnemonic for a mapped pegin", async () => {
-      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
-      linkPeginToMnemonic("0xabc", id);
-
-      const result = await unlockMnemonicForPegin("0xabc", TEST_PASSWORD);
-      expect(result).toBe(TEST_MNEMONIC);
-    });
-
-    it("returns null for an unmapped pegin", async () => {
-      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      const result = await unlockMnemonicForPegin("0xunknown", TEST_PASSWORD);
-      expect(result).toBeNull();
     });
   });
 

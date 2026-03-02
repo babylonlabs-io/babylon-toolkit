@@ -48,7 +48,6 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
-  confirmMnemonic: () => void;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -148,10 +147,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     goToStep(DepositStep.MNEMONIC);
   };
 
-  const confirmMnemonic = () => {
-    goToStep(DepositStep.SIGN);
-  };
-
   const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setTransactionHashes(btcTxid, ethTxHash);
     goToStep(DepositStep.SUCCESS);
@@ -171,7 +166,6 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     hasExistingVaults,
     startDeposit,
     confirmReview,
-    confirmMnemonic,
     onSignSuccess,
     resetDeposit,
     refetchActivities,
