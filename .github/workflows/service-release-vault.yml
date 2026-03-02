@@ -46,6 +46,8 @@ jobs:
         include:
           - environment: vault-devnet
             aws_account: 537927626649
+          - environment: vault-staging-devnet
+            aws_account: 537927626649
           - environment: vault-testnet
             aws_account: 615368094160
 
