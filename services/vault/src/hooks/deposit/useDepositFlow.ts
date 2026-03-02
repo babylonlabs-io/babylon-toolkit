@@ -26,10 +26,8 @@ import { useVaults } from "@/hooks/useVaults";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
-  signPayout,
-  signPayoutOptimistic,
+  signPayoutTransactions,
   type PayoutSigningProgress,
-  type SigningStepType,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
@@ -221,16 +219,28 @@ export function useDepositFlow(
         });
 
         // Step 2a.5: Derive Lamport keypair and compute PK hash (before ETH tx)
-        let lamportPkHash: Hex | undefined;
-        if (getMnemonic) {
-          const mnemonic = await getMnemonic();
-          lamportPkHash = await deriveLamportPkHash(
-            mnemonic,
-            stripHexPrefix(prepared.btcTxid),
-            prepared.depositorBtcPubkey,
-            selectedApplication,
+        if (!getMnemonic) {
+          throw new Error(
+            "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
           );
         }
+        const mnemonic = await getMnemonic();
+
+        // DEBUG: Log derivation inputs for the initial deposit flow
+        console.log("[Lamport DEBUG] === deriveLamportPkHash (initial deposit) ===");
+        console.log("[Lamport DEBUG] Inputs:", {
+          peginTxid: stripHexPrefix(prepared.btcTxid),
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
+          appContractAddress: selectedApplication,
+        });
+
+        const lamportPkHash = await deriveLamportPkHash(
+          mnemonic,
+          stripHexPrefix(prepared.btcTxid),
+          prepared.depositorBtcPubkey,
+          selectedApplication,
+        );
+        console.log("[Lamport DEBUG] Committed lamportPkHash:", lamportPkHash);
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
@@ -269,28 +279,26 @@ export function useDepositFlow(
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
-        if (getMnemonic) {
-          setIsWaiting(true);
-          try {
-            await submitLamportPublicKey({
-              btcTxid: registration.btcTxid,
-              depositorBtcPubkey: prepared.depositorBtcPubkey,
-              appContractAddress: selectedApplication,
-              providerUrl: provider.url,
-              getMnemonic,
-              signal,
-            });
-          } catch (err) {
-            // Re-throw abort errors so they're suppressed by the outer catch
-            if (signal.aborted) throw err;
-            // ETH tx already succeeded — deposit is recoverable via resume flow
-            console.error(
-              "Lamport key submission failed (deposit is recoverable):",
-              err,
-            );
-          } finally {
-            setIsWaiting(false);
-          }
+        setIsWaiting(true);
+        try {
+          await submitLamportPublicKey({
+            btcTxid: registration.btcTxid,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
+            appContractAddress: selectedApplication,
+            providerUrl: provider.url,
+            getMnemonic,
+            signal,
+          });
+        } catch (err) {
+          // Re-throw abort errors so they're suppressed by the outer catch
+          if (signal.aborted) throw err;
+          // ETH tx already succeeded — deposit is recoverable via resume flow
+          console.error(
+            "Lamport key submission failed (deposit is recoverable):",
+            err,
+          );
+        } finally {
+          setIsWaiting(false);
         }
 
         // Step 3: Poll and sign payout transactions
@@ -299,20 +307,20 @@ export function useDepositFlow(
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({
-            btcTxid: registration.btcTxid,
-            btcTxHex: prepared.btcTxHex,
-            depositorBtcPubkey: prepared.depositorBtcPubkey,
-            providerUrl: provider.url,
-            providerBtcPubKey: provider.btcPubKey,
-            vaultKeepers: vaultKeepers.map((vk) => ({
-              btcPubKey: vk.btcPubKey,
-            })),
-            universalChallengers: latestUniversalChallengers.map((uc) => ({
-              btcPubKey: uc.btcPubKey,
-            })),
-            timelockPegin,
-            signal,
-          });
+          btcTxid: registration.btcTxid,
+          btcTxHex: prepared.btcTxHex,
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
+          providerUrl: provider.url,
+          providerBtcPubKey: provider.btcPubKey,
+          vaultKeepers: vaultKeepers.map((vk) => ({
+            btcPubKey: vk.btcPubKey,
+          })),
+          universalChallengers: latestUniversalChallengers.map((uc) => ({
+            btcPubKey: uc.btcPubKey,
+          })),
+          timelockPegin,
+          signal,
+        });
 
         setIsWaiting(false);
 
@@ -431,52 +439,15 @@ export function useDepositFlow(
  */
 async function signPayoutTransactionsWithProgress(
   btcWalletProvider: BitcoinWallet,
-  context: Parameters<typeof signPayoutOptimistic>[1],
-  preparedTransactions: Parameters<typeof signPayoutOptimistic>[2][],
+  context: Parameters<typeof signPayoutTransactions>[1],
+  preparedTransactions: Parameters<typeof signPayoutTransactions>[2],
   setProgress: (progress: PayoutSigningProgress | null) => void,
 ): Promise<Record<string, ClaimerSignatures>> {
-  const totalClaimers = preparedTransactions.length;
-  const totalSteps = totalClaimers * 2;
-  let completedSteps = 0;
-
-  const signatures: Record<string, ClaimerSignatures> = {};
-
-  const updateProgress = (
-    step: SigningStepType | null,
-    claimerIndex: number,
-  ) => {
-    setProgress({
-      completed: completedSteps,
-      total: totalSteps,
-      currentStep: step,
-      currentClaimer: claimerIndex,
-      totalClaimers,
-    });
-  };
-
-  for (let i = 0; i < preparedTransactions.length; i++) {
-    const tx = preparedTransactions[i];
-    const claimerIndex = i + 1;
-
-    updateProgress("payout_optimistic", claimerIndex);
-    const payoutOptimisticSig = await signPayoutOptimistic(
-      btcWalletProvider,
-      context,
-      tx,
-    );
-    completedSteps++;
-
-    updateProgress("payout", claimerIndex);
-    const payoutSig = await signPayout(btcWalletProvider, context, tx);
-    completedSteps++;
-
-    signatures[tx.claimerPubkeyXOnly] = {
-      payout_optimistic_signature: payoutOptimisticSig,
-      payout_signature: payoutSig,
-    };
-
-    updateProgress(null, claimerIndex);
-  }
-
-  return signatures;
+  return signPayoutTransactions(
+    btcWalletProvider,
+    context,
+    preparedTransactions,
+    setProgress,
+  );
 }
+

@@ -210,6 +210,9 @@ export function ResumeLamportContent({
           );
         }
 
+        // DEBUG: Log the on-chain hash for comparison with the computed hash
+        console.log("[Lamport DEBUG] On-chain depositorLamportPkHash:", activity.depositorLamportPkHash ?? "NOT AVAILABLE");
+
         await submitLamportPublicKey({
           btcTxid,
           depositorBtcPubkey: activity.depositorBtcPubkey,

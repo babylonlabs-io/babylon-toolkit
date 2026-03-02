@@ -1,6 +1,5 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
-import type { SigningStepType } from "../../../services/vault/vaultPayoutSignatureService";
 import { DepositStep } from "../DepositSignModal/depositStepHelpers";
 
 /** Progress display modes for the signing flow */
@@ -16,12 +15,6 @@ enum ProgressMode {
 export interface SigningProgressProps {
   /** Number of signing steps completed */
   completed: number;
-  /** Total number of signing steps */
-  total: number;
-  /** Current step being signed (null when not actively signing) */
-  currentStep: SigningStepType | null;
-  /** Current claimer index (1-based) */
-  currentClaimer: number;
   /** Total number of claimers */
   totalClaimers: number;
   /** Current deposit flow step. Optional for standalone use. */
@@ -29,11 +22,6 @@ export interface SigningProgressProps {
   /** Whether we're in a waiting/polling state. Optional for standalone use. */
   isWaiting?: boolean;
 }
-
-const STEP_LABELS: Record<SigningStepType, string> = {
-  payout_optimistic: "PayoutOptimistic",
-  payout: "Payout",
-};
 
 /**
  * Determine the progress mode based on step and waiting state
@@ -64,11 +52,10 @@ export function SigningProgress({
   step,
   isWaiting,
   completed,
-  total,
-  currentStep,
-  currentClaimer,
   totalClaimers,
 }: SigningProgressProps) {
+  const total = totalClaimers;
+  const currentClaimer = completed + 1;
   const mode = getProgressMode(step, isWaiting, total);
 
   if (!mode) return null;
@@ -109,14 +96,14 @@ export function SigningProgress({
 
   // mode === "signing_payouts"
   const percentage = (completed / total) * 100;
-  const stepLabel = currentStep ? STEP_LABELS[currentStep] : null;
+  const isSigning = completed < total;
 
   return (
     <div className="rounded-lg bg-primary-light/10 p-4">
       <Text variant="body2" className="text-accent-primary">
-        {currentStep ? (
+        {isSigning ? (
           <>
-            Signing <span className="font-medium">{stepLabel}</span>
+            Signing payout
             {totalClaimers > 1 &&
               ` (Claimer ${currentClaimer}/${totalClaimers})`}{" "}
             — Step {completed + 1} of {total}

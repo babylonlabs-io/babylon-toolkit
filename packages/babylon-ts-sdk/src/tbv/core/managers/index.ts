@@ -42,9 +42,7 @@
  *
  * ### {@link PayoutManager}
  * Signs payout authorization transactions (Step 3 of peg-in).
- * The depositor must sign **BOTH** payout transactions for each claimer:
- * - {@link PayoutManager.signPayoutOptimisticTransaction | signPayoutOptimisticTransaction()} - Sign optimistic path (uses Claim tx as reference)
- * - {@link PayoutManager.signPayoutTransaction | signPayoutTransaction()} - Sign challenge path (uses Assert tx as reference)
+ * - {@link PayoutManager.signPayoutTransaction | signPayoutTransaction()} - Sign payout (uses Assert tx as reference)
  *
  * ## Complete Peg-in Flow
  *
@@ -54,17 +52,15 @@
  * |------|---------|--------|
  * | 1 | PeginManager | `preparePegin()` |
  * | 2 | PeginManager | `registerPeginOnChain()` |
- * | 3 | PayoutManager | `signPayoutOptimisticTransaction()` + `signPayoutTransaction()` |
+ * | 3 | PayoutManager | `signPayoutTransaction()` |
  * | 4 | PeginManager | `signAndBroadcast()` |
  *
- * **Step 3 Details:** The vault provider provides 4 transactions per claimer:
+ * **Step 3 Details:** The vault provider provides 3 transactions per claimer:
  * - `claim_tx` - Claim transaction
- * - `payout_optimistic_tx` - PayoutOptimistic transaction
  * - `assert_tx` - Assert transaction
  * - `payout_tx` - Payout transaction
  *
- * You must sign both PayoutOptimistic (uses claim_tx as input reference) and
- * Payout (uses assert_tx as input reference) for each claimer.
+ * You must sign the Payout transaction (uses assert_tx as input reference) for each claimer.
  *
  * @see {@link https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/quickstart/managers.md | Managers Quickstart}
  *
@@ -85,7 +81,6 @@ export { PayoutManager } from "./PayoutManager";
 export type {
   PayoutManagerConfig,
   PayoutSignatureResult,
-  SignPayoutOptimisticParams,
   SignPayoutParams,
 } from "./PayoutManager";
 

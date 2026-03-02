@@ -88,7 +88,7 @@ export interface PeginRegisterParams {
   vaultProviderAddress: string;
   onPopSigned?: () => void;
   /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash?: Hex;
+  depositorLamportPkHash: Hex;
 }
 
 export interface PeginRegisterResult {

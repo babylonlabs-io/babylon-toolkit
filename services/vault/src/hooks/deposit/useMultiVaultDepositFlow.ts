@@ -32,7 +32,6 @@ import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
-import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
@@ -45,10 +44,7 @@ import {
   registerSplitPeginOnChain,
   type AllocationPlan,
 } from "@/services/vault";
-import {
-  signPayout,
-  signPayoutOptimistic,
-} from "@/services/vault/vaultPayoutSignatureService";
+import { signPayoutTransactions } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { stripHexPrefix } from "@/utils/btc";
 
@@ -423,16 +419,18 @@ export function useMultiVaultDepositFlow(
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
-              let splitLamportPkHash: Hex | undefined;
-              if (getMnemonic) {
-                const mnemonic = await getMnemonic();
-                splitLamportPkHash = await deriveLamportPkHash(
-                  mnemonic,
-                  stripHexPrefix(prepareResult.btcTxHash),
-                  prepareResult.depositorBtcPubkey,
-                  selectedApplication,
+              if (!getMnemonic) {
+                throw new Error(
+                  "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
                 );
               }
+              const splitMnemonic = await getMnemonic();
+              const splitLamportPkHash = await deriveLamportPkHash(
+                splitMnemonic,
+                stripHexPrefix(prepareResult.btcTxHash),
+                prepareResult.depositorBtcPubkey,
+                selectedApplication,
+              );
 
               const registrationResult = await registerSplitPeginOnChain(
                 btcWalletProvider,
@@ -480,16 +478,18 @@ export function useMultiVaultDepositFlow(
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
-              let lamportPkHash: Hex | undefined;
-              if (getMnemonic) {
-                const mnemonic = await getMnemonic();
-                lamportPkHash = await deriveLamportPkHash(
-                  mnemonic,
-                  stripHexPrefix(prepared.btcTxid),
-                  prepared.depositorBtcPubkey,
-                  selectedApplication,
+              if (!getMnemonic) {
+                throw new Error(
+                  "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
                 );
               }
+              const stdMnemonic = await getMnemonic();
+              const lamportPkHash = await deriveLamportPkHash(
+                stdMnemonic,
+                stripHexPrefix(prepared.btcTxid),
+                prepared.depositorBtcPubkey,
+                selectedApplication,
+              );
 
               const registration = await registerPeginAndWait({
                 btcWalletProvider,
@@ -587,7 +587,7 @@ export function useMultiVaultDepositFlow(
         }
 
         // ========================================================================
-        // Step 4.5: Submit Lamport Public Keys to Vault Provider (if enabled)
+        // Step 4.5: Submit Lamport Public Keys to Vault Provider
         // ========================================================================
 
         const provider = findProvider(primaryProvider as Hex);
@@ -595,30 +595,28 @@ export function useMultiVaultDepositFlow(
           throw new Error("Vault provider has no RPC URL");
         }
 
-        if (getMnemonic) {
-          for (const result of successfulPegins) {
-            try {
-              await submitLamportPublicKey({
-                btcTxid: result.vaultId,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                appContractAddress: selectedApplication,
-                providerUrl: provider.url,
-                getMnemonic,
-                signal,
-              });
-            } catch (error) {
-              const errorMsg =
-                error instanceof Error ? error.message : String(error);
-              const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
-              warnings.push(warning);
-              console.error(
-                "[Multi-Vault] Failed to submit Lamport key for vault",
-                result.vaultId,
-                ":",
-                error,
-              );
-              // Continue with other vaults
-            }
+        for (const result of successfulPegins) {
+          try {
+            await submitLamportPublicKey({
+              btcTxid: result.vaultId,
+              depositorBtcPubkey: result.depositorBtcPubkey,
+              appContractAddress: selectedApplication,
+              providerUrl: provider.url,
+              getMnemonic: getMnemonic!,
+              signal,
+            });
+          } catch (error) {
+            const errorMsg =
+              error instanceof Error ? error.message : String(error);
+            const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
+            warnings.push(warning);
+            console.error(
+              "[Multi-Vault] Failed to submit Lamport key for vault",
+              result.vaultId,
+              ":",
+              error,
+            );
+            // Continue with other vaults
           }
         }
 
@@ -633,43 +631,29 @@ export function useMultiVaultDepositFlow(
             setIsWaiting(true);
             const { context, vaultProviderUrl, preparedTransactions } =
               await pollAndPreparePayoutSigning({
-                btcTxid: result.vaultId, // Use vaultId for payout lookup
-                btcTxHex: result.btcTxHex,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                providerUrl: provider.url,
-                providerBtcPubKey: provider.btcPubKey,
-                vaultKeepers,
-                universalChallengers: universalChallengerBtcPubkeys.map(
-                  (btcPubKey) => ({
-                    btcPubKey,
-                  }),
-                ),
-                timelockPegin,
-                signal,
-              });
+              btcTxid: result.vaultId, // Use vaultId for payout lookup
+              btcTxHex: result.btcTxHex,
+              depositorBtcPubkey: result.depositorBtcPubkey,
+              providerUrl: provider.url,
+              providerBtcPubKey: provider.btcPubKey,
+              vaultKeepers,
+              universalChallengers: universalChallengerBtcPubkeys.map(
+                (btcPubKey) => ({
+                  btcPubKey,
+                }),
+              ),
+              timelockPegin,
+              signal,
+            });
 
             setIsWaiting(false);
 
-            // Sign payouts
-            const signatures: Record<string, ClaimerSignatures> = {};
-
-            for (const tx of preparedTransactions) {
-              const payoutOptimisticSig = await signPayoutOptimistic(
-                btcWalletProvider,
-                context,
-                tx,
-              );
-              const payoutSig = await signPayout(
-                btcWalletProvider,
-                context,
-                tx,
-              );
-
-              signatures[tx.claimerPubkeyXOnly] = {
-                payout_optimistic_signature: payoutOptimisticSig,
-                payout_signature: payoutSig,
-              };
-            }
+            // Sign payouts (batch when wallet supports it)
+            const signatures = await signPayoutTransactions(
+              btcWalletProvider,
+              context,
+              preparedTransactions,
+            );
 
             // Submit signatures
             await submitPayoutSignatures(

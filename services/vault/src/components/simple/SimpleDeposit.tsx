@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import type { Hex } from "viem";
 
 import { FeatureFlags } from "@/config";
@@ -109,6 +109,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    confirmMnemonic,
+    getMnemonic,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -117,23 +119,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const [mnemonicId, setMnemonicId] = useState<string | null>(null);
-
-  const handleMnemonicComplete = useCallback(
-    (_mnemonic?: string, id?: string) => {
-      setMnemonicId(id ?? null);
-      goToStep(DepositStep.SIGN);
-    },
-    [goToStep],
-  );
-
-  const handleReset = useCallback(() => {
-    setMnemonicId(null);
-    resetDeposit();
-  }, [resetDeposit]);
-
   // Freeze the rendered step during the close animation and reset on reopen
-  const renderedStep = useDialogStep(open, depositStep, handleReset);
+  const renderedStep = useDialogStep(open, depositStep, resetDeposit);
 
   const handleMaxClick = () => {
     if (maxDepositSats !== null && maxDepositSats > 0n) {
@@ -209,7 +196,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           <MnemonicModal
             open
             onClose={onClose}
-            onComplete={handleMnemonicComplete}
+            onComplete={confirmMnemonic}
             hasExistingVaults={hasExistingVaults}
             scope={ethAddress}
           />
@@ -227,7 +214,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              mnemonicId={mnemonicId ?? undefined}
+              getMnemonic={getMnemonic}
               onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}
@@ -257,12 +244,20 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
     if (resumeMode === "submit_lamport_key") {
       return (
         <ProtocolParamsProvider>
-          <ResumeLamportContent
-            activity={props.activity}
-            vaultProviders={props.vaultProviders}
+          <FullScreenDialog
+            open={open}
             onClose={onClose}
-            onSuccess={props.onResumeSuccess}
-          />
+            className="items-center justify-center p-6"
+          >
+            <div className="mx-auto w-full max-w-[520px]">
+              <ResumeLamportContent
+                activity={props.activity}
+                vaultProviders={props.vaultProviders}
+                onClose={onClose}
+                onSuccess={props.onResumeSuccess}
+              />
+            </div>
+          </FullScreenDialog>
         </ProtocolParamsProvider>
       );
     }

@@ -62,6 +62,10 @@ const TEST_KEYS = {
     "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
 } as const;
 
+// Mock depositor Lamport public key hash (bytes32)
+const MOCK_LAMPORT_PK_HASH =
+  `0x${"ab".repeat(32)}` as `0x${string}`;
+
 const TEST_AMOUNTS = {
   PEGIN: 90_000n,
   PEGIN_SMALL: 50_000n,
@@ -556,6 +560,7 @@ describe("PeginManager", () => {
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         unsignedBtcTx: mockUnsignedTx,
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
       // Verify BTC wallet signed the ETH address (PoP)
@@ -599,6 +604,7 @@ describe("PeginManager", () => {
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedBtcTx: "0100000000010000000000",
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
         }),
       ).rejects.toThrow(/Mock signing failed/);
     });
@@ -625,6 +631,7 @@ describe("PeginManager", () => {
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedBtcTx: "0100000000010000000000",
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
         }),
       ).rejects.toThrow(/Mock transaction failed/);
     });
@@ -650,6 +657,7 @@ describe("PeginManager", () => {
         depositorBtcPubkey: `0x${TEST_KEYS.DEPOSITOR}`,
         unsignedBtcTx: "0x0100000000010000000000",
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
       expect(sendTxSpy).toHaveBeenCalled();
@@ -660,6 +668,7 @@ describe("PeginManager", () => {
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         unsignedBtcTx: "0100000000010000000000",
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
       expect(sendTxSpy).toHaveBeenCalled();

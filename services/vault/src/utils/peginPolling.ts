@@ -90,8 +90,10 @@ export function areTransactionsReady(txs: ClaimerTransactions[]): boolean {
     (tx) =>
       tx.claim_tx?.tx_hex &&
       tx.payout_tx?.tx_hex &&
+      tx.assert_tx?.tx_hex &&
       tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0,
+      tx.payout_tx.tx_hex.length > 0 &&
+      tx.assert_tx.tx_hex.length > 0,
   );
 }
 

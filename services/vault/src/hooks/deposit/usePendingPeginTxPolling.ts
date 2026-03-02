@@ -179,12 +179,14 @@ function areTransactionsReady(
     return false;
   }
 
-  // Check that all claimer transactions have both claim_tx and payout_tx
+  // Check that all claimer transactions have all required tx fields
   return response.txs.every(
     (tx) =>
       tx.claim_tx?.tx_hex &&
       tx.payout_tx?.tx_hex &&
+      tx.assert_tx?.tx_hex &&
       tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0,
+      tx.payout_tx.tx_hex.length > 0 &&
+      tx.assert_tx.tx_hex.length > 0,
   );
 }

@@ -30,6 +30,7 @@ import {
   getSortedVaultKeeperPubkeys,
   prepareTransactionsForSigning,
   signAllTransactionsBatch,
+  signPayoutTransactions,
   validatePayoutSignatureParams,
   walletSupportsBatchSigning,
 } from "../vaultPayoutSignatureService";
@@ -43,13 +44,9 @@ function createClaimerTransactions(
 ): ClaimerTransactions {
   return {
     claimer_pubkey: claimerPubkey,
-    claim_tx: { tx_hex: "claim_hex", sighash: null },
-    payout_optimistic_tx: {
-      tx_hex: "payout_optimistic_hex",
-      sighash: "sighash1",
-    },
-    assert_tx: { tx_hex: "assert_hex", sighash: null },
-    payout_tx: { tx_hex: "payout_hex", sighash: "sighash2" },
+    claim_tx: { tx_hex: "claim_hex" },
+    assert_tx: { tx_hex: "assert_hex" },
+    payout_tx: { tx_hex: "payout_hex" },
     ...overrides,
   };
 }
@@ -201,25 +198,17 @@ describe("vaultPayoutSignatureService", () => {
         createClaimerTransactions(
           "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
           {
-            claim_tx: { tx_hex: "claim_hex_1", sighash: null },
-            payout_optimistic_tx: {
-              tx_hex: "payout_optimistic_hex_1",
-              sighash: "sig1",
-            },
-            assert_tx: { tx_hex: "assert_hex_1", sighash: null },
-            payout_tx: { tx_hex: "payout_hex_1", sighash: "sig2" },
+            claim_tx: { tx_hex: "claim_hex_1" },
+            assert_tx: { tx_hex: "assert_hex_1" },
+            payout_tx: { tx_hex: "payout_hex_1" },
           },
         ),
         createClaimerTransactions(
           "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
           {
-            claim_tx: { tx_hex: "claim_hex_2", sighash: null },
-            payout_optimistic_tx: {
-              tx_hex: "payout_optimistic_hex_2",
-              sighash: "sig3",
-            },
-            assert_tx: { tx_hex: "assert_hex_2", sighash: null },
-            payout_tx: { tx_hex: "payout_hex_2", sighash: "sig4" },
+            claim_tx: { tx_hex: "claim_hex_2" },
+            assert_tx: { tx_hex: "assert_hex_2" },
+            payout_tx: { tx_hex: "payout_hex_2" },
           },
         ),
       ];
@@ -230,17 +219,13 @@ describe("vaultPayoutSignatureService", () => {
       expect(result[0]).toEqual({
         claimerPubkeyXOnly:
           "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        payoutOptimisticTxHex: "payout_optimistic_hex_1",
         payoutTxHex: "payout_hex_1",
-        claimTxHex: "claim_hex_1",
         assertTxHex: "assert_hex_1",
       });
       expect(result[1]).toEqual({
         claimerPubkeyXOnly:
           "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        payoutOptimisticTxHex: "payout_optimistic_hex_2",
         payoutTxHex: "payout_hex_2",
-        claimTxHex: "claim_hex_2",
         assertTxHex: "assert_hex_2",
       });
     });
@@ -313,16 +298,12 @@ describe("vaultPayoutSignatureService", () => {
       const transactions = [
         {
           claimerPubkeyXOnly: claimer1Pubkey,
-          payoutOptimisticTxHex: "payout_optimistic_1",
           payoutTxHex: "payout_1",
-          claimTxHex: "claim_1",
           assertTxHex: "assert_1",
         },
         {
           claimerPubkeyXOnly: claimer2Pubkey,
-          payoutOptimisticTxHex: "payout_optimistic_2",
           payoutTxHex: "payout_2",
-          claimTxHex: "claim_2",
           assertTxHex: "assert_2",
         },
       ];
@@ -342,12 +323,10 @@ describe("vaultPayoutSignatureService", () => {
 
       const mockSignPayoutTransactionsBatch = vi.fn().mockResolvedValue([
         {
-          payoutOptimisticSignature: "sig_optimistic_1",
           payoutSignature: "sig_payout_1",
           depositorBtcPubkey: "depositor_pubkey",
         },
         {
-          payoutOptimisticSignature: "sig_optimistic_2",
           payoutSignature: "sig_payout_2",
           depositorBtcPubkey: "depositor_pubkey",
         },
@@ -380,11 +359,9 @@ describe("vaultPayoutSignatureService", () => {
       // Verify correct mapping to claimer pubkeys
       expect(result).toEqual({
         [claimer1Pubkey]: {
-          payout_optimistic_signature: "sig_optimistic_1",
           payout_signature: "sig_payout_1",
         },
         [claimer2Pubkey]: {
-          payout_optimistic_signature: "sig_optimistic_2",
           payout_signature: "sig_payout_2",
         },
       });
@@ -394,48 +371,24 @@ describe("vaultPayoutSignatureService", () => {
       expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledTimes(1);
       expect(mockSignPayoutTransactionsBatch).toHaveBeenCalledWith([
         {
-          payoutOptimistic: {
-            payoutOptimisticTxHex: "payout_optimistic_1",
-            peginTxHex: "pegin_hex",
-            claimTxHex: "claim_1",
-            vaultProviderBtcPubkey: "provider_pubkey",
-            vaultKeeperBtcPubkeys: ["keeper1"],
-            universalChallengerBtcPubkeys: ["challenger1"],
-            depositorBtcPubkey: "depositor_pubkey",
-            timelockPegin: 100,
-          },
-          payout: {
-            payoutTxHex: "payout_1",
-            peginTxHex: "pegin_hex",
-            assertTxHex: "assert_1",
-            vaultProviderBtcPubkey: "provider_pubkey",
-            vaultKeeperBtcPubkeys: ["keeper1"],
-            universalChallengerBtcPubkeys: ["challenger1"],
-            depositorBtcPubkey: "depositor_pubkey",
-            timelockPegin: 100,
-          },
+          payoutTxHex: "payout_1",
+          peginTxHex: "pegin_hex",
+          assertTxHex: "assert_1",
+          vaultProviderBtcPubkey: "provider_pubkey",
+          vaultKeeperBtcPubkeys: ["keeper1"],
+          universalChallengerBtcPubkeys: ["challenger1"],
+          depositorBtcPubkey: "depositor_pubkey",
+          timelockPegin: 100,
         },
         {
-          payoutOptimistic: {
-            payoutOptimisticTxHex: "payout_optimistic_2",
-            peginTxHex: "pegin_hex",
-            claimTxHex: "claim_2",
-            vaultProviderBtcPubkey: "provider_pubkey",
-            vaultKeeperBtcPubkeys: ["keeper1"],
-            universalChallengerBtcPubkeys: ["challenger1"],
-            depositorBtcPubkey: "depositor_pubkey",
-            timelockPegin: 100,
-          },
-          payout: {
-            payoutTxHex: "payout_2",
-            peginTxHex: "pegin_hex",
-            assertTxHex: "assert_2",
-            vaultProviderBtcPubkey: "provider_pubkey",
-            vaultKeeperBtcPubkeys: ["keeper1"],
-            universalChallengerBtcPubkeys: ["challenger1"],
-            depositorBtcPubkey: "depositor_pubkey",
-            timelockPegin: 100,
-          },
+          payoutTxHex: "payout_2",
+          peginTxHex: "pegin_hex",
+          assertTxHex: "assert_2",
+          vaultProviderBtcPubkey: "provider_pubkey",
+          vaultKeeperBtcPubkeys: ["keeper1"],
+          universalChallengerBtcPubkeys: ["challenger1"],
+          depositorBtcPubkey: "depositor_pubkey",
+          timelockPegin: 100,
         },
       ]);
     });
@@ -444,9 +397,7 @@ describe("vaultPayoutSignatureService", () => {
       const transactions = [
         {
           claimerPubkeyXOnly: "claimer1",
-          payoutOptimisticTxHex: "payout_optimistic_1",
           payoutTxHex: "payout_1",
-          claimTxHex: "claim_1",
           assertTxHex: "assert_1",
         },
       ];
@@ -492,9 +443,7 @@ describe("vaultPayoutSignatureService", () => {
       const transactions = [
         {
           claimerPubkeyXOnly: "claimer1",
-          payoutOptimisticTxHex: "payout_optimistic_1",
           payoutTxHex: "payout_1",
-          claimTxHex: "claim_1",
           assertTxHex: "assert_1",
         },
       ];
@@ -545,9 +494,7 @@ describe("vaultPayoutSignatureService", () => {
       const transactions = [
         {
           claimerPubkeyXOnly: "claimer1",
-          payoutOptimisticTxHex: "payout_optimistic_1",
           payoutTxHex: "payout_1",
-          claimTxHex: "claim_1",
           assertTxHex: "assert_1",
         },
       ];
@@ -592,6 +539,168 @@ describe("vaultPayoutSignatureService", () => {
       ).rejects.toThrow(
         "Failed to batch sign payout transactions: Unknown error",
       );
+    });
+  });
+
+  describe("signPayoutTransactions", () => {
+    const context = {
+      peginTxHex: "pegin_hex",
+      vaultProviderBtcPubkey: "provider_pubkey",
+      vaultKeeperBtcPubkeys: ["keeper1"],
+      universalChallengerBtcPubkeys: ["challenger1"],
+      depositorBtcPubkey: "depositor_pubkey",
+      timelockPegin: 100,
+      network: "testnet" as const,
+    };
+
+    const claimer1Pubkey =
+      "1111111111111111111111111111111111111111111111111111111111111111";
+    const claimer2Pubkey =
+      "2222222222222222222222222222222222222222222222222222222222222222";
+
+    const transactions = [
+      {
+        claimerPubkeyXOnly: claimer1Pubkey,
+        payoutTxHex: "payout_1",
+        assertTxHex: "assert_1",
+      },
+      {
+        claimerPubkeyXOnly: claimer2Pubkey,
+        payoutTxHex: "payout_2",
+        assertTxHex: "assert_2",
+      },
+    ];
+
+    it("should use batch signing when wallet supports it", async () => {
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransactionsBatch = vi.fn().mockResolvedValue([
+        { payoutSignature: "sig_1", depositorBtcPubkey: "depositor_pubkey" },
+        { payoutSignature: "sig_2", depositorBtcPubkey: "depositor_pubkey" },
+      ]);
+
+      (PayoutManager as any).mockImplementationOnce(function () {
+        return {
+          supportsBatchSigning: vi.fn().mockReturnValue(true),
+          signPayoutTransactionsBatch: mockSignPayoutTransactionsBatch,
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signPsbts: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      const onProgress = vi.fn();
+
+      const result = await signPayoutTransactions(
+        wallet as any,
+        context,
+        transactions,
+        onProgress,
+      );
+
+      expect(result).toEqual({
+        [claimer1Pubkey]: { payout_signature: "sig_1" },
+        [claimer2Pubkey]: { payout_signature: "sig_2" },
+      });
+
+      // Batch path: progress at start (0) and end (totalClaimers)
+      expect(onProgress).toHaveBeenCalledWith({
+        completed: 0,
+        totalClaimers: 2,
+      });
+      expect(onProgress).toHaveBeenCalledWith({
+        completed: 2,
+        totalClaimers: 2,
+      });
+    });
+
+    it("should use sequential signing when wallet does not support batch", async () => {
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransaction = vi
+        .fn()
+        .mockResolvedValueOnce({ signature: "sig_seq_1" })
+        .mockResolvedValueOnce({ signature: "sig_seq_2" });
+
+      (PayoutManager as any).mockImplementation(function () {
+        return {
+          signPayoutTransaction: mockSignPayoutTransaction,
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        // No signPsbts — forces sequential path
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      const onProgress = vi.fn();
+
+      const result = await signPayoutTransactions(
+        wallet as any,
+        context,
+        transactions,
+        onProgress,
+      );
+
+      expect(result).toEqual({
+        [claimer1Pubkey]: { payout_signature: "sig_seq_1" },
+        [claimer2Pubkey]: { payout_signature: "sig_seq_2" },
+      });
+
+      // Sequential path: progress per claimer + final
+      expect(onProgress).toHaveBeenCalledWith({
+        completed: 0,
+        totalClaimers: 2,
+      });
+      expect(onProgress).toHaveBeenCalledWith({
+        completed: 1,
+        totalClaimers: 2,
+      });
+      expect(onProgress).toHaveBeenCalledWith({
+        completed: 2,
+        totalClaimers: 2,
+      });
+    });
+
+    it("should work without onProgress callback", async () => {
+      const { PayoutManager } = await import("@babylonlabs-io/ts-sdk/tbv/core");
+
+      const mockSignPayoutTransaction = vi
+        .fn()
+        .mockResolvedValue({ signature: "sig_no_cb" });
+
+      (PayoutManager as any).mockImplementation(function () {
+        return {
+          signPayoutTransaction: mockSignPayoutTransaction,
+        };
+      });
+
+      const wallet = {
+        getPublicKeyHex: vi.fn(),
+        getAddress: vi.fn(),
+        signPsbt: vi.fn(),
+        signMessage: vi.fn(),
+        getNetwork: vi.fn(),
+      };
+
+      // No onProgress — should not throw
+      const result = await signPayoutTransactions(wallet as any, context, [
+        transactions[0],
+      ]);
+
+      expect(result).toEqual({
+        [claimer1Pubkey]: { payout_signature: "sig_no_cb" },
+      });
     });
   });
 });

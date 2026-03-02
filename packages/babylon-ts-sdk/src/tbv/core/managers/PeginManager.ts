@@ -8,10 +8,10 @@
  * PeginManager handles the first 2 steps and step 4 of the 4-step peg-in flow:
  * 1. **preparePegin()** - Build and fund the Bitcoin transaction
  * 2. **registerPeginOnChain()** - Submit to Ethereum contract with PoP
- * 3. *(Use {@link PayoutManager} for payout authorization signing - sign BOTH PayoutOptimistic and Payout)*
+ * 3. *(Use {@link PayoutManager} for payout authorization signing)*
  * 4. **signAndBroadcast()** - Sign and broadcast to Bitcoin network
  *
- * @see {@link PayoutManager} - For Step 3: sign both PayoutOptimistic (optimistic path) and Payout (challenge path)
+ * @see {@link PayoutManager} - For Step 3: sign payout transactions
  * @see {@link buildPeginPsbt} - Lower-level primitive used internally
  *
  * @module managers/PeginManager
@@ -234,7 +234,7 @@ export interface RegisterPeginParams {
   onPopSigned?: () => void | Promise<void>;
 
   /** Keccak256 hash of the depositor's Lamport public key (bytes32) */
-  depositorLamportPkHash?: Hex;
+  depositorLamportPkHash: Hex;
 }
 
 /**
@@ -271,14 +271,12 @@ export interface RegisterPeginResult {
  * | 4 | {@link signAndBroadcast} | Sign and broadcast to Bitcoin network |
  *
  * **Important:** Step 3 uses {@link PayoutManager}, not this class. After step 2,
- * the vault provider prepares 4 transactions per claimer:
+ * the vault provider prepares 3 transactions per claimer:
  * - `claim_tx` - Claim transaction
- * - `payout_optimistic_tx` - PayoutOptimistic transaction
  * - `assert_tx` - Assert transaction
  * - `payout_tx` - Payout transaction
  *
- * You must sign **BOTH** PayoutOptimistic and Payout transactions for each claimer:
- * - {@link PayoutManager.signPayoutOptimisticTransaction} - uses claim_tx as input reference
+ * You must sign the Payout transaction for each claimer:
  * - {@link PayoutManager.signPayoutTransaction} - uses assert_tx as input reference
  *
  * Submit all signatures to the vault provider before proceeding to step 4.
@@ -362,8 +360,13 @@ export class PeginManager {
       network,
     });
 
+    // Compute the txid from the funded transaction (not the unfunded PSBT).
+    // The unfunded txid changes after inputs/change are added, so using it
+    // would produce a different identifier than the contract's vaultId.
+    const fundedTxId = calculateBtcTxHash(fundedTxHex);
+
     return {
-      btcTxHash: peginPsbt.txid,
+      btcTxHash: stripHexPrefix(fundedTxId),
       fundedTxHex,
       vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -510,7 +513,6 @@ export class PeginManager {
       unsignedBtcTx,
       vaultProvider,
       onPopSigned,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       depositorLamportPkHash,
     } = params;
 
@@ -570,9 +572,6 @@ export class PeginManager {
       );
     }
 
-    // TODO: Pass depositorLamportPkHash as the 6th arg to submitPeginRequest
-    // once the next contract upgrade adds the parameter.
-
     // Step 5: Query required pegin fee from the contract
     const publicClient = createPublicClient({
       chain: this.config.ethChain,
@@ -604,6 +603,7 @@ export class PeginManager {
         btcPopSignature,
         unsignedPegInTx,
         vaultProvider,
+        depositorLamportPkHash,
       ],
     });
 

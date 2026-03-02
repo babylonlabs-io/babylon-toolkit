@@ -35,14 +35,6 @@ export const STEP_DESCRIPTIONS: Record<
 };
 
 /**
- * Labels for signing step types
- */
-export const SIGNING_STEP_LABELS: Record<string, string> = {
-  payout_optimistic: "PayoutOptimistic",
-  payout: "Payout",
-};
-
-/**
  * Step labels for the progress indicator
  */
 export function getStepLabels(): string[] {
@@ -71,13 +63,17 @@ export function getStepDescription(
   if (!desc) return "";
 
   // Show detailed progress for payout signing step
-  if (step === DepositStep.SIGN_PAYOUTS && payoutProgress?.currentStep) {
-    const stepLabel = SIGNING_STEP_LABELS[payoutProgress.currentStep];
+  if (
+    step === DepositStep.SIGN_PAYOUTS &&
+    payoutProgress &&
+    payoutProgress.completed < payoutProgress.totalClaimers
+  ) {
+    const currentClaimer = payoutProgress.completed + 1;
     const claimerInfo =
       payoutProgress.totalClaimers > 1
-        ? ` (Claimer ${payoutProgress.currentClaimer}/${payoutProgress.totalClaimers})`
+        ? ` (Claimer ${currentClaimer}/${payoutProgress.totalClaimers})`
         : "";
-    return `Signing ${stepLabel}${claimerInfo} — Step ${payoutProgress.completed + 1} of ${payoutProgress.total}`;
+    return `Signing payout${claimerInfo} — Step ${payoutProgress.completed + 1} of ${payoutProgress.totalClaimers}`;
   }
 
   return isWaiting && desc.waiting ? desc.waiting : desc.active;

@@ -79,6 +79,9 @@ export interface Vault {
   /** Referral attribution code (0 = no referral) */
   referralCode: number;
 
+  /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
+  depositorLamportPkHash?: string;
+
   // === Application/usage status ===
 
   /** Whether vault is currently in use as collateral */
