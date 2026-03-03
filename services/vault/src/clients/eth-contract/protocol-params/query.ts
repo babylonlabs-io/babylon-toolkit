@@ -58,6 +58,8 @@ export interface PegInConfiguration {
   timelockPegin: number;
   /** Value in satoshis for the depositor's claim output (from offchain params) */
   depositorClaimValue: bigint;
+  /** Vault provider commission in basis points (e.g., 500 = 5%) */
+  vpCommissionBps: number;
 }
 
 /**
@@ -167,6 +169,7 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     pegInConfirmationDepth: params.pegInConfirmationDepth,
     timelockPegin,
     depositorClaimValue,
+    vpCommissionBps: offchainParams.vpCommissionBps,
   };
 }
 
