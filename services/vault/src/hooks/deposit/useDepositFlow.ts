@@ -60,7 +60,11 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** Callback to retrieve the decrypted mnemonic. When present, enables
+   *  Lamport PK derivation and submission to the vault provider. */
   getMnemonic?: () => Promise<string>;
+  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
+   *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
 }
 

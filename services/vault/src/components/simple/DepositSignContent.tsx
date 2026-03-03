@@ -20,11 +20,8 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  /**
-   * UUID of the mnemonic used for this deposit. Passed to useDepositFlow
-   * to record the peg-in → mnemonic mapping. Note: getMnemonic is not
-   * passed here — Lamport key submission happens via the resume flow.
-   */
+  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
+   *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
   onSuccess: (
     btcTxid: string,

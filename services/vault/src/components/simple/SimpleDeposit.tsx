@@ -117,18 +117,18 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  const [mnemonicId, setMnemonicId] = useState<string>();
+  const [mnemonicId, setMnemonicId] = useState<string | null>(null);
 
   const handleMnemonicComplete = useCallback(
     (_mnemonic?: string, id?: string) => {
-      setMnemonicId(id);
+      setMnemonicId(id ?? null);
       goToStep(DepositStep.SIGN);
     },
     [goToStep],
   );
 
   const handleReset = useCallback(() => {
-    setMnemonicId(undefined);
+    setMnemonicId(null);
     resetDeposit();
   }, [resetDeposit]);
 
@@ -227,7 +227,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              mnemonicId={mnemonicId}
+              mnemonicId={mnemonicId ?? undefined}
               onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}
