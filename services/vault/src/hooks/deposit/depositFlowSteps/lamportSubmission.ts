@@ -50,8 +50,6 @@ export async function submitLamportPublicKey(
 
   signal?.throwIfAborted();
 
-  const peginTxid = stripHexPrefix(btcTxid);
-
   const mnemonic = await getMnemonic();
   signal?.throwIfAborted();
 
@@ -60,7 +58,7 @@ export async function submitLamportPublicKey(
   try {
     const keypair = await deriveLamportKeypair(
       seed,
-      peginTxid,
+      btcTxid,
       depositorBtcPubkey,
       appContractAddress,
     );
@@ -75,7 +73,7 @@ export async function submitLamportPublicKey(
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
   await rpcClient.submitDepositorLamportKey({
-    pegin_txid: peginTxid,
+    pegin_txid: stripHexPrefix(btcTxid),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
     lamport_public_key: lamportPublicKey,
   });

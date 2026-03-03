@@ -47,7 +47,7 @@ export interface PollForPayoutTransactionsParams {
  * Poll vault provider for depositor presign transactions.
  *
  * Waits until the vault provider has prepared the transactions
- * for depositor to sign (PayoutOptimistic and Payout).
+ * for depositor to sign (Payout).
  *
  * @returns Array of claimer transactions ready for signing
  * @throws Error on timeout, abort, or non-transient RPC error

@@ -11,7 +11,6 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerSignatures } from "../../../clients/vault-provider-rpc/types";
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
@@ -23,13 +22,9 @@ import {
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
-  signAllTransactionsBatch,
-  signPayout,
-  signPayoutOptimistic,
+  signPayoutTransactions,
   submitSignaturesToVaultProvider,
   validatePayoutSignatureParams,
-  walletSupportsBatchSigning,
-  type SigningStepType,
 } from "../../../services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "../../../storage/peginStorage";
 import type { VaultActivity } from "../../../types/activity";
@@ -64,9 +59,6 @@ export interface UsePayoutSigningStateResult {
   handleSign: () => Promise<void>;
 }
 
-/** Number of signing steps per claimer (PayoutOptimistic + Payout) */
-const STEPS_PER_CLAIMER = 2;
-
 export function usePayoutSigningState({
   activity,
   transactions,
@@ -78,9 +70,6 @@ export function usePayoutSigningState({
   const [isComplete, setIsComplete] = useState(false);
   const [progress, setProgress] = useState<SigningProgressProps>({
     completed: 0,
-    total: 0,
-    currentStep: null,
-    currentClaimer: 0,
     totalClaimers: 0,
   });
   const [error, setError] = useState<SigningError | null>(null);
@@ -162,13 +151,9 @@ export function usePayoutSigningState({
     setError(null);
 
     const totalClaimers = transactions.length;
-    const totalSteps = totalClaimers * STEPS_PER_CLAIMER;
 
     setProgress({
       completed: 0,
-      total: totalSteps,
-      currentStep: null,
-      currentClaimer: 0,
       totalClaimers,
     });
 
@@ -185,82 +170,14 @@ export function usePayoutSigningState({
 
       // Prepare transactions for signing
       const preparedTransactions = prepareTransactionsForSigning(transactions);
-      let signatures: Record<string, ClaimerSignatures> = {};
 
-      // Check if wallet supports batch signing
-      const canBatchSign = walletSupportsBatchSigning(btcWalletProvider);
-
-      if (canBatchSign) {
-        // BATCH SIGNING: Sign all PSBTs with single wallet popup
-        setProgress({
-          completed: 0,
-          total: totalSteps,
-          currentStep: "payout_optimistic", // Show as signing in progress
-          currentClaimer: 1,
-          totalClaimers,
-        });
-
-        // Sign all at once
-        signatures = await signAllTransactionsBatch(
-          btcWalletProvider,
-          context,
-          preparedTransactions,
-        );
-
-        // Update progress to complete
-        setProgress({
-          completed: totalSteps,
-          total: totalSteps,
-          currentStep: null,
-          currentClaimer: totalClaimers,
-          totalClaimers,
-        });
-      } else {
-        // SEQUENTIAL SIGNING: Sign each transaction one by one
-        // Track completed steps across all claimers
-        let completedSteps = 0;
-
-        // Helper to update progress
-        const updateProgress = (
-          step: SigningStepType | null,
-          claimerIndex: number,
-        ) => {
-          setProgress({
-            completed: completedSteps,
-            total: totalSteps,
-            currentStep: step,
-            currentClaimer: claimerIndex,
-            totalClaimers,
-          });
-        };
-
-        // Sign each claimer's transactions with detailed progress tracking
-        for (let i = 0; i < preparedTransactions.length; i++) {
-          const tx = preparedTransactions[i];
-          const claimerIndex = i + 1; // 1-based for display
-
-          // Sign PayoutOptimistic
-          updateProgress("payout_optimistic", claimerIndex);
-          const payoutOptimisticSig = await signPayoutOptimistic(
-            btcWalletProvider,
-            context,
-            tx,
-          );
-          completedSteps++;
-
-          // Sign Payout
-          updateProgress("payout", claimerIndex);
-          const payoutSig = await signPayout(btcWalletProvider, context, tx);
-          completedSteps++;
-
-          signatures[tx.claimerPubkeyXOnly] = {
-            payout_optimistic_signature: payoutOptimisticSig,
-            payout_signature: payoutSig,
-          };
-
-          updateProgress(null, claimerIndex);
-        }
-      }
+      // Sign all payout transactions (auto-detects batch vs sequential)
+      const signatures = await signPayoutTransactions(
+        btcWalletProvider,
+        context,
+        preparedTransactions,
+        setProgress,
+      );
 
       // Submit signatures to vault provider
       await submitSignaturesToVaultProvider(

@@ -5,9 +5,7 @@
  * Schnorr signatures from signed PSBTs. It uses WASM-generated scripts from the payout
  * connector and bitcoinjs-lib for PSBT construction.
  *
- * There are two types of payout transactions:
- * - **PayoutOptimistic**: Optimistic path after Claim (no challenge). Input 1 references Claim tx.
- * - **Payout**: Challenge path after Assert (claimer proves validity). Input 1 references Assert tx.
+ * The Payout transaction references the Assert transaction (input 1).
  *
  * @module primitives/psbt/payout
  */
@@ -30,9 +28,24 @@ import {
 initEccLib(ecc);
 
 /**
- * Base parameters shared by both payout transaction types
+ * Parameters for building an unsigned Payout PSBT
+ *
+ * Payout is used in the challenge path after Assert, when the claimer proves validity.
+ * Input 1 references the Assert transaction.
  */
-interface PayoutBaseParams {
+export interface PayoutParams {
+  /**
+   * Payout transaction hex (unsigned)
+   * This is the transaction that needs to be signed by the depositor
+   */
+  payoutTxHex: string;
+
+  /**
+   * Assert transaction hex
+   * Payout input 1 references Assert output 0
+   */
+  assertTxHex: string;
+
   /**
    * Peg-in transaction hex
    * This transaction created the vault output that we're spending
@@ -71,46 +84,6 @@ interface PayoutBaseParams {
 }
 
 /**
- * Parameters for building an unsigned PayoutOptimistic PSBT
- *
- * PayoutOptimistic is used in the optimistic path when no challenge occurs.
- * Input 1 references the Claim transaction.
- */
-export interface PayoutOptimisticParams extends PayoutBaseParams {
-  /**
-   * PayoutOptimistic transaction hex (unsigned)
-   * This is the transaction that needs to be signed by the depositor
-   */
-  payoutOptimisticTxHex: string;
-
-  /**
-   * Claim transaction hex
-   * PayoutOptimistic input 1 references Claim output 0
-   */
-  claimTxHex: string;
-}
-
-/**
- * Parameters for building an unsigned Payout PSBT (challenge path)
- *
- * Payout is used in the challenge path after Assert, when the claimer proves validity.
- * Input 1 references the Assert transaction.
- */
-export interface PayoutParams extends PayoutBaseParams {
-  /**
-   * Payout transaction hex (unsigned)
-   * This is the transaction that needs to be signed by the depositor
-   */
-  payoutTxHex: string;
-
-  /**
-   * Assert transaction hex
-   * Payout input 1 references Assert output 0
-   */
-  assertTxHex: string;
-}
-
-/**
  * Result of building an unsigned payout PSBT
  */
 export interface PayoutPsbtResult {
@@ -121,34 +94,33 @@ export interface PayoutPsbtResult {
 }
 
 /**
- * Internal parameters for the shared PSBT builder.
- * @internal
- */
-interface InternalPayoutParams extends PayoutBaseParams {
-  /** The payout transaction hex (either PayoutOptimistic or Payout) */
-  payoutTxHex: string;
-  /** The input 1 reference transaction hex (either Claim or Assert) */
-  input1TxHex: string;
-  /** Name of input 1 tx for error messages */
-  input1TxName: string;
-}
-
-/**
- * Internal shared function for building payout PSBTs
+ * Build unsigned Payout PSBT for depositor to sign.
  *
- * Both PayoutOptimistic and Payout transactions have the same structure:
+ * Payout is used in the **challenge path** when the claimer proves validity:
+ * 1. Vault provider submits Claim transaction
+ * 2. Challenge is raised during challenge period
+ * 3. Claimer submits Assert transaction to prove validity
+ * 4. Payout can be executed (references Assert tx)
+ *
+ * Payout transactions have the following structure:
  * - Input 0: from PeginTx output0 (signed by depositor)
- * - Input 1: from Claim/Assert output0 (NOT signed by depositor)
+ * - Input 1: from Assert output0 (NOT signed by depositor)
  *
- * @internal
+ * @param params - Payout parameters
+ * @returns Unsigned PSBT ready for depositor to sign
+ *
+ * @throws If payout transaction does not have exactly 2 inputs
+ * @throws If input 0 does not reference the pegin transaction
+ * @throws If input 1 does not reference the assert transaction
+ * @throws If previous output is not found for either input
  */
-async function buildPayoutPsbtInternal(
-  params: InternalPayoutParams,
+export async function buildPayoutPsbt(
+  params: PayoutParams,
 ): Promise<PayoutPsbtResult> {
   // Normalize hex inputs (strip 0x prefix if present)
   const payoutTxHex = stripHexPrefix(params.payoutTxHex);
   const peginTxHex = stripHexPrefix(params.peginTxHex);
-  const input1TxHex = stripHexPrefix(params.input1TxHex);
+  const assertTxHex = stripHexPrefix(params.assertTxHex);
 
   // Get payout script from WASM
   const payoutConnector = await createPayoutScript({
@@ -166,7 +138,7 @@ async function buildPayoutPsbtInternal(
   // Parse transactions
   const payoutTx = Transaction.fromHex(payoutTxHex);
   const peginTx = Transaction.fromHex(peginTxHex);
-  const input1Tx = Transaction.fromHex(input1TxHex);
+  const assertTx = Transaction.fromHex(assertTxHex);
 
   // Create PSBT
   const psbt = new Psbt();
@@ -175,7 +147,7 @@ async function buildPayoutPsbtInternal(
 
   // PayoutTx has exactly 2 inputs:
   // - Input 0: from PeginTx output0 (signed by depositor using taproot script path)
-  // - Input 1: from Claim/Assert output0 (signed by claimer/challengers, not depositor)
+  // - Input 1: from Assert output0 (signed by claimer/challengers, not depositor)
   //
   // IMPORTANT: For Taproot SIGHASH_DEFAULT (0x00), the sighash commits to ALL inputs'
   // prevouts, not just the one being signed. Therefore, we must include BOTH inputs
@@ -204,15 +176,15 @@ async function buildPayoutPsbtInternal(
     );
   }
 
-  // Verify input 1 references the expected transaction (Claim or Assert)
+  // Verify input 1 references the assert transaction
   const input1Txid = uint8ArrayToHex(
     new Uint8Array(input1.hash).slice().reverse(),
   );
-  const expectedInput1Txid = input1Tx.getId();
+  const expectedInput1Txid = assertTx.getId();
 
   if (input1Txid !== expectedInput1Txid) {
     throw new Error(
-      `Input 1 does not reference ${params.input1TxName} transaction. ` +
+      `Input 1 does not reference assert transaction. ` +
         `Expected ${expectedInput1Txid}, got ${input1Txid}`,
     );
   }
@@ -224,7 +196,7 @@ async function buildPayoutPsbtInternal(
     );
   }
 
-  const input1PrevOut = input1Tx.outs[input1.index];
+  const input1PrevOut = assertTx.outs[input1.index];
   if (!input1PrevOut) {
     throw new Error(
       `Previous output not found for input 1 (txid: ${input1Txid}, index: ${input1.index})`,
@@ -252,7 +224,7 @@ async function buildPayoutPsbtInternal(
     // sighashType omitted - defaults to SIGHASH_DEFAULT (0x00) for Taproot
   });
 
-  // Input 1: From Claim/Assert transaction (NOT signed by depositor)
+  // Input 1: From Assert transaction (NOT signed by depositor)
   // We include this with witnessUtxo so the sighash is computed correctly,
   // but we do NOT include tapLeafScript since the depositor doesn't sign it.
   psbt.addInput({
@@ -280,73 +252,6 @@ async function buildPayoutPsbtInternal(
 }
 
 /**
- * Build unsigned PayoutOptimistic PSBT for depositor to sign.
- *
- * PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
- * 1. Vault provider submits Claim transaction
- * 2. Challenge period passes without challenge
- * 3. PayoutOptimistic can be executed (references Claim tx)
- *
- * @param params - PayoutOptimistic parameters
- * @returns Unsigned PSBT ready for depositor to sign
- *
- * @throws If payout transaction does not have exactly 2 inputs
- * @throws If input 0 does not reference the pegin transaction
- * @throws If input 1 does not reference the claim transaction
- * @throws If previous output is not found for either input
- */
-export async function buildPayoutOptimisticPsbt(
-  params: PayoutOptimisticParams,
-): Promise<PayoutPsbtResult> {
-  return buildPayoutPsbtInternal({
-    payoutTxHex: params.payoutOptimisticTxHex,
-    peginTxHex: params.peginTxHex,
-    input1TxHex: params.claimTxHex,
-    input1TxName: "claim",
-    depositorBtcPubkey: params.depositorBtcPubkey,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
-    timelockPegin: params.timelockPegin,
-    network: params.network,
-  });
-}
-
-/**
- * Build unsigned Payout PSBT for depositor to sign (challenge path).
- *
- * Payout is used in the **challenge path** when the claimer proves validity:
- * 1. Vault provider submits Claim transaction
- * 2. Challenge is raised during challenge period
- * 3. Claimer submits Assert transaction to prove validity
- * 4. Payout can be executed (references Assert tx)
- *
- * @param params - Payout parameters
- * @returns Unsigned PSBT ready for depositor to sign
- *
- * @throws If payout transaction does not have exactly 2 inputs
- * @throws If input 0 does not reference the pegin transaction
- * @throws If input 1 does not reference the assert transaction
- * @throws If previous output is not found for either input
- */
-export async function buildPayoutPsbt(
-  params: PayoutParams,
-): Promise<PayoutPsbtResult> {
-  return buildPayoutPsbtInternal({
-    payoutTxHex: params.payoutTxHex,
-    peginTxHex: params.peginTxHex,
-    input1TxHex: params.assertTxHex,
-    input1TxName: "assert",
-    depositorBtcPubkey: params.depositorBtcPubkey,
-    vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
-    vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
-    universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
-    timelockPegin: params.timelockPegin,
-    network: params.network,
-  });
-}
-
-/**
  * Extract Schnorr signature from signed payout PSBT.
  *
  * This function supports two cases:
@@ -355,8 +260,6 @@ export async function buildPayoutPsbt(
  *
  * The signature is returned as a 64-byte hex string (128 hex characters)
  * with any sighash flag byte removed if present.
- *
- * Works with both PayoutOptimistic and Payout signed PSBTs.
  *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)

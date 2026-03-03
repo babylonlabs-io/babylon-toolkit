@@ -101,6 +101,11 @@ export async function pollAndPreparePayoutSigning(
         return null;
       }
 
+      // TODO: Extract `response.depositor_graph` when VP returns taproot script + control block
+      // data for depositor-as-claimer transactions (ChallengeAssert, NoPayout).
+      // The depositor graph signatures will be passed as `depositor_claimer_presignatures`
+      // to `submitDepositorPresignatures`.
+
       return buildContext(response.txs);
     },
     {

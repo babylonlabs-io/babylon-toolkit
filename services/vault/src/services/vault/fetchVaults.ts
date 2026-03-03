@@ -30,6 +30,7 @@ const VAULT_FIELDS = `
   offchainParamsVersion
   currentOwner
   referralCode
+  depositorLamportPkHash
   pendingAt
   verifiedAt
   activatedAt
@@ -96,6 +97,7 @@ interface GraphQLVaultItem {
   offchainParamsVersion: number;
   currentOwner: string | null;
   referralCode: number;
+  depositorLamportPkHash: string | null;
   pendingAt: string;
   verifiedAt: string | null;
   activatedAt: string | null;
@@ -170,6 +172,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       ? (item.currentOwner as Address)
       : undefined,
     referralCode: item.referralCode,
+    depositorLamportPkHash: item.depositorLamportPkHash!,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
     expirationReason: item.expirationReason ?? undefined,

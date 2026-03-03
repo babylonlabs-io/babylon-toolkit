@@ -43,9 +43,8 @@ Orchestrates the peg-in deposit flow:
 
 ### [PayoutManager](#payoutmanager)
 Signs payout authorization transactions (Step 3 of peg-in).
-The depositor must sign **BOTH** payout transactions for each claimer:
-- [signPayoutOptimisticTransaction()](#signpayoutoptimistictransaction) - Sign optimistic path (uses Claim tx as reference)
-- [signPayoutTransaction()](#signpayouttransaction) - Sign challenge path (uses Assert tx as reference)
+The depositor signs 1 payout transaction per claimer:
+- [signPayoutTransaction()](#signpayouttransaction) - Sign payout (uses Assert tx as reference)
 
 ## Complete Peg-in Flow
 
@@ -55,17 +54,14 @@ The 4-step peg-in flow uses both managers:
 |------|---------|--------|
 | 1 | PeginManager | `preparePegin()` |
 | 2 | PeginManager | `registerPeginOnChain()` |
-| 3 | PayoutManager | `signPayoutOptimisticTransaction()` + `signPayoutTransaction()` |
+| 3 | PayoutManager | `signPayoutTransaction()` |
 | 4 | PeginManager | `signAndBroadcast()` |
 
-**Step 3 Details:** The vault provider provides 4 transactions per claimer:
-- `claim_tx` - Claim transaction
-- `payout_optimistic_tx` - PayoutOptimistic transaction
+**Step 3 Details:** The vault provider provides 2 transactions per claimer:
 - `assert_tx` - Assert transaction
 - `payout_tx` - Payout transaction
 
-You must sign both PayoutOptimistic (uses claim_tx as input reference) and
-Payout (uses assert_tx as input reference) for each claimer.
+You must sign the Payout transaction (uses assert_tx as input reference) for each claimer.
 
 ## See
 
@@ -79,9 +75,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:156]
 
 High-level manager for payout transaction signing.
 
-Supports both payout paths:
-- Optimistic path: Use [signPayoutOptimisticTransaction](#signpayoutoptimistictransaction) with Claim tx
-- Challenge path: Use [signPayoutTransaction](#signpayouttransaction) with Assert tx
+Signs the Payout transaction (challenge path via Assert tx) using [signPayoutTransaction](#signpayouttransaction).
 
 #### Remarks
 
@@ -96,7 +90,7 @@ manager and submit the signatures to the vault provider's RPC API.
 4. Extracts the 64-byte Schnorr signature
 
 **Note:** The payout transaction has 2 inputs. PayoutManager only signs input 0
-(from the peg-in tx). Input 1 (from the claim/assert tx) is signed by the vault provider.
+(from the peg-in tx). Input 1 (from the assert tx) is signed by the vault provider.
 
 #### See
 
@@ -129,52 +123,6 @@ Manager configuration including wallet
 [`PayoutManager`](#payoutmanager)
 
 #### Methods
-
-##### signPayoutOptimisticTransaction()
-
-```ts
-signPayoutOptimisticTransaction(params): Promise<PayoutSignatureResult>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:190](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L190)
-
-Signs a PayoutOptimistic transaction and extracts the Schnorr signature.
-
-PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
-1. Vault provider submits Claim transaction
-2. Challenge period passes without challenge
-3. PayoutOptimistic can be executed (references Claim tx)
-
-This method orchestrates the following steps:
-1. Get wallet's public key and convert to x-only format
-2. Validate wallet pubkey matches on-chain depositor pubkey (if provided)
-3. Build unsigned PSBT using primitives
-4. Sign PSBT via btcWallet.signPsbt()
-5. Extract 64-byte Schnorr signature using primitives
-
-The returned signature can be submitted to the vault provider API.
-
-###### Parameters
-
-###### params
-
-[`SignPayoutOptimisticParams`](#signpayoutoptimisticparams)
-
-PayoutOptimistic signing parameters
-
-###### Returns
-
-`Promise`\<[`PayoutSignatureResult`](#payoutsignatureresult)\>
-
-Signature result with 64-byte Schnorr signature and depositor pubkey
-
-###### Throws
-
-Error if wallet pubkey doesn't match depositor pubkey
-
-###### Throws
-
-Error if wallet operations fail or signature extraction fails
 
 ##### signPayoutTransaction()
 
@@ -263,7 +211,7 @@ signPayoutTransactionsBatch(transactions): Promise<object[]>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:338](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L338)
 
-Batch signs multiple payout transactions (both PayoutOptimistic and Payout).
+Batch signs multiple payout transactions.
 This allows signing all transactions with a single wallet interaction.
 
 ###### Parameters
@@ -307,18 +255,15 @@ The complete peg-in flow consists of 4 steps:
 |------|--------|-------------|
 | 1 | [preparePegin](#preparepegin) | Build and fund the transaction |
 | 2 | [registerPeginOnChain](#registerpeginonchain) | Submit to Ethereum contract with PoP |
-| 3 | [PayoutManager](#payoutmanager) | Sign BOTH payout authorizations |
+| 3 | [PayoutManager](#payoutmanager) | Sign payout authorization |
 | 4 | [signAndBroadcast](#signandbroadcast) | Sign and broadcast to Bitcoin network |
 
 **Important:** Step 3 uses [PayoutManager](#payoutmanager), not this class. After step 2,
-the vault provider prepares 4 transactions per claimer:
-- `claim_tx` - Claim transaction
-- `payout_optimistic_tx` - PayoutOptimistic transaction
+the vault provider prepares 2 transactions per claimer:
 - `assert_tx` - Assert transaction
 - `payout_tx` - Payout transaction
 
-You must sign **BOTH** PayoutOptimistic and Payout transactions for each claimer:
-- [PayoutManager.signPayoutOptimisticTransaction](#signpayoutoptimistictransaction) - uses claim_tx as input reference
+You must sign the Payout transaction for each claimer:
 - [PayoutManager.signPayoutTransaction](#signpayouttransaction) - uses assert_tx as input reference
 
 Submit all signatures to the vault provider before proceeding to step 4.
@@ -826,128 +771,6 @@ btcWallet: BitcoinWallet;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L40)
 
 Bitcoin wallet for signing payout transactions.
-
-***
-
-### SignPayoutOptimisticParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:82](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L82)
-
-Parameters for signing a PayoutOptimistic transaction.
-
-PayoutOptimistic is used in the optimistic path when no challenge occurs.
-Input 1 references the Claim transaction.
-
-#### Extends
-
-- `SignPayoutBaseParams`
-
-#### Properties
-
-##### peginTxHex
-
-```ts
-peginTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:51](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L51)
-
-Peg-in transaction hex.
-The original transaction that created the vault output being spent.
-
-###### Inherited from
-
-```ts
-SignPayoutBaseParams.peginTxHex
-```
-
-##### vaultProviderBtcPubkey
-
-```ts
-vaultProviderBtcPubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:56](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L56)
-
-Vault provider's BTC public key (x-only, 64-char hex).
-
-###### Inherited from
-
-```ts
-SignPayoutBaseParams.vaultProviderBtcPubkey
-```
-
-##### vaultKeeperBtcPubkeys
-
-```ts
-vaultKeeperBtcPubkeys: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:61](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L61)
-
-Vault keeper BTC public keys (x-only, 64-char hex).
-
-###### Inherited from
-
-```ts
-SignPayoutBaseParams.vaultKeeperBtcPubkeys
-```
-
-##### universalChallengerBtcPubkeys
-
-```ts
-universalChallengerBtcPubkeys: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:66](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L66)
-
-Universal challenger BTC public keys (x-only, 64-char hex).
-
-###### Inherited from
-
-```ts
-SignPayoutBaseParams.universalChallengerBtcPubkeys
-```
-
-##### depositorBtcPubkey?
-
-```ts
-optional depositorBtcPubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:73](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L73)
-
-Depositor's BTC public key (x-only, 64-char hex).
-This should be the public key that was used when creating the vault,
-as stored on-chain. If not provided, will be fetched from the wallet.
-
-###### Inherited from
-
-```ts
-SignPayoutBaseParams.depositorBtcPubkey
-```
-
-##### payoutOptimisticTxHex
-
-```ts
-payoutOptimisticTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:87](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L87)
-
-PayoutOptimistic transaction hex (unsigned).
-This is the transaction from the vault provider that needs depositor signature.
-
-##### claimTxHex
-
-```ts
-claimTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts:93](../../packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts#L93)
-
-Claim transaction hex.
-PayoutOptimistic input 1 references Claim output 0.
 
 ***
 

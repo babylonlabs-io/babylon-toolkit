@@ -70,7 +70,7 @@ export interface RegisterPeginOnChainParams {
   vaultProviderAddress: Address;
   onPopSigned?: () => void | Promise<void>;
   /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash?: Hex;
+  depositorLamportPkHash: Hex;
 }
 
 /**

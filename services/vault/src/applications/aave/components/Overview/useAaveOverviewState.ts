@@ -56,6 +56,7 @@ function vaultToActivity(vault: Vault): VaultActivity {
     displayLabel: peginState.displayLabel,
     contractStatus: vault.status,
     isInUse: vault.isInUse,
+    depositorLamportPkHash: vault.depositorLamportPkHash,
   };
 }
 

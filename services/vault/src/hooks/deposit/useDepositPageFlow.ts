@@ -6,7 +6,7 @@
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { Address } from "viem";
 
 import {
@@ -48,6 +48,9 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
+  confirmMnemonic: (mnemonic?: string, mnemonicId?: string) => void;
+  getMnemonic: (() => Promise<string>) | undefined;
+  mnemonicId: string | undefined;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -85,7 +88,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     setDepositData,
     setFeeRate,
     setTransactionHashes,
-    reset: resetDeposit,
+    reset: resetDepositState,
   } = useDepositState();
 
   const { vaultProviders, vaultKeepers } = useVaultProviders(
@@ -147,6 +150,35 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     goToStep(DepositStep.MNEMONIC);
   };
 
+  // Mnemonic is stored in a ref to avoid exposing the sensitive value in
+  // React state / devtools.  A counter state forces re-renders when set/cleared.
+  const mnemonicRef = useRef<string | undefined>(undefined);
+  const [mnemonicId, setMnemonicId] = useState<string | undefined>(undefined);
+  const [mnemonicVersion, setMnemonicVersion] = useState(0);
+
+  const confirmMnemonic = useCallback(
+    (mnemonic?: string, id?: string) => {
+      mnemonicRef.current = mnemonic;
+      setMnemonicId(id);
+      setMnemonicVersion((v) => v + 1);
+      goToStep(DepositStep.SIGN);
+    },
+    [goToStep],
+  );
+
+  const getMnemonic = useMemo<(() => Promise<string>) | undefined>(
+    () => (mnemonicRef.current ? async () => mnemonicRef.current! : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mnemonicVersion triggers rebuild
+    [mnemonicVersion],
+  );
+
+  const resetDeposit = useCallback(() => {
+    mnemonicRef.current = undefined;
+    setMnemonicId(undefined);
+    setMnemonicVersion((v) => v + 1);
+    resetDepositState();
+  }, [resetDepositState]);
+
   const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setTransactionHashes(btcTxid, ethTxHash);
     goToStep(DepositStep.SUCCESS);
@@ -166,6 +198,9 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     hasExistingVaults,
     startDeposit,
     confirmReview,
+    confirmMnemonic,
+    getMnemonic,
+    mnemonicId: mnemonicId,
     onSignSuccess,
     resetDeposit,
     refetchActivities,

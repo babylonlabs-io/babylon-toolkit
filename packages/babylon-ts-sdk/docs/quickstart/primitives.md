@@ -34,7 +34,7 @@ Primitives are the lowest-level SDK functions. They:
 
 ---
 
-## The 4 Primitives
+## The 3 Primitives
 
 The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged), but those are generated and managed by the vault provider. The SDK only provides primitives for the operations the **depositor** performs: building the peg-in transaction and signing payout authorizations.
 
@@ -67,35 +67,7 @@ const result = await buildPeginPsbt({
 
 **You then:** Add UTXOs as inputs, add change output, sign, broadcast.
 
-> **Deprecation notice:** `buildPayoutOptimisticPsbt` is planned for removal in a future release.
-
-### 2. buildPayoutOptimisticPsbt
-
-Builds unsigned PayoutOptimistic PSBT for depositor signing (normal path - no challenge).
-
-```typescript
-import { buildPayoutOptimisticPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
-
-const result = await buildPayoutOptimisticPsbt({
-  payoutOptimisticTxHex: "...",  // From vault provider
-  peginTxHex: "...",             // Your peg-in transaction
-  claimTxHex: "...",             // Claim transaction from VP
-  depositorBtcPubkey: "...",
-  vaultProviderBtcPubkey: "...",
-  vaultKeeperBtcPubkeys: [...],
-  universalChallengerBtcPubkeys: [...],
-  network: "signet",
-});
-
-// Returns:
-// {
-//   psbtHex: "...",  // Sign input 0 with your BTC key
-// }
-```
-
-**You then:** Sign input 0, extract signature, submit to vault provider.
-
-### 3. buildPayoutPsbt
+### 2. buildPayoutPsbt
 
 Builds unsigned Payout PSBT for depositor signing (challenge path - after Assert).
 
@@ -119,7 +91,7 @@ const result = await buildPayoutPsbt({
 // }
 ```
 
-### 4. extractPayoutSignature
+### 3. extractPayoutSignature
 
 Extracts 64-byte Schnorr signature from a signed PSBT.
 

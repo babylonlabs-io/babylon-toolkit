@@ -41,6 +41,60 @@ export const BTCVaultsManagerABI = [
         type: "address",
         internalType: "address",
       },
+      {
+        name: "depositorLamportPkHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+    ],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "submitPeginRequest",
+    inputs: [
+      {
+        name: "depositor",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "depositorBtcPubKey",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
+      {
+        name: "btcPopSignature",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "unsignedPegInTx",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
+        name: "vaultProvider",
+        type: "address",
+        internalType: "address",
+      },
+      {
+        name: "referralCode",
+        type: "uint32",
+        internalType: "uint32",
+      },
+      {
+        name: "depositorLamportPkHash",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
     ],
     outputs: [
       {
@@ -97,6 +151,8 @@ export const BTCVaultsManagerABI = [
           { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
           { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
           { name: "createdAt", type: "uint256", internalType: "uint256" },
+          { name: "verifiedAt", type: "uint256", internalType: "uint256" },
+          { name: "depositorLamportPkHash", type: "bytes32", internalType: "bytes32" },
         ],
       },
     ],

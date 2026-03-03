@@ -83,8 +83,16 @@ vi.mock("@/services/vault", () => ({
 }));
 
 vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
-  signPayout: vi.fn(),
-  signPayoutOptimistic: vi.fn(),
+  signPayoutTransactions: vi.fn(),
+}));
+
+// Mock Lamport service (deriveLamportPkHash returns a mock hash)
+vi.mock("@/services/lamport/lamportService", () => ({
+  deriveLamportPkHash: vi
+    .fn()
+    .mockResolvedValue(
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    ),
 }));
 
 // Mock storage
@@ -152,6 +160,7 @@ const MOCK_PARAMS = {
   vaultProviderBtcPubkey: "ab".repeat(32), // 64 hex chars
   vaultKeeperBtcPubkeys: ["keeper1pubkey"],
   universalChallengerBtcPubkeys: ["uc1pubkey"],
+  getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
 };
 
 const SINGLE_PLAN: AllocationPlan = {
@@ -245,7 +254,7 @@ async function setupDefaultMocks() {
     registerSplitPeginOnChain,
     broadcastPeginWithLocalUtxo,
   } = vi.mocked(await import("@/services/vault"));
-  const { signPayout, signPayoutOptimistic } = vi.mocked(
+  const { signPayoutTransactions } = vi.mocked(
     await import("@/services/vault/vaultPayoutSignatureService"),
   );
   const { addPendingPegin } = vi.mocked(await import("@/storage/peginStorage"));
@@ -335,8 +344,9 @@ async function setupDefaultMocks() {
   vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
   // Payout signing
-  vi.mocked(signPayout).mockResolvedValue("payoutSig");
-  vi.mocked(signPayoutOptimistic).mockResolvedValue("payoutOptimisticSig");
+  vi.mocked(signPayoutTransactions).mockResolvedValue({
+    mockclaimer: { payout_signature: "payoutSig" },
+  });
 
   // Deposit flow steps
   vi.mocked(getEthWalletClient).mockResolvedValue(MOCK_ETH_WALLET as any);
@@ -357,9 +367,7 @@ async function setupDefaultMocks() {
     preparedTransactions: [
       {
         claimerPubkeyXOnly: "claimerpubkey",
-        payoutOptimisticTxHex: "payoutOptHex",
         payoutTxHex: "payoutHex",
-        claimTxHex: "claimHex",
         assertTxHex: "assertHex",
       },
     ],
@@ -1209,9 +1217,7 @@ describe("useMultiVaultDepositFlow", () => {
           preparedTransactions: [
             {
               claimerPubkeyXOnly: "claimerpubkey",
-              payoutOptimisticTxHex: "payoutOptHex",
               payoutTxHex: "payoutHex",
-              claimTxHex: "claimHex",
               assertTxHex: "assertHex",
             },
           ],

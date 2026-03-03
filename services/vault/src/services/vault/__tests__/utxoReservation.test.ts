@@ -100,6 +100,7 @@ describe("UTXO Reservation", () => {
       universalChallengersVersion: 1,
       offchainParamsVersion: 1,
       referralCode: 0,
+      depositorLamportPkHash: "0x" + "ab".repeat(32),
     });
 
     it("should collect refs from localStorage selectedUTXOs", () => {

@@ -100,6 +100,9 @@ export interface VaultActivity {
 
   /** Unsigned BTC transaction hex (for UTXO validation) */
   unsignedBtcTx?: string;
+
+  /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
+  depositorLamportPkHash: string;
 }
 
 /**

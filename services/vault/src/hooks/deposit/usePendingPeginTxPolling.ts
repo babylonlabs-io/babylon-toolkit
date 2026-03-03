@@ -2,7 +2,7 @@
  * Hook to poll vault provider RPC for pending peg-in transactions
  *
  * When a peg-in request has status 0 (Pending), this hook polls the vault provider
- * to get claim and payout transactions that need to be signed by the depositor.
+ * to get claim, assert, and payout transactions that need to be signed by the depositor.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,11 +11,9 @@ import type { Hex } from "viem";
 
 import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import { VaultProviderRpcApi } from "../../services/vault";
-import type {
-  ClaimerTransactions,
-  RequestDepositorPresignTransactionsResponse,
-} from "../../types";
+import type { ClaimerTransactions } from "../../types";
 import { stripHexPrefix } from "../../utils/btc";
+import { areTransactionsReady } from "../../utils/peginPolling";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -44,19 +42,19 @@ export interface UsePendingPeginTxPollingResult {
 /**
  * Poll vault provider RPC for peg-in transactions
  *
- * This hook polls the vault provider RPC to fetch claim and payout transactions
- * that need to be signed by the depositor during the peg-in flow.
+ * This hook polls the vault provider RPC to fetch claim, assert, and payout
+ * transactions that need to be signed by the depositor during the peg-in flow.
  *
  * **Polling Behavior:**
  * - Polls every 30 seconds when params are provided
  * - **Stops polling when:**
- *   1. Transactions are ready (both claim_tx and payout_tx exist)
+ *   1. Transactions are ready (claim_tx, assert_tx, and payout_tx all exist)
  *   2. params is set to null (e.g., when status changes from 0 to something else)
  *
  * **Flow:**
  * 1. Gets vault provider URL from globally cached providers (via useVaultProviders)
- * 2. Polls vault provider RPC for claim/payout transactions every 30 seconds
- * 3. Returns transactions when both claim_tx and payout_tx are available
+ * 2. Polls vault provider RPC for transactions every 30 seconds
+ * 3. Returns transactions when claim_tx, assert_tx, and payout_tx are all available
  *
  * @param params - Peg-in transaction details. Pass null to disable polling (e.g., when status is not 0)
  * @returns Polling result with transactions, loading, error states
@@ -145,7 +143,7 @@ export function usePendingPeginTxPolling(
     // Poll every 30 seconds until transactions are ready
     refetchInterval: (query) => {
       // Stop polling if we have valid transactions (both claim_tx and payout_tx exist)
-      if (query.state.data && areTransactionsReady(query.state.data)) {
+      if (query.state.data?.txs && areTransactionsReady(query.state.data.txs)) {
         return false;
       }
       // Continue polling every 30 seconds
@@ -157,7 +155,7 @@ export function usePendingPeginTxPolling(
   });
 
   // Check if transactions are ready (both claim_tx and payout_tx available)
-  const isReady = data ? areTransactionsReady(data) : false;
+  const isReady = data?.txs ? areTransactionsReady(data.txs) : false;
 
   return {
     transactions: isReady && data ? data.txs : null,
@@ -165,26 +163,4 @@ export function usePendingPeginTxPolling(
     error: (error as Error | null) || providerError,
     isReady,
   };
-}
-
-/**
- * Check if all transactions are ready for signing
- * @param response - Response from vault provider RPC
- * @returns true if all transactions have both claim_tx and payout_tx
- */
-function areTransactionsReady(
-  response: RequestDepositorPresignTransactionsResponse,
-): boolean {
-  if (!response.txs || response.txs.length === 0) {
-    return false;
-  }
-
-  // Check that all claimer transactions have both claim_tx and payout_tx
-  return response.txs.every(
-    (tx) =>
-      tx.claim_tx?.tx_hex &&
-      tx.payout_tx?.tx_hex &&
-      tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0,
-  );
 }

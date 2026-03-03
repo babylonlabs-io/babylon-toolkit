@@ -40,20 +40,13 @@ export interface SubmitDepositorPresignaturesParams {
   pegin_txid: string;
   depositor_pk: string;
   signatures: Record<string, ClaimerSignatures>;
-  depositor_claimer_presignatures: DepositorAsClaimerPresignatures;
+  /** Depositor-as-claimer presignatures (optional — not yet signed in frontend). */
+  depositor_claimer_presignatures?: DepositorAsClaimerPresignatures;
 }
 
-/** Payout signatures per claimer (optimistic + standard). */
+/** Payout signatures per claimer. */
 export interface ClaimerSignatures {
-  payout_optimistic_signature?: string;
   payout_signature: string;
-}
-
-/** Params for submitting payout transaction signatures. */
-export interface SubmitPayoutSignaturesParams {
-  pegin_txid: string;
-  depositor_pk: string;
-  signatures: Record<string, ClaimerSignatures>;
 }
 
 /** Params for requesting BaBe DecryptorArtifacts from the VP. */
@@ -71,10 +64,9 @@ export interface GetPeginStatusParams {
 // Response Types
 // ============================================================================
 
-/** A raw Bitcoin transaction with its hex encoding and optional sighash. */
+/** A raw Bitcoin transaction with its hex encoding. */
 export interface TransactionData {
   tx_hex: string;
-  sighash: string | null;
 }
 
 /** Set of transactions the depositor must pre-sign for a single claimer. */
@@ -83,7 +75,6 @@ export interface ClaimerTransactions {
   claim_tx: TransactionData;
   assert_tx: TransactionData;
   payout_tx: TransactionData;
-  payout_optimistic_tx: TransactionData;
 }
 
 /** Challenger-specific transactions the depositor must pre-sign. */

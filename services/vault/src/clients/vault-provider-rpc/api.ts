@@ -9,7 +9,6 @@ import type {
   RequestDepositorPresignTransactionsResponse,
   SubmitDepositorLamportKeyParams,
   SubmitDepositorPresignaturesParams,
-  SubmitPayoutSignaturesParams,
 } from "./types";
 
 /**
@@ -52,19 +51,6 @@ export class VaultProviderRpcApi {
   ): Promise<void> {
     return this.client.call<SubmitDepositorPresignaturesParams, void>(
       "vaultProvider_submitDepositorPresignatures",
-      params,
-    );
-  }
-
-  /**
-   * Submit the depositor's payout transaction signatures
-   * (payout + payout-optimistic per claimer).
-   */
-  async submitPayoutSignatures(
-    params: SubmitPayoutSignaturesParams,
-  ): Promise<void> {
-    return this.client.call<SubmitPayoutSignaturesParams, void>(
-      "vaultProvider_submitPayoutSignatures",
       params,
     );
   }

@@ -70,6 +70,8 @@ import {
 } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 
+import { stripHexPrefix } from "@/utils/btc";
+
 /**
  * Number of bit positions in the Lamport keypair. Corresponds to the number
  * of garbled-circuit labels used in the BitVM-style protocol (PI_1 circuit).
@@ -349,6 +351,10 @@ export async function deriveLamportKeypair(
   depositorPk: string,
   appContractAddress: string,
 ): Promise<LamportKeypair> {
+  // Normalize inputs once — callers don't need to worry about 0x prefixes.
+  vaultId = stripHexPrefix(vaultId);
+  depositorPk = stripHexPrefix(depositorPk);
+
   const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
   const parentKey = seed.slice(0, KEY_SIZE);
 

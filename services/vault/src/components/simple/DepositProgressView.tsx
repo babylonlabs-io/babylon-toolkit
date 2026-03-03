@@ -58,7 +58,7 @@ export function getVisualStep(
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
 ): StepperItem[] {
-  const payoutTotal = progress?.total ?? 0;
+  const payoutTotal = progress?.totalClaimers ?? 0;
   const payoutCompleted = progress?.completed ?? 0;
 
   return [

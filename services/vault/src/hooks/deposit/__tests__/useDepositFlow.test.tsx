@@ -216,7 +216,6 @@ vi.mock("@/services/vault", () => ({
   }),
   collectReservedUtxoRefs: vi.fn().mockReturnValue([]),
   selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
-  signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock payout signature service to avoid SDK imports triggering initEccLib
@@ -224,9 +223,7 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
   prepareTransactionsForSigning: vi.fn().mockReturnValue([
     {
       claimerPubkeyXOnly: "0xmockclaimer",
-      payoutOptimisticTxHex: "0xmockpayoutoptimistic",
       payoutTxHex: "0xmockpayout",
-      claimTxHex: "0xmockclaim",
       assertTxHex: "0xmockassert",
     },
   ]),
@@ -236,13 +233,23 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
   getSortedUniversalChallengerPubkeys: vi.fn((challengers) =>
     challengers.map((c: { btcPubKey: string }) => c.btcPubKey),
   ),
-  signPayoutOptimistic: vi.fn().mockResolvedValue("0xmocksignature1"),
-  signPayout: vi.fn().mockResolvedValue("0xmocksignature2"),
+  signPayoutTransactions: vi.fn().mockResolvedValue({
+    "0xmockclaimer": { payout_signature: "0xmocksignature2" },
+  }),
   submitSignaturesToVaultProvider: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
+}));
+
+// Mock Lamport service (deriveLamportPkHash returns a mock hash)
+vi.mock("@/services/lamport/lamportService", () => ({
+  deriveLamportPkHash: vi
+    .fn()
+    .mockResolvedValue(
+      "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+    ),
 }));
 
 // Mock protocol params context
@@ -274,13 +281,9 @@ vi.mock("@/clients/vault-provider-rpc", () => {
         txs: [
           {
             claimer_pubkey: "0xclaimerpubkey",
-            claim_tx: { tx_hex: "0xclaimtx", sighash: null },
-            payout_optimistic_tx: {
-              tx_hex: "0xpayoutoptimistictx",
-              sighash: "0xsighash1",
-            },
-            assert_tx: { tx_hex: "0xasserttx", sighash: null },
-            payout_tx: { tx_hex: "0xpayouttx", sighash: "0xsighash2" },
+            claim_tx: { tx_hex: "0xclaimtx" },
+            assert_tx: { tx_hex: "0xasserttx" },
+            payout_tx: { tx_hex: "0xpayouttx" },
           },
         ],
       });
@@ -330,6 +333,7 @@ describe("useDepositFlow - Chain Switching", () => {
     vaultKeeperBtcPubkeys: ["0xVaultKeeperKey1"],
     universalChallengerBtcPubkeys: ["0xUniversalChallengerKey1"],
     modalOpen: true,
+    getMnemonic: async () => "test mnemonic phrase for lamport key derivation",
   };
 
   beforeEach(() => {

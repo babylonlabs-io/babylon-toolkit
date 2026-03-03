@@ -10,13 +10,5 @@
 export { buildPeginPsbt } from "./pegin";
 export type { PeginParams, PeginPsbtResult } from "./pegin";
 
-export {
-  buildPayoutOptimisticPsbt,
-  buildPayoutPsbt,
-  extractPayoutSignature,
-} from "./payout";
-export type {
-  PayoutOptimisticParams,
-  PayoutParams,
-  PayoutPsbtResult,
-} from "./payout";
+export { buildPayoutPsbt, extractPayoutSignature } from "./payout";
+export type { PayoutParams, PayoutPsbtResult } from "./payout";

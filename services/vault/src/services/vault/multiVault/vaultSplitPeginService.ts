@@ -102,7 +102,7 @@ export interface RegisterSplitPeginParams {
    */
   onPopSigned?: () => void | Promise<void>;
   /** Keccak256 hash of the depositor's Lamport public key */
-  depositorLamportPkHash?: Hex;
+  depositorLamportPkHash: Hex;
 }
 
 export interface RegisterSplitPeginResult {

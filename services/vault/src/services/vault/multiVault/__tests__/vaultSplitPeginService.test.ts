@@ -400,6 +400,8 @@ describe("registerSplitPeginOnChain", () => {
       unsignedBtcTx: "unsigned-tx-hex",
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
       onPopSigned: undefined,
+      depositorLamportPkHash:
+        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
     };
 
     mockRegisterPeginOnChain.mockResolvedValue({
@@ -447,7 +449,8 @@ describe("registerSplitPeginOnChain", () => {
         unsignedBtcTx: "unsigned-tx-hex",
         vaultProvider: VAULT_PROVIDER_ADDRESS,
         onPopSigned: undefined,
-        depositorLamportPkHash: undefined,
+        depositorLamportPkHash:
+          "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
       });
     });
 

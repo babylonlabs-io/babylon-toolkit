@@ -1,5 +1,5 @@
 /**
- * Tests for buildPayoutOptimisticPsbt, buildPayoutPsbt, and extractPayoutSignature primitive functions
+ * Tests for buildPayoutPsbt and extractPayoutSignature primitive functions
  *
  * These tests verify the PSBT building and signature extraction logic for payout
  * transactions in the Babylon vault protocol.
@@ -11,14 +11,11 @@ import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
-  buildPayoutOptimisticPsbt,
   buildPayoutPsbt,
   extractPayoutSignature,
-  type PayoutOptimisticParams,
   type PayoutParams,
 } from "../payout";
 import {
-  DUMMY_TXID_1,
   DUMMY_TXID_2,
   NULL_TXID,
   SEQUENCE_MAX,
@@ -52,22 +49,6 @@ function createTestPeginTransaction(): string {
 }
 
 /**
- * Creates a test claim transaction (simplified for testing).
- * Single dummy output used to test multi-input PayoutOptimistic PSBT construction.
- */
-function createTestClaimTransaction(): string {
-  const tx = new Transaction();
-
-  // Dummy input (distinct from pegin using DUMMY_TXID_1)
-  tx.addInput(DUMMY_TXID_1, 0xffffffff, SEQUENCE_MAX);
-
-  // P2WPKH dummy output (filled with 'b' for identification)
-  tx.addOutput(createDummyP2WPKH("b"), Number(TEST_CLAIM_VALUE));
-
-  return tx.toHex();
-}
-
-/**
  * Creates a test assert transaction (simplified for testing).
  * Single dummy output used to test multi-input Payout PSBT construction.
  */
@@ -79,32 +60,6 @@ function createTestAssertTransaction(): string {
 
   // P2WPKH dummy output (filled with 'c' for identification)
   tx.addOutput(createDummyP2WPKH("c"), Number(TEST_CLAIM_VALUE));
-
-  return tx.toHex();
-}
-
-/**
- * Creates a PayoutOptimistic transaction (simplified for testing).
- * 2 inputs (pegin + claim) required because Taproot SIGHASH_DEFAULT commits to all prevouts.
- */
-function createTestPayoutOptimisticTransaction(
-  peginTxHex: string,
-  claimTxHex: string,
-): string {
-  const peginTx = Transaction.fromHex(peginTxHex);
-  const claimTx = Transaction.fromHex(claimTxHex);
-  const tx = new Transaction();
-
-  // Input 0: Spend from pegin output (depositor must sign this)
-  tx.addInput(Buffer.from(peginTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
-
-  // Input 1: Spend from claim output (claimer + vault keepers sign)
-  // REQUIRED: Taproot SIGHASH_DEFAULT commits to ALL inputs' prevouts
-  tx.addInput(Buffer.from(claimTx.getId(), "hex").reverse(), 0, SEQUENCE_MAX);
-
-  // Output: Payment to recipient
-  // Amount: TEST_PEGIN_VALUE + TEST_CLAIM_VALUE - 5000 sats fee
-  tx.addOutput(createDummyP2WPKH("a"), Number(TEST_COMBINED_VALUE));
 
   return tx.toHex();
 }
@@ -135,173 +90,7 @@ function createTestPayoutTransaction(
   return tx.toHex();
 }
 
-describe("buildPayoutOptimisticPsbt", () => {
-  // Initialize WASM before running tests
-  beforeAll(async () => {
-    await initializeWasmForTests();
-  });
-
-  describe("Basic functionality", () => {
-    it("should build a valid PayoutOptimistic PSBT with both inputs for correct sighash", async () => {
-      // Create test transactions:
-      // - PegIn: Contains vault output that depositor can sign
-      // - Claim: Claim output from claimer (optimistic path)
-      // - PayoutOptimistic: Spends both pegin and claim outputs (required for correct sighash)
-      //
-      // IMPORTANT: For Taproot SIGHASH_DEFAULT, the sighash commits to ALL inputs' prevouts.
-      // Therefore, both inputs must be in the PSBT even though only input 0 is signed.
-      const peginTxHex = createTestPeginTransaction();
-      const claimTxHex = createTestClaimTransaction();
-      const payoutOptimisticTxHex = createTestPayoutOptimisticTransaction(
-        peginTxHex,
-        claimTxHex,
-      );
-
-      const params: PayoutOptimisticParams = {
-        payoutOptimisticTxHex,
-        peginTxHex,
-        claimTxHex,
-        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        network: "signet" as Network,
-      };
-
-      const result = await buildPayoutOptimisticPsbt(params);
-
-      // Verify result structure
-      expect(result).toHaveProperty("psbtHex");
-      expect(typeof result.psbtHex).toBe("string");
-      expect(result.psbtHex.length).toBeGreaterThan(0);
-
-      // Verify PSBT can be parsed - should have 2 inputs for correct sighash computation
-      const psbt = Psbt.fromHex(result.psbtHex);
-      expect(psbt.data.inputs.length).toBe(2);
-      expect(psbt.data.outputs.length).toBe(1);
-
-      // Verify first input has Taproot script path spend info (depositor signs this)
-      const firstInput = psbt.data.inputs[0];
-      expect(firstInput.tapLeafScript).toBeDefined();
-      expect(firstInput.tapLeafScript).toHaveLength(1);
-      expect(firstInput.tapLeafScript![0].leafVersion).toBe(
-        TAPSCRIPT_LEAF_VERSION,
-      );
-      expect(firstInput.tapInternalKey).toBeDefined();
-      expect(firstInput.witnessUtxo).toBeDefined();
-
-      // Verify second input has witnessUtxo but NO tapLeafScript (depositor doesn't sign this)
-      const secondInput = psbt.data.inputs[1];
-      expect(secondInput.witnessUtxo).toBeDefined();
-      expect(secondInput.tapLeafScript).toBeUndefined();
-    });
-
-    it("should handle different networks", async () => {
-      const peginTxHex = createTestPeginTransaction();
-      const claimTxHex = createTestClaimTransaction();
-      const payoutOptimisticTxHex = createTestPayoutOptimisticTransaction(
-        peginTxHex,
-        claimTxHex,
-      );
-
-      const networks: Network[] = ["testnet", "regtest"];
-
-      for (const network of networks) {
-        const params: PayoutOptimisticParams = {
-          payoutOptimisticTxHex,
-          peginTxHex,
-          claimTxHex,
-          depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-          vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-          vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-          timelockPegin: 100,
-          network,
-        };
-
-        const result = await buildPayoutOptimisticPsbt(params);
-        expect(result.psbtHex).toBeTruthy();
-
-        const psbt = Psbt.fromHex(result.psbtHex);
-        expect(psbt.data.inputs.length).toBe(2);
-      }
-    });
-  });
-
-  describe("Error handling", () => {
-    it("should throw error when PayoutOptimistic transaction has fewer than 2 inputs", async () => {
-      const peginTxHex = createTestPeginTransaction();
-      const claimTxHex = createTestClaimTransaction();
-
-      // Create a payout transaction with only 1 input (should fail since we need 2)
-      const peginTx = Transaction.fromHex(peginTxHex);
-      const wrongTx = new Transaction();
-      wrongTx.addInput(
-        Buffer.from(peginTx.getId(), "hex").reverse(),
-        0,
-        SEQUENCE_MAX,
-      );
-      wrongTx.addOutput(createDummyP2WPKH("f"), Number(TEST_PAYOUT_VALUE));
-      const payoutOptimisticTxHex = wrongTx.toHex();
-
-      const params: PayoutOptimisticParams = {
-        payoutOptimisticTxHex,
-        peginTxHex,
-        claimTxHex,
-        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        network: "signet" as Network,
-      };
-
-      await expect(buildPayoutOptimisticPsbt(params)).rejects.toThrow(
-        /must have exactly 2 inputs/,
-      );
-    });
-  });
-
-  describe("Integration with WASM", () => {
-    it("should successfully use WASM-generated payout script", async () => {
-      const peginTxHex = createTestPeginTransaction();
-      const claimTxHex = createTestClaimTransaction();
-      const payoutOptimisticTxHex = createTestPayoutOptimisticTransaction(
-        peginTxHex,
-        claimTxHex,
-      );
-
-      const params: PayoutOptimisticParams = {
-        payoutOptimisticTxHex,
-        peginTxHex,
-        claimTxHex,
-        depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
-        vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
-        timelockPegin: 100,
-        network: "signet" as Network,
-      };
-
-      const result = await buildPayoutOptimisticPsbt(params);
-      const psbt = Psbt.fromHex(result.psbtHex);
-
-      // Verify the payout script is present (generated by WASM)
-      const firstInput = psbt.data.inputs[0];
-      expect(firstInput.tapLeafScript![0].script).toBeDefined();
-      expect(firstInput.tapLeafScript![0].script.length).toBeGreaterThan(0);
-
-      // Verify control block is present (computed by bitcoinjs-lib)
-      expect(firstInput.tapLeafScript![0].controlBlock).toBeDefined();
-      expect(firstInput.tapLeafScript![0].controlBlock.length).toBeGreaterThan(
-        0,
-      );
-    });
-  });
-});
-
-describe("buildPayoutPsbt (challenge path)", () => {
+describe("buildPayoutPsbt", () => {
   // Initialize WASM before running tests
   beforeAll(async () => {
     await initializeWasmForTests();
