@@ -6,6 +6,7 @@
 import type { AavePositionCollateral } from "@/applications/aave/services/fetchPositions";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
+import { truncateAddress } from "./addressUtils";
 import { satoshiToBtcNumber } from "./btcConversion";
 
 /** Vault statuses that should be excluded from the collateral display */
@@ -24,16 +25,40 @@ function isActiveCollateral(collateral: AavePositionCollateral): boolean {
 }
 
 /**
+ * Derives a display status from vault data.
+ * If vault is in use, returns "In use". Otherwise capitalizes the vault status.
+ */
+function deriveStatus(vault: AavePositionCollateral["vault"]): string {
+  if (!vault) return "Unknown";
+  if (vault.inUse) return "In use";
+  const s = vault.status;
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Unknown";
+}
+
+/**
  * Filters and maps raw Aave position collaterals to display-friendly entries.
  * Excludes withdrawn and liquidated collaterals.
+ *
+ * @param collaterals - Raw collateral data from GraphQL
+ * @param providerNames - Optional map of provider address (lowercase) to display name
  */
 export function toCollateralVaultEntries(
   collaterals: AavePositionCollateral[],
+  providerNames?: Map<string, string>,
 ): CollateralVaultEntry[] {
-  return collaterals.filter(isActiveCollateral).map((c) => ({
-    id: `${c.depositorAddress}-${c.vaultId}`,
-    vaultId: c.vaultId,
-    amountBtc: satoshiToBtcNumber(c.amount),
-    addedAt: Number(c.addedAt),
-  }));
+  return collaterals.filter(isActiveCollateral).map((c) => {
+    const providerAddress = c.vault?.vaultProvider ?? "";
+    const providerName =
+      providerNames?.get(providerAddress.toLowerCase()) ??
+      (providerAddress ? truncateAddress(providerAddress) : "Unknown");
+
+    return {
+      id: `${c.depositorAddress}-${c.vaultId}`,
+      vaultId: c.vaultId,
+      amountBtc: satoshiToBtcNumber(c.amount),
+      addedAt: Number(c.addedAt),
+      status: deriveStatus(c.vault),
+      vaultProviderName: providerName,
+    };
+  });
 }
