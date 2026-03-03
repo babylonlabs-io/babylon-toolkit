@@ -6,7 +6,7 @@ import type { AllocationPlan } from "@/services/vault";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
-import { formatProviderName } from "../../utils/formatting";
+import { formatProviderDisplayName } from "../../utils/formatting";
 import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
@@ -126,7 +126,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
-      name: p.name ?? formatProviderName(p.id),
+      name: formatProviderDisplayName(p.name, p.id),
       btcPubkey: p.btcPubKey || "",
       iconUrl: p.iconUrl,
     }));

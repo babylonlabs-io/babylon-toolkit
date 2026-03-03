@@ -10,6 +10,7 @@ import {
   formatBtcAmount,
   formatDateTime,
   formatLLTV,
+  formatProviderDisplayName,
   formatProviderName,
   formatTimeAgo,
   formatUsdValue,
@@ -122,6 +123,44 @@ describe("Formatting Utilities", () => {
     it("should handle short provider IDs", () => {
       const providerId = "0x12345678";
       expect(formatProviderName(providerId)).toBe("Provider 0x1234...5678");
+    });
+  });
+
+  describe("formatProviderDisplayName", () => {
+    const longAddress = "0x1234567890abcdef1234567890abcdef12345678";
+
+    it("should return real name when provider has a meaningful name", () => {
+      expect(formatProviderDisplayName("Lombard", longAddress)).toBe("Lombard");
+    });
+
+    it("should append truncated address when includeAddress is true", () => {
+      expect(
+        formatProviderDisplayName("Lombard", longAddress, {
+          includeAddress: true,
+        }),
+      ).toBe("Lombard (0x1234...5678)");
+    });
+
+    it("should return address-based name as-is when name starts with 0x", () => {
+      expect(formatProviderDisplayName("0xabc123", longAddress)).toBe(
+        "0xabc123",
+      );
+    });
+
+    it("should return name as-is when it starts with 'Provider '", () => {
+      expect(
+        formatProviderDisplayName("Provider 0x1234...5678", longAddress),
+      ).toBe("Provider 0x1234...5678");
+    });
+
+    it("should fall back to truncated address when name is undefined", () => {
+      expect(formatProviderDisplayName(undefined, longAddress)).toBe(
+        "0x1234...5678",
+      );
+    });
+
+    it("should fall back to truncated address when name is empty string", () => {
+      expect(formatProviderDisplayName("", longAddress)).toBe("0x1234...5678");
     });
   });
 
