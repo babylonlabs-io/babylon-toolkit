@@ -261,7 +261,6 @@ export async function buildPayoutPsbt(
  * The signature is returned as a 64-byte hex string (128 hex characters)
  * with any sighash flag byte removed if present.
  *
- *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)
  * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)

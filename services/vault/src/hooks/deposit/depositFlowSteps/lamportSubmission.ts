@@ -17,7 +17,6 @@
 
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import {
-  computeLamportPkHash,
   deriveLamportKeypair,
   keypairToPublicKey,
   mnemonicToLamportSeed,
@@ -61,33 +60,9 @@ export async function submitLamportPublicKey(
   const mnemonic = await getMnemonic();
   signal?.throwIfAborted();
 
-  // DEBUG: Log all derivation inputs so we can compare with the initial deposit
-  console.log("[Lamport DEBUG] === submitLamportPublicKey ===");
-  console.log("[Lamport DEBUG] Raw inputs:", {
-    btcTxid,
-    depositorBtcPubkey,
-    appContractAddress,
-  });
-  console.log("[Lamport DEBUG] Normalized inputs:", {
-    peginTxid,
-    peginTxidLen: peginTxid.length,
-    normalizedDepositorPk,
-    normalizedDepositorPkLen: normalizedDepositorPk.length,
-    appContractAddress,
-    appContractAddressLower: appContractAddress.toLowerCase(),
-    appAddressLen: appContractAddress.length,
-    appAddressCasingChanged: appContractAddress !== appContractAddress.toLowerCase(),
-  });
-  console.log("[Lamport DEBUG] Mnemonic info:", {
-    wordCount: mnemonic.split(" ").length,
-    firstWord: mnemonic.split(" ")[0],
-    lastWord: mnemonic.split(" ").at(-1),
-  });
-
   const seed = mnemonicToLamportSeed(mnemonic);
   let lamportPublicKey: ReturnType<typeof keypairToPublicKey>;
   try {
-    // Derive with the ORIGINAL appContractAddress (as passed in)
     const keypair = await deriveLamportKeypair(
       seed,
       peginTxid,
@@ -95,30 +70,6 @@ export async function submitLamportPublicKey(
       appContractAddress,
     );
     lamportPublicKey = keypairToPublicKey(keypair);
-    const hashOriginal = computeLamportPkHash(keypair);
-
-    console.log("[Lamport DEBUG] Hash (original appAddr):", hashOriginal);
-    console.log("[Lamport DEBUG] false_list[0]:", lamportPublicKey.false_list[0]);
-    console.log("[Lamport DEBUG] true_list[0]:", lamportPublicKey.true_list[0]);
-    console.log("[Lamport DEBUG] list lengths:", lamportPublicKey.false_list.length, lamportPublicKey.true_list.length);
-
-    // Also compute with lowercase appContractAddress to check if casing matters
-    if (appContractAddress !== appContractAddress.toLowerCase()) {
-      const seed2 = mnemonicToLamportSeed(mnemonic);
-      try {
-        const keypair2 = await deriveLamportKeypair(
-          seed2,
-          peginTxid,
-          normalizedDepositorPk,
-          appContractAddress.toLowerCase(),
-        );
-        const hashLower = computeLamportPkHash(keypair2);
-        console.log("[Lamport DEBUG] Hash (lowercase appAddr):", hashLower);
-        console.log("[Lamport DEBUG] Hashes match?", hashOriginal === hashLower);
-      } finally {
-        seed2.fill(0);
-      }
-    }
   } finally {
     // Zero out seed to avoid leaving sensitive key material in memory
     seed.fill(0);

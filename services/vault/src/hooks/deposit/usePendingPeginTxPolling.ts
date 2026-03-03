@@ -2,7 +2,7 @@
  * Hook to poll vault provider RPC for pending peg-in transactions
  *
  * When a peg-in request has status 0 (Pending), this hook polls the vault provider
- * to get claim and payout transactions that need to be signed by the depositor.
+ * to get claim, assert, and payout transactions that need to be signed by the depositor.
  */
 
 import { useQuery } from "@tanstack/react-query";
@@ -44,19 +44,19 @@ export interface UsePendingPeginTxPollingResult {
 /**
  * Poll vault provider RPC for peg-in transactions
  *
- * This hook polls the vault provider RPC to fetch claim and payout transactions
- * that need to be signed by the depositor during the peg-in flow.
+ * This hook polls the vault provider RPC to fetch claim, assert, and payout
+ * transactions that need to be signed by the depositor during the peg-in flow.
  *
  * **Polling Behavior:**
  * - Polls every 30 seconds when params are provided
  * - **Stops polling when:**
- *   1. Transactions are ready (both claim_tx and payout_tx exist)
+ *   1. Transactions are ready (claim_tx, assert_tx, and payout_tx all exist)
  *   2. params is set to null (e.g., when status changes from 0 to something else)
  *
  * **Flow:**
  * 1. Gets vault provider URL from globally cached providers (via useVaultProviders)
- * 2. Polls vault provider RPC for claim/payout transactions every 30 seconds
- * 3. Returns transactions when both claim_tx and payout_tx are available
+ * 2. Polls vault provider RPC for transactions every 30 seconds
+ * 3. Returns transactions when claim_tx, assert_tx, and payout_tx are all available
  *
  * @param params - Peg-in transaction details. Pass null to disable polling (e.g., when status is not 0)
  * @returns Polling result with transactions, loading, error states

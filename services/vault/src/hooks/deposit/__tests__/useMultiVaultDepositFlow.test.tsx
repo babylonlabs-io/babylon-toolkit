@@ -1241,5 +1241,4 @@ describe("useMultiVaultDepositFlow", () => {
       // At least one payout warning and one or more broadcast warnings
     });
   });
-
 });

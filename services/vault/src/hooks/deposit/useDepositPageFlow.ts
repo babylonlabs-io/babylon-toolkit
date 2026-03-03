@@ -48,8 +48,9 @@ export interface UseDepositPageFlowResult {
     providers: string[],
   ) => void;
   confirmReview: (feeRate: number) => void;
-  confirmMnemonic: (mnemonic?: string) => void;
+  confirmMnemonic: (mnemonic?: string, mnemonicId?: string) => void;
   getMnemonic: (() => Promise<string>) | undefined;
+  mnemonicId: string | undefined;
   onSignSuccess: (btcTxid: string, ethTxHash: string) => void;
   resetDeposit: () => void;
   refetchActivities: () => Promise<void>;
@@ -153,11 +154,13 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   // in the deposit flow for Lamport key derivation & VP submission.
   // Use a ref to avoid exposing the sensitive value in React state/devtools.
   const mnemonicRef = useRef<string | undefined>(undefined);
+  const mnemonicIdRef = useRef<string | undefined>(undefined);
   const [hasMnemonic, setHasMnemonic] = useState(false);
 
   const confirmMnemonic = useCallback(
-    (mnemonic?: string) => {
+    (mnemonic?: string, mnemonicId?: string) => {
       mnemonicRef.current = mnemonic;
+      mnemonicIdRef.current = mnemonicId;
       setHasMnemonic(!!mnemonic);
       goToStep(DepositStep.SIGN);
     },
@@ -174,10 +177,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const resetDeposit = useCallback(() => {
     mnemonicRef.current = undefined;
+    mnemonicIdRef.current = undefined;
     setHasMnemonic(false);
     resetDepositState();
   }, [resetDepositState]);
-
 
   const onSignSuccess = (btcTxid: string, ethTxHash: string) => {
     setTransactionHashes(btcTxid, ethTxHash);
@@ -200,6 +203,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     confirmReview,
     confirmMnemonic,
     getMnemonic,
+    mnemonicId: mnemonicIdRef.current,
     onSignSuccess,
     resetDeposit,
     refetchActivities,

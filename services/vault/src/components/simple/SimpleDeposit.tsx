@@ -111,6 +111,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     hasExistingVaults,
     confirmMnemonic,
     getMnemonic,
+    mnemonicId,
     resetDeposit,
     refetchActivities,
     goToStep,
@@ -214,7 +215,8 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              getMnemonic={getMnemonic}
+              getMnemonic={getMnemonic!}
+              mnemonicId={mnemonicId}
               onSuccess={handleSignSuccess}
               onClose={onClose}
               onRefetchActivities={refetchActivities}

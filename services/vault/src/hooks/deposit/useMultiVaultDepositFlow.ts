@@ -85,9 +85,9 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Callback to retrieve the decrypted mnemonic. When present, enables
-   *  Lamport PK derivation and submission to the vault provider. */
-  getMnemonic?: () => Promise<string>;
+  /** Callback to retrieve the decrypted mnemonic for Lamport PK derivation
+   *  and submission to the vault provider. */
+  getMnemonic: () => Promise<string>;
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
@@ -419,11 +419,6 @@ export function useMultiVaultDepositFlow(
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
-              if (!getMnemonic) {
-                throw new Error(
-                  "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
-                );
-              }
               const splitMnemonic = await getMnemonic();
               const splitLamportPkHash = await deriveLamportPkHash(
                 splitMnemonic,
@@ -478,11 +473,6 @@ export function useMultiVaultDepositFlow(
               });
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
-              if (!getMnemonic) {
-                throw new Error(
-                  "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
-                );
-              }
               const stdMnemonic = await getMnemonic();
               const lamportPkHash = await deriveLamportPkHash(
                 stdMnemonic,
@@ -602,10 +592,12 @@ export function useMultiVaultDepositFlow(
               depositorBtcPubkey: result.depositorBtcPubkey,
               appContractAddress: selectedApplication,
               providerUrl: provider.url,
-              getMnemonic: getMnemonic!,
+              getMnemonic,
               signal,
             });
           } catch (error) {
+            // Re-throw abort errors so they're suppressed by the outer catch
+            if (signal.aborted) throw error;
             const errorMsg =
               error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
@@ -631,20 +623,20 @@ export function useMultiVaultDepositFlow(
             setIsWaiting(true);
             const { context, vaultProviderUrl, preparedTransactions } =
               await pollAndPreparePayoutSigning({
-              btcTxid: result.vaultId, // Use vaultId for payout lookup
-              btcTxHex: result.btcTxHex,
-              depositorBtcPubkey: result.depositorBtcPubkey,
-              providerUrl: provider.url,
-              providerBtcPubKey: provider.btcPubKey,
-              vaultKeepers,
-              universalChallengers: universalChallengerBtcPubkeys.map(
-                (btcPubKey) => ({
-                  btcPubKey,
-                }),
-              ),
-              timelockPegin,
-              signal,
-            });
+                btcTxid: result.vaultId, // Use vaultId for payout lookup
+                btcTxHex: result.btcTxHex,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                providerUrl: provider.url,
+                providerBtcPubKey: provider.btcPubKey,
+                vaultKeepers,
+                universalChallengers: universalChallengerBtcPubkeys.map(
+                  (btcPubKey) => ({
+                    btcPubKey,
+                  }),
+                ),
+                timelockPegin,
+                signal,
+              });
 
             setIsWaiting(false);
 

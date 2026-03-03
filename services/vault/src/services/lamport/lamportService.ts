@@ -481,12 +481,22 @@ export async function deriveLamportPkHash(
   depositorBtcPubkey: string,
   appContractAddress: string,
 ): Promise<`0x${string}`> {
+  // Normalize inputs: strip 0x prefix if present so the derivation is
+  // consistent regardless of whether the caller passes raw hex or 0x-prefixed
+  // values (e.g. the resume flow receives prefixed data from the indexer).
+  const normalizedTxid = peginTxid.startsWith("0x")
+    ? peginTxid.slice(2)
+    : peginTxid;
+  const normalizedPubkey = depositorBtcPubkey.startsWith("0x")
+    ? depositorBtcPubkey.slice(2)
+    : depositorBtcPubkey;
+
   const seed = mnemonicToLamportSeed(mnemonic);
   try {
     const keypair = await deriveLamportKeypair(
       seed,
-      peginTxid,
-      depositorBtcPubkey,
+      normalizedTxid,
+      normalizedPubkey,
       appContractAddress,
     );
     return computeLamportPkHash(keypair);

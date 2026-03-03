@@ -19,7 +19,6 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
-import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -58,9 +57,9 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
-  /** Callback to retrieve the decrypted mnemonic. When present, enables
-   *  Lamport PK derivation and submission to the vault provider. */
-  getMnemonic?: () => Promise<string>;
+  /** Callback to retrieve the decrypted mnemonic for Lamport PK derivation
+   *  and submission to the vault provider. */
+  getMnemonic: () => Promise<string>;
   /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
    *  mapping so the resume flow can look up the correct mnemonic. */
   mnemonicId?: string;
@@ -219,20 +218,7 @@ export function useDepositFlow(
         });
 
         // Step 2a.5: Derive Lamport keypair and compute PK hash (before ETH tx)
-        if (!getMnemonic) {
-          throw new Error(
-            "Lamport mnemonic is required for deposit. Please complete the mnemonic step first.",
-          );
-        }
         const mnemonic = await getMnemonic();
-
-        // DEBUG: Log derivation inputs for the initial deposit flow
-        console.log("[Lamport DEBUG] === deriveLamportPkHash (initial deposit) ===");
-        console.log("[Lamport DEBUG] Inputs:", {
-          peginTxid: stripHexPrefix(prepared.btcTxid),
-          depositorBtcPubkey: prepared.depositorBtcPubkey,
-          appContractAddress: selectedApplication,
-        });
 
         const lamportPkHash = await deriveLamportPkHash(
           mnemonic,
@@ -240,7 +226,6 @@ export function useDepositFlow(
           prepared.depositorBtcPubkey,
           selectedApplication,
         );
-        console.log("[Lamport DEBUG] Committed lamportPkHash:", lamportPkHash);
 
         // Step 2b: Register pegin on-chain (PoP + ETH tx)
         const registration = await registerPeginAndWait({
@@ -307,24 +292,24 @@ export function useDepositFlow(
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({
-          btcTxid: registration.btcTxid,
-          btcTxHex: prepared.btcTxHex,
-          depositorBtcPubkey: prepared.depositorBtcPubkey,
-          providerUrl: provider.url,
-          providerBtcPubKey: provider.btcPubKey,
-          vaultKeepers: vaultKeepers.map((vk) => ({
-            btcPubKey: vk.btcPubKey,
-          })),
-          universalChallengers: latestUniversalChallengers.map((uc) => ({
-            btcPubKey: uc.btcPubKey,
-          })),
-          timelockPegin,
-          signal,
-        });
+            btcTxid: registration.btcTxid,
+            btcTxHex: prepared.btcTxHex,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
+            providerUrl: provider.url,
+            providerBtcPubKey: provider.btcPubKey,
+            vaultKeepers: vaultKeepers.map((vk) => ({
+              btcPubKey: vk.btcPubKey,
+            })),
+            universalChallengers: latestUniversalChallengers.map((uc) => ({
+              btcPubKey: uc.btcPubKey,
+            })),
+            timelockPegin,
+            signal,
+          });
 
         setIsWaiting(false);
 
-        const signatures = await signPayoutTransactionsWithProgress(
+        const signatures = await signPayoutTransactions(
           btcWalletProvider,
           context,
           preparedTransactions,
@@ -432,22 +417,3 @@ export function useDepositFlow(
     continueAfterArtifactDownload,
   };
 }
-
-/**
- * Sign payout transactions with progress tracking.
- * This function stays in the hook file since it needs to update React state.
- */
-async function signPayoutTransactionsWithProgress(
-  btcWalletProvider: BitcoinWallet,
-  context: Parameters<typeof signPayoutTransactions>[1],
-  preparedTransactions: Parameters<typeof signPayoutTransactions>[2],
-  setProgress: (progress: PayoutSigningProgress | null) => void,
-): Promise<Record<string, ClaimerSignatures>> {
-  return signPayoutTransactions(
-    btcWalletProvider,
-    context,
-    preparedTransactions,
-    setProgress,
-  );
-}
-
