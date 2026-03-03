@@ -66,6 +66,8 @@ function WithdrawFlowContent({
 }
 
 export default function WithdrawFlow(props: WithdrawFlowProps) {
+  if (!props.open) return null;
+
   return (
     <ProtocolParamsProvider>
       <WithdrawFlowContent {...props} />

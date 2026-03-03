@@ -4,7 +4,7 @@
  */
 
 import { Avatar, Card, Loader, Menu, MenuItem } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { DepositButton, MenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
@@ -37,11 +37,6 @@ export function CollateralSection({
   onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const handleWithdraw = useCallback(() => {
-    onWithdraw();
-  }, [onWithdraw]);
-
   const canWithdraw = !hasDebt;
 
   return (
@@ -102,7 +97,7 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              onWithdraw={handleWithdraw}
+              onWithdraw={onWithdraw}
               canWithdraw={canWithdraw}
             />
           )}
