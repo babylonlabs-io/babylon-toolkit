@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Loader, Menu, MenuItem } from "@babylonlabs-io/core-ui";
 import { useCallback, useState } from "react";
 
 import { DepositButton, MenuButton } from "@/components/shared";
@@ -87,10 +87,15 @@ export function CollateralSection({
                 {totalAmountBtc}
               </span>
             </div>
-            <MenuButton
-              onClick={() => setIsExpanded((prev) => !prev)}
-              aria-label="Toggle vault details"
-            />
+            <Menu
+              trigger={<MenuButton aria-label="Vault options" />}
+              className="min-w-[120px]"
+            >
+              <MenuItem
+                name={isExpanded ? "Collapse" : "Expand"}
+                onClick={() => setIsExpanded((prev) => !prev)}
+              />
+            </Menu>
           </div>
 
           {/* Expanded vault list */}
