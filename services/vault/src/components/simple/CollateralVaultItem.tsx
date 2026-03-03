@@ -50,7 +50,7 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Status</span>
         <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+          <span className={`inline-block h-2 w-2 rounded-full ${status === "In use" ? "bg-green-500" : "bg-gray-400"}`} />
           {status}
         </span>
       </div>
