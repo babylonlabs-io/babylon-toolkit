@@ -5,6 +5,7 @@ export {
   deriveLamportPkHash,
   generateLamportMnemonic,
   getMnemonicWords,
+  isLamportMismatchError,
   isValidMnemonic,
   keypairToPublicKey,
   mnemonicToLamportSeed,

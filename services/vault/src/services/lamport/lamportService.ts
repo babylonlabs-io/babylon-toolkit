@@ -494,3 +494,22 @@ export async function deriveLamportPkHash(
     seed.fill(0);
   }
 }
+
+/**
+ * Check whether an error from the vault provider indicates that the
+ * submitted Lamport public key hash does not match the on-chain
+ * commitment. This signals that the wrong mnemonic was used, as
+ * opposed to a transient network or validation error.
+ *
+ * The backend error message is:
+ *   "Lamport public key hash does not match on-chain commitment"
+ */
+export function isLamportMismatchError(error: unknown): boolean {
+  const msg =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : "";
+  return /lamport.*hash.*does not match/i.test(msg);
+}

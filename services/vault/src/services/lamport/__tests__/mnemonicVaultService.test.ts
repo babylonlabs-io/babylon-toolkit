@@ -40,6 +40,14 @@ describe("mnemonicVaultService", () => {
       expect(result).toBe(true);
     });
 
+    it("treats structurally invalid JSON as empty vault", async () => {
+      localStorage.setItem(
+        "babylon-lamport-vault",
+        JSON.stringify({ foo: "bar" }),
+      );
+      expect(await hasStoredMnemonic()).toBe(false);
+    });
+
     it("returns false for a scope that has no stored mnemonic", async () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       const result = await hasStoredMnemonic(TEST_SCOPE);
@@ -114,6 +122,46 @@ describe("mnemonicVaultService", () => {
       const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
       expect(getActiveMnemonicId()).toBe(id2);
     });
+
+    it("skips corrupted entries during duplicate check", async () => {
+      // Add a valid entry first
+      const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      // Manually corrupt the first entry's ciphertext in localStorage
+      const raw = localStorage.getItem("babylon-lamport-vault")!;
+      const vault = JSON.parse(raw);
+      vault.mnemonics[0].encrypted = "corrupted-ciphertext";
+      localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
+
+      // Adding a different mnemonic should succeed (skips corrupted entry)
+      const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
+      expect(id2).not.toBe(id1);
+
+      // The vault should now have the corrupted entry + the new one
+      const updated = JSON.parse(
+        localStorage.getItem("babylon-lamport-vault")!,
+      );
+      expect(updated.mnemonics).toHaveLength(2);
+    });
+
+    it("creates a new entry when re-adding the same mnemonic whose entry is corrupted", async () => {
+      await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+
+      // Corrupt the entry
+      const raw = localStorage.getItem("babylon-lamport-vault")!;
+      const vault = JSON.parse(raw);
+      vault.mnemonics[0].encrypted = "corrupted-ciphertext";
+      localStorage.setItem("babylon-lamport-vault", JSON.stringify(vault));
+
+      // Re-adding the same mnemonic can't deduplicate (corrupted entry is
+      // skipped), so a second entry is created
+      const id2 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const updated = JSON.parse(
+        localStorage.getItem("babylon-lamport-vault")!,
+      );
+      expect(updated.mnemonics).toHaveLength(2);
+      expect(updated.mnemonics[1].id).toBe(id2);
+    });
   });
 
   describe("unlockMnemonic", () => {
@@ -181,40 +229,55 @@ describe("mnemonicVaultService", () => {
   describe("pegin mapping", () => {
     it("links a pegin to a mnemonic and retrieves the mapping", async () => {
       const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      linkPeginToMnemonic("0xabc123", id);
+      linkPeginToMnemonic("abc123", id);
 
-      expect(getMnemonicIdForPegin("0xabc123")).toBe(id);
+      expect(getMnemonicIdForPegin("abc123")).toBe(id);
     });
 
     it("returns null for an unmapped pegin", () => {
-      expect(getMnemonicIdForPegin("0xunknown")).toBeNull();
+      expect(getMnemonicIdForPegin("unknown")).toBeNull();
     });
 
     it("maps multiple pegins to the same mnemonic", async () => {
       const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
-      linkPeginToMnemonic("0xabc", id);
-      linkPeginToMnemonic("0xdef", id);
+      linkPeginToMnemonic("abc", id);
+      linkPeginToMnemonic("def", id);
 
-      expect(getMnemonicIdForPegin("0xabc")).toBe(id);
-      expect(getMnemonicIdForPegin("0xdef")).toBe(id);
+      expect(getMnemonicIdForPegin("abc")).toBe(id);
+      expect(getMnemonicIdForPegin("def")).toBe(id);
     });
 
     it("maps pegins to different mnemonics", async () => {
       const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
-      linkPeginToMnemonic("0xabc", id1);
-      linkPeginToMnemonic("0xdef", id2);
+      linkPeginToMnemonic("abc", id1);
+      linkPeginToMnemonic("def", id2);
 
-      expect(getMnemonicIdForPegin("0xabc")).toBe(id1);
-      expect(getMnemonicIdForPegin("0xdef")).toBe(id2);
+      expect(getMnemonicIdForPegin("abc")).toBe(id1);
+      expect(getMnemonicIdForPegin("def")).toBe(id2);
+    });
+
+    it("does not create a vault when linking to a non-existent scope", () => {
+      linkPeginToMnemonic("abc", "some-id", "non-existent-scope");
+      expect(
+        localStorage.getItem("babylon-lamport-vault-non-existent-scope"),
+      ).toBeNull();
     });
 
     it("respects scope for pegin mappings", async () => {
       const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
-      linkPeginToMnemonic("0xabc", id, TEST_SCOPE);
+      linkPeginToMnemonic("abc", id, TEST_SCOPE);
 
-      expect(getMnemonicIdForPegin("0xabc", TEST_SCOPE)).toBe(id);
-      expect(getMnemonicIdForPegin("0xabc")).toBeNull();
+      expect(getMnemonicIdForPegin("abc", TEST_SCOPE)).toBe(id);
+      expect(getMnemonicIdForPegin("abc")).toBeNull();
+    });
+
+    it("overwrites an existing mapping for the same pegin", async () => {
+      const id1 = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
+      linkPeginToMnemonic("abc", id1);
+      linkPeginToMnemonic("abc", id2);
+      expect(getMnemonicIdForPegin("abc")).toBe(id2);
     });
   });
 
@@ -232,6 +295,13 @@ describe("mnemonicVaultService", () => {
       await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
       const id2 = await addMnemonic(TEST_MNEMONIC_2, TEST_PASSWORD);
       expect(getActiveMnemonicId()).toBe(id2);
+    });
+
+    it("returns the active ID for a scoped vault", async () => {
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD, TEST_SCOPE);
+      expect(getActiveMnemonicId(TEST_SCOPE)).toBe(id);
+      // Global should be unaffected
+      expect(getActiveMnemonicId()).toBeNull();
     });
   });
 
@@ -313,6 +383,38 @@ describe("mnemonicVaultService", () => {
 
       expect(await hasStoredMnemonic()).toBe(true);
       expect(await hasStoredMnemonic(TEST_SCOPE)).toBe(false);
+    });
+
+    it("also removes pegin mappings when clearing the vault", async () => {
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      linkPeginToMnemonic("abc", id);
+      expect(getMnemonicIdForPegin("abc")).toBe(id);
+
+      clearStoredMnemonic();
+      expect(getMnemonicIdForPegin("abc")).toBeNull();
+    });
+  });
+
+  describe("backward compatibility", () => {
+    it("treats old single-mnemonic format as empty", async () => {
+      // Old format: { encrypted: "..." } without mnemonics array
+      localStorage.setItem(
+        "babylon-lamport-vault",
+        JSON.stringify({ encrypted: "old-data" }),
+      );
+      const result = await hasStoredMnemonic();
+      expect(result).toBe(false);
+    });
+
+    it("allows adding a mnemonic when old format exists (overwrites)", async () => {
+      localStorage.setItem(
+        "babylon-lamport-vault",
+        JSON.stringify({ encrypted: "old-data" }),
+      );
+      const id = await addMnemonic(TEST_MNEMONIC, TEST_PASSWORD);
+      expect(typeof id).toBe("string");
+      const mnemonic = await unlockMnemonic(TEST_PASSWORD);
+      expect(mnemonic).toBe(TEST_MNEMONIC);
     });
   });
 });
