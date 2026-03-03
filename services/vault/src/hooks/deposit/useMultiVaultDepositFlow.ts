@@ -46,7 +46,6 @@ import {
 } from "@/services/vault";
 import { signPayoutTransactions } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
-import { stripHexPrefix } from "@/utils/btc";
 
 import {
   broadcastBtcTransaction,
@@ -422,7 +421,7 @@ export function useMultiVaultDepositFlow(
               const splitMnemonic = await getMnemonic();
               const splitLamportPkHash = await deriveLamportPkHash(
                 splitMnemonic,
-                stripHexPrefix(prepareResult.btcTxHash),
+                prepareResult.btcTxHash,
                 prepareResult.depositorBtcPubkey,
                 selectedApplication,
               );
@@ -476,7 +475,7 @@ export function useMultiVaultDepositFlow(
               const stdMnemonic = await getMnemonic();
               const lamportPkHash = await deriveLamportPkHash(
                 stdMnemonic,
-                stripHexPrefix(prepared.btcTxid),
+                prepared.btcTxid,
                 prepared.depositorBtcPubkey,
                 selectedApplication,
               );
@@ -568,13 +567,18 @@ export function useMultiVaultDepositFlow(
 
             if (mnemonicId) {
               linkPeginToMnemonic(
-                stripHexPrefix(peginResult.vaultId),
+                peginResult.vaultId,
                 mnemonicId,
                 confirmedEthAddress,
               );
             }
           }
         }
+
+        // Move to next step after persisting pegins + mnemonic links,
+        // so a page refresh won't lose the associations.
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
 
         // ========================================================================
         // Step 4.5: Submit Lamport Public Keys to Vault Provider
@@ -614,9 +618,8 @@ export function useMultiVaultDepositFlow(
 
         // ========================================================================
         // Step 5: Background - Sign Payout Transactions
+        // (step already set above after ETH confirmation)
         // ========================================================================
-
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
 
         for (const result of successfulPegins) {
           try {
@@ -656,6 +659,9 @@ export function useMultiVaultDepositFlow(
               confirmedEthAddress,
             );
           } catch (error) {
+            // If the user cancelled, stop immediately — don't continue with other vaults
+            if (signal.aborted) throw error;
+
             const errorMsg =
               error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;

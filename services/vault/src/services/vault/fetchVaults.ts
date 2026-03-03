@@ -172,7 +172,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       ? (item.currentOwner as Address)
       : undefined,
     referralCode: item.referralCode,
-    depositorLamportPkHash: item.depositorLamportPkHash ?? undefined,
+    depositorLamportPkHash: item.depositorLamportPkHash!,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
     expirationReason: item.expirationReason ?? undefined,

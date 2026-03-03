@@ -216,7 +216,6 @@ vi.mock("@/services/vault", () => ({
   }),
   collectReservedUtxoRefs: vi.fn().mockReturnValue([]),
   selectUtxosForDeposit: vi.fn(({ availableUtxos }) => availableUtxos),
-  signAndSubmitPayoutSignatures: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock payout signature service to avoid SDK imports triggering initEccLib

@@ -203,7 +203,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           />
         )}
 
-        {renderedStep === DepositStep.SIGN && (
+        {renderedStep === DepositStep.SIGN && getMnemonic && (
           <div className="mx-auto w-full max-w-[520px]">
             <DepositSignContent
               amount={depositAmount}
@@ -215,7 +215,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
               vaultProviderBtcPubkey={selectedProviderBtcPubkey}
               vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
               universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              getMnemonic={getMnemonic!}
+              getMnemonic={getMnemonic}
               mnemonicId={mnemonicId}
               onSuccess={handleSignSuccess}
               onClose={onClose}

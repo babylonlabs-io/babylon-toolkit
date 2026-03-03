@@ -29,7 +29,6 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
-import { stripHexPrefix } from "@/utils/btc";
 
 import {
   broadcastBtcTransaction,
@@ -222,7 +221,7 @@ export function useDepositFlow(
 
         const lamportPkHash = await deriveLamportPkHash(
           mnemonic,
-          stripHexPrefix(prepared.btcTxid),
+          prepared.btcTxid,
           prepared.depositorBtcPubkey,
           selectedApplication,
         );
@@ -252,11 +251,16 @@ export function useDepositFlow(
 
         if (mnemonicId && depositorEthAddress) {
           linkPeginToMnemonic(
-            stripHexPrefix(registration.btcTxid),
+            registration.btcTxid,
             mnemonicId,
             depositorEthAddress,
           );
         }
+
+        // Move to next step after persisting pegin + mnemonic link,
+        // so a page refresh won't lose the association.
+        setCurrentStep(DepositStep.SIGN_PAYOUTS);
+        setIsWaiting(true);
 
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
@@ -264,7 +268,6 @@ export function useDepositFlow(
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
-        setIsWaiting(true);
         try {
           await submitLamportPublicKey({
             btcTxid: registration.btcTxid,
@@ -282,13 +285,10 @@ export function useDepositFlow(
             "Lamport key submission failed (deposit is recoverable):",
             err,
           );
-        } finally {
-          setIsWaiting(false);
         }
 
         // Step 3: Poll and sign payout transactions
-        setCurrentStep(DepositStep.SIGN_PAYOUTS);
-        setIsWaiting(true);
+        // (step already set above, isWaiting already true)
 
         const { context, vaultProviderUrl, preparedTransactions } =
           await pollAndPreparePayoutSigning({

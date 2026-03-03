@@ -41,6 +41,8 @@
 
 import { decrypt, encrypt } from "@metamask/browser-passworder";
 
+import { stripHexPrefix } from "@/utils/btc";
+
 /** Base localStorage key where the encrypted vault is stored. */
 const STORAGE_KEY = "babylon-lamport-vault";
 
@@ -351,7 +353,7 @@ export function linkPeginToMnemonic(
     );
     return;
   }
-  vault.peginMap[peginId] = mnemonicId;
+  vault.peginMap[stripHexPrefix(peginId)] = mnemonicId;
   writeVault(vault, scope);
 }
 
@@ -367,7 +369,7 @@ export function getMnemonicIdForPegin(
   scope?: string,
 ): string | null {
   const vault = readVault(scope);
-  return vault?.peginMap[peginId] ?? null;
+  return vault?.peginMap[stripHexPrefix(peginId)] ?? null;
 }
 
 /**

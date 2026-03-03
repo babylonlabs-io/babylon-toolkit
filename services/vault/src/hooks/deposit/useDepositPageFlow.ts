@@ -150,35 +150,32 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     goToStep(DepositStep.MNEMONIC);
   };
 
-  // Store the mnemonic from the MnemonicModal so it can be used later
-  // in the deposit flow for Lamport key derivation & VP submission.
-  // Use a ref to avoid exposing the sensitive value in React state/devtools.
+  // Mnemonic is stored in a ref to avoid exposing the sensitive value in
+  // React state / devtools.  A counter state forces re-renders when set/cleared.
   const mnemonicRef = useRef<string | undefined>(undefined);
-  const mnemonicIdRef = useRef<string | undefined>(undefined);
-  const [hasMnemonic, setHasMnemonic] = useState(false);
+  const [mnemonicId, setMnemonicId] = useState<string | undefined>(undefined);
+  const [mnemonicVersion, setMnemonicVersion] = useState(0);
 
   const confirmMnemonic = useCallback(
-    (mnemonic?: string, mnemonicId?: string) => {
+    (mnemonic?: string, id?: string) => {
       mnemonicRef.current = mnemonic;
-      mnemonicIdRef.current = mnemonicId;
-      setHasMnemonic(!!mnemonic);
+      setMnemonicId(id);
+      setMnemonicVersion((v) => v + 1);
       goToStep(DepositStep.SIGN);
     },
     [goToStep],
   );
 
-  const getMnemonic = useMemo<(() => Promise<string>) | undefined>(() => {
-    if (!hasMnemonic) return undefined;
-    return async () => {
-      if (!mnemonicRef.current) throw new Error("Mnemonic not available");
-      return mnemonicRef.current;
-    };
-  }, [hasMnemonic]);
+  const getMnemonic = useMemo<(() => Promise<string>) | undefined>(
+    () => (mnemonicRef.current ? async () => mnemonicRef.current! : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mnemonicVersion triggers rebuild
+    [mnemonicVersion],
+  );
 
   const resetDeposit = useCallback(() => {
     mnemonicRef.current = undefined;
-    mnemonicIdRef.current = undefined;
-    setHasMnemonic(false);
+    setMnemonicId(undefined);
+    setMnemonicVersion((v) => v + 1);
     resetDepositState();
   }, [resetDepositState]);
 
@@ -203,7 +200,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     confirmReview,
     confirmMnemonic,
     getMnemonic,
-    mnemonicId: mnemonicIdRef.current,
+    mnemonicId: mnemonicId,
     onSignSuccess,
     resetDeposit,
     refetchActivities,

@@ -33,7 +33,7 @@ Orchestrates BTC vault creation ([peg-in flow](https://github.com/babylonlabs-io
 
 1. **Prepare** — Builds a funded Bitcoin transaction with BTC vault output, selects UTXOs, and calculates fees
 2. **Register** — Submits BTC vault to Ethereum (with proof-of-possession). Pays a peg-in fee in ETH (queried from the contract per vault provider)
-3. **Sign payout authorization** — After the vault provider prepares claim/payout transactions, signs 2 payout transactions per claimer (PayoutOptimistic + Payout). The depositor only signs input 0 (the vault UTXO)
+3. **Sign payout authorization** — After the vault provider prepares payout transactions, signs 1 payout transaction per claimer. The depositor only signs input 0 (the vault UTXO)
 4. **Broadcast** — Signs and broadcasts the funded Bitcoin transaction to the network
 
 > **Wallet requirements:** BTC wallet needs sufficient UTXOs to cover the vault amount + transaction fees. ETH wallet needs gas + the peg-in fee.
@@ -98,16 +98,8 @@ console.log("Registered:", ethTxHash);
 // Step 3: Sign payout authorization (after vault provider returns transactions)
 const payoutManager = new PayoutManager({ network: "signet", btcWallet });
 
-// For each claimer, sign BOTH PayoutOptimistic and Payout transactions
-// const { signature: payoutOptimisticSig } = await payoutManager.signPayoutOptimisticTransaction({
-//   payoutOptimisticTxHex: claimerTx.payout_optimistic_tx.tx_hex,
-//   peginTxHex: result.fundedTxHex,
-//   claimTxHex: claimerTx.claim_tx.tx_hex,
-//   depositorBtcPubkey: "...",
-//   vaultProviderBtcPubkey: "...",
-//   vaultKeeperBtcPubkeys: [...],
-//   universalChallengerBtcPubkeys: [...],
-// });
+// For each claimer, sign the Payout transaction
+// (see PayoutManager section below for signPayoutTransaction usage)
 
 // Submit signatures to vault provider
 // Wait for vault provider to acknowledge (contract status: PENDING → VERIFIED)
@@ -130,7 +122,7 @@ console.log("Broadcasted:", btcTxid);
 | ---- | ------------------------ | --------------------------------------------------------------------------------- |
 | 1    | `preparePegin()`         | `{ btcTxHash, fundedTxHex, vaultScriptPubKey, selectedUTXOs, fee, changeAmount }` |
 | 2    | `registerPeginOnChain()` | `{ ethTxHash, vaultId }`                                                          |
-| 3    | `PayoutManager` methods  | `{ signature }` (for each payout transaction)                                     |
+| 3    | `PayoutManager` methods  | `{ signature }` per claimer                                                       |
 | 4    | `signAndBroadcast()`     | `btcTxid` (string)                                                                |
 
 ---
@@ -158,21 +150,8 @@ const payoutManager = new PayoutManager({
 
 ### Methods
 
-> **Deprecation notice:** `signPayoutOptimisticTransaction` is planned for removal in a future release.
-
 ```typescript
-// Sign PayoutOptimistic (normal path - no challenge)
-const { signature } = await payoutManager.signPayoutOptimisticTransaction({
-  payoutOptimisticTxHex: "...",    // From vault provider
-  peginTxHex: "...",               // Your peg-in transaction
-  claimTxHex: "...",               // Claim transaction
-  depositorBtcPubkey: "...",
-  vaultProviderBtcPubkey: "...",
-  vaultKeeperBtcPubkeys: [...],
-  universalChallengerBtcPubkeys: [...],
-});
-
-// Sign Payout (challenge path - after Assert)
+// Sign Payout (challenge path via Assert tx)
 const { signature } = await payoutManager.signPayoutTransaction({
   payoutTxHex: "...",
   peginTxHex: "...",

@@ -55,7 +55,7 @@ export function SigningProgress({
   totalClaimers,
 }: SigningProgressProps) {
   const total = totalClaimers;
-  const currentClaimer = completed + 1;
+  const currentClaimer = Math.min(completed + 1, total);
   const mode = getProgressMode(step, isWaiting, total);
 
   if (!mode) return null;
@@ -105,8 +105,8 @@ export function SigningProgress({
           <>
             Signing payout
             {totalClaimers > 1 &&
-              ` (Claimer ${currentClaimer}/${totalClaimers})`}{" "}
-            — Step {completed + 1} of {total}
+              ` (Claimer ${currentClaimer}/${totalClaimers})`}
+            {total > 1 && ` — Step ${completed + 1} of ${total}`}
           </>
         ) : (
           <>

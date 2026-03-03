@@ -27,7 +27,6 @@ import {
 import type { VaultActivity } from "@/types/activity";
 import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { stripHexPrefix } from "@/utils/btc";
 
 import { DepositProgressView } from "./DepositProgressView";
 
@@ -167,7 +166,7 @@ export function ResumeLamportContent({
   const mappedMnemonicId = useMemo(
     () =>
       activity.txHash && ethAddress
-        ? getMnemonicIdForPegin(stripHexPrefix(activity.txHash), ethAddress)
+        ? getMnemonicIdForPegin(activity.txHash, ethAddress)
         : null,
     [activity.txHash, ethAddress],
   );
@@ -192,9 +191,7 @@ export function ResumeLamportContent({
           throw new Error("Could not resolve vault provider URL");
         }
 
-        const btcTxid = activity.txHash
-          ? stripHexPrefix(activity.txHash)
-          : null;
+        const btcTxid = activity.txHash ?? null;
         if (!btcTxid) {
           throw new Error("Missing transaction hash");
         }

@@ -102,7 +102,7 @@ export interface VaultActivity {
   unsignedBtcTx?: string;
 
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
-  depositorLamportPkHash?: string;
+  depositorLamportPkHash: string;
 }
 
 /**

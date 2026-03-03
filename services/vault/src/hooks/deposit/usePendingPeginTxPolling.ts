@@ -11,11 +11,9 @@ import type { Hex } from "viem";
 
 import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import { VaultProviderRpcApi } from "../../services/vault";
-import type {
-  ClaimerTransactions,
-  RequestDepositorPresignTransactionsResponse,
-} from "../../types";
+import type { ClaimerTransactions } from "../../types";
 import { stripHexPrefix } from "../../utils/btc";
+import { areTransactionsReady } from "../../utils/peginPolling";
 
 import { useVaultProviders } from "./useVaultProviders";
 
@@ -145,7 +143,7 @@ export function usePendingPeginTxPolling(
     // Poll every 30 seconds until transactions are ready
     refetchInterval: (query) => {
       // Stop polling if we have valid transactions (both claim_tx and payout_tx exist)
-      if (query.state.data && areTransactionsReady(query.state.data)) {
+      if (query.state.data?.txs && areTransactionsReady(query.state.data.txs)) {
         return false;
       }
       // Continue polling every 30 seconds
@@ -157,7 +155,7 @@ export function usePendingPeginTxPolling(
   });
 
   // Check if transactions are ready (both claim_tx and payout_tx available)
-  const isReady = data ? areTransactionsReady(data) : false;
+  const isReady = data?.txs ? areTransactionsReady(data.txs) : false;
 
   return {
     transactions: isReady && data ? data.txs : null,
@@ -165,28 +163,4 @@ export function usePendingPeginTxPolling(
     error: (error as Error | null) || providerError,
     isReady,
   };
-}
-
-/**
- * Check if all transactions are ready for signing
- * @param response - Response from vault provider RPC
- * @returns true if all transactions have both claim_tx and payout_tx
- */
-function areTransactionsReady(
-  response: RequestDepositorPresignTransactionsResponse,
-): boolean {
-  if (!response.txs || response.txs.length === 0) {
-    return false;
-  }
-
-  // Check that all claimer transactions have all required tx fields
-  return response.txs.every(
-    (tx) =>
-      tx.claim_tx?.tx_hex &&
-      tx.payout_tx?.tx_hex &&
-      tx.assert_tx?.tx_hex &&
-      tx.claim_tx.tx_hex.length > 0 &&
-      tx.payout_tx.tx_hex.length > 0 &&
-      tx.assert_tx.tx_hex.length > 0,
-  );
 }

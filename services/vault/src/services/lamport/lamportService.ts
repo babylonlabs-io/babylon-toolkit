@@ -70,6 +70,8 @@ import {
 } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 
+import { stripHexPrefix } from "@/utils/btc";
+
 /**
  * Number of bit positions in the Lamport keypair. Corresponds to the number
  * of garbled-circuit labels used in the BitVM-style protocol (PI_1 circuit).
@@ -349,6 +351,10 @@ export async function deriveLamportKeypair(
   depositorPk: string,
   appContractAddress: string,
 ): Promise<LamportKeypair> {
+  // Normalize inputs once — callers don't need to worry about 0x prefixes.
+  vaultId = stripHexPrefix(vaultId);
+  depositorPk = stripHexPrefix(depositorPk);
+
   const chainCode = seed.slice(KEY_SIZE, SEED_SIZE);
   const parentKey = seed.slice(0, KEY_SIZE);
 
@@ -481,22 +487,12 @@ export async function deriveLamportPkHash(
   depositorBtcPubkey: string,
   appContractAddress: string,
 ): Promise<`0x${string}`> {
-  // Normalize inputs: strip 0x prefix if present so the derivation is
-  // consistent regardless of whether the caller passes raw hex or 0x-prefixed
-  // values (e.g. the resume flow receives prefixed data from the indexer).
-  const normalizedTxid = peginTxid.startsWith("0x")
-    ? peginTxid.slice(2)
-    : peginTxid;
-  const normalizedPubkey = depositorBtcPubkey.startsWith("0x")
-    ? depositorBtcPubkey.slice(2)
-    : depositorBtcPubkey;
-
   const seed = mnemonicToLamportSeed(mnemonic);
   try {
     const keypair = await deriveLamportKeypair(
       seed,
-      normalizedTxid,
-      normalizedPubkey,
+      peginTxid,
+      depositorBtcPubkey,
       appContractAddress,
     );
     return computeLamportPkHash(keypair);

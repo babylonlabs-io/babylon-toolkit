@@ -60,142 +60,6 @@ the managers module instead (PeginManager and PayoutManager).
 
 ## Interfaces
 
-### PayoutOptimisticParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:74](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L74)
-
-Parameters for building an unsigned PayoutOptimistic PSBT
-
-PayoutOptimistic is used in the optimistic path when no challenge occurs.
-Input 1 references the Claim transaction.
-
-#### Extends
-
-- `PayoutBaseParams`
-
-#### Properties
-
-##### peginTxHex
-
-```ts
-peginTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:40](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L40)
-
-Peg-in transaction hex
-This transaction created the vault output that we're spending
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.peginTxHex
-```
-
-##### depositorBtcPubkey
-
-```ts
-depositorBtcPubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:45](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L45)
-
-Depositor's BTC public key (x-only, 64-char hex without 0x prefix)
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.depositorBtcPubkey
-```
-
-##### vaultProviderBtcPubkey
-
-```ts
-vaultProviderBtcPubkey: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:50](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L50)
-
-Vault provider's BTC public key (x-only, 64-char hex)
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.vaultProviderBtcPubkey
-```
-
-##### vaultKeeperBtcPubkeys
-
-```ts
-vaultKeeperBtcPubkeys: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:55](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L55)
-
-Vault keeper BTC public keys (x-only, 64-char hex)
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.vaultKeeperBtcPubkeys
-```
-
-##### universalChallengerBtcPubkeys
-
-```ts
-universalChallengerBtcPubkeys: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:60](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L60)
-
-Universal challenger BTC public keys (x-only, 64-char hex)
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.universalChallengerBtcPubkeys
-```
-
-##### network
-
-```ts
-network: Network;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:65](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L65)
-
-Bitcoin network
-
-###### Inherited from
-
-```ts
-PayoutBaseParams.network
-```
-
-##### payoutOptimisticTxHex
-
-```ts
-payoutOptimisticTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:79](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L79)
-
-PayoutOptimistic transaction hex (unsigned)
-This is the transaction that needs to be signed by the depositor
-
-##### claimTxHex
-
-```ts
-claimTxHex: string;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:85](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L85)
-
-Claim transaction hex
-PayoutOptimistic input 1 references Claim output 0
-
-***
-
 ### PayoutParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:94](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L94)
@@ -674,53 +538,6 @@ Bitcoin network types supported by the vault system
 
 ## Functions
 
-### buildPayoutOptimisticPsbt()
-
-```ts
-function buildPayoutOptimisticPsbt(params): Promise<PayoutPsbtResult>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts:292](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts#L292)
-
-Build unsigned PayoutOptimistic PSBT for depositor to sign.
-
-PayoutOptimistic is used in the **optimistic path** when no challenge occurs:
-1. Vault provider submits Claim transaction
-2. Challenge period passes without challenge
-3. PayoutOptimistic can be executed (references Claim tx)
-
-#### Parameters
-
-##### params
-
-[`PayoutOptimisticParams`](#payoutoptimisticparams)
-
-PayoutOptimistic parameters
-
-#### Returns
-
-`Promise`\<[`PayoutPsbtResult`](#payoutpsbtresult)\>
-
-Unsigned PSBT ready for depositor to sign
-
-#### Throws
-
-If payout transaction does not have exactly 2 inputs
-
-#### Throws
-
-If input 0 does not reference the pegin transaction
-
-#### Throws
-
-If input 1 does not reference the claim transaction
-
-#### Throws
-
-If previous output is not found for either input
-
-***
-
 ### buildPayoutPsbt()
 
 ```ts
@@ -785,8 +602,6 @@ This function supports two cases:
 
 The signature is returned as a 64-byte hex string (128 hex characters)
 with any sighash flag byte removed if present.
-
-Works with both PayoutOptimistic and Payout signed PSBTs.
 
 #### Parameters
 

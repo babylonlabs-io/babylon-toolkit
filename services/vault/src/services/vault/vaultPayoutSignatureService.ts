@@ -7,6 +7,7 @@ import type {
   ClaimerSignatures,
   ClaimerTransactions,
   DepositorAsClaimerPresignatures,
+  SubmitDepositorPresignaturesParams,
 } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type { UniversalChallenger } from "../../types";
@@ -173,12 +174,15 @@ export async function submitSignaturesToVaultProvider(
   depositorClaimerPresignatures?: DepositorAsClaimerPresignatures,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
-  await rpcClient.submitDepositorPresignatures({
+  const params: SubmitDepositorPresignaturesParams = {
     pegin_txid: stripHexPrefix(peginTxId),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
     signatures,
-    depositor_claimer_presignatures: depositorClaimerPresignatures,
-  });
+  };
+  if (depositorClaimerPresignatures) {
+    params.depositor_claimer_presignatures = depositorClaimerPresignatures;
+  }
+  await rpcClient.submitDepositorPresignatures(params);
 }
 
 /** Context required for signing payout transactions */

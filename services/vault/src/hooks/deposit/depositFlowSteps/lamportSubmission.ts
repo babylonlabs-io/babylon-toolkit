@@ -50,13 +50,6 @@ export async function submitLamportPublicKey(
 
   signal?.throwIfAborted();
 
-  const peginTxid = stripHexPrefix(btcTxid);
-  // Strip 0x prefix from depositorBtcPubkey to match the format used during
-  // deriveLamportPkHash (which receives the raw x-only pubkey from the wallet).
-  // The resume flow passes activity.depositorBtcPubkey which has a 0x prefix
-  // from the indexer, causing a keypair mismatch if not normalized here.
-  const normalizedDepositorPk = stripHexPrefix(depositorBtcPubkey);
-
   const mnemonic = await getMnemonic();
   signal?.throwIfAborted();
 
@@ -65,8 +58,8 @@ export async function submitLamportPublicKey(
   try {
     const keypair = await deriveLamportKeypair(
       seed,
-      peginTxid,
-      normalizedDepositorPk,
+      btcTxid,
+      depositorBtcPubkey,
       appContractAddress,
     );
     lamportPublicKey = keypairToPublicKey(keypair);
@@ -80,8 +73,8 @@ export async function submitLamportPublicKey(
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
   await rpcClient.submitDepositorLamportKey({
-    pegin_txid: peginTxid,
-    depositor_pk: normalizedDepositorPk,
+    pegin_txid: stripHexPrefix(btcTxid),
+    depositor_pk: stripHexPrefix(depositorBtcPubkey),
     lamport_public_key: lamportPublicKey,
   });
 }

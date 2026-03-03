@@ -80,7 +80,7 @@ export interface Vault {
   referralCode: number;
 
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
-  depositorLamportPkHash?: string;
+  depositorLamportPkHash: string;
 
   // === Application/usage status ===
 
