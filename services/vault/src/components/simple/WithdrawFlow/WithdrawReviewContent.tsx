@@ -22,11 +22,11 @@ export function WithdrawReviewContent({
   const { defaultFeeRate } = useNetworkFees();
   const { vpCommissionBps } = useProtocolParamsContext();
 
-  const protocolFeeBtc = totalAmountBtc * (vpCommissionBps / 10_000);
-  const protocolFeeUsd = totalAmountUsd * (vpCommissionBps / 10_000);
+  const rows: DetailRow[] = useMemo(() => {
+    const protocolFeeBtc = totalAmountBtc * (vpCommissionBps / 10_000);
+    const protocolFeeUsd = totalAmountUsd * (vpCommissionBps / 10_000);
 
-  const rows: DetailRow[] = useMemo(
-    () => [
+    return [
       {
         label: "Withdraw Amount",
         value: (
@@ -54,15 +54,8 @@ export function WithdrawReviewContent({
           </span>
         ),
       },
-    ],
-    [
-      totalAmountBtc,
-      totalAmountUsd,
-      defaultFeeRate,
-      protocolFeeBtc,
-      protocolFeeUsd,
-    ],
-  );
+    ];
+  }, [totalAmountBtc, totalAmountUsd, defaultFeeRate, vpCommissionBps]);
 
   return (
     <div className="w-full">
