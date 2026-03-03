@@ -37,7 +37,7 @@ import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { deriveLamportPkHash } from "@/services/lamport";
+import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import {
   broadcastPeginWithLocalUtxo,
   planUtxoAllocation,
@@ -89,8 +89,12 @@ export interface UseMultiVaultDepositFlowParams {
   vaultKeeperBtcPubkeys: string[];
   /** Universal challenger BTC public keys */
   universalChallengerBtcPubkeys: string[];
-  /** Callback to retrieve the decrypted Lamport mnemonic (depositor-as-claimer) */
+  /** Callback to retrieve the decrypted mnemonic. When present, enables
+   *  Lamport PK derivation and submission to the vault provider. */
   getMnemonic?: () => Promise<string>;
+  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
+   *  mapping so the resume flow can look up the correct mnemonic. */
+  mnemonicId?: string;
 }
 
 export interface UseMultiVaultDepositFlowReturn {
@@ -230,6 +234,7 @@ export function useMultiVaultDepositFlow(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     getMnemonic,
+    mnemonicId,
   } = params;
 
   // State
@@ -570,6 +575,14 @@ export function useMultiVaultDepositFlow(
               batchIndex: peginResult.vaultIndex + 1, // 1-based position for UI display
               batchTotal: vaultAmounts.length, // Total vaults in this batch
             });
+
+            if (mnemonicId) {
+              linkPeginToMnemonic(
+                stripHexPrefix(peginResult.vaultId),
+                mnemonicId,
+                confirmedEthAddress,
+              );
+            }
           }
         }
 
@@ -785,6 +798,7 @@ export function useMultiVaultDepositFlow(
       vaultKeepers,
       findProvider,
       getMnemonic,
+      mnemonicId,
     ]);
 
   return {

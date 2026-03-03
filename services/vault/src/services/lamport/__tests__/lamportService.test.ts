@@ -6,6 +6,7 @@ import {
   deriveLamportKeypair,
   generateLamportMnemonic,
   getMnemonicWords,
+  isLamportMismatchError,
   isValidMnemonic,
   keypairToPublicKey,
   mnemonicToLamportSeed,
@@ -307,6 +308,52 @@ describe("lamportService", () => {
       };
 
       expect(computeLamportPkHash(tampered)).not.toBe(originalHash);
+    });
+  });
+
+  describe("isLamportMismatchError", () => {
+    it("returns true for the exact VP error message", () => {
+      const err = new Error(
+        "Lamport public key hash does not match on-chain commitment",
+      );
+      expect(isLamportMismatchError(err)).toBe(true);
+    });
+
+    it("returns true when the VP message is embedded in a wrapper error", () => {
+      const err = new Error(
+        "RPC error: Lamport public key hash does not match on-chain commitment (code 3002)",
+      );
+      expect(isLamportMismatchError(err)).toBe(true);
+    });
+
+    it("returns false for network errors", () => {
+      expect(isLamportMismatchError(new Error("fetch failed"))).toBe(false);
+    });
+
+    it("returns false for missing field errors", () => {
+      expect(
+        isLamportMismatchError(new Error("Missing transaction hash")),
+      ).toBe(false);
+    });
+
+    it("returns false for generic errors", () => {
+      expect(
+        isLamportMismatchError(new Error("Failed to submit lamport key")),
+      ).toBe(false);
+    });
+
+    it("handles string errors", () => {
+      expect(
+        isLamportMismatchError(
+          "Lamport public key hash does not match on-chain commitment",
+        ),
+      ).toBe(true);
+    });
+
+    it("handles non-error values", () => {
+      expect(isLamportMismatchError(null)).toBe(false);
+      expect(isLamportMismatchError(undefined)).toBe(false);
+      expect(isLamportMismatchError(42)).toBe(false);
     });
   });
 });

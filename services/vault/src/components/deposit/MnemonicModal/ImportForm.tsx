@@ -1,6 +1,8 @@
 import { Button, Text } from "@babylonlabs-io/core-ui";
 import { useCallback, useRef, useState } from "react";
 
+import { getNextFocusIndex } from "@/utils/wordGridKeyboardNav";
+
 const WORD_COUNT = 12;
 
 interface ImportFormProps {
@@ -48,14 +50,14 @@ export function ImportForm({
 
   const handleKeyDown = useCallback(
     (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === " " || e.key === "Tab") {
-        if (e.key === " ") e.preventDefault();
-        if (index < WORD_COUNT - 1) {
-          inputRefs.current[index + 1]?.focus();
-        }
-      } else if (e.key === "Backspace" && words[index] === "" && index > 0) {
-        inputRefs.current[index - 1]?.focus();
-      }
+      const { focusIndex, preventDefault } = getNextFocusIndex(
+        index,
+        e,
+        WORD_COUNT,
+        words[index] === "",
+      );
+      if (preventDefault) e.preventDefault();
+      if (focusIndex !== null) inputRefs.current[focusIndex]?.focus();
     },
     [words],
   );

@@ -23,7 +23,7 @@ import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
-import { deriveLamportPkHash } from "@/services/lamport";
+import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
 import {
   signPayout,
@@ -60,7 +60,12 @@ export interface UseDepositFlowParams {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** Callback to retrieve the decrypted mnemonic. When present, enables
+   *  Lamport PK derivation and submission to the vault provider. */
   getMnemonic?: () => Promise<string>;
+  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
+   *  mapping so the resume flow can look up the correct mnemonic. */
+  mnemonicId?: string;
 }
 
 export interface ArtifactDownloadInfo {
@@ -95,6 +100,7 @@ export function useDepositFlow(
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     getMnemonic,
+    mnemonicId,
   } = params;
 
   // State
@@ -249,6 +255,14 @@ export function useDepositFlow(
           selectedUTXOs: prepared.selectedUTXOs,
         });
 
+        if (mnemonicId && depositorEthAddress) {
+          linkPeginToMnemonic(
+            stripHexPrefix(registration.btcTxid),
+            mnemonicId,
+            depositorEthAddress,
+          );
+        }
+
         const provider = getSelectedVaultProvider();
         if (!provider.url) {
           throw new Error("Vault provider has no RPC URL");
@@ -395,6 +409,7 @@ export function useDepositFlow(
       minDeposit,
       maxDeposit,
       getMnemonic,
+      mnemonicId,
     ]);
 
   return {

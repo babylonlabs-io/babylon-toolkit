@@ -5,6 +5,7 @@ export {
   deriveLamportPkHash,
   generateLamportMnemonic,
   getMnemonicWords,
+  isLamportMismatchError,
   isValidMnemonic,
   keypairToPublicKey,
   mnemonicToLamportSeed,
@@ -16,8 +17,12 @@ export type {
   VerificationChallenge,
 } from "./lamportService";
 export {
+  addMnemonic,
   clearStoredMnemonic,
+  getActiveMnemonicId,
+  getMnemonicIdForPegin,
+  hasMnemonicEntry,
   hasStoredMnemonic,
-  storeMnemonic,
+  linkPeginToMnemonic,
   unlockMnemonic,
 } from "./mnemonicVaultService";

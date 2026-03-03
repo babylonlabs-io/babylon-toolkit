@@ -20,6 +20,9 @@ interface DepositSignContentProps {
   vaultProviderBtcPubkey: string;
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
+  /** UUID of the stored mnemonic, used to record the peg-in → mnemonic
+   *  mapping so the resume flow can look up the correct mnemonic. */
+  mnemonicId?: string;
   onSuccess: (
     btcTxid: string,
     ethTxHash: string,
