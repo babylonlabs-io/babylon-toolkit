@@ -59,8 +59,10 @@ export function CollateralModal({
   onClose,
   mode,
 }: CollateralModalProps) {
-  const addCollateralHook = useAddCollateralModal();
-  const withdrawCollateralHook = useWithdrawCollateralModal();
+  const addCollateralHook = useAddCollateralModal({ enabled: mode === "add" });
+  const withdrawCollateralHook = useWithdrawCollateralModal({
+    enabled: mode === "withdraw",
+  });
 
   const hook = mode === "add" ? addCollateralHook : withdrawCollateralHook;
   const config = MODE_CONFIG[mode];

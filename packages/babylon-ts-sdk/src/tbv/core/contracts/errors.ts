@@ -113,7 +113,7 @@ export function extractErrorData(error: unknown): string | undefined {
 export function getContractErrorMessage(error: unknown): string | undefined {
   const errorData = extractErrorData(error);
   if (errorData) {
-    return CONTRACT_ERRORS[errorData];
+    return CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[errorData.slice(0, 10)];
   }
   return undefined;
 }
@@ -126,7 +126,7 @@ export function getContractErrorMessage(error: unknown): string | undefined {
  */
 export function isKnownContractError(error: unknown): boolean {
   const errorData = extractErrorData(error);
-  return errorData !== undefined && errorData in CONTRACT_ERRORS;
+  return errorData !== undefined && (errorData in CONTRACT_ERRORS || errorData.slice(0, 10) in CONTRACT_ERRORS);
 }
 
 /**
@@ -148,7 +148,7 @@ export function handleContractError(error: unknown): never {
 
   // Check for known contract error signatures
   if (errorData) {
-    const knownError = CONTRACT_ERRORS[errorData];
+    const knownError = CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[errorData.slice(0, 10)];
     if (knownError) {
       console.error("[Contract Error] Known error:", knownError);
       throw new Error(knownError);

@@ -6,6 +6,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositStep } from "../depositFlowSteps/types";
 import { useDepositFlow } from "../useDepositFlow";
 
 // Mock config/contracts to avoid env var validation
@@ -527,7 +528,7 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      expect(result.current.currentStep).toBe(1);
+      expect(result.current.currentStep).toBe(DepositStep.SIGN_POP);
       expect(result.current.processing).toBe(false);
 
       const flowResult = await result.current.executeDepositFlow();

@@ -136,23 +136,6 @@ const GET_AAVE_USER_POSITIONS = gql`
   }
 `;
 
-const GET_AAVE_ACTIVE_POSITIONS = gql`
-  query GetAaveActivePositions($depositor: String!) {
-    aavePositions(where: { depositor: $depositor }) {
-      items {
-        id
-        depositor
-        depositorBtcPubKey
-        reserveId
-        proxyContract
-        totalCollateral
-        createdAt
-        updatedAt
-      }
-    }
-  }
-`;
-
 const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
   query GetAaveActivePositionsWithCollaterals($depositor: String!) {
     aavePositions(where: { depositor: $depositor }) {
@@ -288,7 +271,7 @@ export async function fetchAaveActivePositions(
   depositor: string,
 ): Promise<AavePosition[]> {
   const response = await graphqlClient.request<GraphQLUserPositionsResponse>(
-    GET_AAVE_ACTIVE_POSITIONS,
+    GET_AAVE_USER_POSITIONS,
     { depositor: depositor.toLowerCase() },
   );
 

@@ -27,11 +27,12 @@ import {
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
+import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
@@ -47,6 +48,7 @@ import {
   signPayoutOptimistic,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
+import { processPublicKeyToXOnly } from "@/utils/btc/btcUtils";
 
 import {
   broadcastBtcTransaction,
@@ -88,6 +90,8 @@ export interface UseMultiVaultDepositFlowParams {
 export interface UseMultiVaultDepositFlowReturn {
   /** Execute the multi-vault deposit flow */
   executeMultiVaultDeposit: () => Promise<MultiVaultDepositResult | null>;
+  /** Abort the currently running multi-vault deposit flow */
+  abort: () => void;
   /** Current step in the deposit flow */
   currentStep: DepositStep;
   /** Current vault being processed (0 or 1), null if not processing a vault */
@@ -235,6 +239,22 @@ export function useMultiVaultDepositFlow(
     null,
   );
 
+  // Abort controller for cancelling the flow
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const abort = useCallback(() => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  }, []);
+
+  // Abort any running flow on unmount so async work doesn't leak
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort();
+    },
+    [],
+  );
+
   // Hooks
   const btcConnector = useChainConnector("BTC");
   const btcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -251,6 +271,11 @@ export function useMultiVaultDepositFlow(
 
   const executeMultiVaultDeposit =
     useCallback(async (): Promise<MultiVaultDepositResult | null> => {
+      // Create a new AbortController for this flow execution
+      abortControllerRef.current?.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setProcessing(true);
       setError(null);
       setCurrentStep(DepositStep.SIGN_POP);
@@ -369,10 +394,7 @@ export function useMultiVaultDepositFlow(
 
               // Extract depositor pubkey
               const publicKeyHex = await btcWalletProvider.getPublicKeyHex();
-              depositorBtcPubkey =
-                publicKeyHex.length === 66
-                  ? publicKeyHex.slice(2) // Strip first byte (02 or 03) → x-only
-                  : publicKeyHex; // Already x-only
+              depositorBtcPubkey = processPublicKeyToXOnly(publicKeyHex);
 
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
@@ -535,13 +557,7 @@ export function useMultiVaultDepositFlow(
               });
 
             // Sign payouts
-            const signatures: Record<
-              string,
-              {
-                payout_optimistic_signature: string;
-                payout_signature: string;
-              }
-            > = {};
+            const signatures: Record<string, ClaimerSignatures> = {};
 
             for (const tx of preparedTransactions) {
               const payoutOptimisticSig = await signPayoutOptimistic(
@@ -654,13 +670,19 @@ export function useMultiVaultDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        setError(errorMsg);
+        // Don't show error if flow was aborted (user intentionally closed modal)
+        if (!controller.signal.aborted) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          setError(errorMsg);
+        }
         return null;
       } finally {
         setProcessing(false);
         setIsWaiting(false);
         setCurrentVaultIndex(null);
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+        }
       }
     }, [
       vaultAmounts,
@@ -682,6 +704,7 @@ export function useMultiVaultDepositFlow(
 
   return {
     executeMultiVaultDeposit,
+    abort,
     currentStep,
     currentVaultIndex,
     processing,

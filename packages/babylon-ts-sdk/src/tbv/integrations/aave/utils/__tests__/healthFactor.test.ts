@@ -71,12 +71,12 @@ describe("healthFactor", () => {
       expect(calculateHealthFactor(100, 50, 8000)).toBe(1.6);
     });
 
-    it("should return 0 when debt is 0", () => {
-      expect(calculateHealthFactor(100, 0, 8000)).toBe(0);
+    it("should return Infinity when debt is 0", () => {
+      expect(calculateHealthFactor(100, 0, 8000)).toBe(Infinity);
     });
 
-    it("should return 0 when debt is negative", () => {
-      expect(calculateHealthFactor(100, -10, 8000)).toBe(0);
+    it("should return Infinity when debt is negative", () => {
+      expect(calculateHealthFactor(100, -10, 8000)).toBe(Infinity);
     });
 
     it("should handle 75% liquidation threshold", () => {

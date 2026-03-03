@@ -16,6 +16,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
+import type { ClaimerSignatures } from "@/clients/vault-provider-rpc/types";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
@@ -269,10 +270,7 @@ export function useDepositFlow(
         };
       } catch (err) {
         // Don't show error if flow was aborted (user intentionally closed modal)
-        const isAbortError =
-          err instanceof Error && err.message.includes("aborted");
-
-        if (!isAbortError) {
+        if (!signal.aborted) {
           const errorMessage =
             err instanceof Error ? err.message : "Unknown error";
           setError(errorMessage);
@@ -325,20 +323,12 @@ async function signPayoutTransactionsWithProgress(
   context: Parameters<typeof signPayoutOptimistic>[1],
   preparedTransactions: Parameters<typeof signPayoutOptimistic>[2][],
   setProgress: (progress: PayoutSigningProgress | null) => void,
-): Promise<
-  Record<
-    string,
-    { payout_optimistic_signature: string; payout_signature: string }
-  >
-> {
+): Promise<Record<string, ClaimerSignatures>> {
   const totalClaimers = preparedTransactions.length;
   const totalSteps = totalClaimers * 2;
   let completedSteps = 0;
 
-  const signatures: Record<
-    string,
-    { payout_optimistic_signature: string; payout_signature: string }
-  > = {};
+  const signatures: Record<string, ClaimerSignatures> = {};
 
   const updateProgress = (
     step: SigningStepType | null,

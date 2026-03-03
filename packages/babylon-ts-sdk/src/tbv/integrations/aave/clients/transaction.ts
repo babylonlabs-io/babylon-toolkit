@@ -215,7 +215,7 @@ export function buildBorrowTx(
  *
  * @example
  * ```typescript
- * import { buildRepayTx, getUserTotalDebt, FULL_REPAY_BUFFER_BPS } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { buildRepayTx, getUserTotalDebt, FULL_REPAY_BUFFER_DIVISOR } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
  *
  * // Get exact current debt
  * const totalDebt = await getUserTotalDebt(
@@ -226,7 +226,7 @@ export function buildBorrowTx(
  * );
  *
  * // Add buffer for full repayment (accounts for interest accrual)
- * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_BPS);
+ * const repayAmount = totalDebt + (totalDebt / FULL_REPAY_BUFFER_DIVISOR);
  *
  * // IMPORTANT: Approve token spending first
  * const USDC_ADDRESS = "0x...";

@@ -57,7 +57,7 @@ export function usePendingDeposits() {
     btcPublicKey,
     btcAddress,
     ethAddress,
-    hasPendingDeposits: pendingActivities.length > 0,
+    hasPendingDeposits: btcConnected && pendingActivities.length > 0,
     refetchActivities,
     signModal,
     broadcastModal,

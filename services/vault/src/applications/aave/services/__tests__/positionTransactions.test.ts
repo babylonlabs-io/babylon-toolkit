@@ -4,10 +4,6 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Buffer for full repayment (0.01% = 1/10000)
-// Matches FULL_REPAY_BUFFER_BPS from @babylonlabs-io/ts-sdk
-const FULL_REPAY_BUFFER_BPS = 10000n;
-
 // Hoist mock functions so they can be used in vi.mock factories
 const {
   mockApproveERC20,
@@ -79,6 +75,7 @@ vi.mock("../fetchConfig", () => ({
   fetchAaveConfig: mockFetchAaveConfig,
 }));
 
+import { FULL_REPAY_BUFFER_BPS } from "../../constants";
 import {
   addCollateral,
   borrow,

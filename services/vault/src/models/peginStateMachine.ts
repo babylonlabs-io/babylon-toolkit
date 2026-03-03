@@ -39,6 +39,8 @@ export enum ContractStatus {
   INVALID = 5,
   /** Status 6: Depositor has withdrawn their BTC (redemption complete) */
   DEPOSITOR_WITHDRAWN = 6,
+  /** @deprecated Placeholder for future use */
+  EXPIRED = 7,
 }
 
 /**

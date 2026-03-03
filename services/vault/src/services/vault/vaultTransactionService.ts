@@ -15,6 +15,7 @@ import { getMempoolApiUrl } from "../../clients/btc/config";
 import { executeWrite } from "../../clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
+import { processPublicKeyToXOnly } from "../../utils/btc/btcUtils";
 
 /**
  * UTXO parameters for peg-in transaction
@@ -124,10 +125,7 @@ export async function submitPeginRequest(
 
   // Step 3: Get depositor BTC pubkey (manager handles x-only conversion internally)
   const depositorBtcPubkeyRaw = await btcWallet.getPublicKeyHex();
-  const depositorBtcPubkey =
-    depositorBtcPubkeyRaw.length === 66
-      ? depositorBtcPubkeyRaw.slice(2) // Strip first byte (02 or 03)
-      : depositorBtcPubkeyRaw; // Already x-only
+  const depositorBtcPubkey = processPublicKeyToXOnly(depositorBtcPubkeyRaw);
 
   // Step 4: Register on-chain (submits to contract + creates PoP automatically)
   const registrationResult = await peginManager.registerPeginOnChain({

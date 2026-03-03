@@ -22,25 +22,33 @@ import { BorrowableAssetsValue, HealthFactorValue } from "../components";
 import type { UseCollateralModalResult } from "./types";
 import { useAddCollateralState } from "./useAddCollateralState";
 
+export interface UseAddCollateralModalOptions {
+  /** Whether this hook should perform data fetching. Defaults to true. */
+  enabled?: boolean;
+}
+
 /**
  * Hook that provides all state and handlers for the Add Collateral modal
  *
  * Fetches data using React Query (reuses cached data from parent components)
  * and provides transaction execution.
  */
-export function useAddCollateralModal(): UseCollateralModalResult {
-  // Fetch wallet address
-  const { address } = useETHWallet();
+export function useAddCollateralModal({
+  enabled = true,
+}: UseAddCollateralModalOptions = {}): UseCollateralModalResult {
+  // Fetch wallet address only when enabled
+  const { address: rawAddress } = useETHWallet();
+  const address = enabled ? rawAddress : undefined;
 
   // Fetch BTC price (uses React Query cache)
   const { prices, isLoading: priceLoading } = usePrices();
   const btcPriceUSD = prices.BTC ?? 0;
 
-  // Fetch user's position data (uses React Query cache)
+  // Fetch user's position data (uses React Query cache, skipped when address is undefined)
   const { collateralValueUsd, debtValueUsd, healthFactor } =
     useAaveUserPosition(address);
 
-  // Fetch vaults available for collateral (uses React Query cache)
+  // Fetch vaults available for collateral (uses React Query cache, skipped when address is undefined)
   const { availableForCollateral } = useAaveVaults(address);
 
   // Get config from context

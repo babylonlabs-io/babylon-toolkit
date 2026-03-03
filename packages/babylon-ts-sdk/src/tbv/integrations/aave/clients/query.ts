@@ -5,12 +5,10 @@
  * Most position/vault data should be fetched from the GraphQL indexer instead.
  */
 
-import { type Address, type Hex, type PublicClient } from "viem";
+import { type Address, type Hex, type PublicClient, zeroAddress } from "viem";
 
 import type { AaveMarketPosition } from "../types.js";
 import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
-
-const ZERO_ADDRESS: Address = "0x0000000000000000000000000000000000000000";
 
 /**
  * Get a position by its ID
@@ -49,7 +47,7 @@ export async function getPosition(
   const position = result as PositionResult;
 
   // Check if position exists (proxyContract should not be zero address)
-  if (position.proxyContract === ZERO_ADDRESS) {
+  if (position.proxyContract === zeroAddress) {
     return null;
   }
 

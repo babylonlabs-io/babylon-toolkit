@@ -88,4 +88,7 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.2;
  * between fetching debt and transaction execution.
  * 0.01% buffer (1 basis point) - the contract only takes what's owed.
  */
-export const FULL_REPAY_BUFFER_BPS = 10000n; // Divisor for 0.01% (1/10000)
+export const FULL_REPAY_BUFFER_DIVISOR = 10000n; // Divisor for 0.01% (1/10000)
+
+/** @deprecated Use FULL_REPAY_BUFFER_DIVISOR */
+export const FULL_REPAY_BUFFER_BPS = FULL_REPAY_BUFFER_DIVISOR;

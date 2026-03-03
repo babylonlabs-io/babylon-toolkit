@@ -22,21 +22,32 @@ import { HealthFactorValue } from "../components";
 
 import type { UseCollateralModalResult } from "./types";
 
+export interface UseWithdrawCollateralModalOptions {
+  /** Whether this hook should perform data fetching. Defaults to true. */
+  enabled?: boolean;
+}
+
 /**
  * Hook that provides all state and handlers for the Withdraw Collateral modal
  *
  * Fetches data using React Query (reuses cached data from parent components)
  * and provides transaction execution.
  */
-export function useWithdrawCollateralModal(): UseCollateralModalResult {
-  const { address } = useETHWallet();
+export function useWithdrawCollateralModal({
+  enabled = true,
+}: UseWithdrawCollateralModalOptions = {}): UseCollateralModalResult {
+  // Fetch wallet address only when enabled
+  const { address: rawAddress } = useETHWallet();
+  const address = enabled ? rawAddress : undefined;
+
   const { prices, isLoading: priceLoading } = usePrices();
   const btcPriceUSD = prices.BTC ?? 0;
 
+  // Fetch user's position data (skipped when address is undefined)
   const { collateralBtc, debtValueUsd, healthFactor } =
     useAaveUserPosition(address);
 
-  // Get vaults to identify which ones are currently in use as collateral
+  // Get vaults to identify which ones are currently in use as collateral (skipped when address is undefined)
   const { vaults } = useAaveVaults(address);
   const inUseVaultIds = useMemo(
     () =>

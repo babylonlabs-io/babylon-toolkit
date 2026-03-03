@@ -61,7 +61,9 @@ export function useAddCollateralTransaction(): UseAddCollateralTransactionResult
         markVaultsAsPending(vaultIds, "add");
 
         // Invalidate vault-related queries to refresh from indexer
-        await invalidateVaultQueries(queryClient, address as Address);
+        if (address) {
+          await invalidateVaultQueries(queryClient, address as Address);
+        }
 
         return true;
       } catch (error) {

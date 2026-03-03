@@ -19,6 +19,8 @@ import { fetchVaultKeepersByVersion } from "../providers/fetchProviders";
 import { fetchVaultProviderById } from "./fetchVaultProviders";
 import { fetchVaultById } from "./fetchVaults";
 
+const RPC_TIMEOUT_MS = 30_000;
+
 /** Vault provider info needed for payout signing */
 export interface PayoutVaultProvider {
   /** Provider's Ethereum address */
@@ -167,7 +169,7 @@ export async function submitSignaturesToVaultProvider(
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
 ): Promise<void> {
-  const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
+  const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, RPC_TIMEOUT_MS);
   await rpcClient.submitPayoutSignatures({
     pegin_txid: stripHexPrefix(peginTxId),
     depositor_pk: depositorBtcPubkey,
