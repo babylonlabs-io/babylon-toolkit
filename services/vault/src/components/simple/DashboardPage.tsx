@@ -21,7 +21,6 @@ import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
-import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
@@ -72,7 +71,7 @@ export function DashboardPage() {
       .filter((v) => pendingVaults.get(v.id) === "withdraw")
       .map((v) => ({
         id: v.id,
-        amountBtc: satoshiToBtcNumber(BigInt(v.amount)),
+        amountBtc: v.amount, // VaultData.amount is already BTC
       }));
   }, [aaveVaults, pendingVaults, hasPendingWithdraw]);
 
@@ -129,9 +128,7 @@ export function DashboardPage() {
 
         <PendingDepositSection />
 
-        <PendingWithdrawSection
-          pendingWithdrawVaults={pendingWithdrawVaults}
-        />
+        <PendingWithdrawSection pendingWithdrawVaults={pendingWithdrawVaults} />
 
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
@@ -139,7 +136,6 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           hasDebt={hasDebt}
-          isPendingWithdraw={hasPendingWithdraw}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />

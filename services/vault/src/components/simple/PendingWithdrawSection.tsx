@@ -1,12 +1,19 @@
 /**
  * PendingWithdrawSection Component
  *
- * Displays the "Pending Withdraw" dashboard section with a list of
- * pending withdrawal cards. Renders only when there are pending withdrawals.
- * Purely presentational — receives data as props from the parent.
+ * Displays the "Pending Withdraw" dashboard section with a summary card
+ * that expands to show individual vault amounts. Follows the same
+ * summary + expand pattern as CollateralSection.
  */
 
-import { PendingWithdrawCard } from "./PendingWithdrawCard";
+import { Avatar, Card, Menu, MenuItem } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
+
+import { MenuButton } from "@/components/shared";
+import { getNetworkConfigBTC } from "@/config";
+import { formatBtcAmount } from "@/utils/formatting";
+
+const btcConfig = getNetworkConfigBTC();
 
 export interface PendingWithdrawVault {
   id: string;
@@ -20,7 +27,14 @@ interface PendingWithdrawSectionProps {
 export function PendingWithdrawSection({
   pendingWithdrawVaults,
 }: PendingWithdrawSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   if (pendingWithdrawVaults.length === 0) return null;
+
+  const totalBtc = pendingWithdrawVaults.reduce(
+    (sum, v) => sum + v.amountBtc,
+    0,
+  );
 
   return (
     <div className="w-full space-y-4">
@@ -32,12 +46,49 @@ export function PendingWithdrawSection({
         <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
       </div>
 
-      {/* Pending withdraw cards — scrollable when list is long */}
-      <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto">
-        {pendingWithdrawVaults.map((vault) => (
-          <PendingWithdrawCard key={vault.id} amountBtc={vault.amountBtc} />
-        ))}
-      </div>
+      {/* Summary card with expand */}
+      <Card variant="filled" className="w-full">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Avatar
+              url={btcConfig.icon}
+              alt={btcConfig.coinSymbol}
+              size="small"
+            />
+            <span className="text-base text-accent-primary">
+              {formatBtcAmount(totalBtc)}
+            </span>
+          </div>
+          <Menu
+            trigger={<MenuButton aria-label="Pending withdraw options" />}
+            className="!min-w-0"
+          >
+            <MenuItem
+              name={isExpanded ? "Collapse" : "Expand"}
+              onClick={() => setIsExpanded((prev) => !prev)}
+              className="!p-4"
+            />
+          </Menu>
+        </div>
+
+        {/* Expanded: individual vault amounts */}
+        {isExpanded && (
+          <div className="mt-4 flex flex-col gap-2 border-t border-accent-primary/10 pt-4">
+            {pendingWithdrawVaults.map((vault) => (
+              <div key={vault.id} className="flex items-center gap-2">
+                <Avatar
+                  url={btcConfig.icon}
+                  alt={btcConfig.coinSymbol}
+                  size="small"
+                />
+                <span className="text-sm text-accent-secondary">
+                  {formatBtcAmount(vault.amountBtc)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

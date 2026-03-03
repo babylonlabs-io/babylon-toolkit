@@ -28,7 +28,7 @@ export function PendingWithdrawCard({ amountBtc }: PendingWithdrawCardProps) {
             size="small"
             variant="circular"
           />
-          <span className="text-[18px] text-accent-primary/50">
+          <span className="text-base text-accent-primary">
             {formatBtcAmount(amountBtc)}
           </span>
         </div>

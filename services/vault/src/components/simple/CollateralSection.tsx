@@ -3,7 +3,7 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card, Loader, Menu, MenuItem } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Menu, MenuItem } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { DepositButton, MenuButton } from "@/components/shared";
@@ -21,7 +21,6 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   hasDebt: boolean;
-  isPendingWithdraw: boolean;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
@@ -32,7 +31,6 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   hasDebt,
-  isPendingWithdraw,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
@@ -51,7 +49,7 @@ export function CollateralSection({
             variant="outlined"
             size="medium"
             onClick={onDeposit}
-            disabled={!isConnected || isPendingWithdraw}
+            disabled={!isConnected}
             className="rounded-full"
           >
             Deposit
@@ -59,16 +57,7 @@ export function CollateralSection({
         </div>
       </div>
 
-      {isPendingWithdraw ? (
-        <Card variant="filled" className="w-full">
-          <div className="flex items-center gap-3 py-4">
-            <Loader size={20} />
-            <span className="text-base text-accent-primary">
-              Pending Withdrawal
-            </span>
-          </div>
-        </Card>
-      ) : hasCollateral ? (
+      {hasCollateral ? (
         <Card variant="filled" className="w-full">
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
@@ -84,11 +73,12 @@ export function CollateralSection({
             </div>
             <Menu
               trigger={<MenuButton aria-label="Vault options" />}
-              className="min-w-[120px]"
+              className="!min-w-0"
             >
               <MenuItem
                 name={isExpanded ? "Collapse" : "Expand"}
                 onClick={() => setIsExpanded((prev) => !prev)}
+                className="!p-4"
               />
             </Menu>
           </div>
@@ -126,7 +116,6 @@ export function CollateralSection({
                   variant="outlined"
                   size="medium"
                   onClick={onDeposit}
-                  disabled={isPendingWithdraw}
                   className="rounded-full"
                 >
                   Deposit {btcConfig.coinSymbol}
