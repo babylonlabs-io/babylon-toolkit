@@ -146,7 +146,7 @@ export function useAllocationPlanning({
         if (alloc.fromSplit && alloc.splitTxOutputIndex != null) {
           const splitOutput = splitTx.outputs[alloc.splitTxOutputIndex];
           if (splitOutput && splitOutput.amount > alloc.amount) {
-            total += splitOutput.amount - alloc.amount;
+            total += splitOutput.amount - alloc.amount - depositorClaimValue;
           }
         }
       }
@@ -158,13 +158,13 @@ export function useAllocationPlanning({
           0n,
         );
         if (utxoValue > alloc.amount) {
-          total += utxoValue - alloc.amount;
+          total += utxoValue - alloc.amount - depositorClaimValue;
         }
       }
     }
 
     return total;
-  }, [allocationPlan]);
+  }, [allocationPlan, depositorClaimValue]);
 
   // canSplit: try planning to see if splitting is possible
   // This runs even when isPartialLiquidation is false to enable the checkbox
