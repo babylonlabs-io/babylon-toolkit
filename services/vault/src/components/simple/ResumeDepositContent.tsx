@@ -262,6 +262,7 @@ export function ResumeLamportContent({
         scope={ethAddress}
         mnemonicId={canUseStoredMnemonic ? mappedMnemonicId : undefined}
         importMode={!canUseStoredMnemonic}
+        allowCreateNewMnemonic={false}
       />
     );
   }

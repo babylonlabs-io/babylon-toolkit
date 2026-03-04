@@ -249,7 +249,7 @@ export function useMnemonicFlow({
   /** Reset all state back to the initial GENERATE step. */
   const reset = useCallback(() => {
     setState({
-      step: MnemonicStep.GENERATE,
+      step: MnemonicStep.LOADING,
       mnemonic: "",
       mnemonicId: null,
       challenge: null,

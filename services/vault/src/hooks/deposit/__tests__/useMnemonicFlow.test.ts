@@ -417,7 +417,7 @@ describe("useMnemonicFlow", () => {
         result.current.reset();
       });
 
-      expect(result.current.step).toBe(MnemonicStep.GENERATE);
+      expect(result.current.step).toBe(MnemonicStep.LOADING);
       expect(result.current.mnemonic).toBe("");
       expect(result.current.mnemonicId).toBeNull();
       expect(result.current.words).toEqual([]);

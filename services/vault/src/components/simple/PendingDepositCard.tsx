@@ -8,7 +8,7 @@
  * Must be rendered inside a PeginPollingProvider.
  */
 
-import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Chip, ChipButton, Hint } from "@babylonlabs-io/core-ui";
 
 import type {
   ClaimerTransactions,
@@ -70,17 +70,20 @@ export function PendingDepositCard({
     }
   };
 
-  const button = (
-    <Button
-      variant="contained"
-      size="small"
-      className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-      disabled={!isActionable || (loading && !transactions)}
-      onClick={handleClick}
-    >
-      {loading && !transactions ? "Loading..." : displayLabel}
-    </Button>
+  const label = loading && !transactions ? "Loading..." : displayLabel;
+  const buttonDisabled = !isActionable || (loading && !transactions);
+
+  const statusPill = isActionable ? (
+    <ChipButton disabled={buttonDisabled} onClick={handleClick}>
+      {label}
+    </ChipButton>
+  ) : (
+    <Chip className="rounded-full cursor-default !bg-white !text-black">
+      {label}
+    </Chip>
   );
+
+  const rightContent = statusPill;
 
   return (
     <Card
@@ -102,10 +105,10 @@ export function PendingDepositCard({
 
         {peginState.message ? (
           <Hint tooltip={peginState.message} attachToChildren>
-            {button}
+            {rightContent}
           </Hint>
         ) : (
-          button
+          rightContent
         )}
       </div>
     </Card>

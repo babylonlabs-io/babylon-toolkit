@@ -8,7 +8,7 @@ const WORD_COUNT = 12;
 interface ImportFormProps {
   error: string | null;
   onSubmit: (mnemonic: string) => void;
-  onBack: () => void;
+  onBack?: () => void;
   backLabel?: string;
 }
 
@@ -118,9 +118,11 @@ export function ImportForm({
         >
           Continue
         </Button>
-        <Button variant="outlined" className="w-full" onClick={onBack}>
-          {backLabel}
-        </Button>
+        {onBack && (
+          <Button variant="outlined" className="w-full" onClick={onBack}>
+            {backLabel}
+          </Button>
+        )}
       </div>
     </div>
   );

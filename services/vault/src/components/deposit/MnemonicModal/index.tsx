@@ -33,6 +33,8 @@ interface MnemonicModalProps {
    * doesn't match the peg-in being resumed.
    */
   importMode?: boolean;
+  /** When false, hide the "I don't have a recovery phrase" option (e.g. resume flow). Default true. */
+  allowCreateNewMnemonic?: boolean;
 }
 
 export function MnemonicModal({
@@ -43,6 +45,7 @@ export function MnemonicModal({
   scope,
   mnemonicId: targetMnemonicId,
   importMode,
+  allowCreateNewMnemonic = true,
 }: MnemonicModalProps) {
   const {
     step,
@@ -51,7 +54,6 @@ export function MnemonicModal({
     words,
     challenge,
     error,
-    hasStored,
     startNewMnemonic,
     startImportMnemonic,
     proceedToVerification,
@@ -80,11 +82,6 @@ export function MnemonicModal({
     onComplete(capturedMnemonic, capturedId);
   }, [step, mnemonic, mnemonicId, onComplete, reset]);
 
-  const handleClose = () => {
-    reset();
-    onClose();
-  };
-
   const titleMap: Record<string, string> = {
     [MnemonicStep.LOADING]: "Recovery Phrase",
     [MnemonicStep.UNLOCK]: "Unlock Recovery Phrase",
@@ -96,10 +93,10 @@ export function MnemonicModal({
   };
 
   return (
-    <ResponsiveDialog open={open} onClose={handleClose}>
+    <ResponsiveDialog open={open} onClose={onClose}>
       <DialogHeader
         title={titleMap[step] ?? "Recovery Phrase"}
-        onClose={handleClose}
+        onClose={onClose}
         className="text-accent-primary"
       />
 
@@ -153,8 +150,10 @@ export function MnemonicModal({
           <ImportForm
             error={error}
             onSubmit={submitImportedMnemonic}
-            onBack={hasStored ? () => reset() : startNewMnemonic}
-            backLabel={"I don\u0027t have a recovery phrase"}
+            {...(allowCreateNewMnemonic && {
+              onBack: startNewMnemonic,
+              backLabel: "I don't have a recovery phrase",
+            })}
           />
         )}
       </DialogBody>
