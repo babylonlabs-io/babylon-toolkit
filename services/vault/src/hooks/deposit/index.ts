@@ -26,7 +26,6 @@ export { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 export { useVaultActions } from "./useVaultActions";
 export type {
   BroadcastPeginParams,
-  SignPayoutParams,
   UseVaultActionsReturn,
 } from "./useVaultActions";
 

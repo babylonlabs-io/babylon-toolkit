@@ -86,6 +86,22 @@ vi.mock("@/services/vault/vaultPayoutSignatureService", () => ({
   signPayoutTransactions: vi.fn(),
 }));
 
+// Mock depositor graph signing service to avoid SDK imports triggering initEccLib
+vi.mock("@/services/vault/depositorGraphSigningService", () => ({
+  prepareAndSignDepositorGraph: vi.fn().mockResolvedValue({
+    payout_signatures: { payout_signature: "mock_payout_sig" },
+    per_challenger: {},
+  }),
+}));
+
+// Mock protocol params query to avoid ETH client initialization
+vi.mock("@/clients/eth-contract/protocol-params/query", () => ({
+  getLatestOffchainParams: vi.fn().mockResolvedValue({
+    timelockAssert: 100,
+    securityCouncilKeys: ["0xcouncil1"],
+  }),
+}));
+
 // Mock Lamport service (deriveLamportPkHash returns a mock hash)
 vi.mock("@/services/lamport/lamportService", () => ({
   deriveLamportPkHash: vi
@@ -286,6 +302,10 @@ async function setupDefaultMocks() {
   vi.mocked(useProtocolParamsContext).mockReturnValue({
     timelockPegin: 100,
     depositorClaimValue: 35000n,
+    getOffchainParamsByVersion: vi.fn(() => ({
+      timelockAssert: 100n,
+      securityCouncilKeys: ["0xcouncil1"],
+    })),
   } as any);
 
   // Vault providers
@@ -371,6 +391,15 @@ async function setupDefaultMocks() {
         assertTxHex: "assertHex",
       },
     ],
+    depositorGraph: {
+      claim_tx: { tx_hex: "0xdepclaim" },
+      assert_tx: { tx_hex: "0xdepassert" },
+      payout_tx: { tx_hex: "0xdeppayout" },
+      challenger_presign_data: [],
+      payout_sighash: "0xsighash",
+      payout_prevouts: [],
+      offchain_params_version: 0,
+    },
   });
   vi.mocked(submitPayoutSignatures).mockResolvedValue(undefined);
   vi.mocked(waitForContractVerification).mockResolvedValue(undefined);
@@ -1221,6 +1250,15 @@ describe("useMultiVaultDepositFlow", () => {
               assertTxHex: "assertHex",
             },
           ],
+          depositorGraph: {
+            claim_tx: { tx_hex: "0xdepclaim" },
+            assert_tx: { tx_hex: "0xdepassert" },
+            payout_tx: { tx_hex: "0xdeppayout" },
+            challenger_presign_data: [],
+            payout_sighash: "0xsighash",
+            payout_prevouts: [],
+            offchain_params_version: 0,
+          },
         });
       vi.mocked(broadcastBtcTransaction).mockRejectedValue(
         new Error("Broadcast fail"),

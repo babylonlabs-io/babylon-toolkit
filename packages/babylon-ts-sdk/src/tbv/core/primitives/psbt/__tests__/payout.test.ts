@@ -318,7 +318,7 @@ describe("extractPayoutSignature", () => {
 
       expect(() =>
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
-      ).toThrow(/No inputs found in signed PSBT/);
+      ).toThrow(/out of range/);
     });
 
     it("should throw error when no tapScriptSig is found", () => {
@@ -342,7 +342,7 @@ describe("extractPayoutSignature", () => {
 
       expect(() =>
         extractPayoutSignature(psbtHex, TEST_KEYS.DEPOSITOR),
-      ).toThrow(/No tapScriptSig found/);
+      ).toThrow(/No tapScriptSig or finalScriptWitness found/);
     });
 
     it("should throw error when depositor signature not found in tapScriptSig", () => {

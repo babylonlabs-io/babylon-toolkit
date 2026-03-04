@@ -20,14 +20,17 @@ import {
 } from "react";
 
 import {
+  fetchAllOffchainParams,
   getPegInConfiguration,
   type PegInConfiguration,
+  type VersionedOffchainParams,
 } from "@/clients/eth-contract/protocol-params";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
 
 const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
-const FIVE_MINUTES = 5 * 60 * 1000;
+const STALE_TIME_MS = 5 * 60 * 1000;
+const RETRY_COUNT = 3;
 
 interface ProtocolParamsContextValue {
   /** Peg-in configuration from contract */
@@ -44,6 +47,10 @@ interface ProtocolParamsContextValue {
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
   getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
+  /** Get offchain params by version - use for depositor graph signing */
+  getOffchainParamsByVersion: (
+    version: number,
+  ) => VersionedOffchainParams | undefined;
 }
 
 const ProtocolParamsContext = createContext<ProtocolParamsContextValue | null>(
@@ -71,9 +78,9 @@ export function ProtocolParamsProvider({
   } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "pegInConfig"],
     queryFn: getPegInConfiguration,
-    staleTime: FIVE_MINUTES,
+    staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
-    retry: 3,
+    retry: RETRY_COUNT,
   });
 
   const {
@@ -83,13 +90,25 @@ export function ProtocolParamsProvider({
   } = useQuery({
     queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "universalChallengers"],
     queryFn: fetchAllUniversalChallengers,
-    staleTime: FIVE_MINUTES,
+    staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
-    retry: 3,
+    retry: RETRY_COUNT,
   });
 
-  const isLoading = configLoading || ucLoading;
-  const error = configError || ucError;
+  const {
+    data: offchainParamsData,
+    isLoading: offchainLoading,
+    error: offchainError,
+  } = useQuery({
+    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "allOffchainParams"],
+    queryFn: fetchAllOffchainParams,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    retry: RETRY_COUNT,
+  });
+
+  const isLoading = configLoading || ucLoading || offchainLoading;
+  const error = configError || ucError || offchainError;
 
   const latestUniversalChallengers = useMemo(() => {
     if (!ucData) return [];
@@ -102,6 +121,14 @@ export function ProtocolParamsProvider({
       return ucData.byVersion.get(version) ?? [];
     },
     [ucData],
+  );
+
+  const getOffchainParamsByVersion = useCallback(
+    (version: number): VersionedOffchainParams | undefined => {
+      if (!offchainParamsData) return undefined;
+      return offchainParamsData.byVersion.get(version);
+    },
+    [offchainParamsData],
   );
 
   if (isLoading) {
@@ -131,6 +158,7 @@ export function ProtocolParamsProvider({
     depositorClaimValue: configData.depositorClaimValue,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    getOffchainParamsByVersion,
   };
 
   return (

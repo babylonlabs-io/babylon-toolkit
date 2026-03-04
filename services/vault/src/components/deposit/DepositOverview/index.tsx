@@ -46,9 +46,7 @@ export function DepositOverview() {
     pendingPegins,
     vaultProviders,
     deposits,
-    signingActivity,
-    signingTransactions,
-    isPayoutSignModalOpen,
+    signingData,
     handleSignClick,
     handlePayoutSignClose,
     handlePayoutSignSuccess,
@@ -191,14 +189,15 @@ export function DepositOverview() {
         )}
 
         {/* Payout Sign Modal */}
-        {isPayoutSignModalOpen && signingTransactions && btcPublicKey && (
+        {signingData && btcPublicKey && (
           <SimpleDeposit
-            open={isPayoutSignModalOpen}
+            open
             resumeMode="sign_payouts"
             onClose={handlePayoutSignClose}
             onResumeSuccess={handlePayoutSignSuccess}
-            activity={signingActivity!}
-            transactions={signingTransactions}
+            activity={signingData.activity}
+            transactions={signingData.transactions}
+            depositorGraph={signingData.depositorGraph}
             btcPublicKey={btcPublicKey}
             depositorEthAddress={ethAddress as Hex}
           />

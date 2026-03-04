@@ -5,6 +5,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Address, Hex, WalletClient } from "viem";
 
+import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import type {
   PreparedTransaction,
   SigningContext,
@@ -143,6 +144,7 @@ export interface PayoutSigningContext {
   context: SigningContext;
   vaultProviderUrl: string;
   preparedTransactions: PreparedTransaction[];
+  depositorGraph: DepositorGraphTransactions;
 }
 
 // ============================================================================

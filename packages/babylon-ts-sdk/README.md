@@ -75,6 +75,9 @@ import { PeginManager, PayoutManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginPsbt,
   buildPayoutPsbt,
+  buildDepositorPayoutPsbt,
+  buildNoPayoutPsbt,
+  buildChallengeAssertPsbt,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 // Utilities

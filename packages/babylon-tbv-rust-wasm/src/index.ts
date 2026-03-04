@@ -70,13 +70,27 @@ export type {
   PegInResult,
   PayoutConnectorParams,
   PayoutConnectorInfo,
+  AssertPayoutNoPayoutConnectorParams,
+  AssertPayoutScriptInfo,
+  AssertNoPayoutScriptInfo,
+  ChallengeAssertConnectorParams,
+  ChallengeAssertScriptInfo,
 } from "./types.js";
 
 // Export constants
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants.js";
 
 // Export payout connector utilities
-export { createPayoutConnector } from "./payoutConnector.js";
+export { createPayoutConnector, getPeginPayoutScript } from "./payoutConnector.js";
+
+// Export assert payout/nopayout connector utilities (depositor-as-claimer)
+export {
+  getAssertPayoutScriptInfo,
+  getAssertNoPayoutScriptInfo,
+} from "./assertPayoutNoPayoutConnector.js";
+
+// Export challenge assert connector utilities (depositor-as-claimer)
+export { getChallengeAssertScriptInfo } from "./challengeAssertConnector.js";
 
 // Re-export the raw WASM types if needed
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/

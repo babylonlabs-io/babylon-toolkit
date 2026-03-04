@@ -42,6 +42,9 @@
  * - {@link buildPeginPsbt} - Create unfunded peg-in transaction
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
+ * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
+ * - {@link buildNoPayoutPsbt} - Create NoPayout PSBT per challenger (depositor-as-claimer path)
+ * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT per challenger (depositor-as-claimer path)
  *
  * ### Script Generators
  * - {@link createPayoutScript} - Generate taproot payout script
@@ -67,6 +70,15 @@ export type { PeginParams, PeginPsbtResult } from "./psbt/pegin";
 
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
+
+export { buildDepositorPayoutPsbt } from "./psbt/depositorPayout";
+export type { DepositorPayoutParams } from "./psbt/depositorPayout";
+
+export { buildNoPayoutPsbt } from "./psbt/noPayout";
+export type { NoPayoutParams } from "./psbt/noPayout";
+
+export { buildChallengeAssertPsbt } from "./psbt/challengeAssert";
+export type { ChallengeAssertParams } from "./psbt/challengeAssert";
 
 // Script generators
 export { createPayoutScript } from "./scripts/payout";

@@ -8,16 +8,14 @@
 import type { Hex } from "viem";
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import type { SignModalData } from "@/hooks/deposit/usePayoutSignModal";
 import type { VaultActivity } from "@/types/activity";
-import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
 
 import SimpleDeposit from "./SimpleDeposit";
 
 interface SignModalState {
-  isOpen: boolean;
-  signingActivity: VaultActivity | null;
-  signingTransactions: ClaimerTransactions[] | null;
+  signingData: SignModalData | null;
   handleClose: () => void;
   handleSuccess: () => void;
 }
@@ -58,14 +56,15 @@ export function PendingDepositModals({
   return (
     <>
       {/* Payout Sign Modal – full-screen with stepper */}
-      {signModal.isOpen && signModal.signingTransactions && btcPublicKey && (
+      {signModal.signingData && btcPublicKey && (
         <SimpleDeposit
-          open={signModal.isOpen}
+          open
           resumeMode="sign_payouts"
           onClose={signModal.handleClose}
           onResumeSuccess={signModal.handleSuccess}
-          activity={signModal.signingActivity!}
-          transactions={signModal.signingTransactions}
+          activity={signModal.signingData.activity}
+          transactions={signModal.signingData.transactions}
+          depositorGraph={signModal.signingData.depositorGraph}
           btcPublicKey={btcPublicKey}
           depositorEthAddress={ethAddress as Hex}
         />

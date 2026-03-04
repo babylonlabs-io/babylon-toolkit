@@ -4,6 +4,14 @@
  * Pure functions for building unsigned PSBTs for vault operations.
  * These functions wrap the WASM implementation with a clean TypeScript API.
  *
+ * Exports:
+ * - {@link buildPeginPsbt} - Create unfunded peg-in transaction
+ * - {@link buildPayoutPsbt} - Create payout PSBT for signing
+ * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
+ * - {@link buildDepositorPayoutPsbt} - Create depositor's own Payout PSBT (depositor-as-claimer path)
+ * - {@link buildNoPayoutPsbt} - Create NoPayout PSBT per challenger (depositor-as-claimer path)
+ * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT per challenger (depositor-as-claimer path)
+ *
  * @module primitives/psbt
  */
 
@@ -12,3 +20,12 @@ export type { PeginParams, PeginPsbtResult } from "./pegin";
 
 export { buildPayoutPsbt, extractPayoutSignature } from "./payout";
 export type { PayoutParams, PayoutPsbtResult } from "./payout";
+
+export { buildDepositorPayoutPsbt } from "./depositorPayout";
+export type { DepositorPayoutParams } from "./depositorPayout";
+
+export { buildNoPayoutPsbt } from "./noPayout";
+export type { NoPayoutParams } from "./noPayout";
+
+export { buildChallengeAssertPsbt } from "./challengeAssert";
+export type { ChallengeAssertParams } from "./challengeAssert";

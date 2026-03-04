@@ -4,6 +4,10 @@
  * Common utility functions for Bitcoin operations
  */
 
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 import { Buffer } from "buffer";
 
 /**
@@ -67,6 +71,34 @@ export function validateXOnlyPubkey(pubkey: string): void {
  * @returns X-only public key as 32 bytes hex string (without 0x prefix)
  * @throws Error if public key format is invalid
  */
+/**
+ * Sign multiple PSBTs, using batch signing when the wallet supports it.
+ *
+ * Mobile wallets may not inject `signPsbts`, so this falls back to
+ * sequential `signPsbt` calls when batch signing is unavailable.
+ *
+ * @param wallet - Bitcoin wallet (from wallet-connector)
+ * @param psbtHexes - Array of unsigned PSBT hex strings
+ * @param options - Optional per-PSBT signing options (e.g., autoFinalized, signInputs).
+ *                  When provided, must have the same length as psbtHexes.
+ * @returns Array of signed PSBT hex strings (same order as input)
+ */
+export async function signPsbtsWithFallback(
+  wallet: BitcoinWallet,
+  psbtHexes: string[],
+  options?: SignPsbtOptions[],
+): Promise<string[]> {
+  if (typeof wallet.signPsbts === "function") {
+    return wallet.signPsbts(psbtHexes, options);
+  }
+
+  const signed: string[] = [];
+  for (let i = 0; i < psbtHexes.length; i++) {
+    signed.push(await wallet.signPsbt(psbtHexes[i], options?.[i]));
+  }
+  return signed;
+}
+
 export function processPublicKeyToXOnly(publicKeyHex: string): string {
   // Remove '0x' prefix if present
   const cleanHex = stripHexPrefix(publicKeyHex);

@@ -34,9 +34,9 @@ Primitives are the lowest-level SDK functions. They:
 
 ---
 
-## The 3 Primitives
+## Primitives
 
-The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged), but those are generated and managed by the vault provider. The SDK only provides primitives for the operations the **depositor** performs: building the peg-in transaction and signing payout authorizations.
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides builders for the NoPayout and ChallengeAssert PSBTs.
 
 ### 1. buildPeginPsbt
 
@@ -104,6 +104,82 @@ const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
 ```
 
 **Use this to:** Get the signature after signing, then submit to vault provider.
+
+---
+
+## Depositor-as-Claimer Path
+
+When the depositor acts as the claimer (instead of the vault provider), the depositor must sign 3 types of PSBTs per vault:
+
+1. **Payout** (1 per vault) — depositor signs using PeginPayoutConnector (same connector as VP/VK payout)
+2. **NoPayout** (1 per challenger) — covers the case where the vault expires without a successful claim
+3. **ChallengeAssert** (1 per challenger, with 3 inputs) — covers the challenge-assert spending paths
+
+The vault provider supplies the unsigned transaction hexes and prevouts. You build PSBTs, sign them, extract the Schnorr signatures, and return them.
+
+```typescript
+import {
+  buildDepositorPayoutPsbt,
+  buildNoPayoutPsbt,
+  buildChallengeAssertPsbt,
+  extractPayoutSignature,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+const depositorPubkey = "abc123..."; // x-only, 64 hex chars
+
+// 1. Payout (depositor-as-claimer variant)
+// Uses PeginPayoutConnector — input 0 spends PegIn vault UTXO
+const payoutPsbtHex = await buildDepositorPayoutPsbt({
+  payoutTxHex: "...",               // From vault provider
+  prevouts: payoutPrevouts,         // [{script_pubkey, value}] from VP
+  connectorParams: {                // PeginPayoutConnector params
+    depositor: depositorPubkey,
+    vaultProvider: "...",
+    vaultKeepers: ["..."],
+    universalChallengers: ["..."],
+    timelockPegin: 50,
+  },
+});
+const signedPayout = await wallet.signPsbt(payoutPsbtHex);
+const payoutSig = extractPayoutSignature(signedPayout, depositorPubkey);
+
+// 2. NoPayout (one per challenger)
+// Uses AssertPayoutNoPayoutConnector — input 0 spends Assert output 0
+const noPayoutPsbtHex = await buildNoPayoutPsbt({
+  noPayoutTxHex: "...",             // From vault provider
+  challengerPubkey: "def456...",    // This challenger's x-only pubkey
+  prevouts: noPayoutPrevouts,       // [{script_pubkey, value}] from VP
+  connectorParams: {                // AssertPayoutNoPayoutConnector params
+    claimer: depositorPubkey,
+    localChallengers: [],
+    universalChallengers: ["..."],
+    timelockAssert: 144,
+    councilMembers: ["..."],
+    councilQuorum: 3,
+  },
+});
+const signedNoPayout = await wallet.signPsbt(noPayoutPsbtHex);
+const noPayoutSig = extractPayoutSignature(signedNoPayout, depositorPubkey);
+
+// 3. ChallengeAssert (one PSBT per challenger, with 3 inputs)
+// Each input has its own taproot script from per-segment connector params
+const caPsbtHex = await buildChallengeAssertPsbt({
+  challengeAssertTxHex: "...",      // From vault provider
+  prevouts: challengeAssertPrevouts, // [{script_pubkey, value}] from VP (flat, 3 entries)
+  connectorParamsPerInput: [         // One per input (3 total)
+    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", lamportHashesJson: "...", gcInputLabelHashesJson: "..." },
+  ],
+});
+const signedCA = await wallet.signPsbt(caPsbtHex);
+// Extract 3 signatures (one per input)
+const caSig0 = extractPayoutSignature(signedCA, depositorPubkey, 0);
+const caSig1 = extractPayoutSignature(signedCA, depositorPubkey, 1);
+const caSig2 = extractPayoutSignature(signedCA, depositorPubkey, 2);
+```
+
+All three builders return a PSBT hex string and all use `extractPayoutSignature()` for signature extraction (same Schnorr extraction mechanism). The `extractPayoutSignature` function accepts an optional `inputIndex` parameter (defaults to 0) for extracting signatures from specific inputs.
 
 ---
 

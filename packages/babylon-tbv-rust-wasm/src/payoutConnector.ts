@@ -47,3 +47,28 @@ export async function createPayoutConnector(
     address: connector.getAddress(network),
   };
 }
+
+/**
+ * Get just the payout script from the PeginPayoutConnector (no network needed).
+ *
+ * Used by the depositor payout PSBT builder to get the correct taproot script
+ * for signing input 0 (PegIn vault UTXO).
+ *
+ * @param params - Payout connector parameters
+ * @returns Payout script hex
+ */
+export async function getPeginPayoutScript(
+  params: PayoutConnectorParams,
+): Promise<string> {
+  await initWasm();
+
+  const connector = new WasmPeginPayoutConnector(
+    params.depositor,
+    params.vaultProvider,
+    params.vaultKeepers,
+    params.universalChallengers,
+    params.timelockPegin
+  );
+
+  return connector.getPayoutScript();
+}

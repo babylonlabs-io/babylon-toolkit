@@ -1,12 +1,11 @@
 /**
- * Custom hook for vault actions (broadcast and sign payout)
+ * Custom hook for vault actions (broadcast)
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useState } from "react";
 import type { Hex } from "viem";
 
-import type { ClaimerTransactions } from "../../clients/vault-provider-rpc/types";
 import {
   getNextLocalStatus,
   PeginAction,
@@ -20,8 +19,6 @@ import {
 } from "../../services/vault";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import { stripHexPrefix } from "../../utils/btc";
-
-import { useSignPeginTransactions } from "./useSignPeginTransactions";
 
 export interface BroadcastPeginParams {
   activityId: string;
@@ -39,50 +36,23 @@ export interface BroadcastPeginParams {
   onShowSuccessModal: () => void;
 }
 
-export interface SignPayoutParams {
-  peginTxId: string;
-  vaultProviderAddress: Hex;
-  depositorBtcPubkey: string;
-  transactions: ClaimerTransactions[];
-  activityId: string;
-  activityAmount: string;
-  activityProviders: Array<{ id: string }>;
-  activityApplicationController?: string;
-  updatePendingPeginStatus?: (
-    peginId: string,
-    status: LocalStorageStatus,
-  ) => void;
-  addPendingPegin?: (pegin: Omit<PendingPeginRequest, "timestamp">) => void;
-  onRefetchActivities?: () => void;
-}
-
 export interface UseVaultActionsReturn {
   // Broadcast state
   broadcasting: boolean;
   broadcastError: string | null;
   handleBroadcast: (params: BroadcastPeginParams) => Promise<void>;
-
-  // Sign state
-  signing: boolean;
-  signError: string | null;
-  handleSign: (params: SignPayoutParams) => Promise<void>;
 }
 
 /**
- * Custom hook for vault actions (broadcast and sign payout)
+ * Custom hook for vault actions (broadcast)
  */
 export function useVaultActions(): UseVaultActionsReturn {
   // Broadcast state
   const [broadcasting, setBroadcasting] = useState(false);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
 
-  // Sign state
-  const [signing, setSigning] = useState(false);
-  const [signError, setSignError] = useState<string | null>(null);
-
   // Connectors
   const btcConnector = useChainConnector("BTC");
-  const { signPayoutsAndSubmit } = useSignPeginTransactions();
 
   /**
    * Handle broadcasting BTC transaction
@@ -195,83 +165,9 @@ export function useVaultActions(): UseVaultActionsReturn {
     }
   };
 
-  /**
-   * Handle signing payout transactions
-   */
-  const handleSign = async (params: SignPayoutParams) => {
-    const {
-      peginTxId,
-      vaultProviderAddress,
-      depositorBtcPubkey,
-      transactions,
-      activityId,
-      activityAmount,
-      activityProviders,
-      activityApplicationController,
-      updatePendingPeginStatus,
-      addPendingPegin,
-      onRefetchActivities,
-    } = params;
-
-    // Get BTC wallet provider
-    const btcWalletProvider = btcConnector?.connectedWallet?.provider;
-    if (!btcWalletProvider) {
-      setSignError("BTC wallet not connected. Please reconnect your wallet.");
-      return;
-    }
-
-    setSigning(true);
-    setSignError(null);
-
-    try {
-      await signPayoutsAndSubmit({
-        peginTxId,
-        vaultProviderAddress,
-        depositorBtcPubkey,
-        transactions,
-        btcWallet: btcWalletProvider,
-      });
-
-      // Update or create localStorage entry for status tracking
-      // Use state machine to determine next status
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
-      );
-
-      if (updatePendingPeginStatus && nextStatus) {
-        // Case 1: localStorage entry EXISTS - update status
-        updatePendingPeginStatus(activityId, nextStatus);
-      } else if (addPendingPegin && nextStatus) {
-        // Case 2: NO localStorage entry (cross-device or removed by old filter) - create one
-        addPendingPegin({
-          id: activityId,
-          amount: activityAmount,
-          providerIds: activityProviders.map((p) => p.id),
-          applicationController: activityApplicationController,
-          status: nextStatus,
-        });
-      }
-
-      // Refetch activities after successful submission
-      if (onRefetchActivities) {
-        onRefetchActivities();
-      }
-
-      setSigning(false);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to sign transactions";
-      setSignError(errorMessage);
-      setSigning(false);
-    }
-  };
-
   return {
     broadcasting,
     broadcastError,
     handleBroadcast,
-    signing,
-    signError,
-    handleSign,
   };
 }
