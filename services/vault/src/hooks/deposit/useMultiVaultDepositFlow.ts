@@ -48,6 +48,8 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { formatBtcValue } from "@/utils/formatting";
 
 import {
   broadcastBtcTransaction,
@@ -623,7 +625,7 @@ export function useMultiVaultDepositFlow(
             addPendingPegin(confirmedEthAddress, {
               id: peginResult.vaultId, // PRIMARY ID (vaultId from contract)
               btcTxHash: peginResult.btcTxHash, // For compatibility
-              amount: (Number(vaultAmount) / 100000000).toFixed(8), // BTC format
+              amount: formatBtcValue(satoshiToBtcNumber(vaultAmount)), // BTC format
               providerIds: [primaryProvider],
               applicationController: selectedApplication,
               batchId, // Links to batch
