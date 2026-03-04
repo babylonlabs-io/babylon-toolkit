@@ -141,20 +141,44 @@ describe("depositorGraphSigningService", () => {
           // Payout: sign input 0
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
           // NoPayout: sign input 0
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
           // ChallengeAssert: sign inputs 0, 1, 2
           {
             autoFinalized: false,
             signInputs: [
-              { index: 0, disableTweakSigner: true },
-              { index: 1, disableTweakSigner: true },
-              { index: 2, disableTweakSigner: true },
+              {
+                index: 0,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
+              {
+                index: 1,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
+              {
+                index: 2,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
             ],
           },
         ],
@@ -223,14 +247,32 @@ describe("depositorGraphSigningService", () => {
       expect(wallet.signPsbt).toHaveBeenCalledTimes(3);
       expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_payout_hex", {
         autoFinalized: false,
-        signInputs: [{ index: 0, disableTweakSigner: true }],
+        signInputs: [
+          {
+            index: 0,
+            publicKey: DEPOSITOR_PUBKEY,
+            disableTweakSigner: true,
+          },
+        ],
       });
       expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_ca_hex", {
         autoFinalized: false,
         signInputs: [
-          { index: 0, disableTweakSigner: true },
-          { index: 1, disableTweakSigner: true },
-          { index: 2, disableTweakSigner: true },
+          {
+            index: 0,
+            publicKey: DEPOSITOR_PUBKEY,
+            disableTweakSigner: true,
+          },
+          {
+            index: 1,
+            publicKey: DEPOSITOR_PUBKEY,
+            disableTweakSigner: true,
+          },
+          {
+            index: 2,
+            publicKey: DEPOSITOR_PUBKEY,
+            disableTweakSigner: true,
+          },
         ],
       });
     });
@@ -411,7 +453,13 @@ describe("depositorGraphSigningService", () => {
         [
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: DEPOSITOR_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
         ],
       );
