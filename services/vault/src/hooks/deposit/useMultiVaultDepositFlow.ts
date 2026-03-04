@@ -778,6 +778,8 @@ export function useMultiVaultDepositFlow(
         setCurrentStep(DepositFlowStep.ARTIFACT_DOWNLOAD);
 
         for (const result of successfulPegins) {
+          if (signal.aborted) break;
+
           setArtifactDownloadInfo({
             providerUrl: provider.url,
             peginTxid: result.vaultId,
