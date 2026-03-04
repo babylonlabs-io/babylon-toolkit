@@ -41,7 +41,10 @@ the managers module instead (PeginManager and PayoutManager).
 
 ### PSBT Builders
 - [buildPeginPsbt](#buildpeginpsbt) - Create unfunded peg-in transaction
-- [buildPayoutPsbt](#buildpayoutpsbt) - Create payout PSBT for signing
+- [buildPayoutPsbt](#buildpayoutpsbt) - Create payout PSBT for signing (vault-provider-as-claimer)
+- [buildDepositorPayoutPsbt](#builddepositerpayoutpsbt) - Create payout PSBT for signing (depositor-as-claimer)
+- [buildNoPayoutPsbt](#buildnopayoutpsbt) - Create NoPayout PSBT for signing (depositor-as-claimer, 1 per challenger)
+- [buildChallengeAssertPsbt](#buildchallengeassertpsbt) - Create ChallengeAssert PSBT for signing (depositor-as-claimer, 1 per challenger with 3 inputs)
 - [extractPayoutSignature](#extractpayoutsignature) - Extract Schnorr signature from signed PSBT
 
 ### Script Generators
@@ -630,6 +633,123 @@ If no signature is found in the PSBT
 #### Throws
 
 If the signature has an unexpected length
+
+***
+
+### buildDepositorPayoutPsbt()
+
+```ts
+function buildDepositorPayoutPsbt(params): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorPayout.ts](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorPayout.ts)
+
+Build unsigned Payout PSBT for the **depositor-as-claimer** path.
+
+The depositor's payout transaction has 2 inputs:
+- Input 0: PegIn:0 (vault UTXO) — depositor signs using PeginPayoutConnector payout script
+- Input 1: Assert:0 — NOT signed by depositor
+
+This uses the **PeginPayoutConnector** (same connector as VP/VK payout signing), not the
+AssertPayoutNoPayoutConnector. The VP verifies the depositor's signature using the
+PeginPayoutConnector's payout script.
+
+#### Parameters
+
+##### params
+
+`DepositorPayoutParams`
+
+- `payoutTxHex` (`string`) — Unsigned payout transaction hex from VP
+- `prevouts` (`Array<{ script_pubkey: string; value: number }>`) — Prevout data for all inputs from VP
+- `connectorParams` (`PayoutConnectorParams`) — PeginPayout connector params:
+  - `depositor` — Depositor's x-only pubkey (hex)
+  - `vaultProvider` — Vault provider's x-only pubkey (hex)
+  - `vaultKeepers` — Array of vault keeper x-only pubkeys (hex)
+  - `universalChallengers` — Array of universal challenger x-only pubkeys (hex)
+  - `timelockPegin` — CSV timelock in blocks for PegIn output
+
+#### Returns
+
+`Promise<string>`
+
+Unsigned PSBT hex ready for depositor to sign
+
+***
+
+### buildNoPayoutPsbt()
+
+```ts
+function buildNoPayoutPsbt(params): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
+
+Build unsigned NoPayout PSBT for depositor signing (depositor-as-claimer path).
+
+NoPayout covers the case where the vault expires without a successful claim. One
+NoPayout PSBT is required per challenger. Uses the **AssertPayoutNoPayoutConnector**
+to derive the NoPayout taproot script for the specific challenger.
+
+#### Parameters
+
+##### params
+
+`NoPayoutParams`
+
+- `noPayoutTxHex` (`string`) — Unsigned NoPayout transaction hex from VP
+- `challengerPubkey` (`string`) — Challenger's x-only public key (hex)
+- `prevouts` (`Array<{ script_pubkey: string; value: number }>`) — Prevout data for all inputs from VP
+- `connectorParams` (`AssertPayoutNoPayoutConnectorParams`) — Assert connector params:
+  - `claimer` — Depositor's x-only pubkey (hex)
+  - `localChallengers` — Array of local challenger x-only pubkeys (hex)
+  - `universalChallengers` — Array of universal challenger x-only pubkeys (hex)
+  - `timelockAssert` — CSV timelock in blocks for Assert output
+  - `councilMembers` — Array of security council member x-only pubkeys (hex)
+  - `councilQuorum` — Council quorum (N-of-N)
+
+#### Returns
+
+`Promise<string>`
+
+Unsigned PSBT hex ready for depositor to sign
+
+***
+
+### buildChallengeAssertPsbt()
+
+```ts
+function buildChallengeAssertPsbt(params): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts](../../packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts)
+
+Build unsigned ChallengeAssert PSBT for depositor signing (depositor-as-claimer path).
+
+ChallengeAssert covers the challenge-assert spending paths. **One ChallengeAssert
+PSBT is built per challenger**, with 3 inputs (one per Assert output segment). Each
+input has its own taproot script derived from its connector params (Lamport hashes
+and GC input label hashes).
+
+#### Parameters
+
+##### params
+
+`ChallengeAssertParams`
+
+- `challengeAssertTxHex` (`string`) — Unsigned ChallengeAssert transaction hex from VP
+- `prevouts` (`Array<{ script_pubkey: string; value: number }>`) — Prevout data for all inputs from VP (flat, one per input)
+- `connectorParamsPerInput` (`ChallengeAssertConnectorParams[]`) — Per-input connector params (one per input/segment):
+  - `claimer` — Depositor's x-only pubkey (hex)
+  - `challenger` — Challenger's x-only pubkey (hex)
+  - `lamportHashesJson` — JSON string of Lamport hash values from VP
+  - `gcInputLabelHashesJson` — JSON string of GC input label hashes from VP
+
+#### Returns
+
+`Promise<string>`
+
+Unsigned PSBT hex ready for depositor to sign
 
 ***
 

@@ -44,6 +44,7 @@ import {
   registerSplitPeginOnChain,
   type AllocationPlan,
 } from "@/services/vault";
+import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import { signPayoutTransactions } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
 
@@ -268,7 +269,8 @@ export function useMultiVaultDepositFlow(
     error: utxoError,
   } = useUTXOs(btcAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { timelockPegin, depositorClaimValue } = useProtocolParamsContext();
+  const { timelockPegin, depositorClaimValue, getOffchainParamsByVersion } =
+    useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -624,22 +626,26 @@ export function useMultiVaultDepositFlow(
         for (const result of successfulPegins) {
           try {
             setIsWaiting(true);
-            const { context, vaultProviderUrl, preparedTransactions } =
-              await pollAndPreparePayoutSigning({
-                btcTxid: result.vaultId, // Use vaultId for payout lookup
-                btcTxHex: result.btcTxHex,
-                depositorBtcPubkey: result.depositorBtcPubkey,
-                providerUrl: provider.url,
-                providerBtcPubKey: provider.btcPubKey,
-                vaultKeepers,
-                universalChallengers: universalChallengerBtcPubkeys.map(
-                  (btcPubKey) => ({
-                    btcPubKey,
-                  }),
-                ),
-                timelockPegin,
-                signal,
-              });
+            const {
+              context,
+              vaultProviderUrl,
+              preparedTransactions,
+              depositorGraph,
+            } = await pollAndPreparePayoutSigning({
+              btcTxid: result.vaultId, // Use vaultId for payout lookup
+              btcTxHex: result.btcTxHex,
+              depositorBtcPubkey: result.depositorBtcPubkey,
+              providerUrl: provider.url,
+              providerBtcPubKey: provider.btcPubKey,
+              vaultKeepers,
+              universalChallengers: universalChallengerBtcPubkeys.map(
+                (btcPubKey) => ({
+                  btcPubKey,
+                }),
+              ),
+              timelockPegin,
+              signal,
+            });
 
             setIsWaiting(false);
 
@@ -650,6 +656,19 @@ export function useMultiVaultDepositFlow(
               preparedTransactions,
             );
 
+            // Sign depositor graph (depositor-as-claimer flow)
+            const depositorClaimerPresignatures =
+              await prepareAndSignDepositorGraph({
+                depositorGraph,
+                depositorBtcPubkey: result.depositorBtcPubkey,
+                btcWallet: btcWalletProvider,
+                vaultProviderBtcPubkey,
+                vaultKeeperBtcPubkeys,
+                universalChallengerBtcPubkeys,
+                timelockPegin,
+                getOffchainParamsByVersion,
+              });
+
             // Submit signatures
             await submitPayoutSignatures(
               vaultProviderUrl,
@@ -657,6 +676,7 @@ export function useMultiVaultDepositFlow(
               result.depositorBtcPubkey,
               signatures,
               confirmedEthAddress,
+              depositorClaimerPresignatures,
             );
           } catch (error) {
             // If the user cancelled, stop immediately — don't continue with other vaults
@@ -779,6 +799,7 @@ export function useMultiVaultDepositFlow(
       utxoError,
       vaultKeepers,
       findProvider,
+      getOffchainParamsByVersion,
       getMnemonic,
       mnemonicId,
     ]);

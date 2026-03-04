@@ -8,6 +8,8 @@ import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
   ClaimerTransactions,
+  DepositorAsClaimerPresignatures,
+  DepositorGraphTransactions,
 } from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
@@ -66,6 +68,7 @@ export async function pollAndPreparePayoutSigning(
 
   const buildContext = (
     payoutTransactions: ClaimerTransactions[],
+    depositorGraph: DepositorGraphTransactions,
   ): PayoutSigningContext => {
     const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
     const universalChallengerBtcPubkeys =
@@ -85,6 +88,7 @@ export async function pollAndPreparePayoutSigning(
       context,
       vaultProviderUrl: providerUrl,
       preparedTransactions: prepareTransactionsForSigning(payoutTransactions),
+      depositorGraph,
     };
   };
 
@@ -101,12 +105,7 @@ export async function pollAndPreparePayoutSigning(
         return null;
       }
 
-      // TODO: Extract `response.depositor_graph` when VP returns taproot script + control block
-      // data for depositor-as-claimer transactions (ChallengeAssert, NoPayout).
-      // The depositor graph signatures will be passed as `depositor_claimer_presignatures`
-      // to `submitDepositorPresignatures`.
-
-      return buildContext(response.txs);
+      return buildContext(response.txs, response.depositor_graph);
     },
     {
       intervalMs: POLLING_INTERVAL_MS,
@@ -126,12 +125,14 @@ export async function submitPayoutSignatures(
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
   depositorEthAddress: Address,
+  depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
   await submitSignaturesToVaultProvider(
     vaultProviderUrl,
     btcTxid,
     depositorBtcPubkey,
     signatures,
+    depositorClaimerPresignatures,
   );
 
   updatePendingPeginStatus(

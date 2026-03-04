@@ -11,6 +11,7 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useState } from "react";
 import type { Hex } from "viem";
 
+import type { DepositorGraphTransactions } from "../../../clients/vault-provider-rpc/types";
 import { usePeginPolling } from "../../../context/deposit/PeginPollingContext";
 import { useProtocolParamsContext } from "../../../context/ProtocolParamsContext";
 import { useVaultProviders } from "../../../hooks/deposit/useVaultProviders";
@@ -19,6 +20,7 @@ import {
   LocalStorageStatus,
   PeginAction,
 } from "../../../models/peginStateMachine";
+import { prepareAndSignDepositorGraph } from "../../../services/vault/depositorGraphSigningService";
 import {
   prepareSigningContext,
   prepareTransactionsForSigning,
@@ -41,6 +43,8 @@ export interface SigningError {
 export interface UsePayoutSigningStateProps {
   activity: VaultActivity;
   transactions: ClaimerTransactions[] | null;
+  /** Depositor graph transactions (depositor-as-claimer flow) */
+  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onSuccess: () => void;
@@ -62,6 +66,7 @@ export interface UsePayoutSigningStateResult {
 export function usePayoutSigningState({
   activity,
   transactions,
+  depositorGraph,
   btcPublicKey,
   depositorEthAddress,
   onSuccess,
@@ -80,6 +85,7 @@ export function usePayoutSigningState({
   const {
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    getOffchainParamsByVersion,
     timelockPegin,
   } = useProtocolParamsContext();
   const btcConnector = useChainConnector("BTC");
@@ -179,12 +185,27 @@ export function usePayoutSigningState({
         setProgress,
       );
 
+      // Sign depositor graph (depositor-as-claimer flow)
+      const depositorClaimerPresignatures = await prepareAndSignDepositorGraph({
+        depositorGraph,
+        depositorBtcPubkey: btcPublicKey,
+        btcWallet: btcWalletProvider,
+        vaultProviderBtcPubkey: provider.btcPubKey,
+        vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
+        universalChallengerBtcPubkeys: latestUniversalChallengers.map(
+          (uc) => uc.btcPubKey,
+        ),
+        timelockPegin,
+        getOffchainParamsByVersion,
+      });
+
       // Submit signatures to vault provider
       await submitSignaturesToVaultProvider(
         vaultProviderUrl,
         activity.txHash!,
         btcPublicKey,
         signatures,
+        depositorClaimerPresignatures,
       );
 
       // Update localStorage status using state machine
@@ -212,6 +233,7 @@ export function usePayoutSigningState({
     }
   }, [
     transactions,
+    depositorGraph,
     activity.providers,
     activity.txHash,
     activity.id,
@@ -219,6 +241,7 @@ export function usePayoutSigningState({
     vaultKeepers,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
+    getOffchainParamsByVersion,
     timelockPegin,
     btcConnector?.connectedWallet?.provider,
     btcPublicKey,

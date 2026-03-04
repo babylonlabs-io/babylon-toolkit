@@ -7,6 +7,7 @@
 export { BitcoinScriptType, getScriptType } from "./btcScriptType";
 export {
   processPublicKeyToXOnly,
+  signPsbtsWithFallback,
   stripHexPrefix,
   toXOnly,
   validateXOnlyPubkey,

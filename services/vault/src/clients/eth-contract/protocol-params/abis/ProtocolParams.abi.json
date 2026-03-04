@@ -106,6 +106,77 @@
   },
   {
     "type": "function",
+    "name": "getOffchainParamsByVersion",
+    "inputs": [
+      {
+        "name": "versionNumber",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct IProtocolParams.VersionedOffchainParams",
+        "components": [
+          {
+            "name": "timelockAssert",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "timelockChallengeAssert",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "securityCouncilKeys",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
+          },
+          {
+            "name": "feeRate",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "feeMarginPercent",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "challengerOutputValue",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "payoutNopayoutOutputValue",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "babeTotalInstances",
+            "type": "uint16",
+            "internalType": "uint16"
+          },
+          {
+            "name": "babeInstancesToFinalize",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "vpCommissionBps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getLatestOffchainParams",
     "inputs": [],
     "outputs": [

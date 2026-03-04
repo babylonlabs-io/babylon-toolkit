@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Hex } from "viem";
 
+import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
 import { isPreDepositorSignaturesError } from "../../models/peginStateMachine";
 import { VaultProviderRpcApi } from "../../services/vault";
 import type { ClaimerTransactions } from "../../types";
@@ -16,6 +17,18 @@ import { stripHexPrefix } from "../../utils/btc";
 import { areTransactionsReady } from "../../utils/peginPolling";
 
 import { useVaultProviders } from "./useVaultProviders";
+
+/** Timeout for RPC requests (30 seconds) */
+const RPC_TIMEOUT_MS = 30_000;
+
+/** Polling interval (30 seconds) */
+const POLLING_INTERVAL_MS = 30_000;
+
+/** Number of retries on transient failures */
+const RETRY_COUNT = 3;
+
+/** Delay between retries (5 seconds) */
+const RETRY_DELAY_MS = 5_000;
 
 export interface PendingPeginTx {
   /** Peg-in transaction ID */
@@ -31,12 +44,50 @@ export interface PendingPeginTx {
 export interface UsePendingPeginTxPollingResult {
   /** Transactions ready for signing (null if still pending or error) */
   transactions: ClaimerTransactions[] | null;
+  /** Depositor graph transactions (depositor-as-claimer, optional) */
+  depositorGraph: DepositorGraphTransactions | null;
   /** Loading state */
   loading: boolean;
   /** Error state */
   error: Error | null;
   /** Whether transactions are ready to be signed */
   isReady: boolean;
+}
+
+/**
+ * Resolve vault provider URL and validate it exists.
+ * Returns { url, error } — exactly one will be non-null when params are provided.
+ */
+function useResolvedProvider(params: PendingPeginTx | null) {
+  const {
+    findProvider,
+    loading: providersLoading,
+    error: providersError,
+  } = useVaultProviders(params?.applicationController);
+
+  return useMemo(() => {
+    if (!params || providersLoading) return { url: null, error: null };
+    if (providersError) return { url: null, error: providersError };
+
+    const provider = findProvider(params.vaultProviderAddress);
+    if (!provider) {
+      return {
+        url: null,
+        error: new Error(
+          `Vault provider ${params.vaultProviderAddress} not found in indexer`,
+        ),
+      };
+    }
+    if (!provider.url) {
+      return {
+        url: null,
+        error: new Error(
+          `Vault provider ${params.vaultProviderAddress} has no RPC URL`,
+        ),
+      };
+    }
+    return { url: provider.url, error: null };
+  }, [params, findProvider, providersLoading, providersError]);
 }
 
 /**
@@ -51,52 +102,14 @@ export interface UsePendingPeginTxPollingResult {
  *   1. Transactions are ready (claim_tx, assert_tx, and payout_tx all exist)
  *   2. params is set to null (e.g., when status changes from 0 to something else)
  *
- * **Flow:**
- * 1. Gets vault provider URL from globally cached providers (via useVaultProviders)
- * 2. Polls vault provider RPC for transactions every 30 seconds
- * 3. Returns transactions when claim_tx, assert_tx, and payout_tx are all available
- *
- * @param params - Peg-in transaction details. Pass null to disable polling (e.g., when status is not 0)
- * @returns Polling result with transactions, loading, error states
+ * @param params - Peg-in transaction details. Pass null to disable polling.
  */
 export function usePendingPeginTxPolling(
   params: PendingPeginTx | null,
 ): UsePendingPeginTxPollingResult {
-  // Step 1: Get cached vault providers for the specific application
-  const {
-    findProvider,
-    loading: providersLoading,
-    error: providersError,
-  } = useVaultProviders(params?.applicationController);
+  const { url: providerUrl, error: providerError } =
+    useResolvedProvider(params);
 
-  // Step 2: Find the specific provider URL from cached data
-  const providerUrl = useMemo(() => {
-    if (!params) return null;
-    const provider = findProvider(params.vaultProviderAddress);
-    return provider?.url || null;
-  }, [params, findProvider]);
-
-  // Step 3: Validate provider exists and has URL
-  const providerError = useMemo(() => {
-    if (!params || providersLoading) return null;
-    if (providersError) return providersError;
-
-    const provider = findProvider(params.vaultProviderAddress);
-    if (!provider) {
-      return new Error(
-        `Vault provider ${params.vaultProviderAddress} not found in indexer`,
-      );
-    }
-    if (!provider.url) {
-      return new Error(
-        `Vault provider ${params.vaultProviderAddress} has no RPC URL`,
-      );
-    }
-    return null;
-  }, [params, findProvider, providersLoading, providersError]);
-
-  // Step 4: Poll vault provider RPC for transactions
-  // Only poll if params exist, provider is found, and no provider errors
   const { data, isLoading, error } = useQuery({
     queryKey: [
       "pendingPeginTx",
@@ -109,56 +122,35 @@ export function usePendingPeginTxPolling(
         throw new Error("Missing parameters or provider URL");
       }
 
-      // Create RPC client with provider URL
-      const rpcClient = new VaultProviderRpcApi(providerUrl, 30000);
+      const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
       try {
-        // Request claim and payout transactions
-        // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
-        // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
-        const response = await rpcClient.requestDepositorPresignTransactions({
+        return await rpcClient.requestDepositorPresignTransactions({
           pegin_txid: stripHexPrefix(params.peginTxId),
           depositor_pk: params.depositorBtcPubkey,
         });
-
-        return response;
-      } catch (error) {
-        // Expected error: Daemon is still processing (before PendingDepositorSignatures)
-        // Transactions are not ready yet - keep polling
-        if (isPreDepositorSignaturesError(error)) {
-          // Return empty response to indicate transactions not ready yet
-          // This will continue polling without throwing error to console
-          return { txs: [] };
-        }
-
-        // Unexpected error - rethrow to be handled by React Query
-        throw error;
+      } catch (err) {
+        // Expected: daemon is still processing (before PendingDepositorSignatures).
+        // Return null to keep polling without surfacing an error.
+        if (isPreDepositorSignaturesError(err)) return null;
+        throw err;
       }
     },
-    // Only enable polling when:
-    // 1. params exist (pegin is in pending status)
-    // 2. providerUrl is found
-    // 3. no provider errors
     enabled: !!params && !!providerUrl && !providerError,
-    // Poll every 30 seconds until transactions are ready
     refetchInterval: (query) => {
-      // Stop polling if we have valid transactions (both claim_tx and payout_tx exist)
-      if (query.state.data?.txs && areTransactionsReady(query.state.data.txs)) {
-        return false;
-      }
-      // Continue polling every 30 seconds
-      return 30000;
+      const txs = query.state.data?.txs;
+      if (txs && areTransactionsReady(txs)) return false;
+      return POLLING_INTERVAL_MS;
     },
-    // Retry on failure (transient network errors)
-    retry: 3,
-    retryDelay: 5000,
+    retry: RETRY_COUNT,
+    retryDelay: RETRY_DELAY_MS,
   });
 
-  // Check if transactions are ready (both claim_tx and payout_tx available)
   const isReady = data?.txs ? areTransactionsReady(data.txs) : false;
 
   return {
     transactions: isReady && data ? data.txs : null,
+    depositorGraph: isReady && data ? data.depositor_graph : null,
     loading: isLoading || (!providerUrl && !providerError && !!params),
     error: (error as Error | null) || providerError,
     isReady,

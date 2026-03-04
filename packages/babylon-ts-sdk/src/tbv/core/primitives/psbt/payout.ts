@@ -263,6 +263,7 @@ export async function buildPayoutPsbt(
  *
  * @param signedPsbtHex - Signed PSBT hex
  * @param depositorPubkey - Depositor's public key (x-only, 64-char hex)
+ * @param inputIndex - Input index to extract signature from (default: 0)
  * @returns 64-byte Schnorr signature (128 hex characters, no sighash flag)
  *
  * @throws If no signature is found in the PSBT
@@ -271,37 +272,101 @@ export async function buildPayoutPsbt(
 export function extractPayoutSignature(
   signedPsbtHex: string,
   depositorPubkey: string,
+  inputIndex = 0,
 ): string {
   const signedPsbt = Psbt.fromHex(signedPsbtHex);
 
-  if (signedPsbt.data.inputs.length === 0) {
-    throw new Error("No inputs found in signed PSBT");
+  if (inputIndex >= signedPsbt.data.inputs.length) {
+    throw new Error(
+      `Input index ${inputIndex} out of range (${signedPsbt.data.inputs.length} inputs)`,
+    );
   }
 
-  const firstInput = signedPsbt.data.inputs[0];
+  const input = signedPsbt.data.inputs[inputIndex];
 
-  if (!firstInput.tapScriptSig || firstInput.tapScriptSig.length === 0) {
-    throw new Error("No tapScriptSig found in signed PSBT");
-  }
+  // Case 1: Non-finalized PSBT — extract from tapScriptSig
+  if (input.tapScriptSig && input.tapScriptSig.length > 0) {
+    const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
 
-  const depositorPubkeyBytes = hexToUint8Array(depositorPubkey);
-
-  for (const sigEntry of firstInput.tapScriptSig) {
-    if (sigEntry.pubkey.equals(Buffer.from(depositorPubkeyBytes))) {
-      const sig = sigEntry.signature;
-      // Return 64-byte signature, stripping sighash flag if present
-      if (sig.length === 64) {
-        return uint8ArrayToHex(new Uint8Array(sig));
-      } else if (sig.length === 65) {
-        return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
+    for (const sigEntry of input.tapScriptSig) {
+      if (sigEntry.pubkey.equals(Buffer.from(depositorPubkeyBytes))) {
+        return extractSchnorrSig(sigEntry.signature, inputIndex);
       }
-      throw new Error(`Unexpected signature length: ${sig.length}`);
+    }
+
+    throw new Error(
+      `No signature found for depositor pubkey: ${depositorPubkey} at input ${inputIndex}`,
+    );
+  }
+
+  // Case 2: Finalized PSBT — extract from finalScriptWitness
+  // Taproot script-path witness: [signature, script, controlBlock]
+  if (input.finalScriptWitness && input.finalScriptWitness.length > 0) {
+    const witnessStack = parseWitnessStack(input.finalScriptWitness);
+    if (witnessStack.length >= 1) {
+      return extractSchnorrSig(witnessStack[0], inputIndex);
     }
   }
 
   throw new Error(
-    `No signature found for depositor pubkey: ${depositorPubkey}`,
+    `No tapScriptSig or finalScriptWitness found in signed PSBT at input ${inputIndex}`,
   );
+}
+
+/**
+ * Extract and validate a 64-byte Schnorr signature, stripping sighash flag if present.
+ * @internal
+ */
+function extractSchnorrSig(sig: Uint8Array, inputIndex: number): string {
+  if (sig.length === 64) {
+    return uint8ArrayToHex(new Uint8Array(sig));
+  } else if (sig.length === 65) {
+    return uint8ArrayToHex(new Uint8Array(sig.subarray(0, 64)));
+  }
+  throw new Error(
+    `Unexpected signature length at input ${inputIndex}: ${sig.length}`,
+  );
+}
+
+/**
+ * Parse a BIP-141 serialized witness stack into individual stack items.
+ * Format: [varint item_count] [varint len, data]...
+ * @internal
+ */
+function parseWitnessStack(witness: Buffer): Buffer[] {
+  const items: Buffer[] = [];
+  let offset = 0;
+
+  const readVarInt = (): number => {
+    const first = witness[offset++];
+    if (first < 0xfd) return first;
+    if (first === 0xfd) {
+      const val = witness[offset] | (witness[offset + 1] << 8);
+      offset += 2;
+      return val;
+    }
+    if (first === 0xfe) {
+      const val =
+        witness[offset] |
+        (witness[offset + 1] << 8) |
+        (witness[offset + 2] << 16) |
+        (witness[offset + 3] << 24);
+      offset += 4;
+      return val;
+    }
+    // 0xff — 8-byte, won't happen for witness data
+    offset += 8;
+    return 0;
+  };
+
+  const count = readVarInt();
+  for (let i = 0; i < count; i++) {
+    const len = readVarInt();
+    items.push(witness.subarray(offset, offset + len) as Buffer);
+    offset += len;
+  }
+
+  return items;
 }
 
 /**

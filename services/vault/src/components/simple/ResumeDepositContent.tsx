@@ -11,6 +11,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
+import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
 import { DepositStep } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { MnemonicModal } from "@/components/deposit/MnemonicModal";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
@@ -37,6 +38,7 @@ import { DepositProgressView } from "./DepositProgressView";
 export interface ResumeSignContentProps {
   activity: VaultActivity;
   transactions: ClaimerTransactions[] | null;
+  depositorGraph: DepositorGraphTransactions;
   btcPublicKey: string;
   depositorEthAddress: Hex;
   onClose: () => void;
@@ -46,6 +48,7 @@ export interface ResumeSignContentProps {
 export function ResumeSignContent({
   activity,
   transactions,
+  depositorGraph,
   btcPublicKey,
   depositorEthAddress,
   onClose,
@@ -55,6 +58,7 @@ export function ResumeSignContent({
     usePayoutSigningState({
       activity,
       transactions,
+      depositorGraph,
       btcPublicKey,
       depositorEthAddress,
       onSuccess,

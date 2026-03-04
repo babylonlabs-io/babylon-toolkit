@@ -45,9 +45,7 @@ export function useDepositOverviewState() {
 
   // Payout sign modal state
   const {
-    signingActivity,
-    signingTransactions,
-    isOpen: isPayoutSignModalOpen,
+    signingData,
     handleSignClick,
     handleClose: handlePayoutSignClose,
     handleSuccess: handlePayoutSignSuccess,
@@ -116,9 +114,7 @@ export function useDepositOverviewState() {
     deposits,
 
     // Payout sign modal
-    signingActivity,
-    signingTransactions,
-    isPayoutSignModalOpen,
+    signingData,
     handleSignClick,
     handlePayoutSignClose,
     handlePayoutSignSuccess,

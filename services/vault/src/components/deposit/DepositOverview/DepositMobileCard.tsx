@@ -9,6 +9,10 @@ import { Hint, StatusBadge, VaultDetailCard } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "../../../clients/vault-provider-rpc/types";
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
@@ -21,7 +25,11 @@ const btcConfig = getNetworkConfigBTC();
 
 interface DepositMobileCardProps {
   deposit: Deposit;
-  onSignClick: (depositId: string, transactions: unknown[]) => void;
+  onSignClick: (
+    depositId: string,
+    transactions: ClaimerTransactions[],
+    depositorGraph: DepositorGraphTransactions,
+  ) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
   onLamportKeyClick?: (depositId: string) => void;
@@ -38,7 +46,7 @@ export function DepositMobileCard({
 
   if (!pollingResult) return null;
 
-  const { peginState, transactions } = pollingResult;
+  const { peginState, transactions, depositorGraph } = pollingResult;
   const status = getActionStatus(pollingResult);
   const warnings = getWarningMessages(pollingResult);
 
@@ -96,8 +104,10 @@ export function DepositMobileCard({
       onAction={(id, action) => {
         if (action === "lamport_key") {
           onLamportKeyClick?.(id);
-        } else if (action === "sign" && transactions) {
-          onSignClick(id, transactions);
+        } else if (action === "sign") {
+          if (transactions && depositorGraph) {
+            onSignClick(id, transactions, depositorGraph);
+          }
         } else if (action === "broadcast") {
           onBroadcastClick(id);
         } else if (action === "redeem") {

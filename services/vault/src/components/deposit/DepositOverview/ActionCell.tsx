@@ -6,6 +6,10 @@
 
 import { Button } from "@babylonlabs-io/core-ui";
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "../../../clients/vault-provider-rpc/types";
 import { useDepositPollingResult } from "../../../context/deposit/PeginPollingContext";
 
 import { getActionStatus, PeginAction } from "./actionStatus";
@@ -13,7 +17,11 @@ import { ActionWarningIndicator } from "./ActionWarningIndicator";
 
 interface ActionCellProps {
   depositId: string;
-  onSignClick: (depositId: string, transactions: unknown[]) => void;
+  onSignClick: (
+    depositId: string,
+    transactions: ClaimerTransactions[],
+    depositorGraph: DepositorGraphTransactions,
+  ) => void;
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
   onLamportKeyClick?: (depositId: string) => void;
@@ -30,7 +38,7 @@ export function ActionCell({
 
   if (!pollingResult) return null;
 
-  const { loading, transactions } = pollingResult;
+  const { loading, transactions, depositorGraph } = pollingResult;
   const status = getActionStatus(pollingResult);
 
   if (status.type === "unavailable") {
@@ -56,8 +64,12 @@ export function ActionCell({
         <Button
           size="small"
           variant="contained"
-          onClick={() => onSignClick(depositId, transactions || [])}
-          disabled={loading || !transactions}
+          onClick={() => {
+            if (transactions && depositorGraph) {
+              onSignClick(depositId, transactions, depositorGraph);
+            }
+          }}
+          disabled={loading || !transactions || !depositorGraph}
         >
           {loading ? "Loading..." : label}
         </Button>

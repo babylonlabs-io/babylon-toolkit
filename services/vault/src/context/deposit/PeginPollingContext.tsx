@@ -60,7 +60,7 @@ export function PeginPollingProvider({
   >(new Map());
 
   // Use the polling query hook
-  const { data, errors, needsLamportKey, isLoading, refetch } =
+  const { data, depositorGraphs, errors, needsLamportKey, isLoading, refetch } =
     usePeginPollingQuery({
       activities,
       pendingPegins,
@@ -160,9 +160,12 @@ export function PeginPollingProvider({
         btcPublicKey,
       );
 
+      const depositorGraph = depositorGraphs?.get(depositId) ?? null;
+
       return {
         depositId,
         transactions,
+        depositorGraph,
         isReady,
         loading: isLoading,
         error: providerError,
@@ -175,6 +178,7 @@ export function PeginPollingProvider({
       activities,
       pendingPegins,
       data,
+      depositorGraphs,
       errors,
       needsLamportKey,
       isLoading,

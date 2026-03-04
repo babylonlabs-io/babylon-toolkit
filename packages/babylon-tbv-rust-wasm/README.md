@@ -56,6 +56,7 @@ const params: PayoutConnectorParams = {
   vaultProvider: 'def456...', // X-only pubkey (hex)
   vaultKeepers: ['ghi789...'], // Array of vault keeper x-only pubkeys (hex)
   universalChallengers: ['jkl012...'], // Array of universal challenger x-only pubkeys (hex)
+  timelockPegin: 50, // CSV timelock in blocks for PegIn output
 };
 
 const payoutInfo = await createPayoutConnector(params, 'testnet');
@@ -70,6 +71,59 @@ console.log(TAP_INTERNAL_KEY); // "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec9
 console.log(payoutInfo.payoutScript); // Full payout script (hex)
 console.log(payoutInfo.scriptPubKey); // Taproot script pubkey (hex)
 console.log(payoutInfo.address); // P2TR address
+```
+
+### Assert Payout/NoPayout Connector
+
+The Assert Payout/NoPayout connector generates taproot scripts for the depositor-as-claimer path. It produces payout scripts from Assert output 0 and per-challenger NoPayout scripts.
+
+```typescript
+import {
+  getAssertPayoutScriptInfo,
+  getAssertNoPayoutScriptInfo,
+  type AssertPayoutNoPayoutConnectorParams,
+} from '@babylonlabs-io/babylon-tbv-rust-wasm';
+
+const params: AssertPayoutNoPayoutConnectorParams = {
+  claimer: 'abc123...',            // Depositor acting as claimer, x-only pubkey (hex)
+  localChallengers: ['def456...'], // Local challenger x-only pubkeys (hex)
+  universalChallengers: ['ghi789...'], // Universal challenger x-only pubkeys (hex)
+  timelockAssert: 144,             // CSV timelock in blocks for Assert output
+  councilMembers: ['jkl012...'],   // Security council member x-only pubkeys (hex)
+  councilQuorum: 3,                // Council quorum (N-of-N)
+};
+
+// Payout script from Assert output 0
+const payoutInfo = await getAssertPayoutScriptInfo(params);
+console.log(payoutInfo.payoutScript);       // Payout script (hex)
+console.log(payoutInfo.payoutControlBlock);  // Control block (hex)
+
+// NoPayout script for a specific challenger
+const noPayoutInfo = await getAssertNoPayoutScriptInfo(params, 'def456...');
+console.log(noPayoutInfo.noPayoutScript);       // NoPayout script (hex)
+console.log(noPayoutInfo.noPayoutControlBlock);  // Control block (hex)
+```
+
+### ChallengeAssert Connector
+
+The ChallengeAssert connector generates scripts for ChallengeAssert transactions in the depositor-as-claimer path. It uses Lamport hashes and GC input label hashes provided by the vault provider.
+
+```typescript
+import {
+  getChallengeAssertScriptInfo,
+  type ChallengeAssertConnectorParams,
+} from '@babylonlabs-io/babylon-tbv-rust-wasm';
+
+const params: ChallengeAssertConnectorParams = {
+  claimer: 'abc123...',              // Depositor acting as claimer, x-only pubkey (hex)
+  challenger: 'def456...',           // Challenger x-only pubkey (hex)
+  lamportHashesJson: '[[...]]',      // JSON string of Lamport hashes from VP
+  gcInputLabelHashesJson: '[[...]]', // JSON string of GC input label hashes from VP
+};
+
+const scriptInfo = await getChallengeAssertScriptInfo(params);
+console.log(scriptInfo.script);       // ChallengeAssert script (hex)
+console.log(scriptInfo.controlBlock); // Control block (hex)
 ```
 
 ### Constants
@@ -189,7 +243,9 @@ packages/babylon-tbv-rust-wasm/
 │   ├── index.ts              # Main entry point
 │   ├── types.ts              # TypeScript type definitions
 │   ├── constants.ts          # Taproot constants
-│   └── payoutConnector.ts    # Payout connector wrapper
+│   ├── payoutConnector.ts    # Payout connector wrapper
+│   ├── assertPayoutNoPayoutConnector.ts  # Assert Payout/NoPayout connector
+│   └── challengeAssertConnector.ts       # ChallengeAssert connector
 ├── dist/
 │   ├── generated/            # WASM files (pre-built)
 │   │   ├── btc_vault.js
@@ -316,6 +372,7 @@ Creates a payout connector for signing payout transactions.
 - `params.vaultProvider` - Vault provider's x-only pubkey (hex)
 - `params.vaultKeepers` - Array of vault keeper x-only pubkeys (hex)
 - `params.universalChallengers` - Array of universal challenger x-only pubkeys (hex)
+- `params.timelockPegin` - CSV timelock in blocks for PegIn output
 - `network` - Bitcoin network
 
 **Returns:**
@@ -323,6 +380,62 @@ Creates a payout connector for signing payout transactions.
 - `taprootScriptHash` - Taproot script hash / tapLeafHash for PSBT signing
 - `scriptPubKey` - Taproot script pubkey (hex)
 - `address` - P2TR address
+
+#### `getPeginPayoutScript(params: PayoutConnectorParams): Promise<string>`
+
+Returns the payout script hex from the PeginPayoutConnector without requiring a network parameter. Useful for building depositor Payout PSBTs where you only need the script (not the address).
+
+**Parameters:**
+- `params.depositor` - Depositor's x-only pubkey (hex)
+- `params.vaultProvider` - Vault provider's x-only pubkey (hex)
+- `params.vaultKeepers` - Array of vault keeper x-only pubkeys (hex)
+- `params.universalChallengers` - Array of universal challenger x-only pubkeys (hex)
+- `params.timelockPegin` - CSV timelock in blocks for PegIn output
+
+**Returns:**
+- Payout script hex string
+
+#### `getAssertPayoutScriptInfo(params: AssertPayoutNoPayoutConnectorParams): Promise<AssertPayoutScriptInfo>`
+
+Generates the Payout script and control block from Assert output 0 for the depositor-as-claimer path.
+
+**Parameters:**
+- `params.claimer` - Claimer (depositor) x-only pubkey (hex)
+- `params.localChallengers` - Array of local challenger x-only pubkeys (hex)
+- `params.universalChallengers` - Array of universal challenger x-only pubkeys (hex)
+- `params.timelockAssert` - CSV timelock in blocks for Assert output
+- `params.councilMembers` - Array of security council member x-only pubkeys (hex)
+- `params.councilQuorum` - Council quorum (N-of-N)
+
+**Returns:**
+- `payoutScript` - Payout script (hex)
+- `payoutControlBlock` - Control block for the payout script (hex)
+
+#### `getAssertNoPayoutScriptInfo(params: AssertPayoutNoPayoutConnectorParams, challengerPubkey: string): Promise<AssertNoPayoutScriptInfo>`
+
+Generates the NoPayout script and control block for a specific challenger. Each challenger has a distinct NoPayout script.
+
+**Parameters:**
+- `params` - Same as `getAssertPayoutScriptInfo`
+- `challengerPubkey` - The challenger's x-only pubkey (hex)
+
+**Returns:**
+- `noPayoutScript` - NoPayout script (hex)
+- `noPayoutControlBlock` - Control block for the NoPayout script (hex)
+
+#### `getChallengeAssertScriptInfo(params: ChallengeAssertConnectorParams): Promise<ChallengeAssertScriptInfo>`
+
+Generates the ChallengeAssert script and control block for a specific challenger. Uses Lamport hashes and GC input label hashes from the vault provider.
+
+**Parameters:**
+- `params.claimer` - Claimer (depositor) x-only pubkey (hex)
+- `params.challenger` - Challenger x-only pubkey (hex)
+- `params.lamportHashesJson` - JSON string of Lamport hash values from VP
+- `params.gcInputLabelHashesJson` - JSON string of GC input label hashes from VP
+
+**Returns:**
+- `script` - ChallengeAssert script (hex)
+- `controlBlock` - Control block for the ChallengeAssert script (hex)
 
 ### Constants
 
@@ -342,3 +455,5 @@ The package also exports raw WASM classes for advanced usage:
 
 - `WasmPeginTx` - Low-level peg-in transaction class
 - `WasmPeginPayoutConnector` - Low-level payout connector class
+- `WasmAssertPayoutNoPayoutConnector` - Low-level Assert Payout/NoPayout connector class
+- `WasmAssertChallengeAssertConnector` - Low-level ChallengeAssert connector class

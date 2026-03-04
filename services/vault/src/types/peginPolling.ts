@@ -4,6 +4,7 @@
 
 import type { PropsWithChildren } from "react";
 
+import type { DepositorGraphTransactions } from "../clients/vault-provider-rpc/types";
 import type {
   LocalStorageStatus,
   PeginState,
@@ -18,6 +19,8 @@ export interface DepositPollingResult {
   depositId: string;
   /** Claim and payout transactions (null if not ready) */
   transactions: ClaimerTransactions[] | null;
+  /** Depositor graph transactions (depositor-as-claimer, optional) */
+  depositorGraph: DepositorGraphTransactions | null;
   /** Whether transactions are ready for signing */
   isReady: boolean;
   /** Loading state for this deposit */

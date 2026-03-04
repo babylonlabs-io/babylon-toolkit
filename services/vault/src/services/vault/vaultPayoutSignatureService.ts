@@ -7,7 +7,6 @@ import type {
   ClaimerSignatures,
   ClaimerTransactions,
   DepositorAsClaimerPresignatures,
-  SubmitDepositorPresignaturesParams,
 } from "../../clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 import type { UniversalChallenger } from "../../types";
@@ -51,18 +50,6 @@ export interface PayoutProviders {
   vaultKeepers: PayoutVaultKeeper[];
   /** Universal challengers for the application */
   universalChallengers: PayoutUniversalChallenger[];
-}
-
-export interface SignAndSubmitPayoutSignaturesParams {
-  peginTxId: string;
-  depositorBtcPubkey: string;
-  claimerTransactions: ClaimerTransactions[];
-  providers: PayoutProviders;
-  btcWallet: BitcoinWallet;
-  /** CSV timelock in blocks for the PegIn output */
-  timelockPegin: number;
-  /** Function to get UCs by version from context (for versioned payout signing) */
-  getUniversalChallengersByVersion: (version: number) => UniversalChallenger[];
 }
 
 export interface PrepareSigningContextParams {
@@ -171,18 +158,24 @@ export async function submitSignaturesToVaultProvider(
   peginTxId: string,
   depositorBtcPubkey: string,
   signatures: Record<string, ClaimerSignatures>,
-  depositorClaimerPresignatures?: DepositorAsClaimerPresignatures,
+  depositorClaimerPresignatures: DepositorAsClaimerPresignatures,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(vaultProviderUrl, 30000);
-  const params: SubmitDepositorPresignaturesParams = {
+
+  // The VP expects signatures for ALL claimers (VP + VKs + depositor).
+  // The depositor's own payout signature comes from depositorClaimerPresignatures
+  // and must be included in the signatures map.
+  const allSignatures = { ...signatures };
+  const depositorXOnly = stripHexPrefix(depositorBtcPubkey);
+  allSignatures[depositorXOnly] =
+    depositorClaimerPresignatures.payout_signatures;
+
+  await rpcClient.submitDepositorPresignatures({
     pegin_txid: stripHexPrefix(peginTxId),
     depositor_pk: stripHexPrefix(depositorBtcPubkey),
-    signatures,
-  };
-  if (depositorClaimerPresignatures) {
-    params.depositor_claimer_presignatures = depositorClaimerPresignatures;
-  }
-  await rpcClient.submitDepositorPresignatures(params);
+    signatures: allSignatures,
+    depositor_claimer_presignatures: depositorClaimerPresignatures,
+  });
 }
 
 /** Context required for signing payout transactions */
@@ -338,66 +331,13 @@ export async function prepareSigningContext(
 }
 
 /**
- * Sign payout transactions and submit signatures to vault provider.
- * Convenience function that handles preparation, signing, and submission.
- *
- * Note: This function does not provide progress tracking. For progress updates,
- * use the lower-level functions (prepareSigningContext, signPayout) directly
- * in the UI layer.
- */
-export async function signAndSubmitPayoutSignatures(
-  params: SignAndSubmitPayoutSignaturesParams,
-): Promise<void> {
-  const {
-    peginTxId,
-    depositorBtcPubkey,
-    claimerTransactions,
-    providers,
-    btcWallet,
-    timelockPegin,
-    getUniversalChallengersByVersion,
-  } = params;
-
-  // Validate inputs
-  validatePayoutSignatureParams({
-    peginTxId,
-    depositorBtcPubkey,
-    claimerTransactions,
-    vaultProvider: providers.vaultProvider,
-    vaultKeepers: providers.vaultKeepers,
-    universalChallengers: providers.universalChallengers,
-  });
-
-  // Prepare signing context (uses versioned keepers and challengers)
-  const { context, vaultProviderUrl } = await prepareSigningContext({
-    peginTxId,
-    depositorBtcPubkey,
-    providers,
-    timelockPegin,
-    getUniversalChallengersByVersion,
-  });
-
-  // Prepare and sign all transactions (batch when wallet supports it)
-  const preparedTransactions =
-    prepareTransactionsForSigning(claimerTransactions);
-  const signatures = await signPayoutTransactions(
-    btcWallet,
-    context,
-    preparedTransactions,
-  );
-
-  // Submit signatures to vault provider RPC
-  await submitSignaturesToVaultProvider(
-    vaultProviderUrl,
-    peginTxId,
-    depositorBtcPubkey,
-    signatures,
-  );
-}
-
-/**
  * Check if wallet supports batch signing (signPsbts).
  * Batch signing allows signing all transactions with a single wallet interaction.
+ *
+ * Mobile wallets may not inject signPsbts, so callers should fall back to
+ * sequential signPsbt when this returns false.
+ *
+ * @see signPsbtsWithFallback in utils/btc for the lower-level batch-or-sequential helper.
  */
 export function walletSupportsBatchSigning(btcWallet: BitcoinWallet): boolean {
   return typeof btcWallet.signPsbts === "function";

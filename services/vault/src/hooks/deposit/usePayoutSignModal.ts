@@ -1,12 +1,23 @@
 import { useCallback, useState } from "react";
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "../../clients/vault-provider-rpc/types";
 import type { VaultActivity } from "../../types/activity";
+
+/** Data for an active signing session — all fields set together */
+export interface SignModalData {
+  activity: VaultActivity;
+  transactions: ClaimerTransactions[];
+  depositorGraph: DepositorGraphTransactions;
+}
 
 /**
  * Hook to manage payout sign modal state and actions
  *
- * Provides state and callbacks for opening/closing the payout sign modal
- * and handling successful payout signature submission.
+ * Uses a single state object so that activity, transactions, and
+ * depositorGraph are always set/cleared atomically.
  */
 export function usePayoutSignModal(options: {
   allActivities: VaultActivity[];
@@ -14,20 +25,18 @@ export function usePayoutSignModal(options: {
 }) {
   const { allActivities, onSuccess } = options;
 
-  const [signingActivity, setSigningActivity] = useState<VaultActivity | null>(
-    null,
-  );
-  const [signingTransactions, setSigningTransactions] = useState<any[] | null>(
-    null,
-  );
+  const [signingData, setSigningData] = useState<SignModalData | null>(null);
 
   // Handle clicking "Sign" button from table row
   const handleSignClick = useCallback(
-    (depositId: string, transactions: any[]) => {
+    (
+      depositId: string,
+      transactions: ClaimerTransactions[],
+      depositorGraph: DepositorGraphTransactions,
+    ) => {
       const activity = allActivities.find((a) => a.id === depositId);
       if (activity && transactions) {
-        setSigningActivity(activity);
-        setSigningTransactions(transactions);
+        setSigningData({ activity, transactions, depositorGraph });
       }
     },
     [allActivities],
@@ -35,8 +44,7 @@ export function usePayoutSignModal(options: {
 
   // Handle payout sign modal close
   const handleClose = useCallback(() => {
-    setSigningActivity(null);
-    setSigningTransactions(null);
+    setSigningData(null);
   }, []);
 
   // Handle payout sign success
@@ -45,9 +53,7 @@ export function usePayoutSignModal(options: {
   }, [onSuccess]);
 
   return {
-    signingActivity,
-    signingTransactions,
-    isOpen: !!signingActivity,
+    signingData,
     handleSignClick,
     handleClose,
     handleSuccess,

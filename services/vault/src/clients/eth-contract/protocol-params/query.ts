@@ -155,9 +155,10 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
 
-  // depositorClaimValue funds the depositor's future Claim transaction.
-  // Use challengerOutputValue as a reasonable protocol-aligned default.
-  const depositorClaimValue = offchainParams.challengerOutputValue;
+  // TODO: Replace with value from contract once btc-vault exposes
+  // depositorClaimValue as a parameter. Must cover the full downstream
+  // tx graph (Claim → Assert → Payout).
+  const depositorClaimValue = 500_000n;
 
   return {
     minimumPegInAmount: params.minimumPegInAmount,
@@ -167,6 +168,75 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     timelockPegin,
     depositorClaimValue,
   };
+}
+
+/**
+ * Get the latest offchain params version number from the contract.
+ */
+export async function getLatestOffchainParamsVersion(): Promise<number> {
+  const publicClient = ethClient.getPublicClient();
+  const protocolParamsAddress = await getProtocolParamsAddress();
+
+  const version = await publicClient.readContract({
+    address: protocolParamsAddress,
+    abi: ProtocolParamsAbi,
+    functionName: "latestOffchainParamsVersion",
+  });
+
+  return Number(version);
+}
+
+/**
+ * Get offchain parameters for a specific version from the contract.
+ */
+export async function getOffchainParamsByVersion(
+  versionNumber: number,
+): Promise<VersionedOffchainParams> {
+  const publicClient = ethClient.getPublicClient();
+  const protocolParamsAddress = await getProtocolParamsAddress();
+
+  const result = await publicClient.readContract({
+    address: protocolParamsAddress,
+    abi: ProtocolParamsAbi,
+    functionName: "getOffchainParamsByVersion",
+    args: [versionNumber],
+  });
+
+  return result as VersionedOffchainParams;
+}
+
+/** All offchain params grouped by version */
+export interface AllOffchainParamsData {
+  byVersion: Map<number, VersionedOffchainParams>;
+  latestVersion: number;
+}
+
+/**
+ * Fetches all offchain params versions from the contract.
+ * Iterates from version 1 to latestOffchainParamsVersion and fetches each.
+ *
+ * Used by ProtocolParamsContext to load all versions at page init so that
+ * depositor graph signing can look up params by the vault's locked version.
+ */
+export async function fetchAllOffchainParams(): Promise<AllOffchainParamsData> {
+  const latestVersion = await getLatestOffchainParamsVersion();
+
+  if (latestVersion === 0) {
+    return { byVersion: new Map(), latestVersion: 0 };
+  }
+
+  // Fetch all versions in parallel
+  const versions = Array.from({ length: latestVersion }, (_, i) => i + 1);
+  const results = await Promise.all(
+    versions.map((v) => getOffchainParamsByVersion(v)),
+  );
+
+  const byVersion = new Map<number, VersionedOffchainParams>();
+  for (let i = 0; i < versions.length; i++) {
+    byVersion.set(versions[i], results[i]);
+  }
+
+  return { byVersion, latestVersion };
 }
 
 /**

@@ -24,6 +24,7 @@ import { useUTXOs } from "@/hooks/useUTXOs";
 import { useVaults } from "@/hooks/useVaults";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import { collectReservedUtxoRefs } from "@/services/vault";
+import { prepareAndSignDepositorGraph } from "@/services/vault/depositorGraphSigningService";
 import {
   signPayoutTransactions,
   type PayoutSigningProgress,
@@ -150,18 +151,8 @@ export function useDepositFlow(
     timelockPegin,
     depositorClaimValue,
     latestUniversalChallengers,
+    getOffchainParamsByVersion,
   } = useProtocolParamsContext();
-
-  const getSelectedVaultProvider = useCallback(() => {
-    if (!selectedProviders || selectedProviders.length === 0) {
-      throw new Error("No vault provider selected");
-    }
-    const provider = findProvider(selectedProviders[0] as Hex);
-    if (!provider) {
-      throw new Error("Vault provider not found");
-    }
-    return provider;
-  }, [findProvider, selectedProviders]);
 
   const executeDepositFlow =
     useCallback(async (): Promise<DepositFlowResult | null> => {
@@ -262,9 +253,9 @@ export function useDepositFlow(
         setCurrentStep(DepositStep.SIGN_PAYOUTS);
         setIsWaiting(true);
 
-        const provider = getSelectedVaultProvider();
-        if (!provider.url) {
-          throw new Error("Vault provider has no RPC URL");
+        const provider = findProvider(selectedProviders[0] as Hex);
+        if (!provider?.url) {
+          throw new Error("Vault provider not found or has no RPC URL");
         }
 
         // Step 2.5: Submit full Lamport PK to vault provider via RPC
@@ -290,22 +281,26 @@ export function useDepositFlow(
         // Step 3: Poll and sign payout transactions
         // (step already set above, isWaiting already true)
 
-        const { context, vaultProviderUrl, preparedTransactions } =
-          await pollAndPreparePayoutSigning({
-            btcTxid: registration.btcTxid,
-            btcTxHex: prepared.btcTxHex,
-            depositorBtcPubkey: prepared.depositorBtcPubkey,
-            providerUrl: provider.url,
-            providerBtcPubKey: provider.btcPubKey,
-            vaultKeepers: vaultKeepers.map((vk) => ({
-              btcPubKey: vk.btcPubKey,
-            })),
-            universalChallengers: latestUniversalChallengers.map((uc) => ({
-              btcPubKey: uc.btcPubKey,
-            })),
-            timelockPegin,
-            signal,
-          });
+        const {
+          context,
+          vaultProviderUrl,
+          preparedTransactions,
+          depositorGraph,
+        } = await pollAndPreparePayoutSigning({
+          btcTxid: registration.btcTxid,
+          btcTxHex: prepared.btcTxHex,
+          depositorBtcPubkey: prepared.depositorBtcPubkey,
+          providerUrl: provider.url,
+          providerBtcPubKey: provider.btcPubKey,
+          vaultKeepers: vaultKeepers.map((vk) => ({
+            btcPubKey: vk.btcPubKey,
+          })),
+          universalChallengers: latestUniversalChallengers.map((uc) => ({
+            btcPubKey: uc.btcPubKey,
+          })),
+          timelockPegin,
+          signal,
+        });
 
         setIsWaiting(false);
 
@@ -316,12 +311,28 @@ export function useDepositFlow(
           setPayoutSigningProgress,
         );
 
+        // Sign depositor graph (depositor-as-claimer flow)
+        const depositorClaimerPresignatures =
+          await prepareAndSignDepositorGraph({
+            depositorGraph,
+            depositorBtcPubkey: prepared.depositorBtcPubkey,
+            btcWallet: btcWalletProvider,
+            vaultProviderBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            universalChallengerBtcPubkeys: latestUniversalChallengers.map(
+              (uc) => uc.btcPubKey,
+            ),
+            timelockPegin,
+            getOffchainParamsByVersion,
+          });
+
         await submitPayoutSignatures(
           vaultProviderUrl,
           registration.btcTxid,
           prepared.depositorBtcPubkey,
           signatures,
           depositorEthAddress!,
+          depositorClaimerPresignatures,
         );
         setPayoutSigningProgress(null);
 
@@ -396,9 +407,10 @@ export function useDepositFlow(
       isUTXOsLoading,
       utxoError,
       vaults,
-      getSelectedVaultProvider,
+      findProvider,
       vaultKeepers,
       latestUniversalChallengers,
+      getOffchainParamsByVersion,
       minDeposit,
       maxDeposit,
       getMnemonic,

@@ -94,9 +94,11 @@ export function formatPayoutSignatureError(error: unknown): {
     };
   }
 
+  // WASM panics and some wallet providers throw strings or plain objects
+  const msg = typeof error === "string" ? error : String(error);
   return {
-    title: "Unexpected Error",
-    message: "An unexpected error occurred while signing payouts.",
+    title: "Payout Signing Error",
+    message: msg || "An unexpected error occurred while signing payouts.",
   };
 }
 

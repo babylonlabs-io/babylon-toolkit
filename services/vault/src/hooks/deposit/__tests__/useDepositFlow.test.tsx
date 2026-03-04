@@ -243,6 +243,22 @@ vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn().mockReturnValue("signet"),
 }));
 
+// Mock depositor graph signing service to avoid SDK imports triggering initEccLib
+vi.mock("@/services/vault/depositorGraphSigningService", () => ({
+  prepareAndSignDepositorGraph: vi.fn().mockResolvedValue({
+    payout_signatures: { payout_signature: "mock_payout_sig" },
+    per_challenger: {},
+  }),
+}));
+
+// Mock protocol params query to avoid ETH client initialization
+vi.mock("@/clients/eth-contract/protocol-params/query", () => ({
+  getLatestOffchainParams: vi.fn().mockResolvedValue({
+    timelockAssert: 100,
+    securityCouncilKeys: ["0xcouncil1"],
+  }),
+}));
+
 // Mock Lamport service (deriveLamportPkHash returns a mock hash)
 vi.mock("@/services/lamport/lamportService", () => ({
   deriveLamportPkHash: vi
@@ -270,6 +286,10 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],
+    getOffchainParamsByVersion: vi.fn(() => ({
+      timelockAssert: 100n,
+      securityCouncilKeys: ["0xcouncil1"],
+    })),
   })),
 }));
 
@@ -286,6 +306,15 @@ vi.mock("@/clients/vault-provider-rpc", () => {
             payout_tx: { tx_hex: "0xpayouttx" },
           },
         ],
+        depositor_graph: {
+          claim_tx: { tx_hex: "0xdepclaim" },
+          assert_tx: { tx_hex: "0xdepassert" },
+          payout_tx: { tx_hex: "0xdeppayout" },
+          challenger_presign_data: [],
+          payout_sighash: "0xsighash",
+          payout_prevouts: [],
+          offchain_params_version: 0,
+        },
       });
     },
   };

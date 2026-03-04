@@ -82,3 +82,67 @@ export interface PayoutConnectorInfo {
   /** Pay-to-Taproot (P2TR) address */
   address: string;
 }
+
+/**
+ * Parameters for creating an Assert Payout/NoPayout connector.
+ * This connector generates scripts for the depositor's own graph (depositor-as-claimer).
+ */
+export interface AssertPayoutNoPayoutConnectorParams {
+  /** X-only public key of the claimer (depositor acting as claimer, hex encoded) */
+  claimer: string;
+  /** Array of x-only public keys of local challengers (hex encoded) */
+  localChallengers: string[];
+  /** Array of x-only public keys of universal challengers (hex encoded) */
+  universalChallengers: string[];
+  /** CSV timelock in blocks for the Assert output */
+  timelockAssert: number;
+  /** Array of x-only public keys of security council members (hex encoded) */
+  councilMembers: string[];
+  /** Council quorum (N-of-N, all must sign) */
+  councilQuorum: number;
+}
+
+/**
+ * Script info for Assert Payout (depositor graph)
+ */
+export interface AssertPayoutScriptInfo {
+  /** The payout script (hex encoded) */
+  payoutScript: string;
+  /** The control block for the payout script (hex encoded) */
+  payoutControlBlock: string;
+}
+
+/**
+ * Script info for Assert NoPayout (depositor graph, per challenger)
+ */
+export interface AssertNoPayoutScriptInfo {
+  /** The NoPayout script (hex encoded) */
+  noPayoutScript: string;
+  /** The control block for the NoPayout script (hex encoded) */
+  noPayoutControlBlock: string;
+}
+
+/**
+ * Parameters for creating a ChallengeAssert connector.
+ * This connector generates scripts for the ChallengeAssert transaction.
+ */
+export interface ChallengeAssertConnectorParams {
+  /** X-only public key of the claimer (depositor acting as claimer, hex encoded) */
+  claimer: string;
+  /** X-only public key of the challenger (hex encoded) */
+  challenger: string;
+  /** JSON string of Lamport hash values from VP */
+  lamportHashesJson: string;
+  /** JSON string of GC input label hashes from VP */
+  gcInputLabelHashesJson: string;
+}
+
+/**
+ * Script info for ChallengeAssert
+ */
+export interface ChallengeAssertScriptInfo {
+  /** The ChallengeAssert script (hex encoded) */
+  script: string;
+  /** The control block for the ChallengeAssert script (hex encoded) */
+  controlBlock: string;
+}

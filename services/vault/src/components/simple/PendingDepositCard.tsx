@@ -10,6 +10,10 @@
 
 import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
 
+import type {
+  ClaimerTransactions,
+  DepositorGraphTransactions,
+} from "@/clients/vault-provider-rpc/types";
 import {
   getActionStatus,
   getWarningMessages,
@@ -23,7 +27,11 @@ const btcConfig = getNetworkConfigBTC();
 interface PendingDepositCardProps {
   depositId: string;
   amount: string;
-  onSignClick: (depositId: string, transactions: unknown[]) => void;
+  onSignClick: (
+    depositId: string,
+    transactions: ClaimerTransactions[],
+    depositorGraph: DepositorGraphTransactions,
+  ) => void;
   onBroadcastClick: (depositId: string) => void;
   onLamportKeyClick: (depositId: string) => void;
 }
@@ -39,7 +47,7 @@ export function PendingDepositCard({
 
   if (!pollingResult) return null;
 
-  const { loading, transactions, peginState } = pollingResult;
+  const { loading, transactions, depositorGraph, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
   const warnings = getWarningMessages(pollingResult);
   const isDisabled = warnings.length > 0;
@@ -54,7 +62,9 @@ export function PendingDepositCard({
     if (action === PeginAction.SUBMIT_LAMPORT_KEY) {
       onLamportKeyClick(depositId);
     } else if (action === PeginAction.SIGN_PAYOUT_TRANSACTIONS) {
-      onSignClick(depositId, transactions || []);
+      if (transactions && depositorGraph) {
+        onSignClick(depositId, transactions, depositorGraph);
+      }
     } else if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcastClick(depositId);
     }

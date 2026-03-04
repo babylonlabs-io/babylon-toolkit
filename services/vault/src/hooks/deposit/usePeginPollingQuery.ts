@@ -9,6 +9,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
+import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -45,6 +46,8 @@ interface UsePeginPollingQueryParams {
 interface PollingQueryData {
   /** Map of depositId -> transactions */
   transactions: Map<string, ClaimerTransactions[]>;
+  /** Map of depositId -> depositor graph (depositor-as-claimer) */
+  depositorGraphs: Map<string, DepositorGraphTransactions>;
   /** Map of depositId -> error (for deposits with provider connectivity issues) */
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's lamport key */
@@ -54,6 +57,8 @@ interface PollingQueryData {
 interface UsePeginPollingQueryResult {
   /** Map of depositId -> transactions */
   data: Map<string, ClaimerTransactions[]> | undefined;
+  /** Map of depositId -> depositor graph */
+  depositorGraphs: Map<string, DepositorGraphTransactions> | undefined;
   /** Map of depositId -> error */
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing lamport key submission */
@@ -81,6 +86,7 @@ async function fetchFromProvider(
   deposits: DepositToPoll[],
   btcPublicKey: string,
   results: Map<string, ClaimerTransactions[]>,
+  depositorGraphs: Map<string, DepositorGraphTransactions>,
   errors: Map<string, Error>,
   needsLamportKey: Set<string>,
 ): Promise<void> {
@@ -96,6 +102,7 @@ async function fetchFromProvider(
       if (response.txs && response.txs.length > 0) {
         results.set(deposit.activity.id, response.txs);
       }
+      depositorGraphs.set(deposit.activity.id, response.depositor_graph);
       errors.delete(deposit.activity.id);
       needsLamportKey.delete(deposit.activity.id);
     } catch (error) {
@@ -169,6 +176,7 @@ export function usePeginPollingQuery({
       if (!currentBtcPubKey || currentDeposits.length === 0) {
         return {
           transactions: new Map<string, ClaimerTransactions[]>(),
+          depositorGraphs: new Map<string, DepositorGraphTransactions>(),
           errors: new Map<string, Error>(),
           needsLamportKey: new Set<string>(),
         };
@@ -181,6 +189,7 @@ export function usePeginPollingQuery({
       );
 
       const transactions = new Map<string, ClaimerTransactions[]>();
+      const depositorGraphs = new Map<string, DepositorGraphTransactions>();
       const errors = new Map<string, Error>();
       const needsLamportKey = new Set<string>();
 
@@ -192,13 +201,14 @@ export function usePeginPollingQuery({
             deposits,
             currentBtcPubKey,
             transactions,
+            depositorGraphs,
             errors,
             needsLamportKey,
           ),
       );
 
       await Promise.all(fetchPromises);
-      return { transactions, errors, needsLamportKey };
+      return { transactions, depositorGraphs, errors, needsLamportKey };
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -241,6 +251,7 @@ export function usePeginPollingQuery({
 
   return {
     data: data?.transactions,
+    depositorGraphs: data?.depositorGraphs,
     errors: data?.errors,
     needsLamportKey: data?.needsLamportKey,
     isLoading,
