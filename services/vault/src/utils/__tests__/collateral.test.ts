@@ -136,9 +136,7 @@ describe("Collateral Utilities", () => {
 
     it("should use provider name from providerNames map", () => {
       const collaterals = [makeCollateral()];
-      const providerNames = new Map([
-        ["0xprovider1", "Babylon Provider"],
-      ]);
+      const providerNames = new Map([["0xprovider1", "Babylon Provider"]]);
       const result = toCollateralVaultEntries(collaterals, providerNames);
 
       expect(result[0].vaultProviderName).toBe("Babylon Provider");

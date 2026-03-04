@@ -40,8 +40,7 @@ export function WithdrawReviewContent({
       },
       {
         label: "Network Fee Rate",
-        value:
-          defaultFeeRate > 0 ? `${defaultFeeRate} sats/vB` : "Loading...",
+        value: defaultFeeRate > 0 ? `${defaultFeeRate} sats/vB` : "Loading...",
       },
       {
         label: "Protocol Fee",
