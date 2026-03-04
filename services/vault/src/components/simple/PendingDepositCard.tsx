@@ -78,7 +78,7 @@ export function PendingDepositCard({
       {label}
     </ChipButton>
   ) : (
-    <Chip className="rounded-full cursor-default !bg-white !text-black">
+    <Chip className="cursor-default rounded-full !bg-white !text-black">
       {label}
     </Chip>
   );
