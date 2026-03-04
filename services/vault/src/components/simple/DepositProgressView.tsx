@@ -142,7 +142,7 @@ export function buildMultiVaultStepItems(
   strategy: "MULTI_INPUT" | "SPLIT",
   progress: PayoutSigningProgress | null,
 ): StepperItem[] {
-  const payoutTotal = progress?.total ?? 0;
+  const payoutTotal = progress?.totalClaimers ?? 0;
   const payoutCompleted = progress?.completed ?? 0;
 
   const steps: StepperItem[] = [];
