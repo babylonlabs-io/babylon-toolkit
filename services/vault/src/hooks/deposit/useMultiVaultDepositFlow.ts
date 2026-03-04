@@ -368,26 +368,15 @@ export function useMultiVaultDepositFlow(
 
         if (plan.needsSplit && plan.splitTransaction) {
           setCurrentStep(DepositFlowStep.SIGN_SPLIT_TX);
-          console.log("[Multi-Vault-Debug] Step 2: Entering split TX creation");
 
           // 2a. Create and sign split transaction
           splitTxResult = await createAndSignSplitTransaction(
             plan.splitTransaction,
             confirmedBtcWallet,
           );
-          console.log(
-            "[Multi-Vault-Debug] Step 2a: Split TX signed, txid:",
-            splitTxResult.txid,
-            "outputs:",
-            splitTxResult.outputs.length,
-          );
-
           // 2b. Broadcast split TX IMMEDIATELY
           try {
             await pushTx(splitTxResult.signedHex, getMempoolApiUrl());
-            console.log(
-              "[Multi-Vault-Debug] Step 2b: Split TX broadcast SUCCESS",
-            );
           } catch (broadcastError) {
             throw new Error(
               `Failed to broadcast split transaction: ${broadcastError instanceof Error ? broadcastError.message : String(broadcastError)}`,
@@ -402,31 +391,17 @@ export function useMultiVaultDepositFlow(
         // ========================================================================
 
         // Get ETH wallet client once (chain switch + wallet client are reusable)
-        console.log(
-          "[Multi-Vault-Debug] Step 2.5: Getting ETH wallet client...",
-        );
         const walletClient = await getEthWalletClient(confirmedEthAddress);
-        console.log("[Multi-Vault-Debug] Step 2.5: ETH wallet client obtained");
 
         // Get mnemonic once before the loop.
         // The modal is one-time-use — calling getMnemonic() inside the loop
         // would hang on the second vault because the modal is already closed.
-        console.log(
-          "[Multi-Vault-Debug] Step 2.5: Getting mnemonic...",
-        );
         const mnemonic = await getMnemonic();
-        console.log(
-          "[Multi-Vault-Debug] Step 2.5: mnemonic obtained",
-        );
 
         // ========================================================================
         // Step 3: Create N Pegins (1 or 2) — with POP reuse
         // ========================================================================
 
-        console.log(
-          "[Multi-Vault-Debug] Step 3: Entering pegin creation loop, vaultAmounts:",
-          vaultAmounts.length,
-        );
         setCurrentStep(DepositFlowStep.SIGN_POP);
 
         let capturedPopSignature: Hex | undefined;
@@ -435,13 +410,9 @@ export function useMultiVaultDepositFlow(
 
         for (let i = 0; i < vaultAmounts.length; i++) {
           setCurrentVaultIndex(i);
-          console.log(`[Multi-Vault-Debug] Loop vault ${i}: starting`);
 
           try {
             const allocation = plan.vaultAllocations[i];
-            console.log(
-              `[Multi-Vault-Debug] Loop vault ${i}: allocation fromSplit=${allocation.fromSplit}, splitTxOutputIndex=${allocation.splitTxOutputIndex}, utxos=${allocation.utxos.length}`,
-            );
 
             const peginAmount = vaultAmounts[i];
 
@@ -460,16 +431,10 @@ export function useMultiVaultDepositFlow(
               // ================================================================
               // SPLIT OUTPUT PATH: Use custom pegin builder (no mempool fetch)
               // ================================================================
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: entering SPLIT path`,
-              );
 
               // Use output from split transaction (now on-chain)
               const splitOutput =
                 splitTxResult.outputs[allocation.splitTxOutputIndex!];
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: splitOutput txid=${splitOutput?.txid?.slice(0, 8)}..., vout=${splitOutput?.vout}, value=${splitOutput?.value}`,
-              );
               const utxoToUse: UTXO = {
                 txid: splitOutput.txid,
                 vout: splitOutput.vout,
@@ -484,9 +449,6 @@ export function useMultiVaultDepositFlow(
                   ? publicKeyHex.slice(2) // Strip first byte (02 or 03) → x-only
                   : publicKeyHex; // Already x-only
 
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: calling preparePeginFromSplitOutput, peginAmount=${peginAmount}, depositorClaimValue=${depositorClaimValue}, feeRate=${feeRate}`,
-              );
               const prepareResult = await preparePeginFromSplitOutput({
                 pegInAmount: peginAmount,
                 feeRate,
@@ -500,9 +462,6 @@ export function useMultiVaultDepositFlow(
                 depositorClaimValue,
                 splitOutput: utxoToUse,
               });
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: preparePeginFromSplitOutput SUCCESS, btcTxHash=${prepareResult.btcTxHash?.slice(0, 8)}...`,
-              );
 
               // Derive Lamport keypair and compute PK hash (before ETH tx)
               const splitLamportPkHash = await deriveLamportPkHash(
@@ -512,9 +471,6 @@ export function useMultiVaultDepositFlow(
                 selectedApplication,
               );
 
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: calling registerSplitPeginOnChain, hasPopSignature=${!!capturedPopSignature}`,
-              );
               const registrationResult = await registerSplitPeginOnChain(
                 confirmedBtcWallet,
                 walletClient,
@@ -527,9 +483,6 @@ export function useMultiVaultDepositFlow(
                   onPopSigned: () =>
                     setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
                 },
-              );
-              console.log(
-                `[Multi-Vault-Debug] Vault ${i}: registerSplitPeginOnChain SUCCESS, ethTxHash=${registrationResult.ethTxHash?.slice(0, 10)}..., vaultId=${registrationResult.vaultId?.slice(0, 10)}...`,
               );
 
               // Capture PoP signature from first vault for reuse
