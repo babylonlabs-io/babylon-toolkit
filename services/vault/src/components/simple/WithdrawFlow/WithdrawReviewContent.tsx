@@ -1,6 +1,7 @@
 import { Button, Heading, Loader, Text } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import { BPS_SCALE } from "@/applications/aave/constants";
 import { DetailsCard, type DetailRow } from "@/components/shared";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
@@ -23,8 +24,8 @@ export function WithdrawReviewContent({
   const { vpCommissionBps } = useProtocolParamsContext();
 
   const rows: DetailRow[] = useMemo(() => {
-    const protocolFeeBtc = totalAmountBtc * (vpCommissionBps / 10_000);
-    const protocolFeeUsd = totalAmountUsd * (vpCommissionBps / 10_000);
+    const protocolFeeBtc = totalAmountBtc * (vpCommissionBps / BPS_SCALE);
+    const protocolFeeUsd = totalAmountUsd * (vpCommissionBps / BPS_SCALE);
 
     return [
       {

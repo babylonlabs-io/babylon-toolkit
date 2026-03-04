@@ -5,8 +5,8 @@
 
 import { Avatar } from "@babylonlabs-io/core-ui";
 
+import { VaultDetailRows } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -40,11 +40,7 @@ export function CollateralVaultItem({
         </span>
       </div>
 
-      {/* Date row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Date</span>
-        <span className="text-sm text-accent-primary">{formattedDate}</span>
-      </div>
+      <VaultDetailRows date={formattedDate} txHash={vaultId} />
 
       {/* Status row */}
       <div className="flex items-center justify-between">
@@ -61,14 +57,6 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <span className="text-sm text-accent-primary">{vaultProviderName}</span>
-      </div>
-
-      {/* Transaction hash row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateHash(vaultId)}
-        </span>
       </div>
     </div>
   );
