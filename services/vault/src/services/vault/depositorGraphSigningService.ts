@@ -77,7 +77,11 @@ function extractErrorMessage(err: unknown): string {
   if (typeof err === "object" && err !== null && "message" in err) {
     return String((err as { message: unknown }).message);
   }
-  return JSON.stringify(err);
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
 }
 
 /**
