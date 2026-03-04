@@ -186,15 +186,15 @@ export function usePayoutSigningState({
       );
 
       // Sign depositor graph (depositor-as-claimer flow)
+      // Use version-resolved values from context (not latest) so that
+      // resumed deposits use the UC set that was locked at creation time.
       const depositorClaimerPresignatures = await prepareAndSignDepositorGraph({
         depositorGraph,
         depositorBtcPubkey: btcPublicKey,
         btcWallet: btcWalletProvider,
-        vaultProviderBtcPubkey: provider.btcPubKey,
-        vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
-        universalChallengerBtcPubkeys: latestUniversalChallengers.map(
-          (uc) => uc.btcPubKey,
-        ),
+        vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+        vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys: context.universalChallengerBtcPubkeys,
         timelockPegin,
         getOffchainParamsByVersion,
       });

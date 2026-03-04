@@ -657,14 +657,17 @@ export function useMultiVaultDepositFlow(
             );
 
             // Sign depositor graph (depositor-as-claimer flow)
+            // Use version-resolved values from context so that the UC/keeper
+            // set matches the vault's locked versions.
             const depositorClaimerPresignatures =
               await prepareAndSignDepositorGraph({
                 depositorGraph,
                 depositorBtcPubkey: result.depositorBtcPubkey,
                 btcWallet: btcWalletProvider,
-                vaultProviderBtcPubkey,
-                vaultKeeperBtcPubkeys,
-                universalChallengerBtcPubkeys,
+                vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
+                vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
+                universalChallengerBtcPubkeys:
+                  context.universalChallengerBtcPubkeys,
                 timelockPegin,
                 getOffchainParamsByVersion,
               });
