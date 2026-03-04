@@ -25,6 +25,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginPsbt,
+  calculateBtcTxHash,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
@@ -203,7 +204,7 @@ export async function preparePeginFromSplitOutput(
     });
 
     return {
-      btcTxHash: peginPsbt.txid,
+      btcTxHash: stripHexPrefix(calculateBtcTxHash(fundedTxHex)),
       fundedTxHex,
       vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,

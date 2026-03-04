@@ -26,6 +26,7 @@ import {
 
 const {
   mockBuildPeginPsbt,
+  mockCalculateBtcTxHash,
   mockSelectUtxosForPegin,
   mockFundPeginTransaction,
   mockGetNetwork,
@@ -40,6 +41,7 @@ const {
 } = vi.hoisted(() => {
   // --- SDK tbv/core mocks ---
   const mockBuildPeginPsbt = vi.fn();
+  const mockCalculateBtcTxHash = vi.fn();
   const mockSelectUtxosForPegin = vi.fn();
   const mockFundPeginTransaction = vi.fn();
   const mockGetNetwork = vi.fn();
@@ -94,6 +96,7 @@ const {
 
   return {
     mockBuildPeginPsbt,
+    mockCalculateBtcTxHash,
     mockSelectUtxosForPegin,
     mockFundPeginTransaction,
     mockGetNetwork,
@@ -112,6 +115,7 @@ const {
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   buildPeginPsbt: mockBuildPeginPsbt,
+  calculateBtcTxHash: mockCalculateBtcTxHash,
   selectUtxosForPegin: mockSelectUtxosForPegin,
   fundPeginTransaction: mockFundPeginTransaction,
   getNetwork: mockGetNetwork,
@@ -196,6 +200,7 @@ const MOCK_UTXO_SELECTION = {
 };
 
 const MOCK_FUNDED_TX_HEX = "funded-tx-hex";
+const MOCK_FUNDED_TXID = `0x${"ab".repeat(32)}`;
 
 // ─── preparePeginFromSplitOutput ─────────────────────────────────────────────
 
@@ -220,6 +225,7 @@ describe("preparePeginFromSplitOutput", () => {
     };
 
     mockBuildPeginPsbt.mockResolvedValue(MOCK_PEGIN_PSBT);
+    mockCalculateBtcTxHash.mockReturnValue(MOCK_FUNDED_TXID);
     mockSelectUtxosForPegin.mockReturnValue(MOCK_UTXO_SELECTION);
     mockFundPeginTransaction.mockReturnValue(MOCK_FUNDED_TX_HEX);
     mockGetNetwork.mockReturnValue({ network: "testnet" });
@@ -335,9 +341,12 @@ describe("preparePeginFromSplitOutput", () => {
   // ── return value ──────────────────────────────────────────────────────────
 
   describe("return value", () => {
-    it("returns btcTxHash from buildPeginPsbt txid", async () => {
+    it("returns btcTxHash computed from the funded transaction", async () => {
       const result = await preparePeginFromSplitOutput(baseParams);
-      expect(result.btcTxHash).toBe(MOCK_PEGIN_PSBT.txid);
+      // btcTxHash should be calculated from the funded tx (not the unfunded PSBT),
+      // matching PeginManager.preparePegin behavior
+      expect(mockCalculateBtcTxHash).toHaveBeenCalledWith(MOCK_FUNDED_TX_HEX);
+      expect(result.btcTxHash).toBe("ab".repeat(32)); // 0x prefix stripped
     });
 
     it("returns fundedTxHex from fundPeginTransaction", async () => {
