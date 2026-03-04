@@ -45,20 +45,40 @@ const NUM_CHALLENGE_ASSERT_INPUTS = 3;
 /**
  * Taproot script path sign options — disables tweak signer and prevents
  * auto-finalization so we can extract raw Schnorr signatures from tapScriptSig.
+ *
+ * The wallet needs the depositor's publicKey to identify which key to sign with.
  */
-const TAPROOT_SCRIPT_SIGN_OPTIONS: SignPsbtOptions = {
-  autoFinalized: false,
-  signInputs: [{ index: 0, disableTweakSigner: true }],
-};
+function taprootScriptSignOptions(publicKey: string): SignPsbtOptions {
+  return {
+    autoFinalized: false,
+    signInputs: [{ index: 0, publicKey, disableTweakSigner: true }],
+  };
+}
 
 /** Sign options for ChallengeAssert PSBTs (one entry per input). */
-const CHALLENGE_ASSERT_SIGN_OPTIONS: SignPsbtOptions = {
-  autoFinalized: false,
-  signInputs: Array.from({ length: NUM_CHALLENGE_ASSERT_INPUTS }, (_, i) => ({
-    index: i,
-    disableTweakSigner: true,
-  })),
-};
+function challengeAssertSignOptions(publicKey: string): SignPsbtOptions {
+  return {
+    autoFinalized: false,
+    signInputs: Array.from({ length: NUM_CHALLENGE_ASSERT_INPUTS }, (_, i) => ({
+      index: i,
+      publicKey,
+      disableTweakSigner: true,
+    })),
+  };
+}
+
+/**
+ * Extract a human-readable message from an unknown error value.
+ * Wallet providers sometimes throw plain objects with a `message` field
+ * rather than proper Error instances.
+ */
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return JSON.stringify(err);
+}
 
 /**
  * Offchain parameters needed for depositor graph signing
@@ -163,10 +183,10 @@ async function buildDepositorGraphPsbts(
       connectorParams: peginPayoutParams,
     });
     psbtHexes.push(payoutPsbt);
-    signOptions.push(TAPROOT_SCRIPT_SIGN_OPTIONS);
+    signOptions.push(taprootScriptSignOptions(depositorPubkey));
   } catch (err) {
     throw new Error(
-      `Failed to build depositor Payout PSBT: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to build depositor Payout PSBT: ${extractErrorMessage(err)}`,
     );
   }
 
@@ -194,10 +214,10 @@ async function buildDepositorGraphPsbts(
         connectorParams: assertConnectorParams,
       });
       psbtHexes.push(noPayoutPsbt);
-      signOptions.push(TAPROOT_SCRIPT_SIGN_OPTIONS);
+      signOptions.push(taprootScriptSignOptions(depositorPubkey));
     } catch (err) {
       throw new Error(
-        `Failed to build NoPayout PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to build NoPayout PSBT for challenger ${challengerPubkey}: ${extractErrorMessage(err)}`,
       );
     }
 
@@ -216,10 +236,10 @@ async function buildDepositorGraphPsbts(
         connectorParamsPerInput,
       });
       psbtHexes.push(caPsbt);
-      signOptions.push(CHALLENGE_ASSERT_SIGN_OPTIONS);
+      signOptions.push(challengeAssertSignOptions(depositorPubkey));
     } catch (err) {
       throw new Error(
-        `Failed to build ChallengeAssert PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to build ChallengeAssert PSBT for challenger ${challengerPubkey}: ${extractErrorMessage(err)}`,
       );
     }
 
@@ -412,7 +432,7 @@ export async function signDepositorGraph(
     );
   } catch (err) {
     throw new Error(
-      `Failed to sign depositor graph transactions: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to sign depositor graph transactions: ${extractErrorMessage(err)}`,
     );
   }
 
