@@ -3,7 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar, Checkbox, StatusBadge } from "@babylonlabs-io/core-ui";
+import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
@@ -46,7 +46,7 @@ export function CollateralVaultItem({
             {formatBtcAmount(amountBtc)}
           </span>
         </div>
-        <Checkbox checked={false} onChange={() => {}} showLabel={false} />
+        {/* TODO: Wire up checkbox for vault selection */}
       </div>
 
       {/* Date row */}
