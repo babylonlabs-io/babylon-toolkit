@@ -8,7 +8,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { AllocationPlan } from "@/services/vault";
-import { planUtxoAllocation } from "@/services/vault";
+import {
+  estimatePeginFeeForAllocation,
+  planUtxoAllocation,
+} from "@/services/vault";
 
 import type { DepositUtxo } from "./depositFlowSteps/types";
 
@@ -151,20 +154,17 @@ export function useAllocationPlanning({
         }
       }
     } else {
-      // MULTI_INPUT strategy: fee = sum of (utxo value - vault amount) per vault
+      // MULTI_INPUT strategy: fee = estimated pegin fee per vault
+      // Each vault's pegin tx fee depends on its input count.
+      // The excess UTXO value beyond (amount + depositorClaimValue + fee) is
+      // change returned to the user, NOT fee.
       for (const alloc of allocationPlan.vaultAllocations) {
-        const utxoValue = alloc.utxos.reduce(
-          (sum, u) => sum + BigInt(u.value),
-          0n,
-        );
-        if (utxoValue > alloc.amount) {
-          total += utxoValue - alloc.amount - depositorClaimValue;
-        }
+        total += estimatePeginFeeForAllocation(alloc.utxos.length, feeRate);
       }
     }
 
     return total;
-  }, [allocationPlan, depositorClaimValue]);
+  }, [allocationPlan, depositorClaimValue, feeRate]);
 
   // canSplit: try planning to see if splitting is possible
   // This runs even when isPartialLiquidation is false to enable the checkbox

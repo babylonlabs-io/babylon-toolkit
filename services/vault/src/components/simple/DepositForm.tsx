@@ -134,6 +134,20 @@ export function DepositForm({
   const hasAmount = !!amount && amount !== "0";
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
 
+  const splitStatusText = useMemo(() => {
+    if (!canSplit) {
+      return amountSats > 0n
+        ? "Insufficient balance to split into 2 vaults"
+        : null;
+    }
+    if (isPlanning) return "Computing allocation...";
+    if (strategy === "SPLIT")
+      return "Your BTC will be split into 2 vaults via an additional Bitcoin transaction";
+    if (strategy === "MULTI_INPUT")
+      return "Your BTC will be deposited into 2 vaults using existing UTXOs";
+    return null;
+  }, [canSplit, amountSats, isPlanning, strategy]);
+
   const ctaLabel = isFeeError
     ? (feeError ?? "Fee estimate unavailable")
     : depositService.getDepositButtonLabel({
@@ -219,17 +233,11 @@ export function DepositForm({
               Enable partial liquidation (2 vaults)
             </span>
           </label>
-          <span className="text-xs text-accent-secondary">
-            {!canSplit
-              ? "Insufficient balance to split into 2 vaults"
-              : isPlanning
-                ? "Computing allocation..."
-                : strategy === "SPLIT"
-                  ? "Your BTC will be split into 2 vaults via an additional Bitcoin transaction"
-                  : strategy === "MULTI_INPUT"
-                    ? "Your BTC will be deposited into 2 vaults using existing UTXOs"
-                    : null}
-          </span>
+          {splitStatusText && (
+            <span className="text-xs text-accent-secondary">
+              {splitStatusText}
+            </span>
+          )}
         </Card>
       )}
 
