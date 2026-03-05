@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AavePositionCollateral } from "@/applications/aave/services/fetchPositions";
+import type { VaultProvider } from "@/types/vaultProvider";
 
 import { toCollateralVaultEntries } from "../collateral";
 
@@ -96,6 +97,41 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        inUse: false,
+        providerName: "",
+        providerIconUrl: undefined,
+      });
+    });
+
+    it("should use findProvider to resolve provider name and icon", () => {
+      const collaterals = [makeCollateral()];
+      const mockProvider: VaultProvider = {
+        id: "0xprovider1",
+        btcPubKey: "0xabc",
+        url: "https://provider.test",
+        name: "Babylon Provider",
+        iconUrl: "https://example.com/icon.png",
+      };
+      const findProvider = (address: string) =>
+        address === "0xprovider1" ? mockProvider : undefined;
+
+      const result = toCollateralVaultEntries(collaterals, findProvider);
+
+      expect(result[0]).toMatchObject({
+        providerName: "Babylon Provider",
+        providerIconUrl: "https://example.com/icon.png",
+      });
+    });
+
+    it("should fall back to truncated address when findProvider returns undefined", () => {
+      const collaterals = [makeCollateral()];
+      const findProvider = () => undefined;
+
+      const result = toCollateralVaultEntries(collaterals, findProvider);
+
+      expect(result[0].providerName).toBe("0xprov...der1");
+      expect(result[0].providerIconUrl).toBeUndefined();
     });
 
     it("should return empty array for empty input", () => {
