@@ -96,7 +96,13 @@ export function MultiVaultDepositSignContent({
     onClose();
   }, [abort, onClose]);
 
-  const strategy = precomputedPlan.strategy as "MULTI_INPUT" | "SPLIT";
+  if (precomputedPlan.strategy === "SINGLE") {
+    throw new Error(
+      "MultiVaultDepositSignContent requires MULTI_INPUT or SPLIT strategy",
+    );
+  }
+
+  const strategy = precomputedPlan.strategy;
 
   return (
     <>
