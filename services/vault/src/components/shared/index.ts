@@ -9,3 +9,4 @@ export { MenuButton } from "./MenuButton";
 export { NotificationContainer } from "./NotificationContainer";
 export { PriceWarningBanner } from "./PriceWarningBanner";
 export { SubmitModal } from "./SubmitModal";
+export { VaultDetailRows } from "./VaultDetailRows";

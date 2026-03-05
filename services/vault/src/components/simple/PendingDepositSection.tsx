@@ -57,6 +57,8 @@ export function PendingDepositSection() {
               key={activity.id}
               depositId={activity.id}
               amount={activity.collateral.amount}
+              timestamp={activity.timestamp}
+              txHash={activity.txHash ?? activity.id}
               onSignClick={signModal.handleSignClick}
               onBroadcastClick={broadcastModal.handleBroadcastClick}
               onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
