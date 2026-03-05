@@ -231,10 +231,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           <div className="mx-auto w-full max-w-[520px]">
             {isSplitDeposit && splitAllocationPlan ? (
               <MultiVaultDepositSignContent
-                vaultAmounts={[
-                  depositAmount / 2n,
-                  depositAmount - depositAmount / 2n,
-                ]}
+                vaultAmounts={splitAllocationPlan.vaultAllocations.map(
+                  (a) => a.amount,
+                )}
                 precomputedPlan={splitAllocationPlan}
                 feeRate={feeRate}
                 btcWalletProvider={btcWalletProvider}
