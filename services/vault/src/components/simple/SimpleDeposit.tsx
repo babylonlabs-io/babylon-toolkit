@@ -205,11 +205,13 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
-                isPartialLiquidation={isPartialLiquidation}
-                onPartialLiquidationChange={setIsPartialLiquidation}
-                canSplit={canSplit}
-                strategy={strategy}
-                isPlanning={isPlanning}
+                partialLiquidation={{
+                  isEnabled: isPartialLiquidation,
+                  onChange: setIsPartialLiquidation,
+                  canSplit,
+                  strategy,
+                  isPlanning,
+                }}
               />
             </div>
           </div>
