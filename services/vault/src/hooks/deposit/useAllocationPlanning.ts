@@ -148,8 +148,10 @@ export function useAllocationPlanning({
       for (const alloc of allocationPlan.vaultAllocations) {
         if (alloc.fromSplit && alloc.splitTxOutputIndex != null) {
           const splitOutput = splitTx.outputs[alloc.splitTxOutputIndex];
-          if (splitOutput && splitOutput.amount > alloc.amount) {
-            total += splitOutput.amount - alloc.amount - depositorClaimValue;
+          if (splitOutput) {
+            const perVaultFee =
+              splitOutput.amount - alloc.amount - depositorClaimValue;
+            total += perVaultFee > 0n ? perVaultFee : 0n;
           }
         }
       }
