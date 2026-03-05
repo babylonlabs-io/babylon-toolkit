@@ -5,20 +5,21 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
-import { CollateralModal } from "@/applications/aave/components/CollateralModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import {
   usePendingVaults,
   useSyncPendingVaults,
 } from "@/applications/aave/context";
+import { useAaveConfig } from "@/applications/aave/context/AaveConfigContext";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
@@ -26,14 +27,21 @@ import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
+import {
+  PendingWithdrawSection,
+  type PendingWithdrawVault,
+} from "./PendingWithdrawSection";
+import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
+  const { config } = useAaveConfig();
+  const { vaultProviders } = useVaultProviders(config?.controllerAddress);
 
-  const [isCollateralModalOpen, setIsCollateralModalOpen] = useState(false);
+  const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
@@ -51,11 +59,33 @@ export function DashboardPage() {
     hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
-  } = useDashboardState(address);
+  } = useDashboardState(address, vaultProviders);
 
   const { vaults: aaveVaults } = useAaveVaults(address);
-  const { hasPendingWithdraw } = usePendingVaults();
+  const { hasPendingWithdraw, pendingVaults } = usePendingVaults();
   useSyncPendingVaults(aaveVaults);
+
+  const pendingWithdrawVaults: PendingWithdrawVault[] = useMemo(() => {
+    if (!hasPendingWithdraw) return [];
+    return aaveVaults
+      .filter((v) => pendingVaults.get(v.id) === "withdraw")
+      .map((v) => ({
+        id: v.id,
+        amountBtc: v.amount, // VaultData.amount is already BTC
+      }));
+  }, [aaveVaults, pendingVaults, hasPendingWithdraw]);
+
+  // Derive withdraw data from only in-use vaults (serving as Aave collateral)
+  const { inUseVaultIds, inUseBtc, inUseUsd } = useMemo(() => {
+    const inUse = collateralVaults.filter((v) => v.inUse);
+    const btc = inUse.reduce((sum, v) => sum + v.amountBtc, 0);
+    return {
+      inUseVaultIds: inUse.map((v) => v.vaultId),
+      inUseBtc: btc,
+      inUseUsd:
+        collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0,
+    };
+  }, [collateralVaults, collateralBtc, collateralValueUsd]);
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
@@ -63,7 +93,7 @@ export function DashboardPage() {
   const totalAmountBtc = formatBtcAmount(collateralBtc);
 
   const handleWithdraw = () => {
-    setIsCollateralModalOpen(true);
+    setIsWithdrawOpen(true);
   };
 
   const handleBorrow = () => {
@@ -105,13 +135,14 @@ export function DashboardPage() {
 
         <PendingDepositSection />
 
+        <PendingWithdrawSection pendingWithdrawVaults={pendingWithdrawVaults} />
+
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
           collateralVaults={collateralVaults}
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           hasDebt={hasDebt}
-          isPendingWithdraw={hasPendingWithdraw}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -128,10 +159,13 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Collateral Withdraw Modal */}
-      <CollateralModal
-        isOpen={isCollateralModalOpen}
-        onClose={() => setIsCollateralModalOpen(false)}
+      {/* Withdraw Flow */}
+      <WithdrawFlow
+        open={isWithdrawOpen}
+        onClose={() => setIsWithdrawOpen(false)}
+        totalAmountBtc={inUseBtc}
+        totalAmountUsd={inUseUsd}
+        vaultIds={inUseVaultIds}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

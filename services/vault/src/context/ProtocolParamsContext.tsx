@@ -43,6 +43,8 @@ interface ProtocolParamsContextValue {
   timelockPegin: number;
   /** Value in satoshis for the depositor's claim output (from offchain params) */
   depositorClaimValue: bigint;
+  /** Vault provider commission in basis points (e.g., 500 = 5%) */
+  vpCommissionBps: number;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
@@ -156,6 +158,7 @@ export function ProtocolParamsProvider({
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
     depositorClaimValue: configData.depositorClaimValue,
+    vpCommissionBps: configData.vpCommissionBps,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
     getOffchainParamsByVersion,

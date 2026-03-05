@@ -9,6 +9,7 @@
  */
 
 import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 
 import type {
   ClaimerTransactions,
@@ -19,14 +20,20 @@ import {
   getWarningMessages,
   PeginAction,
 } from "@/components/deposit/DepositOverview/actionStatus";
+import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+
+import { PendingDepositExpandedContent } from "./PendingDepositExpandedContent";
 
 const btcConfig = getNetworkConfigBTC();
 
 interface PendingDepositCardProps {
   depositId: string;
   amount: string;
+  /** Milliseconds since epoch */
+  timestamp?: number;
+  txHash: string;
   onSignClick: (
     depositId: string,
     transactions: ClaimerTransactions[],
@@ -39,10 +46,13 @@ interface PendingDepositCardProps {
 export function PendingDepositCard({
   depositId,
   amount,
+  timestamp,
+  txHash,
   onSignClick,
   onBroadcastClick,
   onLamportKeyClick,
 }: PendingDepositCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const pollingResult = useDepositPollingResult(depositId);
 
   if (!pollingResult) return null;
@@ -100,14 +110,30 @@ export function PendingDepositCard({
           </span>
         </div>
 
-        {peginState.message ? (
-          <Hint tooltip={peginState.message} attachToChildren>
-            {button}
-          </Hint>
-        ) : (
-          button
-        )}
+        <div className="flex items-center gap-2">
+          {peginState.message ? (
+            <Hint tooltip={peginState.message} attachToChildren>
+              {button}
+            </Hint>
+          ) : (
+            button
+          )}
+          <ExpandMenuButton
+            isExpanded={isExpanded}
+            onToggle={() => setIsExpanded((prev) => !prev)}
+            aria-label="Deposit details"
+          />
+        </div>
       </div>
+
+      {isExpanded && (
+        <PendingDepositExpandedContent
+          statusLabel={peginState.displayLabel}
+          statusVariant={peginState.displayVariant}
+          timestamp={timestamp}
+          txHash={txHash}
+        />
+      )}
     </Card>
   );
 }

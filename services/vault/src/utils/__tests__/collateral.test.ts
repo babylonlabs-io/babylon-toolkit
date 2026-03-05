@@ -13,7 +13,13 @@ function makeCollateral(
     amount: 100000000n, // 1 BTC
     addedAt: 1700000000n,
     removedAt: null,
-    vault: { id: "vault1", amount: 100000000n, status: "active" },
+    vault: {
+      id: "vault1",
+      amount: 100000000n,
+      status: "active",
+      vaultProvider: "0xprovider1",
+      inUse: true,
+    },
     ...overrides,
   };
 }
@@ -30,6 +36,9 @@ describe("Collateral Utilities", () => {
           vaultId: "vault1",
           amountBtc: 1,
           addedAt: 1700000000,
+          inUse: true,
+          status: "In use",
+          vaultProviderName: "0xprov...der1",
         },
       ]);
     });
@@ -51,7 +60,13 @@ describe("Collateral Utilities", () => {
     it("should filter out liquidated vaults", () => {
       const collaterals = [
         makeCollateral({
-          vault: { id: "vault1", amount: 100000000n, status: "liquidated" },
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "liquidated",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
         }),
       ];
       const result = toCollateralVaultEntries(collaterals);
@@ -66,6 +81,8 @@ describe("Collateral Utilities", () => {
             id: "vault1",
             amount: 100000000n,
             status: "depositor_withdrawn",
+            vaultProvider: "0xprovider1",
+            inUse: false,
           },
         }),
       ];
@@ -79,6 +96,9 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result).toHaveLength(1);
+      expect(result[0].inUse).toBe(false);
+      expect(result[0].status).toBe("Unknown");
+      expect(result[0].vaultProviderName).toBe("Unknown");
     });
 
     it("should return empty array for empty input", () => {
@@ -90,6 +110,101 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result[0].amountBtc).toBe(0.5);
+    });
+
+    it("should derive 'In use' status when vault inUse is true", () => {
+      const collaterals = [makeCollateral()];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].inUse).toBe(true);
+      expect(result[0].status).toBe("In use");
+    });
+
+    it("should set inUse false when vault inUse is false", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "active",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].inUse).toBe(false);
+    });
+
+    it("should capitalize vault status when not in use", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "active",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].status).toBe("Active");
+    });
+
+    it("should handle snake_case statuses by capitalizing each word", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "pending_activation",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].status).toBe("Pending Activation");
+    });
+
+    it("should use provider name from providerNames map", () => {
+      const collaterals = [makeCollateral()];
+      const providerNames = new Map([["0xprovider1", "Babylon Provider"]]);
+      const result = toCollateralVaultEntries(collaterals, providerNames);
+
+      expect(result[0].vaultProviderName).toBe("Babylon Provider");
+    });
+
+    it("should truncate provider address when not in providerNames map", () => {
+      const collaterals = [makeCollateral()];
+      const providerNames = new Map<string, string>(); // empty map
+      const result = toCollateralVaultEntries(collaterals, providerNames);
+
+      expect(result[0].vaultProviderName).toBe("0xprov...der1");
+    });
+
+    it("should handle providerNames map with case-insensitive lookup", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "active",
+            vaultProvider: "0xAbCdEf1234567890",
+            inUse: true,
+          },
+        }),
+      ];
+      const providerNames = new Map([
+        ["0xabcdef1234567890", "Mixed Case Provider"],
+      ]);
+      const result = toCollateralVaultEntries(collaterals, providerNames);
+
+      expect(result[0].vaultProviderName).toBe("Mixed Case Provider");
     });
   });
 });

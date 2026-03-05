@@ -49,6 +49,8 @@ export interface AavePositionCollateral {
     id: string;
     amount: bigint;
     status: string;
+    vaultProvider: string;
+    inUse: boolean;
   };
 }
 
@@ -79,6 +81,8 @@ interface GraphQLCollateralItem {
     id: string;
     amount: string;
     status: string;
+    vaultProvider: string;
+    inUse: boolean;
   };
 }
 
@@ -123,6 +127,8 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
               id
               amount
               status
+              vaultProvider
+              inUse
             }
           }
         }
@@ -144,6 +150,8 @@ const GET_AAVE_POSITION_COLLATERALS = gql`
           id
           amount
           status
+          vaultProvider
+          inUse
         }
       }
     }
@@ -194,6 +202,8 @@ function mapGraphQLCollateralToAavePositionCollateral(
           id: item.vault.id,
           amount: BigInt(item.vault.amount),
           status: item.vault.status,
+          vaultProvider: item.vault.vaultProvider,
+          inUse: item.vault.inUse,
         }
       : undefined,
   };
