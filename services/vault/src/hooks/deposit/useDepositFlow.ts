@@ -129,9 +129,20 @@ export function useDepositFlow(
     artifactResolverRef.current = null;
   }, []);
 
-  // Abort any running flow on unmount so async work doesn't leak
+  // Abort on real unmount (route change, browser back) but survive StrictMode
+  // double-mount. StrictMode re-runs the effect synchronously in the same task,
+  // so the microtask fires after remount has set mountedRef back to true.
+  const mountedRef = useRef(true);
   useEffect(() => {
-    return () => abort();
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      queueMicrotask(() => {
+        if (!mountedRef.current) {
+          abort();
+        }
+      });
+    };
   }, [abort]);
 
   // Hooks

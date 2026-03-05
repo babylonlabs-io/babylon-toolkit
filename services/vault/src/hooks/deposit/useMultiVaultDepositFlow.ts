@@ -26,7 +26,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
@@ -288,10 +288,21 @@ export function useMultiVaultDepositFlow(
     artifactResolverRef.current = null;
   }, []);
 
-  // NOTE: We intentionally do NOT abort on unmount via useEffect cleanup.
-  // React StrictMode (dev) simulates unmount/remount, which would abort the
-  // signal mid-flow (after split TX broadcast but before pegin creation).
-  // User-initiated abort is handled by handleClose → abort() in the parent.
+  // Abort on real unmount (route change, browser back) but survive StrictMode
+  // double-mount. StrictMode re-runs the effect synchronously in the same task,
+  // so the microtask fires after remount has set mountedRef back to true.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      queueMicrotask(() => {
+        if (!mountedRef.current) {
+          abort();
+        }
+      });
+    };
+  }, [abort]);
 
   // Hooks
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
