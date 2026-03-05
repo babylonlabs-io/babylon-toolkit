@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { formatBtcValue } from "@/utils/formatting";
 
 export interface BtcFeeDisplay {
   /** BTC fee as a number (for calculations), or null if unavailable */
@@ -94,7 +95,7 @@ export function useBtcFeeDisplay(params: {
     return {
       btcFee,
       btcFeeUsd,
-      feeAmount: `${btcFee.toFixed(8)} BTC`,
+      feeAmount: `${formatBtcValue(btcFee)} BTC`,
       feePrice,
       isError: false,
     };

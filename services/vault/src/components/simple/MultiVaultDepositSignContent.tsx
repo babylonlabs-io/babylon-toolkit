@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
+/**
+ * MultiVaultDepositSignContent
+ *
+ * Renders the signing modal content for multi-vault (2-vault) deposits.
+ * Uses useMultiVaultDepositFlow with a precomputed allocation plan
+ * and passes variant="multi" to DepositProgressView for strategy-aware steps.
+ */
+
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
@@ -6,14 +15,17 @@ import {
   computeDepositDerivedState,
   DEPOSIT_SUCCESS_MESSAGE,
 } from "@/components/deposit/DepositSignModal/depositStepHelpers";
-import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
+import { useMultiVaultDepositFlow } from "@/hooks/deposit/useMultiVaultDepositFlow";
+import { useRunOnce } from "@/hooks/useRunOnce";
+import type { AllocationPlan } from "@/services/vault";
 
 import { DepositProgressView } from "./DepositProgressView";
 
-interface DepositSignContentProps {
-  amount: bigint;
+interface MultiVaultDepositSignContentProps {
+  vaultAmounts: bigint[];
+  precomputedPlan: AllocationPlan;
   feeRate: number;
-  btcWalletProvider: any;
+  btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
@@ -31,38 +43,49 @@ interface DepositSignContentProps {
   onRefetchActivities?: () => Promise<void>;
 }
 
-export function DepositSignContent({
+export function MultiVaultDepositSignContent({
   onClose,
   onSuccess,
   onRefetchActivities,
+  vaultAmounts,
+  precomputedPlan,
   ...flowParams
-}: DepositSignContentProps) {
+}: MultiVaultDepositSignContentProps) {
   const {
-    executeDepositFlow,
+    executeMultiVaultDeposit,
     abort,
     currentStep,
+    currentVaultIndex,
     processing,
     error,
     isWaiting,
     payoutSigningProgress,
     artifactDownloadInfo,
     continueAfterArtifactDownload,
-  } = useDepositFlow(flowParams);
+  } = useMultiVaultDepositFlow({
+    vaultAmounts,
+    precomputedPlan,
+    ...flowParams,
+  });
 
   // Auto-start the flow on mount
-  const started = useRef(false);
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-
-    void (async () => {
-      const result = await executeDepositFlow();
-      if (result) {
-        onRefetchActivities?.();
-        onSuccess(result.btcTxid, result.ethTxHash, result.depositorBtcPubkey);
+  const startFlow = useCallback(async () => {
+    const result = await executeMultiVaultDeposit();
+    if (result) {
+      onRefetchActivities?.();
+      // Use the first successful pegin for the success callback
+      const firstSuccess = result.pegins.find((p) => !p.error);
+      if (firstSuccess) {
+        onSuccess(
+          firstSuccess.btcTxHash,
+          firstSuccess.ethTxHash,
+          firstSuccess.depositorBtcPubkey,
+        );
       }
-    })();
-  }, [executeDepositFlow, onRefetchActivities, onSuccess]);
+    }
+  }, [executeMultiVaultDeposit, onRefetchActivities, onSuccess]);
+
+  useRunOnce(startFlow);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =
@@ -73,9 +96,20 @@ export function DepositSignContent({
     onClose();
   }, [abort, onClose]);
 
+  if (precomputedPlan.strategy === "SINGLE") {
+    throw new Error(
+      "MultiVaultDepositSignContent requires MULTI_INPUT or SPLIT strategy",
+    );
+  }
+
+  const strategy = precomputedPlan.strategy;
+
   return (
     <>
       <DepositProgressView
+        variant="multi"
+        strategy={strategy}
+        currentVaultIndex={currentVaultIndex}
         currentStep={currentStep}
         isWaiting={isWaiting}
         error={error}

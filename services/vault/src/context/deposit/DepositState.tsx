@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 
+import type { AllocationPlan } from "@/services/vault";
+
 import { createStateUtils } from "../../utils/createStateUtils";
 
 export enum DepositStep {
@@ -31,6 +33,8 @@ interface DepositStateContext {
   ethTxHash: string;
   depositorBtcPubkey?: string;
   processing: boolean;
+  isSplitDeposit: boolean;
+  splitAllocationPlan: AllocationPlan | null;
   goToStep: (step: DepositStep) => void;
   setDepositData: (
     amount: bigint,
@@ -44,6 +48,8 @@ interface DepositStateContext {
     depositorBtcPubkey?: string,
   ) => void;
   setProcessing: (processing: boolean) => void;
+  setIsSplitDeposit: (v: boolean) => void;
+  setSplitAllocationPlan: (plan: AllocationPlan | null) => void;
   reset: () => void;
 }
 
@@ -58,11 +64,15 @@ const { StateProvider, useState: useDepositState } =
     ethTxHash: "",
     depositorBtcPubkey: undefined,
     processing: false,
+    isSplitDeposit: false,
+    splitAllocationPlan: null,
     goToStep: () => {},
     setDepositData: () => {},
     setFeeRate: () => {},
     setTransactionHashes: () => {},
     setProcessing: () => {},
+    setIsSplitDeposit: () => {},
+    setSplitAllocationPlan: () => {},
     reset: () => {},
   });
 
@@ -76,6 +86,9 @@ export function DepositState({ children }: PropsWithChildren) {
   const [ethTxHash, setEthTxHash] = useState("");
   const [depositorBtcPubkey, setDepositorBtcPubkey] = useState<string>();
   const [processing, setProcessing] = useState(false);
+  const [isSplitDeposit, setIsSplitDeposit] = useState(false);
+  const [splitAllocationPlan, setSplitAllocationPlan] =
+    useState<AllocationPlan | null>(null);
 
   const goToStep = useCallback((newStep: DepositStep) => {
     setStep(newStep);
@@ -113,6 +126,8 @@ export function DepositState({ children }: PropsWithChildren) {
     setEthTxHash("");
     setDepositorBtcPubkey(undefined);
     setProcessing(false);
+    setIsSplitDeposit(false);
+    setSplitAllocationPlan(null);
   }, []);
 
   const context = useMemo(
@@ -126,11 +141,15 @@ export function DepositState({ children }: PropsWithChildren) {
       ethTxHash,
       depositorBtcPubkey,
       processing,
+      isSplitDeposit,
+      splitAllocationPlan,
       goToStep,
       setDepositData,
       setFeeRate: updateFeeRate,
       setTransactionHashes,
       setProcessing,
+      setIsSplitDeposit,
+      setSplitAllocationPlan,
       reset,
     }),
     [
@@ -143,6 +162,8 @@ export function DepositState({ children }: PropsWithChildren) {
       ethTxHash,
       depositorBtcPubkey,
       processing,
+      isSplitDeposit,
+      splitAllocationPlan,
       goToStep,
       setDepositData,
       updateFeeRate,

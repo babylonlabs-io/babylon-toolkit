@@ -25,6 +25,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   buildPeginPsbt,
+  calculateBtcTxHash,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
@@ -103,6 +104,8 @@ export interface RegisterSplitPeginParams {
   onPopSigned?: () => void | Promise<void>;
   /** Keccak256 hash of the depositor's Lamport public key */
   depositorLamportPkHash: Hex;
+  /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
+  preSignedBtcPopSignature?: Hex;
 }
 
 export interface RegisterSplitPeginResult {
@@ -110,6 +113,8 @@ export interface RegisterSplitPeginResult {
   ethTxHash: Hex;
   /** Vault ID returned by the contract — primary identifier for downstream flow */
   vaultId: Hex;
+  /** The BTC PoP signature used, for reuse in subsequent pegins */
+  btcPopSignature: Hex;
 }
 
 export interface BroadcastSplitPeginParams {
@@ -185,7 +190,7 @@ export async function preparePeginFromSplitOutput(
     // Step 4: Select UTXOs — only the split output; no mempool fetch
     const utxoSelection = selectUtxosForPegin(
       [params.splitOutput],
-      params.pegInAmount,
+      params.pegInAmount + params.depositorClaimValue,
       params.feeRate,
     );
 
@@ -199,7 +204,7 @@ export async function preparePeginFromSplitOutput(
     });
 
     return {
-      btcTxHash: peginPsbt.txid,
+      btcTxHash: stripHexPrefix(calculateBtcTxHash(fundedTxHex)),
       fundedTxHex,
       vaultScriptPubKey: peginPsbt.vaultScriptPubKey,
       selectedUTXOs: utxoSelection.selectedUTXOs,
@@ -254,6 +259,7 @@ export async function registerSplitPeginOnChain(
       vaultProvider: params.vaultProviderAddress,
       onPopSigned: params.onPopSigned,
       depositorLamportPkHash: params.depositorLamportPkHash,
+      preSignedBtcPopSignature: params.preSignedBtcPopSignature,
     });
 
     return result;

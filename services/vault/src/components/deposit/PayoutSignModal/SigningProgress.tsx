@@ -1,6 +1,6 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
-import { DepositStep } from "../DepositSignModal/depositStepHelpers";
+import { DepositFlowStep } from "../DepositSignModal/depositStepHelpers";
 
 /** Progress display modes for the signing flow */
 enum ProgressMode {
@@ -18,7 +18,7 @@ export interface SigningProgressProps {
   /** Total number of claimers */
   totalClaimers: number;
   /** Current deposit flow step. Optional for standalone use. */
-  step?: DepositStep;
+  step?: DepositFlowStep;
   /** Whether we're in a waiting/polling state. Optional for standalone use. */
   isWaiting?: boolean;
 }
@@ -27,7 +27,7 @@ export interface SigningProgressProps {
  * Determine the progress mode based on step and waiting state
  */
 function getProgressMode(
-  step: DepositStep | undefined,
+  step: DepositFlowStep | undefined,
   isWaiting: boolean | undefined,
   total: number,
 ): ProgressMode | null {
@@ -36,13 +36,13 @@ function getProgressMode(
     return total > 0 ? ProgressMode.SIGNING_PAYOUTS : null;
   }
 
-  if (step === DepositStep.SIGN_PAYOUTS && isWaiting) {
+  if (step === DepositFlowStep.SIGN_PAYOUTS && isWaiting) {
     return ProgressMode.WAITING_FOR_PROVIDER;
   }
-  if (step === DepositStep.BROADCAST_BTC && isWaiting) {
+  if (step === DepositFlowStep.BROADCAST_BTC && isWaiting) {
     return ProgressMode.WAITING_FOR_VERIFICATION;
   }
-  if (step === DepositStep.SIGN_PAYOUTS && total > 0) {
+  if (step === DepositFlowStep.SIGN_PAYOUTS && total > 0) {
     return ProgressMode.SIGNING_PAYOUTS;
   }
   return null;

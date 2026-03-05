@@ -30,6 +30,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   TX_BUFFER_SIZE_OVERHEAD: 11,
   BTC_DUST_SAT: 546,
   DUST_THRESHOLD: 546n,
+  // Low-fee-rate relay buffer (30 sats when feeRate ≤ 2, 0 otherwise)
+  rateBasedTxBufferFee: (feeRate: number) => (feeRate <= 2 ? 30 : 0),
 }));
 
 vi.mock("../../../../config/pegin", () => ({
@@ -681,6 +683,87 @@ describe("planUtxoAllocation", () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // Edge cases
   // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("depositorClaimValue accounting", () => {
+    const DEPOSITOR_CLAIM_VALUE = 35_000n;
+
+    it("SPLIT: split output includes depositorClaimValue in sizing", () => {
+      const plan = planUtxoAllocation(
+        [makeUtxo(100_000_000)],
+        [47_000_000n, 47_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+        DEPOSITOR_CLAIM_VALUE,
+      );
+
+      expect(plan.strategy).toBe("SPLIT");
+      // Each split output = vaultAmount + depositorClaimValue + peginFee(1 input)
+      expect(plan.splitTransaction?.outputs[0]?.amount).toBe(
+        47_000_000n + DEPOSITOR_CLAIM_VALUE + PEGIN_FEE_1_INPUT_5,
+      );
+      expect(plan.splitTransaction?.outputs[1]?.amount).toBe(
+        47_000_000n + DEPOSITOR_CLAIM_VALUE + PEGIN_FEE_1_INPUT_5,
+      );
+    });
+
+    it("MULTI_INPUT: requires depositorClaimValue on top of vault amount + fee", () => {
+      // Without depositorClaimValue: 80M >= 70M + 775 → MULTI_INPUT works
+      // With depositorClaimValue=35k: 80M >= 70M + 35000 + 775 = 70_035_775 → still works (80M > 70M+35.775k)
+      const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
+      const plan = planUtxoAllocation(
+        utxos,
+        [70_000_000n, 50_000_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+        DEPOSITOR_CLAIM_VALUE,
+      );
+
+      expect(plan.strategy).toBe("MULTI_INPUT");
+    });
+
+    it("MULTI_INPUT: falls through to SPLIT when depositorClaimValue tips the balance", () => {
+      // Without depositorClaimValue: 70M+775 = 70_000_775 < 80M → vault 0 OK
+      // With depositorClaimValue=35k: 79M+35k+775 = 79_035_775 < 80M → vault 0 OK
+      //   vault 1: 60M remaining. 60M < 79M+35k+775 → fails → SPLIT
+      // Actually let's make it more precise:
+      // vault amounts: 79M, 59M. With claim value 35k:
+      //   vault 0 (79M): needs 79M+35k+775 = 79_035_775. Has 80M → OK
+      //   vault 1 (59M): needs 59M+35k+775 = 59_035_775. Has 60M → OK (60M ≥ 59.035M)
+      // Need a case where claim value tips it. E.g. vault amounts: 79.5M, 59.5M
+      //   vault 0: needs 79.5M+35k+775 = 79_535_775. Has 80M → OK
+      //   vault 1: needs 59.5M+35k+775 = 59_535_775. Has 60M → OK
+      // Make amounts tighter: vault 0: 80M-35k-775=79_964_225; vault 1: 60M-35k-775=59_964_225
+      //   vault 0: needs 80M. Has 80M → OK (just barely)
+      //   vault 1: needs 60M. Has 60M → OK
+      // For the tipping case, let vault1 need just slightly more than available
+      const utxos = [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)];
+      // Without claim: vault1 needs 60M+775=60_000_775 < 60M → fails. Actually wait, 60M < 60_000_775 fails.
+      // This means even without claim the second vault with 60M amount fails MULTI_INPUT.
+      // Let's use amounts where it works without claim but fails with claim:
+      // vault1 amount = 59_999_000. Without claim: 59_999_000+775=59_999_775 < 60M → OK
+      // With 35k claim: 59_999_000+35_000+775=60_034_775 > 60M → fails → SPLIT
+      const planWithClaim = planUtxoAllocation(
+        utxos,
+        [70_000_000n, 59_999_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+        DEPOSITOR_CLAIM_VALUE,
+      );
+
+      expect(planWithClaim.strategy).toBe("SPLIT");
+
+      // Verify same amounts WITHOUT claim value would be MULTI_INPUT
+      const planWithoutClaim = planUtxoAllocation(
+        [makeUtxo(80_000_000, 0), makeUtxo(60_000_000, 1)],
+        [70_000_000n, 59_999_000n],
+        FEE_RATE,
+        CHANGE_ADDRESS,
+        0n,
+      );
+
+      expect(planWithoutClaim.strategy).toBe("MULTI_INPUT");
+    });
+  });
 
   describe("edge cases", () => {
     it("MULTI_INPUT pegin fee for 5 inputs is larger than for 1 input", () => {
