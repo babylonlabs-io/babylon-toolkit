@@ -17,6 +17,7 @@ interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
   addedAt: number;
+  inUse: boolean;
   status: string;
   vaultProviderName: string;
 }
@@ -25,6 +26,7 @@ export function CollateralVaultItem({
   vaultId,
   amountBtc,
   addedAt,
+  inUse,
   status,
   vaultProviderName,
 }: CollateralVaultItemProps) {
@@ -47,7 +49,7 @@ export function CollateralVaultItem({
         <span className="text-sm text-accent-secondary">Status</span>
         <span className="flex items-center gap-1.5 text-sm text-accent-primary">
           <span
-            className={`inline-block h-2 w-2 rounded-full ${status === "In use" ? "bg-green-500" : "bg-gray-400"}`}
+            className={`inline-block h-2 w-2 rounded-full ${inUse ? "bg-green-500" : "bg-gray-400"}`}
           />
           {status}
         </span>

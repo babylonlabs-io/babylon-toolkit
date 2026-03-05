@@ -55,9 +55,17 @@ export function useDashboardState(
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;
 
+  // Derive a stable key from provider id+name pairs so the memo doesn't
+  // recompute when useVaultProviders returns a new array reference (e.g. logo merge).
+  const providerKey = useMemo(
+    () => (vaultProviders ?? []).map((p) => `${p.id}:${p.name}`).join(","),
+    [vaultProviders],
+  );
+
   const providerNames = useMemo(
     () => buildProviderNamesMap(vaultProviders ?? []),
-    [vaultProviders],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [providerKey],
   );
 
   const collateralVaults = useMemo(

@@ -24,8 +24,8 @@ export function WithdrawReviewContent({
   const { vpCommissionBps } = useProtocolParamsContext();
 
   const rows: DetailRow[] = useMemo(() => {
-    const protocolFeeBtc = totalAmountBtc * (vpCommissionBps / BPS_SCALE);
-    const protocolFeeUsd = totalAmountUsd * (vpCommissionBps / BPS_SCALE);
+    const vpCommissionBtc = totalAmountBtc * (vpCommissionBps / BPS_SCALE);
+    const vpCommissionUsd = totalAmountUsd * (vpCommissionBps / BPS_SCALE);
 
     return [
       {
@@ -44,12 +44,12 @@ export function WithdrawReviewContent({
         value: defaultFeeRate > 0 ? `${defaultFeeRate} sats/vB` : "Loading...",
       },
       {
-        label: "Protocol Fee",
+        label: "VP Commission",
         value: (
           <span>
-            {formatBtcAmount(protocolFeeBtc)}{" "}
+            {formatBtcAmount(vpCommissionBtc)}{" "}
             <span className="text-accent-secondary">
-              {formatUsdValue(protocolFeeUsd)}
+              {formatUsdValue(vpCommissionUsd)}
             </span>
           </span>
         ),

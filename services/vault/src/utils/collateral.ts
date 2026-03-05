@@ -32,7 +32,12 @@ function deriveStatus(vault: AavePositionCollateral["vault"]): string {
   if (!vault) return "Unknown";
   if (vault.inUse) return "In use";
   const s = vault.status;
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Unknown";
+  return s
+    ? s
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ")
+    : "Unknown";
 }
 
 /**
@@ -57,6 +62,7 @@ export function toCollateralVaultEntries(
       vaultId: c.vaultId,
       amountBtc: satoshiToBtcNumber(c.amount),
       addedAt: Number(c.addedAt),
+      inUse: c.vault?.inUse ?? false,
       status: deriveStatus(c.vault),
       vaultProviderName: providerName,
     };

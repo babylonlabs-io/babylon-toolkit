@@ -8,14 +8,7 @@
  * Must be rendered inside a PeginPollingProvider.
  */
 
-import {
-  Avatar,
-  Button,
-  Card,
-  Hint,
-  Menu,
-  MenuItem,
-} from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import type {
@@ -27,7 +20,7 @@ import {
   getWarningMessages,
   PeginAction,
 } from "@/components/deposit/DepositOverview/actionStatus";
-import { MenuButton } from "@/components/shared";
+import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 
@@ -125,16 +118,11 @@ export function PendingDepositCard({
           ) : (
             button
           )}
-          <Menu
-            trigger={<MenuButton aria-label="Deposit details" />}
-            className="!min-w-0"
-          >
-            <MenuItem
-              name={isExpanded ? "Collapse" : "Expand"}
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="!p-4"
-            />
-          </Menu>
+          <ExpandMenuButton
+            isExpanded={isExpanded}
+            onToggle={() => setIsExpanded((prev) => !prev)}
+            aria-label="Deposit details"
+          />
         </div>
       </div>
 

@@ -6,10 +6,10 @@
  * summary + expand pattern as CollateralSection.
  */
 
-import { Avatar, Card, Menu, MenuItem } from "@babylonlabs-io/core-ui";
+import { Avatar, Card } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
-import { MenuButton } from "@/components/shared";
+import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { formatBtcAmount } from "@/utils/formatting";
 
@@ -59,16 +59,11 @@ export function PendingWithdrawSection({
               {formatBtcAmount(totalBtc)}
             </span>
           </div>
-          <Menu
-            trigger={<MenuButton aria-label="Pending withdraw options" />}
-            className="!min-w-0"
-          >
-            <MenuItem
-              name={isExpanded ? "Collapse" : "Expand"}
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="!p-4"
-            />
-          </Menu>
+          <ExpandMenuButton
+            isExpanded={isExpanded}
+            onToggle={() => setIsExpanded((prev) => !prev)}
+            aria-label="Pending withdraw options"
+          />
         </div>
 
         {/* Expanded: individual vault amounts */}

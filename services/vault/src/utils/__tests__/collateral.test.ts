@@ -36,6 +36,7 @@ describe("Collateral Utilities", () => {
           vaultId: "vault1",
           amountBtc: 1,
           addedAt: 1700000000,
+          inUse: true,
           status: "In use",
           vaultProviderName: "0xprov...der1",
         },
@@ -95,6 +96,7 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result).toHaveLength(1);
+      expect(result[0].inUse).toBe(false);
       expect(result[0].status).toBe("Unknown");
       expect(result[0].vaultProviderName).toBe("Unknown");
     });
@@ -114,7 +116,25 @@ describe("Collateral Utilities", () => {
       const collaterals = [makeCollateral()];
       const result = toCollateralVaultEntries(collaterals);
 
+      expect(result[0].inUse).toBe(true);
       expect(result[0].status).toBe("In use");
+    });
+
+    it("should set inUse false when vault inUse is false", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "active",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].inUse).toBe(false);
     });
 
     it("should capitalize vault status when not in use", () => {
@@ -132,6 +152,23 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result[0].status).toBe("Active");
+    });
+
+    it("should handle snake_case statuses by capitalizing each word", () => {
+      const collaterals = [
+        makeCollateral({
+          vault: {
+            id: "vault1",
+            amount: 100000000n,
+            status: "pending_activation",
+            vaultProvider: "0xprovider1",
+            inUse: false,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].status).toBe("Pending Activation");
     });
 
     it("should use provider name from providerNames map", () => {
