@@ -206,6 +206,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   const isMulti = props.variant === "multi";
+  const strategy = isMulti ? props.strategy : null;
 
   const visualStep = isMulti
     ? getMultiVaultVisualStep(
@@ -218,13 +219,10 @@ export function DepositProgressView(props: DepositProgressViewProps) {
 
   const steps = useMemo(
     () =>
-      isMulti
-        ? buildMultiVaultStepItems(
-            (props as MultiVaultProps).strategy,
-            payoutSigningProgress,
-          )
+      isMulti && strategy
+        ? buildMultiVaultStepItems(strategy, payoutSigningProgress)
         : buildStepItems(payoutSigningProgress),
-    [isMulti, props, payoutSigningProgress],
+    [isMulti, strategy, payoutSigningProgress],
   );
 
   return (
