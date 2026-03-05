@@ -104,6 +104,27 @@ interface MultiVaultProps extends BaseProgressViewProps {
 
 export type DepositProgressViewProps = SingleVaultProps | MultiVaultProps;
 
+const SPLIT_STEPS = {
+  SIGN_SPLIT_TX: 1,
+  SIGN_POP_SUBMIT_1: 2,
+  SIGN_POP_SUBMIT_2: 3,
+  WAIT_CONFIRMATION: 4,
+  SIGN_PAYOUTS: 5,
+  DOWNLOAD_ARTIFACTS: 6,
+  WAIT_BROADCAST: 7,
+  BROADCAST: 8,
+};
+
+const MULTI_INPUT_STEPS = {
+  SIGN_POP_SUBMIT_1: 1,
+  SIGN_POP_SUBMIT_2: 2,
+  WAIT_CONFIRMATION: 3,
+  SIGN_PAYOUTS: 4,
+  DOWNLOAD_ARTIFACTS: 5,
+  WAIT_BROADCAST: 6,
+  BROADCAST: 7,
+};
+
 /**
  * Map DepositFlowStep + vault index + strategy to a 1-indexed visual step for multi-vault.
  *
@@ -116,23 +137,24 @@ export function getMultiVaultVisualStep(
   currentVaultIndex: number | null,
   strategy: "MULTI_INPUT" | "SPLIT",
 ): number {
-  const offset = strategy === "SPLIT" ? 1 : 0;
+  const s = strategy === "SPLIT" ? SPLIT_STEPS : MULTI_INPUT_STEPS;
 
   switch (currentStep) {
     case DepositFlowStep.SIGN_SPLIT_TX:
-      return 1; // Only for SPLIT
+      return SPLIT_STEPS.SIGN_SPLIT_TX;
     case DepositFlowStep.SIGN_POP:
     case DepositFlowStep.SUBMIT_PEGIN:
-      // Vault 0 = step 1+offset, Vault 1 = step 2+offset
-      return offset + 1 + (currentVaultIndex ?? 0);
+      return (currentVaultIndex ?? 0) === 0
+        ? s.SIGN_POP_SUBMIT_1
+        : s.SIGN_POP_SUBMIT_2;
     case DepositFlowStep.SIGN_PAYOUTS:
-      return isWaiting ? offset + 3 : offset + 4;
+      return isWaiting ? s.WAIT_CONFIRMATION : s.SIGN_PAYOUTS;
     case DepositFlowStep.ARTIFACT_DOWNLOAD:
-      return offset + 5;
+      return s.DOWNLOAD_ARTIFACTS;
     case DepositFlowStep.BROADCAST_BTC:
-      return isWaiting ? offset + 6 : offset + 7;
+      return isWaiting ? s.WAIT_BROADCAST : s.BROADCAST;
     case DepositFlowStep.COMPLETED:
-      return offset + 8;
+      return s.BROADCAST + 1;
     default:
       return 1;
   }
