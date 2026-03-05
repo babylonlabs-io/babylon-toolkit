@@ -166,9 +166,12 @@ export function useAllocationPlanning({
     return total;
   }, [allocationPlan, depositorClaimValue, feeRate]);
 
-  // canSplit: try planning to see if splitting is possible
-  // This runs even when isPartialLiquidation is false to enable the checkbox
+  // canSplit: whether the current UTXOs + amount allow splitting into 2 vaults.
+  // When allocationPlan is already computed (partial liquidation is on), reuse it
+  // to avoid a redundant synchronous planUtxoAllocation() call (which may invoke
+  // WASM) on every render during slider drags.
   const canSplit = useMemo(() => {
+    if (allocationPlan) return true;
     if (!vaultAmounts || !spendableUTXOs?.length || !btcAddress || feeRate <= 0)
       return false;
     try {
@@ -183,7 +186,14 @@ export function useAllocationPlanning({
     } catch {
       return false;
     }
-  }, [vaultAmounts, spendableUTXOs, btcAddress, feeRate, depositorClaimValue]);
+  }, [
+    allocationPlan,
+    vaultAmounts,
+    spendableUTXOs,
+    btcAddress,
+    feeRate,
+    depositorClaimValue,
+  ]);
 
   return {
     allocationPlan,
