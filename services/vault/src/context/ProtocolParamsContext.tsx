@@ -9,6 +9,7 @@
  * This ensures all deposit-related components have valid minDeposit values.
  */
 
+import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -107,13 +108,43 @@ export function ProtocolParamsProvider({
     retry: RETRY_COUNT,
   });
 
-  const isLoading = configLoading || ucLoading || offchainLoading;
-  const error = configError || ucError || offchainError;
-
   const latestUniversalChallengers = useMemo(() => {
     if (!ucData) return [];
     return ucData.byVersion.get(ucData.latestVersion) ?? [];
   }, [ucData]);
+
+  // Compute depositorClaimValue from WASM once config + UC data is available.
+  // Uses 0 local challengers since VKs are assigned later by the VP — this
+  // computes a minimum floor; the VP validates sufficiency at peg-in time.
+  const {
+    data: depositorClaimValue,
+    isLoading: claimValueLoading,
+    error: claimValueError,
+  } = useQuery({
+    queryKey: [
+      PROTOCOL_PARAMS_QUERY_KEY,
+      "depositorClaimValue",
+      configData?.offchainParams.babeTotalInstances,
+      configData?.offchainParams.councilQuorum,
+      configData?.offchainParams.securityCouncilKeys.length,
+      String(configData?.offchainParams.feeRate),
+      latestUniversalChallengers.length,
+    ],
+    queryFn: async () => {
+      const offchain = configData!.offchainParams;
+      return computeMinClaimValue(
+        0,
+        latestUniversalChallengers.length,
+        offchain.babeTotalInstances,
+        offchain.councilQuorum,
+        offchain.securityCouncilKeys.length,
+        offchain.feeRate,
+      );
+    },
+    enabled: !!configData && latestUniversalChallengers.length > 0,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  });
 
   const getUniversalChallengersByVersion = useCallback(
     (version: number): UniversalChallenger[] => {
@@ -131,7 +162,11 @@ export function ProtocolParamsProvider({
     [offchainParamsData],
   );
 
-  if (isLoading) {
+  const allLoading =
+    configLoading || ucLoading || offchainLoading || claimValueLoading;
+  const allError = configError || ucError || offchainError || claimValueError;
+
+  if (allLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <Loader size={32} />
@@ -139,12 +174,19 @@ export function ProtocolParamsProvider({
     );
   }
 
-  if (error || !configData || configData.minimumPegInAmount === undefined) {
+  if (
+    allError ||
+    !configData ||
+    configData.minimumPegInAmount === undefined ||
+    !depositorClaimValue
+  ) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
         <p className="text-error">Failed to load protocol parameters</p>
         <p className="text-secondary text-sm">
-          {error instanceof Error ? error.message : "Please refresh the page"}
+          {allError instanceof Error
+            ? allError.message
+            : "Please refresh the page"}
         </p>
       </div>
     );
@@ -155,7 +197,7 @@ export function ProtocolParamsProvider({
     minDeposit: configData.minimumPegInAmount,
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
-    depositorClaimValue: configData.depositorClaimValue,
+    depositorClaimValue,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
     getOffchainParamsByVersion,
