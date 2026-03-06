@@ -167,6 +167,7 @@ export async function fetchAppProviders(
       btcPubKey: provider.btcPubKey,
       name: provider.trustedName ?? provider.name ?? undefined,
       url: provider.trustedRpcUrl ?? provider.rpcUrl!,
+      iconUrl: provider.trustedIconUrl ?? undefined,
       verified: provider.verified,
     }));
 

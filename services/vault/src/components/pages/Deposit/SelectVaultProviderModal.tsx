@@ -14,6 +14,8 @@ import { AiOutlinePlus } from "react-icons/ai";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateAddress } from "@/utils/addressUtils";
 
+import { VerifiedBadge } from "./VerifiedBadge";
+
 const btcConfig = getNetworkConfigBTC();
 
 type ExtendedValidatorRow = ValidatorRow & {
@@ -84,12 +86,7 @@ export function SelectVaultProviderModal({
           <div className="flex min-w-0 items-center gap-2">
             <ProviderAvatar name={row.name} url={row.iconUrl} size="medium" />
             <span className="truncate">{row.name}</span>
-            {row.verified && (
-              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                <CheckIcon size={10} variant="success" />
-                Verified
-              </span>
-            )}
+            {row.verified && <VerifiedBadge />}
           </div>
         ),
         sorter: (a, b) => a.name.localeCompare(b.name),
@@ -184,7 +181,7 @@ export function SelectVaultProviderModal({
       defaultLayout="list"
       isRowSelectable={(row: ValidatorRow) => {
         const extRow = row as ExtendedValidatorRow;
-        return extRow.verified !== false;
+        return extRow.verified === true;
       }}
       filters={{
         options: filterOptions,
