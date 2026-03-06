@@ -12,7 +12,10 @@
 
 import type { Hex } from "viem";
 
-import type { PeginDisplayLabel } from "../models/peginStateMachine";
+import type {
+  ExpirationReason,
+  PeginDisplayLabel,
+} from "../models/peginStateMachine";
 
 /**
  * Vault activity - represents both deposits and borrowing positions
@@ -103,6 +106,12 @@ export interface VaultActivity {
 
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
   depositorLamportPkHash: string;
+
+  /** Timestamp when vault expired (milliseconds), undefined if not expired */
+  expiredAt?: number;
+
+  /** Expiration reason, undefined if not expired */
+  expirationReason?: ExpirationReason;
 }
 
 /**

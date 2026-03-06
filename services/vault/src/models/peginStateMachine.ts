@@ -43,6 +43,9 @@ export enum ContractStatus {
   EXPIRED = 7,
 }
 
+/** Reason why a vault expired */
+export type ExpirationReason = "ack_timeout" | "proof_timeout";
+
 /**
  * Local storage status (off-chain, temporary)
  * Used to track user actions before blockchain confirmation
@@ -194,6 +197,42 @@ export interface GetPeginStateOptions {
   utxoUnavailable?: boolean;
   /** Whether the vault provider is waiting for the depositor's lamport public key */
   needsLamportKey?: boolean;
+  /** Expiration reason (only relevant when status is EXPIRED) */
+  expirationReason?: ExpirationReason;
+  /** Timestamp when vault expired in milliseconds (only relevant when status is EXPIRED) */
+  expiredAt?: number;
+}
+
+const EXPIRATION_REASON_LABELS: Record<ExpirationReason, string> = {
+  ack_timeout: "The vault provider did not acknowledge in time",
+  proof_timeout: "The inclusion proof was not submitted in time",
+};
+
+function formatExpiredTimeAgo(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return "just now";
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function buildExpiredMessage(
+  expirationReason?: ExpirationReason,
+  expiredAt?: number,
+): string {
+  const reason = expirationReason
+    ? EXPIRATION_REASON_LABELS[expirationReason]
+    : undefined;
+  const parts = [
+    "This vault has expired.",
+    reason ? `${reason}.` : null,
+    expiredAt ? `Expired ${formatExpiredTimeAgo(expiredAt)}.` : null,
+  ].filter(Boolean);
+  return parts.join(" ");
 }
 
 /**
@@ -213,6 +252,8 @@ export function getPeginState(
     isInUse,
     utxoUnavailable,
     needsLamportKey,
+    expirationReason,
+    expiredAt,
   } = options;
 
   // Early check: If UTXO is unavailable (spent), show Invalid state
@@ -370,8 +411,7 @@ export function getPeginState(
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
       availableActions: [PeginAction.NONE],
-      message:
-        "This vault has expired. The peg-in was not completed within the required timeframe.",
+      message: buildExpiredMessage(expirationReason, expiredAt),
     };
   }
 

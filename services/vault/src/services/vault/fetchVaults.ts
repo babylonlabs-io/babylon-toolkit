@@ -9,6 +9,7 @@ import { gql } from "graphql-request";
 import type { Address, Hex } from "viem";
 
 import { graphqlClient } from "../../clients/graphql/client";
+import type { ExpirationReason } from "../../models/peginStateMachine";
 import { type Vault, VaultStatus } from "../../types/vault";
 
 /**
@@ -175,7 +176,7 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
     depositorLamportPkHash: item.depositorLamportPkHash!,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
-    expirationReason: item.expirationReason ?? undefined,
+    expirationReason: (item.expirationReason as ExpirationReason) ?? undefined,
     isInUse: item.inUse,
   };
 }
