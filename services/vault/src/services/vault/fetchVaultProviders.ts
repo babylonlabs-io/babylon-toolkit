@@ -19,6 +19,10 @@ const GET_VAULT_PROVIDERS = gql`
         name
         rpcUrl
         grpcUrl
+        verified
+        trustedName
+        trustedRpcUrl
+        trustedIconUrl
         registeredAt
         blockNumber
         transactionHash
@@ -36,6 +40,10 @@ const GET_VAULT_PROVIDER_BY_ID = gql`
       name
       rpcUrl
       grpcUrl
+      verified
+      trustedName
+      trustedRpcUrl
+      trustedIconUrl
       registeredAt
       blockNumber
       transactionHash
@@ -53,6 +61,10 @@ export interface VaultProvider {
   name: string | null;
   rpcUrl: string | null;
   grpcUrl: string | null;
+  verified: boolean;
+  trustedName: string | null;
+  trustedRpcUrl: string | null;
+  trustedIconUrl: string | null;
   registeredAt: string;
   blockNumber: string;
   transactionHash: string;

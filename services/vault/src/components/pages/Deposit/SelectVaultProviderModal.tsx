@@ -14,11 +14,14 @@ import { AiOutlinePlus } from "react-icons/ai";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateAddress } from "@/utils/addressUtils";
 
+import { VerifiedBadge } from "./VerifiedBadge";
+
 const btcConfig = getNetworkConfigBTC();
 
 type ExtendedValidatorRow = ValidatorRow & {
   iconUrl?: string;
   status?: string;
+  verified?: boolean;
 };
 
 export interface Provider {
@@ -26,6 +29,7 @@ export interface Provider {
   name: string;
   status?: string;
   iconUrl?: string;
+  verified?: boolean;
 }
 
 interface SelectVaultProviderModalProps {
@@ -67,6 +71,7 @@ export function SelectVaultProviderModal({
       commission: "",
       iconUrl: p.iconUrl,
       status: p.status,
+      verified: p.verified,
     }));
   }, [providers, filterValue]);
 
@@ -81,6 +86,7 @@ export function SelectVaultProviderModal({
           <div className="flex min-w-0 items-center gap-2">
             <ProviderAvatar name={row.name} url={row.iconUrl} size="medium" />
             <span className="truncate">{row.name}</span>
+            {row.verified && <VerifiedBadge />}
           </div>
         ),
         sorter: (a, b) => a.name.localeCompare(b.name),
@@ -173,6 +179,10 @@ export function SelectVaultProviderModal({
       title="Select a Vault Provider"
       description={`Vault Providers secure your ${btcConfig.coinSymbol} and make borrowing and redemption possible. Select one to manage your vault during deposits, withdrawals, and liquidations.`}
       defaultLayout="list"
+      isRowSelectable={(row: ValidatorRow) => {
+        const extRow = row as ExtendedValidatorRow;
+        return extRow.verified === true;
+      }}
       filters={{
         options: filterOptions,
         value: filterValue,

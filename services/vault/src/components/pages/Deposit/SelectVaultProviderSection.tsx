@@ -14,6 +14,7 @@ import {
   SelectVaultProviderModal,
   type Provider,
 } from "./SelectVaultProviderModal";
+import { VerifiedBadge } from "./VerifiedBadge";
 
 interface SelectVaultProviderSectionProps {
   providers: Provider[];
@@ -85,6 +86,7 @@ export function SelectVaultProviderSection({
                 />
               )}
               <span>{selectedProviderData?.name || "Add Vault Provider"}</span>
+              {selectedProviderData?.verified && <VerifiedBadge />}
             </div>
             <div className="flex h-8 w-8 items-center justify-center text-black dark:text-white">
               {selectedProviderData ? (

@@ -51,7 +51,7 @@ export function useWithLogos<T>(
     () =>
       itemsWithIdentities.map(({ item, identity }) => ({
         ...item,
-        iconUrl: logos[identity],
+        iconUrl: logos[identity] ?? (item as { iconUrl?: string }).iconUrl,
       })),
     [itemsWithIdentities, logos],
   );
