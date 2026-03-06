@@ -61,11 +61,14 @@ export async function checkPeginStatus(
   });
 
   // Parse the status string into DaemonStatus enum
-  // State flow: PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
+  // State flow: PendingIngestion -> PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
   const rawStatus = response.status;
   let status: DaemonStatus;
 
   switch (rawStatus) {
+    case "PendingIngestion":
+      status = DaemonStatus.PENDING_INGESTION;
+      break;
     case "PendingDepositorLamportPK":
       status = DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK;
       break;

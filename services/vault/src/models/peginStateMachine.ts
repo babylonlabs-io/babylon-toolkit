@@ -63,7 +63,7 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
  * State flow (happy path):
- * PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
+ * PendingIngestion -> PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
  *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  *
  * Terminal / branching states:
@@ -72,6 +72,7 @@ export enum LocalStorageStatus {
  * - PeggedOut: BTC has been returned to the depositor
  */
 export enum DaemonStatus {
+  PENDING_INGESTION = "PendingIngestion",
   PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
@@ -89,6 +90,7 @@ export enum DaemonStatus {
  * When vault provider returns these states, frontend should wait/poll.
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
+  DaemonStatus.PENDING_INGESTION,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;

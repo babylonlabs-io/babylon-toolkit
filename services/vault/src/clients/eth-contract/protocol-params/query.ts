@@ -21,7 +21,8 @@ export interface TBVProtocolParams {
   btcPrismAddress: Address;
   minimumPegInAmount: bigint;
   maxPegInAmount: bigint;
-  pegInActivationTimeout: bigint;
+  pegInAckTimeout: bigint;
+  pegInProofTimeout: bigint;
   pegInConfirmationDepth: bigint;
 }
 
@@ -48,8 +49,10 @@ export interface PegInConfiguration {
   minimumPegInAmount: bigint;
   /** Maximum deposit amount in satoshis */
   maxPegInAmount: bigint;
-  /** Timeout for peg-in activation in ETH blocks */
-  pegInActivationTimeout: bigint;
+  /** Timeout for ACK collection in ETH blocks */
+  pegInAckTimeout: bigint;
+  /** Timeout for BTC inclusion proof in ETH blocks */
+  pegInProofTimeout: bigint;
   /** Required BTC confirmation depth */
   pegInConfirmationDepth: bigint;
   /** CSV timelock in blocks for the PegIn output (from offchain params) */
@@ -117,7 +120,8 @@ export async function getTBVProtocolParams(): Promise<TBVProtocolParams> {
     btcPrismAddress: result.btcPrismAddress,
     minimumPegInAmount: result.minimumPegInAmount,
     maxPegInAmount: result.maxPegInAmount,
-    pegInActivationTimeout: result.pegInActivationTimeout,
+    pegInAckTimeout: result.pegInAckTimeout,
+    pegInProofTimeout: result.pegInProofTimeout,
     pegInConfirmationDepth: result.pegInConfirmationDepth,
   };
 }
@@ -156,7 +160,8 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   return {
     minimumPegInAmount: params.minimumPegInAmount,
     maxPegInAmount: params.maxPegInAmount,
-    pegInActivationTimeout: params.pegInActivationTimeout,
+    pegInAckTimeout: params.pegInAckTimeout,
+    pegInProofTimeout: params.pegInProofTimeout,
     pegInConfirmationDepth: params.pegInConfirmationDepth,
     timelockPegin,
     offchainParams,

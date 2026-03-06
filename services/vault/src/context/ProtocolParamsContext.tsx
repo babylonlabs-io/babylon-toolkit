@@ -124,7 +124,7 @@ export function ProtocolParamsProvider({
     queryKey: [
       PROTOCOL_PARAMS_QUERY_KEY,
       "depositorClaimValue",
-      configData?.offchainParams.babeTotalInstances,
+      configData?.offchainParams.babeInstancesToFinalize,
       configData?.offchainParams.councilQuorum,
       configData?.offchainParams.securityCouncilKeys.length,
       String(configData?.offchainParams.feeRate),
@@ -135,7 +135,7 @@ export function ProtocolParamsProvider({
       return computeMinClaimValue(
         0,
         latestUniversalChallengers.length,
-        offchain.babeTotalInstances,
+        offchain.babeInstancesToFinalize,
         offchain.councilQuorum,
         offchain.securityCouncilKeys.length,
         offchain.feeRate,
