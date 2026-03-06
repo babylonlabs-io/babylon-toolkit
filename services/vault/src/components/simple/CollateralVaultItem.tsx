@@ -3,7 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
@@ -17,29 +17,62 @@ interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
   addedAt: number;
+  inUse: boolean;
+  providerName: string;
+  providerIconUrl?: string;
 }
 
 export function CollateralVaultItem({
   vaultId,
   amountBtc,
   addedAt,
+  inUse,
+  providerName,
+  providerIconUrl,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
-      {/* Top row: BTC icon + amount */}
-      <div className="flex items-center gap-2">
-        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <span className="text-base font-medium text-accent-primary">
-          {formatBtcAmount(amountBtc)}
-        </span>
+      {/* Top row: BTC icon + amount + checkbox */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Avatar
+            url={btcConfig.icon}
+            alt={btcConfig.coinSymbol}
+            size="small"
+          />
+          <span className="text-base font-medium text-accent-primary">
+            {formatBtcAmount(amountBtc)}
+          </span>
+        </div>
+        {/* TODO: Wire up checkbox for vault selection */}
       </div>
 
       {/* Date row */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Date</span>
         <span className="text-sm text-accent-primary">{formattedDate}</span>
+      </div>
+
+      {/* Status row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Status</span>
+        <StatusBadge
+          status={inUse ? "active" : "pending"}
+          label={inUse ? "In use" : "Available"}
+        />
+      </div>
+
+      {/* Vault Provider row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Vault Provider</span>
+        <div className="flex items-center gap-1.5">
+          {providerIconUrl && (
+            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+          )}
+          <span className="text-sm text-accent-primary">{providerName}</span>
+        </div>
       </div>
 
       {/* Transaction hash row */}

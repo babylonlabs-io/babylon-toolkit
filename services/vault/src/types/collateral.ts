@@ -11,4 +11,10 @@ export interface CollateralVaultEntry {
   amountBtc: number;
   /** Unix timestamp in seconds when added as collateral */
   addedAt: number;
+  /** Whether the vault is currently in use as collateral */
+  inUse: boolean;
+  /** Vault provider display name */
+  providerName: string;
+  /** Vault provider icon URL (optional) */
+  providerIconUrl?: string;
 }
