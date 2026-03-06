@@ -101,6 +101,7 @@ describe("UTXO Reservation", () => {
       offchainParamsVersion: 1,
       referralCode: 0,
       depositorLamportPkHash: "0x" + "ab".repeat(32),
+      depositorPayoutBtcAddress: "0xpayoutaddr" as any,
     });
 
     it("should collect refs from localStorage selectedUTXOs", () => {

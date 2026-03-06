@@ -142,6 +142,7 @@ export async function registerPeginAndWait(
     fundedTxHex,
     vaultProviderAddress,
     onPopSigned,
+    depositorPayoutBtcAddress,
     depositorLamportPkHash,
     preSignedBtcPopSignature,
   } = params;
@@ -151,6 +152,7 @@ export async function registerPeginAndWait(
     fundedTxHex,
     vaultProviderAddress: vaultProviderAddress as Address,
     onPopSigned,
+    depositorPayoutBtcAddress,
     depositorLamportPkHash,
     preSignedBtcPopSignature,
   });

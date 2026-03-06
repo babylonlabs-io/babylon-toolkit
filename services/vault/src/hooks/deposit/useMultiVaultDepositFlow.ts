@@ -347,9 +347,12 @@ export function useMultiVaultDepositFlow(
         });
 
         // After validation, these values are guaranteed to be defined
-        const confirmedBtcAddress = btcAddress!;
-        const confirmedEthAddress = depositorEthAddress!;
-        const confirmedBtcWallet = btcWalletProvider!;
+        if (!btcAddress || !depositorEthAddress || !btcWalletProvider) {
+          throw new Error("BTC or ETH wallet not connected");
+        }
+        const confirmedBtcAddress = btcAddress;
+        const confirmedEthAddress = depositorEthAddress;
+        const confirmedBtcWallet = btcWalletProvider;
 
         // Extract primary provider (current implementation supports single provider only)
         const primaryProvider = selectedProviders[0] as Address;
@@ -491,6 +494,7 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
+                  depositorPayoutBtcAddress: confirmedBtcAddress,
                   depositorLamportPkHash: splitLamportPkHash,
                   preSignedBtcPopSignature: capturedPopSignature,
                   onPopSigned: () =>
@@ -549,6 +553,7 @@ export function useMultiVaultDepositFlow(
                 depositorBtcPubkey: prepared.depositorBtcPubkey,
                 fundedTxHex: prepared.btcTxHex,
                 vaultProviderAddress: selectedProviders[0],
+                depositorPayoutBtcAddress: confirmedBtcAddress,
                 depositorLamportPkHash: lamportPkHash,
                 preSignedBtcPopSignature: capturedPopSignature,
                 onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),

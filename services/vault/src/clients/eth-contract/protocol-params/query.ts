@@ -33,10 +33,8 @@ export interface VersionedOffchainParams {
   timelockAssert: bigint;
   timelockChallengeAssert: bigint;
   securityCouncilKeys: `0x${string}`[];
+  councilQuorum: number;
   feeRate: bigint;
-  feeMarginPercent: number;
-  challengerOutputValue: bigint;
-  payoutNopayoutOutputValue: bigint;
   babeTotalInstances: number;
   babeInstancesToFinalize: number;
   vpCommissionBps: number;

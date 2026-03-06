@@ -83,7 +83,7 @@ export interface DepositorGraphOffchainParams {
   timelockAssert: number;
   /** Security council member pubkeys (x-only hex) */
   councilMembers: string[];
-  /** Council quorum (N-of-N) */
+  /** Council quorum (M-of-N multisig threshold) */
   councilQuorum: number;
 }
 
@@ -370,7 +370,7 @@ export async function prepareAndSignDepositorGraph(
       universalChallengers: sortedUCPubkeys,
       timelockAssert: Number(offchainParams.timelockAssert),
       councilMembers,
-      councilQuorum: councilMembers.length,
+      councilQuorum: offchainParams.councilQuorum,
     },
   });
 }

@@ -184,12 +184,17 @@ export function useDepositFlow(
           maxDeposit,
         });
 
+        // After validation, these are guaranteed to be defined
+        if (!btcAddress || !depositorEthAddress) {
+          throw new Error("BTC or ETH wallet not connected");
+        }
+
         // Step 1: Get ETH wallet client
         setCurrentStep(DepositFlowStep.SIGN_POP);
-        const walletClient = await getEthWalletClient(depositorEthAddress!);
+        const walletClient = await getEthWalletClient(depositorEthAddress);
 
         // Compute reserved UTXOs from cached vaults + localStorage
-        const pendingPegins = getPendingPegins(depositorEthAddress!);
+        const pendingPegins = getPendingPegins(depositorEthAddress);
         const reservedUtxoRefs = collectReservedUtxoRefs({
           vaults: vaults ?? [],
           pendingPegins,
@@ -201,7 +206,7 @@ export function useDepositFlow(
           walletClient,
           amount,
           feeRate,
-          btcAddress: btcAddress!,
+          btcAddress,
           selectedProviders,
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
@@ -230,12 +235,13 @@ export function useDepositFlow(
           fundedTxHex: prepared.btcTxHex,
           vaultProviderAddress: selectedProviders[0],
           onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+          depositorPayoutBtcAddress: btcAddress,
           depositorLamportPkHash: lamportPkHash,
         });
 
         // Save to localStorage
         savePendingPegin({
-          depositorEthAddress: depositorEthAddress!,
+          depositorEthAddress,
           btcTxid: registration.btcTxid,
           ethTxHash: registration.ethTxHash,
           amount,
@@ -337,7 +343,7 @@ export function useDepositFlow(
           registration.btcTxid,
           prepared.depositorBtcPubkey,
           signatures,
-          depositorEthAddress!,
+          depositorEthAddress,
           depositorClaimerPresignatures,
         );
         setPayoutSigningProgress(null);
@@ -366,7 +372,7 @@ export function useDepositFlow(
             depositorBtcPubkey: prepared.depositorBtcPubkey,
             btcWalletProvider,
           },
-          depositorEthAddress!,
+          depositorEthAddress,
         );
 
         // Complete

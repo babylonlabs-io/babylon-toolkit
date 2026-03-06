@@ -136,22 +136,12 @@
             "internalType": "bytes32[]"
           },
           {
-            "name": "feeRate",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "feeMarginPercent",
+            "name": "councilQuorum",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "challengerOutputValue",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "payoutNopayoutOutputValue",
+            "name": "feeRate",
             "type": "uint64",
             "internalType": "uint64"
           },
@@ -201,22 +191,12 @@
             "internalType": "bytes32[]"
           },
           {
-            "name": "feeRate",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "feeMarginPercent",
+            "name": "councilQuorum",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "challengerOutputValue",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "payoutNopayoutOutputValue",
+            "name": "feeRate",
             "type": "uint64",
             "internalType": "uint64"
           },

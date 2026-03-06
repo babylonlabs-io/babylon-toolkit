@@ -5,12 +5,18 @@
  * - Public key conversions (x-only format)
  * - Hex string manipulation
  * - Uint8Array conversions and validation
+ * - Address derivation and validation
  *
  * All functions are pure (no side effects) and work in Node.js, browsers,
  * and serverless environments.
  *
  * @module primitives/utils/bitcoin
  */
+
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { initEccLib, networks, payments } from "bitcoinjs-lib";
+
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**
  * Strip "0x" prefix from hex string if present.
@@ -178,4 +184,137 @@ export function validateWalletPubkey(
   }
 
   return { walletPubkeyRaw, walletPubkeyXOnly, depositorPubkey };
+}
+
+// ============================================================================
+// Address derivation and validation
+// ============================================================================
+
+let eccInitialized = false;
+
+function ensureEcc(): void {
+  if (!eccInitialized) {
+    initEccLib(ecc);
+    eccInitialized = true;
+  }
+}
+
+function getBitcoinjsNetwork(network: Network): networks.Network {
+  switch (network) {
+    case "bitcoin":
+      return networks.bitcoin;
+    case "testnet":
+    case "signet":
+      return networks.testnet;
+    case "regtest":
+      return networks.regtest;
+    default:
+      throw new Error(`Unknown network: ${network}`);
+  }
+}
+
+/**
+ * Derive a Taproot (P2TR) address from a public key.
+ *
+ * @param publicKeyHex - Compressed (66 hex) or x-only (64 hex) public key
+ * @param network - Bitcoin network
+ * @returns Taproot address (bc1p... / tb1p... / bcrt1p...)
+ */
+export function deriveTaprootAddress(
+  publicKeyHex: string,
+  network: Network,
+): string {
+  ensureEcc();
+  const xOnly = hexToUint8Array(processPublicKeyToXOnly(publicKeyHex));
+  const { address } = payments.p2tr({
+    internalPubkey: Buffer.from(xOnly),
+    network: getBitcoinjsNetwork(network),
+  });
+  if (!address) {
+    throw new Error("Failed to derive taproot address from public key");
+  }
+  return address;
+}
+
+/**
+ * Derive a Native SegWit (P2WPKH) address from a compressed public key.
+ *
+ * @param publicKeyHex - Compressed public key (66 hex chars, with or without 0x prefix)
+ * @param network - Bitcoin network
+ * @returns Native SegWit address (bc1q... / tb1q... / bcrt1q...)
+ * @throws If publicKeyHex is not a compressed public key (66 hex chars)
+ */
+export function deriveNativeSegwitAddress(
+  publicKeyHex: string,
+  network: Network,
+): string {
+  const cleanHex = stripHexPrefix(publicKeyHex);
+  if (cleanHex.length !== 66) {
+    throw new Error(
+      `Native SegWit requires a compressed public key (66 hex chars), got ${cleanHex.length}`,
+    );
+  }
+  const { address } = payments.p2wpkh({
+    pubkey: Buffer.from(hexToUint8Array(cleanHex)),
+    network: getBitcoinjsNetwork(network),
+  });
+  if (!address) {
+    throw new Error(
+      "Failed to derive native segwit address from public key",
+    );
+  }
+  return address;
+}
+
+/**
+ * Validate that a BTC address was derived from the given public key.
+ *
+ * Derives Taproot (P2TR) and Native SegWit (P2WPKH) addresses from the
+ * public key and checks if the provided address matches any of them.
+ *
+ * When the input is an x-only key (64 hex chars), both possible compressed
+ * keys (`02` + x and `03` + x) are tried for Native SegWit derivation,
+ * since the y-parity is unknown.
+ *
+ * @param address - BTC address to validate
+ * @param publicKeyHex - Public key from the wallet (x-only 64 or compressed 66 hex chars)
+ * @param network - Bitcoin network
+ * @returns true if the address matches the public key
+ */
+export function isAddressFromPublicKey(
+  address: string,
+  publicKeyHex: string,
+  network: Network,
+): boolean {
+  const cleanHex = stripHexPrefix(publicKeyHex);
+
+  // P2TR — works with both x-only and compressed keys
+  try {
+    if (address === deriveTaprootAddress(cleanHex, network)) {
+      return true;
+    }
+  } catch {
+    // derivation failed, continue
+  }
+
+  // Build the list of compressed keys to try for P2WPKH
+  const compressedKeys: string[] = [];
+  if (cleanHex.length === 66) {
+    compressedKeys.push(cleanHex);
+  } else if (cleanHex.length === 64) {
+    // x-only key — try both even (02) and odd (03) y-parity
+    compressedKeys.push(`02${cleanHex}`, `03${cleanHex}`);
+  }
+
+  for (const key of compressedKeys) {
+    try {
+      if (address === deriveNativeSegwitAddress(key, network)) {
+        return true;
+      }
+    } catch {
+      // derivation failed, continue
+    }
+  }
+
+  return false;
 }
