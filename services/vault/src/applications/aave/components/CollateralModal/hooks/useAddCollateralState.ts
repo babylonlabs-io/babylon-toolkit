@@ -87,6 +87,7 @@ export function useAddCollateralState({
     return [{ value: 0 }, ...amountsToSliderSteps(possibleSumsSatoshis)];
   }, [availableVaults.length, vaultAmountsSatoshis]);
 
+  // Select vaults based on the collateral amount using exact matching
   const selectedVaultIds = useMemo(() => {
     if (collateralAmount <= 0) return [];
 
