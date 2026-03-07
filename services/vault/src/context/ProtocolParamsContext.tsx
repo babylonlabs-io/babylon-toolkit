@@ -9,7 +9,6 @@
  * This ensures all deposit-related components have valid minDeposit values.
  */
 
-import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -28,6 +27,7 @@ import {
 } from "@/clients/eth-contract/protocol-params";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
 const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
 const STALE_TIME_MS = 5 * 60 * 1000;
@@ -113,9 +113,9 @@ export function ProtocolParamsProvider({
     return ucData.byVersion.get(ucData.latestVersion) ?? [];
   }, [ucData]);
 
-  // Compute depositorClaimValue from WASM once config + UC data is available.
+  // Compute depositorClaimValue once config + UC data is available.
   // Uses 0 local challengers since VKs are assigned later by the VP — this
-  // computes a minimum floor; the VP validates sufficiency at peg-in time.
+  // computes a minimum floor; the deposit hooks recompute with actual VK count.
   const {
     data: depositorClaimValue,
     isLoading: claimValueLoading,
@@ -132,14 +132,16 @@ export function ProtocolParamsProvider({
     ],
     queryFn: async () => {
       const offchain = configData!.offchainParams;
-      return computeMinClaimValue(
-        0,
-        latestUniversalChallengers.length,
-        offchain.babeInstancesToFinalize,
-        offchain.councilQuorum,
-        offchain.securityCouncilKeys.length,
-        offchain.feeRate,
-      );
+      return computeDepositorClaimValue({
+        // No per-vault local challengers in current protocol — all challengers
+        // are either universal (UCs) or global vault keepers (VKs) registered on-chain.
+        numLocalChallengers: 0,
+        numUniversalChallengers: latestUniversalChallengers.length,
+        babeInstancesToFinalize: offchain.babeInstancesToFinalize,
+        councilQuorum: offchain.councilQuorum,
+        councilSize: offchain.securityCouncilKeys.length,
+        feeRate: offchain.feeRate,
+      });
     },
     enabled: !!configData && latestUniversalChallengers.length > 0,
     staleTime: STALE_TIME_MS,

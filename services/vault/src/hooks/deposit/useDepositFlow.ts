@@ -14,7 +14,6 @@
  * 7. Sign & Broadcast BTC Transaction
  */
 
-import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
@@ -29,6 +28,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
 import {
   broadcastBtcTransaction,
@@ -204,14 +204,15 @@ export function useDepositFlow(
         // Compute depositorClaimValue with actual VK count. The context value
         // uses 0 local challengers (floor for UI estimation); the VP validates
         // with vault_keepers.len(), so we must match that here.
-        const depositorClaimValue = await computeMinClaimValue(
-          vaultKeeperBtcPubkeys.length,
-          universalChallengerBtcPubkeys.length,
-          config.offchainParams.babeInstancesToFinalize,
-          config.offchainParams.councilQuorum,
-          config.offchainParams.securityCouncilKeys.length,
-          config.offchainParams.feeRate,
-        );
+        const depositorClaimValue = await computeDepositorClaimValue({
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          numUniversalChallengers: universalChallengerBtcPubkeys.length,
+          babeInstancesToFinalize:
+            config.offchainParams.babeInstancesToFinalize,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
+          feeRate: config.offchainParams.feeRate,
+        });
 
         // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({

@@ -25,9 +25,9 @@ vi.mock("@/config", () => ({
   },
 }));
 
-// Mock WASM module
-vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
-  computeMinClaimValue: vi.fn().mockResolvedValue(35000n),
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
 }));
 
 // Mock dependencies
@@ -328,6 +328,13 @@ vi.mock("@/clients/vault-provider-rpc", () => {
           offchain_params_version: 0,
         },
       });
+      getPeginStatus = vi.fn().mockResolvedValue({
+        pegin_txid: "test",
+        status: "PendingDepositorSignatures",
+        progress: {},
+        health_info: "",
+      });
+      submitDepositorLamportKey = vi.fn().mockResolvedValue(undefined);
     },
   };
 });

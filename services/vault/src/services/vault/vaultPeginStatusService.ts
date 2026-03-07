@@ -1,110 +1,71 @@
 /**
  * Vault PegIn Status Service
  *
- * Handles checking the status of a PegIn transaction from the vault provider's backend.
+ * Provides status polling utilities for the deposit flow.
+ * All status-based waiting should go through `waitForPeginStatus` to
+ * avoid duplicating the pollUntil + getPeginStatus pattern.
  */
 
-import type { Hex } from "viem";
+import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
+import { pollUntil } from "@/utils/async";
+import { stripHexPrefix } from "@/utils/btc";
 
-import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
-import { DaemonStatus } from "../../models/peginStateMachine";
-import { stripHexPrefix } from "../../utils/btc";
+/** Timeout for RPC requests (60 seconds) */
+const RPC_TIMEOUT_MS = 60 * 1000;
 
-/**
- * Vault provider information for status check
- */
-export interface VaultProviderInfo {
-  /** Ethereum address of the vault provider */
-  address: Hex;
-  /** RPC URL of the vault provider */
-  url: string;
+/** Default polling interval (10 seconds) */
+const DEFAULT_POLL_INTERVAL_MS = 10 * 1000;
+
+export interface WaitForPeginStatusParams {
+  /** Vault provider RPC URL */
+  providerUrl: string;
+  /** BTC transaction ID (with or without 0x prefix) */
+  btcTxid: string;
+  /** Set of acceptable statuses — polling stops when the VP reports one of these */
+  targetStatuses: Set<string>;
+  /** Maximum time to wait in milliseconds */
+  timeoutMs: number;
+  /** Polling interval in milliseconds (default: 10s) */
+  intervalMs?: number;
+  /** AbortSignal for cancellation */
+  signal?: AbortSignal;
 }
 
 /**
- * Result of checking PegIn status from vault provider
- */
-export interface PeginStatusResult {
-  /** Status from vault provider's backend database */
-  status: DaemonStatus;
-  /** Raw status string from the API */
-  rawStatus: string;
-}
-
-/**
- * Check the status of a PegIn transaction from the vault provider's backend
+ * Poll `getPeginStatus` until the VP reaches one of the target statuses.
  *
- * @param peginTxId - Peg-in transaction ID (with or without 0x prefix)
- * @param vaultProvider - Vault provider information
- * @returns The current daemon status
- * @throws Error if the RPC call fails or status is invalid
+ * Handles "PegIn not found" as transient (VP hasn't ingested yet).
+ *
+ * @returns The status string that matched one of the targets
  */
-export async function checkPeginStatus(
-  peginTxId: string,
-  vaultProvider: VaultProviderInfo,
-): Promise<PeginStatusResult> {
-  // Validate inputs
-  if (!peginTxId || typeof peginTxId !== "string") {
-    throw new Error("Invalid peginTxId: must be a non-empty string");
-  }
+export async function waitForPeginStatus(
+  params: WaitForPeginStatusParams,
+): Promise<string> {
+  const {
+    providerUrl,
+    btcTxid,
+    targetStatuses,
+    timeoutMs,
+    intervalMs = DEFAULT_POLL_INTERVAL_MS,
+    signal,
+  } = params;
 
-  if (!vaultProvider?.url) {
-    throw new Error("Invalid vaultProvider: must have url property");
-  }
+  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const strippedTxid = stripHexPrefix(btcTxid);
 
-  // Create RPC client
-  const rpcClient = new VaultProviderRpcApi(vaultProvider.url, 30000);
-
-  // Note: Bitcoin Txid expects hex without "0x" prefix (64 chars)
-  // Frontend uses Ethereum-style "0x"-prefixed hex, so we strip it
-  const response = await rpcClient.getPeginStatus({
-    pegin_txid: stripHexPrefix(peginTxId),
-  });
-
-  // Parse the status string into DaemonStatus enum
-  // State flow: PendingIngestion -> PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
-  const rawStatus = response.status;
-  let status: DaemonStatus;
-
-  switch (rawStatus) {
-    case "PendingIngestion":
-      status = DaemonStatus.PENDING_INGESTION;
-      break;
-    case "PendingDepositorLamportPK":
-      status = DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK;
-      break;
-    case "PendingBabeSetup":
-      status = DaemonStatus.PENDING_BABE_SETUP;
-      break;
-    case "PendingChallengerPresigning":
-      status = DaemonStatus.PENDING_CHALLENGER_PRESIGNING;
-      break;
-    case "PendingDepositorSignatures":
-      status = DaemonStatus.PENDING_DEPOSITOR_SIGNATURES;
-      break;
-    case "PendingACKs":
-      status = DaemonStatus.PENDING_ACKS;
-      break;
-    case "PendingActivation":
-      status = DaemonStatus.PENDING_ACTIVATION;
-      break;
-    case "Activated":
-      status = DaemonStatus.ACTIVATED;
-      break;
-    case "Expired":
-      status = DaemonStatus.EXPIRED;
-      break;
-    case "ClaimPosted":
-      status = DaemonStatus.CLAIM_POSTED;
-      break;
-    case "PeggedOut":
-      status = DaemonStatus.PEGGED_OUT;
-      break;
-    default:
-      throw new Error(`Unknown daemon status: ${rawStatus}`);
-  }
-
-  return {
-    status,
-    rawStatus,
-  };
+  return pollUntil<string>(
+    async () => {
+      const response = await rpcClient.getPeginStatus({
+        pegin_txid: strippedTxid,
+      });
+      return targetStatuses.has(response.status) ? response.status : null;
+    },
+    {
+      intervalMs,
+      timeoutMs,
+      isTransient: (error) =>
+        error instanceof Error && error.message.includes("PegIn not found"),
+      signal,
+    },
+  );
 }

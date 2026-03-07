@@ -19,9 +19,9 @@ import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 // Mocks
 // ============================================================================
 
-// Mock WASM module
-vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
-  computeMinClaimValue: vi.fn().mockResolvedValue(35000n),
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
 }));
 
 // Mock SDK functions

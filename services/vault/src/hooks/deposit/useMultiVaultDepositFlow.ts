@@ -17,7 +17,6 @@
  * 6-8. Background - sign payouts, verify, broadcast to Bitcoin
  */
 
-import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -50,6 +49,7 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 import { formatBtcValue } from "@/utils/formatting";
 
 import {
@@ -364,14 +364,15 @@ export function useMultiVaultDepositFlow(
         // Compute depositorClaimValue with actual VK count. The context value
         // uses 0 local challengers (floor for UI estimation); the VP validates
         // with vault_keepers.len(), so we must match that here.
-        const depositorClaimValue = await computeMinClaimValue(
-          vaultKeeperBtcPubkeys.length,
-          universalChallengerBtcPubkeys.length,
-          config.offchainParams.babeInstancesToFinalize,
-          config.offchainParams.councilQuorum,
-          config.offchainParams.securityCouncilKeys.length,
-          config.offchainParams.feeRate,
-        );
+        const depositorClaimValue = await computeDepositorClaimValue({
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          numUniversalChallengers: universalChallengerBtcPubkeys.length,
+          babeInstancesToFinalize:
+            config.offchainParams.babeInstancesToFinalize,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
+          feeRate: config.offchainParams.feeRate,
+        });
 
         // ========================================================================
         // Step 1: Plan UTXO Allocation (use precomputed plan if available)
