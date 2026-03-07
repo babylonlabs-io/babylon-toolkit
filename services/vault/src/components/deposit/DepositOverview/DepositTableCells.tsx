@@ -26,26 +26,43 @@ export interface CardAction {
 /** Return type of getPrimaryActionButton */
 type ActionButton = ReturnType<typeof getPrimaryActionButton>;
 
+const ARTIFACT_DOWNLOAD_ACTION: CardAction = {
+  name: "Download artifacts",
+  action: "download_artifacts",
+};
+
 /**
- * Convert PeginAction to card actions format for VaultDetailCard
+ * Convert PeginAction to card actions format for VaultDetailCard.
+ * When the primary action is sign, broadcast, or redeem, also includes "Download artifacts".
  */
 export function getCardActions(
   actionButton: ActionButton,
 ): CardAction[] | undefined {
   if (!actionButton) return undefined;
 
-  switch (actionButton.action) {
-    case PeginAction.SUBMIT_LAMPORT_KEY:
-      return [{ name: "Enter Mnemonic", action: "lamport_key" }];
-    case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
-      return [{ name: "Sign", action: "sign" }];
-    case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
-      return [{ name: "Sign & Broadcast", action: "broadcast" }];
-    case PeginAction.REDEEM:
-      return [{ name: "Redeem", action: "redeem" }];
-    default:
-      return undefined;
-  }
+  const primary: CardAction[] = (() => {
+    switch (actionButton.action) {
+      case PeginAction.SUBMIT_LAMPORT_KEY:
+        return [{ name: "Enter Mnemonic", action: "lamport_key" }];
+      case PeginAction.SIGN_PAYOUT_TRANSACTIONS:
+        return [{ name: "Sign", action: "sign" }];
+      case PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN:
+        return [{ name: "Sign & Broadcast", action: "broadcast" }];
+      case PeginAction.REDEEM:
+        return [{ name: "Redeem", action: "redeem" }];
+      default:
+        return [];
+    }
+  })();
+
+  if (primary.length === 0) return undefined;
+
+  const withArtifact =
+    actionButton.action === PeginAction.SIGN_PAYOUT_TRANSACTIONS ||
+    actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN ||
+    actionButton.action === PeginAction.REDEEM;
+
+  return withArtifact ? [...primary, ARTIFACT_DOWNLOAD_ACTION] : primary;
 }
 
 /**

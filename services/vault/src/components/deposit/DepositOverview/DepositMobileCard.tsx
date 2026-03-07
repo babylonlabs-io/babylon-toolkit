@@ -33,6 +33,7 @@ interface DepositMobileCardProps {
   onBroadcastClick: (depositId: string) => void;
   onRedeemClick: (depositId: string) => void;
   onLamportKeyClick?: (depositId: string) => void;
+  onArtifactDownloadClick?: (depositId: string) => void;
 }
 
 export function DepositMobileCard({
@@ -41,6 +42,7 @@ export function DepositMobileCard({
   onBroadcastClick,
   onRedeemClick,
   onLamportKeyClick,
+  onArtifactDownloadClick,
 }: DepositMobileCardProps) {
   const pollingResult = useDepositPollingResult(deposit.id);
 
@@ -112,6 +114,8 @@ export function DepositMobileCard({
           onBroadcastClick(id);
         } else if (action === "redeem") {
           onRedeemClick(id);
+        } else if (action === "download_artifacts") {
+          onArtifactDownloadClick?.(id);
         }
       }}
     />

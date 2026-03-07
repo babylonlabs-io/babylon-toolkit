@@ -11,6 +11,7 @@ import { getApplicationMetadataByController } from "../../../applications";
 import { useVaultRedeemState } from "../../../context/deposit/VaultRedeemState";
 import { useBTCWallet, useETHWallet } from "../../../context/wallet";
 import { useAllDepositProviders } from "../../../hooks/deposit/useAllDepositProviders";
+import { useArtifactDownloadModal } from "../../../hooks/deposit/useArtifactDownloadModal";
 import { useBroadcastModal } from "../../../hooks/deposit/useBroadcastModal";
 import { useLamportKeyModal } from "../../../hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "../../../hooks/deposit/usePayoutSignModal";
@@ -41,7 +42,8 @@ export function useDepositOverviewState() {
   });
 
   // Fetch vault providers for all applications
-  const { vaultProviders } = useAllDepositProviders(allActivities);
+  const { vaultProviders, findProvider } =
+    useAllDepositProviders(allActivities);
 
   // Payout sign modal state
   const {
@@ -77,6 +79,18 @@ export function useDepositOverviewState() {
     handleSuccess: handleLamportKeySuccess,
   } = useLamportKeyModal({
     allActivities,
+    onSuccess: refetchActivities,
+  });
+
+  const {
+    params: artifactDownloadParams,
+    isOpen: isArtifactDownloadOpen,
+    handleArtifactDownloadClick,
+    handleArtifactDownloadClose,
+    handleArtifactDownloadComplete,
+  } = useArtifactDownloadModal({
+    allActivities,
+    findProvider,
     onSuccess: refetchActivities,
   });
 
@@ -134,6 +148,13 @@ export function useDepositOverviewState() {
     handleLamportKeyClick,
     handleLamportKeyClose,
     handleLamportKeySuccess,
+
+    // Artifact download modal
+    artifactDownloadParams,
+    isArtifactDownloadOpen,
+    handleArtifactDownloadClick,
+    handleArtifactDownloadClose,
+    handleArtifactDownloadComplete,
 
     // Redeem - RedeemModals handles the flow internally
     triggerRedeem,

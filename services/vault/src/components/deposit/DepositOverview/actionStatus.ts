@@ -118,5 +118,22 @@ export function getWarningMessages(
   return messages;
 }
 
+export function isArtifactDownloadAvailable(
+  pollingResult: DepositPollingResult,
+): boolean {
+  const { peginState, isOwnedByCurrentWallet, utxoUnavailable, error } =
+    pollingResult;
+  if (error || !isOwnedByCurrentWallet || utxoUnavailable) {
+    return false;
+  }
+  const actionButton = getPrimaryActionButton(peginState);
+  if (!actionButton) return false;
+  return (
+    actionButton.action === PeginAction.SIGN_PAYOUT_TRANSACTIONS ||
+    actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN ||
+    actionButton.action === PeginAction.REDEEM
+  );
+}
+
 // Re-export PeginAction for convenience
 export { PeginAction };
