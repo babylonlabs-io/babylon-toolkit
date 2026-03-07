@@ -8,6 +8,7 @@
 import type { Hex } from "viem";
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import type { SignModalData } from "@/hooks/deposit/usePayoutSignModal";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -53,6 +54,13 @@ export function PendingDepositModals({
   btcPublicKey,
   ethAddress,
 }: PendingDepositModalsProps) {
+  const { refetch: refetchPolling } = usePeginPolling();
+
+  const handleLamportKeySuccess = () => {
+    lamportKeyModal.handleSuccess();
+    refetchPolling();
+  };
+
   return (
     <>
       {/* Payout Sign Modal – full-screen with stepper */}
@@ -88,7 +96,7 @@ export function PendingDepositModals({
           open={lamportKeyModal.isOpen}
           resumeMode="submit_lamport_key"
           onClose={lamportKeyModal.handleClose}
-          onResumeSuccess={lamportKeyModal.handleSuccess}
+          onResumeSuccess={handleLamportKeySuccess}
           activity={lamportKeyModal.activity}
           vaultProviders={vaultProviders}
         />
