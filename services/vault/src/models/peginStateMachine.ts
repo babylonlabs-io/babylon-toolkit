@@ -63,7 +63,7 @@ export enum LocalStorageStatus {
  * Source: /btc-vault/crates/vaultd/src/workers/claimer/mod.rs PegInStatus enum
  *
  * State flow (happy path):
- * PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
+ * PendingIngestion -> PendingDepositorLamportPK -> PendingBabeSetup -> PendingChallengerPresigning
  *   -> PendingDepositorSignatures -> PendingACKs -> PendingActivation -> Activated
  *
  * Terminal / branching states:
@@ -72,6 +72,7 @@ export enum LocalStorageStatus {
  * - PeggedOut: BTC has been returned to the depositor
  */
 export enum DaemonStatus {
+  PENDING_INGESTION = "PendingIngestion",
   PENDING_DEPOSITOR_LAMPORT_PK = "PendingDepositorLamportPK",
   PENDING_BABE_SETUP = "PendingBabeSetup",
   PENDING_CHALLENGER_PRESIGNING = "PendingChallengerPresigning",
@@ -89,6 +90,7 @@ export enum DaemonStatus {
  * When vault provider returns these states, frontend should wait/poll.
  */
 export const PRE_DEPOSITOR_SIGNATURES_STATES = [
+  DaemonStatus.PENDING_INGESTION,
   DaemonStatus.PENDING_BABE_SETUP,
   DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
 ] as const;
@@ -194,6 +196,8 @@ export interface GetPeginStateOptions {
   utxoUnavailable?: boolean;
   /** Whether the vault provider is waiting for the depositor's lamport public key */
   needsLamportKey?: boolean;
+  /** Whether the vault provider hasn't ingested this peg-in yet */
+  pendingIngestion?: boolean;
 }
 
 /**
@@ -213,6 +217,7 @@ export function getPeginState(
     isInUse,
     utxoUnavailable,
     needsLamportKey,
+    pendingIngestion,
   } = options;
 
   // Early check: If UTXO is unavailable (spent), show Invalid state
@@ -243,7 +248,7 @@ export function getPeginState(
         displayVariant: "pending",
         availableActions: [PeginAction.NONE],
         message:
-          "Payout signatures submitted. Waiting for vault provider to collect acknowledgements and update on-chain status...",
+          "Payout signatures submitted. Vault provider is verifying and collecting acknowledgements...",
       };
     }
 
@@ -260,7 +265,23 @@ export function getPeginState(
       };
     }
 
-    // Sub-state: Transactions not ready yet
+    // Sub-state: VP hasn't ingested this peg-in yet, or we haven't
+    // received any polling response yet (initial state after submission).
+    // pendingIngestion is undefined before first poll, true when VP returns
+    // "not found", and false once VP has ingested the deposit.
+    if (pendingIngestion !== false && !transactionsReady) {
+      return {
+        contractStatus,
+        localStatus,
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        displayVariant: "pending",
+        availableActions: [PeginAction.NONE],
+        message: "Waiting for vault provider to detect your deposit...",
+      };
+    }
+
+    // Sub-state: VP has ingested but transactions aren't ready yet
+    // (e.g. after lamport key submitted, VP is preparing claim/payout txns)
     if (!transactionsReady) {
       return {
         contractStatus,

@@ -102,6 +102,8 @@ export interface RegisterSplitPeginParams {
    * Ethereum transaction. Useful for updating UI between signing steps.
    */
   onPopSigned?: () => void | Promise<void>;
+  /** Depositor's BTC payout address (e.g. bc1p...) */
+  depositorPayoutBtcAddress: string;
   /** Keccak256 hash of the depositor's Lamport public key */
   depositorLamportPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */
@@ -258,6 +260,7 @@ export async function registerSplitPeginOnChain(
       unsignedBtcTx: params.unsignedBtcTx,
       vaultProvider: params.vaultProviderAddress,
       onPopSigned: params.onPopSigned,
+      depositorPayoutBtcAddress: params.depositorPayoutBtcAddress,
       depositorLamportPkHash: params.depositorLamportPkHash,
       preSignedBtcPopSignature: params.preSignedBtcPopSignature,
     });

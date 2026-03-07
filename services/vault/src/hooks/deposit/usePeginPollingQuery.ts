@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
+import { DaemonStatus } from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
@@ -23,7 +24,6 @@ import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
   isTerminalPollingError,
-  isTransientPollingError,
 } from "../../utils/peginPolling";
 
 /** Timeout for RPC requests to vault provider (60 seconds) */
@@ -52,6 +52,8 @@ interface PollingQueryData {
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's lamport key */
   needsLamportKey: Set<string>;
+  /** Set of depositIds where VP hasn't ingested the peg-in yet */
+  pendingIngestion: Set<string>;
 }
 
 interface UsePeginPollingQueryResult {
@@ -63,6 +65,8 @@ interface UsePeginPollingQueryResult {
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing lamport key submission */
   needsLamportKey: Set<string> | undefined;
+  /** Set of depositIds where VP hasn't ingested the peg-in yet */
+  pendingIngestion: Set<string> | undefined;
   /** Whether any polling is in progress */
   isLoading: boolean;
   /** Trigger manual refetch */
@@ -72,15 +76,24 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch transactions from a single vault provider for multiple deposits
+ * Statuses where no depositor action is needed — VP is still processing
+ * or has already moved past depositor interaction.
  */
-function isLamportKeyNeeded(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.includes("PendingDepositorLamportPK")
-  );
-}
+const TRANSIENT_STATUSES = new Set<string>([
+  DaemonStatus.PENDING_INGESTION,
+  DaemonStatus.PENDING_BABE_SETUP,
+  DaemonStatus.PENDING_CHALLENGER_PRESIGNING,
+  DaemonStatus.PENDING_ACKS,
+  DaemonStatus.PENDING_ACTIVATION,
+  DaemonStatus.ACTIVATED,
+]);
 
+/**
+ * Fetch status and transactions from a single vault provider for multiple deposits.
+ *
+ * Uses the lightweight `getPeginStatus` RPC first, then only calls
+ * `requestDepositorPresignTransactions` when the VP is in the right state.
+ */
 async function fetchFromProvider(
   providerUrl: string,
   deposits: DepositToPoll[],
@@ -89,38 +102,72 @@ async function fetchFromProvider(
   depositorGraphs: Map<string, DepositorGraphTransactions>,
   errors: Map<string, Error>,
   needsLamportKey: Set<string>,
+  pendingIngestion: Set<string>,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
   for (const deposit of deposits) {
+    const depositId = deposit.activity.id;
+    const strippedTxid = stripHexPrefix(deposit.activity.txHash!);
+
     try {
-      const response = await rpcClient.requestDepositorPresignTransactions({
-        pegin_txid: stripHexPrefix(deposit.activity.txHash!),
-        depositor_pk: btcPublicKey,
+      // Phase 1: Lightweight status check
+      const statusResponse = await rpcClient.getPeginStatus({
+        pegin_txid: strippedTxid,
       });
 
-      if (response.txs && response.txs.length > 0) {
-        results.set(deposit.activity.id, response.txs);
-      }
-      depositorGraphs.set(deposit.activity.id, response.depositor_graph);
-      errors.delete(deposit.activity.id);
-      needsLamportKey.delete(deposit.activity.id);
-    } catch (error) {
-      if (isLamportKeyNeeded(error)) {
-        needsLamportKey.add(deposit.activity.id);
-        errors.delete(deposit.activity.id);
+      const status = statusResponse.status;
+
+      if (status === DaemonStatus.PENDING_DEPOSITOR_LAMPORT_PK) {
+        needsLamportKey.add(depositId);
+        errors.delete(depositId);
         continue;
       }
 
-      if (isTransientPollingError(error)) {
-        errors.delete(deposit.activity.id);
-        needsLamportKey.delete(deposit.activity.id);
+      if (TRANSIENT_STATUSES.has(status)) {
+        errors.delete(depositId);
+        needsLamportKey.delete(depositId);
         continue;
       }
+
+      if (status === DaemonStatus.EXPIRED) {
+        errors.set(depositId, new Error("Deposit expired"));
+        needsLamportKey.delete(depositId);
+        continue;
+      }
+
+      // Phase 2: Status is PendingDepositorSignatures — fetch transaction data
+      if (status === DaemonStatus.PENDING_DEPOSITOR_SIGNATURES) {
+        const response = await rpcClient.requestDepositorPresignTransactions({
+          pegin_txid: strippedTxid,
+          depositor_pk: btcPublicKey,
+        });
+
+        if (response.txs && response.txs.length > 0) {
+          results.set(depositId, response.txs);
+        }
+        depositorGraphs.set(depositId, response.depositor_graph);
+        errors.delete(depositId);
+        needsLamportKey.delete(depositId);
+        continue;
+      }
+
+      // Unknown status — clear errors and continue polling
+      errors.delete(depositId);
+      needsLamportKey.delete(depositId);
+    } catch (error) {
+      // "PegIn not found" — VP hasn't ingested yet, keep polling
+      if (error instanceof Error && error.message.includes("PegIn not found")) {
+        errors.delete(depositId);
+        needsLamportKey.delete(depositId);
+        pendingIngestion.add(depositId);
+        continue;
+      }
+
       const errorObj =
         error instanceof Error ? error : new Error("Provider unreachable");
-      errors.set(deposit.activity.id, errorObj);
-      console.warn(`Failed to poll deposit ${deposit.activity.id}:`, error);
+      errors.set(depositId, errorObj);
+      console.warn(`Failed to poll deposit ${depositId}:`, error);
     }
   }
 }
@@ -179,6 +226,7 @@ export function usePeginPollingQuery({
           depositorGraphs: new Map<string, DepositorGraphTransactions>(),
           errors: new Map<string, Error>(),
           needsLamportKey: new Set<string>(),
+          pendingIngestion: new Set<string>(),
         };
       }
 
@@ -192,6 +240,7 @@ export function usePeginPollingQuery({
       const depositorGraphs = new Map<string, DepositorGraphTransactions>();
       const errors = new Map<string, Error>();
       const needsLamportKey = new Set<string>();
+      const pendingIngestion = new Set<string>();
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
@@ -204,11 +253,18 @@ export function usePeginPollingQuery({
             depositorGraphs,
             errors,
             needsLamportKey,
+            pendingIngestion,
           ),
       );
 
       await Promise.all(fetchPromises);
-      return { transactions, depositorGraphs, errors, needsLamportKey };
+      return {
+        transactions,
+        depositorGraphs,
+        errors,
+        needsLamportKey,
+        pendingIngestion,
+      };
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -254,6 +310,7 @@ export function usePeginPollingQuery({
     depositorGraphs: data?.depositorGraphs,
     errors: data?.errors,
     needsLamportKey: data?.needsLamportKey,
+    pendingIngestion: data?.pendingIngestion,
     isLoading,
     refetch,
     depositsToPoll,

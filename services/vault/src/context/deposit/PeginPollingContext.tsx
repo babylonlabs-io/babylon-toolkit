@@ -60,13 +60,20 @@ export function PeginPollingProvider({
   >(new Map());
 
   // Use the polling query hook
-  const { data, depositorGraphs, errors, needsLamportKey, isLoading, refetch } =
-    usePeginPollingQuery({
-      activities,
-      pendingPegins,
-      btcPublicKey,
-      vaultProviders,
-    });
+  const {
+    data,
+    depositorGraphs,
+    errors,
+    needsLamportKey,
+    pendingIngestion,
+    isLoading,
+    refetch,
+  } = usePeginPollingQuery({
+    activities,
+    pendingPegins,
+    btcPublicKey,
+    vaultProviders,
+  });
 
   // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)
   const {
@@ -153,6 +160,7 @@ export function PeginPollingProvider({
         isInUse: activity.isInUse,
         utxoUnavailable,
         needsLamportKey: needsLamportKey?.has(depositId),
+        pendingIngestion: pendingIngestion?.has(depositId),
       });
 
       const isOwnedByCurrentWallet = isVaultOwnedByWallet(
@@ -181,6 +189,7 @@ export function PeginPollingProvider({
       depositorGraphs,
       errors,
       needsLamportKey,
+      pendingIngestion,
       isLoading,
       optimisticStatuses,
       btcPublicKey,

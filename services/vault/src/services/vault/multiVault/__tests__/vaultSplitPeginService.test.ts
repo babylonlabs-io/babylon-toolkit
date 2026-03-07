@@ -411,6 +411,8 @@ describe("registerSplitPeginOnChain", () => {
       unsignedBtcTx: "unsigned-tx-hex",
       vaultProviderAddress: VAULT_PROVIDER_ADDRESS,
       onPopSigned: undefined,
+      depositorPayoutBtcAddress:
+        "tb1p5cyxnuxmeuwuvkwfem96lqzszee2t74u5uh47arh5e7lh89rwcessuclg0",
       depositorLamportPkHash:
         "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" as `0x${string}`,
     };
@@ -460,8 +462,11 @@ describe("registerSplitPeginOnChain", () => {
         unsignedBtcTx: "unsigned-tx-hex",
         vaultProvider: VAULT_PROVIDER_ADDRESS,
         onPopSigned: undefined,
+        depositorPayoutBtcAddress:
+          "tb1p5cyxnuxmeuwuvkwfem96lqzszee2t74u5uh47arh5e7lh89rwcessuclg0",
         depositorLamportPkHash:
           "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        preSignedBtcPopSignature: undefined,
       });
     });
 
