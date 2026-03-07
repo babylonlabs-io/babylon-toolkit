@@ -52,6 +52,8 @@ interface PollingQueryData {
   errors: Map<string, Error>;
   /** Set of depositIds where vault provider needs the depositor's lamport key */
   needsLamportKey: Set<string>;
+  /** Set of depositIds where VP hasn't ingested the peg-in yet */
+  pendingIngestion: Set<string>;
 }
 
 interface UsePeginPollingQueryResult {
@@ -63,6 +65,8 @@ interface UsePeginPollingQueryResult {
   errors: Map<string, Error> | undefined;
   /** Set of depositIds needing lamport key submission */
   needsLamportKey: Set<string> | undefined;
+  /** Set of depositIds where VP hasn't ingested the peg-in yet */
+  pendingIngestion: Set<string> | undefined;
   /** Whether any polling is in progress */
   isLoading: boolean;
   /** Trigger manual refetch */
@@ -98,6 +102,7 @@ async function fetchFromProvider(
   depositorGraphs: Map<string, DepositorGraphTransactions>,
   errors: Map<string, Error>,
   needsLamportKey: Set<string>,
+  pendingIngestion: Set<string>,
 ): Promise<void> {
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
 
@@ -155,6 +160,7 @@ async function fetchFromProvider(
       if (error instanceof Error && error.message.includes("PegIn not found")) {
         errors.delete(depositId);
         needsLamportKey.delete(depositId);
+        pendingIngestion.add(depositId);
         continue;
       }
 
@@ -220,6 +226,7 @@ export function usePeginPollingQuery({
           depositorGraphs: new Map<string, DepositorGraphTransactions>(),
           errors: new Map<string, Error>(),
           needsLamportKey: new Set<string>(),
+          pendingIngestion: new Set<string>(),
         };
       }
 
@@ -233,6 +240,7 @@ export function usePeginPollingQuery({
       const depositorGraphs = new Map<string, DepositorGraphTransactions>();
       const errors = new Map<string, Error>();
       const needsLamportKey = new Set<string>();
+      const pendingIngestion = new Set<string>();
 
       // Fetch from each provider in parallel
       const fetchPromises = Array.from(depositsByProvider.entries()).map(
@@ -245,11 +253,18 @@ export function usePeginPollingQuery({
             depositorGraphs,
             errors,
             needsLamportKey,
+            pendingIngestion,
           ),
       );
 
       await Promise.all(fetchPromises);
-      return { transactions, depositorGraphs, errors, needsLamportKey };
+      return {
+        transactions,
+        depositorGraphs,
+        errors,
+        needsLamportKey,
+        pendingIngestion,
+      };
     },
     enabled: isEnabled,
     staleTime: 0,
@@ -295,6 +310,7 @@ export function usePeginPollingQuery({
     depositorGraphs: data?.depositorGraphs,
     errors: data?.errors,
     needsLamportKey: data?.needsLamportKey,
+    pendingIngestion: data?.pendingIngestion,
     isLoading,
     refetch,
     depositsToPoll,

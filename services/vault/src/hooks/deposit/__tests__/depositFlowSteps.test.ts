@@ -100,9 +100,8 @@ vi.mock("@/utils/btc", () => ({
 }));
 
 vi.mock("@/models/peginStateMachine", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("@/models/peginStateMachine")
-  >();
+  const actual =
+    await importOriginal<typeof import("@/models/peginStateMachine")>();
   return {
     ...actual,
     LocalStorageStatus: {

@@ -14,6 +14,7 @@
  */
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { Buffer } from "buffer";
 import { initEccLib, networks, payments } from "bitcoinjs-lib";
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";

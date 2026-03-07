@@ -27,7 +27,6 @@ import {
 } from "@/clients/eth-contract/protocol-params";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
-import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
 const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
 const STALE_TIME_MS = 5 * 60 * 1000;
@@ -42,8 +41,6 @@ interface ProtocolParamsContextValue {
   maxDeposit: bigint;
   /** CSV timelock in blocks for the PegIn output (from offchain params) */
   timelockPegin: number;
-  /** Value in satoshis for the depositor's claim output (from offchain params) */
-  depositorClaimValue: bigint;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
@@ -113,41 +110,6 @@ export function ProtocolParamsProvider({
     return ucData.byVersion.get(ucData.latestVersion) ?? [];
   }, [ucData]);
 
-  // Compute depositorClaimValue once config + UC data is available.
-  // Uses 0 local challengers since VKs are assigned later by the VP — this
-  // computes a minimum floor; the deposit hooks recompute with actual VK count.
-  const {
-    data: depositorClaimValue,
-    isLoading: claimValueLoading,
-    error: claimValueError,
-  } = useQuery({
-    queryKey: [
-      PROTOCOL_PARAMS_QUERY_KEY,
-      "depositorClaimValue",
-      configData?.offchainParams.babeInstancesToFinalize,
-      configData?.offchainParams.councilQuorum,
-      configData?.offchainParams.securityCouncilKeys.length,
-      String(configData?.offchainParams.feeRate),
-      latestUniversalChallengers.length,
-    ],
-    queryFn: async () => {
-      const offchain = configData!.offchainParams;
-      return computeDepositorClaimValue({
-        // No per-vault local challengers in current protocol — all challengers
-        // are either universal (UCs) or global vault keepers (VKs) registered on-chain.
-        numLocalChallengers: 0,
-        numUniversalChallengers: latestUniversalChallengers.length,
-        babeInstancesToFinalize: offchain.babeInstancesToFinalize,
-        councilQuorum: offchain.councilQuorum,
-        councilSize: offchain.securityCouncilKeys.length,
-        feeRate: offchain.feeRate,
-      });
-    },
-    enabled: !!configData && latestUniversalChallengers.length > 0,
-    staleTime: STALE_TIME_MS,
-    refetchOnWindowFocus: false,
-  });
-
   const getUniversalChallengersByVersion = useCallback(
     (version: number): UniversalChallenger[] => {
       if (!ucData) return [];
@@ -164,9 +126,8 @@ export function ProtocolParamsProvider({
     [offchainParamsData],
   );
 
-  const allLoading =
-    configLoading || ucLoading || offchainLoading || claimValueLoading;
-  const allError = configError || ucError || offchainError || claimValueError;
+  const allLoading = configLoading || ucLoading || offchainLoading;
+  const allError = configError || ucError || offchainError;
 
   if (allLoading) {
     return (
@@ -176,12 +137,7 @@ export function ProtocolParamsProvider({
     );
   }
 
-  if (
-    allError ||
-    !configData ||
-    configData.minimumPegInAmount === undefined ||
-    !depositorClaimValue
-  ) {
+  if (allError || !configData || configData.minimumPegInAmount === undefined) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
         <p className="text-error">Failed to load protocol parameters</p>
@@ -199,7 +155,6 @@ export function ProtocolParamsProvider({
     minDeposit: configData.minimumPegInAmount,
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
-    depositorClaimValue,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
     getOffchainParamsByVersion,

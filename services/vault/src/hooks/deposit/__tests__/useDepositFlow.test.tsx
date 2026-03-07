@@ -294,7 +294,6 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
     minDeposit: 10000n,
     maxDeposit: 100_000_000n,
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],
