@@ -22,6 +22,7 @@ import type { Deposit } from "../../../types/vault";
 import { formatTimeAgo } from "../../../utils/formatting";
 import { isVaultOwnedByWallet } from "../../../utils/vaultWarnings";
 import SimpleDeposit from "../../simple/SimpleDeposit";
+import { ArtifactDownloadModal } from "../ArtifactDownloadModal";
 import { BroadcastSuccessModal } from "../BroadcastSuccessModal";
 import { RedeemModals } from "../RedeemModals";
 
@@ -62,6 +63,11 @@ export function DepositOverview() {
     handleLamportKeyClick,
     handleLamportKeyClose,
     handleLamportKeySuccess,
+    artifactDownloadParams,
+    isArtifactDownloadOpen,
+    handleArtifactDownloadClick,
+    handleArtifactDownloadClose,
+    handleArtifactDownloadComplete,
     triggerRedeem,
     refetchActivities,
   } = state;
@@ -148,6 +154,7 @@ export function DepositOverview() {
           onBroadcastClick={handleBroadcastClick}
           onRedeemClick={triggerRedeem}
           onLamportKeyClick={handleLamportKeyClick}
+          onArtifactDownloadClick={handleArtifactDownloadClick}
         />
       ),
     },
@@ -173,6 +180,7 @@ export function DepositOverview() {
                 onBroadcastClick={handleBroadcastClick}
                 onRedeemClick={triggerRedeem}
                 onLamportKeyClick={handleLamportKeyClick}
+                onArtifactDownloadClick={handleArtifactDownloadClick}
               />
             ))}
           </div>
@@ -224,6 +232,18 @@ export function DepositOverview() {
             onResumeSuccess={handleLamportKeySuccess}
             activity={lamportKeyActivity}
             vaultProviders={vaultProviders}
+          />
+        )}
+
+        {/* Artifact Download Modal (for past deposits) */}
+        {isArtifactDownloadOpen && artifactDownloadParams && (
+          <ArtifactDownloadModal
+            open
+            onClose={handleArtifactDownloadClose}
+            onComplete={handleArtifactDownloadComplete}
+            providerUrl={artifactDownloadParams.providerUrl}
+            peginTxid={artifactDownloadParams.peginTxid}
+            depositorPk={artifactDownloadParams.depositorPk}
           />
         )}
 
