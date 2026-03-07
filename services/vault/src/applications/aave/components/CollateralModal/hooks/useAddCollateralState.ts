@@ -11,6 +11,7 @@ import {
   amountsToSliderSteps,
   btcToSatoshis,
   calculateSubsetSums,
+  findNearestPossibleSum,
   findVaultIndicesForAmount,
 } from "@/utils/subsetSum";
 
@@ -78,29 +79,40 @@ export function useAddCollateralState({
     return calculateTotalVaultAmount(availableVaults);
   }, [availableVaults]);
 
+  const possibleSumsSatoshis = useMemo(() => {
+    if (availableVaults.length === 0) return [];
+    return calculateSubsetSums(vaultAmountsSatoshis);
+  }, [availableVaults.length, vaultAmountsSatoshis]);
+
   const collateralSteps = useMemo(() => {
     if (availableVaults.length === 0) {
       return [{ value: 0 }];
     }
-
-    const possibleSumsSatoshis = calculateSubsetSums(vaultAmountsSatoshis);
     return [{ value: 0 }, ...amountsToSliderSteps(possibleSumsSatoshis)];
-  }, [availableVaults.length, vaultAmountsSatoshis]);
+  }, [availableVaults.length, possibleSumsSatoshis]);
 
-  // Select vaults based on the collateral amount using exact matching
   const selectedVaultIds = useMemo(() => {
     if (collateralAmount <= 0) return [];
 
     const targetSatoshis = btcToSatoshis(collateralAmount);
+    const nearestSatoshis = findNearestPossibleSum(
+      targetSatoshis,
+      possibleSumsSatoshis,
+    );
     const vaultIndices = findVaultIndicesForAmount(
       vaultAmountsSatoshis,
-      targetSatoshis,
+      nearestSatoshis,
     );
 
     if (vaultIndices === null) return [];
 
     return vaultIndices.map((index) => availableVaults[index].id);
-  }, [availableVaults, collateralAmount, vaultAmountsSatoshis]);
+  }, [
+    availableVaults,
+    collateralAmount,
+    vaultAmountsSatoshis,
+    possibleSumsSatoshis,
+  ]);
 
   // Calculate collateral value in USD (0 if price not loaded)
   const collateralValueUsd = useMemo(() => {

@@ -77,6 +77,32 @@ export function amountsToSliderSteps(
 }
 
 /**
+ * From a list of possible sums (e.g. from calculateSubsetSums), return the one closest to the target.
+ * Used to snap a float-derived target (e.g. btcToSatoshis(0.25)) to an actual achievable sum.
+ *
+ * @param targetSatoshis - Target amount in satoshis (may be from rounded float)
+ * @param possibleSumsSatoshis - Achievable sums in satoshis (e.g. subset sums of vault amounts)
+ * @returns The possible sum closest to target, or target if list is empty
+ */
+export function findNearestPossibleSum(
+  targetSatoshis: bigint,
+  possibleSumsSatoshis: bigint[],
+): bigint {
+  if (possibleSumsSatoshis.length === 0) return targetSatoshis;
+  let nearest = possibleSumsSatoshis[0];
+  let minDiff = targetSatoshis >= nearest ? targetSatoshis - nearest : nearest - targetSatoshis;
+  for (let i = 1; i < possibleSumsSatoshis.length; i++) {
+    const sum = possibleSumsSatoshis[i];
+    const diff = targetSatoshis >= sum ? targetSatoshis - sum : sum - targetSatoshis;
+    if (diff < minDiff) {
+      minDiff = diff;
+      nearest = sum;
+    }
+  }
+  return nearest;
+}
+
+/**
  * Find vaults (by index) that sum to the target amount in satoshis
  * Uses a greedy algorithm to select vaults
  *
