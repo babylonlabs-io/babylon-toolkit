@@ -77,34 +77,9 @@ export function amountsToSliderSteps(
 }
 
 /**
- * From a list of possible sums (e.g. from calculateSubsetSums), return the one closest to the target.
- * Used to snap a float-derived target (e.g. btcToSatoshis(0.25)) to an actual achievable sum.
- *
- * @param targetSatoshis - Target amount in satoshis (may be from rounded float)
- * @param possibleSumsSatoshis - Achievable sums in satoshis (e.g. subset sums of vault amounts)
- * @returns The possible sum closest to target, or target if list is empty
- */
-export function findNearestPossibleSum(
-  targetSatoshis: bigint,
-  possibleSumsSatoshis: bigint[],
-): bigint {
-  if (possibleSumsSatoshis.length === 0) return targetSatoshis;
-  let nearest = possibleSumsSatoshis[0];
-  let minDiff = targetSatoshis >= nearest ? targetSatoshis - nearest : nearest - targetSatoshis;
-  for (let i = 1; i < possibleSumsSatoshis.length; i++) {
-    const sum = possibleSumsSatoshis[i];
-    const diff = targetSatoshis >= sum ? targetSatoshis - sum : sum - targetSatoshis;
-    if (diff < minDiff) {
-      minDiff = diff;
-      nearest = sum;
-    }
-  }
-  return nearest;
-}
-
-/**
- * Find vaults (by index) that sum to the target amount in satoshis
- * Uses a greedy algorithm to select vaults
+ * Find vaults (by index) that sum exactly to the target amount in satoshis.
+ * Uses recursive backtracking so it always finds a valid combination
+ * when one exists (unlike a greedy approach which can miss solutions).
  *
  * @param vaultAmounts - Array of vault amounts in satoshis
  * @param targetSatoshis - Target amount in satoshis
@@ -115,33 +90,30 @@ export function findVaultIndicesForAmount(
   targetSatoshis: bigint,
 ): number[] | null {
   if (targetSatoshis === 0n) {
-    return []; // No vaults needed for 0 collateral
+    return [];
   }
 
-  // Create array of [index, amount] pairs
-  const vaults = vaultAmounts.map((amount, index) => ({ index, amount }));
-
-  // Sort by amount descending (greedy approach: use larger vaults first)
-  vaults.sort((a, b) =>
-    a.amount > b.amount ? -1 : a.amount < b.amount ? 1 : 0,
-  );
-
-  const selected: number[] = [];
-  let remaining = targetSatoshis;
-
-  for (const vault of vaults) {
-    if (remaining === 0n) break;
-
-    if (vault.amount <= remaining) {
-      selected.push(vault.index);
-      remaining -= vault.amount;
+  function backtrack(
+    startIndex: number,
+    remaining: bigint,
+    selected: number[],
+  ): number[] | null {
+    if (remaining === 0n) {
+      return [...selected];
     }
+
+    for (let i = startIndex; i < vaultAmounts.length; i++) {
+      const amount = vaultAmounts[i];
+      if (amount > remaining) continue;
+
+      selected.push(i);
+      const result = backtrack(i + 1, remaining - amount, selected);
+      if (result !== null) return result;
+      selected.pop();
+    }
+
+    return null;
   }
 
-  // Check if we found an exact match
-  if (remaining === 0n) {
-    return selected.sort((a, b) => a - b); // Return indices in original order
-  }
-
-  return null; // No exact combination found
+  return backtrack(0, targetSatoshis, []);
 }
