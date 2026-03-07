@@ -77,13 +77,16 @@ export function amountsToSliderSteps(
 }
 
 /**
- * Find vaults (by index) that sum exactly to the target amount in satoshis.
- * Uses recursive backtracking so it always finds a valid combination
- * when one exists (unlike a greedy approach which can miss solutions).
+ * Find vault indices that sum exactly to the target amount in satoshis.
  *
- * @param vaultAmounts - Array of vault amounts in satoshis
+ * Uses recursive backtracking: at each step we try including the current vault
+ * (if it fits in the remaining amount) and recurse, then backtrack and try
+ * skipping it. The first valid combination found is returned. This guarantees
+ * we find a solution whenever one exists.
+ *
+ * @param vaultAmounts - Array of vault amounts in satoshis (order preserved for indices)
  * @param targetSatoshis - Target amount in satoshis
- * @returns Array of vault indices that sum to the target amount, or null if not possible
+ * @returns Indices of vaults that sum to the target, or null if no such combination exists
  */
 export function findVaultIndicesForAmount(
   vaultAmounts: bigint[],

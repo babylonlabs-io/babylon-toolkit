@@ -1,11 +1,5 @@
 /**
  * Tests for subset sum utilities used in collateral vault selection.
- *
- * findVaultIndicesForAmount was previously implemented with a greedy algorithm
- * that picked the largest vault first; for target 0.25 BTC with vaults
- * [0.1, 0.15, 0.2] it would pick 0.2, fail to fill the remainder, and return null.
- * The regression test "finds 0.1 + 0.15 for 0.25 BTC (bug: greedy would fail)"
- * would not have passed before the backtracking fix.
  */
 
 import { describe, expect, it } from "vitest";
@@ -43,7 +37,7 @@ describe("subsetSum", () => {
       ]);
     });
 
-    it("finds 0.1 + 0.15 for 0.25 BTC (bug: greedy would fail)", () => {
+    it("finds 0.1 + 0.15 for 0.25 BTC (regression: Deposit did nothing)", () => {
       const result = findVaultIndicesForAmount(
         vaults_01_015_02,
         sats(0.25),
