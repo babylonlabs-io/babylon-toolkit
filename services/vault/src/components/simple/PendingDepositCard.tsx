@@ -83,8 +83,6 @@ export function PendingDepositCard({
     </Chip>
   );
 
-  const rightContent = statusPill;
-
   return (
     <Card
       variant="filled"
@@ -105,10 +103,10 @@ export function PendingDepositCard({
 
         {peginState.message ? (
           <Hint tooltip={peginState.message} attachToChildren>
-            {rightContent}
+            {statusPill}
           </Hint>
         ) : (
-          rightContent
+          statusPill
         )}
       </div>
     </Card>

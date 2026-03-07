@@ -246,7 +246,7 @@ export function useMnemonicFlow({
     }));
   }, []);
 
-  /** Reset all state back to the initial GENERATE step. */
+  /** Reset all state back to the initial LOADING step. */
   const reset = useCallback(() => {
     setState({
       step: MnemonicStep.LOADING,
