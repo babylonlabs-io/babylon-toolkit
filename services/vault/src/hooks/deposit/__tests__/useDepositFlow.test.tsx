@@ -25,6 +25,11 @@ vi.mock("@/config", () => ({
   },
 }));
 
+// Mock WASM module
+vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
+  computeMinClaimValue: vi.fn().mockResolvedValue(35000n),
+}));
+
 // Mock dependencies
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({
@@ -279,7 +284,12 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
       pegInProofTimeout: 100800n,
       pegInConfirmationDepth: 30n,
       timelockPegin: 100,
-      depositorClaimValue: 35000n,
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
     },
     minDeposit: 10000n,
     maxDeposit: 100_000_000n,

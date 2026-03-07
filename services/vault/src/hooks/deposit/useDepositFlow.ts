@@ -14,6 +14,7 @@
  * 7. Sign & Broadcast BTC Transaction
  */
 
+import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
@@ -151,10 +152,10 @@ export function useDepositFlow(
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
   const {
+    config,
     minDeposit,
     maxDeposit,
     timelockPegin,
-    depositorClaimValue,
     latestUniversalChallengers,
     getOffchainParamsByVersion,
   } = useProtocolParamsContext();
@@ -199,6 +200,18 @@ export function useDepositFlow(
           vaults: vaults ?? [],
           pendingPegins,
         });
+
+        // Compute depositorClaimValue with actual VK count. The context value
+        // uses 0 local challengers (floor for UI estimation); the VP validates
+        // with vault_keepers.len(), so we must match that here.
+        const depositorClaimValue = await computeMinClaimValue(
+          vaultKeeperBtcPubkeys.length,
+          universalChallengerBtcPubkeys.length,
+          config.offchainParams.babeInstancesToFinalize,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        );
 
         // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
         const prepared = await preparePegin({
@@ -413,7 +426,7 @@ export function useDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
-      depositorClaimValue,
+      config,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

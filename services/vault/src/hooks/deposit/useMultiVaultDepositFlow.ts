@@ -17,6 +17,7 @@
  * 6-8. Background - sign payouts, verify, broadcast to Bitcoin
  */
 
+import { computeMinClaimValue } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { pushTx } from "@babylonlabs-io/ts-sdk";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -308,7 +309,7 @@ export function useMultiVaultDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { timelockPegin, depositorClaimValue, getOffchainParamsByVersion } =
+  const { config, timelockPegin, getOffchainParamsByVersion } =
     useProtocolParamsContext();
 
   // ============================================================================
@@ -359,6 +360,18 @@ export function useMultiVaultDepositFlow(
 
         // Generate batch ID for tracking
         const batchId = uuidv4();
+
+        // Compute depositorClaimValue with actual VK count. The context value
+        // uses 0 local challengers (floor for UI estimation); the VP validates
+        // with vault_keepers.len(), so we must match that here.
+        const depositorClaimValue = await computeMinClaimValue(
+          vaultKeeperBtcPubkeys.length,
+          universalChallengerBtcPubkeys.length,
+          config.offchainParams.babeInstancesToFinalize,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        );
 
         // ========================================================================
         // Step 1: Plan UTXO Allocation (use precomputed plan if available)
@@ -902,7 +915,7 @@ export function useMultiVaultDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
-      depositorClaimValue,
+      config,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,
