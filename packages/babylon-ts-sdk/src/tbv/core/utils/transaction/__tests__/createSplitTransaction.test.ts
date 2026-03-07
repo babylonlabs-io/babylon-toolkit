@@ -36,8 +36,10 @@ describe("createSplitTransaction", () => {
   };
 
   // P2TR (Taproot) testnet addresses, matching the vault system's address type
-  const testnetAddress1 = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
-  const testnetAddress2 = "tb1pccz8l9zpa47k6vz9gphftsrumpw80rjt3nhnefat4symjhrsnmjs903hkq";
+  const testnetAddress1 =
+    "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+  const testnetAddress2 =
+    "tb1pccz8l9zpa47k6vz9gphftsrumpw80rjt3nhnefat4symjhrsnmjs903hkq";
 
   describe("Basic Functionality", () => {
     it("should create split transaction with 2 outputs", () => {
@@ -197,7 +199,8 @@ describe("createSplitTransaction", () => {
     });
 
     it("should work with bitcoin (mainnet) network", () => {
-      const mainnetAddress = "bc1plycg5qvjtrp3qjf5f7zl382j9x6nrjz9sdhenvyxq8c3808qxmusegupjc";
+      const mainnetAddress =
+        "bc1plycg5qvjtrp3qjf5f7zl382j9x6nrjz9sdhenvyxq8c3808qxmusegupjc";
       const outputs: SplitOutput[] = [
         { amount: 50000n, address: mainnetAddress },
       ];
@@ -234,9 +237,7 @@ describe("createSplitTransaction", () => {
     });
 
     it("should throw error for zero output amount", () => {
-      const outputs: SplitOutput[] = [
-        { amount: 0n, address: testnetAddress1 },
-      ];
+      const outputs: SplitOutput[] = [{ amount: 0n, address: testnetAddress1 }];
 
       expect(() =>
         createSplitTransaction([mockUTXO1], outputs, "testnet"),
@@ -250,7 +251,9 @@ describe("createSplitTransaction", () => {
 
       expect(() =>
         createSplitTransaction([mockUTXO1], outputs, "testnet"),
-      ).toThrow(/Invalid output amount.*-1000 satoshis.*must be greater than zero/);
+      ).toThrow(
+        /Invalid output amount.*-1000 satoshis.*must be greater than zero/,
+      );
     });
 
     it("should throw error for invalid address", () => {
@@ -280,11 +283,7 @@ describe("createSplitTransaction", () => {
       ];
 
       expect(() =>
-        createSplitTransaction(
-          [mockUTXO1],
-          outputs,
-          "unknown" as any,
-        ),
+        createSplitTransaction([mockUTXO1], outputs, "unknown" as any),
       ).toThrow("Unknown network");
     });
   });
@@ -424,7 +423,8 @@ describe("createSplitTransactionPsbt", () => {
       "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
   };
 
-  const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+  const testnetAddress =
+    "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
 
   // Mock x-only public key (32 bytes)
   const mockPubkey = Buffer.from(
@@ -714,11 +714,7 @@ describe("createSplitTransactionPsbt", () => {
       };
 
       expect(() =>
-        createSplitTransactionPsbt(
-          splitResult.txHex,
-          [p2wpkhUTXO],
-          mockPubkey,
-        ),
+        createSplitTransactionPsbt(splitResult.txHex, [p2wpkhUTXO], mockPubkey),
       ).toThrow(/must be P2TR/);
     });
 
@@ -768,27 +764,25 @@ describe("createSplitTransactionPsbt", () => {
       // Test with 31-byte key (too short)
       const invalidKey31 = Buffer.alloc(31, 0xaa);
       expect(() =>
-        createSplitTransactionPsbt(
-          splitResult.txHex,
-          [mockUTXO],
-          invalidKey31,
-        ),
+        createSplitTransactionPsbt(splitResult.txHex, [mockUTXO], invalidKey31),
       ).toThrow(/Invalid publicKeyNoCoord.*expected 32-byte/);
 
       // Test with 33-byte key (too long)
       const invalidKey33 = Buffer.alloc(33, 0xaa);
       expect(() =>
-        createSplitTransactionPsbt(
-          splitResult.txHex,
-          [mockUTXO],
-          invalidKey33,
-        ),
+        createSplitTransactionPsbt(splitResult.txHex, [mockUTXO], invalidKey33),
       ).toThrow(/Invalid publicKeyNoCoord.*expected 32-byte/);
     });
 
     it("should throw error for UTXO outpoint mismatch", () => {
-      const outputs: SplitOutput[] = [{ amount: 50000n, address: testnetAddress }];
-      const splitResult = createSplitTransaction([mockUTXO], outputs, "testnet");
+      const outputs: SplitOutput[] = [
+        { amount: 50000n, address: testnetAddress },
+      ];
+      const splitResult = createSplitTransaction(
+        [mockUTXO],
+        outputs,
+        "testnet",
+      );
 
       // Create a UTXO with different outpoint
       const wrongUTXO: UTXO = {
@@ -800,7 +794,9 @@ describe("createSplitTransactionPsbt", () => {
 
       expect(() =>
         createSplitTransactionPsbt(splitResult.txHex, [wrongUTXO], mockPubkey),
-      ).toThrow(/Input 0 outpoint mismatch.*transaction expects.*but UTXO.*was provided/);
+      ).toThrow(
+        /Input 0 outpoint mismatch.*transaction expects.*but UTXO.*was provided/,
+      );
     });
   });
 
@@ -876,7 +872,8 @@ describe("Integration Tests", () => {
         "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     };
 
-    const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+    const testnetAddress =
+      "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
     const outputs: SplitOutput[] = [
       { amount: 50000n, address: testnetAddress },
       { amount: 45000n, address: testnetAddress },
@@ -905,7 +902,8 @@ describe("Integration Tests", () => {
         "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     };
 
-    const testnetAddress = "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
+    const testnetAddress =
+      "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq";
     const outputs: SplitOutput[] = [
       { amount: 50000n, address: testnetAddress },
       { amount: 45000n, address: testnetAddress },

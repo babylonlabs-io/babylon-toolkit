@@ -86,4 +86,3 @@ export function getScriptType(scriptPubKey: Buffer): BitcoinScriptType {
 
   return BitcoinScriptType.UNKNOWN;
 }
-

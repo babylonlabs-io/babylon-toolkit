@@ -13,7 +13,6 @@ export {
   CONTRACT_ERRORS,
   extractErrorData,
   getContractErrorMessage,
-  isKnownContractError,
   handleContractError,
+  isKnownContractError,
 } from "./errors";
-

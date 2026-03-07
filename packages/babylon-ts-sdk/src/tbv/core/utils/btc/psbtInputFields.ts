@@ -100,4 +100,3 @@ export function getPsbtInputFields(
       throw new Error(`Unsupported script type: ${type}`);
   }
 }
-

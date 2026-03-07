@@ -102,4 +102,3 @@ export interface NetworkFees {
   /** Minimum network fee */
   minimumFee: number;
 }
-

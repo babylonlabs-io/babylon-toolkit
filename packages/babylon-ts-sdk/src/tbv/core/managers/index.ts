@@ -85,10 +85,10 @@ export type {
 } from "./PayoutManager";
 
 // Re-export dependent types for complete API documentation
-export type { UTXO } from "../utils/utxo/selectUtxos";
 export type {
   BitcoinNetwork,
   BitcoinWallet,
   SignInputOptions,
   SignPsbtOptions,
 } from "../../../shared/wallets/interfaces/BitcoinWallet";
+export type { UTXO } from "../utils/utxo/selectUtxos";

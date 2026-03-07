@@ -349,8 +349,11 @@ export class PeginManager {
         : depositorBtcPubkeyRaw; // Already x-only
 
     // Strip "0x" prefix from BTC public keys if present
-    const vaultProviderBtcPubkey = stripHexPrefix(params.vaultProviderBtcPubkey);
-    const vaultKeeperBtcPubkeys = params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
+    const vaultProviderBtcPubkey = stripHexPrefix(
+      params.vaultProviderBtcPubkey,
+    );
+    const vaultKeeperBtcPubkeys =
+      params.vaultKeeperBtcPubkeys.map(stripHexPrefix);
     const universalChallengerBtcPubkeys =
       params.universalChallengerBtcPubkeys.map(stripHexPrefix);
 
@@ -708,11 +711,7 @@ export class PeginManager {
       address = await this.config.btcWallet.getAddress();
       const walletPubkey = await this.config.btcWallet.getPublicKeyHex();
       if (
-        !isAddressFromPublicKey(
-          address,
-          walletPubkey,
-          this.config.btcNetwork,
-        )
+        !isAddressFromPublicKey(address, walletPubkey, this.config.btcNetwork)
       ) {
         throw new Error(
           "The BTC address from your wallet does not match the wallet's public key. " +

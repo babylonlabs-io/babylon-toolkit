@@ -6,10 +6,9 @@
  * @module utils/btc
  */
 
-export { BitcoinScriptType, getScriptType } from "./scriptType";
 export {
   getPsbtInputFields,
   type PsbtInputFields,
   type UtxoForPsbt,
 } from "./psbtInputFields";
-
+export { BitcoinScriptType, getScriptType } from "./scriptType";

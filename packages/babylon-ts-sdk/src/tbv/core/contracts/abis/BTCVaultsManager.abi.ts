@@ -151,18 +151,46 @@ export const BTCVaultsManagerABI = [
         internalType: "struct IBTCVaultsManager.BTCVault",
         components: [
           { name: "depositor", type: "address", internalType: "address" },
-          { name: "depositorBtcPubKey", type: "bytes32", internalType: "bytes32" },
+          {
+            name: "depositorBtcPubKey",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
           { name: "unsignedPegInTx", type: "bytes", internalType: "bytes" },
           { name: "amount", type: "uint256", internalType: "uint256" },
           { name: "vaultProvider", type: "address", internalType: "address" },
-          { name: "status", type: "uint8", internalType: "enum IBTCVaultsManager.BTCVaultStatus" },
-          { name: "applicationController", type: "address", internalType: "address" },
-          { name: "universalChallengersVersion", type: "uint16", internalType: "uint16" },
-          { name: "appVaultKeepersVersion", type: "uint16", internalType: "uint16" },
-          { name: "offchainParamsVersion", type: "uint16", internalType: "uint16" },
+          {
+            name: "status",
+            type: "uint8",
+            internalType: "enum IBTCVaultsManager.BTCVaultStatus",
+          },
+          {
+            name: "applicationController",
+            type: "address",
+            internalType: "address",
+          },
+          {
+            name: "universalChallengersVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "appVaultKeepersVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
+          {
+            name: "offchainParamsVersion",
+            type: "uint16",
+            internalType: "uint16",
+          },
           { name: "createdAt", type: "uint256", internalType: "uint256" },
           { name: "verifiedAt", type: "uint256", internalType: "uint256" },
-          { name: "depositorLamportPkHash", type: "bytes32", internalType: "bytes32" },
+          {
+            name: "depositorLamportPkHash",
+            type: "bytes32",
+            internalType: "bytes32",
+          },
         ],
       },
     ],
@@ -185,4 +213,3 @@ export const BTCVaultsManagerABI = [
     ],
   },
 ] as const;
-

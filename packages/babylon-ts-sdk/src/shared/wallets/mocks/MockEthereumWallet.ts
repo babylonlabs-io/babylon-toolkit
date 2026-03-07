@@ -46,7 +46,10 @@ export class MockEthereumWallet {
     this.sendTransaction = this.sendTransaction.bind(this);
   }
 
-  async signMessage(args: { message: string; account?: Address }): Promise<Hex> {
+  async signMessage(args: {
+    message: string;
+    account?: Address;
+  }): Promise<Hex> {
     const message = args.message;
     const account = args.account || this.account.address;
 

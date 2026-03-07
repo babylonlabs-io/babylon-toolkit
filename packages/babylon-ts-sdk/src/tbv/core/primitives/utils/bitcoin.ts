@@ -14,9 +14,11 @@
  */
 
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import { initEccLib, networks, payments } from "bitcoinjs-lib";
+import { initEccLib, payments } from "bitcoinjs-lib";
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
+import { getNetwork } from "../../utils/transaction/fundPeginTransaction";
 
 /**
  * Strip "0x" prefix from hex string if present.
@@ -178,8 +180,8 @@ export function validateWalletPubkey(
   if (walletPubkeyXOnly.toLowerCase() !== depositorPubkey.toLowerCase()) {
     throw new Error(
       `Wallet public key does not match vault depositor. ` +
-      `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
-      `Please connect the wallet that was used to create this vault.`
+        `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
+        `Please connect the wallet that was used to create this vault.`,
     );
   }
 
@@ -199,20 +201,6 @@ function ensureEcc(): void {
   }
 }
 
-function getBitcoinjsNetwork(network: Network): networks.Network {
-  switch (network) {
-    case "bitcoin":
-      return networks.bitcoin;
-    case "testnet":
-    case "signet":
-      return networks.testnet;
-    case "regtest":
-      return networks.regtest;
-    default:
-      throw new Error(`Unknown network: ${network}`);
-  }
-}
-
 /**
  * Derive a Taproot (P2TR) address from a public key.
  *
@@ -228,7 +216,7 @@ export function deriveTaprootAddress(
   const xOnly = hexToUint8Array(processPublicKeyToXOnly(publicKeyHex));
   const { address } = payments.p2tr({
     internalPubkey: Buffer.from(xOnly),
-    network: getBitcoinjsNetwork(network),
+    network: getNetwork(network),
   });
   if (!address) {
     throw new Error("Failed to derive taproot address from public key");
@@ -256,12 +244,10 @@ export function deriveNativeSegwitAddress(
   }
   const { address } = payments.p2wpkh({
     pubkey: Buffer.from(hexToUint8Array(cleanHex)),
-    network: getBitcoinjsNetwork(network),
+    network: getNetwork(network),
   });
   if (!address) {
-    throw new Error(
-      "Failed to derive native segwit address from public key",
-    );
+    throw new Error("Failed to derive native segwit address from public key");
   }
   return address;
 }

@@ -172,8 +172,7 @@ describe("PayoutManager", () => {
 
           return psbtsHexes.map((psbtHex, index) => {
             const psbt = Psbt.fromHex(psbtHex);
-            const signature =
-              index === 0 ? payoutSignature1 : payoutSignature2;
+            const signature = index === 0 ? payoutSignature1 : payoutSignature2;
 
             psbt.data.inputs[0].tapScriptSig = [
               {
@@ -368,9 +367,7 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
           },
         ]),
-      ).rejects.toThrow(
-        "Expected 2 signed PSBTs but received 1",
-      );
+      ).rejects.toThrow("Expected 2 signed PSBTs but received 1");
     });
 
     it("should throw error when wallet returns more PSBTs than expected", async () => {
@@ -436,9 +433,7 @@ describe("PayoutManager", () => {
             timelockPegin: 100,
           },
         ]),
-      ).rejects.toThrow(
-        "Expected 2 signed PSBTs but received 3",
-      );
+      ).rejects.toThrow("Expected 2 signed PSBTs but received 3");
     });
   });
 });

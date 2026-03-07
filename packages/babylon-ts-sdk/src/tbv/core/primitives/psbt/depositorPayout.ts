@@ -19,13 +19,10 @@ import {
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
-import { Buffer } from "buffer";
 import { initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
-import {
-  hexToUint8Array,
-  stripHexPrefix,
-} from "../utils/bitcoin";
+import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
 
 // Initialize ECC library for bitcoinjs-lib
 initEccLib(ecc);
@@ -81,7 +78,9 @@ export async function buildDepositorPayoutPsbt(
       index: input.index,
       sequence: input.sequence,
       witnessUtxo: {
-        script: Buffer.from(hexToUint8Array(stripHexPrefix(prevout.script_pubkey))),
+        script: Buffer.from(
+          hexToUint8Array(stripHexPrefix(prevout.script_pubkey)),
+        ),
         value: prevout.value,
       },
     };

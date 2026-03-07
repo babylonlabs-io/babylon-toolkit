@@ -5,8 +5,8 @@
  * using primitives, utilities, and mock wallets.
  */
 
-import { beforeAll, describe, expect, it, vi } from "vitest";
 import type { Address, Chain } from "viem";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   MockBitcoinWallet,
@@ -29,11 +29,13 @@ vi.mock("viem", async (importOriginal) => {
     ...actual,
     createPublicClient: vi.fn(() => ({
       estimateGas: vi.fn().mockResolvedValue(100000n),
-      readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
-        if (functionName === "getPegInFee") return Promise.resolve(0n);
-        // getBTCVault — return vault with zero depositor (vault doesn't exist)
-        return Promise.resolve({ depositor: actual.zeroAddress });
-      }),
+      readContract: vi
+        .fn()
+        .mockImplementation(({ functionName }: { functionName: string }) => {
+          if (functionName === "getPegInFee") return Promise.resolve(0n);
+          // getBTCVault — return vault with zero depositor (vault doesn't exist)
+          return Promise.resolve({ depositor: actual.zeroAddress });
+        }),
     })),
   };
 });
@@ -50,8 +52,7 @@ const TEST_CHAIN: Chain = {
 
 // Test constants - use valid secp256k1 x-only public keys
 const TEST_KEYS = {
-  DEPOSITOR:
-    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+  DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   VAULT_PROVIDER:
     "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   VAULT_KEEPER_1:
@@ -63,8 +64,7 @@ const TEST_KEYS = {
 } as const;
 
 // Mock depositor Lamport public key hash (bytes32)
-const MOCK_LAMPORT_PK_HASH =
-  `0x${"ab".repeat(32)}` as `0x${string}`;
+const MOCK_LAMPORT_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 
 const TEST_AMOUNTS = {
   PEGIN: 90_000n,
@@ -80,21 +80,24 @@ const TEST_UTXOS: UTXO[] = [
     vout: 0,
     value: 100_000,
     scriptPubKey:
-      "5120" + "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "5120" +
+      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000002",
     vout: 0,
     value: 200_000,
     scriptPubKey:
-      "5120" + "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "5120" +
+      "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
   },
   {
     txid: "0000000000000000000000000000000000000000000000000000000000000003",
     vout: 1,
     value: 50_000,
     scriptPubKey:
-      "5120" + "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
+      "5120" +
+      "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
   },
 ];
 
@@ -149,7 +152,7 @@ describe("PeginManager", () => {
           btcWallet,
           ethWallet: ethWallet as any,
           ethChain: TEST_CHAIN,
-        vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
+          vaultContracts: { btcVaultsManager: TEST_CONTRACT_ADDRESS },
           mempoolApiUrl: MEMPOOL_API_URLS.signet,
         });
 
@@ -274,7 +277,10 @@ describe("PeginManager", () => {
         amount: TEST_AMOUNTS.PEGIN,
         vaultProvider: TEST_CONTRACT_ADDRESS,
         vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        vaultKeeperBtcPubkeys: [
+          TEST_KEYS.VAULT_KEEPER_1,
+          TEST_KEYS.VAULT_KEEPER_2,
+        ],
         universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
         depositorClaimValue: 35000n,
@@ -353,7 +359,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
           depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
@@ -384,7 +390,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
           depositorClaimValue: 35000n,
           availableUTXOs: [], // Empty UTXOs
@@ -416,7 +422,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           vaultProviderBtcPubkey: "invalid-pubkey",
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
           depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
@@ -522,7 +528,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           vaultProviderBtcPubkey: TEST_KEYS.VAULT_PROVIDER,
           vaultKeeperBtcPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
-        universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
+          universalChallengerBtcPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
           timelockPegin: 100,
           depositorClaimValue: 35000n,
           availableUTXOs: TEST_UTXOS,
@@ -709,7 +715,6 @@ describe("PeginManager", () => {
         }),
       ).rejects.toThrow();
     });
-
   });
 
   describe("Deterministic output", () => {
@@ -798,6 +803,3 @@ describe("PeginManager", () => {
     });
   });
 });
-
-
-

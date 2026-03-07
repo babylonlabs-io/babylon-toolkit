@@ -87,7 +87,10 @@ export function parseUnfundedWasmTransaction(
   }
 
   // Parse version (first 4 bytes, little-endian)
-  const version = Buffer.from(unfundedTxHex.substring(0, 8), "hex").readUInt32LE(0);
+  const version = Buffer.from(
+    unfundedTxHex.substring(0, 8),
+    "hex",
+  ).readUInt32LE(0);
 
   // Parse locktime (last 4 bytes, little-endian)
   const locktime = Buffer.from(

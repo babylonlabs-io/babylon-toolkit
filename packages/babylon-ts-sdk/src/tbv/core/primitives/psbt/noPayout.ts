@@ -14,13 +14,10 @@ import {
   getAssertNoPayoutScriptInfo,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
-import {
-  hexToUint8Array,
-  stripHexPrefix,
-} from "../utils/bitcoin";
+import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
 
 /**
  * Parameters for building a NoPayout PSBT
@@ -79,7 +76,9 @@ export async function buildNoPayoutPsbt(
       index: input.index,
       sequence: input.sequence,
       witnessUtxo: {
-        script: Buffer.from(hexToUint8Array(stripHexPrefix(prevout.script_pubkey))),
+        script: Buffer.from(
+          hexToUint8Array(stripHexPrefix(prevout.script_pubkey)),
+        ),
         value: prevout.value,
       },
     };

@@ -242,9 +242,7 @@ export class PayoutManager {
    * @throws Error if wallet doesn't support batch signing
    * @throws Error if any signing operation fails
    */
-  async signPayoutTransactionsBatch(
-    transactions: SignPayoutParams[],
-  ): Promise<
+  async signPayoutTransactionsBatch(transactions: SignPayoutParams[]): Promise<
     Array<{
       payoutSignature: string;
       depositorBtcPubkey: string;

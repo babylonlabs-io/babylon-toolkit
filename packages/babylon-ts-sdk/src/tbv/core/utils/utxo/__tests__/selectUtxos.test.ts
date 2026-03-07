@@ -68,9 +68,7 @@ describe("selectUtxosForPegin", () => {
     expect(result.changeAmount).toBeGreaterThan(546n);
 
     // Total should equal: peginAmount + fee + change
-    expect(result.totalValue).toBe(
-      50000n + result.fee + result.changeAmount,
-    );
+    expect(result.totalValue).toBe(50000n + result.fee + result.changeAmount);
   });
 
   it("should throw error when no UTXOs available", () => {
@@ -121,9 +119,7 @@ describe("selectUtxosForPegin", () => {
     expect(result.selectedUTXOs.length).toBeGreaterThanOrEqual(2);
 
     // Total should cover everything
-    expect(result.totalValue).toBeGreaterThanOrEqual(
-      150000n + result.fee,
-    );
+    expect(result.totalValue).toBeGreaterThanOrEqual(150000n + result.fee);
   });
 });
 

@@ -10,7 +10,7 @@
  * @module utils
  */
 
-export * from "./fee";
-export * from "./utxo";
-export * from "./transaction";
 export * from "./btc";
+export * from "./fee";
+export * from "./transaction";
+export * from "./utxo";

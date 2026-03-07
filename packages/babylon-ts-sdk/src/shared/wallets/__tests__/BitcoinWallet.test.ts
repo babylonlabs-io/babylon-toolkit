@@ -114,7 +114,11 @@ describe("BitcoinWallet Interface", () => {
       const network = await wallet.getNetwork();
 
       expect(network).toBeDefined();
-      expect([BitcoinNetworks.MAINNET, BitcoinNetworks.TESTNET, BitcoinNetworks.SIGNET]).toContain(network);
+      expect([
+        BitcoinNetworks.MAINNET,
+        BitcoinNetworks.TESTNET,
+        BitcoinNetworks.SIGNET,
+      ]).toContain(network);
     });
 
     it("should return signet by default", async () => {
@@ -124,7 +128,9 @@ describe("BitcoinWallet Interface", () => {
     });
 
     it("should return configured network", async () => {
-      const mainnetWallet = new MockBitcoinWallet({ network: BitcoinNetworks.MAINNET });
+      const mainnetWallet = new MockBitcoinWallet({
+        network: BitcoinNetworks.MAINNET,
+      });
       const network = await mainnetWallet.getNetwork();
 
       expect(network).toBe(BitcoinNetworks.MAINNET);

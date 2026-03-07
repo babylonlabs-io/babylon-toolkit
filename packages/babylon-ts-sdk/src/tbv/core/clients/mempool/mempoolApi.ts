@@ -21,10 +21,7 @@ export const MEMPOOL_API_URLS = {
 /**
  * Fetch wrapper with error handling.
  */
-async function fetchApi<T>(
-  url: string,
-  options?: RequestInit,
-): Promise<T> {
+async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
   try {
     const response = await fetch(url, options);
 
@@ -127,7 +124,9 @@ export async function getTxHex(txid: string, apiUrl: string): Promise<string> {
     return await response.text();
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get transaction hex for ${txid}: ${error.message}`);
+      throw new Error(
+        `Failed to get transaction hex for ${txid}: ${error.message}`,
+      );
     }
     throw new Error(`Failed to get transaction hex for ${txid}: Unknown error`);
   }
@@ -299,4 +298,3 @@ export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
 
   return data as NetworkFees;
 }
-

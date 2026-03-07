@@ -104,7 +104,10 @@ describe("buildPeginPsbt", () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        vaultKeeperPubkeys: [
+          TEST_KEYS.VAULT_KEEPER_1,
+          TEST_KEYS.VAULT_KEEPER_2,
+        ],
         universalChallengerPubkeys: [TEST_KEYS.UNIVERSAL_CHALLENGER_1],
         timelockPegin: 100,
         pegInAmount: TEST_AMOUNTS.PEGIN,
@@ -252,7 +255,10 @@ describe("buildPeginPsbt", () => {
       const params: PeginParams = {
         depositorPubkey: TEST_KEYS.DEPOSITOR,
         vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
-        vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2],
+        vaultKeeperPubkeys: [
+          TEST_KEYS.VAULT_KEEPER_1,
+          TEST_KEYS.VAULT_KEEPER_2,
+        ],
         universalChallengerPubkeys: [
           TEST_KEYS.UNIVERSAL_CHALLENGER_1,
           TEST_KEYS.UNIVERSAL_CHALLENGER_2,

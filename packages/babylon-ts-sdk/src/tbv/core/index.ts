@@ -11,8 +11,8 @@
  * @module tbv/core
  */
 
-export * from "./primitives";
-export * from "./utils";
-export * from "./managers";
 export * from "./clients";
 export * from "./contracts";
+export * from "./managers";
+export * from "./primitives";
+export * from "./utils";

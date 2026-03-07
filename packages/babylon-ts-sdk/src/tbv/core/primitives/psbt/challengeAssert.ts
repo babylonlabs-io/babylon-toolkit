@@ -16,13 +16,10 @@ import {
   getChallengeAssertScriptInfo,
   tapInternalPubkey,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
-import {
-  hexToUint8Array,
-  stripHexPrefix,
-} from "../utils/bitcoin";
+import { hexToUint8Array, stripHexPrefix } from "../utils/bitcoin";
 
 /**
  * Parameters for building a ChallengeAssert PSBT
@@ -60,7 +57,9 @@ export async function buildChallengeAssertPsbt(
 
   // Get script and control block for each input from WASM
   const scriptInfos = await Promise.all(
-    params.connectorParamsPerInput.map((cp) => getChallengeAssertScriptInfo(cp)),
+    params.connectorParamsPerInput.map((cp) =>
+      getChallengeAssertScriptInfo(cp),
+    ),
   );
 
   const psbt = new Psbt();
@@ -85,7 +84,9 @@ export async function buildChallengeAssertPsbt(
       index: input.index,
       sequence: input.sequence,
       witnessUtxo: {
-        script: Buffer.from(hexToUint8Array(stripHexPrefix(prevout.script_pubkey))),
+        script: Buffer.from(
+          hexToUint8Array(stripHexPrefix(prevout.script_pubkey)),
+        ),
         value: prevout.value,
       },
       tapLeafScript: [

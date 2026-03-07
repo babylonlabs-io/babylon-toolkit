@@ -397,16 +397,18 @@ describe("Bitcoin Utilities", () => {
       it("should throw when wallet pubkey does not match expected", () => {
         const differentPubkey = "b".repeat(64);
 
-        expect(() => validateWalletPubkey(xOnlyPubkey, differentPubkey)).toThrow(
-          /Wallet public key does not match vault depositor/,
-        );
+        expect(() =>
+          validateWalletPubkey(xOnlyPubkey, differentPubkey),
+        ).toThrow(/Wallet public key does not match vault depositor/);
       });
 
       it("should throw with helpful error message", () => {
         const walletPubkey = "a".repeat(64);
         const expectedPubkey = "b".repeat(64);
 
-        expect(() => validateWalletPubkey(walletPubkey, expectedPubkey)).toThrow(
+        expect(() =>
+          validateWalletPubkey(walletPubkey, expectedPubkey),
+        ).toThrow(
           /Please connect the wallet that was used to create this vault/,
         );
       });

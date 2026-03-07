@@ -7,6 +7,7 @@
  */
 
 export {
+  MEMPOOL_API_URLS,
   getAddressTxs,
   getAddressUtxos,
   getMempoolApiUrl,
@@ -14,7 +15,6 @@ export {
   getTxHex,
   getTxInfo,
   getUtxoInfo,
-  MEMPOOL_API_URLS,
   pushTx,
 } from "./mempoolApi";
 
@@ -29,4 +29,3 @@ export type {
   TxStatus,
   UtxoInfo,
 } from "./types";
-
