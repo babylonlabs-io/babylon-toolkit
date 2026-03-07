@@ -200,7 +200,13 @@ function ensureEcc(): void {
   }
 }
 
-function getBitcoinjsNetwork(network: Network): networks.Network {
+/**
+ * Map SDK network type to bitcoinjs-lib Network object.
+ *
+ * @param network - Network type ("bitcoin", "testnet", "signet", "regtest")
+ * @returns bitcoinjs-lib Network object
+ */
+export function getNetwork(network: Network): networks.Network {
   switch (network) {
     case "bitcoin":
       return networks.bitcoin;
@@ -229,7 +235,7 @@ export function deriveTaprootAddress(
   const xOnly = hexToUint8Array(processPublicKeyToXOnly(publicKeyHex));
   const { address } = payments.p2tr({
     internalPubkey: Buffer.from(xOnly),
-    network: getBitcoinjsNetwork(network),
+    network: getNetwork(network),
   });
   if (!address) {
     throw new Error("Failed to derive taproot address from public key");
@@ -257,7 +263,7 @@ export function deriveNativeSegwitAddress(
   }
   const { address } = payments.p2wpkh({
     pubkey: Buffer.from(hexToUint8Array(cleanHex)),
-    network: getBitcoinjsNetwork(network),
+    network: getNetwork(network),
   });
   if (!address) {
     throw new Error(

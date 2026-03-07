@@ -722,7 +722,14 @@ export class PeginManager {
     }
 
     const network = getNetwork(this.config.btcNetwork);
-    return `0x${bitcoin.address.toOutputScript(address, network).toString("hex")}` as Hex;
+    try {
+      return `0x${bitcoin.address.toOutputScript(address, network).toString("hex")}` as Hex;
+    } catch {
+      throw new Error(
+        `Invalid BTC payout address: "${address}". ` +
+          `Please provide a valid Bitcoin address for the ${this.config.btcNetwork} network.`,
+      );
+    }
   }
 
   /**

@@ -98,7 +98,7 @@ interface GraphQLVaultItem {
   offchainParamsVersion: number;
   currentOwner: string | null;
   referralCode: number;
-  depositorPayoutBtcAddress: string | null;
+  depositorPayoutBtcAddress: string;
   depositorLamportPkHash: string | null;
   pendingAt: string;
   verifiedAt: string | null;
