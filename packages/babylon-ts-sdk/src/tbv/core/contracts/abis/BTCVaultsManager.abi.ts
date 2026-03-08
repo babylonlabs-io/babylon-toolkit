@@ -42,6 +42,11 @@ export const BTCVaultsManagerABI = [
         internalType: "address",
       },
       {
+        name: "depositorPayoutBtcAddress",
+        type: "bytes",
+        internalType: "bytes",
+      },
+      {
         name: "depositorLamportPkHash",
         type: "bytes32",
         internalType: "bytes32",
@@ -89,6 +94,11 @@ export const BTCVaultsManagerABI = [
         name: "referralCode",
         type: "uint32",
         internalType: "uint32",
+      },
+      {
+        name: "depositorPayoutBtcAddress",
+        type: "bytes",
+        internalType: "bytes",
       },
       {
         name: "depositorLamportPkHash",

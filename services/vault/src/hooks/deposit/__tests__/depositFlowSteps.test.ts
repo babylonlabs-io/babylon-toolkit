@@ -99,13 +99,18 @@ vi.mock("@/utils/btc", () => ({
   stripHexPrefix: vi.fn((hex) => hex.replace("0x", "")),
 }));
 
-vi.mock("@/models/peginStateMachine", () => ({
-  LocalStorageStatus: {
-    PENDING: "PENDING",
-    PAYOUT_SIGNED: "PAYOUT_SIGNED",
-    CONFIRMING: "CONFIRMING",
-  },
-}));
+vi.mock("@/models/peginStateMachine", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/models/peginStateMachine")>();
+  return {
+    ...actual,
+    LocalStorageStatus: {
+      PENDING: "PENDING",
+      PAYOUT_SIGNED: "PAYOUT_SIGNED",
+      CONFIRMING: "CONFIRMING",
+    },
+  };
+});
 
 // Import after mocking
 import { validateDepositInputs } from "../depositFlowSteps";

@@ -25,6 +25,11 @@ vi.mock("@/config", () => ({
   },
 }));
 
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
+}));
+
 // Mock dependencies
 vi.mock("@babylonlabs-io/config", () => ({
   getETHChain: vi.fn(() => ({
@@ -275,15 +280,20 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
     config: {
       minimumPegInAmount: 10000n,
       maxPegInAmount: 100_000_000n,
-      pegInActivationTimeout: 50400n,
+      pegInAckTimeout: 50400n,
+      pegInProofTimeout: 100800n,
       pegInConfirmationDepth: 30n,
       timelockPegin: 100,
-      depositorClaimValue: 35000n,
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
     },
     minDeposit: 10000n,
     maxDeposit: 100_000_000n,
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],
@@ -317,6 +327,13 @@ vi.mock("@/clients/vault-provider-rpc", () => {
           offchain_params_version: 0,
         },
       });
+      getPeginStatus = vi.fn().mockResolvedValue({
+        pegin_txid: "test",
+        status: "PendingDepositorSignatures",
+        progress: {},
+        health_info: "",
+      });
+      submitDepositorLamportKey = vi.fn().mockResolvedValue(undefined);
     },
   };
 });
