@@ -222,7 +222,9 @@ vi.mock("../useAllocationPlanning", () => ({
 }));
 
 vi.mock("../../../utils/formatting", () => ({
-  formatProviderName: vi.fn((id: string) => `Provider ${id.slice(0, 6)}...`),
+  formatProviderDisplayName: vi.fn(
+    (name: string | undefined, id: string) => name || `${id.slice(0, 6)}...`,
+  ),
 }));
 
 vi.mock("../../../services/deposit", () => ({

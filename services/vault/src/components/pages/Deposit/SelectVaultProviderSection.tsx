@@ -10,6 +10,8 @@ import {
 import { useState } from "react";
 import { AiOutlinePlus } from "react-icons/ai";
 
+import { formatProviderDisplayName } from "@/utils/formatting";
+
 import {
   SelectVaultProviderModal,
   type Provider,
@@ -84,7 +86,14 @@ export function SelectVaultProviderSection({
                   size="medium"
                 />
               )}
-              <span>{selectedProviderData?.name || "Add Vault Provider"}</span>
+              <span>
+                {selectedProviderData
+                  ? formatProviderDisplayName(
+                      selectedProviderData.name,
+                      selectedProviderData.id,
+                    )
+                  : "Add Vault Provider"}
+              </span>
             </div>
             <div className="flex h-8 w-8 items-center justify-center text-black dark:text-white">
               {selectedProviderData ? (
