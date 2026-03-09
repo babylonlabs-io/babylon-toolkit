@@ -12,12 +12,31 @@ import {
 } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import type { VaultProvider } from "@/types/vaultProvider";
 import { toCollateralVaultEntries } from "@/utils/collateral";
 
 // Re-export for consumers
 export type { CollateralVaultEntry };
 
-export function useDashboardState(connectedAddress: string | undefined) {
+/**
+ * Builds a lowercase-address to display-name map from vault providers.
+ */
+function buildProviderNamesMap(
+  providers: VaultProvider[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const p of providers) {
+    if (p.name) {
+      map.set(p.id.toLowerCase(), p.name);
+    }
+  }
+  return map;
+}
+
+export function useDashboardState(
+  connectedAddress: string | undefined,
+  vaultProviders?: VaultProvider[],
+) {
   const {
     position,
     collateralBtc,
@@ -36,12 +55,26 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;
 
+  // Derive a stable key so the memo doesn't recompute when useVaultProviders
+  // returns a new array reference. JSON.stringify avoids collisions from
+  // delimiter characters in provider names.
+  const providerKey = useMemo(
+    () => JSON.stringify((vaultProviders ?? []).map((p) => [p.id, p.name])),
+    [vaultProviders],
+  );
+
+  const providerNames = useMemo(
+    () => buildProviderNamesMap(vaultProviders ?? []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [providerKey],
+  );
+
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
       position?.collaterals
-        ? toCollateralVaultEntries(position.collaterals)
+        ? toCollateralVaultEntries(position.collaterals, providerNames)
         : [],
-    [position?.collaterals],
+    [position?.collaterals, providerNames],
   );
 
   // Transform borrowed assets for the asset selection modal

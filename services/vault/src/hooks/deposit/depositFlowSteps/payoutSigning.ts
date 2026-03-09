@@ -7,12 +7,10 @@ import type { Address } from "viem";
 import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
 import type {
   ClaimerSignatures,
-  ClaimerTransactions,
   DepositorAsClaimerPresignatures,
-  DepositorGraphTransactions,
 } from "@/clients/vault-provider-rpc/types";
 import { getBTCNetworkForWASM } from "@/config/pegin";
-import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { DaemonStatus, LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   getSortedUniversalChallengerPubkeys,
   getSortedVaultKeeperPubkeys,
@@ -20,10 +18,9 @@ import {
   submitSignaturesToVaultProvider,
   type SigningContext,
 } from "@/services/vault/vaultPayoutSignatureService";
+import { waitForPeginStatus } from "@/services/vault/vaultPeginStatusService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
-import { pollUntil } from "@/utils/async";
 import { stripHexPrefix } from "@/utils/btc";
-import { isTransientPollingError } from "@/utils/peginPolling";
 
 import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 
@@ -34,11 +31,12 @@ import type { PayoutSigningContext, PayoutSigningParams } from "./types";
 /** Timeout for RPC requests (60 seconds) */
 const RPC_TIMEOUT_MS = 60 * 1000;
 
-/** Polling interval (10 seconds) */
-const POLLING_INTERVAL_MS = 10 * 1000;
-
 /** Maximum polling timeout (20 minutes) - vault provider may take 15-20 minutes to prepare */
 const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
+
+const TARGET_STATUS = new Set<string>([
+  DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+]);
 
 // ============================================================================
 // Main Functions
@@ -47,9 +45,10 @@ const MAX_POLLING_TIMEOUT_MS = 20 * 60 * 1000;
 /**
  * Poll for payout transactions and prepare signing context.
  *
- * This function polls the vault provider until payout transactions are ready.
- * The signing context is constructed from data passed in (from step 2),
- * avoiding any dependency on the GraphQL indexer for step 3.
+ * First polls `getPeginStatus` until the VP reaches `PendingDepositorSignatures`,
+ * then calls `requestDepositorPresignTransactions` once to fetch the actual
+ * transaction data. This avoids hammering the heavy presign endpoint while the
+ * VP is still in earlier states (BaBe setup, challenger presigning, etc.).
  */
 export async function pollAndPreparePayoutSigning(
   params: PayoutSigningParams,
@@ -66,54 +65,42 @@ export async function pollAndPreparePayoutSigning(
     signal,
   } = params;
 
-  const buildContext = (
-    payoutTransactions: ClaimerTransactions[],
-    depositorGraph: DepositorGraphTransactions,
-  ): PayoutSigningContext => {
-    const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
-    const universalChallengerBtcPubkeys =
-      getSortedUniversalChallengerPubkeys(universalChallengers);
+  // Phase 1: Poll status until VP is ready for depositor signatures
+  await waitForPeginStatus({
+    providerUrl,
+    btcTxid,
+    targetStatuses: TARGET_STATUS,
+    timeoutMs: MAX_POLLING_TIMEOUT_MS,
+    signal,
+  });
 
-    const context: SigningContext = {
-      peginTxHex: btcTxHex,
-      vaultProviderBtcPubkey: stripHexPrefix(providerBtcPubKey),
-      vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys,
-      depositorBtcPubkey,
-      timelockPegin,
-      network: getBTCNetworkForWASM(),
-    };
+  // Phase 2: Fetch transaction data (VP is ready)
+  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
+  const response = await rpcClient.requestDepositorPresignTransactions({
+    pegin_txid: stripHexPrefix(btcTxid),
+    depositor_pk: stripHexPrefix(depositorBtcPubkey),
+  });
 
-    return {
-      context,
-      vaultProviderUrl: providerUrl,
-      preparedTransactions: prepareTransactionsForSigning(payoutTransactions),
-      depositorGraph,
-    };
+  const vaultKeeperBtcPubkeys = getSortedVaultKeeperPubkeys(vaultKeepers);
+  const universalChallengerBtcPubkeys =
+    getSortedUniversalChallengerPubkeys(universalChallengers);
+
+  const context: SigningContext = {
+    peginTxHex: btcTxHex,
+    vaultProviderBtcPubkey: stripHexPrefix(providerBtcPubKey),
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+    depositorBtcPubkey,
+    timelockPegin,
+    network: getBTCNetworkForWASM(),
   };
 
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
-
-  return pollUntil<PayoutSigningContext>(
-    async () => {
-      const response = await rpcClient.requestDepositorPresignTransactions({
-        pegin_txid: stripHexPrefix(btcTxid),
-        depositor_pk: stripHexPrefix(depositorBtcPubkey),
-      });
-
-      if (!response.txs || response.txs.length === 0) {
-        return null;
-      }
-
-      return buildContext(response.txs, response.depositor_graph);
-    },
-    {
-      intervalMs: POLLING_INTERVAL_MS,
-      timeoutMs: MAX_POLLING_TIMEOUT_MS,
-      isTransient: isTransientPollingError,
-      signal,
-    },
-  );
+  return {
+    context,
+    vaultProviderUrl: providerUrl,
+    preparedTransactions: prepareTransactionsForSigning(response.txs),
+    depositorGraph: response.depositor_graph,
+  };
 }
 
 /**

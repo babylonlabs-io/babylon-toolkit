@@ -1,7 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+import type { AllocationPlan } from "@/services/vault";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useBTCWallet, useConnection } from "../../context/wallet";
 import { depositService } from "../../services/deposit";
 import { formatProviderName } from "../../utils/formatting";
@@ -9,10 +13,13 @@ import { useApplications } from "../useApplications";
 import { usePrice, usePrices } from "../usePrices";
 import { calculateBalance, useUTXOs } from "../useUTXOs";
 
+import { useAllocationPlanning } from "./useAllocationPlanning";
 import { useDepositFormErrors } from "./useDepositFormErrors";
 import { useDepositValidation } from "./useDepositValidation";
 import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
 import { useVaultProviders } from "./useVaultProviders";
+
+const STALE_TIME_MS = 5 * 60 * 1000;
 
 export interface DepositPageFormData {
   amountBtc: string;
@@ -63,6 +70,17 @@ export interface UseDepositPageFormResult {
   feeError: string | null;
   maxDepositSats: bigint | null;
 
+  // Partial liquidation (multi-vault)
+  isPartialLiquidation: boolean;
+  setIsPartialLiquidation: (v: boolean) => void;
+  canSplit: boolean;
+  strategy: AllocationPlan["strategy"] | null;
+  allocationPlan: AllocationPlan | null;
+  isPlanning: boolean;
+  planError: string | null;
+  /** Effective fee: multi-vault fee when checkbox is on, single-vault fee otherwise */
+  effectiveFeeSats: bigint | null;
+
   validateForm: () => boolean;
   validateAmountOnBlur: () => void;
   resetForm: () => void;
@@ -71,6 +89,7 @@ export interface UseDepositPageFormResult {
 export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress } = useBTCWallet();
   const { isConnected: isWalletConnected } = useConnection();
+  const { config, latestUniversalChallengers } = useProtocolParamsContext();
   const btcPriceUSD = usePrice("BTC");
   const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
 
@@ -106,8 +125,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   }, [isLoadingApplications, applicationsData]);
 
   // Fetch providers based on selected application
-  const { vaultProviders: rawProviders, loading: isLoadingProviders } =
-    useVaultProviders(formData.selectedApplication || undefined);
+  const {
+    vaultProviders: rawProviders,
+    vaultKeepers,
+    loading: isLoadingProviders,
+  } = useVaultProviders(formData.selectedApplication || undefined);
   const providers = useMemo(() => {
     return rawProviders.map((p) => ({
       id: p.id,
@@ -190,6 +212,65 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxDeposit: maxDepositSats,
   } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs);
 
+  // Compute depositorClaimValue with actual VK count (local challengers = VKs).
+  // undefined while loading — isValid gates on this to prevent submitting with no value.
+  const { data: depositorClaimValue } = useQuery({
+    queryKey: [
+      "depositorClaimValue",
+      vaultKeepers.length,
+      latestUniversalChallengers.length,
+      config.offchainParams.babeInstancesToFinalize,
+      config.offchainParams.councilQuorum,
+      config.offchainParams.securityCouncilKeys.length,
+      String(config.offchainParams.feeRate),
+    ],
+    queryFn: () =>
+      computeDepositorClaimValue({
+        numLocalChallengers: vaultKeepers.length,
+        numUniversalChallengers: latestUniversalChallengers.length,
+        babeInstancesToFinalize: config.offchainParams.babeInstancesToFinalize,
+        councilQuorum: config.offchainParams.councilQuorum,
+        councilSize: config.offchainParams.securityCouncilKeys.length,
+        feeRate: config.offchainParams.feeRate,
+      }),
+    enabled: latestUniversalChallengers.length > 0,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  });
+
+  // Partial liquidation (multi-vault deposit)
+  const [isPartialLiquidation, setIsPartialLiquidation] = useState(false);
+  const hasAutoChecked = useRef(false);
+
+  const {
+    allocationPlan,
+    strategy,
+    totalFeeSats: multiVaultFeeSats,
+    isPlanning,
+    planError,
+    canSplit,
+  } = useAllocationPlanning({
+    amountSats,
+    feeRate: estimatedFeeRate,
+    isPartialLiquidation,
+    spendableUTXOs,
+    btcAddress,
+    depositorClaimValue: depositorClaimValue ?? 0n,
+  });
+
+  // Auto-check once when splitting first becomes possible
+  useEffect(() => {
+    if (canSplit && !hasAutoChecked.current) {
+      hasAutoChecked.current = true;
+      setIsPartialLiquidation(true);
+    }
+  }, [canSplit]);
+
+  const effectiveFeeSats =
+    isPartialLiquidation && multiVaultFeeSats != null
+      ? multiVaultFeeSats
+      : estimatedFeeSats;
+
   const validateForm = useCallback(() => {
     const newErrors: typeof errors = {};
 
@@ -237,7 +318,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
       hasApplication &&
       hasProvider &&
       noErrors &&
-      isAmountValid
+      isAmountValid &&
+      depositorClaimValue != null
     );
   }, [
     isWalletConnected,
@@ -247,6 +329,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     validation.minDeposit,
     validation.maxDeposit,
     btcBalance,
+    depositorClaimValue,
   ]);
 
   const resetForm = useCallback(() => {
@@ -282,6 +365,14 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoadingFee,
     feeError,
     maxDepositSats,
+    isPartialLiquidation,
+    setIsPartialLiquidation,
+    canSplit,
+    strategy,
+    allocationPlan,
+    isPlanning,
+    planError,
+    effectiveFeeSats,
     validateForm,
     validateAmountOnBlur,
     resetForm,

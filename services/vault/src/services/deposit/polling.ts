@@ -7,15 +7,8 @@
 
 import type { Hex } from "viem";
 
-import { VaultProviderRpcApi } from "@/clients/vault-provider-rpc";
-import type { ClaimerTransactions } from "@/clients/vault-provider-rpc/types";
 import { fetchVaultById } from "@/services/vault";
 import { pollUntil } from "@/utils/async";
-import { stripHexPrefix } from "@/utils/btc";
-import { isTransientPollingError } from "@/utils/peginPolling";
-
-/** Timeout for RPC requests (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
 
 /**
  * Polling interval for payout transactions.
@@ -31,54 +24,6 @@ const POLLING_INTERVAL_MS = 10 * 1000;
  * If exceeded, user can continue from the deposits table.
  */
 const MAX_POLLING_TIMEOUT_MS = 2 * 60 * 1000;
-
-export interface PollForPayoutTransactionsParams {
-  /** BTC transaction ID (with 0x prefix) */
-  btcTxid: string;
-  /** Depositor's BTC public key (32-byte x-only, no 0x prefix) */
-  depositorBtcPubkey: string;
-  /** Vault provider RPC URL */
-  providerUrl: string;
-  /** Optional AbortSignal for cancellation */
-  signal?: AbortSignal;
-}
-
-/**
- * Poll vault provider for depositor presign transactions.
- *
- * Waits until the vault provider has prepared the transactions
- * for depositor to sign (Payout).
- *
- * @returns Array of claimer transactions ready for signing
- * @throws Error on timeout, abort, or non-transient RPC error
- */
-export async function pollForPayoutTransactions(
-  params: PollForPayoutTransactionsParams,
-): Promise<ClaimerTransactions[]> {
-  const { btcTxid, depositorBtcPubkey, providerUrl, signal } = params;
-
-  const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
-
-  return pollUntil<ClaimerTransactions[]>(
-    async () => {
-      const response = await rpcClient.requestDepositorPresignTransactions({
-        pegin_txid: stripHexPrefix(btcTxid),
-        depositor_pk: depositorBtcPubkey,
-      });
-
-      if (response.txs && response.txs.length > 0) {
-        return response.txs;
-      }
-      return null;
-    },
-    {
-      intervalMs: POLLING_INTERVAL_MS,
-      timeoutMs: MAX_POLLING_TIMEOUT_MS,
-      isTransient: isTransientPollingError,
-      signal,
-    },
-  );
-}
 
 export interface WaitForContractVerificationParams {
   /** BTC transaction ID (with 0x prefix) */

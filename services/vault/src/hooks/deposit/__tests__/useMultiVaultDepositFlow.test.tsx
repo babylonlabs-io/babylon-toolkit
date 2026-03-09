@@ -19,6 +19,11 @@ import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 // Mocks
 // ============================================================================
 
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
+}));
+
 // Mock SDK functions
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn(),
@@ -29,9 +34,14 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
   createSplitTransactionPsbt: vi.fn(),
 }));
 
-// Mock wallet connector
+// Mock wallet connector (still needed by other code)
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(),
+}));
+
+// Mock useBtcWalletState (replaces useChainConnector + useUTXOs in the hook)
+vi.mock("../useBtcWalletState", () => ({
+  useBtcWalletState: vi.fn(),
 }));
 
 // Mock bitcoinjs-lib
@@ -118,13 +128,14 @@ vi.mock("@/storage/peginStorage", () => ({
 
 // Mock deposit flow steps
 vi.mock("../depositFlowSteps", () => ({
-  DepositStep: {
-    SIGN_POP: "SIGN_POP",
-    SUBMIT_PEGIN: "SUBMIT_PEGIN",
-    SIGN_PAYOUTS: "SIGN_PAYOUTS",
-    ARTIFACT_DOWNLOAD: "ARTIFACT_DOWNLOAD",
-    BROADCAST_BTC: "BROADCAST_BTC",
-    COMPLETED: "COMPLETED",
+  DepositFlowStep: {
+    SIGN_SPLIT_TX: 0,
+    SIGN_POP: 1,
+    SUBMIT_PEGIN: 2,
+    SIGN_PAYOUTS: 3,
+    ARTIFACT_DOWNLOAD: 4,
+    BROADCAST_BTC: 5,
+    COMPLETED: 6,
   },
   getEthWalletClient: vi.fn(),
   preparePegin: vi.fn(),
@@ -251,18 +262,36 @@ const SPLIT_PLAN: AllocationPlan = {
 // Helper Functions
 // ============================================================================
 
+/**
+ * Executes the multi-vault deposit flow while auto-resolving artifact download
+ * prompts. The artifact download step blocks on a promise that requires user
+ * interaction (clicking "Continue"). In tests we poll for it and auto-resolve.
+ */
+async function executeWithAutoArtifactDownload(result: {
+  current: ReturnType<typeof useMultiVaultDepositFlow>;
+}) {
+  const pollId = setInterval(() => {
+    if (result.current.artifactDownloadInfo) {
+      result.current.continueAfterArtifactDownload();
+    }
+  }, 10);
+
+  try {
+    return await result.current.executeMultiVaultDeposit();
+  } finally {
+    clearInterval(pollId);
+  }
+}
+
 async function setupDefaultMocks() {
   const { pushTx } = vi.mocked(await import("@babylonlabs-io/ts-sdk"));
   const { createSplitTransaction, createSplitTransactionPsbt } = vi.mocked(
     await import("@babylonlabs-io/ts-sdk/tbv/core"),
   );
-  const { useChainConnector } = vi.mocked(
-    await import("@babylonlabs-io/wallet-connector"),
-  );
+  const { useBtcWalletState } = vi.mocked(await import("../useBtcWalletState"));
   const { useProtocolParamsContext } = vi.mocked(
     await import("@/context/ProtocolParamsContext"),
   );
-  const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
   const { useVaultProviders } = vi.mocked(await import("../useVaultProviders"));
   const {
     planUtxoAllocation,
@@ -284,24 +313,25 @@ async function setupDefaultMocks() {
     broadcastBtcTransaction,
   } = vi.mocked(await import("../depositFlowSteps"));
 
-  // Wallet connector
-  vi.mocked(useChainConnector).mockReturnValue({
-    connectedWallet: {
-      account: { address: "bc1qtest" },
-    },
-  } as any);
-
-  // UTXOs
-  vi.mocked(useUTXOs).mockReturnValue({
+  // BTC wallet state (btcAddress + UTXOs)
+  vi.mocked(useBtcWalletState).mockReturnValue({
+    btcAddress: "bc1qtest",
     spendableUTXOs: [MOCK_UTXO_1, MOCK_UTXO_2],
-    isLoading: false,
-    error: null,
+    isUTXOsLoading: false,
+    utxoError: null,
   } as any);
 
   // Protocol params
   vi.mocked(useProtocolParamsContext).mockReturnValue({
+    config: {
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
+    },
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
     getOffchainParamsByVersion: vi.fn(() => ({
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
@@ -360,6 +390,7 @@ async function setupDefaultMocks() {
   vi.mocked(registerSplitPeginOnChain).mockResolvedValue({
     ethTxHash: "0xEthTxHash" as Hex,
     vaultId: "0xVaultId" as Hex,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(broadcastPeginWithLocalUtxo).mockResolvedValue("btcTxId");
 
@@ -380,6 +411,7 @@ async function setupDefaultMocks() {
   vi.mocked(registerPeginAndWait).mockResolvedValue({
     btcTxid: "0xstandardBtcTxid" as Hex,
     ethTxHash: "0xStandardEthTx" as Hex,
+    btcPopSignature: "0xMockPopSignature" as Hex,
   });
   vi.mocked(pollAndPreparePayoutSigning).mockResolvedValue({
     context: {} as any,
@@ -432,7 +464,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePegin).toHaveBeenCalledTimes(1);
@@ -459,7 +491,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
@@ -482,7 +514,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledWith(
@@ -508,7 +540,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
@@ -548,7 +580,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePegin).toHaveBeenCalledTimes(2);
@@ -569,7 +601,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.processing).toBe(false);
@@ -590,7 +622,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePegin).toHaveBeenNthCalledWith(
@@ -622,7 +654,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledTimes(2);
@@ -662,7 +694,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MULTI_VAULT_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).toEqual({
         pegins: expect.arrayContaining([
@@ -697,7 +729,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(createSplitTransaction).toHaveBeenCalledWith(
@@ -723,7 +755,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(pushTx).toHaveBeenCalledWith(
@@ -744,7 +776,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(preparePeginFromSplitOutput).toHaveBeenCalledTimes(2);
@@ -765,7 +797,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledTimes(2);
@@ -805,7 +837,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(broadcastPeginWithLocalUtxo).toHaveBeenCalledTimes(2);
@@ -823,7 +855,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(SPLIT_VAULT_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).toEqual({
         pegins: expect.arrayContaining([
@@ -840,19 +872,22 @@ describe("useMultiVaultDepositFlow", () => {
 
   describe("Validation Errors", () => {
     it("should throw if wallet not connected (no btcAddress)", async () => {
-      const { useChainConnector } = vi.mocked(
-        await import("@babylonlabs-io/wallet-connector"),
+      const { useBtcWalletState } = vi.mocked(
+        await import("../useBtcWalletState"),
       );
 
-      vi.mocked(useChainConnector).mockReturnValue({
-        connectedWallet: null,
+      vi.mocked(useBtcWalletState).mockReturnValue({
+        btcAddress: undefined,
+        spendableUTXOs: undefined,
+        isUTXOsLoading: false,
+        utxoError: null,
       } as any);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -861,17 +896,22 @@ describe("useMultiVaultDepositFlow", () => {
     });
 
     it("should throw if no spendable UTXOs", async () => {
-      const { useUTXOs } = vi.mocked(await import("@/hooks/useUTXOs"));
+      const { useBtcWalletState } = vi.mocked(
+        await import("../useBtcWalletState"),
+      );
 
-      vi.mocked(useUTXOs).mockReturnValue({
+      vi.mocked(useBtcWalletState).mockReturnValue({
+        btcAddress: "bc1qtest",
         spendableUTXOs: [],
+        isUTXOsLoading: false,
+        utxoError: null,
       } as any);
 
       const { result } = renderHook(() =>
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -889,7 +929,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -907,7 +947,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -925,7 +965,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -943,7 +983,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -961,7 +1001,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -979,7 +1019,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(invalidParams),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -1015,7 +1055,7 @@ describe("useMultiVaultDepositFlow", () => {
         }),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult!.pegins).toHaveLength(2);
@@ -1050,10 +1090,78 @@ describe("useMultiVaultDepositFlow", () => {
         }),
       );
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(addPendingPegin).toHaveBeenCalledTimes(1); // Only vault 1
+      });
+    });
+
+    it("should log individual vault errors to console", async () => {
+      const consoleSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
+      vi.mocked(preparePegin)
+        .mockResolvedValueOnce({
+          btcTxid: "0xvault1TxId" as Hex,
+          depositorBtcPubkey: "ab".repeat(32),
+          btcTxHex: "vault1Hex",
+          selectedUTXOs: [MOCK_UTXO_1],
+          fee: 800n,
+        })
+        .mockRejectedValueOnce(new Error("Vault 2 failed"));
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [100000n, 100000n],
+        }),
+      );
+
+      await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(consoleSpy).toHaveBeenCalledWith(
+          "[Multi-Vault] Pegin creation failed for vault 1:",
+          expect.any(Error),
+        );
+      });
+
+      consoleSpy.mockRestore();
+    });
+
+    it("should show error when ALL pegin creations fail", async () => {
+      const { planUtxoAllocation } = vi.mocked(
+        await import("@/services/vault"),
+      );
+      const { preparePegin } = vi.mocked(await import("../depositFlowSteps"));
+
+      vi.mocked(planUtxoAllocation).mockReturnValue(MULTI_INPUT_PLAN);
+      vi.mocked(preparePegin)
+        .mockRejectedValueOnce(new Error("Vault 1 failed"))
+        .mockRejectedValueOnce(new Error("Vault 2 failed"));
+
+      const { result } = renderHook(() =>
+        useMultiVaultDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [100000n, 100000n],
+        }),
+      );
+
+      const depositResult = await executeWithAutoArtifactDownload(result);
+
+      await waitFor(() => {
+        expect(depositResult).toBeNull();
+        expect(result.current.error).toContain("All pegin creations failed");
+        expect(result.current.error).toContain("Vault 0: Vault 1 failed");
+        expect(result.current.error).toContain("Vault 1: Vault 2 failed");
       });
     });
   });
@@ -1070,15 +1178,23 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      expect(result.current.currentStep).toBe("SIGN_POP");
+      expect(result.current.currentStep).toBe(1); // SIGN_POP
+
+      // Set up auto-resolution for artifact downloads before starting the flow
+      const pollId = setInterval(() => {
+        if (result.current.artifactDownloadInfo) {
+          result.current.continueAfterArtifactDownload();
+        }
+      }, 10);
 
       const executePromise = result.current.executeMultiVaultDeposit();
 
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("COMPLETED");
+        expect(result.current.currentStep).toBe(6); // COMPLETED
       });
 
       await executePromise;
+      clearInterval(pollId);
     });
 
     it("should set currentVaultIndex when processing each vault", async () => {
@@ -1097,7 +1213,7 @@ describe("useMultiVaultDepositFlow", () => {
 
       expect(result.current.currentVaultIndex).toBeNull();
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.currentVaultIndex).toBeNull(); // Cleared after completion
@@ -1117,7 +1233,7 @@ describe("useMultiVaultDepositFlow", () => {
 
       expect(result.current.allocationPlan).toBeNull();
 
-      await result.current.executeMultiVaultDeposit();
+      await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(result.current.allocationPlan).toEqual(SINGLE_PLAN);
@@ -1142,7 +1258,7 @@ describe("useMultiVaultDepositFlow", () => {
         }),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       await waitFor(() => {
         expect(depositResult).toBeNull();
@@ -1174,7 +1290,7 @@ describe("useMultiVaultDepositFlow", () => {
         }),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult!.warnings).toBeDefined();
@@ -1204,7 +1320,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult!.warnings).toBeDefined();
@@ -1224,7 +1340,7 @@ describe("useMultiVaultDepositFlow", () => {
         useMultiVaultDepositFlow(MOCK_PARAMS),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult!.warnings).toBeUndefined(); // No warnings when everything succeeds
@@ -1271,7 +1387,7 @@ describe("useMultiVaultDepositFlow", () => {
         }),
       );
 
-      const depositResult = await result.current.executeMultiVaultDeposit();
+      const depositResult = await executeWithAutoArtifactDownload(result);
 
       expect(depositResult).not.toBeNull();
       expect(depositResult!.warnings).toBeDefined();

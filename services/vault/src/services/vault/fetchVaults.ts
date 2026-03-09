@@ -9,6 +9,7 @@ import { gql } from "graphql-request";
 import type { Address, Hex } from "viem";
 
 import { graphqlClient } from "../../clients/graphql/client";
+import type { ExpirationReason } from "../../models/peginStateMachine";
 import { type Vault, VaultStatus } from "../../types/vault";
 
 /**
@@ -30,6 +31,7 @@ const VAULT_FIELDS = `
   offchainParamsVersion
   currentOwner
   referralCode
+  depositorPayoutBtcAddress
   depositorLamportPkHash
   pendingAt
   verifiedAt
@@ -97,6 +99,7 @@ interface GraphQLVaultItem {
   offchainParamsVersion: number;
   currentOwner: string | null;
   referralCode: number;
+  depositorPayoutBtcAddress: string;
   depositorLamportPkHash: string | null;
   pendingAt: string;
   verifiedAt: string | null;
@@ -172,10 +175,11 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
       ? (item.currentOwner as Address)
       : undefined,
     referralCode: item.referralCode,
+    depositorPayoutBtcAddress: item.depositorPayoutBtcAddress as Hex,
     depositorLamportPkHash: item.depositorLamportPkHash!,
     createdAt: parseInt(item.pendingAt, 10) * 1000,
     expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
-    expirationReason: item.expirationReason ?? undefined,
+    expirationReason: (item.expirationReason as ExpirationReason) ?? undefined,
     isInUse: item.inUse,
   };
 }

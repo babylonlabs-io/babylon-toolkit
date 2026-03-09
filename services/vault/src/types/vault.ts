@@ -9,6 +9,7 @@ import type { Address, Hex } from "viem";
 
 import {
   ContractStatus,
+  type ExpirationReason,
   type PeginDisplayLabel,
 } from "../models/peginStateMachine";
 
@@ -68,8 +69,8 @@ export interface Vault {
   /** Timestamp when vault expired (null if not expired), milliseconds */
   expiredAt?: number;
 
-  /** Expiration reason: "ack_timeout" or "proof_timeout" (null if not expired) */
-  expirationReason?: string;
+  /** Expiration reason (null if not expired) */
+  expirationReason?: ExpirationReason;
 
   // === Ownership ===
 
@@ -78,6 +79,9 @@ export interface Vault {
 
   /** Referral attribution code (0 = no referral) */
   referralCode: number;
+
+  /** Depositor-specified BTC payout address (raw scriptPubKey) */
+  depositorPayoutBtcAddress: Hex;
 
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
   depositorLamportPkHash: string;

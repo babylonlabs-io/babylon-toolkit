@@ -1,4 +1,10 @@
-import { AmountSlider, Card, Loader, Select } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Card,
+  Checkbox,
+  Loader,
+  Select,
+} from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -18,6 +24,14 @@ interface Application {
   id: string;
   name: string;
   logoUrl: string | null;
+}
+
+interface PartialLiquidationProps {
+  isEnabled: boolean;
+  onChange: (checked: boolean) => void;
+  canSplit: boolean;
+  strategy: "SINGLE" | "MULTI_INPUT" | "SPLIT" | null;
+  isPlanning: boolean;
 }
 
 interface DepositFormProps {
@@ -47,6 +61,8 @@ interface DepositFormProps {
   isDepositEnabled: boolean;
   isGeoBlocked: boolean;
   onDeposit: () => void;
+
+  partialLiquidation?: PartialLiquidationProps;
 }
 
 export function DepositForm({
@@ -73,6 +89,7 @@ export function DepositForm({
   isDepositEnabled,
   isGeoBlocked,
   onDeposit,
+  partialLiquidation,
 }: DepositFormProps) {
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -115,6 +132,20 @@ export function DepositForm({
 
   const hasAmount = !!amount && amount !== "0";
   const feeDisabled = isLoadingFee || estimatedFeeRate <= 0 || btcFee === null;
+
+  const splitStatusText = useMemo(() => {
+    if (!partialLiquidation?.canSplit) {
+      return amountSats > 0n
+        ? "Insufficient balance to split into 2 vaults"
+        : null;
+    }
+    if (partialLiquidation.isPlanning) return "Computing allocation...";
+    if (partialLiquidation.strategy === "SPLIT")
+      return "Your BTC will be split into 2 vaults via an additional Bitcoin transaction";
+    if (partialLiquidation.strategy === "MULTI_INPUT")
+      return "Your BTC will be deposited into 2 vaults using existing UTXOs";
+    return null;
+  }, [partialLiquidation, amountSats]);
 
   const ctaLabel = isFeeError
     ? (feeError ?? "Fee estimate unavailable")
@@ -184,6 +215,33 @@ export function DepositForm({
         )}
       </Card>
 
+      {/* Partial liquidation checkbox */}
+      {partialLiquidation && (
+        <Card variant="filled" className="flex flex-col gap-2 px-4 py-3">
+          <label className="flex cursor-pointer items-center gap-3">
+            <Checkbox
+              checked={partialLiquidation.isEnabled}
+              onChange={() =>
+                partialLiquidation.onChange(!partialLiquidation.isEnabled)
+              }
+              variant="default"
+              showLabel={false}
+              disabled={!partialLiquidation.canSplit}
+            />
+            <span
+              className={`text-sm ${partialLiquidation.canSplit ? "text-accent-primary" : "text-accent-secondary"}`}
+            >
+              Enable partial liquidation (2 vaults)
+            </span>
+          </label>
+          {splitStatusText && (
+            <span className="text-xs text-accent-secondary">
+              {splitStatusText}
+            </span>
+          )}
+        </Card>
+      )}
+
       {/* CTA button */}
       <DepositButton
         variant="contained"
@@ -198,7 +256,16 @@ export function DepositForm({
 
       {/* Fee breakdown */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-accent-primary">Bitcoin Network Fee</span>
+        <span className="text-accent-primary">
+          Bitcoin Network Fee
+          {partialLiquidation?.isEnabled &&
+            partialLiquidation.strategy === "SPLIT" && (
+              <span className="text-accent-secondary">
+                {" "}
+                (includes split tx)
+              </span>
+            )}
+        </span>
         <span>
           <span
             className={isFeeError ? "text-error-main" : "text-accent-primary"}

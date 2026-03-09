@@ -8,6 +8,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
+import { formatBtcValue } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -62,7 +63,7 @@ export function RedeemCollateralSuccessModal({
             Total Amount
           </Text>
           <Text variant="body1" className="font-semibold text-accent-primary">
-            {totalAmount.toFixed(8)} {btcConfig.coinSymbol}
+            {formatBtcValue(totalAmount)} {btcConfig.coinSymbol}
           </Text>
           <Text variant="body2" className="mt-2 text-accent-secondary">
             {depositCount} {depositCount === 1 ? "deposit" : "deposits"}

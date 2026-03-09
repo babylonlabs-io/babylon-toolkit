@@ -46,19 +46,24 @@ const NUM_CHALLENGE_ASSERT_INPUTS = 3;
  * Taproot script path sign options — disables tweak signer and prevents
  * auto-finalization so we can extract raw Schnorr signatures from tapScriptSig.
  */
-const TAPROOT_SCRIPT_SIGN_OPTIONS: SignPsbtOptions = {
-  autoFinalized: false,
-  signInputs: [{ index: 0, disableTweakSigner: true }],
-};
+function taprootScriptSignOptions(publicKey: string): SignPsbtOptions {
+  return {
+    autoFinalized: false,
+    signInputs: [{ index: 0, publicKey, disableTweakSigner: true }],
+  };
+}
 
 /** Sign options for ChallengeAssert PSBTs (one entry per input). */
-const CHALLENGE_ASSERT_SIGN_OPTIONS: SignPsbtOptions = {
-  autoFinalized: false,
-  signInputs: Array.from({ length: NUM_CHALLENGE_ASSERT_INPUTS }, (_, i) => ({
-    index: i,
-    disableTweakSigner: true,
-  })),
-};
+function challengeAssertSignOptions(publicKey: string): SignPsbtOptions {
+  return {
+    autoFinalized: false,
+    signInputs: Array.from({ length: NUM_CHALLENGE_ASSERT_INPUTS }, (_, i) => ({
+      index: i,
+      publicKey,
+      disableTweakSigner: true,
+    })),
+  };
+}
 
 /**
  * Offchain parameters needed for depositor graph signing
@@ -78,7 +83,7 @@ export interface DepositorGraphOffchainParams {
   timelockAssert: number;
   /** Security council member pubkeys (x-only hex) */
   councilMembers: string[];
-  /** Council quorum (N-of-N) */
+  /** Council quorum (M-of-N multisig threshold) */
   councilQuorum: number;
 }
 
@@ -148,12 +153,16 @@ function buildChallengeAssertConnectorParams(
 async function buildDepositorGraphPsbts(
   depositorGraph: DepositorGraphTransactions,
   depositorPubkey: string,
+  walletPublicKey: string,
   peginPayoutParams: PayoutConnectorParams,
   assertConnectorParams: AssertPayoutNoPayoutConnectorParams,
 ): Promise<BuiltDepositorGraphPsbts> {
   const psbtHexes: string[] = [];
   const signOptions: SignPsbtOptions[] = [];
   const challengerIndexMap: ChallengerIndexEntry[] = [];
+
+  const taprootOpts = taprootScriptSignOptions(walletPublicKey);
+  const challengeAssertOpts = challengeAssertSignOptions(walletPublicKey);
 
   // Index 0: Payout PSBT (uses PeginPayoutConnector — same as VP/VK payout)
   try {
@@ -163,7 +172,7 @@ async function buildDepositorGraphPsbts(
       connectorParams: peginPayoutParams,
     });
     psbtHexes.push(payoutPsbt);
-    signOptions.push(TAPROOT_SCRIPT_SIGN_OPTIONS);
+    signOptions.push(taprootOpts);
   } catch (err) {
     throw new Error(
       `Failed to build depositor Payout PSBT: ${err instanceof Error ? err.message : String(err)}`,
@@ -194,7 +203,7 @@ async function buildDepositorGraphPsbts(
         connectorParams: assertConnectorParams,
       });
       psbtHexes.push(noPayoutPsbt);
-      signOptions.push(TAPROOT_SCRIPT_SIGN_OPTIONS);
+      signOptions.push(taprootOpts);
     } catch (err) {
       throw new Error(
         `Failed to build NoPayout PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
@@ -216,7 +225,7 @@ async function buildDepositorGraphPsbts(
         connectorParamsPerInput,
       });
       psbtHexes.push(caPsbt);
-      signOptions.push(CHALLENGE_ASSERT_SIGN_OPTIONS);
+      signOptions.push(challengeAssertOpts);
     } catch (err) {
       throw new Error(
         `Failed to build ChallengeAssert PSBT for challenger ${challengerPubkey}: ${err instanceof Error ? err.message : String(err)}`,
@@ -361,7 +370,7 @@ export async function prepareAndSignDepositorGraph(
       universalChallengers: sortedUCPubkeys,
       timelockAssert: Number(offchainParams.timelockAssert),
       councilMembers,
-      councilQuorum: councilMembers.length,
+      councilQuorum: offchainParams.councilQuorum,
     },
   });
 }
@@ -373,6 +382,9 @@ export async function signDepositorGraph(
     params;
 
   const depositorPubkey = stripHexPrefix(depositorBtcPubkey);
+
+  // Get the wallet's compressed public key for signInputs identification
+  const walletPublicKey = await btcWallet.getPublicKeyHex();
 
   // Build connector params
   const peginPayoutParams: PayoutConnectorParams = {
@@ -397,6 +409,7 @@ export async function signDepositorGraph(
     await buildDepositorGraphPsbts(
       depositorGraph,
       depositorPubkey,
+      walletPublicKey,
       peginPayoutParams,
       assertConnectorParams,
     );
@@ -412,7 +425,7 @@ export async function signDepositorGraph(
     );
   } catch (err) {
     throw new Error(
-      `Failed to sign depositor graph transactions: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to sign depositor graph transactions: ${err instanceof Error ? err.message : JSON.stringify(err)}`,
     );
   }
 

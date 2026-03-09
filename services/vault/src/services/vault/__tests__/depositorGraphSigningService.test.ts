@@ -28,6 +28,7 @@ const VK_PUBKEY =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 const CHALLENGER_PUBKEY_1 =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const WALLET_COMPRESSED_PUBKEY = "02" + DEPOSITOR_PUBKEY; // 66-char compressed pubkey
 
 function createMockDepositorGraph(
   numChallengers = 1,
@@ -93,6 +94,7 @@ function createMockParams(
     btcWallet: {
       signPsbts: vi.fn(),
       signPsbt: vi.fn(),
+      getPublicKeyHex: vi.fn().mockResolvedValue(WALLET_COMPRESSED_PUBKEY),
     } as any,
     offchainParams: {
       vaultProviderBtcPubkey: VP_PUBKEY,
@@ -134,27 +136,51 @@ describe("depositorGraphSigningService", () => {
       // 1 ChallengeAssert PSBT per challenger (not 3)
       expect(buildChallengeAssertPsbt).toHaveBeenCalledTimes(1);
 
-      // Batch sign should be called with 3 PSBTs and sign options
+      // Batch sign should be called with 3 PSBTs and sign options (including publicKey)
       expect(wallet.signPsbts).toHaveBeenCalledWith(
         ["psbt_payout_hex", "psbt_nopayout_hex", "psbt_ca_hex"],
         [
           // Payout: sign input 0
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
           // NoPayout: sign input 0
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
           // ChallengeAssert: sign inputs 0, 1, 2
           {
             autoFinalized: false,
             signInputs: [
-              { index: 0, disableTweakSigner: true },
-              { index: 1, disableTweakSigner: true },
-              { index: 2, disableTweakSigner: true },
+              {
+                index: 0,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
+              {
+                index: 1,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
+              {
+                index: 2,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
             ],
           },
         ],
@@ -223,14 +249,32 @@ describe("depositorGraphSigningService", () => {
       expect(wallet.signPsbt).toHaveBeenCalledTimes(3);
       expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_payout_hex", {
         autoFinalized: false,
-        signInputs: [{ index: 0, disableTweakSigner: true }],
+        signInputs: [
+          {
+            index: 0,
+            publicKey: WALLET_COMPRESSED_PUBKEY,
+            disableTweakSigner: true,
+          },
+        ],
       });
       expect(wallet.signPsbt).toHaveBeenCalledWith("psbt_ca_hex", {
         autoFinalized: false,
         signInputs: [
-          { index: 0, disableTweakSigner: true },
-          { index: 1, disableTweakSigner: true },
-          { index: 2, disableTweakSigner: true },
+          {
+            index: 0,
+            publicKey: WALLET_COMPRESSED_PUBKEY,
+            disableTweakSigner: true,
+          },
+          {
+            index: 1,
+            publicKey: WALLET_COMPRESSED_PUBKEY,
+            disableTweakSigner: true,
+          },
+          {
+            index: 2,
+            publicKey: WALLET_COMPRESSED_PUBKEY,
+            disableTweakSigner: true,
+          },
         ],
       });
     });
@@ -411,7 +455,13 @@ describe("depositorGraphSigningService", () => {
         [
           {
             autoFinalized: false,
-            signInputs: [{ index: 0, disableTweakSigner: true }],
+            signInputs: [
+              {
+                index: 0,
+                publicKey: WALLET_COMPRESSED_PUBKEY,
+                disableTweakSigner: true,
+              },
+            ],
           },
         ],
       );

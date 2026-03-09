@@ -62,6 +62,8 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
     depositorBtcPubkey: vault.depositorBtcPubkey,
     unsignedBtcTx: vault.unsignedBtcTx,
     depositorLamportPkHash: vault.depositorLamportPkHash,
+    expiredAt: vault.expiredAt,
+    expirationReason: vault.expirationReason,
     // No action handlers - these are attached at the component level
     action: undefined,
     // No position details in deposit tab

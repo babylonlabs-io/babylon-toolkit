@@ -6,6 +6,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DepositFlowStep } from "../depositFlowSteps/types";
 import { useDepositFlow } from "../useDepositFlow";
 
 // Mock config/contracts to avoid env var validation
@@ -22,6 +23,11 @@ vi.mock("@/config", () => ({
     isBorrowEnabled: true,
     isSimplifiedTermsEnabled: false,
   },
+}));
+
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
 }));
 
 // Mock dependencies
@@ -274,15 +280,20 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
     config: {
       minimumPegInAmount: 10000n,
       maxPegInAmount: 100_000_000n,
-      pegInActivationTimeout: 50400n,
+      pegInAckTimeout: 50400n,
+      pegInProofTimeout: 100800n,
       pegInConfirmationDepth: 30n,
       timelockPegin: 100,
-      depositorClaimValue: 35000n,
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
     },
     minDeposit: 10000n,
     maxDeposit: 100_000_000n,
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
     latestUniversalChallengers: [
       { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
     ],
@@ -316,6 +327,13 @@ vi.mock("@/clients/vault-provider-rpc", () => {
           offchain_params_version: 0,
         },
       });
+      getPeginStatus = vi.fn().mockResolvedValue({
+        pegin_txid: "test",
+        status: "PendingDepositorSignatures",
+        progress: {},
+        health_info: "",
+      });
+      submitDepositorLamportKey = vi.fn().mockResolvedValue(undefined);
     },
   };
 });
@@ -581,14 +599,16 @@ describe("useDepositFlow - Chain Switching", () => {
 
       const { result } = renderHook(() => useDepositFlow(mockParams));
 
-      expect(result.current.currentStep).toBe("SIGN_POP");
+      expect(result.current.currentStep).toBe(DepositFlowStep.SIGN_POP);
       expect(result.current.processing).toBe(false);
 
       const flowPromise = result.current.executeDepositFlow();
 
       // Wait for the artifact download step and then continue past it
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+        expect(result.current.currentStep).toBe(
+          DepositFlowStep.ARTIFACT_DOWNLOAD,
+        );
       });
       result.current.continueAfterArtifactDownload();
 
@@ -627,7 +647,9 @@ describe("useDepositFlow - Chain Switching", () => {
 
       // Wait for artifact download step and continue past it
       await waitFor(() => {
-        expect(result.current.currentStep).toBe("ARTIFACT_DOWNLOAD");
+        expect(result.current.currentStep).toBe(
+          DepositFlowStep.ARTIFACT_DOWNLOAD,
+        );
       });
       result.current.continueAfterArtifactDownload();
 

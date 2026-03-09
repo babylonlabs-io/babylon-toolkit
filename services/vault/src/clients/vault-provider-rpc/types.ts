@@ -87,10 +87,10 @@ export interface ClaimerTransactions {
   claim_tx: TransactionData;
   assert_tx: TransactionData;
   payout_tx: TransactionData;
-  /** Sighash for the payout transaction (hex, present when depositor-as-claimer). */
-  payout_sighash?: string;
+  /** Sighash for the payout transaction (hex). */
+  payout_sighash: string;
   /** Prevouts for building payout PSBT. */
-  payout_prevouts?: PrevoutData[];
+  payout_prevouts: PrevoutData[];
 }
 
 /** Challenger-specific transactions and signing data for the depositor graph. */
@@ -113,7 +113,7 @@ export interface PresignDataPerChallenger {
   /** Prevouts for building NoPayout PSBT. */
   nopayout_prevouts: PrevoutData[];
   /** Output label hashes for this challenger (used in GC verification). */
-  output_label_hashes?: string[];
+  output_label_hashes: string[];
 }
 
 /** Depositor-as-claimer TxGraph transactions (claim, assert, payout + challengers). */
@@ -156,21 +156,31 @@ export interface ChallengerProgress {
   pending_challenger_pubkeys: string[];
 }
 
-export type BabeSetupProgress = ChallengerProgress;
+export type GcDataProgress = ChallengerProgress;
 export type PresigningProgress = ChallengerProgress;
 export type AckCollectionProgress = ChallengerProgress;
 
 /** Detailed progress breakdown for an in-progress pegin. */
 export interface PeginProgressDetails {
-  babe_setup?: BabeSetupProgress;
+  gc_data?: GcDataProgress;
   presigning?: PresigningProgress;
   ack_collection?: AckCollectionProgress;
+  claimer_graphs?: ClaimerGraphStatus[];
+}
+
+/** Per-claimer graph status (challenger perspective). */
+export interface ClaimerGraphStatus {
+  claimer_pubkey: string;
+  presigned: boolean;
 }
 
 /** Response from `getPeginStatus`. */
 export interface GetPeginStatusResponse {
+  pegin_txid: string;
   status: string;
-  progress?: PeginProgressDetails;
+  progress: PeginProgressDetails;
+  health_info: string;
+  last_error?: string;
 }
 
 // ============================================================================

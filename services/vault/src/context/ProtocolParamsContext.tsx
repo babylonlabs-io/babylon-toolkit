@@ -43,6 +43,8 @@ interface ProtocolParamsContextValue {
   timelockPegin: number;
   /** Value in satoshis for the depositor's claim output (from offchain params) */
   depositorClaimValue: bigint;
+  /** Vault provider commission in basis points (e.g., 500 = 5%) */
+  vpCommissionBps: number;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get universal challengers by version - use for payout signing existing vaults */
@@ -107,9 +109,6 @@ export function ProtocolParamsProvider({
     retry: RETRY_COUNT,
   });
 
-  const isLoading = configLoading || ucLoading || offchainLoading;
-  const error = configError || ucError || offchainError;
-
   const latestUniversalChallengers = useMemo(() => {
     if (!ucData) return [];
     return ucData.byVersion.get(ucData.latestVersion) ?? [];
@@ -131,7 +130,10 @@ export function ProtocolParamsProvider({
     [offchainParamsData],
   );
 
-  if (isLoading) {
+  const allLoading = configLoading || ucLoading || offchainLoading;
+  const allError = configError || ucError || offchainError;
+
+  if (allLoading) {
     return (
       <div className="flex min-h-[400px] items-center justify-center">
         <Loader size={32} />
@@ -139,12 +141,14 @@ export function ProtocolParamsProvider({
     );
   }
 
-  if (error || !configData || configData.minimumPegInAmount === undefined) {
+  if (allError || !configData || configData.minimumPegInAmount === undefined) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
         <p className="text-error">Failed to load protocol parameters</p>
         <p className="text-secondary text-sm">
-          {error instanceof Error ? error.message : "Please refresh the page"}
+          {allError instanceof Error
+            ? allError.message
+            : "Please refresh the page"}
         </p>
       </div>
     );
@@ -156,6 +160,7 @@ export function ProtocolParamsProvider({
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
     depositorClaimValue: configData.depositorClaimValue,
+    vpCommissionBps: configData.vpCommissionBps,
     latestUniversalChallengers,
     getUniversalChallengersByVersion,
     getOffchainParamsByVersion,

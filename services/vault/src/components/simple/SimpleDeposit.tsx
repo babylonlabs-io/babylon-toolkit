@@ -22,6 +22,7 @@ import { DepositForm } from "./DepositForm";
 import { DepositSignContent } from "./DepositSignContent";
 import { DepositSuccessContent } from "./DepositSuccessContent";
 import { FadeTransition } from "./FadeTransition";
+import { MultiVaultDepositSignContent } from "./MultiVaultDepositSignContent";
 import {
   ResumeBroadcastContent,
   ResumeLamportContent,
@@ -91,11 +92,17 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     amountSats,
     minDeposit,
     maxDeposit,
-    estimatedFeeSats,
     estimatedFeeRate,
     isLoadingFee,
     feeError,
     maxDepositSats,
+    isPartialLiquidation,
+    setIsPartialLiquidation,
+    canSplit,
+    strategy,
+    allocationPlan,
+    isPlanning,
+    effectiveFeeSats,
     validateForm,
   } = useDepositPageForm();
 
@@ -111,6 +118,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitAllocationPlan,
+    setSplitAllocationPlan,
     confirmMnemonic,
     getMnemonic,
     mnemonicId,
@@ -138,6 +149,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
+      setIsSplitDeposit(isPartialLiquidation);
+      if (isPartialLiquidation && allocationPlan) {
+        setSplitAllocationPlan(allocationPlan);
+      }
       goToStep(DepositStep.MNEMONIC);
     }
   };
@@ -183,13 +198,20 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                   setFormData({ selectedProvider: providerId })
                 }
                 isValid={isValid}
-                estimatedFeeSats={estimatedFeeSats}
+                estimatedFeeSats={effectiveFeeSats}
                 estimatedFeeRate={estimatedFeeRate}
                 isLoadingFee={isLoadingFee}
                 feeError={feeError}
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
+                partialLiquidation={{
+                  isEnabled: isPartialLiquidation,
+                  onChange: setIsPartialLiquidation,
+                  canSplit,
+                  strategy,
+                  isPlanning,
+                }}
               />
             </div>
           </div>
@@ -207,22 +229,44 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
         {renderedStep === DepositStep.SIGN && getMnemonic && (
           <div className="mx-auto w-full max-w-[520px]">
-            <DepositSignContent
-              amount={depositAmount}
-              feeRate={feeRate}
-              btcWalletProvider={btcWalletProvider}
-              depositorEthAddress={ethAddress}
-              selectedApplication={selectedApplication}
-              selectedProviders={selectedProviders}
-              vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-              vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-              universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-              getMnemonic={getMnemonic}
-              mnemonicId={mnemonicId}
-              onSuccess={handleSignSuccess}
-              onClose={onClose}
-              onRefetchActivities={refetchActivities}
-            />
+            {isSplitDeposit && splitAllocationPlan ? (
+              <MultiVaultDepositSignContent
+                vaultAmounts={splitAllocationPlan.vaultAllocations.map(
+                  (a) => a.amount,
+                )}
+                precomputedPlan={splitAllocationPlan}
+                feeRate={feeRate}
+                btcWalletProvider={btcWalletProvider}
+                depositorEthAddress={ethAddress}
+                selectedApplication={selectedApplication}
+                selectedProviders={selectedProviders}
+                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                getMnemonic={getMnemonic}
+                mnemonicId={mnemonicId}
+                onSuccess={handleSignSuccess}
+                onClose={onClose}
+                onRefetchActivities={refetchActivities}
+              />
+            ) : (
+              <DepositSignContent
+                amount={depositAmount}
+                feeRate={feeRate}
+                btcWalletProvider={btcWalletProvider}
+                depositorEthAddress={ethAddress}
+                selectedApplication={selectedApplication}
+                selectedProviders={selectedProviders}
+                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                getMnemonic={getMnemonic}
+                mnemonicId={mnemonicId}
+                onSuccess={handleSignSuccess}
+                onClose={onClose}
+                onRefetchActivities={refetchActivities}
+              />
+            )}
           </div>
         )}
 

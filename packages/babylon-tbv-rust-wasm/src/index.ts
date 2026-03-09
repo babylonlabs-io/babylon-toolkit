@@ -1,5 +1,5 @@
 // @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import init, { WasmPeginTx } from "./generated/btc_vault.js";
+import init, { WasmPeginTx, computeMinClaimValue as wasmComputeMinClaimValue, numUtxosForInputLabels as wasmNumUtxosForInputLabels } from "./generated/btc_vault.js";
 import type { PegInParams, PegInResult } from "./types.js";
 
 let wasmInitialized = false;
@@ -61,6 +61,40 @@ export async function createPegInTransaction(
     vaultScriptPubKey: tx.getVaultScriptPubKey(),
     vaultValue: tx.getVaultValue(),
   };
+}
+
+/**
+ * Compute the minimum depositor claim value (PegIn output 1) in satoshis.
+ *
+ * This covers the full downstream tx graph cost (Claim → Assert → Payout)
+ * based on the protocol parameters.
+ */
+export async function computeMinClaimValue(
+  numLocalChallengers: number,
+  numUniversalChallengers: number,
+  numGcs: number,
+  councilQuorum: number,
+  councilSize: number,
+  feeRate: bigint,
+): Promise<bigint> {
+  await initWasm();
+  return wasmComputeMinClaimValue(
+    numLocalChallengers,
+    numUniversalChallengers,
+    numGcs,
+    councilQuorum,
+    councilSize,
+    feeRate,
+  );
+}
+
+/**
+ * Returns the protocol constant for the number of UTXOs (Assert outputs)
+ * per challenger. Currently 3, derived from Bitcoin's 1000 stack element limit.
+ */
+export async function numUtxosForInputLabels(): Promise<number> {
+  await initWasm();
+  return wasmNumUtxosForInputLabels();
 }
 
 // Export types
