@@ -6,7 +6,7 @@
  * summary + expand pattern as CollateralSection.
  */
 
-import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { Avatar, Card, Loader } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import { ExpandMenuButton } from "@/components/shared";
@@ -43,7 +43,7 @@ export function PendingWithdrawSection({
         <h2 className="text-[24px] font-normal text-accent-primary">
           Pending Withdraw
         </h2>
-        <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+        <Loader size={18} />
       </div>
 
       {/* Summary card with expand */}

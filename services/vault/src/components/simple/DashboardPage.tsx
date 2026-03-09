@@ -75,7 +75,9 @@ export function DashboardPage() {
       }));
   }, [aaveVaults, pendingVaults, hasPendingWithdraw]);
 
-  // Derive withdraw data from only in-use vaults (serving as Aave collateral)
+  // Derive withdraw data from only in-use vaults (serving as Aave collateral).
+  // USD is derived proportionally from total collateral USD because individual
+  // vault USD values aren't available from the position data.
   const { inUseVaultIds, inUseBtc, inUseUsd } = useMemo(() => {
     const inUse = collateralVaults.filter((v) => v.inUse);
     const btc = inUse.reduce((sum, v) => sum + v.amountBtc, 0);

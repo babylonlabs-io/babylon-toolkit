@@ -55,10 +55,11 @@ export function useDashboardState(
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;
 
-  // Derive a stable key from provider id+name pairs so the memo doesn't
-  // recompute when useVaultProviders returns a new array reference (e.g. logo merge).
+  // Derive a stable key so the memo doesn't recompute when useVaultProviders
+  // returns a new array reference. JSON.stringify avoids collisions from
+  // delimiter characters in provider names.
   const providerKey = useMemo(
-    () => (vaultProviders ?? []).map((p) => `${p.id}:${p.name}`).join(","),
+    () => JSON.stringify((vaultProviders ?? []).map((p) => [p.id, p.name])),
     [vaultProviders],
   );
 

@@ -1,7 +1,3 @@
-import { Menu, MenuItem } from "@babylonlabs-io/core-ui";
-
-import { MenuButton } from "./MenuButton";
-
 interface ExpandMenuButtonProps {
   isExpanded: boolean;
   onToggle: () => void;
@@ -14,12 +10,28 @@ export function ExpandMenuButton({
   "aria-label": ariaLabel = "Toggle details",
 }: ExpandMenuButtonProps) {
   return (
-    <Menu trigger={<MenuButton aria-label={ariaLabel} />} className="!min-w-0">
-      <MenuItem
-        name={isExpanded ? "Collapse" : "Expand"}
-        onClick={onToggle}
-        className="!p-4"
-      />
-    </Menu>
+    <button
+      onClick={onToggle}
+      className="rounded p-1 transition-colors hover:bg-secondary-highlight dark:hover:bg-primary-main"
+      aria-label={ariaLabel}
+      aria-expanded={isExpanded}
+    >
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 20 20"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`text-accent-primary transition-transform ${isExpanded ? "rotate-180" : ""}`}
+      >
+        <path
+          d="M5 8l5 5 5-5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
   );
 }

@@ -45,14 +45,17 @@ export function WithdrawReviewContent({
       },
       {
         label: "VP Commission",
-        value: (
-          <span>
-            {formatBtcAmount(vpCommissionBtc)}{" "}
-            <span className="text-accent-secondary">
-              {formatUsdValue(vpCommissionUsd)}
+        value:
+          vpCommissionBps > 0 ? (
+            <span>
+              {formatBtcAmount(vpCommissionBtc)}{" "}
+              <span className="text-accent-secondary">
+                {formatUsdValue(vpCommissionUsd)}
+              </span>
             </span>
-          </span>
-        ),
+          ) : (
+            "None"
+          ),
       },
     ];
   }, [totalAmountBtc, totalAmountUsd, defaultFeeRate, vpCommissionBps]);
