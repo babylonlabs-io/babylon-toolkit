@@ -5,8 +5,8 @@
 
 import { Avatar } from "@babylonlabs-io/core-ui";
 
+import { VaultDetailRows } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
-import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -17,12 +17,18 @@ interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
   addedAt: number;
+  inUse: boolean;
+  status: string;
+  vaultProviderName: string;
 }
 
 export function CollateralVaultItem({
   vaultId,
   amountBtc,
   addedAt,
+  inUse,
+  status,
+  vaultProviderName,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
@@ -36,18 +42,23 @@ export function CollateralVaultItem({
         </span>
       </div>
 
-      {/* Date row */}
+      <VaultDetailRows date={formattedDate} txHash={vaultId} />
+
+      {/* Status row */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Date</span>
-        <span className="text-sm text-accent-primary">{formattedDate}</span>
+        <span className="text-sm text-accent-secondary">Status</span>
+        <span className="flex items-center gap-1.5 text-sm text-accent-primary">
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${inUse ? "bg-green-500" : "bg-gray-400"}`}
+          />
+          {status}
+        </span>
       </div>
 
-      {/* Transaction hash row */}
+      {/* Vault Provider row */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateHash(vaultId)}
-        </span>
+        <span className="text-sm text-accent-secondary">Vault Provider</span>
+        <span className="text-sm text-accent-primary">{vaultProviderName}</span>
       </div>
     </div>
   );

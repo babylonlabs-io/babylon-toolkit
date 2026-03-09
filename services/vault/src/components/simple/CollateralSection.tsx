@@ -3,10 +3,10 @@
  * Displays collateral with an expandable view showing individual peg-in vaults.
  */
 
-import { Avatar, Card, Loader } from "@babylonlabs-io/core-ui";
-import { useCallback, useState } from "react";
+import { Avatar, Card } from "@babylonlabs-io/core-ui";
+import { useState } from "react";
 
-import { DepositButton, MenuButton } from "@/components/shared";
+import { DepositButton, ExpandMenuButton } from "@/components/shared";
 import { Connect } from "@/components/Wallet";
 import { getNetworkConfigBTC } from "@/config";
 import type { CollateralVaultEntry } from "@/types/collateral";
@@ -21,7 +21,6 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   hasDebt: boolean;
-  isPendingWithdraw: boolean;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
@@ -32,16 +31,10 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   hasDebt,
-  isPendingWithdraw,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-
-  const handleWithdraw = useCallback(() => {
-    onWithdraw();
-  }, [onWithdraw]);
-
   const canWithdraw = !hasDebt;
 
   return (
@@ -56,7 +49,7 @@ export function CollateralSection({
             variant="outlined"
             size="medium"
             onClick={onDeposit}
-            disabled={!isConnected || isPendingWithdraw}
+            disabled={!isConnected}
             className="rounded-full"
           >
             Deposit
@@ -64,16 +57,7 @@ export function CollateralSection({
         </div>
       </div>
 
-      {isPendingWithdraw ? (
-        <Card variant="filled" className="w-full">
-          <div className="flex items-center gap-3 py-4">
-            <Loader size={20} />
-            <span className="text-base text-accent-primary">
-              Pending Withdrawal
-            </span>
-          </div>
-        </Card>
-      ) : hasCollateral ? (
+      {hasCollateral ? (
         <Card variant="filled" className="w-full">
           {/* Summary row: BTC icon + total amount + three-dots toggle */}
           <div className="flex items-center justify-between">
@@ -87,9 +71,10 @@ export function CollateralSection({
                 {totalAmountBtc}
               </span>
             </div>
-            <MenuButton
-              onClick={() => setIsExpanded((prev) => !prev)}
-              aria-label="Toggle vault details"
+            <ExpandMenuButton
+              isExpanded={isExpanded}
+              onToggle={() => setIsExpanded((prev) => !prev)}
+              aria-label="Vault options"
             />
           </div>
 
@@ -97,7 +82,7 @@ export function CollateralSection({
           {isExpanded && (
             <CollateralExpandedContent
               vaults={collateralVaults}
-              onWithdraw={handleWithdraw}
+              onWithdraw={onWithdraw}
               canWithdraw={canWithdraw}
             />
           )}
@@ -126,7 +111,6 @@ export function CollateralSection({
                   variant="outlined"
                   size="medium"
                   onClick={onDeposit}
-                  disabled={isPendingWithdraw}
                   className="rounded-full"
                 >
                   Deposit {btcConfig.coinSymbol}
