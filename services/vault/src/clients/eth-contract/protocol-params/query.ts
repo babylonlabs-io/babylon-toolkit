@@ -57,6 +57,10 @@ export interface PegInConfiguration {
   pegInConfirmationDepth: bigint;
   /** CSV timelock in blocks for the PegIn output (from offchain params) */
   timelockPegin: number;
+  /** Value in satoshis for the depositor's claim output (from offchain params) */
+  depositorClaimValue: bigint;
+  /** Vault provider commission in basis points (e.g., 500 = 5%) */
+  vpCommissionBps: number;
   /** Latest offchain params (for computing depositorClaimValue in context) */
   offchainParams: VersionedOffchainParams;
 }
@@ -157,6 +161,11 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
   // timelockPegin = uint16(timelockAssert), matching PeginLogic.sol:115
   const timelockPegin = Number(offchainParams.timelockAssert);
 
+  // TODO: Replace with value from contract once btc-vault exposes
+  // depositorClaimValue as a parameter. Must cover the full downstream
+  // tx graph (Claim → Assert → Payout).
+  const depositorClaimValue = 500_000n;
+
   return {
     minimumPegInAmount: params.minimumPegInAmount,
     maxPegInAmount: params.maxPegInAmount,
@@ -164,6 +173,8 @@ export async function getPegInConfiguration(): Promise<PegInConfiguration> {
     pegInProofTimeout: params.pegInProofTimeout,
     pegInConfirmationDepth: params.pegInConfirmationDepth,
     timelockPegin,
+    depositorClaimValue,
+    vpCommissionBps: offchainParams.vpCommissionBps,
     offchainParams,
   };
 }
