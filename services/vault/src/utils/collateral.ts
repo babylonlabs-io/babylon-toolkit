@@ -5,12 +5,16 @@
 
 import type { AavePositionCollateral } from "@/applications/aave/services/fetchPositions";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import type { VaultProvider } from "@/types/vaultProvider";
 
-import { truncateAddress } from "./addressUtils";
+import { truncateHash } from "./addressUtils";
 import { satoshiToBtcNumber } from "./btcConversion";
 
 /** Vault statuses that should be excluded from the collateral display */
 const EXCLUDED_VAULT_STATUSES = new Set(["liquidated", "depositor_withdrawn"]);
+
+/** Resolves a vault provider address to display name and icon */
+type ProviderResolver = (address: string) => VaultProvider | undefined;
 
 /**
  * Checks whether a collateral entry is active (not removed, not excluded status).
@@ -25,37 +29,16 @@ function isActiveCollateral(collateral: AavePositionCollateral): boolean {
 }
 
 /**
- * Derives a display status from vault data.
- * If vault is in use, returns "In use". Otherwise capitalizes the vault status.
- */
-function deriveStatus(vault: AavePositionCollateral["vault"]): string {
-  if (!vault) return "Unknown";
-  if (vault.inUse) return "In use";
-  const s = vault.status;
-  return s
-    ? s
-        .split("_")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ")
-    : "Unknown";
-}
-
-/**
  * Filters and maps raw Aave position collaterals to display-friendly entries.
  * Excludes withdrawn and liquidated collaterals.
- *
- * @param collaterals - Raw collateral data from GraphQL
- * @param providerNames - Optional map of provider address (lowercase) to display name
  */
 export function toCollateralVaultEntries(
   collaterals: AavePositionCollateral[],
-  providerNames?: Map<string, string>,
+  findProvider?: ProviderResolver,
 ): CollateralVaultEntry[] {
   return collaterals.filter(isActiveCollateral).map((c) => {
     const providerAddress = c.vault?.vaultProvider ?? "";
-    const providerName =
-      providerNames?.get(providerAddress.toLowerCase()) ??
-      (providerAddress ? truncateAddress(providerAddress) : "Unknown");
+    const provider = findProvider?.(providerAddress);
 
     return {
       id: `${c.depositorAddress}-${c.vaultId}`,
@@ -63,8 +46,8 @@ export function toCollateralVaultEntries(
       amountBtc: satoshiToBtcNumber(c.amount),
       addedAt: Number(c.addedAt),
       inUse: c.vault?.inUse ?? false,
-      status: deriveStatus(c.vault),
-      vaultProviderName: providerName,
+      providerName: provider?.name ?? truncateHash(providerAddress),
+      providerIconUrl: provider?.iconUrl,
     };
   });
 }

@@ -31,8 +31,8 @@ export function CollateralExpandedContent({
             amountBtc={vault.amountBtc}
             addedAt={vault.addedAt}
             inUse={vault.inUse}
-            status={vault.status}
-            vaultProviderName={vault.vaultProviderName}
+            providerName={vault.providerName}
+            providerIconUrl={vault.providerIconUrl}
           />
         ))}
       </div>

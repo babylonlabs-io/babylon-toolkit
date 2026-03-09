@@ -14,12 +14,10 @@ import {
   usePendingVaults,
   useSyncPendingVaults,
 } from "@/applications/aave/context";
-import { useAaveConfig } from "@/applications/aave/context/AaveConfigContext";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
@@ -38,8 +36,6 @@ export function DashboardPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
-  const { config } = useAaveConfig();
-  const { vaultProviders } = useVaultProviders(config?.controllerAddress);
 
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false);
   const [isAssetModalOpen, setIsAssetModalOpen] = useState(false);
@@ -59,7 +55,7 @@ export function DashboardPage() {
     hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
-  } = useDashboardState(address, vaultProviders);
+  } = useDashboardState(address);
 
   const { vaults: aaveVaults } = useAaveVaults(address);
   const { hasPendingWithdraw, pendingVaults } = usePendingVaults();
