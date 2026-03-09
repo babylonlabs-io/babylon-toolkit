@@ -145,6 +145,7 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           hasDebt={hasDebt}
+          isPendingWithdraw={hasPendingWithdraw}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
