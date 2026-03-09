@@ -48,7 +48,6 @@ interface MnemonicFlowState {
   mnemonicId: string | null;
   challenge: VerificationChallenge | null;
   error: string | null;
-  hasStored: boolean;
 }
 
 interface UseMnemonicFlowOptions {
@@ -85,7 +84,6 @@ export function useMnemonicFlow({
     mnemonicId: null,
     challenge: null,
     error: null,
-    hasStored: false,
   });
 
   // Derived — no need to store in state
@@ -112,7 +110,6 @@ export function useMnemonicFlow({
       }
       setState((prev) => ({
         ...prev,
-        hasStored: stored,
         step: initialStep,
       }));
     });
@@ -185,7 +182,6 @@ export function useMnemonicFlow({
           ...prev,
           step: MnemonicStep.COMPLETE,
           mnemonicId: id,
-          hasStored: true,
           error: null,
         }));
       } catch {
@@ -254,7 +250,6 @@ export function useMnemonicFlow({
       mnemonicId: null,
       challenge: null,
       error: null,
-      hasStored: false,
     });
   }, []);
 
