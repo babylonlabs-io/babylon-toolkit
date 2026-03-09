@@ -8,7 +8,7 @@
  * Must be rendered inside a PeginPollingProvider.
  */
 
-import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, Card, Chip, Hint } from "@babylonlabs-io/core-ui";
 import { useState } from "react";
 
 import type {
@@ -80,16 +80,23 @@ export function PendingDepositCard({
     }
   };
 
-  const button = (
+  const label = loading && !transactions ? "Loading..." : displayLabel;
+  const buttonDisabled = !isActionable || (loading && !transactions);
+
+  const statusPill = isActionable ? (
     <Button
       variant="contained"
       size="small"
       className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-      disabled={!isActionable || (loading && !transactions)}
+      disabled={buttonDisabled}
       onClick={handleClick}
     >
-      {loading && !transactions ? "Loading..." : displayLabel}
+      {label}
     </Button>
+  ) : (
+    <Chip className="cursor-default rounded-full !bg-white !text-black">
+      {label}
+    </Chip>
   );
 
   return (
@@ -110,14 +117,14 @@ export function PendingDepositCard({
           </span>
         </div>
 
+        {peginState.message ? (
+          <Hint tooltip={peginState.message} attachToChildren>
+            {statusPill}
+          </Hint>
+        ) : (
+          statusPill
+        )}
         <div className="flex items-center gap-2">
-          {peginState.message ? (
-            <Hint tooltip={peginState.message} attachToChildren>
-              {button}
-            </Hint>
-          ) : (
-            button
-          )}
           <ExpandMenuButton
             isExpanded={isExpanded}
             onToggle={() => setIsExpanded((prev) => !prev)}

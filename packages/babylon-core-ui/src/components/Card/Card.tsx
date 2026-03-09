@@ -2,7 +2,7 @@ import { type PropsWithChildren, createElement } from "react";
 import { twJoin } from "tailwind-merge";
 import "./Card.css";
 
-interface CardProps extends PropsWithChildren {
+export interface CardProps extends PropsWithChildren {
   as?: string;
   variant?: "default" | "filled";
   className?: string;
