@@ -560,6 +560,8 @@ describe("PeginManager", () => {
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         unsignedBtcTx: mockUnsignedTx,
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorPayoutBtcAddress:
+          "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
@@ -604,6 +606,8 @@ describe("PeginManager", () => {
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedBtcTx: "0100000000010000000000",
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          depositorPayoutBtcAddress:
+            "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
         }),
       ).rejects.toThrow(/Mock signing failed/);
@@ -631,6 +635,8 @@ describe("PeginManager", () => {
           depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
           unsignedBtcTx: "0100000000010000000000",
           vaultProvider: TEST_CONTRACT_ADDRESS,
+          depositorPayoutBtcAddress:
+            "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
           depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
         }),
       ).rejects.toThrow(/Mock transaction failed/);
@@ -657,6 +663,8 @@ describe("PeginManager", () => {
         depositorBtcPubkey: `0x${TEST_KEYS.DEPOSITOR}`,
         unsignedBtcTx: "0x0100000000010000000000",
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorPayoutBtcAddress:
+          "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 
@@ -668,6 +676,8 @@ describe("PeginManager", () => {
         depositorBtcPubkey: TEST_KEYS.DEPOSITOR,
         unsignedBtcTx: "0100000000010000000000",
         vaultProvider: TEST_CONTRACT_ADDRESS,
+        depositorPayoutBtcAddress:
+          "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2",
         depositorLamportPkHash: MOCK_LAMPORT_PK_HASH,
       });
 

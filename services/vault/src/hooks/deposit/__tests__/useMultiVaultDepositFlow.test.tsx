@@ -19,6 +19,11 @@ import { useMultiVaultDepositFlow } from "../useMultiVaultDepositFlow";
 // Mocks
 // ============================================================================
 
+// Mock depositor claim value utility
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35000n),
+}));
+
 // Mock SDK functions
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn(),
@@ -318,8 +323,15 @@ async function setupDefaultMocks() {
 
   // Protocol params
   vi.mocked(useProtocolParamsContext).mockReturnValue({
+    config: {
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
+    },
     timelockPegin: 100,
-    depositorClaimValue: 35000n,
     getOffchainParamsByVersion: vi.fn(() => ({
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],

@@ -79,6 +79,9 @@ export interface Vault {
   /** Referral attribution code (0 = no referral) */
   referralCode: number;
 
+  /** Depositor-specified BTC payout address (raw scriptPubKey) */
+  depositorPayoutBtcAddress: Hex;
+
   /** Keccak256 hash of depositor's Lamport public key (committed on-chain) */
   depositorLamportPkHash: string;
 
