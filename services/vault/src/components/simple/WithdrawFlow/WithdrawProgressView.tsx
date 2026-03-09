@@ -15,8 +15,9 @@ const MINS_PER_HOUR = 60;
 
 /**
  * Number of payout transactions that need signing.
- * Keep in sync with depositor graph outputs in depositorGraphSigningService.ts:
- * claim, challenge-response, no-payout, payout-optimistic, payout-challenge, payout-default.
+ * Keep in sync with depositorGraphSigningService.ts:
+ * 1 Payout + N NoPayout + N ChallengeAssert = 1 + 2N PSBTs.
+ * Currently N=2 challengers → 5, rounded up to 6 as a display approximation.
  */
 const PAYOUT_TX_COUNT = 6;
 

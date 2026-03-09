@@ -6,7 +6,7 @@
 import { forwardRef } from "react";
 
 export interface MenuButtonProps {
-  onClick?: () => void;
+  onClick: () => void;
   "aria-label"?: string;
 }
 
