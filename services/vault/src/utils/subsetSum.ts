@@ -77,45 +77,46 @@ export function amountsToSliderSteps(
 }
 
 /**
- * Find vaults (by index) that sum to the target amount in satoshis
- * Uses a greedy algorithm to select vaults
+ * Find vault indices that sum exactly to the target amount in satoshis.
  *
- * @param vaultAmounts - Array of vault amounts in satoshis
+ * Uses recursive backtracking: at each step we try including the current vault
+ * (if it fits in the remaining amount) and recurse, then backtrack and try
+ * skipping it. The first valid combination found is returned. This guarantees
+ * we find a solution whenever one exists.
+ *
+ * @param vaultAmounts - Array of vault amounts in satoshis (order preserved for indices)
  * @param targetSatoshis - Target amount in satoshis
- * @returns Array of vault indices that sum to the target amount, or null if not possible
+ * @returns Indices of vaults that sum to the target, or null if no such combination exists
  */
 export function findVaultIndicesForAmount(
   vaultAmounts: bigint[],
   targetSatoshis: bigint,
 ): number[] | null {
   if (targetSatoshis === 0n) {
-    return []; // No vaults needed for 0 collateral
+    return [];
   }
 
-  // Create array of [index, amount] pairs
-  const vaults = vaultAmounts.map((amount, index) => ({ index, amount }));
-
-  // Sort by amount descending (greedy approach: use larger vaults first)
-  vaults.sort((a, b) =>
-    a.amount > b.amount ? -1 : a.amount < b.amount ? 1 : 0,
-  );
-
-  const selected: number[] = [];
-  let remaining = targetSatoshis;
-
-  for (const vault of vaults) {
-    if (remaining === 0n) break;
-
-    if (vault.amount <= remaining) {
-      selected.push(vault.index);
-      remaining -= vault.amount;
+  function backtrack(
+    startIndex: number,
+    remaining: bigint,
+    selected: number[],
+  ): number[] | null {
+    if (remaining === 0n) {
+      return [...selected];
     }
+
+    for (let i = startIndex; i < vaultAmounts.length; i++) {
+      const amount = vaultAmounts[i];
+      if (amount > remaining) continue;
+
+      selected.push(i);
+      const result = backtrack(i + 1, remaining - amount, selected);
+      if (result !== null) return result;
+      selected.pop();
+    }
+
+    return null;
   }
 
-  // Check if we found an exact match
-  if (remaining === 0n) {
-    return selected.sort((a, b) => a - b); // Return indices in original order
-  }
-
-  return null; // No exact combination found
+  return backtrack(0, targetSatoshis, []);
 }
