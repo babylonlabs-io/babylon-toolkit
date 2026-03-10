@@ -11,10 +11,10 @@ export interface CollateralVaultEntry {
   amountBtc: number;
   /** Unix timestamp in seconds when added as collateral */
   addedAt: number;
-  /** Whether the vault is currently serving as Aave collateral */
+  /** Whether the vault is currently in use as collateral */
   inUse: boolean;
-  /** Display status (e.g. "In use", "Active") */
-  status: string;
-  /** Vault provider display name (or truncated address fallback) */
-  vaultProviderName: string;
+  /** Vault provider display name */
+  providerName: string;
+  /** Vault provider icon URL (optional) */
+  providerIconUrl?: string;
 }

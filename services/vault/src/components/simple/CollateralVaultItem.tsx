@@ -3,10 +3,10 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
 
-import { VaultDetailRows } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -18,8 +18,8 @@ interface CollateralVaultItemProps {
   amountBtc: number;
   addedAt: number;
   inUse: boolean;
-  status: string;
-  vaultProviderName: string;
+  providerName: string;
+  providerIconUrl?: string;
 }
 
 export function CollateralVaultItem({
@@ -27,8 +27,8 @@ export function CollateralVaultItem({
   amountBtc,
   addedAt,
   inUse,
-  status,
-  vaultProviderName,
+  providerName,
+  providerIconUrl,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
@@ -42,23 +42,38 @@ export function CollateralVaultItem({
         </span>
       </div>
 
-      <VaultDetailRows date={formattedDate} txHash={vaultId} />
+      {/* Date row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Date</span>
+        <span className="text-sm text-accent-primary">{formattedDate}</span>
+      </div>
 
       {/* Status row */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Status</span>
-        <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${inUse ? "bg-green-500" : "bg-gray-400"}`}
-          />
-          {status}
-        </span>
+        <StatusBadge
+          status={inUse ? "active" : "inactive"}
+          label={inUse ? "In use" : "Available"}
+        />
       </div>
 
       {/* Vault Provider row */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
-        <span className="text-sm text-accent-primary">{vaultProviderName}</span>
+        <div className="flex items-center gap-1.5">
+          {providerIconUrl && (
+            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+          )}
+          <span className="text-sm text-accent-primary">{providerName}</span>
+        </div>
+      </div>
+
+      {/* Transaction hash row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Transaction Hash</span>
+        <span className="font-mono text-sm text-accent-primary">
+          {truncateHash(vaultId)}
+        </span>
       </div>
     </div>
   );

@@ -23,7 +23,6 @@ import { formatProviderDisplayName } from "@/utils/formatting";
 
 import type { VaultData } from "../components/Overview/components/VaultsTable";
 import { usePendingVaults } from "../context";
-import { useAaveConfig } from "../context/AaveConfigContext";
 
 /**
  * Transform a Vault to VaultData for display
@@ -79,8 +78,7 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
-  const { config } = useAaveConfig();
-  const { findProvider } = useVaultProviders(config?.controllerAddress);
+  const { findProvider } = useVaultProviders();
 
   const {
     data: vaults,
