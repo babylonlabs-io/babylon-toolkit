@@ -104,7 +104,16 @@ export function VaultsTable({ vaults, onRedeem, onDeposit }: VaultsTableProps) {
       headerClassName: "w-[20%]",
       cellClassName: "w-[20%]",
       render: (_value, row) => (
-        <Avatar url={row.provider.icon} alt={row.provider.name} size="small" />
+        <div className="flex items-center gap-2">
+          <Avatar
+            url={row.provider.icon}
+            alt={row.provider.name}
+            size="small"
+          />
+          <span className="text-sm text-accent-primary">
+            {row.provider.name}
+          </span>
+        </div>
       ),
     },
     {
