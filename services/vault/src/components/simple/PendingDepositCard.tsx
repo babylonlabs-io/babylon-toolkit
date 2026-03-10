@@ -32,12 +32,8 @@ import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import type { PeginState } from "@/models/peginStateMachine";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { truncateHash } from "@/utils/addressUtils";
-import {
-  formatBtcAmount,
-  formatDateTime,
-  formatProviderName,
-} from "@/utils/formatting";
+import { truncateAddress, truncateHash } from "@/utils/addressUtils";
+import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -116,7 +112,8 @@ export function PendingDepositCard({
 
   // Resolve provider name
   const provider = vaultProviders.find((vp) => vp.id === providerId);
-  const providerName = provider?.name ?? formatProviderName(providerId);
+  const providerName =
+    provider?.name ?? `Provider ${truncateAddress(providerId)}`;
 
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
