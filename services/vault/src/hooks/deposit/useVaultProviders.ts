@@ -20,6 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback } from "react";
 
+import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
 import { fetchAppProviders } from "../../services/providers";
 import type {
   AppProvidersResponse,
@@ -52,18 +53,21 @@ export interface UseVaultProvidersResult {
  *
  * Note: For universal challengers (system-wide), use useProtocolParamsContext() instead.
  *
- * @param applicationController - The application controller address to filter by.
- *                                If undefined or empty, the query is disabled.
+ * @param applicationController - Optional override for the application controller address.
+ *                                When omitted, defaults to the Aave config's controllerAddress.
  * @returns Hook result with vaultProviders, vaultKeepers, loading, error states
  */
 export function useVaultProviders(
   applicationController?: string,
 ): UseVaultProvidersResult {
+  const { config } = useAaveConfig();
+  const controller = applicationController ?? config?.controllerAddress;
+
   const { data, isLoading, error, refetch } = useQuery<AppProvidersResponse>({
-    queryKey: ["providers", applicationController],
-    queryFn: () => fetchAppProviders(applicationController!),
-    // Only fetch when applicationController is provided
-    enabled: Boolean(applicationController),
+    queryKey: ["providers", controller],
+    queryFn: () => fetchAppProviders(controller!),
+    // Only fetch when controller is provided
+    enabled: Boolean(controller),
     // Fetch once on mount
     refetchOnMount: false,
     // Don't refetch on window focus

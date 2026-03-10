@@ -16,9 +16,6 @@ interface GraphQLAppProvidersResponse {
       btcPubKey: string;
       name: string | null;
       rpcUrl: string | null;
-      verified: boolean;
-      trustedName: string | null;
-      trustedRpcUrl: string | null;
     }>;
   };
   vaultKeeperApplications: {
@@ -53,9 +50,6 @@ const GET_APP_PROVIDERS = gql`
         btcPubKey
         name
         rpcUrl
-        verified
-        trustedName
-        trustedRpcUrl
       }
     }
     vaultKeeperApplications(where: { applicationController: $appController }) {
@@ -158,14 +152,14 @@ export async function fetchAppProviders(
 
   const vaultProviders: VaultProvider[] = response.vaultProviders.items
     .filter(
-      (provider): provider is typeof provider & { trustedRpcUrl: string } =>
-        provider.verified && provider.trustedRpcUrl !== null,
+      (provider): provider is typeof provider & { rpcUrl: string } =>
+        provider.rpcUrl !== null,
     )
     .map((provider) => ({
       id: provider.id,
       btcPubKey: provider.btcPubKey,
-      name: provider.trustedName ?? provider.name ?? undefined,
-      url: provider.trustedRpcUrl,
+      name: provider.name ?? undefined,
+      url: provider.rpcUrl,
     }));
 
   const vaultKeeperItems: VaultKeeperItem[] =

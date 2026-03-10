@@ -6,7 +6,6 @@
 
 import { useMemo } from "react";
 
-import { useAaveConfig } from "@/applications/aave/context/AaveConfigContext";
 import {
   useAaveBorrowedAssets,
   useAaveUserPosition,
@@ -35,8 +34,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     debtValueUsd,
   });
 
-  const { config } = useAaveConfig();
-  const { findProvider } = useVaultProviders(config?.controllerAddress);
+  const { findProvider } = useVaultProviders();
 
   const hasCollateral = collateralBtc > 0;
   const hasDebt = debtValueUsd > 0;

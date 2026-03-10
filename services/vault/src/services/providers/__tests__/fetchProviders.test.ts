@@ -68,7 +68,7 @@ describe("fetchProviders", () => {
       expect(result.vaultKeepers).toEqual([]);
     });
 
-    it("should only return verified providers with trustedRpcUrl", async () => {
+    it("should only return providers with rpcUrl", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: {
           items: [
@@ -77,27 +77,18 @@ describe("fetchProviders", () => {
               btcPubKey: "0xpk1",
               name: "provider-1",
               rpcUrl: "https://rpc.example.com",
-              verified: true,
-              trustedName: "Trusted Provider",
-              trustedRpcUrl: "https://trusted-rpc.example.com",
             },
             {
               id: "0xprovider2",
               btcPubKey: "0xpk2",
               name: "provider-2",
-              rpcUrl: "https://rpc2.example.com",
-              verified: false,
-              trustedName: null,
-              trustedRpcUrl: null,
+              rpcUrl: null,
             },
             {
               id: "0xprovider3",
               btcPubKey: "0xpk3",
-              name: "provider-3",
+              name: null,
               rpcUrl: "https://rpc3.example.com",
-              verified: true,
-              trustedName: null,
-              trustedRpcUrl: null,
             },
           ],
         },
@@ -110,8 +101,14 @@ describe("fetchProviders", () => {
         {
           id: "0xprovider1",
           btcPubKey: "0xpk1",
-          name: "Trusted Provider",
-          url: "https://trusted-rpc.example.com",
+          name: "provider-1",
+          url: "https://rpc.example.com",
+        },
+        {
+          id: "0xprovider3",
+          btcPubKey: "0xpk3",
+          name: undefined,
+          url: "https://rpc3.example.com",
         },
       ]);
     });
