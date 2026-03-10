@@ -100,7 +100,7 @@ export function PendingDepositSection() {
                   amount={activity.collateral.amount}
                   timestamp={activity.timestamp}
                   txHash={activity.txHash ?? activity.id}
-                  providerId={activity.providers[0]?.id}
+                  providerId={activity.providers[0].id}
                   vaultProviders={vaultProviders}
                   onSignClick={signModal.handleSignClick}
                   onBroadcastClick={broadcastModal.handleBroadcastClick}

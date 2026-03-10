@@ -11,7 +11,14 @@
  *  - Action button
  */
 
-import { Avatar, Button, Hint } from "@babylonlabs-io/core-ui";
+import {
+  Avatar,
+  Button,
+  CheckIcon,
+  CopyIcon,
+  Hint,
+  useCopy,
+} from "@babylonlabs-io/core-ui";
 
 import type {
   ClaimerTransactions,
@@ -49,7 +56,7 @@ interface PendingDepositCardProps {
   /** Milliseconds since epoch */
   timestamp?: number;
   txHash: string;
-  providerId?: string;
+  providerId: string;
   vaultProviders: VaultProvider[];
   onSignClick: (
     depositId: string,
@@ -58,6 +65,10 @@ interface PendingDepositCardProps {
   ) => void;
   onBroadcastClick: (depositId: string) => void;
   onLamportKeyClick: (depositId: string) => void;
+}
+
+function stripHexPrefix(hash: string): string {
+  return hash.startsWith("0x") ? hash.slice(2) : hash;
 }
 
 export function PendingDepositCard({
@@ -72,6 +83,7 @@ export function PendingDepositCard({
   onLamportKeyClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
+  const { isCopied, copyToClipboard } = useCopy();
 
   if (!pollingResult) return null;
 
@@ -103,11 +115,8 @@ export function PendingDepositCard({
   const dotColor = DOT_COLORS[peginState.displayVariant];
 
   // Resolve provider name
-  const provider = providerId
-    ? vaultProviders.find((vp) => vp.id === providerId)
-    : undefined;
-  const providerName =
-    provider?.name ?? (providerId ? formatProviderName(providerId) : "-");
+  const provider = vaultProviders.find((vp) => vp.id === providerId);
+  const providerName = provider?.name ?? formatProviderName(providerId);
 
   return (
     <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
@@ -154,9 +163,22 @@ export function PendingDepositCard({
       {/* Transaction Hash row */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <span className="font-mono text-sm text-accent-primary">
-          {truncateHash(txHash)}
-        </span>
+        <button
+          type="button"
+          className="flex cursor-pointer items-center gap-1 font-mono text-sm text-accent-primary transition-colors hover:text-accent-secondary"
+          onClick={() => {
+            const hash = stripHexPrefix(txHash);
+            copyToClipboard(txHash, hash);
+          }}
+          aria-label={`Copy transaction hash ${truncateHash(txHash)}`}
+        >
+          <span>{truncateHash(stripHexPrefix(txHash))}</span>
+          {isCopied(txHash) ? (
+            <CheckIcon size={14} variant="success" />
+          ) : (
+            <CopyIcon size={14} />
+          )}
+        </button>
       </div>
 
       {/* Action button — only shown when user action is required */}
