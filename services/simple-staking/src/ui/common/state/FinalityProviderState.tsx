@@ -1,4 +1,4 @@
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
 import { useSearchParams } from "react-router";
 
@@ -91,7 +91,7 @@ export function FinalityProviderState({ children }: PropsWithChildren) {
     status: "active",
   });
   const [sortState, setSortState] = useState<SortState>({});
-  const debouncedSearch = useDebounce(filter.search, 300);
+  const [debouncedSearch] = useDebounceValue(filter.search, 300);
 
   const { data, hasNextPage, fetchNextPage, isFetching, isError } =
     useFinalityProvidersV2({

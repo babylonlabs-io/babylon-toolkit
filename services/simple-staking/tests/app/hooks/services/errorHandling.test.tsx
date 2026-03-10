@@ -12,9 +12,9 @@ jest.mock("@/ui/common/context/Error/ErrorProvider", () => ({
   },
 }));
 
-// Mock @uidotdev/usehooks to handle ESM module issue
-jest.mock("@uidotdev/usehooks", () => ({
-  useDebounce: jest.fn((value) => value),
+jest.mock("usehooks-ts", () => ({
+  ...jest.requireActual<object>("usehooks-ts"),
+  useDebounceValue: jest.fn((value: unknown) => [value, jest.fn()]),
 }));
 
 // Import after mocks

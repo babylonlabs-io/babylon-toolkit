@@ -4,7 +4,7 @@ import {
   useFormContext,
   useWatch,
 } from "@babylonlabs-io/core-ui";
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 import { useEffect } from "react";
 
 import babylon from "@/infrastructure/babylon";
@@ -34,7 +34,9 @@ export function FeeField({ babyPrice = 0, calculateFee }: FeeFieldProps) {
   const { trigger } = useFormContext();
   const { bech32Address } = useCosmosWallet();
   const values = useWatch({ name: ["amount", "validatorAddresses"] });
-  const [amount, validatorAddresses] = useDebounce(values, DELAY);
+  const [debouncedValues] = useDebounceValue(values, DELAY);
+  const amount = debouncedValues?.[0];
+  const validatorAddresses = debouncedValues?.[1];
   const validatorAddress = validatorAddresses?.[0];
   const babyValue = babylon.utils.ubbnToBaby(BigInt(value));
 
