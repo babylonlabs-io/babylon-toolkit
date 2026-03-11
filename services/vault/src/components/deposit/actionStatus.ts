@@ -130,8 +130,7 @@ export function isArtifactDownloadAvailable(
   if (!actionButton) return false;
   return (
     actionButton.action === PeginAction.SIGN_PAYOUT_TRANSACTIONS ||
-    actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN ||
-    actionButton.action === PeginAction.REDEEM
+    actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN
   );
 }
 

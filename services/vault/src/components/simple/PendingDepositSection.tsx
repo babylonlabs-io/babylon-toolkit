@@ -11,6 +11,7 @@
 import { Avatar, Card } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 
+import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
@@ -37,6 +38,7 @@ export function PendingDepositSection() {
     signModal,
     broadcastModal,
     lamportKeyModal,
+    artifactDownloadModal,
   } = usePendingDeposits();
 
   const totalBtcAmount = useMemo(
@@ -105,12 +107,26 @@ export function PendingDepositSection() {
                   onSignClick={signModal.handleSignClick}
                   onBroadcastClick={broadcastModal.handleBroadcastClick}
                   onLamportKeyClick={lamportKeyModal.handleLamportKeyClick}
+                  onArtifactDownloadClick={
+                    artifactDownloadModal.handleArtifactDownloadClick
+                  }
                 />
               ))}
             </div>
           )}
         </Card>
       </div>
+
+      {artifactDownloadModal.isOpen && artifactDownloadModal.params && (
+        <ArtifactDownloadModal
+          open={artifactDownloadModal.isOpen}
+          onClose={artifactDownloadModal.handleClose}
+          onComplete={artifactDownloadModal.handleComplete}
+          providerUrl={artifactDownloadModal.params.providerUrl}
+          peginTxid={artifactDownloadModal.params.peginTxid}
+          depositorPk={artifactDownloadModal.params.depositorPk}
+        />
+      )}
 
       {/* Sign / Broadcast / Lamport Key / Success modals */}
       <PendingDepositModals
