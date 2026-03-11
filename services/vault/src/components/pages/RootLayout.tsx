@@ -16,6 +16,7 @@ import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 
+import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { GeoBlockBanner } from "../shared/GeoBlockBanner";
@@ -119,10 +120,12 @@ export default function RootLayout() {
             } satisfies RootLayoutContext
           }
         />
-        <SimpleDeposit
-          open={isDepositOpen}
-          onClose={() => setIsDepositOpen(false)}
-        />
+        <AaveConfigProvider>
+          <SimpleDeposit
+            open={isDepositOpen}
+            onClose={() => setIsDepositOpen(false)}
+          />
+        </AaveConfigProvider>
         <div className="mt-auto">
           <Footer
             socialLinks={DEFAULT_SOCIAL_LINKS}
