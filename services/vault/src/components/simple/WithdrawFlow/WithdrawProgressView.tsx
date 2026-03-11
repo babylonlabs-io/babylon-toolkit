@@ -1,28 +1,10 @@
-import {
-  Button,
-  Heading,
-  Stepper,
-  Text,
-  type StepperItem,
-} from "@babylonlabs-io/core-ui";
-import { useMemo } from "react";
+import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 
 /** Average Bitcoin block time in minutes */
 const BTC_BLOCK_TIME_MINS = 10;
 const MINS_PER_HOUR = 60;
-
-/**
- * Number of payout transactions that need signing.
- * Keep in sync with depositorGraphSigningService.ts:
- * 1 Payout + N NoPayout + N ChallengeAssert = 1 + 2N PSBTs.
- * Currently N=2 challengers → 5, rounded up to 6 as a display approximation.
- */
-const PAYOUT_TX_COUNT = 6;
-
-/** Approximate wait for Bitcoin confirmation after broadcast */
-const CONFIRMATION_WAIT_MINS = 5;
 
 interface WithdrawProgressViewProps {
   onClose: () => void;
@@ -31,37 +13,26 @@ interface WithdrawProgressViewProps {
 export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
   const { timelockPegin } = useProtocolParamsContext();
 
-  // Derive CSV wait from on-chain timelockPegin (in blocks) * avg block time
-  const csvWaitHours = Math.ceil(
+  // Derive estimated wait from on-chain timelockPegin (in blocks) * avg block time
+  const estimatedHours = Math.ceil(
     (timelockPegin * BTC_BLOCK_TIME_MINS) / MINS_PER_HOUR,
-  );
-
-  const withdrawSteps: StepperItem[] = useMemo(
-    () => [
-      { label: "Wait", description: `(~ ${csvWaitHours} hrs)` },
-      {
-        label: "Sign transactions",
-        description: `(0 of ${PAYOUT_TX_COUNT})`,
-      },
-      { label: "Wait", description: `(~ ${CONFIRMATION_WAIT_MINS} mins)` },
-    ],
-    [csvWaitHours],
   );
 
   return (
     <div className="w-full">
       <Heading variant="h5" className="text-accent-primary">
-        Withdraw Progress
+        Withdraw Initiated
       </Heading>
 
       <div className="mt-6 flex flex-col gap-6">
-        {/*
-         * currentStep is hardcoded to 1 (the CSV timelock wait) because this
-         * view is a static confirmation shown right after the withdraw is
-         * initiated. It does not track live progress — it simply informs the
-         * user of the upcoming steps before they dismiss the dialog.
-         */}
-        <Stepper steps={withdrawSteps} currentStep={1} />
+        <Text variant="body1" className="text-accent-primary">
+          Your withdrawal transaction has been successfully submitted. The vault
+          provider will process your BTC and send it to your nominated address.
+        </Text>
+
+        <Text variant="body2" className="text-accent-secondary">
+          Estimated time: ~{estimatedHours} hours
+        </Text>
 
         <Button
           variant="contained"
@@ -71,14 +42,6 @@ export function WithdrawProgressView({ onClose }: WithdrawProgressViewProps) {
         >
           Done
         </Button>
-
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
-          Your withdraw has been initiated. The process will take approximately{" "}
-          {csvWaitHours} hours to complete.
-        </Text>
       </div>
     </div>
   );

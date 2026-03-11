@@ -2,23 +2,10 @@
  * PendingDepositCard Component
  *
  * Renders a single pending deposit as a bordered sub-card within the
- * expanded summary card. Follows the CollateralVaultItem pattern:
- *  - BTC icon + amount
- *  - Date row
- *  - Status row with colored dot + label + info tooltip
- *  - Vault Provider row
- *  - Transaction Hash row
- *  - Action button
+ * expanded summary card. Uses VaultDetailCard for the common layout.
  */
 
-import {
-  Avatar,
-  Button,
-  CheckIcon,
-  CopyIcon,
-  Hint,
-  useCopy,
-} from "@babylonlabs-io/core-ui";
+import { Button } from "@babylonlabs-io/core-ui";
 
 import type {
   ClaimerTransactions,
@@ -28,14 +15,12 @@ import {
   getActionStatus,
   PeginAction,
 } from "@/components/deposit/actionStatus";
-import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import type { PeginState } from "@/models/peginStateMachine";
 import type { VaultProvider } from "@/types/vaultProvider";
-import { truncateAddress, truncateHash } from "@/utils/addressUtils";
-import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
+import { truncateAddress } from "@/utils/addressUtils";
 
-const btcConfig = getNetworkConfigBTC();
+import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
 
 type DisplayVariant = PeginState["displayVariant"];
 
@@ -63,10 +48,6 @@ interface PendingDepositCardProps {
   onLamportKeyClick: (depositId: string) => void;
 }
 
-function stripHexPrefix(hash: string): string {
-  return hash.startsWith("0x") ? hash.slice(2) : hash;
-}
-
 export function PendingDepositCard({
   depositId,
   amount,
@@ -79,7 +60,6 @@ export function PendingDepositCard({
   onLamportKeyClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
-  const { isCopied, copyToClipboard } = useCopy();
 
   if (!pollingResult) return null;
 
@@ -105,9 +85,6 @@ export function PendingDepositCard({
   const label =
     loading && !transactions ? "Loading..." : peginState.displayLabel;
   const buttonDisabled = !isActionable || (loading && !transactions);
-
-  const formattedDate = timestamp ? formatDateTime(new Date(timestamp)) : "-";
-  const btcAmount = parseFloat(amount || "0");
   const dotColor = DOT_COLORS[peginState.displayVariant];
 
   // Resolve provider name
@@ -116,80 +93,32 @@ export function PendingDepositCard({
     provider?.name ?? `Provider ${truncateAddress(providerId)}`;
 
   return (
-    <div className="space-y-3 rounded-xl border border-secondary-strokeLight p-4">
-      {/* Top row: BTC icon + amount */}
-      <div className="flex items-center gap-2">
-        <Avatar url={btcConfig.icon} alt={btcConfig.coinSymbol} size="small" />
-        <span className="text-base font-medium text-accent-primary">
-          {formatBtcAmount(btcAmount)}
-        </span>
-      </div>
-
-      {/* Date row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Date</span>
-        <span className="text-sm text-accent-primary">{formattedDate}</span>
-      </div>
-
-      {/* Status row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Status</span>
-        <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          <span className={`inline-block h-2 w-2 rounded-full ${dotColor}`} />
-          {peginState.displayLabel}
-          {peginState.message && <Hint tooltip={peginState.message} />}
-        </span>
-      </div>
-
-      {/* Vault Provider row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Vault Provider</span>
-        <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          {provider?.iconUrl && (
-            <Avatar
-              url={provider.iconUrl}
-              alt={providerName}
-              size="small"
-              className="h-4 w-4"
-            />
-          )}
-          {providerName}
-        </span>
-      </div>
-
-      {/* Transaction Hash row */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-accent-secondary">Transaction Hash</span>
-        <button
-          type="button"
-          className="flex cursor-pointer items-center gap-1 font-mono text-sm text-accent-primary transition-colors hover:text-accent-secondary"
-          onClick={() => {
-            const hash = stripHexPrefix(txHash);
-            copyToClipboard(txHash, hash);
-          }}
-          aria-label={`Copy transaction hash ${truncateHash(txHash)}`}
-        >
-          <span>{truncateHash(stripHexPrefix(txHash))}</span>
-          {isCopied(txHash) ? (
-            <CheckIcon size={14} variant="success" />
-          ) : (
-            <CopyIcon size={14} />
-          )}
-        </button>
-      </div>
-
-      {/* Action button — only shown when user action is required */}
-      {isActionable && (
-        <Button
-          variant="outlined"
-          color="primary"
-          className="w-full rounded-full"
-          disabled={buttonDisabled}
-          onClick={handleClick}
-        >
-          {label}
-        </Button>
-      )}
-    </div>
+    <VaultDetailCard
+      amountBtc={parseFloat(amount || "0")}
+      timestamp={timestamp ?? 0}
+      txHash={txHash}
+      providerName={providerName}
+      providerIconUrl={provider?.iconUrl}
+      statusContent={
+        <VaultStatusBadge
+          dotColor={dotColor}
+          label={peginState.displayLabel}
+          tooltip={peginState.message}
+        />
+      }
+      action={
+        isActionable ? (
+          <Button
+            variant="outlined"
+            color="primary"
+            className="w-full rounded-full"
+            disabled={buttonDisabled}
+            onClick={handleClick}
+          >
+            {label}
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }

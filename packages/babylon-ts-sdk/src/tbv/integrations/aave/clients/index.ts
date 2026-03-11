@@ -14,6 +14,5 @@ export {
 export {
   buildBorrowTx,
   buildRepayTx,
-  buildWithdrawAllCollateralTx,
   buildWithdrawCollateralsTx,
 } from "./transaction.js";

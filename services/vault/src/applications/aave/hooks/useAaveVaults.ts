@@ -54,11 +54,22 @@ function transformVaultToTableData(
   };
 }
 
+export interface RedeemedVaultInfo {
+  id: string;
+  amountBtc: number;
+  providerName: string;
+  providerIconUrl?: string;
+  /** Timestamp in milliseconds when vault was created */
+  createdAt: number;
+}
+
 export interface UseAaveVaultsResult {
   /** All active vaults (for display in table) */
   vaults: VaultData[];
   /** Vaults available for use as collateral (not currently in use) */
   availableForCollateral: VaultData[];
+  /** Vaults with "redeemed" status (withdrawal in progress, awaiting VP payout) */
+  redeemedVaults: RedeemedVaultInfo[];
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -96,6 +107,27 @@ export function useAaveVaults(
     return vaults.filter((vault) => vault.status === ContractStatus.ACTIVE);
   }, [vaults]);
 
+  // Vaults with "redeemed" status — withdrawal initiated, VP is processing BTC payout
+  const redeemedVaults: RedeemedVaultInfo[] = useMemo(() => {
+    if (!vaults) return [];
+    return vaults
+      .filter((vault) => vault.status === ContractStatus.REDEEMED)
+      .map((vault) => {
+        const provider = findProvider(vault.vaultProvider);
+        const providerName = formatProviderDisplayName(
+          provider?.name,
+          vault.vaultProvider,
+        );
+        return {
+          id: vault.id,
+          amountBtc: satoshiToBtcNumber(vault.amount),
+          providerName,
+          providerIconUrl: provider?.iconUrl,
+          createdAt: vault.createdAt,
+        };
+      });
+  }, [vaults, findProvider]);
+
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {
       const provider = findProvider(vault.vaultProvider);
@@ -117,6 +149,7 @@ export function useAaveVaults(
   return {
     vaults: allVaults,
     availableForCollateral,
+    redeemedVaults,
     isLoading,
     error: error as Error | null,
   };

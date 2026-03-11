@@ -1,7 +1,7 @@
 /**
  * Hook for withdraw collateral transaction
  *
- * Handles withdrawing all collateral from an Aave position.
+ * Handles withdrawing selected collateral vaults from an Aave position.
  * Position must have zero debt before withdrawal.
  */
 

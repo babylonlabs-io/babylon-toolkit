@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import AaveIntegrationControllerABI from "../abis/AaveIntegrationController.abi.json";
 import {
-  buildWithdrawAllCollateralTx,
   buildWithdrawCollateralsTx,
   buildBorrowTx,
   buildRepayTx,
@@ -49,23 +48,6 @@ describe("transaction builders", () => {
 
       expect(decoded.functionName).toBe("withdrawCollaterals");
       expect(decoded.args![0]).toEqual([...vaultIds]);
-    });
-  });
-
-  describe("buildWithdrawAllCollateralTx", () => {
-    it("should encode withdrawAllCollateralFromCorePosition", () => {
-      const result = buildWithdrawAllCollateralTx(CONTRACT_ADDRESS);
-
-      expect(result.to).toBe(CONTRACT_ADDRESS);
-
-      const decoded = decodeFunctionData({
-        abi: AaveIntegrationControllerABI,
-        data: result.data,
-      });
-
-      expect(decoded.functionName).toBe(
-        "withdrawAllCollateralFromCorePosition",
-      );
     });
   });
 
