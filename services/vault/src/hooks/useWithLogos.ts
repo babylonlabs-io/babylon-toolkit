@@ -22,11 +22,13 @@ import { useLogos } from "./useLogos";
  *
  * @param items - Array of items to enrich with logos
  * @param getIdentity - Function to extract the identity from each item
+ * @param getFallbackIcon - Optional function to extract a fallback icon URL from each item
  * @returns Array of items with `iconUrl` property added
  */
 export function useWithLogos<T>(
   items: T[],
   getIdentity: (item: T) => string,
+  getFallbackIcon?: (item: T) => string | undefined,
 ): (T & { iconUrl?: string })[] {
   // Compute identities and maintain mapping
   const itemsWithIdentities = useMemo(
@@ -51,8 +53,8 @@ export function useWithLogos<T>(
     () =>
       itemsWithIdentities.map(({ item, identity }) => ({
         ...item,
-        iconUrl: logos[identity],
+        iconUrl: logos[identity] ?? getFallbackIcon?.(item),
       })),
-    [itemsWithIdentities, logos],
+    [itemsWithIdentities, logos, getFallbackIcon],
   );
 }

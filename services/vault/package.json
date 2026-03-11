@@ -25,6 +25,7 @@
   "dependencies": {
     "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/config": "workspace:*",
+    "@babylonlabs-io/tbv-registry": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",

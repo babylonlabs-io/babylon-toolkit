@@ -11,12 +11,16 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router";
 import { twJoin } from "tailwind-merge";
 
+import { AAVE_APP_ID } from "@/applications/aave/config";
+import {
+  AaveConfigProvider,
+  PendingVaultsProvider,
+} from "@/applications/aave/context";
 import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC, shouldDisplayTestingMsg } from "@/config";
 import { useAddressType } from "@/context/addressType";
 import { useGeoFencing } from "@/context/geofencing";
 
-import { AaveConfigProvider } from "../../applications/aave/context";
 import { useBTCWallet, useETHWallet } from "../../context/wallet";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { GeoBlockBanner } from "../shared/GeoBlockBanner";
@@ -121,10 +125,12 @@ export default function RootLayout() {
           }
         />
         <AaveConfigProvider>
-          <SimpleDeposit
-            open={isDepositOpen}
-            onClose={() => setIsDepositOpen(false)}
-          />
+          <PendingVaultsProvider appId={AAVE_APP_ID}>
+            <SimpleDeposit
+              open={isDepositOpen}
+              onClose={() => setIsDepositOpen(false)}
+            />
+          </PendingVaultsProvider>
         </AaveConfigProvider>
         <div className="mt-auto">
           <Footer

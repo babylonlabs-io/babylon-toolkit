@@ -14,6 +14,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
+import { VerifiedProviderAvatar } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
@@ -35,6 +36,8 @@ interface VaultDetailCardProps {
   providerName: string;
   /** Vault provider icon URL */
   providerIconUrl?: string;
+  /** Whether the vault provider is verified */
+  providerVerified?: boolean;
   /** Status content — rendered as the value in the Status row */
   statusContent: ReactNode;
   /** Optional action button rendered at the bottom */
@@ -47,6 +50,7 @@ export function VaultDetailCard({
   txHash,
   providerName,
   providerIconUrl,
+  providerVerified,
   statusContent,
   action,
 }: VaultDetailCardProps) {
@@ -80,14 +84,12 @@ export function VaultDetailCard({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <span className="flex items-center gap-1.5 text-sm text-accent-primary">
-          {providerIconUrl && (
-            <Avatar
-              url={providerIconUrl}
-              alt={providerName}
-              size="small"
-              className="h-4 w-4"
-            />
-          )}
+          <VerifiedProviderAvatar
+            name={providerName}
+            url={providerIconUrl}
+            size="small"
+            verified={providerVerified}
+          />
           {providerName}
         </span>
       </div>
