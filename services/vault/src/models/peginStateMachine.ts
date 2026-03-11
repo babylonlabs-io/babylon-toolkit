@@ -175,8 +175,6 @@ export enum PeginAction {
   SIGN_PAYOUT_TRANSACTIONS = "SIGN_PAYOUT_TRANSACTIONS",
   /** Sign and broadcast peg-in transaction to Bitcoin */
   SIGN_AND_BROADCAST_TO_BITCOIN = "SIGN_AND_BROADCAST_TO_BITCOIN",
-  /** Redeem (peg-out) */
-  REDEEM = "REDEEM",
   /** No action available - user must wait */
   NONE = "NONE",
 }
@@ -387,13 +385,13 @@ export function getPeginState(
       };
     }
 
-    // Vault is active and NOT in use - available for redemption
+    // Vault is active and NOT in use - available (withdrawal handled by application layer)
     return {
       contractStatus,
       localStatus,
       displayLabel: PEGIN_DISPLAY_LABELS.AVAILABLE,
       displayVariant: "active",
-      availableActions: [PeginAction.REDEEM],
+      availableActions: [PeginAction.NONE],
     };
   }
 
@@ -509,13 +507,6 @@ export function getPrimaryActionButton(state: PeginState): {
     return {
       label: "Broadcast",
       action: PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-    };
-  }
-
-  if (state.availableActions.includes(PeginAction.REDEEM)) {
-    return {
-      label: "Redeem",
-      action: PeginAction.REDEEM,
     };
   }
 

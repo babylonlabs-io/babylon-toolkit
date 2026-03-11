@@ -5,15 +5,15 @@
  * and what warnings to display.
  */
 
-import type { DepositPollingResult } from "../../../context/deposit/PeginPollingContext";
+import type { DepositPollingResult } from "../../context/deposit/PeginPollingContext";
 import {
   getPrimaryActionButton,
   PeginAction,
-} from "../../../models/peginStateMachine";
+} from "../../models/peginStateMachine";
 import {
   UTXO_UNAVAILABLE_WARNING,
   WALLET_OWNERSHIP_WARNING,
-} from "../../../utils/vaultWarnings";
+} from "../../utils/vaultWarnings";
 
 /**
  * Action button configuration from state machine.

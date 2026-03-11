@@ -9,10 +9,9 @@ import { getETHChain } from "@babylonlabs-io/config";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { UTXO as SDKUtxo } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
-import type { Abi, Address, Chain, Hex, WalletClient } from "viem";
+import type { Address, Hex, WalletClient } from "viem";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
-import { executeWrite } from "../../clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "../../config/contracts";
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
@@ -179,67 +178,4 @@ export async function registerPeginOnChain(
     btcTxHex: params.fundedTxHex,
     btcPopSignature: registrationResult.btcPopSignature,
   };
-}
-
-/**
- * Redeem multiple BTC vaults (withdraw BTC back to user's account)
- *
- * This function:
- * 1. Validates all vaults are in Available status (status === 2)
- * 2. Executes redeem transaction for each vault sequentially
- * 3. If ANY redemption fails, throws error (all-or-nothing approach)
- *
- * Note: The depositor initiates redemption, but the vault provider is the one
- * who can actually claim the BTC on the Bitcoin network.
- *
- * @param walletClient - Connected wallet client for signing transactions
- * @param chain - Chain configuration
- * @param applicationController - Application controller contract address
- * @param pegInTxHashes - Array of peg-in transaction hashes (vault IDs) to redeem
- * @param contractABI - Contract ABI for the application controller
- * @param functionName - Function name to call
- * @returns Array of transaction hashes and receipts for each redemption
- * @throws Error if any vault is not in Available status or if any transaction fails
- */
-export async function redeemVaults(
-  walletClient: WalletClient,
-  chain: Chain,
-  applicationController: Address,
-  pegInTxHashes: Hex[],
-  contractABI: Abi | readonly unknown[],
-  functionName: string,
-): Promise<Array<{ transactionHash: Hex; pegInTxHash: Hex; error?: string }>> {
-  const results: Array<{
-    transactionHash: Hex;
-    pegInTxHash: Hex;
-    error?: string;
-  }> = [];
-  // Execute redemptions sequentially using generic transaction factory
-  // If any fails, throw error immediately (fail-entire operation)
-  for (const pegInTxHash of pegInTxHashes) {
-    try {
-      const result = await executeWrite({
-        walletClient,
-        chain,
-        address: applicationController,
-        abi: contractABI,
-        functionName,
-        args: [pegInTxHash],
-        errorContext: `redeem vault via ${functionName}`,
-      });
-
-      results.push({
-        transactionHash: result.transactionHash,
-        pegInTxHash,
-      });
-    } catch (error) {
-      // On any error, throw immediately with context
-      throw new Error(
-        `Failed to redeem vault ${pegInTxHash}: ${error instanceof Error ? error.message : "Unknown error"}. ` +
-          `${results.length} of ${pegInTxHashes.length} vaults were successfully redeemed before this error.`,
-      );
-    }
-  }
-
-  return results;
 }

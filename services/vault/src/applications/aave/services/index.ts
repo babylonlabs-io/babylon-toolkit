@@ -52,5 +52,5 @@ export {
   repay,
   repayFull,
   repayPartial,
-  withdrawAllCollateral,
+  withdrawSelectedCollateral,
 } from "./positionTransactions";

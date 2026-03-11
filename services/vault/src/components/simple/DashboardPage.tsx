@@ -5,15 +5,12 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
-import {
-  usePendingVaults,
-  useSyncPendingVaults,
-} from "@/applications/aave/context";
+import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
@@ -25,10 +22,7 @@ import { CollateralSection } from "./CollateralSection";
 import { LoansSection } from "./LoansSection";
 import { OverviewSection } from "./OverviewSection";
 import { PendingDepositSection } from "./PendingDepositSection";
-import {
-  PendingWithdrawSection,
-  type PendingWithdrawVault,
-} from "./PendingWithdrawSection";
+import { PendingWithdrawSection } from "./PendingWithdrawSection";
 import WithdrawFlow from "./WithdrawFlow";
 
 export function DashboardPage() {
@@ -57,33 +51,10 @@ export function DashboardPage() {
     selectableBorrowedAssets,
   } = useDashboardState(address);
 
-  const { vaults: aaveVaults } = useAaveVaults(address);
-  const { hasPendingWithdraw, pendingVaults } = usePendingVaults();
+  const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(address);
+
+  // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
-
-  const pendingWithdrawVaults: PendingWithdrawVault[] = useMemo(() => {
-    if (!hasPendingWithdraw) return [];
-    return aaveVaults
-      .filter((v) => pendingVaults.get(v.id) === "withdraw")
-      .map((v) => ({
-        id: v.id,
-        amountBtc: v.amount, // VaultData.amount is already BTC
-      }));
-  }, [aaveVaults, pendingVaults, hasPendingWithdraw]);
-
-  // Derive withdraw data from only in-use vaults (serving as Aave collateral).
-  // USD is derived proportionally from total collateral USD because individual
-  // vault USD values aren't available from the position data.
-  const { inUseVaultIds, inUseBtc, inUseUsd } = useMemo(() => {
-    const inUse = collateralVaults.filter((v) => v.inUse);
-    const btc = inUse.reduce((sum, v) => sum + v.amountBtc, 0);
-    return {
-      inUseVaultIds: inUse.map((v) => v.vaultId),
-      inUseBtc: btc,
-      inUseUsd:
-        collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0,
-    };
-  }, [collateralVaults, collateralBtc, collateralValueUsd]);
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
@@ -133,7 +104,7 @@ export function DashboardPage() {
 
         <PendingDepositSection />
 
-        <PendingWithdrawSection pendingWithdrawVaults={pendingWithdrawVaults} />
+        <PendingWithdrawSection pendingWithdrawVaults={redeemedVaults} />
 
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
@@ -141,7 +112,6 @@ export function DashboardPage() {
           hasCollateral={hasCollateral}
           isConnected={isConnected}
           hasDebt={hasDebt}
-          isPendingWithdraw={hasPendingWithdraw}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
         />
@@ -162,9 +132,9 @@ export function DashboardPage() {
       <WithdrawFlow
         open={isWithdrawOpen}
         onClose={() => setIsWithdrawOpen(false)}
-        totalAmountBtc={inUseBtc}
-        totalAmountUsd={inUseUsd}
-        vaultIds={inUseVaultIds}
+        collateralVaults={collateralVaults}
+        collateralBtc={collateralBtc}
+        collateralValueUsd={collateralValueUsd}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

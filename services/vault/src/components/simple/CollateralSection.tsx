@@ -21,7 +21,6 @@ interface CollateralSectionProps {
   hasCollateral: boolean;
   isConnected: boolean;
   hasDebt: boolean;
-  isPendingWithdraw: boolean;
   onWithdraw: () => void;
   onDeposit: () => void;
 }
@@ -32,12 +31,11 @@ export function CollateralSection({
   hasCollateral,
   isConnected,
   hasDebt,
-  isPendingWithdraw,
   onWithdraw,
   onDeposit,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const canWithdraw = !hasDebt && !isPendingWithdraw;
+  const canWithdraw = !hasDebt;
 
   return (
     <div className="w-full space-y-6">
@@ -51,7 +49,7 @@ export function CollateralSection({
             variant="outlined"
             size="medium"
             onClick={onDeposit}
-            disabled={!isConnected || isPendingWithdraw}
+            disabled={!isConnected}
             className="rounded-full"
           >
             Deposit
@@ -113,7 +111,6 @@ export function CollateralSection({
                   variant="outlined"
                   size="medium"
                   onClick={onDeposit}
-                  disabled={isPendingWithdraw}
                   className="rounded-full"
                 >
                   Deposit {btcConfig.coinSymbol}

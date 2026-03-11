@@ -17,7 +17,7 @@ import {
 } from "../constants";
 
 /** Type of pending vault operation */
-export type PendingOperation = "add" | "withdraw" | "redeem";
+export type PendingOperation = "add" | "withdraw";
 
 interface PendingVaultEntry {
   id: string;
