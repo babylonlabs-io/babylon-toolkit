@@ -135,10 +135,10 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
 
   // Hide partial liquidation when user already has active (collateralized) vaults
   useEffect(() => {
-    if (hasActivePegins) {
+    if (hasActivePegins && isPartialLiquidation) {
       setIsPartialLiquidation(false);
     }
-  }, [hasActivePegins, setIsPartialLiquidation]);
+  }, [hasActivePegins, isPartialLiquidation, setIsPartialLiquidation]);
 
   const partialLiquidationProps = hasActivePegins
     ? undefined
