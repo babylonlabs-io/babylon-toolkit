@@ -50,7 +50,7 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseDepositFlowParams {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: BitcoinWallet;
+  btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
@@ -330,7 +330,7 @@ export function useDepositFlow(
         setIsWaiting(false);
 
         const signatures = await signPayoutTransactions(
-          btcWalletProvider,
+          btcWalletProvider!,
           context,
           preparedTransactions,
           setPayoutSigningProgress,
@@ -343,7 +343,7 @@ export function useDepositFlow(
           await prepareAndSignDepositorGraph({
             depositorGraph,
             depositorBtcPubkey: prepared.depositorBtcPubkey,
-            btcWallet: btcWalletProvider,
+            btcWallet: btcWalletProvider!,
             vaultProviderBtcPubkey: context.vaultProviderBtcPubkey,
             vaultKeeperBtcPubkeys: context.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:

@@ -100,7 +100,7 @@ export async function preparePegin(
   });
 
   const result = await preparePeginTransaction(
-    btcWalletProvider,
+    btcWalletProvider!,
     walletClient,
     {
       pegInAmount: amount,
@@ -147,7 +147,7 @@ export async function registerPeginAndWait(
     preSignedBtcPopSignature,
   } = params;
 
-  const result = await registerPeginOnChain(btcWalletProvider, walletClient, {
+  const result = await registerPeginOnChain(btcWalletProvider!, walletClient, {
     depositorBtcPubkey,
     fundedTxHex,
     vaultProviderAddress: vaultProviderAddress as Address,

@@ -14,7 +14,7 @@ import { DepositProgressView } from "./DepositProgressView";
 interface DepositSignContentProps {
   amount: bigint;
   feeRate: number;
-  btcWalletProvider: BitcoinWallet;
+  btcWalletProvider: BitcoinWallet | null;
   depositorEthAddress: Address | undefined;
   selectedApplication: string;
   selectedProviders: string[];
