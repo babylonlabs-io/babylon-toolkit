@@ -13,6 +13,7 @@ import type {
 } from "@/clients/vault-provider-rpc/types";
 import {
   getActionStatus,
+  isArtifactDownloadAvailable,
   PeginAction,
 } from "@/components/deposit/actionStatus";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
@@ -46,6 +47,7 @@ interface PendingDepositCardProps {
   ) => void;
   onBroadcastClick: (depositId: string) => void;
   onLamportKeyClick: (depositId: string) => void;
+  onArtifactDownloadClick?: (depositId: string) => void;
 }
 
 export function PendingDepositCard({
@@ -58,6 +60,7 @@ export function PendingDepositCard({
   onSignClick,
   onBroadcastClick,
   onLamportKeyClick,
+  onArtifactDownloadClick,
 }: PendingDepositCardProps) {
   const pollingResult = useDepositPollingResult(depositId);
 
@@ -66,6 +69,8 @@ export function PendingDepositCard({
   const { loading, transactions, depositorGraph, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
   const isActionable = status.type === "available";
+  const showArtifactDownload =
+    onArtifactDownloadClick && isArtifactDownloadAvailable(pollingResult);
 
   const handleClick = () => {
     if (status.type !== "available") return;
@@ -107,16 +112,30 @@ export function PendingDepositCard({
         />
       }
       action={
-        isActionable ? (
-          <Button
-            variant="outlined"
-            color="primary"
-            className="w-full rounded-full"
-            disabled={buttonDisabled}
-            onClick={handleClick}
-          >
-            {label}
-          </Button>
+        isActionable || showArtifactDownload ? (
+          <div className="flex flex-col items-stretch gap-2">
+            {isActionable && (
+              <Button
+                variant="outlined"
+                color="primary"
+                className="w-full rounded-full"
+                disabled={buttonDisabled}
+                onClick={handleClick}
+              >
+                {label}
+              </Button>
+            )}
+            {showArtifactDownload && (
+              <Button
+                variant="outlined"
+                color="primary"
+                className="w-full rounded-full"
+                onClick={() => onArtifactDownloadClick?.(depositId)}
+              >
+                Download Artifacts
+              </Button>
+            )}
+          </div>
         ) : undefined
       }
     />

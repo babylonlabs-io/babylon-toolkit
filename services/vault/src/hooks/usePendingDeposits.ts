@@ -6,11 +6,12 @@
  * sign/broadcast actions on pending deposits.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { Address } from "viem";
 
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
+import { useArtifactDownloadModal } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useLamportKeyModal } from "@/hooks/deposit/useLamportKeyModal";
 import { usePayoutSignModal } from "@/hooks/deposit/usePayoutSignModal";
@@ -55,6 +56,18 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const findProvider = useCallback(
+    (id: string) =>
+      vaultProviders.find((p) => p.id.toLowerCase() === id.toLowerCase()),
+    [vaultProviders],
+  );
+
+  const artifactDownloadModal = useArtifactDownloadModal({
+    allActivities: activities,
+    findProvider,
+    onSuccess: refetchActivities,
+  });
+
   return {
     pendingActivities,
     allActivities: activities,
@@ -69,5 +82,6 @@ export function usePendingDeposits() {
     signModal,
     broadcastModal,
     lamportKeyModal,
+    artifactDownloadModal,
   };
 }
