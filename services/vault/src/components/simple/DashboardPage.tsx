@@ -71,20 +71,6 @@ export function DashboardPage() {
       }));
   }, [aaveVaults, pendingVaults, hasPendingWithdraw]);
 
-  // Derive withdraw data from only in-use vaults (serving as Aave collateral).
-  // USD is derived proportionally from total collateral USD because individual
-  // vault USD values aren't available from the position data.
-  const { inUseVaultIds, inUseBtc, inUseUsd } = useMemo(() => {
-    const inUse = collateralVaults.filter((v) => v.inUse);
-    const btc = inUse.reduce((sum, v) => sum + v.amountBtc, 0);
-    return {
-      inUseVaultIds: inUse.map((v) => v.vaultId),
-      inUseBtc: btc,
-      inUseUsd:
-        collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0,
-    };
-  }, [collateralVaults, collateralBtc, collateralValueUsd]);
-
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
   const amountToRepay = formatUsdValue(debtValueUsd);
@@ -162,9 +148,9 @@ export function DashboardPage() {
       <WithdrawFlow
         open={isWithdrawOpen}
         onClose={() => setIsWithdrawOpen(false)}
-        totalAmountBtc={inUseBtc}
-        totalAmountUsd={inUseUsd}
-        vaultIds={inUseVaultIds}
+        collateralVaults={collateralVaults}
+        collateralBtc={collateralBtc}
+        collateralValueUsd={collateralValueUsd}
       />
 
       {/* Asset Selection Modal for Borrow/Repay */}

@@ -12,7 +12,7 @@ const {
   mockGetUserTotalDebt,
   mockBorrowFromCorePosition,
   mockRepayToCorePosition,
-  mockWithdrawAllCollateralFromCorePosition,
+  mockWithdrawCollaterals,
 } = vi.hoisted(() => ({
   mockApproveERC20: vi.fn(),
   mockGetERC20Allowance: vi.fn(),
@@ -20,7 +20,7 @@ const {
   mockGetUserTotalDebt: vi.fn(),
   mockBorrowFromCorePosition: vi.fn(),
   mockRepayToCorePosition: vi.fn(),
-  mockWithdrawAllCollateralFromCorePosition: vi.fn(),
+  mockWithdrawCollaterals: vi.fn(),
 }));
 
 // Mock ERC20 module
@@ -37,8 +37,7 @@ vi.mock("../../clients", () => ({
   AaveControllerTx: {
     borrowFromCorePosition: mockBorrowFromCorePosition,
     repayToCorePosition: mockRepayToCorePosition,
-    withdrawAllCollateralFromCorePosition:
-      mockWithdrawAllCollateralFromCorePosition,
+    withdrawCollaterals: mockWithdrawCollaterals,
   },
   AaveSpoke: {
     getUserTotalDebt: mockGetUserTotalDebt,
@@ -56,7 +55,7 @@ import {
   repay,
   repayFull,
   repayPartial,
-  withdrawAllCollateral,
+  withdrawSelectedCollateral,
 } from "../positionTransactions";
 
 describe("positionTransactions", () => {
@@ -76,7 +75,7 @@ describe("positionTransactions", () => {
     mockApproveERC20.mockResolvedValue(mockTxResult);
     mockBorrowFromCorePosition.mockResolvedValue(mockTxResult);
     mockRepayToCorePosition.mockResolvedValue(mockTxResult);
-    mockWithdrawAllCollateralFromCorePosition.mockResolvedValue(mockTxResult);
+    mockWithdrawCollaterals.mockResolvedValue(mockTxResult);
   });
 
   // ============================================================================
@@ -371,16 +370,23 @@ describe("positionTransactions", () => {
   });
 
   // ============================================================================
-  // withdrawAllCollateral
+  // withdrawSelectedCollateral
   // ============================================================================
-  describe("withdrawAllCollateral", () => {
-    it("should withdraw all collateral", async () => {
-      const result = await withdrawAllCollateral(mockWalletClient, mockChain);
+  describe("withdrawSelectedCollateral", () => {
+    it("should withdraw selected vaults", async () => {
+      const vaultIds = ["0xvault1", "0xvault2"] as any;
 
-      expect(mockWithdrawAllCollateralFromCorePosition).toHaveBeenCalledWith(
+      const result = await withdrawSelectedCollateral(
+        mockWalletClient,
+        mockChain,
+        vaultIds,
+      );
+
+      expect(mockWithdrawCollaterals).toHaveBeenCalledWith(
         mockWalletClient,
         mockChain,
         "0xcontroller",
+        vaultIds,
       );
       expect(result.transactionHash).toBe("0xhash");
     });

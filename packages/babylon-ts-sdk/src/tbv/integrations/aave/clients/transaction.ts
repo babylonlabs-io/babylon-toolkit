@@ -8,7 +8,7 @@
  * by the vault service using its wallet client and transaction factory.
  */
 
-import { type Address, encodeFunctionData } from "viem";
+import { type Address, type Hex, encodeFunctionData } from "viem";
 
 import { AAVE_FUNCTION_NAMES } from "../config.js";
 import type { TransactionParams } from "../types.js";
@@ -55,6 +55,32 @@ export function buildWithdrawAllCollateralTx(
     abi: AaveIntegrationControllerABI,
     functionName: AAVE_FUNCTION_NAMES.WITHDRAW_ALL_COLLATERAL,
     args: [],
+  });
+
+  return {
+    to: contractAddress,
+    data,
+  };
+}
+
+/**
+ * Build transaction to withdraw selected vaults from AAVE position.
+ *
+ * Withdraws specific vaults (partial withdrawal) and redeems them back to the depositor.
+ * **Requires zero debt** - position must have no outstanding borrows.
+ *
+ * @param contractAddress - AaveIntegrationController contract address
+ * @param vaultIds - Array of vault IDs (bytes32) to withdraw
+ * @returns Unsigned transaction parameters for execution with viem wallet
+ */
+export function buildWithdrawCollateralsTx(
+  contractAddress: Address,
+  vaultIds: Hex[],
+): TransactionParams {
+  const data = encodeFunctionData({
+    abi: AaveIntegrationControllerABI,
+    functionName: AAVE_FUNCTION_NAMES.WITHDRAW_COLLATERALS,
+    args: [vaultIds],
   });
 
   return {

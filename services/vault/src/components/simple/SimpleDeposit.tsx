@@ -13,7 +13,6 @@ import type { ClaimerTransactions } from "@/types/rpc";
 import type { VaultProvider } from "@/types/vaultProvider";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
-import { VaultRedeemState } from "../../context/deposit/VaultRedeemState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 import { MnemonicModal } from "../deposit/MnemonicModal";
@@ -346,9 +345,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
   return (
     <ProtocolParamsProvider>
       <DepositState>
-        <VaultRedeemState>
-          <SimpleDepositContent open={open} onClose={onClose} />
-        </VaultRedeemState>
+        <SimpleDepositContent open={open} onClose={onClose} />
       </DepositState>
     </ProtocolParamsProvider>
   );

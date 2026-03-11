@@ -98,7 +98,7 @@ describe("peginStateMachine", () => {
     it("shows available when not in use", () => {
       const state = getPeginState(ContractStatus.ACTIVE, { isInUse: false });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.AVAILABLE);
-      expect(state.availableActions).toContain(PeginAction.REDEEM);
+      expect(state.availableActions).toEqual([PeginAction.NONE]);
     });
 
     it("shows in use when used as collateral", () => {
@@ -247,8 +247,13 @@ describe("peginStateMachine", () => {
   // ==========================================================================
   describe("canPerformAction", () => {
     it("returns true when action is available", () => {
-      const state = getPeginState(ContractStatus.ACTIVE);
-      expect(canPerformAction(state, PeginAction.REDEEM)).toBe(true);
+      const state = getPeginState(ContractStatus.PENDING, {
+        pendingIngestion: false,
+        transactionsReady: true,
+      });
+      expect(
+        canPerformAction(state, PeginAction.SIGN_PAYOUT_TRANSACTIONS),
+      ).toBe(true);
     });
 
     it("returns false when action is not available", () => {
@@ -292,13 +297,9 @@ describe("peginStateMachine", () => {
       });
     });
 
-    it("returns Redeem for available vault", () => {
+    it("returns null for available vault (no user action)", () => {
       const state = getPeginState(ContractStatus.ACTIVE);
-      const button = getPrimaryActionButton(state);
-      expect(button).toEqual({
-        label: "Redeem",
-        action: PeginAction.REDEEM,
-      });
+      expect(getPrimaryActionButton(state)).toBeNull();
     });
 
     it("returns null when no action available", () => {
@@ -321,7 +322,7 @@ describe("peginStateMachine", () => {
     });
 
     it("returns null for other actions", () => {
-      expect(getNextLocalStatus(PeginAction.REDEEM)).toBeNull();
+      expect(getNextLocalStatus(PeginAction.NONE)).toBeNull();
     });
   });
 

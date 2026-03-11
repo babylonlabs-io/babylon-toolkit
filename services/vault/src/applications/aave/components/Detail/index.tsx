@@ -61,16 +61,16 @@ export function AaveReserveDetail() {
     closeRepaySuccess,
   } = useBorrowRepayModals();
 
-  const handleBack = () => navigate("/app/aave");
+  const handleBack = () => navigate("/");
 
   const handleCloseBorrowSuccess = () => {
     closeBorrowSuccess();
-    navigate("/app/aave");
+    navigate("/");
   };
 
   const handleCloseRepaySuccess = () => {
     closeRepaySuccess();
-    navigate("/app/aave");
+    navigate("/");
   };
 
   // Loading state
@@ -78,7 +78,7 @@ export function AaveReserveDetail() {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
-          <BackButton label="Aave" onClick={handleBack} />
+          <BackButton label="Home" onClick={handleBack} />
           <div className="flex items-center justify-center py-12">
             <p className="text-accent-secondary">Loading...</p>
           </div>
@@ -92,7 +92,7 @@ export function AaveReserveDetail() {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
-          <BackButton label="Aave" onClick={handleBack} />
+          <BackButton label="Home" onClick={handleBack} />
           <EmptyState
             avatarUrl={btcConfig.icon}
             avatarAlt={btcConfig.name}
@@ -111,7 +111,7 @@ export function AaveReserveDetail() {
     return (
       <Container className="pb-6">
         <div className="space-y-6">
-          <BackButton label="Aave" onClick={handleBack} />
+          <BackButton label="Home" onClick={handleBack} />
           <div className="flex items-center justify-center py-12">
             <p className="text-accent-secondary">Reserve not found</p>
           </div>
@@ -138,7 +138,7 @@ export function AaveReserveDetail() {
     <LoanProvider value={loanContextValue}>
       <Container className="pb-6">
         <div className="space-y-6">
-          <BackButton label="Aave" onClick={handleBack} />
+          <BackButton label="Home" onClick={handleBack} />
           <LoanCard defaultTab={defaultTab} />
         </div>
       </Container>

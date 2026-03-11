@@ -21,8 +21,8 @@ import type { Vault, VaultProvider } from "@/types";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatProviderDisplayName } from "@/utils/formatting";
 
-import type { VaultData } from "../components/Overview/components/VaultsTable";
 import { usePendingVaults } from "../context";
+import type { VaultData } from "../types";
 
 /**
  * Transform a Vault to VaultData for display
@@ -57,8 +57,6 @@ function transformVaultToTableData(
 export interface UseAaveVaultsResult {
   /** All active vaults (for display in table) */
   vaults: VaultData[];
-  /** Raw vault data (for operations like redeem that need applicationController) */
-  rawVaults: Vault[];
   /** Vaults available for use as collateral (not currently in use) */
   availableForCollateral: VaultData[];
   /** Loading state */
@@ -101,17 +99,9 @@ export function useAaveVaults(
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {
       const provider = findProvider(vault.vaultProvider);
-      const vaultData = transformVaultToTableData(vault, btcPriceUSD, provider);
-      const pendingOperation = pendingVaults.get(vault.id);
-      if (pendingOperation === "redeem") {
-        return {
-          ...vaultData,
-          status: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
-        };
-      }
-      return vaultData;
+      return transformVaultToTableData(vault, btcPriceUSD, provider);
     });
-  }, [activeVaults, btcPriceUSD, findProvider, pendingVaults]);
+  }, [activeVaults, btcPriceUSD, findProvider]);
 
   // Filter to vaults available for collateral:
   // - Not currently in use by an application (from indexer)
@@ -126,7 +116,6 @@ export function useAaveVaults(
 
   return {
     vaults: allVaults,
-    rawVaults: activeVaults,
     availableForCollateral,
     isLoading,
     error: error as Error | null,

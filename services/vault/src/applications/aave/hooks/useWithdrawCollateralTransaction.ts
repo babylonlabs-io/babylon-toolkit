@@ -7,7 +7,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
@@ -19,7 +19,7 @@ import {
 import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { usePendingVaults } from "../context";
-import { withdrawAllCollateral } from "../services";
+import { withdrawSelectedCollateral } from "../services";
 
 export interface UseWithdrawCollateralTransactionResult {
   /**
@@ -68,8 +68,12 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
           );
         }
 
-        // Execute the withdraw transaction
-        await withdrawAllCollateral(walletClient, chain);
+        // Execute selective withdraw transaction
+        await withdrawSelectedCollateral(
+          walletClient,
+          chain,
+          vaultIds as Hex[],
+        );
 
         // Mark vaults as pending withdrawal before indexer updates
         if (vaultIds.length > 0) {

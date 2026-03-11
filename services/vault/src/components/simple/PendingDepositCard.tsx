@@ -27,7 +27,7 @@ import type {
 import {
   getActionStatus,
   PeginAction,
-} from "@/components/deposit/DepositOverview/actionStatus";
+} from "@/components/deposit/actionStatus";
 import { getNetworkConfigBTC } from "@/config";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import type { PeginState } from "@/models/peginStateMachine";

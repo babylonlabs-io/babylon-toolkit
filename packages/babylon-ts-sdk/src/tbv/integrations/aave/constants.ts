@@ -12,6 +12,8 @@
 export const AAVE_FUNCTION_NAMES = {
   /** Withdraw all collateral from Core Spoke position (also redeems vaults) */
   WITHDRAW_ALL_COLLATERAL: "withdrawAllCollateralFromCorePosition",
+  /** Withdraw selected vaults from position (partial withdrawal) */
+  WITHDRAW_COLLATERALS: "withdrawCollaterals",
   /** Borrow from Core Spoke position */
   BORROW: "borrowFromCorePosition",
   /** Repay debt to Core Spoke position */

@@ -10,7 +10,7 @@ import {
   AaveIntegrationControllerABI,
   buildBorrowTx,
   buildRepayTx,
-  buildWithdrawAllCollateralTx,
+  buildWithdrawCollateralsTx,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
@@ -97,28 +97,30 @@ async function executeTx(
 }
 
 /**
- * Withdraw all collateral from Core Spoke position
+ * Withdraw selected vaults from position
  *
- * Withdraws all vBTC collateral and releases vaults back to Available status.
+ * Withdraws specific vaults (partial withdrawal) and redeems them.
  * Position must have zero debt before withdrawal.
  *
  * @param walletClient - Connected wallet client for signing transactions
  * @param chain - Chain configuration
  * @param contractAddress - AaveIntegrationController contract address
+ * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
  * @returns Transaction result with hash and receipt
  */
-export async function withdrawAllCollateralFromCorePosition(
+export async function withdrawCollaterals(
   walletClient: WalletClient,
   chain: Chain,
   contractAddress: Address,
+  vaultIds: Hex[],
 ): Promise<TransactionResult> {
-  const { to, data } = buildWithdrawAllCollateralTx(contractAddress);
+  const { to, data } = buildWithdrawCollateralsTx(contractAddress, vaultIds);
   return executeTx(
     walletClient,
     chain,
     to,
     data,
-    "withdraw all collateral from Aave Core position",
+    "withdraw selected collateral from Aave position",
   );
 }
 
