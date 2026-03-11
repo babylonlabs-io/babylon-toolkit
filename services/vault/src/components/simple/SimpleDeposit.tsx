@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -117,6 +117,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    hasActivePegins,
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
@@ -131,6 +132,23 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setFeeRate,
     setTransactionHashes,
   } = useDepositPageFlow();
+
+  // Hide partial liquidation when user already has active (collateralized) vaults
+  useEffect(() => {
+    if (hasActivePegins) {
+      setIsPartialLiquidation(false);
+    }
+  }, [hasActivePegins, setIsPartialLiquidation]);
+
+  const partialLiquidationProps = hasActivePegins
+    ? undefined
+    : {
+        isEnabled: isPartialLiquidation,
+        onChange: setIsPartialLiquidation,
+        canSplit,
+        strategy,
+        isPlanning,
+      };
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
@@ -204,13 +222,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
-                partialLiquidation={{
-                  isEnabled: isPartialLiquidation,
-                  onChange: setIsPartialLiquidation,
-                  canSplit,
-                  strategy,
-                  isPlanning,
-                }}
+                partialLiquidation={partialLiquidationProps}
               />
             </div>
           </div>

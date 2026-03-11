@@ -18,6 +18,7 @@ import {
 } from "../../context/deposit/DepositState";
 import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
 import { useETHWallet } from "../../context/wallet";
+import { VaultStatus } from "../../types/vault";
 import type { VaultProvider } from "../../types/vaultProvider";
 import { useVaultDeposits } from "../useVaultDeposits";
 import { useVaults } from "../useVaults";
@@ -43,6 +44,7 @@ export interface UseDepositPageFlowResult {
 
   // Vault data
   hasExistingVaults: boolean;
+  hasActivePegins: boolean;
 
   // Actions
   startDeposit: (
@@ -116,6 +118,10 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const { data: existingVaults } = useVaults(ethAddress);
   const hasExistingVaults = (existingVaults?.length ?? 0) > 0;
+  const hasActivePegins = useMemo(
+    () => existingVaults?.some((v) => v.status === VaultStatus.ACTIVE) ?? false,
+    [existingVaults],
+  );
 
   // Get selected provider's BTC public key, vault keepers, and universal challengers
   const {
@@ -211,6 +217,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    hasActivePegins,
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
