@@ -164,26 +164,11 @@ export function usePendingVaults(): PendingVaultsContextValue {
 }
 
 /**
- * Check if a vault's status matches the expected status for its pending operation
- */
-function isOperationConfirmed(
-  vault: VaultData,
-  operation: PendingOperation,
-): boolean {
-  if (operation === "add") {
-    // Add is confirmed when vault becomes "In Use"
-    return vault.status === PEGIN_DISPLAY_LABELS.IN_USE;
-  } else {
-    // Withdraw is confirmed when vault becomes "Available"
-    return vault.status === PEGIN_DISPLAY_LABELS.AVAILABLE;
-  }
-}
-
-/**
  * Hook to sync pending vaults with indexed vault data.
  * Automatically clears pending vault IDs when the indexer confirms the operation.
  * - Add: cleared when vault status becomes "In Use"
- * - Withdraw: cleared when vault status becomes "Available"
+ * - Withdraw: cleared when vault disappears from the active vaults list
+ *   (it transitions to REDEEMED and is no longer in the active set)
  *
  * Also triggers a refetch of the Aave position when operations are confirmed,
  * since the position data comes from expensive RPC calls and shouldn't be polled frequently.
@@ -199,15 +184,26 @@ export function useSyncPendingVaults(vaults: VaultData[]): void {
     if (prevVaultsRef.current === vaults) return;
     prevVaultsRef.current = vaults;
 
-    if (pendingVaults.size === 0 || vaults.length === 0) return;
+    if (pendingVaults.size === 0) return;
 
-    const confirmedVaultIds = vaults
-      .filter((vault) => {
-        const operation = pendingVaults.get(vault.id);
-        if (!operation) return false;
-        return isOperationConfirmed(vault, operation);
-      })
-      .map((vault) => vault.id);
+    const activeVaultIds = new Set(vaults.map((v) => v.id));
+    const confirmedVaultIds: string[] = [];
+
+    for (const [vaultId, operation] of pendingVaults) {
+      if (operation === "add") {
+        // Add is confirmed when vault becomes "In Use"
+        const vault = vaults.find((v) => v.id === vaultId);
+        if (vault?.status === PEGIN_DISPLAY_LABELS.IN_USE) {
+          confirmedVaultIds.push(vaultId);
+        }
+      } else {
+        // Withdraw is confirmed when vault leaves the active set
+        // (it transitions from ACTIVE to REDEEMED)
+        if (!activeVaultIds.has(vaultId)) {
+          confirmedVaultIds.push(vaultId);
+        }
+      }
+    }
 
     if (confirmedVaultIds.length > 0) {
       // Refetch Aave position first, then clear pending state.

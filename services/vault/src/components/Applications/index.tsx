@@ -1,4 +1,5 @@
 import { Button, Chip, SubSection, Text } from "@babylonlabs-io/core-ui";
+import { useNavigate } from "react-router";
 
 import { getAppIdByController } from "../../applications";
 import { useApplications } from "../../hooks/useApplications";
@@ -7,6 +8,7 @@ import { ApplicationLogo } from "../ApplicationLogo";
 import { AaveBanner } from "./AaveBanner";
 
 export function Applications() {
+  const navigate = useNavigate();
   const {
     data: applications,
     isLoading,
@@ -69,7 +71,7 @@ export function Applications() {
 
           // Render custom Aave banner
           if (isAave) {
-            return <AaveBanner key={app.id} onExplore={() => {}} />;
+            return <AaveBanner key={app.id} onExplore={() => navigate("/")} />;
           }
 
           // Render standard card for other applications
