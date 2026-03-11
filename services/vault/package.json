@@ -34,7 +34,6 @@
     "@scure/bip39": "2.0.1",
     "@sentry/react": "8.33.0",
     "@tanstack/react-query": "^5.74.4",
-    "@uidotdev/usehooks": "2.4.1",
     "bitcoinjs-lib": "6.1.7",
     "buffer": "6.0.3",
     "graphql": "^16.12.0",

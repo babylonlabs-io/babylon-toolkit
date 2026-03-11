@@ -4,8 +4,9 @@ import { render } from "@testing-library/react";
 
 import Home from "@/ui/common/page";
 
-jest.mock("@uidotdev/usehooks", () => ({
-  useDebounce: jest.fn((value) => value),
+jest.mock("usehooks-ts", () => ({
+  ...jest.requireActual<object>("usehooks-ts"),
+  useDebounceValue: jest.fn((value: unknown) => [value, jest.fn()]),
 }));
 
 jest.mock("@babylonlabs-io/btc-staking-ts", () => ({
@@ -37,10 +38,10 @@ jest.mock("@/ui/common/components/Staking/StakingForm", () => ({
 
 jest.mock("@/ui/common/components/Delegations/Activity", () => ({
   Activity: () => null,
-})); // Uses @uidotdev/usehooks
+}));
 jest.mock("@/ui/common/components/Header/Header", () => ({
   Header: () => null,
-})); // Uses @uidotdev/usehooks
+}));
 jest.mock("@/ui/common/components/Stats/Stats", () => ({ Stats: () => null })); // Has API dependencies
 jest.mock("@/ui/common/components/FAQ/FAQ", () => ({ FAQ: () => null })); // Uses ResizeObserver
 

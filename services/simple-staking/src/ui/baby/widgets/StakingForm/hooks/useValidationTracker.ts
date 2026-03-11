@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 import type { FormRef } from "@babylonlabs-io/core-ui";
 
 import {
@@ -97,11 +97,11 @@ export function useValidationTracker({
     return () => subscription.unsubscribe();
   }, [formRef, updateFieldErrors]);
 
-  const debouncedAmountFieldError = useDebounce(
+  const [debouncedAmountFieldError] = useDebounceValue(
     enabledFields.amount ? amountError : undefined,
     300,
   );
-  const debouncedValidatorFieldError = useDebounce(
+  const [debouncedValidatorFieldError] = useDebounceValue(
     enabledFields.validatorAddresses ? validatorError : undefined,
     300,
   );

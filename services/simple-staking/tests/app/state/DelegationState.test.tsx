@@ -13,12 +13,13 @@ jest.mock("@/ui/common/hooks/client/api/useDelegations", () => ({
   useDelegations: () => mockUseDelegations(),
 }));
 
-// Mock useLocalStorage
+// Mock useLocalStorage and useDebounceValue
 const mockSetDelegations = jest.fn();
 jest.mock("usehooks-ts", () => ({
   useLocalStorage: jest.fn().mockImplementation(() => {
     return [[], mockSetDelegations];
   }),
+  useDebounceValue: jest.fn((value: unknown) => [value, jest.fn()]),
 }));
 
 // Mock calculateDelegationsDiff

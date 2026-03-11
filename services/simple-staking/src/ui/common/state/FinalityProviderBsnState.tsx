@@ -1,4 +1,4 @@
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 import {
   useCallback,
   useEffect,
@@ -146,7 +146,7 @@ export function FinalityProviderBsnState({ children }: PropsWithChildren) {
     allowlistStatus: "",
   });
   const [sortState, setSortState] = useState<SortState>({});
-  const debouncedSearch = useDebounce(filter.searchTerm, 300);
+  const [debouncedSearch] = useDebounceValue(filter.searchTerm, 300);
 
   const [selectedBsnId, setSelectedBsnId] = useState<string | undefined>(
     BBN_CHAIN_ID,

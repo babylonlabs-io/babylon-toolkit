@@ -5,7 +5,7 @@ import {
   useFormContext,
   useWatch,
 } from "@babylonlabs-io/core-ui";
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 import { useEffect, useRef, useState } from "react";
 
 import { type MultistakingFormFields } from "@/ui/common/state/MultistakingState";
@@ -37,7 +37,10 @@ export function TimelockSection() {
     useState<number>(minStakingTimeBlocks);
 
   // Debounced value for form updates (prevents lag during rapid slider changes)
-  const debouncedSliderValue = useDebounce(localSliderValue, DEBOUNCE_DELAY);
+  const [debouncedSliderValue] = useDebounceValue(
+    localSliderValue,
+    DEBOUNCE_DELAY,
+  );
 
   // Track whether we're actively dragging (to ignore form updates during drag)
   const isDraggingRef = useRef(false);

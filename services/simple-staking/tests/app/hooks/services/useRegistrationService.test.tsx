@@ -6,9 +6,9 @@ jest.mock("@/ui/common/context/Error/ErrorProvider", () => ({
   useError: jest.fn(),
 }));
 
-// Mock @uidotdev/usehooks to handle ESM module issue
-jest.mock("@uidotdev/usehooks", () => ({
-  useDebounce: jest.fn((value) => value),
+jest.mock("usehooks-ts", () => ({
+  ...jest.requireActual<object>("usehooks-ts"),
+  useDebounceValue: jest.fn((value: unknown) => [value, jest.fn()]),
 }));
 
 // Mock nanoevents (ESM-only module) to avoid Jest parsing issues

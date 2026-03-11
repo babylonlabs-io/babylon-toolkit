@@ -37,15 +37,11 @@ jest.mock("@/ui/legacy/context/wallet/CosmosWalletProvider", () => ({
   useCosmosWallet: () => mockUseCosmosWallet(),
 }));
 
-jest.mock("@uidotdev/usehooks", () => ({
-  useDebounce: jest.fn((value) => value),
-}));
-
-// Mock useLocalStorage
+// Mock useLocalStorage and useDebounceValue
 const mockSetSuccessModalShown = jest.fn();
 const mockSetCancelModalShown = jest.fn();
 jest.mock("usehooks-ts", () => ({
-  useLocalStorage: jest.fn().mockImplementation((key) => {
+  useLocalStorage: jest.fn().mockImplementation((key: string) => {
     if (key === "bbn-staking-successFeedbackModalOpened") {
       return [false, mockSetSuccessModalShown];
     }
@@ -54,6 +50,7 @@ jest.mock("usehooks-ts", () => ({
     }
     return [null, jest.fn()];
   }),
+  useDebounceValue: jest.fn((value: unknown) => [value, jest.fn()]),
 }));
 
 // Import the actual component we're testing (after mocks are defined)
