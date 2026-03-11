@@ -58,9 +58,7 @@ export function usePendingDeposits() {
 
   const findProvider = useCallback(
     (id: string) =>
-      vaultProviders.find(
-        (p) => p.id.toLowerCase() === id.toLowerCase(),
-      ),
+      vaultProviders.find((p) => p.id.toLowerCase() === id.toLowerCase()),
     [vaultProviders],
   );
 
