@@ -12,7 +12,7 @@ import {
   // Transaction builders
   buildBorrowTx,
   buildRepayTx,
-  buildWithdrawAllCollateralTx,
+  buildWithdrawCollateralsTx,
   // Query functions
   getPosition,
   getUserAccountData,
@@ -24,7 +24,7 @@ import {
   getHealthFactorStatus,
   FULL_REPAY_BUFFER_DIVISOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
+import { createPublicClient, createWalletClient, http, parseUnits, type Hex } from "viem";
 import { sepolia } from "viem/chains";
 
 const publicClient = createPublicClient({ chain: sepolia, transport: http() });
@@ -195,8 +195,9 @@ if (userHasDebt) {
   throw new Error("Repay all debt before withdrawing");
 }
 
-// 3. Build transaction (withdraws ALL collateral)
-const tx = buildWithdrawAllCollateralTx(CONTROLLER);
+// 3. Build transaction (withdraw selected vaults)
+const vaultIdsToWithdraw: Hex[] = position.vaultIds; // or a subset
+const tx = buildWithdrawCollateralsTx(CONTROLLER, vaultIdsToWithdraw);
 
 // 4. Execute
 const hash = await walletClient.sendTransaction({ to: tx.to, data: tx.data });

@@ -3,7 +3,7 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar } from "@babylonlabs-io/core-ui";
+import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
@@ -17,12 +17,18 @@ interface CollateralVaultItemProps {
   vaultId: string;
   amountBtc: number;
   addedAt: number;
+  inUse: boolean;
+  providerName: string;
+  providerIconUrl?: string;
 }
 
 export function CollateralVaultItem({
   vaultId,
   amountBtc,
   addedAt,
+  inUse,
+  providerName,
+  providerIconUrl,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
@@ -40,6 +46,26 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Date</span>
         <span className="text-sm text-accent-primary">{formattedDate}</span>
+      </div>
+
+      {/* Status row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Status</span>
+        <StatusBadge
+          status={inUse ? "active" : "inactive"}
+          label={inUse ? "In use" : "Available"}
+        />
+      </div>
+
+      {/* Vault Provider row */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-accent-secondary">Vault Provider</span>
+        <div className="flex items-center gap-1.5">
+          {providerIconUrl && (
+            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
+          )}
+          <span className="text-sm text-accent-primary">{providerName}</span>
+        </div>
       </div>
 
       {/* Transaction hash row */}

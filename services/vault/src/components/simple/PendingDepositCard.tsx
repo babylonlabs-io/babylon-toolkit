@@ -1,14 +1,11 @@
 /**
  * PendingDepositCard Component
  *
- * Renders a single pending deposit card with BTC amount and an action button.
- * Uses the PeginPollingContext to resolve the deposit's current state and
- * available actions (sign / broadcast).
- *
- * Must be rendered inside a PeginPollingProvider.
+ * Renders a single pending deposit as a bordered sub-card within the
+ * expanded summary card. Uses VaultDetailCard for the common layout.
  */
 
-import { Avatar, Button, Card, Hint } from "@babylonlabs-io/core-ui";
+import { Button } from "@babylonlabs-io/core-ui";
 
 import type {
   ClaimerTransactions,
@@ -16,17 +13,32 @@ import type {
 } from "@/clients/vault-provider-rpc/types";
 import {
   getActionStatus,
-  getWarningMessages,
   PeginAction,
-} from "@/components/deposit/DepositOverview/actionStatus";
-import { getNetworkConfigBTC } from "@/config";
+} from "@/components/deposit/actionStatus";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
+import type { PeginState } from "@/models/peginStateMachine";
+import type { VaultProvider } from "@/types/vaultProvider";
+import { truncateAddress } from "@/utils/addressUtils";
 
-const btcConfig = getNetworkConfigBTC();
+import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
+
+type DisplayVariant = PeginState["displayVariant"];
+
+const DOT_COLORS: Record<DisplayVariant, string> = {
+  pending: "bg-warning-main",
+  active: "bg-success-main",
+  inactive: "bg-gray-400",
+  warning: "bg-error-main",
+};
 
 interface PendingDepositCardProps {
   depositId: string;
   amount: string;
+  /** Milliseconds since epoch */
+  timestamp?: number;
+  txHash: string;
+  providerId: string;
+  vaultProviders: VaultProvider[];
   onSignClick: (
     depositId: string,
     transactions: ClaimerTransactions[],
@@ -39,6 +51,10 @@ interface PendingDepositCardProps {
 export function PendingDepositCard({
   depositId,
   amount,
+  timestamp,
+  txHash,
+  providerId,
+  vaultProviders,
   onSignClick,
   onBroadcastClick,
   onLamportKeyClick,
@@ -49,11 +65,7 @@ export function PendingDepositCard({
 
   const { loading, transactions, depositorGraph, peginState } = pollingResult;
   const status = getActionStatus(pollingResult);
-  const warnings = getWarningMessages(pollingResult);
-  const isDisabled = warnings.length > 0;
-
   const isActionable = status.type === "available";
-  const displayLabel = peginState.displayLabel;
 
   const handleClick = () => {
     if (status.type !== "available") return;
@@ -70,44 +82,43 @@ export function PendingDepositCard({
     }
   };
 
-  const button = (
-    <Button
-      variant="contained"
-      size="small"
-      className="rounded-full !bg-white !text-black hover:!bg-gray-100"
-      disabled={!isActionable || (loading && !transactions)}
-      onClick={handleClick}
-    >
-      {loading && !transactions ? "Loading..." : displayLabel}
-    </Button>
-  );
+  const label =
+    loading && !transactions ? "Loading..." : peginState.displayLabel;
+  const buttonDisabled = !isActionable || (loading && !transactions);
+  const dotColor = DOT_COLORS[peginState.displayVariant];
+
+  // Resolve provider name
+  const provider = vaultProviders.find((vp) => vp.id === providerId);
+  const providerName =
+    provider?.name ?? `Provider ${truncateAddress(providerId)}`;
 
   return (
-    <Card
-      variant="filled"
-      className={`w-full ${isDisabled ? "opacity-50" : ""}`.trim()}
-    >
-      <div className="flex items-center gap-4">
-        <div className="flex flex-1 items-center gap-2">
-          <Avatar
-            url={btcConfig.icon}
-            alt={btcConfig.coinSymbol}
-            size="small"
-            variant="circular"
-          />
-          <span className="text-[18px] text-accent-primary/50">
-            {amount} {btcConfig.coinSymbol}
-          </span>
-        </div>
-
-        {peginState.message ? (
-          <Hint tooltip={peginState.message} attachToChildren>
-            {button}
-          </Hint>
-        ) : (
-          button
-        )}
-      </div>
-    </Card>
+    <VaultDetailCard
+      amountBtc={parseFloat(amount || "0")}
+      timestamp={timestamp ?? 0}
+      txHash={txHash}
+      providerName={providerName}
+      providerIconUrl={provider?.iconUrl}
+      statusContent={
+        <VaultStatusBadge
+          dotColor={dotColor}
+          label={peginState.displayLabel}
+          tooltip={peginState.message}
+        />
+      }
+      action={
+        isActionable ? (
+          <Button
+            variant="outlined"
+            color="primary"
+            className="w-full rounded-full"
+            disabled={buttonDisabled}
+            onClick={handleClick}
+          >
+            {label}
+          </Button>
+        ) : undefined
+      }
+    />
   );
 }

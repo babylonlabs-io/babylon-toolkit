@@ -1,7 +1,7 @@
 import { Form, type FormRef } from "@babylonlabs-io/core-ui";
 import { useMemo, useRef, useEffect, useCallback, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useDebounce } from "@uidotdev/usehooks";
+import { useDebounceValue } from "usehooks-ts";
 
 import { AmountField } from "@/ui/baby/components/AmountField";
 import { FeeField } from "@/ui/baby/components/FeeField";
@@ -69,7 +69,7 @@ export default function StakingForm({
     string,
     unknown
   > | null>(null);
-  const debouncedAmountTrackingPayload = useDebounce(
+  const [debouncedAmountTrackingPayload] = useDebounceValue(
     amountTrackingPayload,
     300,
   );

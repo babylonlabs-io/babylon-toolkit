@@ -8,53 +8,30 @@
  * by the vault service using its wallet client and transaction factory.
  */
 
-import { type Address, encodeFunctionData } from "viem";
+import { type Address, type Hex, encodeFunctionData } from "viem";
 
 import { AAVE_FUNCTION_NAMES } from "../config.js";
 import type { TransactionParams } from "../types.js";
 import AaveIntegrationControllerABI from "./abis/AaveIntegrationController.abi.json";
 
 /**
- * Build transaction to withdraw all vBTC collateral from AAVE position.
+ * Build transaction to withdraw selected vaults from AAVE position.
  *
- * **Requires zero debt** - position must have no outstanding borrows across all reserves.
- * Withdraws all vBTC collateral and releases vaults back to Available status.
+ * Withdraws specific vaults (partial withdrawal) and redeems them back to the depositor.
+ * **Requires zero debt** - position must have no outstanding borrows.
  *
  * @param contractAddress - AaveIntegrationController contract address
+ * @param vaultIds - Array of vault IDs (bytes32) to withdraw
  * @returns Unsigned transaction parameters for execution with viem wallet
- *
- * @example
- * ```typescript
- * import { buildWithdrawAllCollateralTx } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
- *
- * const txParams = buildWithdrawAllCollateralTx("0x123...");
- * const hash = await walletClient.sendTransaction({
- *   to: txParams.to,
- *   data: txParams.data,
- *   chain: sepolia,
- * });
- * ```
- *
- * @remarks
- * **What happens on-chain:**
- * 1. Verifies user has zero debt across all reserves
- * 2. Withdraws all vBTC collateral from AAVE spoke
- * 3. Transfers vault ownership back to user
- * 4. Aave vault usage status changes: `collateralized` → `none`
- * 5. Emits `CollateralWithdrawn` event
- *
- * **Possible errors:**
- * - User has outstanding debt
- * - Position doesn't exist
- * - No collateral to withdraw
  */
-export function buildWithdrawAllCollateralTx(
+export function buildWithdrawCollateralsTx(
   contractAddress: Address,
+  vaultIds: Hex[],
 ): TransactionParams {
   const data = encodeFunctionData({
     abi: AaveIntegrationControllerABI,
-    functionName: AAVE_FUNCTION_NAMES.WITHDRAW_ALL_COLLATERAL,
-    args: [],
+    functionName: AAVE_FUNCTION_NAMES.WITHDRAW_COLLATERALS,
+    args: [vaultIds],
   });
 
   return {

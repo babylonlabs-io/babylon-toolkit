@@ -71,12 +71,7 @@ export function Applications() {
 
           // Render custom Aave banner
           if (isAave) {
-            return (
-              <AaveBanner
-                key={app.id}
-                onExplore={() => navigate(`/app/${appId}`)}
-              />
-            );
+            return <AaveBanner key={app.id} onExplore={() => navigate("/")} />;
           }
 
           // Render standard card for other applications

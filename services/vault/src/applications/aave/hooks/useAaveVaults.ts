@@ -19,10 +19,10 @@ import {
 } from "@/models/peginStateMachine";
 import type { Vault, VaultProvider } from "@/types";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { formatProviderDisplayName } from "@/utils/formatting";
 
-import type { VaultData } from "../components/Overview/components/VaultsTable";
 import { usePendingVaults } from "../context";
-import { useAaveConfig } from "../context/AaveConfigContext";
+import type { VaultData } from "../types";
 
 /**
  * Transform a Vault to VaultData for display
@@ -37,10 +37,10 @@ function transformVaultToTableData(
 
   const peginState = getPeginState(vault.status, { isInUse: vault.isInUse });
 
-  // Use provider name if available, otherwise truncate the address
-  const providerName =
-    provider?.name ??
-    `${vault.vaultProvider.slice(0, 6)}...${vault.vaultProvider.slice(-4)}`;
+  const providerName = formatProviderDisplayName(
+    provider?.name,
+    vault.vaultProvider,
+  );
 
   return {
     id: vault.id,
@@ -54,13 +54,22 @@ function transformVaultToTableData(
   };
 }
 
+export interface RedeemedVaultInfo {
+  id: string;
+  amountBtc: number;
+  providerName: string;
+  providerIconUrl?: string;
+  /** Timestamp in milliseconds when vault was created */
+  createdAt: number;
+}
+
 export interface UseAaveVaultsResult {
   /** All active vaults (for display in table) */
   vaults: VaultData[];
-  /** Raw vault data (for operations like redeem that need applicationController) */
-  rawVaults: Vault[];
   /** Vaults available for use as collateral (not currently in use) */
   availableForCollateral: VaultData[];
+  /** Vaults with "redeemed" status (withdrawal in progress, awaiting VP payout) */
+  redeemedVaults: RedeemedVaultInfo[];
   /** Loading state */
   isLoading: boolean;
   /** Error state */
@@ -78,8 +87,7 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
-  const { config } = useAaveConfig();
-  const { findProvider } = useVaultProviders(config?.controllerAddress);
+  const { findProvider } = useVaultProviders();
 
   const {
     data: vaults,
@@ -99,20 +107,33 @@ export function useAaveVaults(
     return vaults.filter((vault) => vault.status === ContractStatus.ACTIVE);
   }, [vaults]);
 
+  // Vaults with "redeemed" status — withdrawal initiated, VP is processing BTC payout
+  const redeemedVaults: RedeemedVaultInfo[] = useMemo(() => {
+    if (!vaults) return [];
+    return vaults
+      .filter((vault) => vault.status === ContractStatus.REDEEMED)
+      .map((vault) => {
+        const provider = findProvider(vault.vaultProvider);
+        const providerName = formatProviderDisplayName(
+          provider?.name,
+          vault.vaultProvider,
+        );
+        return {
+          id: vault.id,
+          amountBtc: satoshiToBtcNumber(vault.amount),
+          providerName,
+          providerIconUrl: provider?.iconUrl,
+          createdAt: vault.createdAt,
+        };
+      });
+  }, [vaults, findProvider]);
+
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {
       const provider = findProvider(vault.vaultProvider);
-      const vaultData = transformVaultToTableData(vault, btcPriceUSD, provider);
-      const pendingOperation = pendingVaults.get(vault.id);
-      if (pendingOperation === "redeem") {
-        return {
-          ...vaultData,
-          status: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
-        };
-      }
-      return vaultData;
+      return transformVaultToTableData(vault, btcPriceUSD, provider);
     });
-  }, [activeVaults, btcPriceUSD, findProvider, pendingVaults]);
+  }, [activeVaults, btcPriceUSD, findProvider]);
 
   // Filter to vaults available for collateral:
   // - Not currently in use by an application (from indexer)
@@ -127,8 +148,8 @@ export function useAaveVaults(
 
   return {
     vaults: allVaults,
-    rawVaults: activeVaults,
     availableForCollateral,
+    redeemedVaults,
     isLoading,
     error: error as Error | null,
   };

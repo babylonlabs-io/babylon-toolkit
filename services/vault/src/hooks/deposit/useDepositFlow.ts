@@ -28,6 +28,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { getPendingPegins } from "@/storage/peginStorage";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 
 import {
   broadcastBtcTransaction,
@@ -151,10 +152,10 @@ export function useDepositFlow(
   const { data: vaults } = useVaults(depositorEthAddress);
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
   const {
+    config,
     minDeposit,
     maxDeposit,
     timelockPegin,
-    depositorClaimValue,
     latestUniversalChallengers,
     getOffchainParamsByVersion,
   } = useProtocolParamsContext();
@@ -184,15 +185,33 @@ export function useDepositFlow(
           maxDeposit,
         });
 
+        // After validation, these are guaranteed to be defined
+        if (!btcAddress || !depositorEthAddress) {
+          throw new Error("BTC or ETH wallet not connected");
+        }
+
         // Step 1: Get ETH wallet client
         setCurrentStep(DepositFlowStep.SIGN_POP);
-        const walletClient = await getEthWalletClient(depositorEthAddress!);
+        const walletClient = await getEthWalletClient(depositorEthAddress);
 
         // Compute reserved UTXOs from cached vaults + localStorage
-        const pendingPegins = getPendingPegins(depositorEthAddress!);
+        const pendingPegins = getPendingPegins(depositorEthAddress);
         const reservedUtxoRefs = collectReservedUtxoRefs({
           vaults: vaults ?? [],
           pendingPegins,
+        });
+
+        // Compute depositorClaimValue with actual VK count. The context value
+        // uses 0 local challengers (floor for UI estimation); the VP validates
+        // with vault_keepers.len(), so we must match that here.
+        const depositorClaimValue = await computeDepositorClaimValue({
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          numUniversalChallengers: universalChallengerBtcPubkeys.length,
+          babeInstancesToFinalize:
+            config.offchainParams.babeInstancesToFinalize,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
+          feeRate: config.offchainParams.feeRate,
         });
 
         // Step 2a: Build and fund the BTC transaction (no on-chain submission yet)
@@ -201,7 +220,7 @@ export function useDepositFlow(
           walletClient,
           amount,
           feeRate,
-          btcAddress: btcAddress!,
+          btcAddress,
           selectedProviders,
           vaultProviderBtcPubkey,
           vaultKeeperBtcPubkeys,
@@ -230,12 +249,13 @@ export function useDepositFlow(
           fundedTxHex: prepared.btcTxHex,
           vaultProviderAddress: selectedProviders[0],
           onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
+          depositorPayoutBtcAddress: btcAddress,
           depositorLamportPkHash: lamportPkHash,
         });
 
         // Save to localStorage
         savePendingPegin({
-          depositorEthAddress: depositorEthAddress!,
+          depositorEthAddress,
           btcTxid: registration.btcTxid,
           ethTxHash: registration.ethTxHash,
           amount,
@@ -337,7 +357,7 @@ export function useDepositFlow(
           registration.btcTxid,
           prepared.depositorBtcPubkey,
           signatures,
-          depositorEthAddress!,
+          depositorEthAddress,
           depositorClaimerPresignatures,
         );
         setPayoutSigningProgress(null);
@@ -366,7 +386,7 @@ export function useDepositFlow(
             depositorBtcPubkey: prepared.depositorBtcPubkey,
             btcWalletProvider,
           },
-          depositorEthAddress!,
+          depositorEthAddress,
         );
 
         // Complete
@@ -407,7 +427,7 @@ export function useDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
-      depositorClaimValue,
+      config,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

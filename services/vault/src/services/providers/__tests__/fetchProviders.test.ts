@@ -68,7 +68,7 @@ describe("fetchProviders", () => {
       expect(result.vaultKeepers).toEqual([]);
     });
 
-    it("should filter providers without rpcUrl", async () => {
+    it("should only return providers with rpcUrl", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: {
           items: [
@@ -84,6 +84,12 @@ describe("fetchProviders", () => {
               name: "provider-2",
               rpcUrl: null,
             },
+            {
+              id: "0xprovider3",
+              btcPubKey: "0xpk3",
+              name: null,
+              rpcUrl: "https://rpc3.example.com",
+            },
           ],
         },
         vaultKeeperApplications: { items: [] },
@@ -97,6 +103,12 @@ describe("fetchProviders", () => {
           btcPubKey: "0xpk1",
           name: "provider-1",
           url: "https://rpc.example.com",
+        },
+        {
+          id: "0xprovider3",
+          btcPubKey: "0xpk3",
+          name: undefined,
+          url: "https://rpc3.example.com",
         },
       ]);
     });

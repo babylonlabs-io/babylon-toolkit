@@ -71,7 +71,7 @@ export type {
 export {
   buildBorrowTx,
   buildRepayTx,
-  buildWithdrawAllCollateralTx,
+  buildWithdrawCollateralsTx,
   getPosition,
   getPositionCollateral,
   getUserAccountData,

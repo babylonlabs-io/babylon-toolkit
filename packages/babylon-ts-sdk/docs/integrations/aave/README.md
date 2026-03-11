@@ -52,9 +52,9 @@ Build unsigned transactions. Returns `{ to, data }` for the caller to execute.
 
 | Function                         | Purpose                                    |
 | -------------------------------- | ------------------------------------------ |
-| `buildBorrowTx()`                | Borrow against collateral                  |
-| `buildRepayTx()`                 | Repay borrowed assets                      |
-| `buildWithdrawAllCollateralTx()` | Remove all collateral (requires zero debt) |
+| `buildBorrowTx()`             | Borrow against collateral                     |
+| `buildRepayTx()`              | Repay borrowed assets                         |
+| `buildWithdrawCollateralsTx()` | Withdraw selected vaults (requires zero debt) |
 
 ### Query Functions
 
@@ -91,7 +91,7 @@ Pure calculations and helpers.
 | Get exact debt amount      | `getUserTotalDebt()`                         |
 | Repay debt                 | `buildRepayTx()`                             |
 | Check if can withdraw      | `hasDebt()` → must be false                  |
-| Withdraw collateral        | `buildWithdrawAllCollateralTx()`             |
+| Withdraw collateral        | `buildWithdrawCollateralsTx()`               |
 
 ---
 

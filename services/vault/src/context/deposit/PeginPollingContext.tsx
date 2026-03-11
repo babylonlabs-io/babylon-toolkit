@@ -36,6 +36,41 @@ import { stripHexPrefix } from "../../utils/btc";
 import { areTransactionsReady } from "../../utils/peginPolling";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
+/**
+ * Resolve the effective local status for a deposit, accounting for
+ * optimistic UI updates and auto-detection of broadcast state.
+ */
+function resolveLocalStatus(
+  depositId: string,
+  contractStatus: ContractStatus,
+  optimisticStatuses: Map<string, LocalStorageStatus>,
+  pendingPegins: Array<{ id: string; status?: string }>,
+  hasUtxoData: boolean,
+  broadcastedTxIds: Set<string>,
+): LocalStorageStatus | undefined {
+  const pendingPegin = pendingPegins.find((p) => p.id === depositId);
+  const optimistic = optimisticStatuses.get(depositId);
+  let localStatus = (optimistic ?? pendingPegin?.status) as
+    | LocalStorageStatus
+    | undefined;
+
+  // Auto-detect CONFIRMING state from blockchain data.
+  // If contract is VERIFIED and the tx is already broadcast to Bitcoin,
+  // treat as CONFIRMING even if localStorage doesn't have this status.
+  if (
+    hasUtxoData &&
+    contractStatus === ContractStatus.VERIFIED &&
+    localStatus !== LocalStorageStatus.CONFIRMING
+  ) {
+    const txid = stripHexPrefix(depositId).toLowerCase();
+    if (broadcastedTxIds.has(txid)) {
+      localStatus = LocalStorageStatus.CONFIRMING;
+    }
+  }
+
+  return localStatus;
+}
+
 const PeginPollingContext = createContext<PeginPollingContextValue | null>(
   null,
 );
@@ -60,13 +95,20 @@ export function PeginPollingProvider({
   >(new Map());
 
   // Use the polling query hook
-  const { data, depositorGraphs, errors, needsLamportKey, isLoading, refetch } =
-    usePeginPollingQuery({
-      activities,
-      pendingPegins,
-      btcPublicKey,
-      vaultProviders,
-    });
+  const {
+    data,
+    depositorGraphs,
+    errors,
+    needsLamportKey,
+    pendingIngestion,
+    isLoading,
+    refetch,
+  } = usePeginPollingQuery({
+    activities,
+    pendingPegins,
+    btcPublicKey,
+    vaultProviders,
+  });
 
   // Fetch UTXOs and recent transactions using React Query (cached with 30s staleTime)
   const {
@@ -114,37 +156,18 @@ export function PeginPollingProvider({
       const activity = activities.find((a) => a.id === depositId);
       if (!activity) return undefined;
 
-      const pendingPegin = pendingPegins.find((p) => p.id === depositId);
       const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
-
-      // Use optimistic status if available, otherwise use localStorage status
-      const optimisticStatus = optimisticStatuses.get(depositId);
-      let localStatus = (optimisticStatus ?? pendingPegin?.status) as
-        | LocalStorageStatus
-        | undefined;
-
-      // Auto-detect CONFIRMING state from blockchain data
-      // If contract is VERIFIED and the tx is already broadcast to Bitcoin,
-      // treat as CONFIRMING even if localStorage doesn't have this status.
-      // This handles cases where localStorage was lost or tx was broadcast externally.
-      if (
-        hasUtxoData &&
-        contractStatus === ContractStatus.VERIFIED &&
-        localStatus !== LocalStorageStatus.CONFIRMING
-      ) {
-        const txid = stripHexPrefix(depositId).toLowerCase();
-        if (broadcastedTxIds.has(txid)) {
-          localStatus = LocalStorageStatus.CONFIRMING;
-        }
-      }
+      const localStatus = resolveLocalStatus(
+        depositId,
+        contractStatus,
+        optimisticStatuses,
+        pendingPegins,
+        hasUtxoData,
+        broadcastedTxIds,
+      );
 
       const transactions = data?.get(depositId) ?? null;
       const isReady = transactions ? areTransactionsReady(transactions) : false;
-
-      // Get provider error for this deposit (if any)
-      const providerError = errors?.get(depositId) ?? null;
-
-      // Check if UTXO is unavailable for this deposit
       const utxoUnavailable = unavailableUtxos.has(depositId);
 
       const peginState = getPeginState(contractStatus, {
@@ -153,24 +176,23 @@ export function PeginPollingProvider({
         isInUse: activity.isInUse,
         utxoUnavailable,
         needsLamportKey: needsLamportKey?.has(depositId),
+        pendingIngestion: pendingIngestion?.has(depositId),
+        expirationReason: activity.expirationReason,
+        expiredAt: activity.expiredAt,
       });
-
-      const isOwnedByCurrentWallet = isVaultOwnedByWallet(
-        activity.depositorBtcPubkey,
-        btcPublicKey,
-      );
-
-      const depositorGraph = depositorGraphs?.get(depositId) ?? null;
 
       return {
         depositId,
         transactions,
-        depositorGraph,
+        depositorGraph: depositorGraphs?.get(depositId) ?? null,
         isReady,
         loading: isLoading,
-        error: providerError,
+        error: errors?.get(depositId) ?? null,
         peginState,
-        isOwnedByCurrentWallet,
+        isOwnedByCurrentWallet: isVaultOwnedByWallet(
+          activity.depositorBtcPubkey,
+          btcPublicKey,
+        ),
         utxoUnavailable,
       };
     },
@@ -181,6 +203,7 @@ export function PeginPollingProvider({
       depositorGraphs,
       errors,
       needsLamportKey,
+      pendingIngestion,
       isLoading,
       optimisticStatuses,
       btcPublicKey,

@@ -43,9 +43,23 @@ import { useApplications } from "../../useApplications";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
 
+vi.mock("@/utils/depositorClaimValue", () => ({
+  computeDepositorClaimValue: vi.fn().mockResolvedValue(35_000n),
+}));
+
 vi.mock("../../../context/ProtocolParamsContext", () => ({
   useProtocolParamsContext: vi.fn(() => ({
-    depositorClaimValue: 35_000n,
+    config: {
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
+    },
+    latestUniversalChallengers: [
+      { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
+    ],
   })),
 }));
 
@@ -191,6 +205,7 @@ vi.mock("../useVaultProviders", () => ({
         btcPubKey: "pubkey2",
       },
     ],
+    vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
     loading: false,
   })),
 }));
@@ -207,7 +222,9 @@ vi.mock("../useAllocationPlanning", () => ({
 }));
 
 vi.mock("../../../utils/formatting", () => ({
-  formatProviderName: vi.fn((id: string) => `Provider ${id.slice(0, 6)}...`),
+  formatProviderDisplayName: vi.fn(
+    (name: string | undefined, id: string) => name || `${id.slice(0, 6)}...`,
+  ),
 }));
 
 vi.mock("../../../services/deposit", () => ({
@@ -813,7 +830,7 @@ describe("useDepositPageForm", () => {
       expect(result.current.isValid).toBe(false);
     });
 
-    it("should be false if there are validation errors", () => {
+    it("should be false if there are validation errors", async () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
@@ -828,7 +845,10 @@ describe("useDepositPageForm", () => {
         result.current.validateForm();
       });
 
-      expect(result.current.isValid).toBe(true);
+      // Wait for depositorClaimValue query to resolve
+      await waitFor(() => {
+        expect(result.current.isValid).toBe(true);
+      });
 
       act(() => {
         result.current.setFormData({ amountBtc: "" });
@@ -837,7 +857,7 @@ describe("useDepositPageForm", () => {
       expect(result.current.isValid).toBe(false);
     });
 
-    it("should be true when all fields are filled and no errors", () => {
+    it("should be true when all fields are filled and no errors", async () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       act(() => {
@@ -848,7 +868,10 @@ describe("useDepositPageForm", () => {
         });
       });
 
-      expect(result.current.isValid).toBe(true);
+      // Wait for depositorClaimValue query to resolve
+      await waitFor(() => {
+        expect(result.current.isValid).toBe(true);
+      });
     });
 
     it("should be false when amount exceeds balance", () => {

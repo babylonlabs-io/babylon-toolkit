@@ -49,6 +49,7 @@ import {
 } from "@/services/vault/vaultPayoutSignatureService";
 import { addPendingPegin } from "@/storage/peginStorage";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { computeDepositorClaimValue } from "@/utils/depositorClaimValue";
 import { formatBtcValue } from "@/utils/formatting";
 
 import {
@@ -308,7 +309,7 @@ export function useMultiVaultDepositFlow(
   const { btcAddress, spendableUTXOs, isUTXOsLoading, utxoError } =
     useBtcWalletState();
   const { findProvider, vaultKeepers } = useVaultProviders(selectedApplication);
-  const { timelockPegin, depositorClaimValue, getOffchainParamsByVersion } =
+  const { config, timelockPegin, getOffchainParamsByVersion } =
     useProtocolParamsContext();
 
   // ============================================================================
@@ -347,15 +348,31 @@ export function useMultiVaultDepositFlow(
         });
 
         // After validation, these values are guaranteed to be defined
-        const confirmedBtcAddress = btcAddress!;
-        const confirmedEthAddress = depositorEthAddress!;
-        const confirmedBtcWallet = btcWalletProvider!;
+        if (!btcAddress || !depositorEthAddress || !btcWalletProvider) {
+          throw new Error("BTC or ETH wallet not connected");
+        }
+        const confirmedBtcAddress = btcAddress;
+        const confirmedEthAddress = depositorEthAddress;
+        const confirmedBtcWallet = btcWalletProvider;
 
         // Extract primary provider (current implementation supports single provider only)
         const primaryProvider = selectedProviders[0] as Address;
 
         // Generate batch ID for tracking
         const batchId = uuidv4();
+
+        // Compute depositorClaimValue with actual VK count. The context value
+        // uses 0 local challengers (floor for UI estimation); the VP validates
+        // with vault_keepers.len(), so we must match that here.
+        const depositorClaimValue = await computeDepositorClaimValue({
+          numLocalChallengers: vaultKeeperBtcPubkeys.length,
+          numUniversalChallengers: universalChallengerBtcPubkeys.length,
+          babeInstancesToFinalize:
+            config.offchainParams.babeInstancesToFinalize,
+          councilQuorum: config.offchainParams.councilQuorum,
+          councilSize: config.offchainParams.securityCouncilKeys.length,
+          feeRate: config.offchainParams.feeRate,
+        });
 
         // ========================================================================
         // Step 1: Plan UTXO Allocation (use precomputed plan if available)
@@ -491,6 +508,7 @@ export function useMultiVaultDepositFlow(
                   depositorBtcPubkey: prepareResult.depositorBtcPubkey,
                   unsignedBtcTx: prepareResult.fundedTxHex,
                   vaultProviderAddress: primaryProvider,
+                  depositorPayoutBtcAddress: confirmedBtcAddress,
                   depositorLamportPkHash: splitLamportPkHash,
                   preSignedBtcPopSignature: capturedPopSignature,
                   onPopSigned: () =>
@@ -549,6 +567,7 @@ export function useMultiVaultDepositFlow(
                 depositorBtcPubkey: prepared.depositorBtcPubkey,
                 fundedTxHex: prepared.btcTxHex,
                 vaultProviderAddress: selectedProviders[0],
+                depositorPayoutBtcAddress: confirmedBtcAddress,
                 depositorLamportPkHash: lamportPkHash,
                 preSignedBtcPopSignature: capturedPopSignature,
                 onPopSigned: () => setCurrentStep(DepositFlowStep.SUBMIT_PEGIN),
@@ -897,7 +916,7 @@ export function useMultiVaultDepositFlow(
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
       timelockPegin,
-      depositorClaimValue,
+      config,
       btcAddress,
       spendableUTXOs,
       isUTXOsLoading,

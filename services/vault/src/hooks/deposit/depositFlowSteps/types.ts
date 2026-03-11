@@ -92,6 +92,8 @@ export interface PeginRegisterParams {
   fundedTxHex: string;
   vaultProviderAddress: string;
   onPopSigned?: () => void;
+  /** Depositor's BTC payout address (e.g. bc1p...) */
+  depositorPayoutBtcAddress: string;
   /** Keccak256 hash of the depositor's Lamport public key */
   depositorLamportPkHash: Hex;
   /** Pre-signed BTC PoP signature to reuse (skips BTC wallet signing) */

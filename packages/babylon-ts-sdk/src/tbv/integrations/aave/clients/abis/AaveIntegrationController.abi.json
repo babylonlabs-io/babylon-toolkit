@@ -1040,6 +1040,25 @@
     "stateMutability": "nonpayable"
   },
   {
+    "type": "function",
+    "name": "withdrawCollaterals",
+    "inputs": [
+      {
+        "name": "vaultsToWithdraw",
+        "type": "bytes32[]",
+        "internalType": "bytes32[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amountWithdrawn",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "event",
     "name": "BTCVaultCoreSpokeLiquidated",
     "inputs": [
@@ -1570,6 +1589,11 @@
   {
     "type": "error",
     "name": "DebtMustBeRepaidFirst",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EmptyArray",
     "inputs": []
   },
   {

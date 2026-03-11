@@ -42,4 +42,3 @@ export { useBtcWalletState } from "./useBtcWalletState";
 
 // Modal hooks
 export { usePayoutSignModal } from "./usePayoutSignModal";
-export { useRedeemModal } from "./useRedeemModal";

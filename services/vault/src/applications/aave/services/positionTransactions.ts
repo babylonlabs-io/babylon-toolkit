@@ -9,6 +9,7 @@ import type {
   Address,
   Chain,
   Hash,
+  Hex,
   TransactionReceipt,
   WalletClient,
 } from "viem";
@@ -231,23 +232,26 @@ export async function repayFull(
 }
 
 /**
- * Withdraw all collateral from a position
+ * Withdraw selected vaults from a position
  *
  * Position must have zero debt before withdrawal.
- * Releases all vaults and redeems them back to the depositor.
+ * Withdraws only the specified vaults and redeems them back to the depositor.
  *
  * @param walletClient - Connected wallet client
  * @param chain - Chain configuration
+ * @param vaultIds - Array of vault IDs (bytes32 hex strings) to withdraw
  * @returns Transaction result
  */
-export async function withdrawAllCollateral(
+export async function withdrawSelectedCollateral(
   walletClient: WalletClient,
   chain: Chain,
+  vaultIds: Hex[],
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const result = await AaveControllerTx.withdrawAllCollateralFromCorePosition(
+  const result = await AaveControllerTx.withdrawCollaterals(
     walletClient,
     chain,
     getAaveControllerAddress(),
+    vaultIds,
   );
 
   return {

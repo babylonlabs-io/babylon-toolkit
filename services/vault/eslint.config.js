@@ -56,6 +56,17 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "error",
       "@typescript-eslint/no-unused-expressions": "error",
       "import-x/no-unused-modules": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@uidotdev/usehooks",
+              message: "Use usehooks-ts instead of @uidotdev/usehooks.",
+            },
+          ],
+        },
+      ],
       "import-x/no-unresolved": [
         "error",
         {

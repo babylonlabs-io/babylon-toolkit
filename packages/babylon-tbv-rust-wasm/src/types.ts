@@ -98,7 +98,7 @@ export interface AssertPayoutNoPayoutConnectorParams {
   timelockAssert: number;
   /** Array of x-only public keys of security council members (hex encoded) */
   councilMembers: string[];
-  /** Council quorum (N-of-N, all must sign) */
+  /** Council quorum (M-of-N multisig threshold) */
   councilQuorum: number;
 }
 

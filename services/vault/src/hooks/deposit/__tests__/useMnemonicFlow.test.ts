@@ -49,7 +49,6 @@ describe("useMnemonicFlow", () => {
       await act(async () => {});
 
       expect(result.current.step).toBe(MnemonicStep.GENERATE);
-      expect(result.current.hasStored).toBe(false);
     });
 
     it("transitions to UNLOCK when a stored mnemonic exists", async () => {
@@ -62,7 +61,6 @@ describe("useMnemonicFlow", () => {
       await act(async () => {});
 
       expect(result.current.step).toBe(MnemonicStep.UNLOCK);
-      expect(result.current.hasStored).toBe(true);
     });
   });
 
@@ -219,7 +217,6 @@ describe("useMnemonicFlow", () => {
       );
       expect(result.current.step).toBe(MnemonicStep.COMPLETE);
       expect(result.current.mnemonicId).toBe(MOCK_MNEMONIC_ID);
-      expect(result.current.hasStored).toBe(true);
       expect(result.current.error).toBeNull();
     });
 
@@ -417,13 +414,12 @@ describe("useMnemonicFlow", () => {
         result.current.reset();
       });
 
-      expect(result.current.step).toBe(MnemonicStep.GENERATE);
+      expect(result.current.step).toBe(MnemonicStep.LOADING);
       expect(result.current.mnemonic).toBe("");
       expect(result.current.mnemonicId).toBeNull();
       expect(result.current.words).toEqual([]);
       expect(result.current.challenge).toBeNull();
       expect(result.current.error).toBeNull();
-      expect(result.current.hasStored).toBe(false);
     });
   });
 });

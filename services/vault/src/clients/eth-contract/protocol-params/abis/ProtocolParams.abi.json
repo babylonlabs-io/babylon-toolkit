@@ -27,7 +27,20 @@
   },
   {
     "type": "function",
-    "name": "pegInActivationTimeout",
+    "name": "pegInAckTimeout",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pegInProofTimeout",
     "inputs": [],
     "outputs": [
       {
@@ -77,7 +90,12 @@
             "internalType": "uint256"
           },
           {
-            "name": "pegInActivationTimeout",
+            "name": "pegInAckTimeout",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pegInProofTimeout",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -136,22 +154,12 @@
             "internalType": "bytes32[]"
           },
           {
-            "name": "feeRate",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "feeMarginPercent",
+            "name": "councilQuorum",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "challengerOutputValue",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "payoutNopayoutOutputValue",
+            "name": "feeRate",
             "type": "uint64",
             "internalType": "uint64"
           },
@@ -201,22 +209,12 @@
             "internalType": "bytes32[]"
           },
           {
-            "name": "feeRate",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "feeMarginPercent",
+            "name": "councilQuorum",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "challengerOutputValue",
-            "type": "uint64",
-            "internalType": "uint64"
-          },
-          {
-            "name": "payoutNopayoutOutputValue",
+            "name": "feeRate",
             "type": "uint64",
             "internalType": "uint64"
           },
