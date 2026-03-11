@@ -3,7 +3,7 @@
  */
 
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { afterAll, beforeAll, vi } from "vitest";
 
 // Mock local @/config to avoid importing the problematic @babylonlabs-io/config package
 vi.mock("@/config", async () => {
