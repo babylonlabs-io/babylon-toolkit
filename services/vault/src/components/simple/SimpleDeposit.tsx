@@ -117,6 +117,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
+    hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
@@ -131,6 +132,16 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setFeeRate,
     setTransactionHashes,
   } = useDepositPageFlow();
+
+  const partialLiquidationProps = hasActiveVaults
+    ? undefined
+    : {
+        isEnabled: isPartialLiquidation,
+        onChange: setIsPartialLiquidation,
+        canSplit,
+        strategy,
+        isPlanning,
+      };
 
   // Freeze the rendered step during the close animation and reset on reopen
   const renderedStep = useDialogStep(open, depositStep, resetDeposit);
@@ -148,8 +159,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      setIsSplitDeposit(isPartialLiquidation);
-      if (isPartialLiquidation && allocationPlan) {
+      const shouldSplit = isPartialLiquidation && !hasActiveVaults;
+      setIsSplitDeposit(shouldSplit);
+      if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);
       }
       goToStep(DepositStep.MNEMONIC);
@@ -204,13 +216,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
                 isDepositEnabled={FeatureFlags.isDepositEnabled}
                 isGeoBlocked={isGeoBlocked || isGeoLoading}
                 onDeposit={handleDeposit}
-                partialLiquidation={{
-                  isEnabled: isPartialLiquidation,
-                  onChange: setIsPartialLiquidation,
-                  canSplit,
-                  strategy,
-                  isPlanning,
-                }}
+                partialLiquidation={partialLiquidationProps}
               />
             </div>
           </div>
