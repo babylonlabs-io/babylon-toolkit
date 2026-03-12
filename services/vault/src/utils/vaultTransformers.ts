@@ -34,9 +34,13 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
 export function transformVaultToActivity(vault: Vault): VaultActivity {
+  // Convert amount from satoshis to BTC
   const btcAmount = formatSatoshisToBtc(vault.amount);
+
+  // Compute display label from state machine
   const state = getPeginState(vault.status, { isInUse: vault.isInUse });
 
+  // Create VaultActivity object (deposit/collateral info)
   return {
     id: vault.id,
     txHash: vault.id,
