@@ -184,6 +184,46 @@ export interface GetPeginStatusResponse {
 }
 
 // ============================================================================
+// Pegout Types
+// ============================================================================
+
+/** Params for querying pegout status from the VP daemon. */
+export interface GetPegoutStatusParams {
+  pegin_txid: string;
+}
+
+/** Claimer-side pegout progress. */
+export interface ClaimerPegoutStatus {
+  status: string;
+  failed: boolean;
+  claim_txid?: string;
+  claimer_pubkey?: string;
+  challenger_pubkey?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Challenger-side pegout progress. */
+export interface ChallengerPegoutStatus {
+  status: string;
+  claim_txid?: string;
+  claimer_pubkey?: string;
+  assert_txid?: string;
+  challenge_assert_txid?: string;
+  nopayout_txid?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Response from `getPegoutStatus`. */
+export interface GetPegoutStatusResponse {
+  pegin_txid: string;
+  found: boolean;
+  claimer?: ClaimerPegoutStatus;
+  challenger?: ChallengerPegoutStatus;
+}
+
+// ============================================================================
 // Error Codes
 // ============================================================================
 

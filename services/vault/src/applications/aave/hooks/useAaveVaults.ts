@@ -6,7 +6,7 @@
  * vaults available for collateral (not currently in use or pending).
  */
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
 
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
@@ -61,6 +61,8 @@ export interface RedeemedVaultInfo {
   providerName: string;
   providerIconUrl?: string;
   providerVerified?: boolean;
+  /** Vault provider's Ethereum address (used to look up RPC URL for pegout polling) */
+  vaultProviderAddress: string;
   /** Timestamp in milliseconds when vault was created */
   createdAt: number;
 }
@@ -91,13 +93,19 @@ export function useAaveVaults(
   const hasPendingOperations = pendingVaults.size > 0;
   const { findProvider } = useVaultProviders();
 
+  // When redeemed vaults exist, we poll so the indexer's DEPOSITOR_WITHDRAWN
+  // update (from btc-monitor detecting the vault UTXO spend) gets picked up
+  // and the vault disappears from the pending withdraw section.
+  // Uses state (not ref) so the transition to zero redeemed vaults triggers
+  // a re-render that stops polling.
+  const [hasRedeemedVaults, setHasRedeemedVaults] = useState(false);
+
   const {
     data: vaults,
     isLoading: vaultsLoading,
     error,
   } = useVaults(depositorAddress as Address | undefined, {
-    // Poll when there are pending operations to detect when indexer confirms them
-    poll: hasPendingOperations,
+    poll: hasPendingOperations || hasRedeemedVaults,
   });
   const btcPriceUSD = usePrice("BTC");
 
@@ -126,10 +134,15 @@ export function useAaveVaults(
           providerName,
           providerIconUrl: provider?.iconUrl,
           providerVerified: provider?.verified ?? false,
+          vaultProviderAddress: vault.vaultProvider,
           createdAt: vault.createdAt,
         };
       });
   }, [vaults, findProvider]);
+
+  useEffect(() => {
+    setHasRedeemedVaults(redeemedVaults.length > 0);
+  }, [redeemedVaults.length]);
 
   const allVaults = useMemo(() => {
     return activeVaults.map((vault) => {

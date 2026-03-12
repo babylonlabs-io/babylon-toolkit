@@ -17,20 +17,11 @@ import {
   PeginAction,
 } from "@/components/deposit/actionStatus";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
-import type { PeginState } from "@/models/peginStateMachine";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateAddress } from "@/utils/addressUtils";
 
+import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
-
-type DisplayVariant = PeginState["displayVariant"];
-
-const DOT_COLORS: Record<DisplayVariant, string> = {
-  pending: "bg-warning-main",
-  active: "bg-success-main",
-  inactive: "bg-gray-400",
-  warning: "bg-error-main",
-};
 
 interface PendingDepositCardProps {
   depositId: string;
@@ -90,7 +81,7 @@ export function PendingDepositCard({
   const label =
     loading && !transactions ? "Loading..." : peginState.displayLabel;
   const buttonDisabled = !isActionable || (loading && !transactions);
-  const dotColor = DOT_COLORS[peginState.displayVariant];
+  const dotColor = STATUS_DOT_COLORS[peginState.displayVariant];
 
   // Resolve provider name
   const provider = vaultProviders.find((vp) => vp.id === providerId);

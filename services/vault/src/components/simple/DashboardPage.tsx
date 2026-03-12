@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -15,7 +15,10 @@ import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import { usePegoutPolling } from "@/hooks/usePegoutPolling";
+import { ClaimerPegoutStatusValue } from "@/models/pegoutStateMachine";
 import { formatBtcAmount, formatUsdValue } from "@/utils/formatting";
 
 import { CollateralSection } from "./CollateralSection";
@@ -53,6 +56,25 @@ export function DashboardPage() {
 
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,
+  );
+  const { findProvider } = useVaultProviders();
+  const { pegoutStatuses } = usePegoutPolling({
+    redeemedVaults,
+    findProvider,
+  });
+
+  // Filter out vaults whose payout has been broadcast (terminal success).
+  // Failed vaults are intentionally kept visible so the user sees the error and can contact support.
+  const pendingWithdrawVaults = useMemo(
+    () =>
+      redeemedVaults.filter((vault) => {
+        const status = pegoutStatuses.get(vault.id);
+        return (
+          status?.response?.claimer?.status !==
+          ClaimerPegoutStatusValue.PAYOUT_BROADCAST
+        );
+      }),
+    [redeemedVaults, pegoutStatuses],
   );
 
   // Sync pending vault operations (add/withdraw) with indexer data
@@ -106,7 +128,10 @@ export function DashboardPage() {
 
         <PendingDepositSection />
 
-        <PendingWithdrawSection pendingWithdrawVaults={redeemedVaults} />
+        <PendingWithdrawSection
+          pendingWithdrawVaults={pendingWithdrawVaults}
+          pegoutStatuses={pegoutStatuses}
+        />
 
         <CollateralSection
           totalAmountBtc={totalAmountBtc}
