@@ -1,5 +1,5 @@
 import { FullScreenDialog, Heading } from "@babylonlabs-io/core-ui";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import type { Hex } from "viem";
 
 import type { DepositorGraphTransactions } from "@/clients/vault-provider-rpc/types";
@@ -117,7 +117,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
-    hasActivePegins,
+    hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
@@ -133,14 +133,7 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
     setTransactionHashes,
   } = useDepositPageFlow();
 
-  // Hide partial liquidation when user already has active (collateralized) vaults
-  useEffect(() => {
-    if (hasActivePegins && isPartialLiquidation) {
-      setIsPartialLiquidation(false);
-    }
-  }, [hasActivePegins, isPartialLiquidation, setIsPartialLiquidation]);
-
-  const partialLiquidationProps = hasActivePegins
+  const partialLiquidationProps = hasActiveVaults
     ? undefined
     : {
         isEnabled: isPartialLiquidation,
@@ -166,8 +159,9 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
         formData.selectedProvider,
       ]);
       setFeeRate(estimatedFeeRate);
-      setIsSplitDeposit(isPartialLiquidation);
-      if (isPartialLiquidation && allocationPlan) {
+      const shouldSplit = isPartialLiquidation && !hasActiveVaults;
+      setIsSplitDeposit(shouldSplit);
+      if (shouldSplit && allocationPlan) {
         setSplitAllocationPlan(allocationPlan);
       }
       goToStep(DepositStep.MNEMONIC);

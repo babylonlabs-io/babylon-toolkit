@@ -44,7 +44,7 @@ export interface UseDepositPageFlowResult {
 
   // Vault data
   hasExistingVaults: boolean;
-  hasActivePegins: boolean;
+  hasActiveVaults: boolean;
 
   // Actions
   startDeposit: (
@@ -118,7 +118,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
 
   const { data: existingVaults } = useVaults(ethAddress);
   const hasExistingVaults = (existingVaults?.length ?? 0) > 0;
-  const hasActivePegins = useMemo(
+  const hasActiveVaults = useMemo(
     () => existingVaults?.some((v) => v.status === VaultStatus.ACTIVE) ?? false,
     [existingVaults],
   );
@@ -217,7 +217,7 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
     vaultKeeperBtcPubkeys,
     universalChallengerBtcPubkeys,
     hasExistingVaults,
-    hasActivePegins,
+    hasActiveVaults,
     isSplitDeposit,
     setIsSplitDeposit,
     splitAllocationPlan,
