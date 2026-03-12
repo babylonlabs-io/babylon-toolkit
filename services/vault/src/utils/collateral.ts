@@ -48,6 +48,7 @@ export function toCollateralVaultEntries(
       inUse: c.vault?.inUse ?? false,
       providerName: provider?.name ?? truncateHash(providerAddress),
       providerIconUrl: provider?.iconUrl,
+      providerVerified: provider?.verified ?? false,
     };
   });
 }

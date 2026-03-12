@@ -3,12 +3,12 @@ import {
   Card,
   Checkbox,
   Loader,
-  Select,
+  SelectWithIcon,
 } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
-import { DepositButton } from "@/components/shared";
+import { DepositButton, VerifiedProviderAvatar } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useBtcFeeDisplay } from "@/hooks/deposit/useBtcFeeDisplay";
 import { depositService } from "@/services/deposit";
@@ -18,6 +18,8 @@ const btcConfig = getNetworkConfigBTC();
 interface Provider {
   id: string;
   name: string;
+  iconUrl?: string;
+  verified?: boolean;
 }
 
 interface Application {
@@ -114,6 +116,14 @@ export function DepositForm({
   const providerOptions = providers.map((p) => ({
     value: p.id,
     label: p.name,
+    icon: (
+      <VerifiedProviderAvatar
+        name={p.name}
+        url={p.iconUrl}
+        size="small"
+        verified={p.verified}
+      />
+    ),
   }));
 
   const {
@@ -205,8 +215,9 @@ export function DepositForm({
             No vault providers available at this time.
           </p>
         ) : (
-          <Select
-            className="border-0 bg-transparent"
+          <SelectWithIcon
+            className="border-0 bg-transparent !px-3 !py-2 [&_.bbn-select-with-icon-image>*]:!size-6 [&_.bbn-select-with-icon-image]:!size-6 [&_.bbn-select-with-icon-image]:!min-h-6 [&_.bbn-select-with-icon-image]:!min-w-6 [&_.bbn-select-with-icon-text]:!text-sm"
+            optionClassName="!px-3 !py-2 [&_.bbn-select-with-icon-option-image]:!size-6 [&_.bbn-select-with-icon-option-image]:!min-h-6 [&_.bbn-select-with-icon-option-image]:!min-w-6 [&_.bbn-select-with-icon-option-image>*]:!size-6 [&_.bbn-select-with-icon-option-text]:!text-sm"
             options={providerOptions}
             value={selectedProvider}
             placeholder="Select Vault Provider"

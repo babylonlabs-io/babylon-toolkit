@@ -49,6 +49,7 @@ function transformVaultToTableData(
     provider: {
       name: providerName,
       icon: provider?.iconUrl,
+      verified: provider?.verified ?? false,
     },
     status: peginState.displayLabel,
   };
@@ -59,6 +60,7 @@ export interface RedeemedVaultInfo {
   amountBtc: number;
   providerName: string;
   providerIconUrl?: string;
+  providerVerified?: boolean;
   /** Timestamp in milliseconds when vault was created */
   createdAt: number;
 }
@@ -123,6 +125,7 @@ export function useAaveVaults(
           amountBtc: satoshiToBtcNumber(vault.amount),
           providerName,
           providerIconUrl: provider?.iconUrl,
+          providerVerified: provider?.verified ?? false,
           createdAt: vault.createdAt,
         };
       });

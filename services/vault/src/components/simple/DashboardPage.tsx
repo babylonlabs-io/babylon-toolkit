@@ -49,9 +49,11 @@ export function DashboardPage() {
     hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
-  } = useDashboardState(address);
+  } = useDashboardState(isConnected ? address : undefined);
 
-  const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(address);
+  const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
+    isConnected ? address : undefined,
+  );
 
   // Sync pending vault operations (add/withdraw) with indexer data
   useSyncPendingVaults(aaveVaults);
