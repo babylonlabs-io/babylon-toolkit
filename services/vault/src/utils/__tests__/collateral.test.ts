@@ -38,8 +38,11 @@ describe("Collateral Utilities", () => {
           amountBtc: 1,
           addedAt: 1700000000,
           inUse: true,
+          providerAddress: "0xprovider1",
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
+          providerVerified: false,
+          depositorBtcPubkey: undefined,
         },
       ]);
     });
@@ -99,8 +102,11 @@ describe("Collateral Utilities", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({
         inUse: false,
+        providerAddress: "",
         providerName: "",
         providerIconUrl: undefined,
+        providerVerified: false,
+        depositorBtcPubkey: undefined,
       });
     });
 
