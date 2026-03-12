@@ -128,10 +128,7 @@ export function isArtifactDownloadAvailable(
   }
   const actionButton = getPrimaryActionButton(peginState);
   if (!actionButton) return false;
-  return (
-    actionButton.action === PeginAction.SIGN_PAYOUT_TRANSACTIONS ||
-    actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN
-  );
+  return actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
 }
 
 const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [

@@ -29,7 +29,7 @@ export async function fetchDepositorArtifacts(
   const rpcClient = new VaultProviderRpcApi(providerUrl, RPC_TIMEOUT_MS);
   return rpcClient.requestDepositorClaimerArtifacts({
     pegin_txid: stripHexPrefix(peginTxid),
-    depositor_pk: depositorPk,
+    depositor_pk: stripHexPrefix(depositorPk),
   });
 }
 
