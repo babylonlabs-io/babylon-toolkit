@@ -10,6 +10,12 @@ import { useEffect, useMemo, useRef } from "react";
 
 import { VaultProviderRpcApi } from "../../clients/vault-provider-rpc";
 import type { DepositorGraphTransactions } from "../../clients/vault-provider-rpc/types";
+import {
+  POLLING_INTERVAL_MS,
+  POLLING_RETRY_COUNT,
+  POLLING_RETRY_DELAY_MS,
+  RPC_TIMEOUT_MS,
+} from "../../config/polling";
 import { DaemonStatus } from "../../models/peginStateMachine";
 import type { PendingPeginRequest } from "../../storage/peginStorage";
 import type { ClaimerTransactions, VaultProvider } from "../../types";
@@ -25,15 +31,6 @@ import {
   groupDepositsByProvider,
   isTerminalPollingError,
 } from "../../utils/peginPolling";
-
-/** Timeout for RPC requests to vault provider (60 seconds) */
-const RPC_TIMEOUT_MS = 60 * 1000;
-/** Interval between polling attempts (30 seconds) */
-const POLLING_INTERVAL_MS = 30 * 1000;
-/** Number of retry attempts on failure */
-const POLLING_RETRY_COUNT = 3;
-/** Delay between retry attempts (5 seconds) */
-const POLLING_RETRY_DELAY_MS = 5 * 1000;
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];

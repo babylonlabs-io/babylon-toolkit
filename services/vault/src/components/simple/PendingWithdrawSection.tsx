@@ -12,18 +12,22 @@ import { useState } from "react";
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
 import { ExpandMenuButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
+import type { PegoutPollingResult } from "@/hooks/usePegoutPolling";
 import { formatBtcAmount } from "@/utils/formatting";
 
+import { STATUS_DOT_COLORS } from "./statusColors";
 import { VaultDetailCard, VaultStatusBadge } from "./VaultDetailCard";
 
 const btcConfig = getNetworkConfigBTC();
 
 interface PendingWithdrawSectionProps {
   pendingWithdrawVaults: RedeemedVaultInfo[];
+  pegoutStatuses: Map<string, PegoutPollingResult>;
 }
 
 export function PendingWithdrawSection({
   pendingWithdrawVaults,
+  pegoutStatuses,
 }: PendingWithdrawSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -68,24 +72,32 @@ export function PendingWithdrawSection({
         {/* Expanded: individual vault detail cards */}
         {isExpanded && (
           <div className="mt-4 max-h-[400px] space-y-3 overflow-y-auto">
-            {pendingWithdrawVaults.map((vault) => (
-              <VaultDetailCard
-                key={vault.id}
-                amountBtc={vault.amountBtc}
-                timestamp={vault.createdAt}
-                txHash={vault.id}
-                providerName={vault.providerName}
-                providerIconUrl={vault.providerIconUrl}
-                providerVerified={vault.providerVerified}
-                statusContent={
-                  <VaultStatusBadge
-                    dotColor="bg-warning-main"
-                    label="Withdrawing"
-                    tooltip="Your BTC is being processed by the vault provider and will be sent to your nominated address."
-                  />
-                }
-              />
-            ))}
+            {pendingWithdrawVaults.map((vault) => {
+              const pollingResult = pegoutStatuses.get(vault.id);
+              const displayState = pollingResult?.displayState;
+              const label = displayState?.label ?? "Checking...";
+              const variant = displayState?.variant ?? "pending";
+              const tooltip = displayState?.message;
+
+              return (
+                <VaultDetailCard
+                  key={vault.id}
+                  amountBtc={vault.amountBtc}
+                  timestamp={vault.createdAt}
+                  txHash={vault.id}
+                  providerName={vault.providerName}
+                  providerIconUrl={vault.providerIconUrl}
+                  providerVerified={vault.providerVerified}
+                  statusContent={
+                    <VaultStatusBadge
+                      dotColor={STATUS_DOT_COLORS[variant]}
+                      label={label}
+                      tooltip={tooltip}
+                    />
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </Card>

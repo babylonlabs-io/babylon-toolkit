@@ -3,6 +3,8 @@ import { JsonRpcClient } from "../../utils/rpc";
 import type {
   GetPeginStatusParams,
   GetPeginStatusResponse,
+  GetPegoutStatusParams,
+  GetPegoutStatusResponse,
   RequestDepositorClaimerArtifactsParams,
   RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsParams,
@@ -88,6 +90,16 @@ export class VaultProviderRpcApi {
   ): Promise<GetPeginStatusResponse> {
     return this.client.call<GetPeginStatusParams, GetPeginStatusResponse>(
       "vaultProvider_getPeginStatus",
+      params,
+    );
+  }
+
+  /** Get the current pegout status from the vault provider daemon. */
+  async getPegoutStatus(
+    params: GetPegoutStatusParams,
+  ): Promise<GetPegoutStatusResponse> {
+    return this.client.call<GetPegoutStatusParams, GetPegoutStatusResponse>(
+      "vaultProvider_getPegoutStatus",
       params,
     );
   }
