@@ -7,6 +7,7 @@
 
 import type { DepositPollingResult } from "../../context/deposit/PeginPollingContext";
 import {
+  ContractStatus,
   getPrimaryActionButton,
   PeginAction,
 } from "../../models/peginStateMachine";
@@ -121,14 +122,14 @@ export function getWarningMessages(
 export function isArtifactDownloadAvailable(
   pollingResult: DepositPollingResult,
 ): boolean {
-  const { peginState, isOwnedByCurrentWallet, utxoUnavailable, error } =
-    pollingResult;
-  if (error || !isOwnedByCurrentWallet || utxoUnavailable) {
+  const { peginState, isOwnedByCurrentWallet, error } = pollingResult;
+  if (error || !isOwnedByCurrentWallet) {
     return false;
   }
-  const actionButton = getPrimaryActionButton(peginState);
-  if (!actionButton) return false;
-  return actionButton.action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN;
+  return (
+    peginState.contractStatus === ContractStatus.VERIFIED ||
+    peginState.contractStatus === ContractStatus.ACTIVE
+  );
 }
 
 const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [

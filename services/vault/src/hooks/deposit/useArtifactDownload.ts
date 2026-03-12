@@ -1,9 +1,6 @@
 import { useCallback, useState } from "react";
 
-import {
-  fetchDepositorArtifacts,
-  triggerArtifactDownload,
-} from "@/services/artifacts";
+import { fetchAndDownloadArtifacts } from "@/services/artifacts";
 
 interface ArtifactDownloadState {
   loading: boolean;
@@ -30,13 +27,7 @@ export function useArtifactDownload() {
       });
 
       try {
-        const artifacts = await fetchDepositorArtifacts(
-          providerUrl,
-          peginTxid,
-          depositorPk,
-        );
-
-        triggerArtifactDownload(artifacts, peginTxid);
+        await fetchAndDownloadArtifacts(providerUrl, peginTxid, depositorPk);
 
         setState({
           loading: false,

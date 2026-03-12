@@ -4,7 +4,7 @@
  */
 
 import { getNetworkConfigBTC } from "../config";
-import { getPeginState } from "../models/peginStateMachine";
+import { ContractStatus, getPeginState } from "../models/peginStateMachine";
 import type { Vault, VaultActivity } from "../types";
 
 import { formatSatoshisToBtc } from "./btcConversion";
@@ -33,12 +33,22 @@ export function getFormattedRepayAmount(activity: VaultActivity): string {
  * @param vault - Vault data from GraphQL
  * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
  */
+// TODO: REMOVE — demo override to force a pegin into VERIFIED state
+const DEMO_FORCE_VERIFIED_TXIDS = new Set([
+  "0x3526bcd716af7f0aea43666c8156e3d7ddd0e6a4192a399f90f1577cabff291f",
+]);
+
 export function transformVaultToActivity(vault: Vault): VaultActivity {
   // Convert amount from satoshis to BTC
   const btcAmount = formatSatoshisToBtc(vault.amount);
 
+  // TODO: REMOVE — demo override
+  const demoStatus = DEMO_FORCE_VERIFIED_TXIDS.has(vault.id)
+    ? ContractStatus.VERIFIED
+    : vault.status;
+
   // Compute display label from state machine
-  const state = getPeginState(vault.status, { isInUse: vault.isInUse });
+  const state = getPeginState(demoStatus, { isInUse: vault.isInUse });
 
   // Create VaultActivity object (deposit/collateral info)
   return {
@@ -49,7 +59,7 @@ export function transformVaultToActivity(vault: Vault): VaultActivity {
       symbol: btcConfig.coinSymbol,
       icon: btcConfig.icon,
     },
-    contractStatus: vault.status,
+    contractStatus: demoStatus,
     isInUse: vault.isInUse,
     displayLabel: state.displayLabel,
     providers: [

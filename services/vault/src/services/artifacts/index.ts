@@ -1,4 +1,1 @@
-export {
-  fetchDepositorArtifacts,
-  triggerArtifactDownload,
-} from "./artifactDownloadService";
+export { fetchAndDownloadArtifacts } from "./artifactDownloadService";
