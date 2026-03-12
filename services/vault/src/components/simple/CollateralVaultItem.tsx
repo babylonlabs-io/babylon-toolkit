@@ -3,8 +3,9 @@
  * Renders a single vault card within the expanded collateral view.
  */
 
-import { Avatar, StatusBadge } from "@babylonlabs-io/core-ui";
+import { Avatar, Button, StatusBadge } from "@babylonlabs-io/core-ui";
 
+import { VerifiedProviderAvatar } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { truncateHash } from "@/utils/addressUtils";
 import { formatBtcAmount, formatDateTime } from "@/utils/formatting";
@@ -20,6 +21,8 @@ interface CollateralVaultItemProps {
   inUse: boolean;
   providerName: string;
   providerIconUrl?: string;
+  providerVerified?: boolean;
+  onArtifactDownload?: () => void;
 }
 
 export function CollateralVaultItem({
@@ -29,6 +32,8 @@ export function CollateralVaultItem({
   inUse,
   providerName,
   providerIconUrl,
+  providerVerified,
+  onArtifactDownload,
 }: CollateralVaultItemProps) {
   const formattedDate = formatDateTime(new Date(addedAt * SECONDS_TO_MS));
 
@@ -61,9 +66,12 @@ export function CollateralVaultItem({
       <div className="flex items-center justify-between">
         <span className="text-sm text-accent-secondary">Vault Provider</span>
         <div className="flex items-center gap-1.5">
-          {providerIconUrl && (
-            <Avatar url={providerIconUrl} alt={providerName} size="tiny" />
-          )}
+          <VerifiedProviderAvatar
+            name={providerName}
+            url={providerIconUrl}
+            size="small"
+            verified={providerVerified}
+          />
           <span className="text-sm text-accent-primary">{providerName}</span>
         </div>
       </div>
@@ -75,6 +83,17 @@ export function CollateralVaultItem({
           {truncateHash(vaultId)}
         </span>
       </div>
+
+      {onArtifactDownload && (
+        <Button
+          variant="outlined"
+          color="primary"
+          className="w-full rounded-full"
+          onClick={onArtifactDownload}
+        >
+          Download Artifacts
+        </Button>
+      )}
     </div>
   );
 }

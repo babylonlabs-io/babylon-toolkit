@@ -23,6 +23,7 @@ interface CollateralSectionProps {
   hasDebt: boolean;
   onWithdraw: () => void;
   onDeposit: () => void;
+  onArtifactDownload?: (vaultId: string) => void;
 }
 
 export function CollateralSection({
@@ -33,6 +34,7 @@ export function CollateralSection({
   hasDebt,
   onWithdraw,
   onDeposit,
+  onArtifactDownload,
 }: CollateralSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const canWithdraw = !hasDebt;
@@ -84,6 +86,7 @@ export function CollateralSection({
               vaults={collateralVaults}
               onWithdraw={onWithdraw}
               canWithdraw={canWithdraw}
+              onArtifactDownload={onArtifactDownload}
             />
           )}
         </Card>
