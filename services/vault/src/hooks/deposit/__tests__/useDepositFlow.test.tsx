@@ -59,6 +59,13 @@ vi.mock("wagmi/actions", () => ({
   switchChain: vi.fn(),
 }));
 
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn(),
+}));
+vi.mock("@/infrastructure", () => ({
+  logger: { error: mockLoggerError, warn: vi.fn(), info: vi.fn() },
+}));
+
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
     getPublicClient: vi.fn(() => ({
@@ -496,11 +503,9 @@ describe("useDepositFlow - Chain Switching", () => {
       });
     });
 
-    it("should log chain switch error to console", async () => {
+    it("should log chain switch error via logger", async () => {
       const { switchChain } = await import("wagmi/actions");
-      const consoleErrorSpy = vi
-        .spyOn(console, "error")
-        .mockImplementation(() => {});
+      mockLoggerError.mockClear();
 
       const switchError = new Error("Network error during switch");
       vi.mocked(switchChain).mockRejectedValue(switchError);
@@ -510,13 +515,10 @@ describe("useDepositFlow - Chain Switching", () => {
       await result.current.executeDepositFlow();
 
       await waitFor(() => {
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to switch chain:",
-          switchError,
-        );
+        expect(mockLoggerError).toHaveBeenCalledWith(switchError, {
+          data: { context: "Failed to switch chain" },
+        });
       });
-
-      consoleErrorSpy.mockRestore();
     });
 
     it("should not proceed to getWalletClient if chain switch fails", async () => {

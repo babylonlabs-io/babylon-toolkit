@@ -10,6 +10,8 @@
 import type { Address } from "viem";
 import { getAddress, isAddress } from "viem";
 
+import { logger } from "@/infrastructure";
+
 import { ethClient } from "../../clients/eth-contract/client";
 import { getNetworkConfigBTC } from "../../config";
 
@@ -187,10 +189,9 @@ async function fetchTokenMetadataFromChain(
       decimals: decimals as number,
     };
   } catch (error) {
-    console.warn(
-      `[TokenService] Failed to fetch metadata for ${address}:`,
-      error,
-    );
+    logger.warn(`[TokenService] Failed to fetch metadata for ${address}`, {
+      data: { error: error instanceof Error ? error.message : String(error) },
+    });
     return null;
   }
 }
@@ -316,7 +317,7 @@ export function getTokenBrandColor(symbol: string): string {
  */
 export function getTokenByAddress(address: string): TokenMetadata | null {
   if (!isAddress(address)) {
-    console.warn(`[TokenService] Invalid token address: ${address}`);
+    logger.warn(`[TokenService] Invalid token address: ${address}`);
     return null;
   }
 

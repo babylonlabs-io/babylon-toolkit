@@ -11,6 +11,8 @@
 import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import { useMemo } from "react";
 
+import { logger } from "@/infrastructure";
+
 import { ContractStatus } from "../../models/peginStateMachine";
 import { extractInputsFromTransaction } from "../../services/vault/vaultUtxoValidationService";
 import type { VaultActivity } from "../../types/activity";
@@ -117,10 +119,13 @@ export function useUtxoValidation({
           // If broadcasted, skip adding to unavailable - it's confirming
         }
       } catch (error) {
-        // Skip deposits with invalid transaction hex
-        console.warn(
-          `[useUtxoValidation] Failed to parse tx for ${deposit.id}:`,
-          error,
+        logger.warn(
+          `[useUtxoValidation] Failed to parse tx for ${deposit.id}`,
+          {
+            data: {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          },
         );
       }
     }

@@ -4,6 +4,8 @@
  * This is a reusable client for any JSON-RPC 2.0 service.
  */
 
+import { logger } from "@/infrastructure";
+
 export interface JsonRpcRequest<T = unknown> {
   jsonrpc: "2.0";
   method: string;
@@ -128,7 +130,7 @@ export class JsonRpcClient {
 
           if (shouldRetry) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            console.warn(
+            logger.warn(
               `[JsonRpcClient] HTTP ${response.status} for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
             );
             await this.sleep(delay);
@@ -163,7 +165,7 @@ export class JsonRpcClient {
         if (error instanceof Error && error.name === "AbortError") {
           if (attempt < this.retries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            console.warn(
+            logger.warn(
               `[JsonRpcClient] Timeout for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
             );
             await this.sleep(delay);
@@ -179,7 +181,7 @@ export class JsonRpcClient {
         if (error instanceof TypeError) {
           if (attempt < this.retries) {
             const delay = this.retryDelay * Math.pow(2, attempt);
-            console.warn(
+            logger.warn(
               `[JsonRpcClient] Network error for ${method}: ${error.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
             );
             await this.sleep(delay);

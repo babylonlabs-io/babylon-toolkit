@@ -18,6 +18,7 @@ import {
   POLLING_RETRY_DELAY_MS,
   RPC_TIMEOUT_MS,
 } from "@/config/polling";
+import { logger } from "@/infrastructure";
 import {
   getPegoutDisplayState,
   PEGOUT_TERMINAL_STATUSES,
@@ -50,7 +51,7 @@ function groupVaultsByProvider(
   for (const vault of vaults) {
     const provider = findProvider(vault.vaultProviderAddress);
     if (!provider) {
-      console.warn(
+      logger.warn(
         `Provider ${vault.vaultProviderAddress} not found, skipping pegout poll for vault ${vault.id}`,
       );
       continue;
@@ -92,8 +93,9 @@ async function fetchPegoutStatusesFromProvider(
 
       results.set(vault.id, { displayState, response });
     } catch (error) {
-      // VP unreachable or error — show "Initiating" gracefully, keep polling
-      console.warn(`Failed to poll pegout status for ${vault.id}:`, error);
+      logger.warn(`Failed to poll pegout status for ${vault.id}`, {
+        data: { error: error instanceof Error ? error.message : String(error) },
+      });
       results.set(vault.id, {
         displayState: getPegoutDisplayState(undefined, false),
       });

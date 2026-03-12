@@ -41,6 +41,7 @@
 
 import { decrypt, encrypt } from "@metamask/browser-passworder";
 
+import { logger } from "@/infrastructure";
 import { stripHexPrefix } from "@/utils/btc";
 
 /** Base localStorage key where the encrypted vault is stored. */
@@ -275,8 +276,7 @@ export async function addMnemonic(
         return entry.id;
       }
     } catch {
-      // Password already verified; failure here means the entry is corrupted or tampered
-      console.warn(
+      logger.warn(
         `[mnemonicVault] Skipping corrupted mnemonic entry: ${entry.id}`,
       );
     }
@@ -348,7 +348,7 @@ export function linkPeginToMnemonic(
 ): void {
   const vault = readVault(scope);
   if (!vault) {
-    console.warn(
+    logger.warn(
       "[mnemonicVault] linkPeginToMnemonic: no vault exists for scope, skipping",
     );
     return;

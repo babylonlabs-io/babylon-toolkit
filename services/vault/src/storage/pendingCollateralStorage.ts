@@ -11,6 +11,8 @@
  * - Remove stale entries older than 24 hours
  */
 
+import { logger } from "@/infrastructure";
+
 import {
   MAX_PENDING_DURATION,
   PENDING_COLLATERAL_KEY_PREFIX,
@@ -43,17 +45,24 @@ function readEntries(key: string): PendingVaultEntry[] {
     if (!stored) return [];
     return JSON.parse(stored);
   } catch (error) {
-    console.error(
-      "[pendingCollateralStorage] Failed to parse pending vaults:",
-      error,
-    );
-    // Clear corrupted data
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: {
+        context: "[pendingCollateralStorage] Failed to parse pending vaults",
+      },
+    });
     try {
       localStorage.removeItem(key);
     } catch (clearError) {
-      console.error(
-        "[pendingCollateralStorage] Failed to clear corrupted data:",
-        clearError,
+      logger.error(
+        clearError instanceof Error
+          ? clearError
+          : new Error(String(clearError)),
+        {
+          data: {
+            context:
+              "[pendingCollateralStorage] Failed to clear corrupted data",
+          },
+        },
       );
     }
     return [];
@@ -93,9 +102,14 @@ export function getPendingCollateralVaults(
         localStorage.setItem(key, JSON.stringify(validEntries));
       }
     } catch (saveError) {
-      console.error(
-        "[pendingCollateralStorage] Failed to persist cleaned pending vaults:",
-        saveError,
+      logger.error(
+        saveError instanceof Error ? saveError : new Error(String(saveError)),
+        {
+          data: {
+            context:
+              "[pendingCollateralStorage] Failed to persist cleaned pending vaults",
+          },
+        },
       );
     }
   }
@@ -125,10 +139,11 @@ function savePendingCollateralVaultIds(
       localStorage.setItem(key, JSON.stringify(entries));
     }
   } catch (error) {
-    console.error(
-      "[pendingCollateralStorage] Failed to save pending vaults:",
-      error,
-    );
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: {
+        context: "[pendingCollateralStorage] Failed to save pending vaults",
+      },
+    });
   }
 }
 
@@ -200,9 +215,10 @@ export function clearPendingCollateralVaultIds(
     const key = getStorageKey(appId, ethAddress);
     localStorage.removeItem(key);
   } catch (error) {
-    console.error(
-      "[pendingCollateralStorage] Failed to clear pending vaults:",
-      error,
-    );
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: {
+        context: "[pendingCollateralStorage] Failed to clear pending vaults",
+      },
+    });
   }
 }

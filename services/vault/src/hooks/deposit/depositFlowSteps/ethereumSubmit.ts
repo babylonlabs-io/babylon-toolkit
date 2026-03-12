@@ -9,6 +9,7 @@ import { getWalletClient, switchChain } from "wagmi/actions";
 
 import BTCVaultsManagerABI from "@/clients/eth-contract/btc-vaults-manager/abis/BTCVaultsManager.abi.json";
 import { ethClient } from "@/clients/eth-contract/client";
+import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { depositService } from "@/services/deposit";
 import { selectUtxosForDeposit } from "@/services/vault";
@@ -47,7 +48,12 @@ export async function getEthWalletClient(
   try {
     await switchChain(wagmiConfig, { chainId: expectedChainId });
   } catch (switchError) {
-    console.error("Failed to switch chain:", switchError);
+    logger.error(
+      switchError instanceof Error
+        ? switchError
+        : new Error(String(switchError)),
+      { data: { context: "Failed to switch chain" } },
+    );
     throw new Error(
       `Please switch to ${expectedChainId === 1 ? "Ethereum Mainnet" : "Sepolia Testnet"} in your wallet`,
     );

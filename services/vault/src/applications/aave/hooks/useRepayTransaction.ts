@@ -12,6 +12,7 @@ import { parseUnits } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { useError } from "@/context/error";
+import { logger } from "@/infrastructure";
 import {
   ErrorCode,
   WalletError,
@@ -124,8 +125,9 @@ export function useRepayTransaction({
 
       return true;
     } catch (error) {
-      console.error("Repay failed:", error);
-
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        data: { context: "Repay failed" },
+      });
       const mappedError =
         error instanceof Error
           ? mapViemErrorToContractError(error, "Repay")

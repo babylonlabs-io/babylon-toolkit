@@ -14,6 +14,8 @@
  * - Status field tracks user actions: pending → payout_signed → confirming
  */
 
+import { logger } from "@/infrastructure";
+
 import {
   MAX_PENDING_DURATION,
   STORAGE_KEY_PREFIX,
@@ -110,18 +112,20 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
 
     return normalized;
   } catch (error) {
-    console.error(
-      "[peginStorage] Failed to parse pending pegins:",
-      error,
-      "- Clearing corrupted data",
-    );
-    // Clear corrupted data so user isn't stuck
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: {
+        context:
+          "[peginStorage] Failed to parse pending pegins - Clearing corrupted data",
+      },
+    });
     try {
       localStorage.removeItem(getStorageKey(ethAddress));
     } catch (clearError) {
-      console.error(
-        "[peginStorage] Failed to clear corrupted data:",
-        clearError,
+      logger.error(
+        clearError instanceof Error
+          ? clearError
+          : new Error(String(clearError)),
+        { data: { context: "[peginStorage] Failed to clear corrupted data" } },
       );
     }
     return [];
@@ -157,7 +161,9 @@ export function savePendingPegins(
     // Dispatch custom event to notify React hooks
     dispatchStorageUpdateEvent(ethAddress);
   } catch (error) {
-    console.error("[peginStorage] Failed to save pending pegins:", error);
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "[peginStorage] Failed to save pending pegins" },
+    });
   }
 }
 
@@ -286,6 +292,8 @@ export function clearPendingPegins(ethAddress: string): void {
     localStorage.removeItem(key);
     dispatchStorageUpdateEvent(ethAddress);
   } catch (error) {
-    console.error("[peginStorage] Failed to clear pending pegins:", error);
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "[peginStorage] Failed to clear pending pegins" },
+    });
   }
 }

@@ -12,6 +12,7 @@ import { Network } from "@babylonlabs-io/wallet-connector";
 import type { Address } from "viem";
 
 import { ENV } from "@/config/env";
+import { logger } from "@/infrastructure";
 
 import { ethClient } from "../client";
 
@@ -200,7 +201,7 @@ export async function getBTCPriceUSD(): Promise<number> {
     const ageSeconds =
       Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
     const ageHours = (ageSeconds / 3600).toFixed(1);
-    console.warn(
+    logger.warn(
       `Chainlink BTC/USD price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
@@ -244,7 +245,7 @@ async function fetchPriceFromFeed(
 
   if (isStale) {
     const ageHours = (ageSeconds / 3600).toFixed(1);
-    console.warn(
+    logger.warn(
       `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
@@ -292,7 +293,9 @@ export async function getTokenPrices(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.warn(`Failed to fetch price for ${symbol}:`, error);
+      logger.warn(`Failed to fetch price for ${symbol}`, {
+        data: { error: errorMessage },
+      });
 
       // Store error metadata for this token
       metadata[symbol] = {

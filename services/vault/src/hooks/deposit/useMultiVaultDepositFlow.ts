@@ -33,6 +33,7 @@ import type { Address, Hex } from "viem";
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { getBTCNetworkForWASM } from "@/config/pegin";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { logger } from "@/infrastructure";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import { deriveLamportPkHash, linkPeginToMnemonic } from "@/services/lamport";
 import {
@@ -600,10 +601,11 @@ export function useMultiVaultDepositFlow(
             });
           } catch (err: unknown) {
             const errorMsg = err instanceof Error ? err.message : String(err);
-            console.error(
-              `[Multi-Vault] Pegin creation failed for vault ${i}:`,
-              err,
-            );
+            logger.error(err instanceof Error ? err : new Error(String(err)), {
+              data: {
+                context: `[Multi-Vault] Pegin creation failed for vault ${i}`,
+              },
+            });
 
             // Store failed result (partial success handling)
             peginResults.push({
@@ -641,13 +643,15 @@ export function useMultiVaultDepositFlow(
           for (const peginResult of successfulPegins) {
             const vaultAmount = vaultAmounts[peginResult.vaultIndex];
 
-            // Defensive check: should never happen given loop structure
             if (vaultAmount === undefined) {
-              console.error(
-                "[Multi-Vault] Invalid vault index",
-                peginResult.vaultIndex,
-                "for vault",
-                peginResult.vaultId,
+              logger.error(
+                new Error("[Multi-Vault] Invalid vault index for vault"),
+                {
+                  data: {
+                    vaultIndex: peginResult.vaultIndex,
+                    vaultId: peginResult.vaultId,
+                  },
+                },
               );
               continue;
             }
@@ -705,13 +709,16 @@ export function useMultiVaultDepositFlow(
               error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: Lamport key submission failed - ${errorMsg}`;
             warnings.push(warning);
-            console.error(
-              "[Multi-Vault] Failed to submit Lamport key for vault",
-              result.vaultId,
-              ":",
-              error,
+            logger.error(
+              error instanceof Error ? error : new Error(String(error)),
+              {
+                data: {
+                  context:
+                    "[Multi-Vault] Failed to submit Lamport key for vault",
+                  vaultId: result.vaultId,
+                },
+              },
             );
-            // Continue with other vaults
           }
         }
 
@@ -787,15 +794,17 @@ export function useMultiVaultDepositFlow(
               error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: Payout signing failed - ${errorMsg}`;
             warnings.push(warning);
-            console.error(
-              "[Multi-Vault] Failed to sign or submit payouts for vault",
-              result.vaultId,
-              "with provider",
-              provider.url,
-              ":",
-              error,
+            logger.error(
+              error instanceof Error ? error : new Error(String(error)),
+              {
+                data: {
+                  context:
+                    "[Multi-Vault] Failed to sign or submit payouts for vault",
+                  vaultId: result.vaultId,
+                  providerUrl: provider.url,
+                },
+              },
             );
-            // Continue with other vaults
           }
         }
 
@@ -869,15 +878,16 @@ export function useMultiVaultDepositFlow(
               error instanceof Error ? error.message : String(error);
             const warning = `Vault ${result.vaultIndex}: BTC broadcast failed - ${errorMsg}`;
             warnings.push(warning);
-            console.error(
-              "[Multi-Vault] Failed to broadcast vault pegin",
+            logger.error(
+              error instanceof Error ? error : new Error(String(error)),
               {
-                vaultIndex: result.vaultIndex,
-                btcTxHash: result.btcTxHash,
+                data: {
+                  context: "[Multi-Vault] Failed to broadcast vault pegin",
+                  vaultIndex: result.vaultIndex,
+                  btcTxHash: result.btcTxHash,
+                },
               },
-              error,
             );
-            // Continue with other vaults
           }
         }
 
@@ -896,7 +906,9 @@ export function useMultiVaultDepositFlow(
         if (!signal.aborted) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           setError(errorMsg);
-          console.error("Multi-vault deposit flow error:", err);
+          logger.error(err instanceof Error ? err : new Error(String(err)), {
+            data: { context: "Multi-vault deposit flow error" },
+          });
         }
         return null;
       } finally {
