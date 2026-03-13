@@ -17,8 +17,6 @@ export interface VaultData {
     name: string;
     /** Icon URL - undefined will use Avatar component's built-in fallback */
     icon?: string;
-    /** Whether the provider is verified in the registry */
-    verified?: boolean;
   };
   /** Vault status from centralized state machine */
   status: PeginDisplayLabel;

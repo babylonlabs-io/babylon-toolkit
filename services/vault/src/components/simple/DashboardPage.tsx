@@ -52,7 +52,7 @@ export function DashboardPage() {
     hasDebt,
     collateralVaults,
     selectableBorrowedAssets,
-  } = useDashboardState(isConnected ? address : undefined);
+  } = useDashboardState(address);
 
   const { vaults: aaveVaults, redeemedVaults } = useAaveVaults(
     isConnected ? address : undefined,

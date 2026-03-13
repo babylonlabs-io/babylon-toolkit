@@ -11,5 +11,3 @@ export { NotificationContainer } from "./NotificationContainer";
 export { PriceWarningBanner } from "./PriceWarningBanner";
 export { SubmitModal } from "./SubmitModal";
 export { VaultDetailRows } from "./VaultDetailRows";
-export { VerifiedBadge } from "./VerifiedBadge";
-export { VerifiedProviderAvatar } from "./VerifiedProviderAvatar";
