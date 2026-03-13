@@ -134,5 +134,44 @@ export function isArtifactDownloadAvailable(
   );
 }
 
+const ACTION_REQUIRED_BADGE_PRIORITY: PeginAction[] = [
+  PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+  PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+  PeginAction.SUBMIT_LAMPORT_KEY,
+];
+
+const ACTION_REQUIRED_BADGE_LABELS: Record<PeginAction, string> = {
+  [PeginAction.SUBMIT_LAMPORT_KEY]: "Key required",
+  [PeginAction.SIGN_PAYOUT_TRANSACTIONS]: "Signing Required",
+  [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN]: "Broadcast required",
+  [PeginAction.NONE]: "",
+};
+
+export function getSectionActionRequiredLabel(
+  results: (DepositPollingResult | undefined)[],
+): string | null {
+  let highestPriorityAction: PeginAction | null = null;
+  for (const result of results) {
+    if (!result) continue;
+    const status = getActionStatus(result);
+    if (status.type !== "available") continue;
+    const action = status.action.action;
+    const currentRank = ACTION_REQUIRED_BADGE_PRIORITY.indexOf(action);
+    const existingRank =
+      highestPriorityAction === null
+        ? -1
+        : ACTION_REQUIRED_BADGE_PRIORITY.indexOf(highestPriorityAction);
+    if (currentRank >= 0 && (existingRank < 0 || currentRank < existingRank)) {
+      highestPriorityAction = action;
+    }
+  }
+  if (
+    highestPriorityAction === null ||
+    highestPriorityAction === PeginAction.NONE
+  )
+    return null;
+  return ACTION_REQUIRED_BADGE_LABELS[highestPriorityAction] ?? null;
+}
+
 // Re-export PeginAction for convenience
 export { PeginAction };

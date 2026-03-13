@@ -18,6 +18,7 @@ import { PeginPollingProvider } from "@/context/deposit/PeginPollingContext";
 import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import { formatBtcAmount } from "@/utils/formatting";
 
+import { PendingDepositActionBadge } from "./PendingDepositActionBadge";
 import { PendingDepositCard } from "./PendingDepositCard";
 import { PendingDepositModals } from "./PendingDepositModals";
 
@@ -73,9 +74,9 @@ export function PendingDepositSection() {
 
         {/* Summary card */}
         <Card variant="filled" className="w-full">
-          {/* Summary row: BTC icon + total amount + expand toggle */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          {/* Summary row: BTC icon + amount | action badge (when collapsed) + expand toggle */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <Avatar
                 url={btcConfig.icon}
                 alt={btcConfig.coinSymbol}
@@ -85,11 +86,17 @@ export function PendingDepositSection() {
                 {formatBtcAmount(totalBtcAmount)}
               </span>
             </div>
-            <ExpandMenuButton
-              isExpanded={isExpanded}
-              onToggle={() => setIsExpanded((prev) => !prev)}
-              aria-label="Pending deposit details"
-            />
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <PendingDepositActionBadge
+                pendingActivityIds={pendingActivities.map((a) => a.id)}
+                isExpanded={isExpanded}
+              />
+              <ExpandMenuButton
+                isExpanded={isExpanded}
+                onToggle={() => setIsExpanded((prev) => !prev)}
+                aria-label="Pending deposit details"
+              />
+            </div>
           </div>
 
           {/* Expanded deposit list */}
