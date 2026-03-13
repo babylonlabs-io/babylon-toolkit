@@ -1,4 +1,5 @@
 export {
+  JSON_RPC_ERROR_CODES,
   JsonRpcClient,
   JsonRpcError,
   type JsonRpcClientConfig,

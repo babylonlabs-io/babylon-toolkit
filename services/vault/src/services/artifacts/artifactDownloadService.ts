@@ -11,86 +11,54 @@
  */
 
 import { stripHexPrefix } from "@/utils/btc";
-import { JsonRpcError } from "@/utils/rpc";
+import { JsonRpcClient, JsonRpcError } from "@/utils/rpc";
 
 /** Timeout for the artifact request RPC call (artifacts can be large). */
 const RPC_TIMEOUT_MS = 120 * 1000;
 
+/** Error responses are typically small; artifact payloads are tens of MB. */
+const ERROR_RESPONSE_SIZE_THRESHOLD = 4096;
+
 /**
  * Fetch artifacts from the vault provider and trigger a browser file download.
  *
- * Uses a raw fetch + response.blob() pipeline so the large payload is never
- * fully parsed into a JS object. Error responses are small enough to parse
- * safely.
+ * Uses JsonRpcClient.callRaw() so the large payload is never fully parsed
+ * into a JS object while still getting retry logic and consistent error
+ * handling. Error responses are small enough to parse safely.
  */
 export async function fetchAndDownloadArtifacts(
   providerUrl: string,
   peginTxid: string,
   depositorPk: string,
 ): Promise<void> {
-  const baseUrl = providerUrl.replace(/\/$/, "");
-  const request = {
-    jsonrpc: "2.0" as const,
-    method: "vaultProvider_requestDepositorClaimerArtifacts",
-    params: [
-      {
-        pegin_txid: stripHexPrefix(peginTxid),
-        depositor_pk: stripHexPrefix(depositorPk),
-      },
-    ],
-    id: 1,
-  };
+  const client = new JsonRpcClient({
+    baseUrl: providerUrl,
+    timeout: RPC_TIMEOUT_MS,
+  });
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), RPC_TIMEOUT_MS);
+  const response = await client.callRaw(
+    "vaultProvider_requestDepositorClaimerArtifacts",
+    {
+      pegin_txid: stripHexPrefix(peginTxid),
+      depositor_pk: stripHexPrefix(depositorPk),
+    },
+  );
 
-  try {
-    const response = await fetch(baseUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-      signal: controller.signal,
-    });
+  const blob = await response.blob();
 
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
-    }
-
-    const blob = await response.blob();
-    const text = await readBlobStart(blob);
-
-    if (text.includes('"error"')) {
-      const parsed = JSON.parse(await blob.text());
-      if (parsed.error) {
-        throw new JsonRpcError(
-          parsed.error.code,
-          parsed.error.message,
-          parsed.error.data,
-        );
-      }
-    }
-
-    triggerBlobDownload(blob, peginTxid);
-  } catch (error) {
-    clearTimeout(timeoutId);
-
-    if (error instanceof Error && error.name === "AbortError") {
+  if (blob.size < ERROR_RESPONSE_SIZE_THRESHOLD) {
+    const text = await blob.text();
+    const parsed = JSON.parse(text);
+    if (parsed.error) {
       throw new JsonRpcError(
-        -32000,
-        `Request timeout after ${RPC_TIMEOUT_MS}ms`,
+        parsed.error.code,
+        parsed.error.message,
+        parsed.error.data,
       );
     }
-    throw error;
   }
-}
 
-/**
- * Read the first N bytes of a Blob as text for lightweight error detection.
- */
-function readBlobStart(blob: Blob, bytes = 200): Promise<string> {
-  return blob.slice(0, bytes).text();
+  triggerBlobDownload(blob, peginTxid);
 }
 
 /**

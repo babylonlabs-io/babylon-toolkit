@@ -119,6 +119,10 @@ export function getWarningMessages(
   return messages;
 }
 
+/**
+ * Artifact availability intentionally ignores utxoUnavailable — artifacts
+ * are stored on the provider and do not depend on UTXO state.
+ */
 export function isArtifactDownloadAvailable(
   pollingResult: DepositPollingResult,
 ): boolean {

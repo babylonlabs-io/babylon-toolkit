@@ -5,7 +5,7 @@
  */
 
 import { Container } from "@babylonlabs-io/core-ui";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AssetSelectionModal } from "@/applications/aave/components/AssetSelectionModal";
@@ -13,10 +13,8 @@ import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useSyncPendingVaults } from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import type { Asset } from "@/applications/aave/types";
-import { ArtifactDownloadModal } from "@/components/deposit/ArtifactDownloadModal";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import type { ArtifactDownloadModalParams } from "@/hooks/deposit/useArtifactDownloadModal";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePegoutPolling } from "@/hooks/usePegoutPolling";
@@ -41,9 +39,6 @@ export function DashboardPage() {
   const [assetModalMode, setAssetModalMode] = useState<LoanTab>(
     LOAN_TAB.BORROW,
   );
-  const [artifactParams, setArtifactParams] =
-    useState<ArtifactDownloadModalParams | null>(null);
-
   const {
     collateralBtc,
     collateralValueUsd,
@@ -110,23 +105,6 @@ export function DashboardPage() {
     setIsAssetModalOpen(true);
   };
 
-  const handleArtifactDownload = useCallback(
-    (vaultEntryId: string) => {
-      const vault = collateralVaults.find((v) => v.id === vaultEntryId);
-      if (!vault) return;
-
-      const provider = findProvider(vault.providerAddress);
-      if (!provider?.url || !vault.depositorBtcPubkey) return;
-
-      setArtifactParams({
-        providerUrl: provider.url,
-        peginTxid: vault.vaultId,
-        depositorPk: vault.depositorBtcPubkey,
-      });
-    },
-    [collateralVaults, findProvider],
-  );
-
   const handleSelectAsset = (assetSymbol: string) => {
     const basePath = `/app/aave/reserve/${assetSymbol.toLowerCase()}`;
     const path =
@@ -162,7 +140,6 @@ export function DashboardPage() {
           hasDebt={hasDebt}
           onWithdraw={handleWithdraw}
           onDeposit={openDeposit}
-          onArtifactDownload={handleArtifactDownload}
         />
 
         <LoansSection
@@ -198,18 +175,6 @@ export function DashboardPage() {
             : undefined
         }
       />
-
-      {/* Artifact Download Modal for collateral vaults */}
-      {artifactParams && (
-        <ArtifactDownloadModal
-          open={!!artifactParams}
-          onClose={() => setArtifactParams(null)}
-          onComplete={() => setArtifactParams(null)}
-          providerUrl={artifactParams.providerUrl}
-          peginTxid={artifactParams.peginTxid}
-          depositorPk={artifactParams.depositorPk}
-        />
-      )}
     </Container>
   );
 }

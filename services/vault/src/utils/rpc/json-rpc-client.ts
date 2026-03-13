@@ -57,6 +57,11 @@ export class JsonRpcError extends Error {
   }
 }
 
+export const JSON_RPC_ERROR_CODES = {
+  TIMEOUT: -32000,
+  NETWORK: -32001,
+} as const;
+
 /** HTTP status codes that are retryable */
 const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504];
 
@@ -172,7 +177,7 @@ export class JsonRpcClient {
             continue;
           }
           throw new JsonRpcError(
-            -32000,
+            JSON_RPC_ERROR_CODES.TIMEOUT,
             `Request timeout after ${this.timeout}ms (${this.retries + 1} attempts)`,
           );
         }
@@ -188,7 +193,7 @@ export class JsonRpcClient {
             continue;
           }
           throw new JsonRpcError(
-            -32001,
+            JSON_RPC_ERROR_CODES.NETWORK,
             `Network error: ${error.message} (${this.retries + 1} attempts)`,
           );
         }
@@ -199,6 +204,99 @@ export class JsonRpcClient {
     }
 
     // Should not reach here, but handle just in case
+    throw lastError || new Error("Unknown error after retries");
+  }
+
+  /**
+   * Make a JSON-RPC request returning the raw Response (unparsed body).
+   *
+   * Shares the same retry / timeout / backoff behaviour as `call()` but
+   * skips JSON body parsing so callers can stream the response as a Blob.
+   */
+  async callRaw<TParams>(method: string, params: TParams): Promise<Response> {
+    const requestId = ++this.requestId;
+
+    const request: JsonRpcRequest<TParams[]> = {
+      jsonrpc: "2.0",
+      method,
+      params: [params],
+      id: requestId,
+    };
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= this.retries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        const response = await fetch(this.baseUrl, {
+          method: "POST",
+          headers: this.headers,
+          body: JSON.stringify(request),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const shouldRetry =
+            attempt < this.retries &&
+            RETRYABLE_STATUS_CODES.includes(response.status);
+
+          if (shouldRetry) {
+            const delay = this.retryDelay * Math.pow(2, attempt);
+            console.warn(
+              `[JsonRpcClient] HTTP ${response.status} for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
+            );
+            await this.sleep(delay);
+            continue;
+          }
+
+          throw new Error(
+            `HTTP error: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        return response;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (error instanceof Error && error.name === "AbortError") {
+          if (attempt < this.retries) {
+            const delay = this.retryDelay * Math.pow(2, attempt);
+            console.warn(
+              `[JsonRpcClient] Timeout for ${method}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
+            );
+            await this.sleep(delay);
+            continue;
+          }
+          throw new JsonRpcError(
+            JSON_RPC_ERROR_CODES.TIMEOUT,
+            `Request timeout after ${this.timeout}ms (${this.retries + 1} attempts)`,
+          );
+        }
+
+        if (error instanceof TypeError) {
+          if (attempt < this.retries) {
+            const delay = this.retryDelay * Math.pow(2, attempt);
+            console.warn(
+              `[JsonRpcClient] Network error for ${method}: ${error.message}, retrying in ${delay}ms (attempt ${attempt + 1}/${this.retries})`,
+            );
+            await this.sleep(delay);
+            continue;
+          }
+          throw new JsonRpcError(
+            JSON_RPC_ERROR_CODES.NETWORK,
+            `Network error: ${error.message} (${this.retries + 1} attempts)`,
+          );
+        }
+
+        throw error;
+      }
+    }
+
     throw lastError || new Error("Unknown error after retries");
   }
 

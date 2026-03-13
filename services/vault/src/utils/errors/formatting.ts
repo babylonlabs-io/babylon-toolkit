@@ -3,7 +3,7 @@
  * Transform errors to user-friendly messages
  */
 
-import { JsonRpcError } from "../rpc";
+import { JSON_RPC_ERROR_CODES, JsonRpcError } from "../rpc";
 
 /**
  * Transform error to user-friendly message
@@ -40,14 +40,14 @@ export function formatPayoutSignatureError(error: unknown): {
   message: string;
 } {
   if (error instanceof JsonRpcError) {
-    if (error.code === -32000) {
+    if (error.code === JSON_RPC_ERROR_CODES.TIMEOUT) {
       return {
         title: "Request Timeout",
         message:
           "The vault provider took too long to respond. Please try again.",
       };
     }
-    if (error.code === -32001) {
+    if (error.code === JSON_RPC_ERROR_CODES.NETWORK) {
       return {
         title: "Connection Failed",
         message:
