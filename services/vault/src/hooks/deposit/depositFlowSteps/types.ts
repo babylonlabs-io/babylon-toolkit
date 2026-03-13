@@ -60,7 +60,7 @@ export interface UtxoRef {
 // ============================================================================
 
 export interface PeginPrepareParams {
-  btcWalletProvider: BitcoinWallet | null;
+  btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   amount: bigint;
   feeRate: number;
@@ -86,7 +86,7 @@ export interface PeginPrepareResult {
 }
 
 export interface PeginRegisterParams {
-  btcWalletProvider: BitcoinWallet | null;
+  btcWalletProvider: BitcoinWallet;
   walletClient: WalletClient;
   depositorBtcPubkey: string;
   fundedTxHex: string;
@@ -164,7 +164,7 @@ export interface PayoutSigningContext {
 export interface BroadcastParams {
   btcTxid: string;
   depositorBtcPubkey: string;
-  btcWalletProvider: BitcoinWallet | null;
+  btcWalletProvider: BitcoinWallet;
 }
 
 // ============================================================================

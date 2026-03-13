@@ -36,7 +36,7 @@ export async function broadcastBtcTransaction(
   const broadcastTxId = await broadcastPeginTransaction({
     unsignedTxHex: vault.unsignedBtcTx,
     btcWalletProvider: {
-      signPsbt: (psbtHex: string) => btcWalletProvider!.signPsbt(psbtHex),
+      signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
     },
     depositorBtcPubkey,
   });

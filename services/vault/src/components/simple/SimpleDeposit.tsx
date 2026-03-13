@@ -226,48 +226,50 @@ function SimpleDepositContent({ open, onClose }: SimpleDepositBaseProps) {
           />
         )}
 
-        {renderedStep === DepositStep.SIGN && getMnemonic && (
-          <div className="mx-auto w-full max-w-[520px]">
-            {isSplitDeposit && splitAllocationPlan ? (
-              <MultiVaultDepositSignContent
-                vaultAmounts={splitAllocationPlan.vaultAllocations.map(
-                  (a) => a.amount,
-                )}
-                precomputedPlan={splitAllocationPlan}
-                feeRate={feeRate}
-                btcWalletProvider={btcWalletProvider}
-                depositorEthAddress={ethAddress}
-                selectedApplication={selectedApplication}
-                selectedProviders={selectedProviders}
-                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                getMnemonic={getMnemonic}
-                mnemonicId={mnemonicId}
-                onSuccess={handleSignSuccess}
-                onClose={onClose}
-                onRefetchActivities={refetchActivities}
-              />
-            ) : (
-              <DepositSignContent
-                amount={depositAmount}
-                feeRate={feeRate}
-                btcWalletProvider={btcWalletProvider}
-                depositorEthAddress={ethAddress}
-                selectedApplication={selectedApplication}
-                selectedProviders={selectedProviders}
-                vaultProviderBtcPubkey={selectedProviderBtcPubkey}
-                vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
-                universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
-                getMnemonic={getMnemonic}
-                mnemonicId={mnemonicId}
-                onSuccess={handleSignSuccess}
-                onClose={onClose}
-                onRefetchActivities={refetchActivities}
-              />
-            )}
-          </div>
-        )}
+        {renderedStep === DepositStep.SIGN &&
+          getMnemonic &&
+          btcWalletProvider && (
+            <div className="mx-auto w-full max-w-[520px]">
+              {isSplitDeposit && splitAllocationPlan ? (
+                <MultiVaultDepositSignContent
+                  vaultAmounts={splitAllocationPlan.vaultAllocations.map(
+                    (a) => a.amount,
+                  )}
+                  precomputedPlan={splitAllocationPlan}
+                  feeRate={feeRate}
+                  btcWalletProvider={btcWalletProvider}
+                  depositorEthAddress={ethAddress}
+                  selectedApplication={selectedApplication}
+                  selectedProviders={selectedProviders}
+                  vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                  vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                  universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                  getMnemonic={getMnemonic}
+                  mnemonicId={mnemonicId}
+                  onSuccess={handleSignSuccess}
+                  onClose={onClose}
+                  onRefetchActivities={refetchActivities}
+                />
+              ) : (
+                <DepositSignContent
+                  amount={depositAmount}
+                  feeRate={feeRate}
+                  btcWalletProvider={btcWalletProvider}
+                  depositorEthAddress={ethAddress}
+                  selectedApplication={selectedApplication}
+                  selectedProviders={selectedProviders}
+                  vaultProviderBtcPubkey={selectedProviderBtcPubkey}
+                  vaultKeeperBtcPubkeys={vaultKeeperBtcPubkeys}
+                  universalChallengerBtcPubkeys={universalChallengerBtcPubkeys}
+                  getMnemonic={getMnemonic}
+                  mnemonicId={mnemonicId}
+                  onSuccess={handleSignSuccess}
+                  onClose={onClose}
+                  onRefetchActivities={refetchActivities}
+                />
+              )}
+            </div>
+          )}
 
         {renderedStep === DepositStep.SUCCESS && (
           <div className="mx-auto w-full max-w-[520px]">
