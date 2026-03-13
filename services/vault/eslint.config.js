@@ -105,7 +105,13 @@ export default tseslint.config(
   },
   eslintPluginPrettierRecommended,
   {
-    files: ["**/test/**", "**/setup.ts", "vite.config.ts"],
+    files: [
+      "**/test/**",
+      "**/__tests__/**",
+      "**/*.test.{ts,tsx}",
+      "**/setup.ts",
+      "vite.config.ts",
+    ],
     rules: {
       "no-console": "off",
     },

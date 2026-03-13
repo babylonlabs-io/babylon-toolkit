@@ -167,7 +167,7 @@ async function fetchFromProvider(
         error instanceof Error ? error : new Error("Provider unreachable");
       errors.set(depositId, errorObj);
       logger.warn(`Failed to poll deposit ${depositId}`, {
-        data: { error: error instanceof Error ? error.message : String(error) },
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }

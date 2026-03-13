@@ -201,7 +201,7 @@ export async function getBTCPriceUSD(): Promise<number> {
     const ageSeconds =
       Math.floor(Date.now() / 1000) - Number(roundData.updatedAt);
     const ageHours = (ageSeconds / 3600).toFixed(1);
-    logger.warn(
+    logger.event(
       `Chainlink BTC/USD price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
@@ -245,7 +245,7 @@ async function fetchPriceFromFeed(
 
   if (isStale) {
     const ageHours = (ageSeconds / 3600).toFixed(1);
-    logger.warn(
+    logger.event(
       `Chainlink price data is stale (${ageHours} hours old). Using last known price.`,
     );
   }
@@ -294,7 +294,7 @@ export async function getTokenPrices(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       logger.warn(`Failed to fetch price for ${symbol}`, {
-        data: { error: errorMessage },
+        error: errorMessage,
       });
 
       // Store error metadata for this token
