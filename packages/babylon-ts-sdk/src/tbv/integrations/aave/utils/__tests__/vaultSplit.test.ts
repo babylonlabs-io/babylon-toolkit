@@ -172,6 +172,15 @@ describe("vaultSplit", () => {
       }
     });
 
+    it("should throw RangeError when totalBtc exceeds Number.MAX_SAFE_INTEGER", () => {
+      expect(() =>
+        computeOptimalSplit({
+          totalBtc: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+          ...DEFAULT_PARAMS,
+        }),
+      ).toThrow(RangeError);
+    });
+
     it("should handle small amounts correctly", () => {
       const result = computeOptimalSplit({
         totalBtc: 100n, // 100 sats
@@ -296,7 +305,7 @@ describe("vaultSplit", () => {
       );
     });
 
-    it("should handle single vault (needs rebalance since no protected vault)", () => {
+    it("should return false for single vault whose total exceeds target coverage", () => {
       const result = checkRebalanceNeeded({
         vaultAmounts: [1_000_000_000n],
         ...DEFAULT_PARAMS,

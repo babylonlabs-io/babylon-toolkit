@@ -18,6 +18,16 @@
  * ```
  */
 
+const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
+
+function assertSafePrecision(value: bigint, name: string): void {
+  if (value > MAX_SAFE_BIGINT) {
+    throw new RangeError(
+      `${name} (${value}) exceeds Number.MAX_SAFE_INTEGER; precision would be lost`,
+    );
+  }
+}
+
 /**
  * Parameters for computing the optimal vault split.
  */
@@ -167,6 +177,8 @@ export function computeOptimalSplit(
     };
   }
 
+  assertSafePrecision(totalBtc, "totalBtc");
+
   const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
 
   const totalBtcNum = Number(totalBtc);
@@ -195,7 +207,9 @@ export function computeOptimalSplit(
  * would meet the minimum peg-in requirement.
  *
  * @param params - Parameters including minimum peg-in, seized fraction, and safety margin
- * @returns Minimum total deposit in satoshis, or 0n if split is not possible
+ * @returns Minimum total deposit in satoshis. Returns 0n in two cases:
+ *   - `seizedFraction * safetyMargin >= 1`: split impossible (sacrificial vault would consume entire deposit)
+ *   - `seizedFraction <= 0`: split not useful (no seizure expected at this health factor)
  *
  * @example
  * ```typescript
@@ -212,6 +226,8 @@ export function computeMinDepositForSplit(
   params: MinDepositForSplitParams,
 ): bigint {
   const { minPegin, seizedFraction, safetyMargin } = params;
+
+  assertSafePrecision(minPegin, "minPegin");
 
   const sacrificialShare = seizedFraction * safetyMargin;
 
@@ -278,6 +294,8 @@ export function checkRebalanceNeeded(
   }
 
   const totalBtc = vaultAmounts.reduce((sum, v) => sum + v, 0n);
+  assertSafePrecision(totalBtc, "totalBtc");
+
   const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
 
   const targetCoverage = BigInt(
