@@ -88,6 +88,10 @@ export {
   calculateBorrowRatio,
   calculateHealthFactor,
   calculateTotalVaultAmount,
+  checkRebalanceNeeded,
+  computeMinDepositForSplit,
+  computeOptimalSplit,
+  computeSeizedFraction,
   formatHealthFactor,
   getHealthFactorColor,
   getHealthFactorStatus,
@@ -101,6 +105,11 @@ export {
 export type {
   HealthFactorColor,
   HealthFactorStatus,
+  MinDepositForSplitParams,
+  OptimalSplitParams,
+  OptimalSplitResult,
+  RebalanceCheckParams,
+  RebalanceCheckResult,
   SelectableVault,
   VaultSelectionResult,
 } from "./utils/index.js";
