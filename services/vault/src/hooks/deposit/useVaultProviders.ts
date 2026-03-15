@@ -86,7 +86,6 @@ export function useVaultProviders(
   const vaultProvidersWithLogos = useWithLogos(
     data?.vaultProviders ?? [],
     (p) => toIdentity(p.btcPubKey),
-    (p) => p.iconUrl,
   );
 
   // Helper function to find provider by address

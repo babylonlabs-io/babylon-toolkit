@@ -1,4 +1,3 @@
-import { getVerifiedProvider } from "@babylonlabs-io/tbv-registry/vault-provider";
 import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
@@ -152,18 +151,16 @@ export async function fetchAppProviders(
   );
 
   const vaultProviders: VaultProvider[] = response.vaultProviders.items
-    .filter((provider) => provider.rpcUrl !== null)
-    .map((provider) => {
-      const registryEntry = getVerifiedProvider(provider.id);
-      return {
-        id: provider.id,
-        btcPubKey: provider.btcPubKey,
-        name: registryEntry?.name ?? provider.name ?? undefined,
-        url: registryEntry?.rpcUrl ?? provider.rpcUrl!,
-        iconUrl: registryEntry?.iconUrl,
-        verified: !!registryEntry,
-      };
-    });
+    .filter(
+      (provider): provider is typeof provider & { rpcUrl: string } =>
+        provider.rpcUrl !== null,
+    )
+    .map((provider) => ({
+      id: provider.id,
+      btcPubKey: provider.btcPubKey,
+      name: provider.name ?? undefined,
+      url: provider.rpcUrl,
+    }));
 
   const vaultKeeperItems: VaultKeeperItem[] =
     response.vaultKeeperApplications.items.map((item) => ({

@@ -40,7 +40,6 @@ describe("Collateral Utilities", () => {
           inUse: true,
           providerName: "0xprov...der1",
           providerIconUrl: undefined,
-          providerVerified: false,
         },
       ]);
     });
@@ -102,7 +101,6 @@ describe("Collateral Utilities", () => {
         inUse: false,
         providerName: "",
         providerIconUrl: undefined,
-        providerVerified: false,
       });
     });
 
@@ -114,7 +112,6 @@ describe("Collateral Utilities", () => {
         url: "https://provider.test",
         name: "Babylon Provider",
         iconUrl: "https://example.com/icon.png",
-        verified: true,
       };
       const findProvider = (address: string) =>
         address === "0xprovider1" ? mockProvider : undefined;
@@ -124,7 +121,6 @@ describe("Collateral Utilities", () => {
       expect(result[0]).toMatchObject({
         providerName: "Babylon Provider",
         providerIconUrl: "https://example.com/icon.png",
-        providerVerified: true,
       });
     });
 
